@@ -1,6 +1,6 @@
 /**
  * Unit tests for {@link FoodsAdminController} (T-184) — the admin-scope gate over a mocked
- * {@link AdminMetricsService}. The `401` (authn) layer is the {@link FoodAuthGuard} middleware (covered
+ * {@link AdminMetricsService}. The `401` (authn) layer is the `FoodAuthGuard` middleware (covered
  * by the e2e); this suite pins that every operational GET requires the `food:admin` scope (FR-039) and
  * returns the service's metrics when the scope is present.
  *

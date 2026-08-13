@@ -12,7 +12,7 @@
  * `food_portion.amount`/`footnote` are blank on many; `food_portion.fdc_id` is blank on 273 orphans).
  * Coercion + range validation happens in the parser, at the value grain.
  *
- * @see usda-bulk.parser.ts for the mapping to {@link CanonicalCandidate}.
+ * @see usda-bulk.parser.ts for the mapping to `CanonicalCandidate`.
  */
 
 /**

@@ -4,7 +4,7 @@
  * Every function here is a pure transformation from a persisted row to its `AccountExport` fragment:
  * `timestamptz` values normalized to ISO-8601 strings, nulls carried through explicitly (a portability
  * document declares every field), and photo object keys resolved to CDN URLs. The impure assembly (the
- * DB reads) lives in {@link AccountExportService}; these are the composable, exhaustively-testable core.
+ * DB reads) lives in `AccountExportService`; these are the composable, exhaustively-testable core.
  */
 import { resolveCdnUrl } from '../photos/photo-view.js';
 import type { CollectionRow, RecipeCollectionRow } from '../database/schema/collections.js';

@@ -11,7 +11,7 @@
  * the INSERT is issued unconditionally and `ON CONFLICT DO NOTHING` defers the decision to the
  * `idx_erasure_jobs_active_owner` partial unique index, which Postgres evaluates atomically. The loser
  * of the race gets zero rows back — a fact, not an error — and the service turns that into the idempotent
- * `202` (C-007). This is why {@link insertQueuedJob} returns `string | undefined` instead of throwing a
+ * `202` (C-007). This is why `insertQueuedJob` returns `string | undefined` instead of throwing a
  * unique violation for a caller to sniff at.
  */
 import { Inject, Injectable } from '@nestjs/common';

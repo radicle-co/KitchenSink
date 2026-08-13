@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/collections — native collection member row (W5 Task 9, C3).
  *
- * The React Native leaf of {@link import('./CollectionMemberRow.js').CollectionMemberRow} — same composition
+ * The React Native leaf of `CollectionMemberRow` — same composition
  * of the shared {@link RecipeCard} compound parts (title, calories, version badge past v1, visibility/draft
  * badge) plus the row-specific source-indicator and `by @handle` attribution the card does not render. Same
  * "card without onSelect + sibling Pressables" structure as the web leaf, so Remove can never also fire

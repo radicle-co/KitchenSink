@@ -3,7 +3,7 @@
  * for the operations dashboard (FR-039/US-10). Read-only GETs exposing the queue depths, lifecycle
  * backlog, tombstone-row counts, and per-source rolling-window utilization.
  *
- * Auth precedence (FR-051): the {@link FoodAuthGuard} middleware enforces `401` (authn) ahead of this
+ * Auth precedence (FR-051): the `FoodAuthGuard` middleware enforces `401` (authn) ahead of this
  * controller; each route then requires the `food:admin` scope from the verified token's `public_metadata`
  * → `403` otherwise (authenticated-but-unscoped). No internal/DB error is leaked — they propagate to
  * Nest's generic `500`.

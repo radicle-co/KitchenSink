@@ -24,7 +24,7 @@
  *    status still comes from the one table.
  *  - **The `403` scope check on `/refetch`**, deliberately BEFORE id validation so `403` precedes `400` (FR-051).
  *
- * The `401` (authn) layer is the {@link FoodAuthGuard} middleware mounted ahead of this controller; it sets
+ * The `401` (authn) layer is the `FoodAuthGuard` middleware mounted ahead of this controller; it sets
  * `req.user` from the verified Clerk `sub` only. Internal/DB errors are never leaked — they reach the filter's
  * generic `500`.
  *

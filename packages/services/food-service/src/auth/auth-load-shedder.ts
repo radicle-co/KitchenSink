@@ -1,5 +1,5 @@
 /**
- * `AuthLoadShedder` (T-054, FR-052) — the auth-layer DoS defense fronting {@link FoodAuthGuard}.
+ * `AuthLoadShedder` (T-054, FR-052) — the auth-layer DoS defense fronting `FoodAuthGuard`.
  *
  * A flood of well-formed-but-invalid bearer tokens is the cheapest way to saturate a networkless
  * verifier: each token forces a CPU-bound RSA signature check before the fail-closed `401`. Left

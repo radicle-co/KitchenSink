@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-recipes — native recipe form field GROUPS (w3). The React Native leaf of
- * {@link import('./RecipeFormSections.js')} — same extraction rationale (see that module's doc): the SAME
+ * `./RecipeFormSections.tsx` — same extraction rationale (see that module's doc): the SAME
  * field markup composes both under `RecipeForm.native.tsx`'s single scroll form (unchanged) and, one-for-one,
  * as the 4-step edit wizard's step bodies (`wizard/Wizard.native.tsx`).
  */

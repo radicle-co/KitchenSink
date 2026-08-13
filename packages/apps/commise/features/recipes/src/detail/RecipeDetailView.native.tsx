@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe-detail view (T066 building block).
  *
- * The React Native leaf of {@link import('./RecipeDetailView.js').RecipeDetailView} — same read-only
+ * The React Native leaf of `RecipeDetailView` — same read-only
  * contract and content sections, styled to the Commise design language (@commise/ui palette): a display
  * title, seafoam/coral tag pills, a stats strip, checklist ingredients, numbered seafoam step markers, and
  * a nutrition grid. Mirrors the web `RecipeDetailView`.

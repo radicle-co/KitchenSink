@@ -9,8 +9,8 @@
  *
  * This service does NOT enforce owner-identity presence: the shared verifier leaves `userId`
  * (the app-user ULID from `external_id`) **undefined** when the claim is absent and delegates the
- * fail-closed decision to per-service policy. That enforcement lives in {@link
- * import('./auth.middleware.js').AuthMiddleware} (T019), the recipe service's enforcement point.
+ * fail-closed decision to per-service policy. That enforcement lives in `AuthMiddleware` (T019), the recipe
+ * service's enforcement point.
  *
  * There is deliberately **no** `resolveOrCreateFromClaims`, no read-through user creation, and no
  * local `users` table — recipe ownership is keyed solely on the verified `userId` ULID.

@@ -3,8 +3,8 @@
 /**
  * @module home/chrome/HomeChrome — the Home app shell (web; US-000 / FR-046).
  *
- * Assembles the four renderings of the Home navigation into the mockup's layout: the desktop {@link
- * HomeSidebar}, the sticky {@link HomeTopBar}, the mobile {@link HomeTabBar}, and the hamburger-driven
+ * Assembles the four renderings of the Home navigation into the mockup's layout: the desktop
+ * {@link HomeSidebar}, the sticky {@link HomeTopBar}, the mobile {@link HomeTabBar}, and the hamburger-driven
  * {@link HomeMobileNav} drawer — with the surface content (`children`) in the `<main>` landmark between them.
  *
  * It owns only the two pieces of ephemeral chrome state — whether the desktop rail is collapsed and whether

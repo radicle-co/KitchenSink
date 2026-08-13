@@ -26,7 +26,7 @@ export type RecipeListStatus = 'loading' | 'error' | 'ready';
 export type RecipeListItem = RecipeCardModel;
 
 /**
- * Project a {@link import('@kitchensink/recipe-core').Recipe} down to the {@link RecipeListItem} the list
+ * Project a `Recipe` (`@kitchensink/recipe-core`) down to the {@link RecipeListItem} the list
  * card renders — the single shared card projection, so the list and widget can never disagree on card fields.
  */
 export const toRecipeListItem = toRecipeCardModel;
@@ -86,8 +86,8 @@ export const formatDurationMinutes = (minutes: number, template: string): string
 // and cuisine chips match by literal string equality against real recipe data (the container derives
 // `available` from what is actually present). The "Quick (<30m)" chip is different in kind: it has no
 // backing data VALUE to match against — it is a fixed bucket over `totalTimeMinutes` — so it is modelled as
-// one reserved sentinel token, {@link QUICK_TIME_FACET}, that both `available`/`active` arrays can carry
-// alongside the real facet values, with {@link matchesListFacet} and {@link filterChipLabel} giving that one
+// one reserved sentinel token, `QUICK_TIME_FACET`, that both `available`/`active` arrays can carry
+// alongside the real facet values, with `matchesListFacet` and `filterChipLabel` giving that one
 // token special-cased matching/label behavior while every other facet stays a plain passthrough.
 
 /**

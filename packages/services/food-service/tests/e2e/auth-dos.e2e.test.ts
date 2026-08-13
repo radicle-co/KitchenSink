@@ -1,6 +1,6 @@
 /**
  * Full-stack e2e for the auth-layer DoS protection (T-054, FR-052/SC-009/SC-011) against the REAL
- * booted food service with the REAL {@link FoodAuthGuard} → `@kitchensink/clerk-verify` (genuinely-signed
+ * booted food service with the REAL `FoodAuthGuard` → `@kitchensink/clerk-verify` (genuinely-signed
  * RS256 tokens). Under an invalid-token flood the guard must SHED with `503` once a source crosses the
  * per-source `401`-rate cap — so the CPU-bound signature verifier is not saturated and SC-011 (≤10ms
  * p95) holds under flood — while a DIFFERENT source's valid token is unaffected (per-source isolation).

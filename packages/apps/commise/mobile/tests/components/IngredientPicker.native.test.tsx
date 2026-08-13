@@ -210,7 +210,7 @@ describe('IngredientPicker — search field controls (U6 styling)', () => {
 });
 
 /**
- * REQ-057 gates the ingredient search at {@link MIN_INGREDIENT_QUERY_LENGTH} (2) characters, and the shared
+ * REQ-057 gates the ingredient search at `MIN_INGREDIENT_QUERY_LENGTH` (2) characters, and the shared
  * resolver model encodes that as the `idle` view state. The web leaf renders its action row ONLY inside the
  * non-idle kinds (`searching`/`results`/`terminal`), so a single character offers nothing. Mobile gated the
  * same row on `trimmed.length > 0` instead — a platform divergence that offered all three query-keyed

@@ -14,8 +14,8 @@
  * panel is opened by a sibling control (the version list's "Compare" action, W6 Task 5), not an owned
  * `Dialog.Trigger`.
  *
- * A three-way state ({@link import('./model.js').compareViewState}, discriminated, matching
- * {@link import('./model.js').VersionCompareViewProps}'s JSDoc): (1) `'selecting'` — `open` but fewer than
+ * A three-way state (`compareViewState`, discriminated, matching
+ * `VersionCompareViewProps`'s JSDoc): (1) `'selecting'` — `open` but fewer than
  * two versions (or no `diff`) supplied yet, showing "Select two versions to compare." rather than a broken
  * partial render (the two-version SELECTION UI itself lives in the composing container, Task 5); (2)
  * `'unchanged'` — both versions supplied but their snapshots are identical, showing the (all-zero) Diff

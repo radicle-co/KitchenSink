@@ -3,7 +3,7 @@
  * account-erasure token (CR-002 / U4a).
  *
  * The recipe service has never had a machine principal. This is that principal's verifier, deliberately
- * built to MIRROR the trusted Clerk posture ({@link import('./clerk-auth.service.js').ClerkAuthService}):
+ * built to MIRROR the trusted Clerk posture (`ClerkAuthService`):
  * an ASYMMETRIC signature verified against a dedicated PUBLIC key
  * (`RECIPE_SERVICE_PRINCIPAL_JWT_KEY`), in-process, with no secret on this public-ALB service and no
  * network round-trip. The signer (the identity deletion-worker Lambda, U4b) holds the private key; a

@@ -16,8 +16,8 @@ export const THROTTLE_WINDOW_MS = 60_000;
  * it does **not** deselect the other throttlers (that would need `@SkipThrottle` for each of them). Every
  * route in this service belongs to exactly one category (read / write / photo / search) — no route needs
  * layered burst+sustained limits — so the correct model is a single throttler whose limit is the generous
- * read default, with per-route `@Throttle` overrides ({@link WriteRateLimit}/{@link PhotoRateLimit}/
- * {@link SearchRateLimit}) for the tighter categories and `@SkipThrottle()` for health probes. A route
+ * read default, with per-route `@Throttle` overrides (`WriteRateLimit`/`PhotoRateLimit`/
+ * `SearchRateLimit`) for the tighter categories and `@SkipThrottle()` for health probes. A route
  * that forgets its override then fails **safe** (inherits the generous read limit) rather than silently
  * inheriting the most restrictive one.
  */

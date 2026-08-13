@@ -1,5 +1,5 @@
 /**
- * `make*` fixture factories for the {@link RecipeServiceClient} tests (CODING_STANDARDS `__fixtures__`).
+ * `make*` fixture factories for the `RecipeServiceClient` tests (CODING_STANDARDS `__fixtures__`).
  * Each accepts a `Partial<T>` of overrides and returns a fully-defined, JSON-safe value so a fixture can
  * be round-tripped through a fake fetch (`JSON.stringify` → `JSON.parse`) and still `toEqual` the input.
  * Optional domain fields are omitted (not set to `undefined`) so the serialized wire shape is exact.
@@ -74,7 +74,7 @@ export const FIXTURE_OTHER_RECIPE_UUID = '00000000-0000-4000-8000-00000000c002';
 /**
  * Build the MINIMAL create-recipe body the service actually accepts.
  *
- * "Minimal" is bounded by {@link createRecipeRequestSchema}, not by what typechecks: `ingredients` and
+ * "Minimal" is bounded by `createRecipeRequestSchema`, not by what typechecks: `ingredients` and
  * `steps` are both `.min(1)` there (a recipe with neither is not a recipe, and the service answers `400`),
  * and `servings` plus all three timings are required. Every optional field is omitted so the serialized
  * body is exactly the required set.

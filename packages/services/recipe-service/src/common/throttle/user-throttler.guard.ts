@@ -9,8 +9,8 @@
  * would throttle everyone). The tracker is the ONLY thing that makes the limit per-user; the group/limit
  * assignments (`@WriteRateLimit()` etc.) are correct and untouched.
  *
- * THE KEY. Every non-public route is auth-gated by {@link AuthMiddleware}, which runs BEFORE guards and
- * attaches the verified {@link Principal}. So on every rate-limited route `req.principal.userId` (the
+ * THE KEY. Every non-public route is auth-gated by `AuthMiddleware`, which runs BEFORE guards and
+ * attaches the verified `Principal`. So on every rate-limited route `req.principal.userId` (the
  * app-user ULID — the same owner key ownership compares against) is present, and it is the tracker. The
  * key is namespaced (`user:` / `ip:`) so a user ULID and an IP literal can never collide into one bucket.
  *
@@ -38,7 +38,7 @@ export class UserThrottlerGuard extends ThrottlerGuard {
      * class+handler+throttler-name to form the storage key, so distinct users (and distinct routes) keep
      * independent counters. Pure w.r.t. the request (reads `principal`/`ip`, mutates nothing).
      *
-     * @param req - The Express request (augmented with `principal` by {@link AuthMiddleware} on success).
+     * @param req - The Express request (augmented with `principal` by `AuthMiddleware` on success).
      * @returns The tracker string: `user:<ULID>` for an authenticated caller, else `ip:<addr>`.
      */
     protected override async getTracker(req: Record<string, unknown>): Promise<string> {

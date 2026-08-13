@@ -183,7 +183,7 @@ export function resolveAzpEnforcement(input: {
     readonly previewMode?: string;
     readonly admitAzplessToken?: (payload: Readonly<Record<string, unknown>>) => boolean;
     /**
-     * Convenience for the common case: when `true` (and no explicit {@link admitAzplessToken} is given),
+     * Convenience for the common case: when `true` (and no explicit `admitAzplessToken` is given),
      * wire the shared {@link isNativeClientToken} gate so pattern mode admits azp-less native-app tokens
      * (`client_type: 'native'`). Services set this from an env flag so the security signal lives once here,
      * not copied per service. An explicit `admitAzplessToken` still wins. Ignored in list mode.

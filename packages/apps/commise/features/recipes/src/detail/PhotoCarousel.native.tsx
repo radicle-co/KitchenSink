@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe-photo carousel + lightbox (W2 Task 2.2, D2).
  *
- * The React Native leaf of {@link import('./PhotoCarousel.js').PhotoCarousel}: a horizontal, paging
+ * The React Native leaf of `PhotoCarousel`: a horizontal, paging
  * `ScrollView` of photo slides, a dot-indicator row (only when there is more than one photo), and a
  * full-screen `Modal` lightbox opened by tapping a slide. Same read model, same accessible names, and the
  * same branch behaviour as the web leaf so the two platforms can't drift.

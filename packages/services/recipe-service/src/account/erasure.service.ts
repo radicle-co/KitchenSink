@@ -129,7 +129,7 @@ export class ErasureService {
     /**
      * Trigger erasure of a target account on behalf of a VERIFIED service principal (CR-002 / U4a — the
      * `user.deleted`/close event path). NO confirmation phrase: the signed, single-target token verified by
-     * {@link import('../auth/service-erasure.guard.js').ServiceErasureGuard} IS the authorization, and the
+     * `ServiceErasureGuard` IS the authorization, and the
      * target owner comes from the token's bound claim — never a request body/query.
      *
      * There is NO donate election on this path (KTD-2): a webhook/admin erasure defaults to removing every

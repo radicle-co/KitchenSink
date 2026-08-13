@@ -1,7 +1,7 @@
 import { SetMetadata } from '@nestjs/common';
 
 /**
- * Reflector metadata key {@link ScopesGuard} reads to discover the scopes a route/controller requires.
+ * Reflector metadata key `ScopesGuard` reads to discover the scopes a route/controller requires.
  * Not intended for direct use outside this pattern's own guard — consumers apply {@link RequireScopes}.
  */
 export const SCOPES_METADATA_KEY = 'requiredScopes';

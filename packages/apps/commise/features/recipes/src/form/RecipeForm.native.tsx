@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe create/edit form (T067 building block).
  *
- * The React Native leaf of {@link import('./RecipeForm.js').RecipeForm} — same controlled, presentational
+ * The React Native leaf of `RecipeForm` — same controlled, presentational
  * contract and the same sections (Basics with a READ-ONLY computed total, a dynamic Ingredients list with
  * per-line resolution-status badges + add/remove, a dynamic Instructions list + add/remove, and a
  * visibility toggle). Styled to the Commise design language (@commise/ui palette): card sections, labeled

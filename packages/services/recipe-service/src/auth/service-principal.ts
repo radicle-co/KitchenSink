@@ -2,7 +2,7 @@
  * The verified SERVICE principal behind an internal service-to-service request (CR-002 / U4a), and the
  * Express request augmented with it.
  *
- * Deliberately a SEPARATE type from the user {@link Principal}: a service principal has NO owner *session*
+ * Deliberately a SEPARATE type from the user `Principal`: a service principal has NO owner *session*
  * — it carries a single BOUND target ({@link ServicePrincipal.ownerId}) proven by a signed, single-event
  * token, not an authenticated user's own identity. Keeping the two apart at the type level is what stops a
  * service principal from ever being read where an owner-session principal is expected, and vice versa.
@@ -18,10 +18,10 @@ import type { ServiceErasureTokenClaims } from '@kitchensink/recipe-core';
 export type ServicePrincipal = ServiceErasureTokenClaims;
 
 /**
- * An Express request augmented by {@link import('./service-erasure.guard.js').ServiceErasureGuard} with the
+ * An Express request augmented by `ServiceErasureGuard` with the
  * verified service principal. `servicePrincipal` is present ONLY after the guard has verified the token.
  */
 export interface ServiceAuthenticatedRequest extends Request {
-    /** Present only after {@link import('./service-erasure.guard.js').ServiceErasureGuard} verified the token. */
+    /** Present only after `ServiceErasureGuard` verified the token. */
     servicePrincipal?: ServicePrincipal;
 }

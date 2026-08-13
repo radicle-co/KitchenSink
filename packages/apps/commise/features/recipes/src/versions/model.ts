@@ -43,7 +43,7 @@ import type {
 /**
  * Which honest error a failed restore surfaces (localized copy lives in the list, keyed by this discriminant —
  * the B20/B15 code pattern, so the composing container never reaches into the block's message dictionary).
- * - `conflict` — the recipe changed underneath (409 {@link VersionConflictError}); the container refetches the
+ * - `conflict` — the recipe changed underneath (409 `VersionConflictError`); the container refetches the
  *   history + current version and the copy tells the viewer to review the refreshed list and retry.
  * - `generic` — any other failed restore write.
  */
@@ -453,7 +453,7 @@ const CONFLICT_FIELD_KIND_LABEL_KEY: Readonly<Record<ConflictFieldKind, keyof Re
 
 /**
  * The localized field label (see {@link CONFLICT_FIELD_KIND_LABEL_KEY}) for one
- * {@link ./conflictDiff.js!ConflictFieldRow}'s `fieldKind` — a `ConflictFieldRow` carries no `label` of its
+ * `ConflictFieldRow`'s `fieldKind` — a `ConflictFieldRow` carries no `label` of its
  * own (`fieldKind` is an ENUM; localization is this function's job, not the row's), mirroring
  * {@link snapshotFieldLabel}'s own row→label indirection for the two-way diff. Pure.
  *
@@ -553,7 +553,7 @@ export const conflictRowLabel = (row: ConflictFieldRow, messages: RecipeConflict
 // builds on. There is deliberately no `buildRecipeMergeFields`-style "every editable field, whole-record"
 // panel-building helper here (a pre-W7 shape, removed by W7 Task 5): the merge panel now renders ONLY the
 // CHANGED fields/elements — `ConflictDiff.rows` (W7 Task 1), each row already labelled by
-// {@link conflictRowLabel} (Task 4) — so a second, whole-field label/format registry would be a second,
+// `conflictRowLabel` (Task 4) — so a second, whole-field label/format registry would be a second,
 // drifting representation of the same "what does this field look like" knowledge the diff row already
 // carries.
 
@@ -606,20 +606,20 @@ export const composeMergedRecipe = (
 //
 // The 409's enriched body (`VersionConflictError.server`/`.base`, W8-a.5) carries `RecipeSnapshot`-shaped
 // sides; `useRecipeEditor`'s draft is `RecipeFormValues`-shaped. These two projections bridge that gap
-// WITHOUT a refetch: {@link draftToSnapshot} turns the in-progress draft into the same `RecipeSnapshot`
-// shape `computeConflictDiff` (W7 Task 1) compares against, and {@link applyServerSnapshotToRecipeDetail}
+// WITHOUT a refetch: `draftToSnapshot` turns the in-progress draft into the same `RecipeSnapshot`
+// shape `computeConflictDiff` (W7 Task 1) compares against, and `applyServerSnapshotToRecipeDetail`
 // turns the server's snapshot into a displayable `RecipeDetail` by overlaying it onto the last-known
 // recipe (the query cache's `RecipeDetail`, used purely as a SHELL for fields a snapshot doesn't carry —
 // id, ownerId, visibility, photos, nutrition, etc.).
 
 /**
- * Project the in-progress draft to a {@link RecipeSnapshot} — the shape {@link ./conflictDiff.js!computeConflictDiff} (W7
+ * Project the in-progress draft to a {@link RecipeSnapshot} — the shape `computeConflictDiff` (W7
  * Task 1) 3-way-compares against the 409's `server`/`base` sides. `id`/`recipeId` on the synthesized
  * `RecipeStep`/`RecipeIngredient` rows are placeholders (never persisted, never read by
- * {@link ./conflictDiff.js!computeConflictDiff}'s content comparisons — see `diff.ts`'s module docs on why those fields are
+ * `computeConflictDiff`'s content comparisons — see `diff.ts`'s module docs on why those fields are
  * structural, not authored content); `sortOrder` is the line's array position, mirroring how the service
  * assigns it on save. An unresolved ingredient line (no `ingredientId` yet) is dropped, matching every
- * other draft→wire projection ({@link ../form/model.js!toCreateRecipeInput}) — an
+ * other draft→wire projection (`toCreateRecipeInput` (`../form/model.ts`)) — an
  * unresolved line was never going to reach the server, so it cannot appear in what the server sees either.
  * `isUserEntered` defaults to `false` (the draft carries no provenance flag). Pure.
  *
@@ -710,10 +710,10 @@ export const applyServerSnapshotToRecipeDetail = (base: RecipeDetail, side: Vers
     };
 };
 
-/** Matches a per-element STEP selection key from {@link ./conflictDiff.js!computeConflictDiff} (W7 Task 1), e.g. `steps[2]`. */
+/** Matches a per-element STEP selection key from `computeConflictDiff` (W7 Task 1), e.g. `steps[2]`. */
 const STEP_SELECTION_KEY = /^steps\[\d+\]$/;
 
-/** Matches a per-element INGREDIENT selection key from {@link ./conflictDiff.js!computeConflictDiff} (W7 Task 1), e.g.
+/** Matches a per-element INGREDIENT selection key from `computeConflictDiff` (W7 Task 1), e.g.
  *  `ingredients:ing_1`. */
 const INGREDIENT_SELECTION_KEY = /^ingredients:/;
 
@@ -794,7 +794,7 @@ const mergeIngredientsByElement = (
  * Compose the merged draft for the W7 per-element conflict resolution (FR-007c option c): top-level fields
  * resolve via {@link composeMergedRecipe} (unchanged — absent key defaults to `'mine'`), then `steps`/
  * `ingredients` are RE-COMPOSED element-wise whenever `selections` carries any per-element key
- * ({@link ./conflictDiff.js!computeConflictDiff}'s `steps[N]`/`ingredients:<id>` row keys, W7 Task 1) — the finer-grained
+ * (`computeConflictDiff`'s `steps[N]`/`ingredients:<id>` row keys, W7 Task 1) — the finer-grained
  * resolution the per-row radio offers. A collection with NO per-element selection at all keeps
  * {@link composeMergedRecipe}'s own (whole-array, default-mine) result untouched, so a caller that only
  * ever sets top-level keys sees IDENTICAL behavior to before this change. Pure.
@@ -1125,18 +1125,18 @@ export const resolveVersionPreview = ({
 // ─── Version compare (W6 Task 4 / FR-007b, FR-007c) ─────────────────────────────────────────────────
 //
 // The wireframe's "Compare Versions" right sidebar: pick two versions (selection UI lives in the composing
-// container, Task 5) and show the Diff Summary (Added/Removed/Modified rollup, {@link SnapshotDiff.summary})
+// container, Task 5) and show the Diff Summary (Added/Removed/Modified rollup, `SnapshotDiff.summary`)
 // plus a CHANGED-ONLY field-by-field A/B display — only `diff.changedFields` are rendered, each with both
 // versions' values side by side. `steps`/`ingredients` render as a compact count (never a per-line
-// explosion — see {@link buildCompareFieldRows}'s module docs on the reorder sanity note from Task 1).
+// explosion — see `buildCompareFieldRows`'s module docs on the reorder sanity note from Task 1).
 
 /**
  * Props for the two-version compare panel (W6 Task 4) — a FULLY controlled, presentational component. It
  * renders the Diff Summary + changed-only A/B display for two ALREADY-SELECTED versions; it computes no
  * diff itself (`diff` is `diffSnapshots(versionA.snapshot, versionB.snapshot)`, computed by the composing
  * container, Task 5) and fetches nothing. `versionA`/`versionB`/`diff` are OPTIONAL together — while `open`
- * is true but fewer than two versions have been chosen yet, the view shows {@link
- * RecipeVersionCompareMessages.selectTwoVersions} instead of a broken partial render.
+ * is true but fewer than two versions have been chosen yet, the view shows
+ * {@link RecipeVersionCompareMessages.selectTwoVersions} instead of a broken partial render.
  */
 export interface VersionCompareViewProps {
     /** Whether the panel (web right-side panel) / sheet (native full-screen) is open. */
@@ -1281,9 +1281,10 @@ export const buildCompareFieldRows = (
 
 /**
  * Render a `steps`/`ingredients` row's own Added/Removed/Modified tally for the `showFullDiff` opt-in detail
- * — reuses the SAME localized templates the Diff Summary rollup renders ({@link
- * RecipeVersionCompareMessages.added}/`removed`/`modified`), applied to this ONE collection's tally instead
- * of the overall summary, so "Added: N" is one piece of knowledge regardless of which tally it's reporting.
+ * — reuses the SAME localized templates the Diff Summary rollup renders
+ * ({@link RecipeVersionCompareMessages.added}/`removed`/`modified`), applied to this ONE collection's tally
+ * instead of the overall summary, so "Added: N" is one piece of knowledge regardless of which tally it is
+ * reporting.
  * Pure.
  *
  * @param tally - The collection's own Added/Removed/Modified tally.

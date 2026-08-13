@@ -3,8 +3,8 @@
  * over the booted Nest app against a REAL Postgres (`DATABASE_URL`). This is the food mirror of
  * recipe-service's U4a `service-erasure.integration.test.ts`.
  *
- * It proves the FULL wired stack — routing, the {@link FoodServiceErasureGuard}, the REAL `jose`
- * verification (against a genuinely-signed Ed25519 token; no auth mocks), and {@link UserErasureService}
+ * It proves the FULL wired stack — routing, the `FoodServiceErasureGuard`, the REAL `jose`
+ * verification (against a genuinely-signed Ed25519 token; no auth mocks), and `UserErasureService`
  * over real rows — behaves as the completion contract requires:
  *  - a valid, single-target food-audience token erases EXACTLY the bound owner's `fetch_requesters` rows
  *    and returns the removed-row count (the reconciliation residue signal); other users survive;

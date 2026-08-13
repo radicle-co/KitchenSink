@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe delete-confirmation dialog (T068 building block).
  *
- * The React Native leaf of {@link import('./RecipeDeleteDialog.js').RecipeDeleteDialog} — same controlled,
+ * The React Native leaf of `RecipeDeleteDialog` — same controlled,
  * presentational contract: renders nothing while closed; when open it is an `alert`-role surface that names
  * the recipe and offers cancel/confirm, with the confirm action disabled and marked busy while `deleting`.
  *

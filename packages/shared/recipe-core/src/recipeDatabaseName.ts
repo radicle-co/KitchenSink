@@ -4,7 +4,7 @@
  * ONE piece of knowledge — "which logical database does a recipe deploy at stage X talk to" — consumed by
  * two CDK stacks that must never disagree: `RecipeServiceStack` (the ECS API + the in-VPC migration runner)
  * and `RecipeWorkersStack` (the six async Lambdas). It lives here, in `@kitchensink/recipe-core`, for the
- * same reason {@link recipeObjectKeys} does: both service packages already depend on this one, and neither
+ * same reason `recipeObjectKeys` does: both service packages already depend on this one, and neither
  * may own shared naming alone.
  *
  * **Why it moved here (defect #119).** The derivation used to live inside `recipe-service`'s CDK stack. The

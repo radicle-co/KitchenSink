@@ -1,7 +1,7 @@
 /**
  * @module screens/signup — the mobile sign-up surface (U2 rebuild).
  *
- * The sibling of {@link import('./login.js').LoginScreen}: a custom Clerk sign-up form on the design system
+ * The sibling of `LoginScreen`: a custom Clerk sign-up form on the design system
  * (`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,
  * associated field labels, and a `SafeAreaView` + `KeyboardAvoidingView` shell. It runs `signUp.create` →
  * `signUp.password` → `setActive` on completion; anything short of `complete` surfaces the localized

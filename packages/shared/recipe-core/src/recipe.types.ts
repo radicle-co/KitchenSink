@@ -495,7 +495,7 @@ export const foodResolutionStatusSchema = z.enum([
  *
  * Nutrition is backed by the source-agnostic food service (003) via its typed
  * client (`@kitchensink/food-service-client`); foods are referenced by the food
- * service's internal id ({@link foodId}), and resolution is asynchronous. The
+ * service's internal id (`foodId`), and resolution is asynchronous. The
  * food↔ingredient link is owned by 001.
  */
 /**

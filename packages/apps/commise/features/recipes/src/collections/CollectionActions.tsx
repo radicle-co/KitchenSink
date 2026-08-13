@@ -5,7 +5,7 @@
  * ACTIONS" panel: Add Recipes (FR-009), Pull Updates from Source (shown only for a cloned collection,
  * FR-011), Clone Collection, and a two-stage, `canGoPrivate`-gated Public/Private visibility toggle with a
  * Save action (C1, FR-010). Composes the same controlled-radio-group + specification-result shape as the
- * sibling {@link import('../actions/RecipeVisibilityToggle.js').RecipeVisibilityToggle}: `canGoPrivate`
+ * sibling `RecipeVisibilityToggle`: `canGoPrivate`
  * arrives as a plain boolean (the composing container's policy-fn result) and `disabledReason` as
  * already-localized copy — the gate is that one boolean prop; this component holds no eligibility logic of
  * its own. It fetches nothing and performs no mutations; every interaction is delegated upward.

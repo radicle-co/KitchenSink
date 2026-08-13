@@ -11,7 +11,7 @@
  *
  * `RecipeCard` is rendered WITHOUT `onSelect` (a non-interactive `<article>`), and the select target and the
  * Remove control are composed as SIBLING buttons inside it — never nested — so activating Remove can never
- * also fire `onSelect` (the double-fire guard). This mirrors {@link import('../discovery/RecipeDiscoveryCard.js').RecipeDiscoveryCard},
+ * also fire `onSelect` (the double-fire guard). This mirrors `RecipeDiscoveryCard`,
  * the sibling surface that already established the "card without onSelect + custom sibling actions" pattern
  * for a card with more than one action.
  */

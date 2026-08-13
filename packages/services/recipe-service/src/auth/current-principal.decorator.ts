@@ -10,7 +10,7 @@
  *   - `@CurrentPrincipal() principal: Principal` — the whole verified principal (for the C-004
  *     premium/permissions gate, where the owner key alone is insufficient).
  *
- * The absent-principal case is a defensive `401`: the fail-closed {@link AuthMiddleware} guarantees a
+ * The absent-principal case is a defensive `401`: the fail-closed `AuthMiddleware` guarantees a
  * principal on every non-public route, so reaching a decorator with none means the route escaped auth —
  * we reject rather than fabricate an identity.
  *
@@ -25,7 +25,7 @@ import type { AuthenticatedRequest, Principal } from './principal.js';
  * Read the verified {@link Principal} off the request, or reject with `401` when absent.
  *
  * @param ctx - The Nest execution context for the current request.
- * @returns The verified principal set by {@link AuthMiddleware}.
+ * @returns The verified principal set by `AuthMiddleware`.
  * @throws {UnauthorizedException} (→ 401) when no principal is present (route escaped auth).
  */
 export function resolveCurrentPrincipal(_data: unknown, ctx: ExecutionContext): Principal {

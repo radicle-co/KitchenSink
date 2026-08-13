@@ -1,8 +1,8 @@
 /**
  * The ONE authoritative `Authorization: Bearer <token>` parser for the food service's auth layer.
  *
- * Shared by the Clerk user-token {@link import('./food-auth.guard.js').FoodAuthGuard} and the
- * service-principal {@link import('./food-service-erasure.guard.js').FoodServiceErasureGuard} so both
+ * Shared by the Clerk user-token `FoodAuthGuard` (`./food-auth.guard.ts`) and the
+ * service-principal `FoodServiceErasureGuard` (`./food-service-erasure.guard.ts`) so both
  * verification surfaces extract the credential identically — a security-relevant parse kept in one place.
  */
 
@@ -15,7 +15,7 @@
  * REJECTS, the engine has to retry every way of splitting the whitespace run between the two, which is
  * quadratic in the header's length (CodeQL `js/polynomial-redos`). Measured on the old pattern: 2.8ms at
  * 4KB of whitespace, 43ms at 16KB, 270ms at 40KB — and all of it blocks the event loop BEFORE the FR-052
- * {@link import('./auth-load-shedder.js').AuthLoadShedder} gets a chance to shed anything, since parsing
+ * `AuthLoadShedder` gets a chance to shed anything, since parsing
  * the header is what produces the token the shedder is keyed on. Requiring the credential to START with a
  * non-space removes the overlap: exactly one split can satisfy the pattern, so the parse is linear.
  *

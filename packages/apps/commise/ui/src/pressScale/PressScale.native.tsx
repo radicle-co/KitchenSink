@@ -2,7 +2,7 @@
  * @module @commise/ui/press-scale — the native design-system {@link PressScale} press-feedback primitive.
  *
  * Owns the interaction: it renders the `Pressable` and drives a `transform: [{ scale }]` from that
- * `Pressable`'s `pressed` state, so a held control shrinks to {@link PRESS_SCALE} and springs back on
+ * `Pressable`'s `pressed` state, so a held control shrinks to `PRESS_SCALE` and springs back on
  * release. The scale is suppressed when the control is disabled and — crucially — when the OS "reduce
  * motion" setting is on (non-essential motion is gated), mirroring the web leaf's `motion-safe:` gate. The
  * branch itself lives in the pure {@link pressedScale} so it is provable without a renderer, and the

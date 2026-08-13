@@ -93,14 +93,14 @@ export interface CollectionListViewProps {
     /**
      * Optional server-paged load-more control (W5/C7) — grouped into ONE optional prop rather than three flat
      * `hasMore`/`isFetchingNextPage`/`onLoadMore` fields, so the whole feature expresses "load more" as a
-     * single thing (the established {@link import('../discovery/model.js').RecipeDiscoveryLoadMoreControl}
+     * single thing (the established `RecipeDiscoveryLoadMoreControl`
      * shape). Absent → no pagination control (a caller wired to the flat `useCollections` rather than
      * `useCollectionsInfinite`); the composing container (Task 12) wires it off `useCollectionsInfinite`.
      */
     readonly loadMore?: CollectionListLoadMore;
     /**
      * Optional pull-to-refresh (U4/L8) — mobile only; the web leaf ignores it (no web pull gesture). Reuses
-     * the {@link import('../list/model.js').RecipeListRefreshControl} shape (one pull-to-refresh contract
+     * the `RecipeListRefreshControl` shape (one pull-to-refresh contract
      * across every list). The composing container wires it to the query's `isRefetching` + `refetch`.
      */
     readonly refresh?: RecipeListRefreshControl;
@@ -108,7 +108,7 @@ export interface CollectionListViewProps {
 
 /**
  * The server-paged load-more control for the collection list (W5/C7) — structurally the same shape as
- * {@link import('../discovery/model.js').RecipeDiscoveryLoadMoreControl} (one shared shape for the same
+ * `RecipeDiscoveryLoadMoreControl` (one shared shape for the same
  * concern across discovery + collections): whether another page exists, whether the next page is in flight,
  * and the fetch-next callback. The view renders a `[Load more]` button only while {@link hasMore}; it
  * vanishes at the last page (no infinite scroll).
@@ -163,7 +163,7 @@ export interface CollectionDetailViewProps {
 }
 
 /**
- * Props for a single collection member row (W5 Task 9, C3) — composes the shared {@link RecipeCardModel}
+ * Props for a single collection member row (W5 Task 9, C3) — composes the shared `RecipeCardModel`
  * (via `RecipeCard`/`toRecipeCardModel`: title, calories, the version badge past v1, the visibility/draft
  * badge) with the two row-specific things the card does NOT already render: a read-only source-indicator
  * (owner-added/protected vs from-source/will-sync, derived from `member.addedVia`) and the `by @handle`
@@ -270,7 +270,7 @@ export interface CollectionHeaderViewProps {
  * The premium gate is carried as the plain boolean `canGoPrivate` (+ an already-localized `disabledReason`),
  * NOT a `Viewer` — the composing container computes `canGoPrivate(viewer)` from `@kitchensink/recipe-core`'s
  * policy module and passes the result down, so this component stays pure `props → JSX` with no tier/policy
- * logic of its own (mirrors {@link import('../actions/model.js').RecipeVisibilityToggleProps}, the sibling
+ * logic of its own (mirrors `RecipeVisibilityToggleProps`, the sibling
  * recipe-visibility gate this block was modeled on).
  *
  * The toggle is two-stage, unlike the recipe toggle it mirrors: `pendingVisibility` is the control's current
@@ -374,7 +374,7 @@ export interface PullUpdatesDialogProps {
 
 /**
  * Format an ISO 8601 timestamp as a date-only string for the collection header's "Last pulled" line, in
- * the active locale. Distinct from {@link import('../versions/model.js').formatVersionTimestamp}: the
+ * the active locale. Distinct from `formatVersionTimestamp`: the
  * wireframe shows a DATE only (no time) for this field. Formatted in UTC so the output is deterministic
  * regardless of the runtime's timezone (`lastPulledAt` is an absolute instant, not a local wall-clock
  * time). Pure.

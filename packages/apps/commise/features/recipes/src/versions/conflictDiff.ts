@@ -3,7 +3,7 @@
  * (W7 Task 1).
  *
  * {@link computeConflictDiff} is the foundation the W7 conflict-resolution UI consumes: it classifies every
- * one of the 7 diffable `RecipeSnapshot` fields (the same scope `diff.ts`'s two-way {@link diffSnapshots}
+ * one of the 7 diffable `RecipeSnapshot` fields (the same scope `diff.ts`'s two-way `diffSnapshots`
  * covers — `version` is excluded there and here for the same reason: it is the snapshot's own sequence
  * number, not authored content) as `unchanged` / `changed` / `conflict` by comparing MINE and THEIRS
  * against the common BASE they both started editing from, and reports ONLY the changed-or-conflicting rows

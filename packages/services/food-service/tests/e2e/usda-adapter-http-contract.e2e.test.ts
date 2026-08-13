@@ -1,8 +1,8 @@
 /**
  * Real USDA→canonical HTTP-contract e2e (T-121 / MOD-008, FR-023/FR-024/FR-ADP-2). Unlike
  * `food-service-client.e2e.test.ts` (which `vi.mock`s the whole `UsdaSourceAdapter` with a
- * programmable stub), this suite exercises the REAL {@link UsdaApiClient} + REAL
- * {@link UsdaSourceAdapter} against CAPTURED real USDA wire payloads, intercepted at the HTTP
+ * programmable stub), this suite exercises the REAL `UsdaApiClient` + REAL
+ * `UsdaSourceAdapter` against CAPTURED real USDA wire payloads, intercepted at the HTTP
  * transport with undici's {@link MockAgent}. Node's global `fetch` routes through the global
  * dispatcher, so the genuine client's request hits the mock — the actual status→typed-error mapping,
  * nested-nutrient flattening, per-serving label reconciliation, `fdcId → externalKey` mapping, batch

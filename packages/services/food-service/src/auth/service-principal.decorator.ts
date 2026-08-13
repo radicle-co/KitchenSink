@@ -2,10 +2,10 @@
  * The `@ServiceErasurePrincipal()` route-parameter decorator for the food internal-erasure route
  * (CR-002 / U4b / R11) — the food mirror of recipe-service's U4a decorator.
  *
- * Reads the verified {@link ServicePrincipal} off the request (set by {@link
- * import('./food-service-erasure.guard.js').FoodServiceErasureGuard}), or fails closed with `401` when
- * absent. An absent principal means the route was reached without the guard verifying a token — a
- * fail-closed rejection, never a fabricated principal. The resolver is exported for direct unit testing.
+ * Reads the verified {@link ServicePrincipal} off the request (set by `FoodServiceErasureGuard`), or fails
+ * closed with `401` when absent. An absent principal means the route was reached without the guard verifying
+ * a token — a fail-closed rejection, never a fabricated principal. The resolver is exported for direct unit
+ * testing.
  */
 import { createParamDecorator, UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 

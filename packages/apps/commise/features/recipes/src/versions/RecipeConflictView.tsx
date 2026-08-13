@@ -16,7 +16,7 @@
  * text/role, never colour alone) and Server-then-Yours values (X7), plus a legend.
  *
  * Merge mode (Option C, W7 Task 5) renders ONLY `diff.rows` — the CHANGED fields/elements, one radiogroup
- * per row, Server FIRST then Yours (X7), reusing {@link import('./model.js').conflictRowLabel} so a merge
+ * per row, Server FIRST then Yours (X7), reusing `conflictRowLabel` so a merge
  * row can never disagree with the diff panel above on how it names itself. Selecting is the user's EXPLICIT
  * choice: no radio is pre-checked, so the running "Summary of choices" starts at zero and the Save/Resolve
  * action is GATED (X5) on at least one selection existing. A base that was evicted from version history, or

@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6).
  *
- * The React Native leaf of {@link import('./ConfirmDialog.js').ConfirmDialog} — an RN `Modal` (transparent,
+ * The React Native leaf of `ConfirmDialog` — an RN `Modal` (transparent,
  * fade) hosting the same card layout/visual language as `@commise/features-recipes`'s
  * `RecipeDeleteDialog.native` (accessible `alert` role naming the dialog, cancel + confirm `Pressable`s).
  * `onRequestClose` (the Android hardware back-button / platform dismiss path) maps to `onCancel`, so there

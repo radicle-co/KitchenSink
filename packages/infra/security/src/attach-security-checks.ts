@@ -14,7 +14,7 @@ import { AdvisoryAwsSolutionsChecks } from './advisory-aws-solutions-checks.js';
  *
  * **Advisory, by design.** Findings are reported as CDK warnings; the build is NOT failed. There is a
  * live-stack backlog to burn down, and blocking deploys on it would be an outage risk, not a security
- * win. See {@link AdvisoryAnnotationLogger} for the mechanism.
+ * win. See `AdvisoryAnnotationLogger` for the mechanism.
  *
  * **It does not change synthesized output.** cdk-nag's rules are read-only predicates and its findings are
  * construct *annotations*, which land in the cloud-assembly manifest, not in the CloudFormation template.

@@ -74,7 +74,7 @@ describe('RecipeCloneAction (native)', () => {
 });
 
 /**
- * Clone IS the design-system {@link Button} on native too — it does not paint its own surface.
+ * Clone IS the design-system `Button` on native too — it does not paint its own surface.
  *
  * The leaf used to hand-roll a solid-coral pill and justify it with "the mockup paints the clone action CORAL,
  * and the DS variant set has no coral tier". That premise is false: NO mockup contains a clone action at all

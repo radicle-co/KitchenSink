@@ -33,7 +33,7 @@ import type { CanonicalCandidate, CanonicalNutrient, CanonicalPortion } from '..
 import { canonicalizeNutrientName, canonicalizeUnit } from '../usda.adapter.js';
 import type { BulkFoodBundle, BulkLookups } from './usda-bulk.types.js';
 
-/** The canonical source identifier for USDA data (matches {@link UsdaSourceAdapter}). */
+/** The canonical source identifier for USDA data (matches `UsdaSourceAdapter`). */
 const SOURCE = 'usda' as const;
 
 /**

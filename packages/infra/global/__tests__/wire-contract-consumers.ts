@@ -544,7 +544,7 @@ export function auditConsumerPackage(pkg: ConsumerPackage, publishedNames: Reado
             // validator of its own, because every identity read it makes goes through `ProfileServiceClient`,
             // which parses. Firing here would push an app toward re-validating what its client already
             // validated — a second parse of one contract, which is the duplication §15 forbids wearing a
-            // different hat. For an app, the operative check is {@link RULE_UNVALIDATED_RESPONSE_BODY}: it fires
+            // different hat. For an app, the operative check is `RULE_UNVALIDATED_RESPONSE_BODY`: it fires
             // precisely when the app reads a body ITSELF and asserts its shape.
             //
             // The residual gap, stated rather than hidden: an app that hand-rolls a transport, imports types

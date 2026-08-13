@@ -36,7 +36,7 @@ export interface Principal {
     readonly permissions: string[];
 }
 
-/** An Express request augmented by {@link import('./auth.middleware.js').AuthMiddleware} with the verified principal. */
+/** An Express request augmented by `AuthMiddleware` with the verified principal. */
 export interface AuthenticatedRequest extends Request {
     /** Present only after the middleware has verified the token (or applied the dev bypass). */
     principal?: Principal;

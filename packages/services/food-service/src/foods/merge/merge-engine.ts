@@ -277,7 +277,7 @@ export function blendCandidates<S extends string = FoodSourceId>(
  * the items whose upstream `item_version` changed; this function therefore **always** yields a
  * `RESOLVED`-shaped draft — it never re-runs name disambiguation and so can never demote a food to
  * `UNRESOLVED`. Pure (no I/O); persistence + per-value provenance are the caller's job
- * ({@link MergeAndPersistService.mergeChangedSources}).
+ * (`MergeAndPersistService.mergeChangedSources`).
  *
  * @param changed - The re-fetched candidates whose backing item changed upstream.
  * @param priorityOf - Source-priority resolver (higher number = higher priority).

@@ -1,6 +1,6 @@
 /**
- * Domain errors for the `/api/v1/foods/*` API. Transport-agnostic: {@link FoodsService} throws these and
- * {@link FoodsController} maps each to an HTTP status (FR-051 precedence). Every error extends `Error`,
+ * Domain errors for the `/api/v1/foods/*` API. Transport-agnostic: `FoodsService` throws these and
+ * `FoodsController` maps each to an HTTP status (FR-051 precedence). Every error extends `Error`,
  * calls `Object.setPrototypeOf`, and ships an `is*` guard (CODING_STANDARDS). No DB/source detail is
  * carried into a message that reaches a caller.
  */

@@ -90,8 +90,8 @@ export const ERASURE_GIVE_UP_ATTEMPTS = 10;
  * `ownerId` (by design — {@link toErasureMessage}), so `claimErasureJob` increments the counter on whatever
  * row is active for the owner. After a job fails and the user re-POSTs, a FRESH row is created; the old
  * cycle's still-in-flight messages then redeliver and claim the fresh row, inflating ITS `attempts` for work
- * that has nothing to do with it. On `attempts` alone, that fresh job could cross {@link
- * ERASURE_GIVE_UP_ATTEMPTS} after only a few of its OWN real attempts and be abandoned prematurely.
+ * that has nothing to do with it. On `attempts` alone, that fresh job could cross
+ * {@link ERASURE_GIVE_UP_ATTEMPTS} after only a few of its OWN real attempts and be abandoned prematurely.
  *
  * The fix is a floor on the job's OWN age (`created_at`), which no cross-generation message can move: a job
  * is abandoned only after both signals agree. 1 hour matches the wall-clock the attempts arithmetic was

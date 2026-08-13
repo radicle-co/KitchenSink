@@ -148,7 +148,7 @@ async function loadConfigAsync<Schema extends z.ZodTypeAny>(
  *   from AWS SSM Parameter Store at `/{prefix}/{environment}/{KEY}` before re-validation.
  *
  * Accepts any `ZodType` (not just `ZodObject`) so composite schemas built with `.and()` — such as
- * {@link import('./config.types.js').apiConfigSchema}, whose either/or DB-connection union makes it a
+ * `apiConfigSchema`, whose either/or DB-connection union makes it a
  * `ZodIntersection` — are supported.
  *
  * @sideEffect Reads `process.env` when no explicit source is provided; the options form may perform a

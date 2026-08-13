@@ -1,5 +1,5 @@
 /**
- * Unit suite for the USDA **bulk-download** → {@link CanonicalCandidate} mapping (Stage 1 seed importer,
+ * Unit suite for the USDA **bulk-download** → `CanonicalCandidate` mapping (Stage 1 seed importer,
  * plan §2 Stage 1 / F-W2). The bulk CSV schema is NOT the API's `UsdaFoodDetail`, so this mapping is a
  * separate boundary from `UsdaSourceAdapter.mapToCanonical` — these tests pin its contract:
  *

@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native public-discovery view (T076 building block, US2).
  *
- * The React Native leaf of {@link import('./RecipeDiscoveryList.js').RecipeDiscoveryList} — same controlled,
+ * The React Native leaf of `RecipeDiscoveryList` — same controlled,
  * presentational contract and the same four states (loading, error, empty, populated), rendered with RN
  * primitives. Every recipe shown is public; each row offers a Clone action.
  *

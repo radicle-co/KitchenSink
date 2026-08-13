@@ -107,8 +107,8 @@ export async function countBacklog(db: NodePgDatabase<Record<string, never>>): P
  * The age, in seconds, of the OLDEST un-archived outbox row — 0 when the outbox is empty.
  *
  * FR-007b-i requires an alarm "when the oldest pending row is older than 1 hour", so this is the metric
- * behind that alarm. It is deliberately shaped like the erasure sweeper's {@link
- * oldestActiveJobAgeSeconds}, and the separation from {@link claimPendingArchives} is load-bearing twice:
+ * behind that alarm. It is deliberately shaped like the erasure sweeper's
+ * `oldestActiveJobAgeSeconds`, and the separation from {@link claimPendingArchives} is load-bearing twice:
  *
  *  1. That read is capped at {@link SWEEP_BATCH_SIZE} AND filtered to `next_attempt_at <= now()`. Deriving
  *     the age from it would both cap the signal and hide the 59-minute row that is still backing off — the

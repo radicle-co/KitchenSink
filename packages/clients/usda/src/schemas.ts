@@ -5,7 +5,7 @@
  * so malformed/`undefined` data can never flow downstream into `@kitchensink/food-service`.
  *
  * These schemas model the **raw upstream wire shape** — the body as USDA sends it — NOT the
- * normalized {@link import('./types.js').UsdaFoodDetail} the client returns. The public type
+ * normalized `UsdaFoodDetail` the client returns. The public type
  * carries a synthesized `raw` field and flattened nutrients produced by `UsdaApiClient.toFoodDetail`,
  * neither of which exists on the wire, so the validator and the public interface deliberately differ.
  * The client validates with these schemas first, then normalizes the validated body.

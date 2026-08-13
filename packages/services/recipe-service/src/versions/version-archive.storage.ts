@@ -1,6 +1,6 @@
 /**
  * The version-archive READ port (W8-a.7) — reads an immutable version snapshot back from the S3 archive
- * bucket for versions evicted past the last-{@link VERSION_RETENTION_LIMIT} DB retention window, so
+ * bucket for versions evicted past the last-`VERSION_RETENTION_LIMIT` DB retention window, so
  * `GET …/versions/{n}` (and compare/restore) work for ALL versions, not just the DB window. The user never
  * sees S3: the endpoint returns the archived object in the SAME `RecipeVersion` shape a DB row would.
  *

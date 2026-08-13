@@ -15,7 +15,7 @@ import type { RecipeDetail } from '@kitchensink/recipe-core';
  * (never string concatenation, so grouping/decimal separators stay locale-correct) — e.g.
  * `formatQuantity(1000, 'en-US') === '1,000'`, `formatQuantity(1.5, 'en-US', 'lbs') === '1.5 lbs'`,
  * `formatQuantity(3, 'en-US') === '3'`. An empty-string unit is treated as absent. Mirrors
- * `card/model.ts`'s {@link formatCalories}. Pure.
+ * `card/model.ts`'s `formatCalories`. Pure.
  *
  * @param quantity - The ingredient quantity.
  * @param locale - The active BCP-47 locale.

@@ -24,7 +24,7 @@ export const MAX_RECENT_RECIPES = 4;
 export type RecipeSummary = RecipeCardModel;
 
 /**
- * Project a {@link import('@kitchensink/recipe-core').Recipe} down to the {@link RecipeSummary} the widget
+ * Project a `Recipe` (`@kitchensink/recipe-core`) down to the {@link RecipeSummary} the widget
  * card renders — the single shared card projection, so the widget and list can never disagree on card fields.
  */
 export const toRecipeSummary = toRecipeCardModel;

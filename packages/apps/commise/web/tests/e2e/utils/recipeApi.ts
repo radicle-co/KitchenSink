@@ -678,8 +678,8 @@ export async function pollForExternalId(
 }
 
 /**
- * Seed for a one-shot ENRICHED `409 VERSION_CONFLICT` (W7 Task 7) — unlike {@link
- * MockRecipeApiOptions.concurrentEdits}'s bare `{ currentVersion, conflictingVersion }` body, this produces
+ * Seed for a one-shot ENRICHED `409 VERSION_CONFLICT` (W7 Task 7) — unlike
+ * {@link MockRecipeApiOptions.concurrentEdits}'s bare `{ currentVersion, conflictingVersion }` body, this produces
  * the full W8-a.5 wire shape (`details.server`/`details.base`, each a `VersionConflictSide`) the rebuilt
  * conflict resolver's banner + changed-only diff + A/B/C cards + per-element merge actually read, with
  * `server`'s content DIFFERING from `base`'s (via {@link serverChanges}) so a spec observes real changed-only

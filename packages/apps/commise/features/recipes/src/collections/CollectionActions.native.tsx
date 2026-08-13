@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native collection-actions sidebar (W5 Task 7 building block).
  *
- * The React Native leaf of {@link import('./CollectionActions.js').CollectionActions} — same presentational
+ * The React Native leaf of `CollectionActions` — same presentational
  * contract: Add Recipes, a clone-only Pull Updates action (FR-011), Clone Collection, and a two-stage,
  * `canGoPrivate`-gated (C1, FR-010) Public/Private visibility toggle with a Save action, rendered with RN
  * primitives. `canGoPrivate`/`disabledReason` arrive as plain, already-resolved values from the composing

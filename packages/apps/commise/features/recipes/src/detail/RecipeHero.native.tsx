@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe-detail HERO cover (the RN leaf of RecipeHero).
  *
- * Same contract and same two designed states as {@link import('./RecipeHero.js').RecipeHero}: the mockup
+ * Same contract and same two designed states as `RecipeHero`: the mockup
  * (`screen-recipe-detail`) opens the recipe with the cover photo under a bottom-up scrim, and a recipe with no
  * cover gets a DELIBERATE branded placeholder rather than nothing. Both legs derive from the shared tokens —
  * the scrim from `gradient.scrim`, the placeholder surface from `gradient.hero`, the geometry from

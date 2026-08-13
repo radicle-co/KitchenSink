@@ -31,8 +31,9 @@
  * signal for that process's life — re-probing would reintroduce the per-request network call this design
  * avoids, and the cost is bounded because the process is replaced on the next deploy.
  *
- * ⚠️ SECOND COPY, DEFERRED DELIBERATELY — do not "fix" it by extracting one here. `contractSkew.ts` in the
- * food client is the equivalent, and each of the three services carries a copy of the sibling BOOT predicate.
+ * ⚠️ ONE OF THREE CONSUMER COPIES, DEFERRED DELIBERATELY — do not "fix" it by extracting one here.
+ * `contractSkew.ts` in the food client and in `@commise/features-account` (identity's consumer half) are the
+ * equivalents, and each of the three services carries a copy of the sibling BOOT predicate.
  * One zero-dependency leaf package is the right home, but this module is bundled into the web app
  * (`next.config.ts` `transpilePackages` is an explicit allowlist) and into the released MOBILE binary, so
  * introducing a workspace package on this path is a bundler-resolution change that cannot be verified without
@@ -65,7 +66,7 @@ export type ContractSkewVerdict = 'match' | 'indeterminate' | 'skew';
 
 /** What {@link checkContractSkew} and {@link reportContractSkewOnce} need to do their work. */
 export interface ContractSkewProbeOptions {
-    /** The food service origin, with no trailing slash (the client normalizes it before passing it). */
+    /** The recipe service origin, with no trailing slash (the client normalizes it before passing it). */
     readonly baseUrl: string;
     /** The `fetch` the client is configured with — so an injected test double is honoured here too. */
     readonly fetch: typeof fetch;

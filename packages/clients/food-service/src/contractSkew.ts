@@ -26,8 +26,9 @@
  * re-probing would reintroduce the per-request network call this design exists to avoid, and the cost is
  * bounded because the process is replaced on the next deploy.
  *
- * ⚠️ SECOND COPY, DEFERRED DELIBERATELY — do not "fix" it by extracting one here. `contractSkew.ts` in the
- * recipe client is the equivalent, and each of the three services carries a copy of the sibling BOOT
+ * ⚠️ ONE OF THREE CONSUMER COPIES, DEFERRED DELIBERATELY — do not "fix" it by extracting one here.
+ * `contractSkew.ts` in the recipe client and in `@commise/features-account` (identity's consumer half) are the
+ * equivalents, and each of the three services carries a copy of the sibling BOOT
  * predicate. One zero-dependency leaf package is the right home, but this module is bundled into the web app
  * (`next.config.ts` `transpilePackages` is an explicit allowlist) and into the released MOBILE binary via the
  * recipe client, so introducing a workspace package on this path is a bundler-resolution change that cannot

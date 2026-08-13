@@ -264,7 +264,7 @@ export const clerkConfigMeta: Record<keyof ClerkConfig, ConfigFieldMeta> = {
  * this public-ALB service, no network round-trip).
  *
  * `RECIPE_SERVICE_PRINCIPAL_JWT_KEY` is OPTIONAL: a stage that has not yet provisioned the key (or local
- * dev) simply has no service-principal path — {@link import('../auth/service-erasure-auth.service.js').ServiceErasureAuthService}
+ * dev) simply has no service-principal path — `ServiceErasureAuthService`
  * fails CLOSED (rejects every service token) rather than failing to boot. This lets U4b provision the key
  * without a lockstep deploy. Non-secret: it is a PUBLIC verification key, not a signing secret.
  */

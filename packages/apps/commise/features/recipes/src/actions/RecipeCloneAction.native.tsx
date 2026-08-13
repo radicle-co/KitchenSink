@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe clone action (T075 building block).
  *
- * The React Native leaf of {@link import('./RecipeCloneAction.js').RecipeCloneAction} — same controlled
+ * The React Native leaf of `RecipeCloneAction` — same controlled
  * contract: a clone button disabled when cloning is not allowed (`!canClone`) or in flight (`cloning`) and
  * marked busy while cloning, plus a source-attribution line rendered only when `sourceAttribution` is set.
  *

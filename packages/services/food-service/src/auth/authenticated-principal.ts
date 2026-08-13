@@ -1,5 +1,5 @@
 /**
- * The authenticated principal the {@link FoodAuthGuard} attaches to every `/api/v1/foods/*` request, and
+ * The authenticated principal the `FoodAuthGuard` attaches to every `/api/v1/foods/*` request, and
  * the request type augmented with it. Identity comes ONLY from the verified Clerk token (FR-038) —
  * no client-suppliable header is ever trusted.
  */
@@ -59,7 +59,7 @@ export type RequesterKeyResolution =
  *   `IDENTITY_SYNC_PENDING`: the caller MUST defer (never fall back to the raw `sub`, which would
  *   re-introduce the exact keying this unit removes and would fail provenance downstream anyway).
  *
- * @param principal - The verified principal from {@link FoodAuthGuard}.
+ * @param principal - The verified principal from `FoodAuthGuard`.
  * @returns A resolved requester id, or the sync-pending defer signal.
  */
 export function resolveRequesterId(principal: AuthenticatedPrincipal): RequesterKeyResolution {
@@ -74,7 +74,7 @@ export function resolveRequesterId(principal: AuthenticatedPrincipal): Requester
     return { status: IDENTITY_SYNC_PENDING_CODE };
 }
 
-/** An Express request augmented by {@link FoodAuthGuard} with the verified principal. */
+/** An Express request augmented by `FoodAuthGuard` with the verified principal. */
 export interface AuthenticatedRequest extends Request {
     /** Present only after the guard has verified the token. */
     user?: AuthenticatedPrincipal;

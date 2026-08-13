@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/motion — the pure enter-motion decision shared by the native
- * {@link import('./EnterTransition.native.js').EnterTransition} leaf.
+ * `EnterTransition` (`./EnterTransition.native.tsx`) leaf.
  *
  * The native leaf must decide, on every render, whether to animate a section in, snap it in with no motion
  * at all, or wait — because React Native can only read the OS reduce-motion preference ASYNCHRONOUSLY.

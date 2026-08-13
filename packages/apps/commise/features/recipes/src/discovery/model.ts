@@ -113,7 +113,7 @@ export interface RecipeDiscoverySortControl {
 export type RecipeDiscoveryStatus = 'loading' | 'error' | 'ready';
 
 /**
- * Props for a single public-recipe search result card (S1). It composes the shared {@link RecipeCard}
+ * Props for a single public-recipe search result card (S1). It composes the shared `RecipeCard`
  * compound parts (P7's search surface) from a {@link RecipeCardModel} — photo, title, cuisine/time/calorie
  * meta, visibility badge, rating, tags — rather than widening a flat discovery prop bag. `authorHandle`
  * (`by @handle`, W8-a.2) and `sourceAttribution` (imported provenance) are the two search-specific extras.
@@ -157,7 +157,7 @@ export interface RecipeDiscoveryListProps {
     readonly hasActiveFilters?: boolean;
     /**
      * The My/Community source switcher (L5) — the SAME control, and the same
-     * {@link import('../list/RecipeSourceTabs.js').RecipeSourceTabs} strip, the personal library renders.
+     * `RecipeSourceTabs` strip, the personal library renders.
      *
      * This surface IS the community source, so it passes `active: 'community'`. It is not decoration: without
      * it the community surface was a ONE-WAY TRIP — reachable from the library's "Community" tab, with nothing
@@ -167,7 +167,7 @@ export interface RecipeDiscoveryListProps {
     readonly tab?: RecipeListTabControl;
     /**
      * Optional composition seam rendered between the search field and the results body — where the composing
-     * app mounts the {@link import('../filters/index.js').RecipeFilterBar} so the filters sit under the search
+     * app mounts the `RecipeFilterBar` so the filters sit under the search
      * box, above the results. The view stays presentational and unaware of filter semantics.
      */
     readonly filterSlot?: ReactNode;
@@ -195,7 +195,7 @@ export interface RecipeDiscoveryListProps {
     /**
      * Optional pull-to-refresh (U4/L8) — mobile only; the web leaf ignores it (no web pull gesture). Bound to
      * the result list (not the browse rails). Reuses the
-     * {@link import('../list/model.js').RecipeListRefreshControl} shape — one pull-to-refresh contract across
+     * `RecipeListRefreshControl` shape — one pull-to-refresh contract across
      * every list. The container wires it to the search query's `isRefetching` + `refetch`.
      */
     readonly refresh?: RecipeListRefreshControl;

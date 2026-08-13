@@ -1,7 +1,7 @@
 /**
  * @module home/RoadmapWidgetSlot — the host slot for a roadmap skeleton placeholder (mobile).
  *
- * The Home composition root renders one slot per curated widget id. Where {@link RecipeWidgetSlot} is the
+ * The Home composition root renders one slot per curated widget id. Where `RecipeWidgetSlot` is the
  * bespoke slot for the live recipe widget, THIS is the generic slot for a placeholder descriptor: it
  * code-splits the native skeleton through the descriptor's own loader seam (`descriptor.load`, bound to a
  * host-owned `.native` skeleton in `roadmapFeature.ts`) via `React.lazy`, and renders it with no props — a

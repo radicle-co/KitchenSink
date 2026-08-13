@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — web recipe-detail view (T066 building block).
  *
- * Read-only, presentational render of a loaded {@link RecipeDetail}: header (title, badges, description),
+ * Read-only, presentational render of a loaded `RecipeDetail`: header (title, badges, description),
  * meta stats, photo gallery, ingredients, instructions, and per-serving nutrition (with the partial-
  * nutrition notice from FR-007). Fetch states (loading/error) belong to the composing app, not here.
  *

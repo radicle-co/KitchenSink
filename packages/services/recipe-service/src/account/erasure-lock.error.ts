@@ -1,7 +1,7 @@
 /**
  * The HAZ-052 write-lock's throwable. Reuses the shared {@link RecipeDomainError} — its
  * `ERASURE_IN_PROGRESS` code is already mapped to `423 Locked` by `ApiExceptionFilter` — so
- * {@link ErasureLockGuard} needs no bespoke exception plumbing.
+ * `ErasureLockGuard` needs no bespoke exception plumbing.
  */
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 

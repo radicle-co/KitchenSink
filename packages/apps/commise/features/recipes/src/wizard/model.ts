@@ -71,7 +71,7 @@ export function deriveRailStepState(params: {
  * and suppressing either would put one of them back to failing silently.
  *
  * @param attempted - Whether the author has already tried to advance past (or publish through) this step.
- * @param errors - That step's validation errors ({@link import('../form/model.js').stepErrorsFor}'s output).
+ * @param errors - That step's validation errors (`stepErrorsFor`'s output).
  * @returns The distinct blocking codes, in field order; empty when unattempted or valid.
  */
 export function blockedAdvanceErrors(attempted: boolean, errors: RecipeFormErrors): readonly RecipeFormErrorCode[] {

@@ -2,7 +2,7 @@
  * @module @commise/features-recipes — native recipe photo manager (T067 building block, wireframe step 4;
  * w3/e4 per-file queue grid).
  *
- * The React Native leaf of {@link import('./RecipePhotoManager.js').RecipePhotoManager} — same contract, RN
+ * The React Native leaf of `RecipePhotoManager` — same contract, RN
  * primitives. Renders the confirmed photos MERGED with any in-flight queue items across a fixed 3-column
  * grid, each queue cell carrying its own status badge (Queued / Uploading… / Upload failed, via
  * `accessibilityRole` + visible text — never colour alone) plus Retry (only where the queue reports the

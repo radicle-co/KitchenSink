@@ -5,10 +5,10 @@
  * PRIVATE key. On an erasure it mints a short-lived, single-target JWT and presents it as a bearer to the
  * recipe- and food-service internal erasure routes, which verify it NETWORKLESSLY against the matching
  * PUBLIC key. Everything package-crossing — the algorithm, the issuer, the claim names — comes from
- * {@link import('@kitchensink/recipe-core').buildServiceErasureJwtClaims} so this signer cannot drift from
+ * `buildServiceErasureJwtClaims` (`@kitchensink/recipe-core`) so this signer cannot drift from
  * the U4a verifier that reads it. The only per-call variables are the target `ownerId`, the correlation
  * `eventId`, the `actor`, and the **audience** (which binds the token to exactly one target service — see
- * {@link SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD}).
+ * `SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD`).
  *
  * `jose` (already a dependency) does the crypto — never hand-rolled.
  */
@@ -32,8 +32,8 @@ export interface MintServiceErasureTokenInput {
     /** The EdDSA PRIVATE signing key, PKCS#8 PEM. Held ONLY by the deletion-worker/reconciliation Lambda. */
     readonly privateKeyPem: string;
     /**
-     * The target service's pinned `aud` — recipe's ({@link SERVICE_ERASURE_TOKEN_AUDIENCE}) or food's
-     * ({@link SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD}). Binds this token to exactly one leg.
+     * The target service's pinned `aud` — recipe's (`SERVICE_ERASURE_TOKEN_AUDIENCE`) or food's
+     * (`SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD`). Binds this token to exactly one leg.
      */
     readonly audience: string;
     /** The bound target: the app-user ULID whose data this ONE token authorizes erasing (→ JWT `sub`). */

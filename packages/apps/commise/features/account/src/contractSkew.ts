@@ -34,7 +34,7 @@
  *      warning gets muted.
  *   3. It warns ONCE per origin per process; log spam gets filtered, which equals having no warning at all.
  *
- * It fires from {@link ProfileServiceClient}'s transport funnel AFTER a response, never from the constructor,
+ * It fires from `ProfileServiceClient`'s transport funnel AFTER a response, never from the constructor,
  * latched at MODULE scope by origin. Origin rather than client instance because web mints a client per hook call
  * and per server-rendered request, so probing on construction would put `/health` on the sign-in path.
  * Fire-and-forget, so it adds zero latency. ⚠️ Accepted consequence: the latch is claimed on ATTEMPT, so a probe

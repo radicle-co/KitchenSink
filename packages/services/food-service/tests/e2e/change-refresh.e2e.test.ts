@@ -1,6 +1,6 @@
 /**
  * Full-stack e2e for change-driven refresh + the UNRESOLVED candidate-set TTL (Phase 7: T-170/T-171/T-172).
- * Boots the REAL Nest app against a REAL Postgres with the REAL {@link FoodAuthGuard} (genuinely-signed
+ * Boots the REAL Nest app against a REAL Postgres with the REAL `FoodAuthGuard` (genuinely-signed
  * RS256 tokens), and drives BOTH workers over the app's own DI instances:
  *
  *   - the fan-out/merge consumer ({@link FoodConsumerService}) — first-time resolve + the RESOLVED-food
@@ -9,7 +9,7 @@
  *     (T-170/T-172).
  *
  * The only seam swapped is the source: `usda.adapter.js` is mocked so the production `FoodsModule` factory
- * registers the programmable {@link StubSourceAdapter}; the SAME stub instance backs the HTTP app, the
+ * registers the programmable `StubSourceAdapter`; the SAME stub instance backs the HTTP app, the
  * worker, and the change-refresh task. `stub.mutateItem` simulates an upstream item change. No real USDA,
  * no AWS — the completion bus is an in-memory capture. (The EventBridge→ECS RunTask trigger is infra/CDK,
  * out of scope for this slice.)

@@ -17,7 +17,7 @@
  *
  * Runs as a **Fargate scheduled task** triggered by the EventBridge `IngestionScheduled` schedule; the
  * EventBridge-schedule → ECS `RunTask` target + IAM roles + task definition are provisioned by the infra
- * slice (T-001c) and are **out of scope here** — this module exposes the runnable {@link runOnce} entry.
+ * slice (T-001c) and are **out of scope here** — this module exposes the runnable `runOnce` entry.
  * Idle-drain, budget-bounded; cadence is not a fixed promise.
  *
  * @implements FR-025a FR-031 FR-032

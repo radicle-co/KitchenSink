@@ -338,7 +338,7 @@ export const RecipeCard = Object.assign(RecipeCardRoot, {
 
 const styles = StyleSheet.create({
     // The elevated OUTER layer: the tokenized `md` shadow over the rounded frosted surface — and deliberately
-    // NO `overflow`, so neither platform masks the drop shadow (see {@link CardSurface}). The FILL is not here:
+    // NO `overflow`, so neither platform masks the drop shadow (see `CardSurface`). The FILL is not here:
     // `GlassCard` paints it from the tier token (translucent over blur, or the solid fallback), and an opaque
     // colour at this level would paint over the translucency and cancel the treatment.
     shell: {

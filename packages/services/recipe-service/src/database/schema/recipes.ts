@@ -57,7 +57,7 @@ export const RECIPE_SOURCE_TYPES = [
 ] as const satisfies readonly RecipeSourceType[];
 /** Author-stated difficulty (CR-001 / FR-001b). NULL ("not stated") is a first-class state, not in this set. */
 export const RECIPE_DIFFICULTIES = ['easy', 'medium', 'hard'] as const satisfies readonly RecipeDifficulty[];
-/** Publication status (W8-a.3) — backs {@link recipes_status_check} below. */
+/** Publication status (W8-a.3) — backs `recipes_status_check` below. */
 export const RECIPE_STATUSES = ['draft', 'published'] as const satisfies readonly RecipeStatus[];
 
 // Single authoritative types — re-exported from recipe-core rather than redeclared, so a schema

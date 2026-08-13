@@ -1,5 +1,5 @@
 /**
- * Unit tests for the recipe service's {@link ClerkAuthService} — networkless Clerk token verification.
+ * Unit tests for the recipe service's `ClerkAuthService` — networkless Clerk token verification.
  *
  * `@clerk/backend`'s `verifyToken` is mocked so the REAL shared `@kitchensink/clerk-verify` chain
  * (`resolveAzpEnforcement` → `verifyClerkToken`) runs: this pins the service's azp wiring, including the

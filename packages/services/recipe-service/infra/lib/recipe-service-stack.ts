@@ -29,7 +29,7 @@ import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-na
 /**
  * Resolve the recipe service's DNS label for a stage. prod → `recipe`; every other stage → `recipe-{stage}`
  * (a SINGLE label, so `*.commise.app` covers it — a 3-label `recipe.pr-7.commise.app` matches no wildcard
- * and fails the TLS handshake). Mirrors {@link foodSubdomainForStage}. Pure, total.
+ * and fails the TLS handshake). Mirrors `foodSubdomainForStage`. Pure, total.
  *
  * There is deliberately NO way to produce a stage-qualified `recipe.{stage}` host. The recipe service has
  * exactly two shapes — the one persistent PRODUCTION deploy, and an ephemeral per-PR preview — so a

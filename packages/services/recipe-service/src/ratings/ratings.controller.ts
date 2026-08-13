@@ -1,7 +1,7 @@
 /**
  * CR-001 / FR-013 — the `/api/v1/recipes/{id}/rating` REST surface (rating write).
  *
- * A thin controller sharing the `v1/recipes` base path with {@link RecipesController} (distinct method +
+ * A thin controller sharing the `v1/recipes` base path with `RecipesController` (distinct method +
  * sub-path, so no route collision). The `@OwnerId()` decorator resolves the verified caller ULID from
  * `req.principal` (set by the fail-closed `AuthMiddleware`) — here that caller is the RATER, never taken
  * from the body. Both routes are WRITES, so both carry `@WriteRateLimit()`. Domain failures thrown by the

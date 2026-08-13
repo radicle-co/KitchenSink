@@ -2,14 +2,14 @@
  * `ServiceErasureGuard` — the inbound gate for the service-principal erasure route (CR-002 / U4a).
  *
  * This is the STRUCTURALLY-DISTINCT auth path the plan requires: the machine-authenticated internal
- * erasure route is EXCLUDED from the global Clerk {@link import('./auth.middleware.js').AuthMiddleware}
+ * erasure route is EXCLUDED from the global Clerk `AuthMiddleware`
  * (which only accepts user session tokens and hard-rejects anything without an `external_id`), and this
  * guard is what protects it instead. There is deliberately no runtime `if (principal.type === 'service')`
  * branch inside the shared user-token handler — a service token is verified by a SEPARATE verifier on a
  * SEPARATE route, so a bug in the user path can never let a user token reach the phrase-skipping erasure,
  * and vice versa.
  *
- * On success it attaches the verified {@link ServicePrincipal} (whose bound `ownerId` is the ONLY thing
+ * On success it attaches the verified `ServicePrincipal` (whose bound `ownerId` is the ONLY thing
  * that scopes the erasure) to the request; on any failure {@link ServiceErasureAuthService.verify} throws
  * an opaque `401`.
  */

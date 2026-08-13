@@ -8,7 +8,7 @@
  *
  * ⚠️ THE SPLIT OF RESPONSIBILITY ON `confirmationPhrase` IS UNCHANGED AND MUST STAY THAT WAY: this DTO
  * validates its SHAPE (a non-empty, length-capped string), while its VALUE is the domain gate enforced by
- * {@link import('../erasure.service.js').ErasureService} — which is also the only layer that runs for a
+ * `ErasureService` — which is also the only layer that runs for a
  * request sent with NO BODY at all. `../account.schema.ts` records the three ways narrowing the schema to a
  * literal would be a regression.
  *

@@ -17,7 +17,7 @@ import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
 
 /** Props for {@link SandboxSchedulerStack}. */
 export interface SandboxSchedulerStackProps extends StackProps {
-    /** The stage this scheduler controls — only ever `sandbox` (guarded by {@link GlobalStack}). */
+    /** The stage this scheduler controls — only ever `sandbox` (guarded by `GlobalStack`). */
     readonly stage: string;
 }
 
@@ -30,7 +30,7 @@ export interface SandboxSchedulerStackProps extends StackProps {
  * stops/starts the sandbox NAT EC2 instance. The Lambda's selectors touch ONLY sandbox resources, and
  * its IAM is scoped to exactly the rds/ecs/ec2/ssm actions it uses (no service-wildcard admin).
  *
- * This stack is instantiated by {@link GlobalStack} ONLY when `stage === 'sandbox'`, so prod/dev get
+ * This stack is instantiated by `GlobalStack` ONLY when `stage === 'sandbox'`, so prod/dev get
  * nothing and the prod synthesized template is unchanged (ADR-0002 no-prod-diff discipline). It is
  * persistent sandbox-CONTROL infra, so it stays tagged `Environment=global` (App-level tag) and MUST
  * survive per-PR cleanup — it is never a `pr-{N}` resource (ADR-0005).

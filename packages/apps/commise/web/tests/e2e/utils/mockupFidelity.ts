@@ -5,7 +5,7 @@
  *
  * `docs/mockups/screens/screen-*.html` are feature 001's visual CONTRACT — the archived Figma-Make
  * wireframes a designer or an agent opens to answer "what should this look like?". This module backs a
- * Playwright pass ({@link file://./../mockupFidelity.spec.ts}) that renders a wireframe and the live route it
+ * Playwright pass (`../mockupFidelity.spec.ts`) that renders a wireframe and the live route it
  * specifies **in the same browser at the same viewport under the same pinned clock**, so the two PNGs are
  * directly comparable, and emits a structured record of what the two documents actually computed.
  *

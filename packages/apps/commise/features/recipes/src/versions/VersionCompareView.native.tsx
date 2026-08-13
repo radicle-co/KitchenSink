@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native two-version compare sheet (W6 Task 4 / FR-007b, FR-007c).
  *
- * The React Native leaf of {@link import('./VersionCompareView.js').VersionCompareView}: a
+ * The React Native leaf of `VersionCompareView`: a
  * {@link FullScreenSheet} (the shared primitive that owns the modal window and its safe-area padding — this
  * leaf used to hand-roll both, and shipped `PullUpdatesDialog`'s system-bar occlusion bug along with them),
  * MIRRORING `VersionPreviewModal.native.tsx` (W6 Task 3) and rendering the SAME controlled, presentational contract as
@@ -12,7 +12,7 @@
  * takeover, and the web's two-column A/B grid becomes version B stacked over version A per field — matching
  * the web columns' left-to-right order, both driven by the "Compare v{B} vs v{A}" heading order.
  *
- * A three-way state ({@link import('./model.js').compareViewState}, discriminated — see the web leaf's
+ * A three-way state (`compareViewState`, discriminated — see the web leaf's
  * module docs for the full semantics): `'selecting'` (fewer than two versions/diff supplied yet),
  * `'unchanged'` (identical snapshots), `'changed'` (the Diff Summary + changed-only A/B rows).
  * `steps`/`ingredients` rows show a COUNT ONLY by default (never a per-line explosion — the Task 1 reorder

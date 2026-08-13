@@ -2,7 +2,7 @@
  * The `@ServiceErasurePrincipal()` route-parameter decorator (CR-002 / U4a).
  *
  * The service-principal analogue of `@CurrentPrincipal()`: reads the verified {@link ServicePrincipal} off
- * the request (set by {@link import('./service-erasure.guard.js').ServiceErasureGuard}), or fails closed
+ * the request (set by `ServiceErasureGuard`), or fails closed
  * with `401` when absent. An absent principal means the route was reached without the guard verifying a
  * token — a fail-closed rejection, never a fabricated principal. The resolver is exported so it can be
  * unit-tested directly against a mock {@link ExecutionContext}.
@@ -16,7 +16,7 @@ import type { ServiceAuthenticatedRequest, ServicePrincipal } from './service-pr
  *
  * @param _data - Unused decorator data.
  * @param ctx - The Nest execution context for the current request.
- * @returns The verified service principal set by {@link import('./service-erasure.guard.js').ServiceErasureGuard}.
+ * @returns The verified service principal set by `ServiceErasureGuard`.
  * @throws {UnauthorizedException} (→ 401) when no service principal is present (route escaped the guard).
  */
 export function resolveServicePrincipal(_data: unknown, ctx: ExecutionContext): ServicePrincipal {

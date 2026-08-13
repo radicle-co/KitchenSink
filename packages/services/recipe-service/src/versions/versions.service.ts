@@ -1,6 +1,6 @@
 /**
  * T031 — recipe-version orchestration: snapshot writes and retention enqueue (NOT S3 archiving — that
- * moved to the async version-archive worker in T130; see {@link enforceRetention}).
+ * moved to the async version-archive worker in T130; see `enforceRetention`).
  *
  * Sits between the controller and the {@link VersionsDal}. It owns the rules the DAL delegates upward:
  * - **Snapshot write** — persist an immutable version row and shape it to the `RecipeVersion` wire
@@ -105,7 +105,7 @@ export class VersionsService {
 
     /**
      * Persist an immutable version snapshot, then record any versions beyond the newest
-     * {@link VERSION_RETENTION_LIMIT} as owing S3 an archive write.
+     * `VERSION_RETENTION_LIMIT` as owing S3 an archive write.
      *
      * The S3 write itself is NOT done here (FR-007b-i) — see {@link enforceRetention}.
      *
@@ -264,7 +264,7 @@ export class VersionsService {
     }
 
     /**
-     * Hand every version beyond the newest {@link VERSION_RETENTION_LIMIT} to the S3-archive outbox
+     * Hand every version beyond the newest `VERSION_RETENTION_LIMIT` to the S3-archive outbox
      * (T130 / FR-007b-i). Records intent only — no S3 write, no prune.
      *
      * FR-007b-i requires that *"a user-facing recipe save MUST succeed independently of the S3

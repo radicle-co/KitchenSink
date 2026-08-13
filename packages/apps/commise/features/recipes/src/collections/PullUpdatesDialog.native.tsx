@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native Pull-Updates preview dialog (W5 Task 10, C2 / FR-011).
  *
- * The React Native leaf of {@link import('./PullUpdatesDialog.js').PullUpdatesDialog}: a
+ * The React Native leaf of `PullUpdatesDialog`: a
  * {@link FullScreenSheet} rendering the SAME controlled, presentational contract as the web leaf — same
  * state precedence, same localized copy, so the two platforms can't drift. `onRequestClose` (the Android
  * hardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the

@@ -597,7 +597,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
     it('renders a calorie chip for userCalories: 0 (a real zero override, not "no override")', () => {
         // CRITICAL: guards the `!== undefined` check in the implementation. A regression to a truthy
         // `if (userCalories)` check would silently drop the chip for this real (zero) override, which is
-        // exactly what {@link RecipeIngredient.userCalories} is for — this test MUST fail in that case.
+        // exactly what `RecipeIngredient.userCalories` is for — this test MUST fail in that case.
         const [line] = toVersionPreviewIngredientLines([makeIngredient({ userCalories: 0 })], preview, 'en');
 
         expect(line).toEqual({ key: 'ri_1', text: '200 g Pasta', calories: '0 cal' });

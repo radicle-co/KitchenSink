@@ -1,12 +1,12 @@
 /**
  * Full-stack e2e for the source-agnostic `/api/v1/foods/*` API (T-190). Boots the REAL Nest app against a
- * REAL Postgres (`DATABASE_URL`) with the REAL {@link FoodAuthGuard} → `@kitchensink/clerk-verify`
+ * REAL Postgres (`DATABASE_URL`) with the REAL `FoodAuthGuard` → `@kitchensink/clerk-verify`
  * (NO auth mock — every request carries a genuinely-signed RS256 token, see `tests/support/jwt.ts`),
  * and drives the fan-out worker deterministically by constructing a {@link FoodConsumerService} over
  * the app's own DI instances and calling `drain()` (no `LISTEN/NOTIFY`, no timers, no `waitForTimeout`).
  *
  * The only seam swapped is the source: `usda.adapter.js` is mocked so the production `FoodsModule`
- * factory registers the programmable {@link StubSourceAdapter} in place of `UsdaSourceAdapter` — so the
+ * factory registers the programmable `StubSourceAdapter` in place of `UsdaSourceAdapter` — so the
  * SAME stub instance backs both the HTTP app (PATCH-resolve re-fetch) and the worker (fan-out). No real
  * USDA network, no AWS; the completion bus is an in-memory capture. Fully hermetic + deterministic.
  *

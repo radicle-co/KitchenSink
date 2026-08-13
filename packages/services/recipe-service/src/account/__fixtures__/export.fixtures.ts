@@ -1,6 +1,6 @@
 /**
  * `make*` fixture factories for the account-export tests — one per persisted row shape the
- * {@link AccountExportDal} returns, each accepting `Partial<T>` overrides over a complete, sensible
+ * `AccountExportDal` returns, each accepting `Partial<T>` overrides over a complete, sensible
  * default. Dates default to `Date` objects (as `node-postgres` yields for `timestamptz`), so the mapper
  * tests exercise the real `Date → ISO` normalization rather than a pre-stringified shortcut.
  */

@@ -2,8 +2,8 @@
  * T043b — the `recipe_ingredients` junction data-access layer.
  *
  * Owns every SQL touch of the `recipe_ingredients` link table (defined in
- * `database/schema/ingredients.ts`). It is deliberately separate from {@link RecipesDal} (which owns the
- * golden `recipes` row + `recipe_steps`) but is driven BY it: `RecipesDal` calls {@link replaceForRecipe}
+ * `database/schema/ingredients.ts`). It is deliberately separate from `RecipesDal` (which owns the
+ * golden `recipes` row + `recipe_steps`) but is driven BY it: `RecipesDal` calls `replaceForRecipe`
  * inside its create/update transaction so the recipe, its steps, and its ingredient links commit
  * atomically. Resolution of a line to a catalog ingredient (food-backed or freeform) happens upstream in
  * `RecipesService` via the ingredients vertical; this DAL persists already-resolved link rows.

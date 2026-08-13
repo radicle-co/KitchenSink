@@ -2,10 +2,10 @@
  * The verified SERVICE principal behind an internal food-erasure request (CR-002 / U4b / R11), and the
  * Express request augmented with it.
  *
- * Deliberately a SEPARATE type from the Clerk user principal on {@link
- * import('./authenticated-principal.js').AuthenticatedRequest}: a service principal has NO user session —
- * it carries a single BOUND target ({@link ServicePrincipal.ownerId}) proven by a signed, single-event
- * token, not an authenticated user's identity. Keeping the two apart at the type level is what stops a
+ * Deliberately a SEPARATE type from the Clerk user principal on `AuthenticatedRequest`
+ * (`./authenticated-principal.ts`): a service principal has NO user session — it carries a single BOUND
+ * target ({@link ServicePrincipal.ownerId}) proven by a signed, single-event token, not an authenticated
+ * user's identity. Keeping the two apart at the type level is what stops a
  * service principal from ever being read where a user principal is expected, and vice versa.
  */
 import type { Request } from 'express';
@@ -19,10 +19,10 @@ import type { ServiceErasureTokenClaims } from '@kitchensink/recipe-core';
 export type ServicePrincipal = ServiceErasureTokenClaims;
 
 /**
- * An Express request augmented by {@link import('./food-service-erasure.guard.js').FoodServiceErasureGuard}
+ * An Express request augmented by `FoodServiceErasureGuard`
  * with the verified service principal. Present ONLY after the guard has verified the token.
  */
 export interface ServiceAuthenticatedRequest extends Request {
-    /** Present only after {@link import('./food-service-erasure.guard.js').FoodServiceErasureGuard} verified it. */
+    /** Present only after `FoodServiceErasureGuard` verified it. */
     servicePrincipal?: ServicePrincipal;
 }

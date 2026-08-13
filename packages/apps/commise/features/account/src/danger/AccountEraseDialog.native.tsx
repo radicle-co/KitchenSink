@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-account/danger/AccountEraseDialog.native — the NATIVE account-erasure dialog
- * (CR-002 / U4b). The React Native leaf of {@link import('./AccountEraseDialog.js').AccountEraseDialog} — the
+ * (CR-002 / U4b). The React Native leaf of `AccountEraseDialog` — the
  * SAME controlled, presentational contract, phrase gate, and donate election as the web leaf, so the two
  * platforms can never drift on behaviour or on which inputs enable the destructive confirm.
  *

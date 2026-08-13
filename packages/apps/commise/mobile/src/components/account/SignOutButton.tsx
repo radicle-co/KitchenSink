@@ -4,7 +4,7 @@
  *
  * The orchestration half of the sign-out surface: it owns only the control's own state (busy, failed) and
  * issues the app's one sign-out command,
- * {@link import('../../hooks/useSignOutAndVerify.js').useSignOutAndVerify} — which owns the mechanism
+ * `useSignOutAndVerify` — which owns the mechanism
  * (Clerk's load-safe `signOut`), the ordering, and the post-condition that the session really ended. Read
  * that module, and ADR-0009, before changing anything here.
  *

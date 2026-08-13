@@ -1,7 +1,7 @@
 /**
  * USDA **bulk download** ingest boundary (ingredient-search plan §2 Stage 1). Together with
  * `usda.adapter.ts` this is the only place USDA's native `fdc_id` is named (FR-IDN-2); everything it emits
- * is a source-agnostic {@link CanonicalCandidate}.
+ * is a source-agnostic `CanonicalCandidate`.
  */
 export { isUsdaBulkFormatError, UsdaBulkFormatError } from './usda-bulk.errors.js';
 export {

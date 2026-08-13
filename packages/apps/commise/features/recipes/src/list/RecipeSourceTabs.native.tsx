@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — the My Recipes / Community source switcher (L5), native leaf.
  *
- * The React Native rendering of {@link import('./RecipeSourceTabs.js').RecipeSourceTabs}: the same switcher,
+ * The React Native rendering of `RecipeSourceTabs`: the same switcher,
  * the same two sources, the same resting affordance, rendered with RN primitives. One strip serves both
  * recipe-source surfaces (`RecipeList`, `RecipeDiscoveryList`) so they cannot drift into the asymmetry the web
  * pair had, where the community surface offered no way back.

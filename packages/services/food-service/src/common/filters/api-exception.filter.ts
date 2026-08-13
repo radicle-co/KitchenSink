@@ -113,7 +113,7 @@ function classifyFoodError(exception: unknown): ClassifiedEnvelope | undefined {
  * The `Retry-After` seconds a resolution implies, read from the body it is already publishing.
  *
  * Derived from `details.retryAfterSeconds` rather than tracked alongside it, so the header and the body cannot
- * disagree — and so a `FETCH_UNAVAILABLE` raised through {@link apiError} (rather than as the domain error) still
+ * disagree — and so a `FETCH_UNAVAILABLE` raised through `apiError` (rather than as the domain error) still
  * gets the header a `503` is useless without.
  *
  * @param body - The envelope being published.

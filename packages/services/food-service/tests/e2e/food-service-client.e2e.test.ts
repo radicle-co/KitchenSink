@@ -1,7 +1,7 @@
 /**
  * Full-stack e2e for `@kitchensink/food-service-client` (T-057) against the REAL booted food service.
  * Boots the same hermetic stack as `foods-api.e2e.test.ts` (real Nest app + real Postgres + the REAL
- * {@link FoodAuthGuard} → `@kitchensink/clerk-verify`, genuinely-signed RS256 tokens, the programmable
+ * `FoodAuthGuard` → `@kitchensink/clerk-verify`, genuinely-signed RS256 tokens, the programmable
  * stub source adapter, and a worker `drain()` over the app's own DI). It then drives the API ONLY
  * through the typed client to prove end-to-end token attachment + status→typed-result/error mapping:
  *

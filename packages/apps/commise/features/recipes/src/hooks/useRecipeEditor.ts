@@ -186,7 +186,7 @@ export type EditorState =
            *  enriched W8-a.5 body every resolution's resubmit CAS-tokens against (W7 Task 2). */
           readonly server: VersionConflictSide;
           /** The version the draft was edited from, when still retained in the DB window; ABSENT when
-           *  evicted — see {@link versionsBehind}. */
+           *  evicted — see `versionsBehind`. */
           readonly base?: VersionConflictSide;
           /** The draft projected to a {@link RecipeSnapshot} — the same shape `diff` 3-way-compares against
            *  `server`/`base`. */

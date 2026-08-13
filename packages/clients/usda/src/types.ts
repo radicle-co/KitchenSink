@@ -1,6 +1,6 @@
 /**
  * Type contracts for the USDA FoodData Central REST API responses consumed by
- * {@link UsdaApiClient}. These mirror the subset of the upstream payload the
+ * `UsdaApiClient`. These mirror the subset of the upstream payload the
  * food-service needs; the full upstream object is preserved verbatim in `raw`.
  */
 

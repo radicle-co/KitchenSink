@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native curated browse-rails block (U7, net-new).
  *
- * The React Native leaf of {@link import('./RecipeBrowseRails.js').RecipeBrowseRails}: the same three
+ * The React Native leaf of `RecipeBrowseRails`: the same three
  * fixed-sort rails (Trending/New/Quick) as horizontal-scroll strips of {@link RecipeDiscoveryCard}s with a
  * per-rail "see all", plus cuisine shortcuts — rendered with RN primitives and `nativeTokens`. Controlled +
  * presentational; same contract as the web leaf so the two cannot drift.

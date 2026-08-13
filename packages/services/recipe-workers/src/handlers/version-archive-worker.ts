@@ -210,7 +210,7 @@ const processRecord = async (record: SQSRecord, archiveBucket: string): Promise<
 
     const snapshot = await loadVersionSnapshot(db, message);
 
-    // GDPR archive-resurrection guard (C-007 / D7) — see {@link ownerErasureRequested}. Read the erasure
+    // GDPR archive-resurrection guard (C-007 / D7) — see `ownerErasureRequested`. Read the erasure
     // state as late as possible, immediately before the PUT, so the read→PUT window is as small as it can
     // be. If the owner has any erasure job on record, do NOT materialise a fresh object under their erased
     // prefix. Treat the version as already-gone: prune the row — idempotent with, and consistent with the

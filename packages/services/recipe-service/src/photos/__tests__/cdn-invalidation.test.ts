@@ -1,6 +1,6 @@
 /**
  * Unit tests for {@link createCloudFrontInvalidation} — the real CloudFront adapter behind
- * {@link CdnInvalidationPort} (HAZ-051/067/039).
+ * `CdnInvalidationPort` (HAZ-051/067/039).
  *
  * Two behaviours, both load-bearing for a data-privacy boundary:
  *  - `CLOUDFRONT_DISTRIBUTION_ID` SET → issues a real `CreateInvalidationCommand` with the given paths.

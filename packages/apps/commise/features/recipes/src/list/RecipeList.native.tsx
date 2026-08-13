@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe-list view (T065 building block).
  *
- * The React Native leaf of {@link import('./RecipeList.js').RecipeList} — same controlled, presentational
+ * The React Native leaf of `RecipeList` — same controlled, presentational
  * contract and the same four states (loading, error, empty, populated), rendered with RN primitives.
  *
  * U4: the populated rows are virtualized with FlashList v2 (cell recycling; v2 auto-measures, so NO

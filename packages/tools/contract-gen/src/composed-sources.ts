@@ -61,7 +61,7 @@
  * Relative specifiers in an AUTHORED schema are skipped: the import restriction limits them to sibling
  * `*.schema.js` modules, every one of which is already in the authored corpus (and
  * `assertSiblingImportsResolve` proves it). This function's guarantee therefore RESTS on
- * {@link assertNoForbiddenImports} continuing to run first — that is what bounds the set of specifiers reaching
+ * `assertNoForbiddenImports` continuing to run first — that is what bounds the set of specifiers reaching
  * here to zod, the allowlist, and published siblings.
  *
  * ── KNOWN LIMITATION, reported rather than hidden ────────────────────────────────────────────────────────────

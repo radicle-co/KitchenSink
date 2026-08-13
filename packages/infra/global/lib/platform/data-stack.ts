@@ -53,14 +53,14 @@ export class DataStack extends Stack {
     public readonly databaseName: string;
     /**
      * Name of the second logical database provisioned on the shared instance (feature 003). The
-     * database + its owning IAM-auth `food_app` role are created by {@link FoodDbBootstrap}, a
+     * database + its owning IAM-auth `food_app` role are created by `FoodDbBootstrap`, a
      * master-connected custom resource — `food_app` has no password and cannot bootstrap itself.
      */
     public readonly foodDatabaseName: string;
 
     /**
      * Name of the third logical database provisioned on the shared instance (feature 001). The database
-     * + its owning IAM-auth `recipe_app` role are created by {@link RecipeDbBootstrap}, a master-connected
+     * + its owning IAM-auth `recipe_app` role are created by `RecipeDbBootstrap`, a master-connected
      * custom resource — `recipe_app` has no password and cannot bootstrap itself.
      */
     public readonly recipeDatabaseName: string;
@@ -123,7 +123,7 @@ export class DataStack extends Stack {
 
         // Feature 001 — third logical database `kitchensink_recipes` on this SAME shared instance. Same
         // additive pattern as food (ADR-0006): an extra IAM-auth `recipe_app` role + base database created
-        // by the master-connected {@link RecipeDbBootstrap} below. No new instance/cluster.
+        // by the master-connected `RecipeDbBootstrap` below. No new instance/cluster.
         this.recipeDatabaseName = 'kitchensink_recipes';
 
         const dbSubnetGroup = new rds.SubnetGroup(this, 'DatabaseSubnetGroup', {
@@ -145,7 +145,7 @@ export class DataStack extends Stack {
             credentials: rds.Credentials.fromSecret(this.dbCredentialsSecret),
             // The `food_app` role authenticates passwordlessly with short-lived RDS IAM tokens (feature
             // 003). The master `identity_app` keeps password auth — enabling IAM auth is additive and
-            // non-disruptive. See {@link FoodDbBootstrap} for the role/database provisioning.
+            // non-disruptive. See `FoodDbBootstrap` for the role/database provisioning.
             iamAuthentication: true,
             engine: rds.DatabaseInstanceEngine.postgres({
                 version: rds.PostgresEngineVersion.VER_16,

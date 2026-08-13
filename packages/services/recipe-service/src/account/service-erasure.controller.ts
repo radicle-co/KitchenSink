@@ -1,10 +1,10 @@
 /**
  * The `/api/v1/internal/account` REST surface — the GREENFIELD service-principal erasure route (CR-002 / U4a).
  *
- * A STRUCTURALLY-DISTINCT controller from {@link AccountController}, on its own `internal` path prefix, so
+ * A STRUCTURALLY-DISTINCT controller from `AccountController`, on its own `internal` path prefix, so
  * the machine-auth path never shares a handler, a body shape, or a guard chain with the user path:
  *
- *  - It is EXCLUDED from the global Clerk {@link import('../auth/auth.middleware.js').AuthMiddleware} (see
+ *  - It is EXCLUDED from the global Clerk `AuthMiddleware` (see
  *    `AppModule.configure`) — that middleware only admits user session tokens with an `external_id`, and
  *    would 401 a machine token before any guard ran. Instead {@link ServiceErasureGuard} verifies the
  *    signed, single-target service token and yields the bound {@link ServicePrincipal}.

@@ -71,7 +71,7 @@ export interface WebMessages {
              * {@link ShellSurfaceId} union, so a surface added without copy is a compile error rather than a
              * blank bar. This replaced a single `pageTitle` that was hard-coded 'Home' on all 15 shell routes.
              *
-             * Deliberately NOT shared with {@link destinations} (nav labels) or with a page's own `<h1>` copy:
+             * Deliberately NOT shared with `destinations` (nav labels) or with a page's own `<h1>` copy:
              * the three slots happen to read alike on some routes today, but they change for different reasons
              * (a nav label may shorten to fit a collapsed rail; a page heading may carry context a 56px bar
              * cannot), so they are separate knowledge, not duplication.

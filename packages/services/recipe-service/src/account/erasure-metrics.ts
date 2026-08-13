@@ -44,7 +44,7 @@ function resolveStage(): string {
 }
 
 /**
- * Emits the service-principal erasure volume metric. Injected into {@link import('./erasure.service.js').ErasureService},
+ * Emits the service-principal erasure volume metric. Injected into `ErasureService`,
  * with the line sink defaulting to `console.log` (overridden in tests).
  */
 export class ServicePrincipalErasureMetrics {

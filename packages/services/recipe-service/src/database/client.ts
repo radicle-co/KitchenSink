@@ -12,7 +12,7 @@ import * as schema from './schema/index.js';
 /** The full recipe schema object (every table + relation) passed to Drizzle. */
 export type RecipeSchema = typeof schema;
 
-/** The Drizzle client type exported by {@link DatabaseModule}, including the recipe schema. */
+/** The Drizzle client type exported by `DatabaseModule`, including the recipe schema. */
 export type RecipeDrizzle = ReturnType<typeof drizzle<RecipeSchema>>;
 
 /**

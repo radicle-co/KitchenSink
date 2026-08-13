@@ -3,14 +3,14 @@
 /**
  * @module @commise/features-recipes — web collection-detail view (T072 building block).
  *
- * Presentational render of a loaded {@link CollectionWithRecipes}'s MEMBER LIST: the "Recipes" section with
+ * Presentational render of a loaded `CollectionWithRecipes`'s MEMBER LIST: the "Recipes" section with
  * its add-a-recipe control and the member recipe rows — each a {@link CollectionMemberRow} (W5 Task 9, C3),
  * which composes the shared `RecipeCard` with its source-indicator and remove control — plus an empty state
  * when the collection has no members and the B17 delete/remove error banner. Fetch states belong to the
  * composing app, not here.
  *
  * The collection HEADER (name, description, visibility badge, count, source attribution, last-pulled, and the
- * rename/delete/back affordances) is owned by the sibling {@link import('./CollectionHeader.js').CollectionHeader}
+ * rename/delete/back affordances) is owned by the sibling `CollectionHeader`
  * (W5 Task 6), composed above this block by the container (W5 Task 12) — this view holds no header of its own,
  * so the surface renders exactly ONE header.
  *

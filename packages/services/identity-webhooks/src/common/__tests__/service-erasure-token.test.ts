@@ -1,6 +1,6 @@
 /**
  * Unit tests for the deletion-worker's service-erasure token MINTER (CR-002 / U4b — the producer side of
- * the {@link import('@kitchensink/recipe-core').buildServiceErasureJwtClaims} wire contract).
+ * the `buildServiceErasureJwtClaims` (`@kitchensink/recipe-core`) wire contract).
  *
  * These prove the minted token is EXACTLY what the U4a verifier (recipe-service) and its food-service
  * mirror accept: the pinned algorithm/issuer, the caller-chosen audience, the bound `sub`/`evt`/`act`

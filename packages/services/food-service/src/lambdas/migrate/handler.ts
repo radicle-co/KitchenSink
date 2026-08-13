@@ -169,7 +169,7 @@ export const BASE_FOOD_DATABASE_NAME = 'kitchensink_food';
 
 /**
  * Valid food logical-database names: the base name, or a per-PR name `kitchensink_food_{suffix}` where
- * the suffix is lowercase alphanumerics/underscores (mirrors {@link foodDatabaseNameForStage} in the
+ * the suffix is lowercase alphanumerics/underscores (mirrors `foodDatabaseNameForStage` in the
  * CDK stack). Because the name is validated against this pattern, it is safe to quote directly into a
  * `CREATE DATABASE "<name>"` statement (which cannot be parameterized) with no injection surface.
  */

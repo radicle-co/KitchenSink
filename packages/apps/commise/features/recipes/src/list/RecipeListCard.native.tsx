@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe-list card (building block).
  *
- * The React Native leaf of {@link import('./RecipeListCard.js').RecipeListCard} — same contract, RN
+ * The React Native leaf of `RecipeListCard` — same contract, RN
  * primitives. Renders the shared mockup-parity {@link RecipeCard} as a Pressable named by the recipe title.
  */
 import type { FC } from 'react';

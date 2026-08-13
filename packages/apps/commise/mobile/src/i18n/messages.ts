@@ -174,7 +174,7 @@ export interface MobileMessages {
         readonly signOutFailed: string;
         /**
          * Alert shown when an account ERASURE was accepted (202) but the follow-up sign-out failed.
-         * Deliberately distinct from {@link signOutFailed} and from the erasure dialog's own submit error: the
+         * Deliberately distinct from `signOutFailed` and from the erasure dialog's own submit error: the
          * erasure DID succeed server-side, so telling the viewer to retry it would be a lie — the only
          * outstanding action is leaving the (now-destroyed) account's session.
          */

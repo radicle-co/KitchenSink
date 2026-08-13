@@ -12,7 +12,7 @@ import { eraseRecipeObjects } from './account-erasure-worker.js';
 
 /**
  * Scheduled erasure-orphan sweeper — the reconciliation backstop that CLOSES the archive-resurrection
- * race the {@link ownerErasureRequested} guard could only narrow. VPC-attached DB consumer.
+ * race the `ownerErasureRequested` guard could only narrow. VPC-attached DB consumer.
  *
  * **The residual it closes.** `version-archive-worker` reads an owner's erasure state and then PUTs the
  * snapshot as two separate steps against two systems (RDS, then S3). Its own header says so: "The window

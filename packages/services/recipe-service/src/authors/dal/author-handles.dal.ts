@@ -3,10 +3,10 @@
  * display names, plus the handle-sync CONSUMER that maintains it and fans the denormalized name out.
  *
  * Two responsibilities:
- *   - **Read** ({@link findHandle}) — the write path asks "what is this user's current handle?" LOCALLY,
+ *   - **Read** (`findHandle`) — the write path asks "what is this user's current handle?" LOCALLY,
  *     with NO cross-service call (the rejected read-time-lookup alternative), falling back to the token
  *     claim only when no row exists yet.
- *   - **Consume** ({@link applyRename}) — a rename event (`{ userId, displayName, sourceTimestamp }`) from
+ *   - **Consume** (`applyRename`) — a rename event (`{ userId, displayName, sourceTimestamp }`) from
  *     EITHER producer route (the Clerk `user.updated` webhook or identity's `PATCH /api/v1/users/me`) is applied
  *     MONOTONICALLY on `source_timestamp`: an older-or-equal timestamp is IGNORED (so A→B→A redelivered
  *     out of order converges to the actual latest), and a strictly-newer one updates the read model AND

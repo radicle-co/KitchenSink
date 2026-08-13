@@ -1,7 +1,7 @@
 /**
  * `FoodConsumerService` (MOD-004, ARCH-004 — T-151..T-155) — the per-row fan-out/merge logic of the
  * single Fargate consumer. It does NOT own the advisory lock or the LISTEN/NOTIFY loop (that is
- * {@link WorkerRuntime}); it is the testable core driven once per leased `fetch_queue` row:
+ * `WorkerRuntime`); it is the testable core driven once per leased `fetch_queue` row:
  *
  *   lease (highest-demand, demotion-aware — `FetchQueueDao.leaseNext`)
  *     → fan out by `normalized_name` across every wired adapter (`SourceAdapterRegistry.adapters()`),
@@ -401,7 +401,7 @@ export class FoodConsumerService {
 
     /**
      * Revert orphaned `in_flight` leases back to `pending` (the reaper, T-153 — run at start + every
-     * minute by {@link WorkerRuntime}).
+     * minute by `WorkerRuntime`).
      *
      * @returns The number of reclaimed rows.
      * @sideEffect Updates `fetch_queue`.
@@ -558,7 +558,7 @@ export class FoodConsumerService {
     /**
      * Pull keys via the adapter's batch endpoint in ≤{@link FETCH_BATCH_MAX} chunks. If a chunk fails
      * adapter validation as a whole, recover the valid items in it per key so one bad item does not
-     * sink the rest (reject-not-store). A {@link SourceApiError} propagates to {@link fanOut}.
+     * sink the rest (reject-not-store). A `SourceApiError` propagates to {@link fanOut}.
      *
      * @param adapter - The source adapter (for the per-key recovery fallback).
      * @param batch - The bound batch fetch.

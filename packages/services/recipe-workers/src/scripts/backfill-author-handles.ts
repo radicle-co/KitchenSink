@@ -3,7 +3,7 @@
  *
  * Ongoing renames are kept current by the handle-sync producers + consumer; this seeds the state that
  * predates the feature. For every identity `profiles` row it applies a synthetic rename to the recipe DB
- * via the SAME {@link applyHandleRename} the live consumer uses — which seeds `author_handles` AND fans the
+ * via the SAME `applyHandleRename` the live consumer uses — which seeds `author_handles` AND fans the
  * name out to the user's existing `recipes.author_handle` + `recipe_versions.editor_handle`. Idempotent by
  * construction (the monotonic guard): re-running it, or running it after some renames have already synced,
  * only applies rows that are strictly newer, so it never clobbers a fresher live value.

@@ -1,5 +1,5 @@
 /**
- * Test fixture: a fake `RatingsDal` for constructing {@link RecipesService} in unit tests.
+ * Test fixture: a fake `RatingsDal` for constructing `RecipesService` in unit tests.
  *
  * `RecipesService.getById` reads the viewer's own rating (for `RecipeDetail.viewerRating`) via an injected
  * `RatingsDal`. Unit tests that don't exercise viewer ratings just need a stub whose `findStars` returns

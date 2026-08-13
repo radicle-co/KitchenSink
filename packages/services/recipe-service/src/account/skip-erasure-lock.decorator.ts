@@ -1,5 +1,5 @@
 /**
- * `@SkipErasureLock()` — exempts a single mutating handler from {@link ErasureLockGuard} (HAZ-052).
+ * `@SkipErasureLock()` — exempts a single mutating handler from `ErasureLockGuard` (HAZ-052).
  *
  * Exactly one route needs this: `POST /api/v1/account/erasure` itself. `ErasureLockGuard` locks a mutating
  * request once a `queued`/`running` `account_erasure_jobs` row exists for the caller — but that same row
@@ -12,7 +12,7 @@
  */
 import { SetMetadata } from '@nestjs/common';
 
-/** Reflector metadata key {@link ErasureLockGuard} reads via `getAllAndOverride`. */
+/** Reflector metadata key `ErasureLockGuard` reads via `getAllAndOverride`. */
 export const SKIP_ERASURE_LOCK = 'skipErasureLock';
 
 /**

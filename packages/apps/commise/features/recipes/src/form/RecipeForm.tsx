@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — web recipe create/edit form (T067 building block).
  *
- * Controlled, presentational editor over the full {@link RecipeFormValues}: Basics (title, description,
+ * Controlled, presentational editor over the full `RecipeFormValues`: Basics (title, description,
  * cuisine, tags, dietary flags, servings, prep/cook time + a READ-ONLY computed total), a dynamic
  * Ingredients list (name/quantity/unit + a resolution-status badge + add/remove), a dynamic Instructions
  * list (instruction + optional timer + add/remove), and a visibility toggle. It fetches nothing and

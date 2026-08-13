@@ -1,5 +1,5 @@
 /**
- * Headless-hook seam (CP-6/P2) — pure state-and-transition model for {@link useIngredientResolver}. No
+ * Headless-hook seam (CP-6/P2) — pure state-and-transition model for `useIngredientResolver`. No
  * React, no client hooks: only the status classification, the branch decision, the view derivation, and the
  * projection from a catalog `Ingredient` onto a resolved recipe line. Kept in its own module so the pure
  * logic is unit-testable independent of the stateful hook that wraps it in React state + TanStack mutations.
@@ -166,10 +166,10 @@ export function nextMatchAction(status: FoodResolutionStatus | undefined): 'reso
  * Project a catalog `Ingredient` onto a resolved form line (quantity defaults to 1; the form edits it).
  *
  * Also carries the ingredient's per-100g macros + household-measure portions, when the catalog row has them,
- * onto the form line (w3/e3) — so a picked ingredient's nutrition survives to feed {@link toNutritionLine}
+ * onto the form line (w3/e3) — so a picked ingredient's nutrition survives to feed `toNutritionLine`
  * (`form/model.ts`) for step 2's per-row + running per-serving nutrition (FR-007). A line still `PENDING`
  * resolution, or a freeform ingredient with no catalog nutrition, carries none of these fields — never a
- * fabricated `0` — which is exactly the input {@link toNutritionLine}'s aggregator needs to correctly report
+ * fabricated `0` — which is exactly the input `toNutritionLine`'s aggregator needs to correctly report
  * that line as unaccounted (`isComplete: false`) rather than silently under-counting.
  */
 export function toIngredientLine(ingredient: Ingredient): RecipeFormIngredient {

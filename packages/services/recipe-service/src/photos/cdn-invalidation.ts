@@ -2,7 +2,7 @@
  * The real CloudFront adapter behind {@link CdnInvalidationPort} (HAZ-051/067/039).
  *
  * Wraps `@aws-sdk/client-cloudfront`'s `CreateInvalidationCommand`, mirroring how `photos.storage.ts`
- * wraps `@aws-sdk/client-s3` into {@link PhotoStoragePort} — each infra dependency gets its own thin
+ * wraps `@aws-sdk/client-s3` into `PhotoStoragePort` — each infra dependency gets its own thin
  * adapter isolated behind the port the service depends on, so `PhotosService` stays unit-testable against
  * a mock port with no network.
  *
@@ -12,7 +12,7 @@
  * (local/dev and any stage without a provisioned distribution yet have none), so this factory returns a
  * documented NO-OP port — never a port that throws — when the id is absent or blank: a delete/erasure
  * request must never fail, and a stage must never fail to BOOT, merely because the CDN side of a
- * best-effort privacy mitigation isn't wired up yet. See {@link PhotosService.invalidateDeletedPhoto} for
+ * best-effort privacy mitigation isn't wired up yet. See `PhotosService.invalidateDeletedPhoto` for
  * how the caller treats a real (configured) adapter's failure, which is different from — and stricter
  * than — this unset-id case.
  */

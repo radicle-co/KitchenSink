@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Composition tests for the `/account` route content (U3). The leaf forms have their own suites; here we
- * verify the SHELL: the account surface renders inside the shared {@link AppShell} (so it gets nav on desktop
+ * verify the SHELL: the account surface renders inside the shared `AppShell` (so it gets nav on desktop
  * AND narrow), its headings are localized (no hard-coded English), and it composes the edit + danger-zone
  * controls. The viewer-profile hook is mocked (AppShell's avatar source); the leaf forms are stubbed.
  */

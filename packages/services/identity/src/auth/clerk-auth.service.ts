@@ -3,7 +3,7 @@ import { resolveAzpEnforcement, verifyClerkToken, type VerifiedClerkClaims } fro
 
 /**
  * Re-export the shared verified-claims shape so identity's consumers (notably
- * {@link import('../users/users.service.js').UsersService.resolveOrCreateFromClaims}) keep importing it
+ * `UsersService.resolveOrCreateFromClaims`) keep importing it
  * from here. The shared type is a SUPERSET of what identity reads — it adds `userId` (from `external_id`)
  * and `azp` — so nothing downstream changes; `scopes`/`permissions` are now non-optional `string[]`
  * (always defaulted to `[]`), which identity already produced.

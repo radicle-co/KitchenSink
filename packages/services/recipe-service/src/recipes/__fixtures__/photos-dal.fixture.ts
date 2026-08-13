@@ -1,5 +1,5 @@
 /**
- * Test fixture: a fake `PhotosDal` + CDN base for constructing {@link RecipesService} in unit tests.
+ * Test fixture: a fake `PhotosDal` + CDN base for constructing `RecipesService` in unit tests.
  *
  * `RecipesService` embeds a recipe's photos in the detail read via an injected `PhotosDal`; unit tests
  * that don't exercise photos just need a stub whose `findByRecipe` returns no rows.

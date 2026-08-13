@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native recipe filter bar (FR-006 / W4 S2).
  *
- * The React Native leaf of {@link import('./RecipeFilterBar.js').RecipeFilterBar} — the same P9
+ * The React Native leaf of `RecipeFilterBar` — the same P9
  * descriptor-driven contract (facets are DATA dispatched through a `kind → renderer` map), rendered with RN
  * primitives. Dietary + Tags are multi-select chips, Cuisine is single-select (the search API filters by ONE
  * cuisine), Prep-time + Cook-time (REQ-030f) + Total-time are bucket ladders, and Ingredients (FR-006 gap #3)

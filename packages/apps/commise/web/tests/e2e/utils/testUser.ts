@@ -40,7 +40,7 @@ function client() {
 /**
  * Idempotently ensure THIS RUN's sign-in test user exists with a known, verified email + password.
  *
- * @returns the Clerk user id — the caller ({@link globalSetup}) uses it to wait for the `external_id`
+ * @returns the Clerk user id — the caller (`globalSetup`) uses it to wait for the `external_id`
  *   backfill (see {@link waitForTestUserExternalId}) before any owner-gated spec runs.
  * @sideEffect Reads and writes Clerk users via the Backend API.
  */

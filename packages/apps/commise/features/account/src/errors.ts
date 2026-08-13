@@ -1,5 +1,5 @@
 /**
- * Typed error hierarchy for {@link ProfileServiceClient} (DA10-c). Each maps an identity-service HTTP
+ * Typed error hierarchy for `ProfileServiceClient` (DA10-c). Each maps an identity-service HTTP
  * status (`GET`/`PATCH`/`DELETE /api/v1/users/me`) to a discriminable error so a downstream caller (web/mobile
  * UI) handles outcomes by type, not by inspecting status codes. Every error extends `Error`, calls
  * `Object.setPrototypeOf` (so `instanceof` survives transpilation), and ships an `is*` guard

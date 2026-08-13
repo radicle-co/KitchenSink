@@ -4,7 +4,7 @@
  * window limiter, the {@link EnqueueEmitter}, and the {@link AdmissionService} (T-130). Every food is
  * keyed by its internal `id`; no source-native key (`fdcId`) ever appears (FR-IDN-1/SC-013).
  *
- * Lifecycle status codes (mapped by {@link FoodsController}): a read returns the golden record only when
+ * Lifecycle status codes (mapped by `FoodsController`): a read returns the golden record only when
  * `RESOLVED` (else `FoodPendingError` → 202 for `PENDING`/`UNRESOLVED`, `FoodNotFoundError` → 404 for
  * `NOT_FOUND`/`FAILED`/no row). Add-by-name dedups + enqueues (202 + `id`); `PATCH`-resolve is
  * `UNRESOLVED`-only, idempotent, candidate-in-set validated, re-fetches the pick through the limiter, and

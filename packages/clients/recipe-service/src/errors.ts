@@ -218,7 +218,7 @@ export function isFetchUnavailableError(error: unknown): error is FetchUnavailab
  *  2. {@link BadRequestError} — the SERVER answered `400`. The body was legal per the contract this client
  *     compiles against and the service rejected it anyway, which is either a rule the contract does not
  *     express (a policy check) or genuine skew worth alerting on.
- *  3. A bare `ZodError` out of {@link RecipeServiceClient}'s response parse — the SERVER's body drifted.
+ *  3. A bare `ZodError` out of `RecipeServiceClient`'s response parse — the SERVER's body drifted.
  *
  * Collapsing 1 into 2 would have a caller retry-and-alert on its own malformed input; collapsing 1 into 3
  * would blame the service for the client's mistake. Carries the `ZodError` as `cause` so the offending

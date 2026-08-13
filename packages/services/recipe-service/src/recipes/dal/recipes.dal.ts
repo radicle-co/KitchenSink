@@ -509,7 +509,7 @@ export class RecipesDal {
     /**
      * Set an active recipe's visibility WITHOUT bumping `current_version` or touching content — a
      * visibility toggle is a metadata change, not a content revision (C-004 / T050). Authorization and
-     * the C-004 policy decision live in {@link RecipesService}.
+     * the C-004 policy decision live in `RecipesService`.
      *
      * @returns The updated aggregate, or `undefined` when no active recipe has that id.
      * @sideEffect Updates the `recipes` row's `visibility` + `updated_at`.

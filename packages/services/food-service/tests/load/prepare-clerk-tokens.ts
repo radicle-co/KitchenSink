@@ -2,7 +2,7 @@
  * Mint the Clerk session tokens the food-service performance k6 scripts present — WITHOUT touching a live
  * Clerk instance.
  *
- * WHY a prepare step. Every `/api/v1/foods/*` route is fronted by {@link FoodAuthGuard}, which verifies an
+ * WHY a prepare step. Every `/api/v1/foods/*` route is fronted by `FoodAuthGuard`, which verifies an
  * RS256 Clerk session token networklessly against a pinned public PEM (`CLERK_JWT_KEY`) and enforces
  * `azp`. Two consequences, identical to identity's `prepare-clerk-tokens.ts`:
  *

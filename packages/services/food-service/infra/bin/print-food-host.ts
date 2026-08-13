@@ -2,7 +2,7 @@
  * Print the food service's public origin for a stage — so a pipeline never has to know that host shape.
  *
  * The shape lives in exactly ONE place, {@link foodServiceOriginForStage} (over
- * {@link foodSubdomainForStage}): prod is the bare label `food`, every
+ * `foodSubdomainForStage`): prod is the bare label `food`, every
  * other stage is the DASH form `food-{stage}` (a 3-label `food.pr-7.commise.app` matches no wildcard on the
  * shared ALB cert and fails the TLS handshake — see ADR-0003 / ADR-0006). This script exposes that one
  * definition to shell callers, which is what stops the deploy workflows from growing a second, drifting copy

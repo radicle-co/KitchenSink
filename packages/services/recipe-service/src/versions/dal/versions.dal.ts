@@ -3,7 +3,7 @@
  *
  * Owns every SQL touch of the immutable `recipe_versions` snapshot history (defined in
  * `database/schema/versions.ts`). It is authorization-agnostic: ownership (`NOT_OWNER`) and the
- * retention orchestration live in {@link VersionsService}. The DAL's three load-bearing responsibilities:
+ * retention orchestration live in `VersionsService`. The DAL's three load-bearing responsibilities:
  *   1. **Snapshot create** — insert one immutable `recipe_versions` row from a captured snapshot.
  *   2. **List by recipe** — every version for a recipe, newest-first (`version_number DESC`).
  *   3. **Retention query** — the versions BEYOND the newest 10 (FR-007b): `ORDER BY version_number DESC

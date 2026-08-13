@@ -1,10 +1,10 @@
 /**
  * @module @commise/features-recipes/rating — native rating render components (FR-013).
  *
- * The React Native leaves of the web {@link import('./RecipeRatingControl.js').RecipeRatingInput} /
- * {@link import('./RecipeRatingControl.js').RecipeRatingDisplay} — same contract, split into TWO
+ * The React Native leaves of the web `RecipeRatingInput` /
+ * `RecipeRatingDisplay` — same contract, split into TWO
  * single-responsibility presentational components (B15) the orchestrating container selects between via
- * {@link ratingModeFor}:
+ * `ratingModeFor`:
  *  - {@link RecipeRatingDisplay} — READ-ONLY, shown on the viewer's OWN recipe (Sc8): the community aggregate +
  *    a stated reason the input is withheld; the backend guard is the real enforcement.
  *  - {@link RecipeRatingInput} — INTERACTIVE: the community aggregate plus a 5-option star radiogroup that
@@ -91,7 +91,7 @@ const RatingSection: FC<{ average?: number; ratingCount: number; children: React
 /**
  * The READ-ONLY rating variant shown on the viewer's OWN recipe (Sc8): the community aggregate plus a stated
  * reason the input is withheld. Renders NOTHING interactive — the own-recipe gate is structural here, and the
- * container never mounts this on a rateable recipe (see {@link ratingModeFor}).
+ * container never mounts this on a rateable recipe (see `ratingModeFor`).
  */
 export const RecipeRatingDisplay: FC<RecipeRatingDisplayProps> = ({ average, ratingCount }) => {
     const { rating } = useMessages(recipeRatingMessages);

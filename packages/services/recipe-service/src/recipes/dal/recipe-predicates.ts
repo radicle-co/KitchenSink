@@ -3,7 +3,7 @@
  * SQL source for "which recipe rows may this reader see?", so the rule is not hand-copied across the
  * query-builder DALs (`recipes`, `collections`) and the raw search CTE in two dialects (S-R3).
  *
- * These are the SQL twin of the in-memory {@link ../domain/recipe-visibility.ts | isRecipeViewableBy}:
+ * These are the SQL twin of the in-memory `isRecipeViewableBy` (`../domain/recipe-visibility.ts`):
  * the same rule expressed two ways because one filters rows in Postgres and the other decides an
  * already-loaded row. Keeping both here-and-there in lockstep by comment was the drift hazard this module
  * removes — {@link viewableBy} is now the one place the visibility rule lives in SQL, {@link publishedOrOwnedBy}

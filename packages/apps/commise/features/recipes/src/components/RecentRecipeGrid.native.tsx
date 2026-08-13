@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native "Recent recipes" card list (Home widget building block).
  *
- * The React Native leaf of {@link import('./RecentRecipeGrid.js').RecentRecipeGrid} — same contract, same
+ * The React Native leaf of `RecentRecipeGrid` — same contract, same
  * navigation seam. PLATFORM-FORK: the web leaf paints the mockup's 2-up/4-up CSS grid; on a phone-width
  * native surface the equivalent arrangement is a single column, which is what the mobile Home widget already
  * presents. Keeping the arrangement in a leaf per platform (rather than a shared component with a layout

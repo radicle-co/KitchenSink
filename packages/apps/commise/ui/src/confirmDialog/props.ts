@@ -1,13 +1,13 @@
 /**
  * @module @commise/ui/confirm-dialog — shared, platform-neutral prop contract for the design-system
- * {@link import('./ConfirmDialog.js').ConfirmDialog} (house pattern B6). The web (`ConfirmDialog.tsx`,
+ * `ConfirmDialog` (house pattern B6). The web (`ConfirmDialog.tsx`,
  * Radix `AlertDialog`) and native (`ConfirmDialog.native.tsx`, RN `Modal`) leaves both implement this exact
  * surface, so the two platform renders can never drift on shape.
  *
  * A controlled, presentational confirmation modal for any "are you sure" moment (discard-unsaved-edits,
  * destructive delete, etc.) — it owns NO state and performs NO side effect beyond the two callbacks; the
  * composing app decides what `open` means and what `onConfirm`/`onCancel` do. Every string is a caller-
- * supplied prop (no i18n import here) — mirrors the design-system {@link import('../button/props.js').ButtonProps}
+ * supplied prop (no i18n import here) — mirrors the design-system `ButtonProps`
  * idiom of accepting the visible/accessible copy as data rather than owning locale concerns itself.
  */
 export interface ConfirmDialogProps {

@@ -1,7 +1,7 @@
 /**
  * The single authoritative representation of "may this viewer SEE this recipe?" — the read-side
  * authorization rule for an individual recipe (as distinct from the C-004 *write*-side policy in
- * {@link ./visibility-policy.ts}, which governs which visibility a recipe may HOLD).
+ * `./visibility-policy.ts`, which governs which visibility a recipe may HOLD).
  *
  * The rule (FR-003 / W8-a.3 / the collection-membership IDOR guard): a recipe is viewable by a principal
  * iff the principal OWNS it, OR it is BOTH `public` AND `published`. Owners always see their own recipes

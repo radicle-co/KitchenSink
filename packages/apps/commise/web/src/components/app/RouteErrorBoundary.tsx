@@ -2,7 +2,7 @@
 
 /**
  * @module components/app/RouteErrorBoundary — the shared orchestration every web App Router `error.tsx`
- * boundary delegates to (B18). Composes the DA9 {@link ErrorReporter} seam (never a hard-coded Sentry
+ * boundary delegates to (B18). Composes the DA9 `ErrorReporter` seam (never a hard-coded Sentry
  * import at the call site) with the pure {@link RouteErrorState} presentational fallback: reporting is a
  * side effect a segment's `error.tsx` MUST perform (a route crash must never be silent), kept out of the
  * pure presentational component per the app's pure-render-component rule (`@sideEffect`).
@@ -36,7 +36,7 @@ export interface RouteErrorBoundaryProps {
 /**
  * Reports the caught error via DA9 and renders the shared localized fallback with retry wired to `reset`.
  *
- * @sideEffect Reports `error` through the injected {@link ErrorReporter} seam on every render of a new error.
+ * @sideEffect Reports `error` through the injected `ErrorReporter` seam on every render of a new error.
  */
 export const RouteErrorBoundary: FC<RouteErrorBoundaryProps> = ({ error, reset, routeName }) => {
     useEffect(() => {

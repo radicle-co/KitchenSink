@@ -7,7 +7,7 @@
  * rather than two that can drift. There is no second set of rules to keep in step here — that is the point.
  *
  * The allowlist decision (jpeg/png/webp → `415`) and the 5 MB pre-check (→ `413`) stay in
- * {@link PhotosService.createUploadUrl}: they are status-bearing and the pipe runs before the controller.
+ * `PhotosService.createUploadUrl`: they are status-bearing and the pipe runs before the controller.
  * See `recipePhotoContentTypeSchema` for the full reasoning.
  */
 import { createZodDto } from 'nestjs-zod';

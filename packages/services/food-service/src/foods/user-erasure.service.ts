@@ -15,7 +15,7 @@
  * hook in by either (a) subscribing a small food-service deletion Lambda to the same erasure
  * SQS/EventBridge fan-out the identity deletion worker drives, or (b) the identity deletion worker
  * calling the food service's M2M erasure path (FR-047). Either way the handler resolves the deleted
- * user's app ULID and calls {@link eraseUser}. The handler/Lambda + IAM are out of scope here (CDK).
+ * user's app ULID and calls `eraseUser`. The handler/Lambda + IAM are out of scope here (CDK).
  *
  * @implements FR-043 FR-044 R5
  */

@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native version preview modal (W6 Task 3 / FR-007b).
  *
- * The React Native leaf of {@link import('./VersionPreviewModal.js').VersionPreviewModal}: a
+ * The React Native leaf of `VersionPreviewModal`: a
  * {@link FullScreenSheet} (the shared primitive that owns the modal window and its safe-area padding — this
  * leaf used to hand-roll both, and shipped `PullUpdatesDialog`'s system-bar occlusion bug along with them),
  * rendering the SAME controlled, presentational contract as the web leaf — same

@@ -1,7 +1,7 @@
 /**
  * `FetchRequestersDao` (T-109, MOD-003) — the distinct-requester demand set. The
  * `PK(food_id, requester_id)` structurally caps each requester to one row per food (`PRIORITY_CAP=1`),
- * so `add` is idempotent and `request_count` (computed by {@link FetchQueueDao.enqueue}) is the UNCAPPED
+ * so `add` is idempotent and `request_count` (computed by `FetchQueueDao.enqueue`) is the UNCAPPED
  * distinct-requester count — never a raw `+1` (FR-044/DSN-3). Rows are pruned when the food leaves the
  * queue (DSN-10).
  *

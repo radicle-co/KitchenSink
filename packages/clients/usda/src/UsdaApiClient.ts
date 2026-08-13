@@ -3,7 +3,7 @@
  *
  * Wraps the upstream `GET /v1/food/{fdcId}`, `POST /v1/foods`, and `GET /v1/foods/search`
  * endpoints with a 10-second request timeout and maps upstream status codes onto the typed
- * error hierarchy in {@link ./errors}. This is the external-API client only — no database and
+ * error hierarchy in `./errors.ts`. This is the external-API client only — no database and
  * no HTTP server; `@kitchensink/food-service` depends on it.
  *
  * @implements FR-023
@@ -38,8 +38,8 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_BATCH_SIZE = 20;
 
 /**
- * Search page size. USDA defaults to 50, but the worker only ever batch-fetches the top {@link
- * MAX_BATCH_SIZE}; USDA returns hits in relevance order, so a smaller page yields the same top-N with a
+ * Search page size. USDA defaults to 50, but the worker only ever batch-fetches the top
+ * {@link MAX_BATCH_SIZE}; USDA returns hits in relevance order, so a smaller page yields the same top-N with a
  * much smaller payload. Set EXACTLY to the batch cap so the fan-out issues one search + ONE batch (=2 USDA
  * requests/food, not 3) — every extra hit would force a second batch POST that adds USDA load for no gain.
  */

@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/rating — web rating render components (FR-013).
  *
  * The recipe-detail rating affordance, split into TWO single-responsibility presentational components (B15) that
- * the orchestrating container selects between via {@link ratingModeFor} — the own-vs-rate decision is NOT a
+ * the orchestrating container selects between via `ratingModeFor` — the own-vs-rate decision is NOT a
  * behavior-switching `mode` prop on one component:
  *  - {@link RecipeRatingDisplay} — the READ-ONLY variant shown on the viewer's OWN recipe (Sc8): the community
  *    aggregate + a stated reason the input is withheld. The backend guard is the real enforcement.
@@ -114,7 +114,7 @@ const RatingSection: FC<{ average?: number; ratingCount: number; children: React
 /**
  * The READ-ONLY rating variant shown on the viewer's OWN recipe (Sc8): the community aggregate plus a stated
  * reason the input is withheld. Renders NOTHING interactive — the own-recipe gate is structural here, and the
- * container never mounts this on a rateable recipe (see {@link ratingModeFor}).
+ * container never mounts this on a rateable recipe (see `ratingModeFor`).
  */
 export const RecipeRatingDisplay: FC<RecipeRatingDisplayProps> = ({ average, ratingCount }) => {
     const { rating } = useMessages(recipeRatingMessages);

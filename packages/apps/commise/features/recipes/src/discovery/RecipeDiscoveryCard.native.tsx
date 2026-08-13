@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native public-discovery result card (T076 / W4 S1).
  *
- * The React Native leaf of {@link import('./RecipeDiscoveryCard.js').RecipeDiscoveryCard}: the same P7
+ * The React Native leaf of `RecipeDiscoveryCard`: the same P7
  * composition of the shared {@link RecipeCard} compound parts — tappable cover + title, `by @handle` author
  * attribution (and imported source when present), cuisine/time/calorie meta, visibility badge, rating,
  * tags — plus the Clone action. Same contract as the web leaf so the two cannot drift.

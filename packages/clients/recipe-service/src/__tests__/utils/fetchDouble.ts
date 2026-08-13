@@ -1,5 +1,5 @@
 /**
- * Shared `fetch` doubles for the {@link RecipeServiceClient} unit tests. The client drives HTTP through
+ * Shared `fetch` doubles for the `RecipeServiceClient` unit tests. The client drives HTTP through
  * `ky`, which invokes the injected `fetch` with a {@link Request} object (not a `(url, init)` pair), so
  * these doubles assert the *observable* request a fake fetch receives — the `Request`'s URL, method,
  * headers, and body — via {@link requestAt}. The request body is captured at call time because `ky`

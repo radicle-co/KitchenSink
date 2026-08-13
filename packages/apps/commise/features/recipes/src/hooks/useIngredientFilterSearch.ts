@@ -1,7 +1,7 @@
 /**
  * Headless-hook seam (CP-6/P2 sibling) — the recipe-SEARCH ingredient filter's typeahead (FR-006 gap #3).
  *
- * Composes the SAME shared, unit-tested search primitives {@link import('./useIngredientResolver.js').useIngredientResolver}
+ * Composes the SAME shared, unit-tested search primitives `useIngredientResolver`
  * is built from — `useSearchIngredients` (the catalog typeahead query), `rankIngredientResults`,
  * `meetsIngredientSearchThreshold`, `INGREDIENT_SEARCH_DEBOUNCE_MS`, and `useDebouncedValue` — rather than
  * the full resolver state machine. Reusing `useIngredientResolver` itself outright would be WRONG here, not

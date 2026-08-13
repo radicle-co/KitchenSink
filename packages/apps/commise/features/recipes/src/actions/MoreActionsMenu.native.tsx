@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native "More" overflow menu (C4 wireframe parity).
  *
- * The React Native leaf of {@link import('./MoreActionsMenu.js').MoreActionsMenu} — same controlled-by-
+ * The React Native leaf of `MoreActionsMenu` — same controlled-by-
  * nothing, self-contained disclosure contract: a `[More]` trigger that reveals its `children` (the secondary
  * owner actions — version history, delete, visibility) in an inline panel below it, mirroring the wireframe's
  * `[Edit] [More]` header pattern. There is no on-device analog to a pointer "outside click", so dismissal here

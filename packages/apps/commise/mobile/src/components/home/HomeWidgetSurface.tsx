@@ -177,7 +177,7 @@ export function HomeWidgetSurface({
                         const Bespoke = activeRenderers[descriptor.id];
 
                         // A live widget with a bespoke slot. Its last-resort fallback is the localized
-                        // {@link HomeWidgetErrorNotice}, matching web: a `null` here meant a slot-level throw
+                        // `HomeWidgetErrorNotice`, matching web: a `null` here meant a slot-level throw
                         // (not just a widget-body one — the recipe slot's own inner boundary handles that)
                         // erased the whole slot into unexplained blank space, with nothing announced to
                         // assistive tech. Losing the content is acceptable; saying nothing about it is not.

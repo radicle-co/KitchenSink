@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-recipes/wizard — native 4-step recipe-edit wizard SHELL (w3/e1,e2, P8). The
- * React Native leaf of {@link import('./Wizard.js').Wizard} — same compound-component shape (Root + Context
+ * React Native leaf of `Wizard` — same compound-component shape (Root + Context
  * + `useWizardModel()` + `Object.assign` parts), same navigation statechart (attempted steps, discard guard,
  * preview toggle); see that module's doc for the full rationale, including why `Wizard.TopBar` and
  * `Wizard.Controls` are deliberately two separate parts rather than the plan's literal single "Controls".

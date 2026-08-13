@@ -1,7 +1,7 @@
 /**
  * @module screens/AccountSettings — the mobile account hub (security + sign-out + danger zone), U2 rebuild.
  *
- * Reachable from the profile surface's "Account settings" action ({@link import('./AppRoot.js').AppRoot}
+ * Reachable from the profile surface's "Account settings" action (`AppRoot`
  * wires it as a top-level destination). It is the single home for account-level actions: the signed-in
  * identity, the IdP-hosted security note, SIGN OUT, and the shared {@link AccountDangerZone} — which presents
  * CLOSE (recoverable) and ERASE (irreversible) as two DISTINCT actions through the design-system

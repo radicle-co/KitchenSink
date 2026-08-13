@@ -6,7 +6,7 @@
  * image-picker (replacing the old paste-a-URL text box), and a `@commise/ui` {@link Button} with a real
  * `busy` state for Save — all copy from `mobileMessages`, wrapped in a `SafeAreaView` + `KeyboardAvoidingView`
  * so the keyboard never occludes the field. The account-level controls (security, sign out, close/erase)
- * live in the reachable {@link import('./AccountSettings.js').AccountSettingsScreen} hub, entered via the
+ * live in the reachable `AccountSettingsScreen` hub, entered via the
  * "Account settings" action here (`onOpenAccountSettings`), so destructive actions have a single home.
  */
 import { Button } from '@commise/ui/button';

@@ -223,7 +223,7 @@ export const parseNumericInput = (text: string): number => {
 /**
  * Parse a comma-separated text input into a trimmed, non-empty list of tokens. Pure — order-preserving;
  * empties are dropped. Retained as a general list-parsing util; the tags/dietary fields no longer use it (they
- * moved to the {@link import('./ChipInput.js').ChipInput} token control — U6), which appends one chip at a time
+ * moved to the `ChipInput` token control — U6), which appends one chip at a time
  * via {@link addChip} instead of re-parsing a whole comma string on every keystroke.
  *
  * @param text - The raw comma-separated text.
@@ -237,7 +237,7 @@ export const parseCommaList = (text: string): string[] =>
 
 /**
  * Append `token` (trimmed) to a chip `list`, unless it is blank or a case-insensitive duplicate of a chip
- * already present — the pure transition the {@link import('./ChipInput.js').ChipInput} token control commits on
+ * already present — the pure transition the `ChipInput` token control commits on
  * each entry (U6, replacing the comma-text field's whole-string re-parse). Returns a NEW array on an actual
  * add and a copy otherwise, so a caller can compare lengths to detect whether anything was added. Pure.
  *
@@ -257,7 +257,7 @@ export const addChip = (list: readonly string[], token: string): string[] => {
 
 /**
  * Remove the chip at `index` from a chip `list`. Out-of-range indices are a no-op copy. Pure — the
- * {@link import('./ChipInput.js').ChipInput} control's remove-chip transition (U6).
+ * `ChipInput` control's remove-chip transition (U6).
  *
  * @param list - The current chip list.
  * @param index - The zero-based chip index to remove.

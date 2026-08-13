@@ -119,7 +119,7 @@ export interface RecipeFormMessages {
     /** Accessible label for the private-visibility toggle. */
     readonly visibilityLabel: string;
 
-    /** Localized copy for each {@link import('./model.js').RecipeFormErrorCode} validation error (B20). */
+    /** Localized copy for each `RecipeFormErrorCode` validation error (B20). */
     readonly errors: {
         readonly titleRequired: string;
         readonly ingredientsEmpty: string;

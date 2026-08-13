@@ -2,7 +2,7 @@
  * Pure retry-budget helpers for the fan-out worker (T-153, FR-016/FR-027). The exponential backoff and
  * the retry-budget ceiling are isolated here so they are unit-testable without a database. The
  * `fetch_queue` row's `last_requested` gate is set to `now() + interval 'backoffSeconds(attempts) s'`
- * by {@link FetchQueueDao.recordFailure}; this module just states the curve and the ceiling.
+ * by `FetchQueueDao.recordFailure`; this module just states the curve and the ceiling.
  *
  * @implements FR-016 FR-027
  */

@@ -1,6 +1,6 @@
 /**
  * Collections-domain throwables. These are the shared {@link RecipeDomainError} (a real stack-bearing
- * `Error` that also satisfies the structural {@link RecipeError} contract), so the service-wide
+ * `Error` that also satisfies the structural `RecipeError` contract), so the service-wide
  * `ApiExceptionFilter` maps them to the correct HTTP status via `isRecipeError` — NOT_OWNER → 403,
  * RECIPE_NOT_FOUND → 404, INVALID_VISIBILITY → 400.
  *

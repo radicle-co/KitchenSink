@@ -30,7 +30,7 @@ const VOCABULARY: EnvelopeVocabulary = {
 };
 
 /**
- * An {@link ApiErrorBody} whose `code` is one of the PUBLISHED codes.
+ * An `ApiErrorBody` whose `code` is one of the PUBLISHED codes.
  *
  * An intersection rather than a fresh interface on purpose: it stays the MECHANISM's envelope type — the one
  * `normalizeHttpException` also returns, so both arms of {@link resolve} produce one shape — while narrowing `code`
@@ -49,7 +49,7 @@ type ClassifiedEnvelope = ApiErrorEnvelope & { readonly code: RecipeErrorCode };
  * `isRecipeError` is `recipe-core`'s structural guard, and its `code` is one of the fifteen domain codes — every
  * one of which is a member of the published wire enum, asserted mechanically in
  * `../__tests__/api-error.schema.test.ts` rather than trusted. The status is NOT decided here: it comes from
- * {@link RECIPE_ERROR_STATUS}, the one table {@link apiError} also reads, so a domain error and a deliberately
+ * {@link RECIPE_ERROR_STATUS}, the one table `apiError` also reads, so a domain error and a deliberately
  * raised code cannot disagree about what a `VERSION_CONFLICT` answers with.
  *
  * @param exception - The thrown value.
@@ -115,7 +115,7 @@ function resolve(exception: unknown): NormalizedFailure {
  * class rather than of every throw site is what let four published error shapes become one (see {@link resolve}).
  *
  * ⚠️ `RECIPE_ERROR_STATUS` MOVED OUT of this file to `../api-error.ts` and is re-exported below, because the table
- * now has a second legitimate reader — {@link apiError}, the one way to raise a coded failure — and a table with
+ * now has a second legitimate reader — `apiError`, the one way to raise a coded failure — and a table with
  * two readers must not live inside one of them.
  */
 @Catch()

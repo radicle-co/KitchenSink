@@ -104,7 +104,7 @@ const hasChanges = (tally: DiffTally): boolean => tally.added > 0 || tally.remov
 /**
  * Whether two steps AT THE SAME POSITION carry different authored content. Compares `instruction` and
  * `timerSeconds` only — `id`/`recipeId`/`stepNumber` are structural/regenerated, not authored content. Pure.
- * Exported so the W7 three-way {@link ../conflictDiff.js!computeConflictDiff} can reuse this SAME
+ * Exported so the W7 three-way `computeConflictDiff` (`../conflictDiff.ts`) can reuse this SAME
  * authored-content comparison rather than re-deriving it — one authoritative definition of "changed" per
  * step, so the two-way and three-way diffs can never disagree.
  */
@@ -138,7 +138,7 @@ const diffSteps = (base: readonly RecipeStep[], target: readonly RecipeStep[]): 
 };
 
 /** The stable cross-version ingredient identity — the canonical catalog ingredient reference (see module docs).
- *  Exported for reuse by the W7 three-way {@link ../conflictDiff.js!computeConflictDiff} (see {@link stepContentChanged}
+ *  Exported for reuse by the W7 three-way `computeConflictDiff` (`../conflictDiff.ts`) (see {@link stepContentChanged}
  *  for why reuse, not re-derivation, matters here). */
 export const ingredientIdentity = (ingredient: RecipeIngredient): string => ingredient.ingredientId;
 

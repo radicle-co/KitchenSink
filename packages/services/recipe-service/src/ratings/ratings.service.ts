@@ -1,7 +1,7 @@
 /**
  * CR-001 / FR-013 — rating write orchestration + authorization.
  *
- * Sits between {@link RatingsController} (which supplies the verified rater ULID — `principal.userId`,
+ * Sits between `RatingsController` (which supplies the verified rater ULID — `principal.userId`,
  * NEVER a body value) and {@link RatingsDal}. It owns the authorization rules the DAL does not, and the
  * ORDER of those rules is a security boundary, not an implementation detail:
  *

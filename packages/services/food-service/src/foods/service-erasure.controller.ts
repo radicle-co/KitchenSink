@@ -2,11 +2,11 @@
  * The `/api/v1/internal/account` REST surface for the food service — the service-principal erasure route
  * (CR-002 / U4b / R11), the food mirror of recipe-service's U4a `ServiceErasureController`.
  *
- * A STRUCTURALLY-DISTINCT controller from {@link import('./foods.controller.js').FoodsController}, on its
+ * A STRUCTURALLY-DISTINCT controller from `FoodsController`, on its
  * own `internal` path prefix, so the machine-auth path never shares a handler, a body shape, or a guard
  * chain with the user-facing food API:
  *
- *  - It is NOT covered by the Clerk {@link import('../auth/food-auth.guard.js').FoodAuthGuard} middleware
+ *  - It is NOT covered by the Clerk `FoodAuthGuard` middleware
  *    (mounted only on the foods controllers), which would 401 a machine token. Instead
  *    {@link FoodServiceErasureGuard} verifies the signed, single-target service token (food audience) and
  *    yields the bound {@link ServicePrincipal}.

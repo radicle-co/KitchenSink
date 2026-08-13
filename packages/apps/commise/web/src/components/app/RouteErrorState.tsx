@@ -5,7 +5,7 @@
  * web App Router `error.tsx` boundary (B18). Pure `props → JSX`: the retry affordance is the caller's
  * `onRetry` (Next's own `reset()` for the segment) — this component does not know about React error
  * boundaries, DA9 reporting, or which segment threw; that orchestration lives in
- * {@link import('./RouteErrorBoundary.js').RouteErrorBoundary}, the shared composition point every
+ * `RouteErrorBoundary`, the shared composition point every
  * per-segment `error.tsx` renders.
  */
 import { useMessages } from '@commise/i18n/react';

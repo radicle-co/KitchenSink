@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/widget/web — web entry for the recipe Home widget.
  *
  * The `./widget/web` package export and the loader seam (`@commise/features-core`
- * {@link HomeWidgetDescriptor.load}) resolve to this module's default export. It composes the
+ * `HomeWidgetDescriptor.load`) resolve to this module's default export. It composes the
  * platform-neutral building-block barrel (which resolves to the web `*.tsx` leaves) into the
  * recent-recipes card.
  *

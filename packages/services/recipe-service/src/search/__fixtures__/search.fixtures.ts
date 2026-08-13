@@ -3,7 +3,7 @@
  * Used by the search DAL / service / controller unit tests.
  *
  * The search DAL reads via `db.execute` and maps raw (snake_case) `recipes` rows to the shared domain
- * `Recipe` — so the raw-row factory here mirrors {@link makeRawIngredientRow} in the ingredients vertical.
+ * `Recipe` — so the raw-row factory here mirrors `makeRawIngredientRow` in the ingredients vertical.
  */
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 

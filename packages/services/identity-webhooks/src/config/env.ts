@@ -164,8 +164,8 @@ export function getWebhookConfig(): WebhookEnvironment {
 
 /**
  * The resolved cross-service erasure fan-out config (CR-002 / U4b): the EdDSA signing key + the recipe and
- * food base URLs. Read from `process.env` DIRECTLY — deliberately NOT through the base {@link
- * EnvironmentSchema} — so an absent/empty value (before ops provisions the keypair + URLs) affects ONLY the
+ * food base URLs. Read from `process.env` DIRECTLY — deliberately NOT through the base
+ * {@link EnvironmentSchema} — so an absent/empty value (before ops provisions the keypair + URLs) affects ONLY the
  * erasure fan-out, never the closure/reactivation paths that share the deletion-worker's `getConfig()`.
  *
  * Demanded ALL-OR-NOTHING at the point of use: a fan-out consumer missing any of the three fails LOUD (the

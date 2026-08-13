@@ -6,7 +6,7 @@
  * (`AlertDialog.Cancel`), or a trigger that must own its own `ref` — can still wear the DS surface WITHOUT
  * re-typing the palette, the radius, or the touch floor. These tests pin the properties consumers depend on:
  * the 44px touch floor with its desktop reset, a distinct visible surface per tier, and that the recipe the
- * {@link Button} itself renders is byte-identical to what this helper returns (so the two can never drift).
+ * `Button` itself renders is byte-identical to what this helper returns (so the two can never drift).
  *
  * ## The FOCUS RING is measured here, because this recipe is where the defect was systemic (#114)
  *

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Tests for the `/profile` route content (U3): its SSR identity-fetch resilience (degrade, never crash) AND
- * the U3 shell — it renders inside the shared {@link AppShell} (nav on desktop AND narrow) with localized
+ * the U3 shell — it renders inside the shared `AppShell` (nav on desktop AND narrow) with localized
  * copy. The AppShell avatar hook is mocked; the state gate + logout are stubbed to keep the focus on the
  * profile content and its degrade path.
  */

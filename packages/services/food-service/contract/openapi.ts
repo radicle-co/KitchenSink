@@ -99,7 +99,7 @@ const idParameter = {
     schema: z.string(),
 } as const;
 
-/** `401` — the {@link FoodAuthGuard} rejected or found no Clerk session / M2M token. */
+/** `401` — the `FoodAuthGuard` rejected or found no Clerk session / M2M token. */
 const unauthorized = {
     description:
         'No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is ' +

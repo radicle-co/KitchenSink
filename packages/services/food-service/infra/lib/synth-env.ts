@@ -1,6 +1,6 @@
 /**
  * The CDK app's SYNTH-TIME environment contract — the deploy-shaped numbers `bin/app.ts` feeds into
- * {@link FoodServiceStack}, validated in one place with a loud, named failure.
+ * `FoodServiceStack`, validated in one place with a loud, named failure.
  *
  * Why these are not in `src/config/env.schema.ts` (which owns every RUNTIME setting through the one
  * `settingFromEnv` reader):
@@ -50,7 +50,7 @@ const SynthEnvSchema = z.object({
     FOOD_UNRESOLVED_TTL_DAYS: z.coerce.number().int().positive().optional(),
 });
 
-/** The validated synth-time inputs for {@link FoodServiceStack}. */
+/** The validated synth-time inputs for `FoodServiceStack`. */
 export interface SynthEnv {
     /** Desired count of Fargate API tasks. */
     readonly desiredCount: number;

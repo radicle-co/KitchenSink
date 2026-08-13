@@ -15,7 +15,7 @@
  * Whether the host can actually blur a backdrop.
  *
  * Reads no DOM and performs no I/O — it is a compile-time constant on this platform, safe to call at module
- * scope. The mirror of {@link import('./blurSupport.native.js').isBlurSupported}.
+ * scope. The mirror of `isBlurSupported`.
  *
  * @returns `true` — web hosts render a real `backdrop-filter`.
  */

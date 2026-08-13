@@ -344,7 +344,7 @@ export function hasActiveFilters(state: RecipeFilterState): boolean {
 /**
  * The empty filter state (clear-all). Pure.
  *
- * @returns {@link EMPTY_RECIPE_FILTERS}.
+ * @returns `EMPTY_RECIPE_FILTERS`.
  */
 export function clearRecipeFilters(): RecipeFilterState {
     return EMPTY_RECIPE_FILTERS;

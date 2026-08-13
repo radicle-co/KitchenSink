@@ -1,6 +1,6 @@
 /**
  * Per-file upload QUEUE layer (w3/e4) — a FIFO work queue (Producer/Consumer, drained one item at a time)
- * layered ABOVE the existing single-flight {@link useRecipePhotoUpload} hook, never reimplementing or
+ * layered ABOVE the existing single-flight `useRecipePhotoUpload` hook, never reimplementing or
  * modifying it (Decorator/Adapter: this hook composes the unchanged `{ uploading, errorMessage, upload }`
  * contract, it does not alter it). The step-4 wireframe needs a 3-column grid where EACH file shows its own
  * status (queued / uploading / ok / failed) with a retry — but `useRecipePhotoUpload` is deliberately sized
@@ -111,7 +111,7 @@ export interface RecipePhotoQueueFile extends RecipePhotoUploadFile {
 
 /** One file's state as exposed to the grid. */
 export interface RecipePhotoQueueItem {
-    /** Stable id this hook assigned at enqueue time — the handle {@link retry}/{@link remove} take. */
+    /** Stable id this hook assigned at enqueue time — the handle `retry`/`remove` take. */
     readonly fileId: number;
     /** The original file name, for the grid's accessible labeling. */
     readonly fileName: string;
@@ -315,7 +315,7 @@ function toPublicItems(items: readonly StoredItem[], activeFileId: number | null
 }
 
 /**
- * The per-file photo upload queue, driving the existing single-flight {@link useRecipePhotoUpload} once per
+ * The per-file photo upload queue, driving the existing single-flight `useRecipePhotoUpload` once per
  * file, sequentially.
  *
  * @param uploader - The `{ uploading, errorMessage, upload }` surface of a `useRecipePhotoUpload` instance

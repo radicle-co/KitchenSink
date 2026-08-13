@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes — native collection recipe-picker (the ADD half of T072 / FR-009).
  *
- * The React Native leaf of {@link import('./CollectionRecipePicker.js').CollectionRecipePicker} — same
+ * The React Native leaf of `CollectionRecipePicker` — same
  * controlled, presentational contract: it lists the caller's OWN recipes and adds them, one at a time, to a
  * single named collection, fetching nothing. Multi-membership is expressed per row (membership scoped to THIS
  * collection); a member or in-flight row's control stays MOUNTED and focusable, carrying its inert state in its

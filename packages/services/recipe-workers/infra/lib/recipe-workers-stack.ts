@@ -216,7 +216,7 @@ export interface RecipeWorkersStackProps extends StackProps {
  *
  * Alarms (T138) fire on the conditions FR-007b-i names: backlog over 100, the oldest pending row older
  * than an hour, and a DLQ that is not empty — plus the erasure and orphan-resurrection signals. EVERY
- * alarm routes to a single per-stage SNS topic ({@link alarmTopic}); an alarm with no action satisfies
+ * alarm routes to a single per-stage SNS topic (`alarmTopic`); an alarm with no action satisfies
  * "MUST fire" on paper while paging nobody, which is how the archive path's age condition was missed
  * entirely (QE-001). Ops subscribes the topic per stage out of band, exactly as the identity and food
  * service stacks do.

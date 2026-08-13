@@ -558,15 +558,21 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
-            # `print-food-host.ts` imports the food stack module, which imports `@kitchensink/infra-security`
-            # (the cdk-nag suppression register). That package exports `./dist` — deliberately, because the
-            # COMPILED CDK apps are run by plain `node`, and Node's type-stripping resolves a `.js` specifier
-            # inside a `.ts` file literally rather than through `extensionAlias`, so a `./src` export breaks
-            # them. Exporting dist means it must be BUILT before anything imports it, and the food build below
-            # is both later than this step and gated on the deploy decision. Same class as the
-            # build-the-dependency-graph-before-the-compiled-CDK fix; this is the step that was missed.
-            - name: Build the infra-security package this resolver imports
-              run: npx turbo run build --filter=@kitchensink/infra-security
+            # `print-food-host.ts` imports the food stack module, so every workspace package that module
+            # reaches must be BUILT first. `@kitchensink/infra-security` and `@kitchensink/infra-alb` export
+            # `./dist`, not `./src` — deliberately, because the COMPILED CDK apps run under plain `node`,
+            # whose type-stripping resolves a `.js` specifier inside a `.ts` file literally rather than
+            # through `extensionAlias`. The food build that would produce those dists is later than this
+            # step and gated on the deploy decision.
+            #
+            # ⛔ The filter is the DEPENDENCY CLOSURE, not a named package. This step previously named
+            # `infra-security` alone and its own comment called itself "the step that was missed" — then
+            # `infra-alb` landed and it was missed again, `ERR_MODULE_NOT_FOUND` on
+            # `infra-alb/dist/index.js`, breaking every sandbox food deploy. A hand-maintained list of
+            # dist-exporting dependencies is a second representation of the dependency graph; `^...` asks
+            # turbo for the real one, so the next such package needs no edit here.
+            - name: Build the workspace packages this resolver imports
+              run: npx turbo run build --filter='@kitchensink/food-service^...'
             - name: Resolve this stage's food origin
               id: host
               run: |
@@ -836,15 +842,21 @@ jobs:
             # re-typing `food-pr-{N}.${DOMAIN_NAME}` here: the dash form is a TLS constraint (a 3-label
             # `food.pr-7...` matches no wildcard on the shared ALB cert — ADR-0003/0006), and a second copy of
             # that rule in YAML is exactly the kind of thing that drifts silently. One definition, imported.
-            # `print-food-host.ts` imports the food stack module, which imports `@kitchensink/infra-security`
-            # (the cdk-nag suppression register). That package exports `./dist` — deliberately, because the
-            # COMPILED CDK apps are run by plain `node`, and Node's type-stripping resolves a `.js` specifier
-            # inside a `.ts` file literally rather than through `extensionAlias`, so a `./src` export breaks
-            # them. Exporting dist means it must be BUILT before anything imports it, and the food build below
-            # is both later than this step and gated on the deploy decision. Same class as the
-            # build-the-dependency-graph-before-the-compiled-CDK fix; this is the step that was missed.
-            - name: Build the infra-security package this resolver imports
-              run: npx turbo run build --filter=@kitchensink/infra-security
+            # `print-food-host.ts` imports the food stack module, so every workspace package that module
+            # reaches must be BUILT first. `@kitchensink/infra-security` and `@kitchensink/infra-alb` export
+            # `./dist`, not `./src` — deliberately, because the COMPILED CDK apps run under plain `node`,
+            # whose type-stripping resolves a `.js` specifier inside a `.ts` file literally rather than
+            # through `extensionAlias`. The food build that would produce those dists is later than this
+            # step and gated on the deploy decision.
+            #
+            # ⛔ The filter is the DEPENDENCY CLOSURE, not a named package. This step previously named
+            # `infra-security` alone and its own comment called itself "the step that was missed" — then
+            # `infra-alb` landed and it was missed again, `ERR_MODULE_NOT_FOUND` on
+            # `infra-alb/dist/index.js`, breaking every sandbox food deploy. A hand-maintained list of
+            # dist-exporting dependencies is a second representation of the dependency graph; `^...` asks
+            # turbo for the real one, so the next such package needs no edit here.
+            - name: Build the workspace packages this resolver imports
+              run: npx turbo run build --filter='@kitchensink/food-service^...'
             - name: Resolve the food service origin for this stage
               id: food
               run: |
@@ -895,6 +907,13 @@ jobs:
             # `STAGE` and `DOMAIN_NAME` are already exported (job- and workflow-level `env:`), so only the
             # step outputs need declaring. Same values as the old command-prefix assignments — the CDK app
             # reads them from `process.env` either way.
+            # Same closure requirement as the resolvers above: this app imports `@kitchensink/infra-security`,
+            # which exports `./dist`. It has not failed only because an earlier step in this job happens to
+            # build it — an accident of ordering, not a guarantee. `cdk-entrypoint-build-order.test.ts` found
+            # this while pinning the two resolver steps.
+            - name: Build the workspace packages the recipe-workers app imports
+              if: steps.gate.outputs.deploy == 'true'
+              run: npx turbo run build --filter='@kitchensink/recipe-workers^...'
             - name: CDK Deploy — recipe workers (publishes the erasure-queue SSM params)
               if: steps.gate.outputs.deploy == 'true'
               env:

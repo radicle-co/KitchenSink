@@ -200,10 +200,16 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         const created = makeRecipeDetail({ id: 'rec_new', title: 'Soup' });
         server = await startServer([{ status: 201, json: created }]);
         const client = new RecipeServiceClient({ baseUrl: server.baseUrl, token: 'tok', fetch });
+        // A CONTRACT-VALID body, because the client now parses outbound requests against the published
+        // zod before sending. This case is about TRANSPORT — that a JSON body is serialized and arrives
+        // intact — so it needs the smallest body the contract accepts, not the smallest body TypeScript
+        // accepts. Empty `ingredients`/`steps` arrays used to pass here and now fail the outbound parse
+        // (`too_small`, min 1), which is the guard working: the request could never have succeeded.
         const input = {
             title: 'Soup',
-            ingredients: [],
-            steps: [],
+            ingredients: [{ ingredientId: '4b1c0a3e-2f6d-4c58-9a71-0d5e8c2f4a90', name: 'Stock', quantity: 1 }],
+            // No `stepNumber` — the server assigns it from array order, and the body is `strictObject`.
+            steps: [{ instruction: 'Simmer the stock.' }],
             servings: 2,
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,

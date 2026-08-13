@@ -38,6 +38,25 @@ export interface ProbeSignals {
 const DNS_ERROR_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'EAI_FAIL']);
 
 /**
+ * Whether a final URL is Vercel's own SSO/login page — the tell that the deployment-protection bypass key is
+ * missing or wrong. Compares the parsed host and path rather than substring-matching the whole URL. An
+ * unparseable value is not a Vercel landing. Pure.
+ */
+function isVercelAuthLanding(finalUrl: string): boolean {
+    let parsed: URL;
+
+    try {
+        parsed = new URL(finalUrl);
+    } catch {
+        return false;
+    }
+
+    const host = parsed.host.toLowerCase();
+
+    return (host === 'vercel.com' || host.endsWith('.vercel.com')) && /^\/(sso|login)(\/|$)/u.test(parsed.pathname);
+}
+
+/**
  * Classify a probe's raw signals into a reachability verdict. Pure — all network I/O happens in
  * {@link probe}; this is the decision the report and exit code hang on, so it is unit-tested directly.
  *
@@ -56,8 +75,10 @@ export function classifyReachability(signals: ProbeSignals): ReachabilityResult 
     const finalUrl = signals.finalUrl ?? '';
     const status = signals.status ?? 0;
 
-    // A Vercel SSO/login landing means the protection-bypass key is missing or wrong.
-    if (/vercel\.com\/(sso|login)/i.test(finalUrl)) {
+    // A Vercel SSO/login landing means the protection-bypass key is missing or wrong. Matched against the
+    // PARSED host and path, not the raw URL: an unanchored `vercel.com/(sso|login)` also fires on a preview
+    // that merely carries that text in its own path, which would report a bypass failure that never happened.
+    if (isVercelAuthLanding(finalUrl)) {
         return { ok: false, kind: 'sso', detail: `Vercel deployment protection (bypass missing) → ${finalUrl}` };
     }
 

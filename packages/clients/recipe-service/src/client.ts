@@ -127,6 +127,21 @@ import type {
 } from '@kitchensink/schema-recipe';
 
 /**
+ * The base URL with any trailing slashes removed. Deliberately NOT `/\/+$/`: that regex backtracks
+ * quadratically over a long run of slashes (measured at 1.6s for 100k), which is `js/polynomial-redos`. A base
+ * URL comes from configuration rather than a request, so this is defence in depth, not a live exposure. Pure.
+ */
+function withoutTrailingSlashes(url: string): string {
+    let end = url.length;
+
+    while (end > 0 && url.charAt(end - 1) === '/') {
+        end -= 1;
+    }
+
+    return url.slice(0, end);
+}
+
+/**
  * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
  * receives `{ forceRefresh }` — `true` when the client is retrying the first-token sync race, OR
  * bounded-single-retrying an ordinary expired-token `401`, and needs a freshly-minted token (the app
@@ -294,7 +309,7 @@ export class RecipeServiceClient {
 
     /** @param options - Base URL, optional token, an optional `fetch` double, and identity-sync retry config. */
     public constructor(options: RecipeServiceClientOptions) {
-        this.baseUrl = options.baseUrl.replace(/\/+$/, '');
+        this.baseUrl = withoutTrailingSlashes(options.baseUrl);
         this.token = options.token;
         this.maxIdentitySyncRetries = options.maxIdentitySyncRetries ?? 3;
         this.identitySyncBackoffMs = options.identitySyncBackoffMs ?? [250, 500, 1000];

@@ -56,6 +56,21 @@ import type {
     StatusResult,
 } from './types.js';
 
+/**
+ * The base URL with any trailing slashes removed. Deliberately NOT `/\/+$/`: that regex backtracks
+ * quadratically over a long run of slashes (measured at 1.6s for 100k), which is `js/polynomial-redos`. A base
+ * URL comes from configuration rather than a request, so this is defence in depth, not a live exposure. Pure.
+ */
+function withoutTrailingSlashes(url: string): string {
+    let end = url.length;
+
+    while (end > 0 && url.charAt(end - 1) === '/') {
+        end -= 1;
+    }
+
+    return url.slice(0, end);
+}
+
 /** A bearer token supplied either as a literal or a (sync/async) per-request callback. */
 export type TokenSource = string | (() => string | Promise<string>);
 
@@ -111,7 +126,7 @@ export class FoodServiceClient {
 
     /** @param options - Base URL, optional token (user or M2M), optional `fetch` double, and timeout. */
     public constructor(options: FoodServiceClientOptions) {
-        this.baseUrl = options.baseUrl.replace(/\/+$/, '');
+        this.baseUrl = withoutTrailingSlashes(options.baseUrl);
         this.token = options.token;
         this.fetchImpl = options.fetch ?? fetch;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;

@@ -81,8 +81,10 @@ async function compileAppCss(): Promise<string> {
  * a utility RESOLVES TO, never how it happens to be formatted.
  */
 function ruleFor(css: string, utility: string): string | undefined {
-    // Class selectors escape nothing we probe here (plain `a-z0-9-`), so a literal match is exact.
-    const match = new RegExp(`\\.${utility.replace(/[-]/g, '\\-')}\\s*\\{([^}]*)\\}`).exec(css);
+    // Escape every regex metacharacter, not just `-`: a partial escape silently mis-parses any utility
+    // carrying a `.`, `[` or `\` (arbitrary-value utilities do), and leaves the literal match only apparently exact.
+    const escaped = utility.replace(/[.*+?^${}()|[\]\\-]/gu, '\\$&');
+    const match = new RegExp(`\\.${escaped}\\s*\\{([^}]*)\\}`, 'u').exec(css);
 
     return match?.[1].replace(/\s+/g, '').replace(/;$/, '');
 }

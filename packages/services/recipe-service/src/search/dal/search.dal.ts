@@ -277,9 +277,18 @@ const SORT_ORDER_BUILDERS: Record<RecipeSearchSortBy, (query: string | undefined
         sql`(SELECT count(*) FROM recipes clones WHERE clones.cloned_from_id = recipes.id) DESC, created_at DESC`,
 };
 
-/** The page-ordering expression for a given sort key (references the `rank` alias for relevance). Pure. */
+/**
+ * The page-ordering expression for a given sort key (references the `rank` alias for relevance). Pure.
+ *
+ * `Object.hasOwn` rather than `??`: an inherited key like `toString` resolves to a TRUTHY function, so the
+ * fallback would never fire and the caller would splice `Object.prototype.toString`'s return — a string, not a
+ * `SQL` — straight into an ORDER BY. The wire schema does validate `sortBy` as a zod enum, but a DAL that
+ * builds SQL should not inherit its safety from a caller's validation.
+ */
 function orderByExpr(sortBy: RecipeSearchSortBy, query: string | undefined): SQL {
-    const builder = SORT_ORDER_BUILDERS[sortBy] ?? SORT_ORDER_BUILDERS[RecipeSearchSortBy.RELEVANCE];
+    const builder = Object.hasOwn(SORT_ORDER_BUILDERS, sortBy)
+        ? SORT_ORDER_BUILDERS[sortBy]
+        : SORT_ORDER_BUILDERS[RecipeSearchSortBy.RELEVANCE];
 
     return builder(query);
 }

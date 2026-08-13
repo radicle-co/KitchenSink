@@ -28,6 +28,21 @@ import {
 } from './schemas.js';
 import type { UsdaDataType, UsdaFoodDetail, UsdaNutrient, UsdaSearchHit, UsdaSearchResult } from './types.js';
 
+/**
+ * The base URL with any trailing slashes removed. Deliberately NOT `/\/+$/`: that regex backtracks
+ * quadratically over a long run of slashes (measured at 1.6s for 100k), which is `js/polynomial-redos`. A base
+ * URL comes from configuration rather than a request, so this is defence in depth, not a live exposure. Pure.
+ */
+function withoutTrailingSlashes(url: string): string {
+    let end = url.length;
+
+    while (end > 0 && url.charAt(end - 1) === '/') {
+        end -= 1;
+    }
+
+    return url.slice(0, end);
+}
+
 /** Default USDA FoodData Central API base URL. */
 const DEFAULT_BASE_URL = 'https://api.nal.usda.gov/fdc/v1';
 
@@ -69,7 +84,7 @@ export class UsdaApiClient {
      */
     public constructor(options: UsdaApiClientOptions) {
         this.apiKey = options.apiKey;
-        this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+        this.baseUrl = withoutTrailingSlashes(options.baseUrl ?? DEFAULT_BASE_URL);
         this.fetchFn = options.fetchFn ?? fetch;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     }

@@ -225,6 +225,28 @@ describe('the form projections satisfy their published request contracts', () =>
         expect(parsed.error?.issues ?? []).toEqual([]);
         expect(parsed.success).toBe(true);
     });
+
+    /**
+     * The wizard's Save-Draft floor is step 1 — title/servings/times, no ingredients and no steps. That body
+     * was rejected by a flat `min(1)` on both arrays, so Save Draft could not have worked against the real
+     * service at all; the e2e mock validated nothing, so nothing said so. The floor is now conditional on
+     * publication, and this is the case that pins it from the app's side.
+     */
+    it('toCreateRecipeInput accepts the Save-Draft floor: step 1 only, no ingredients or steps', () => {
+        const stepOneOnly = { ...defaultRecipeFormValues(), title: 'Weeknight Draft', servings: 4 };
+        const parsed = createRecipeRequestSchema.safeParse(toCreateRecipeInput(stepOneOnly, RecipeStatus.DRAFT));
+
+        expect(parsed.error?.issues ?? []).toEqual([]);
+        expect(parsed.success).toBe(true);
+    });
+
+    it('but the SAME empty body is rejected when it publishes', () => {
+        const stepOneOnly = { ...defaultRecipeFormValues(), title: 'Weeknight Draft', servings: 4 };
+        const parsed = createRecipeRequestSchema.safeParse(toCreateRecipeInput(stepOneOnly, RecipeStatus.PUBLISHED));
+
+        expect(parsed.success).toBe(false);
+        expect(parsed.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['ingredients', 'steps']);
+    });
 });
 
 describe('validateRecipeForm', () => {

@@ -11,7 +11,7 @@
  *
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common';
 import { deriveDisplayName } from '@kitchensink/identity-core';
 import {
     computeRecipeNutrition,
@@ -42,7 +42,7 @@ import type { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipe-response.dto.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
-import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeIngredientRow, RecipePhotoRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { Principal } from '../auth/principal.js';
 
@@ -658,6 +658,20 @@ export class RecipesService {
         // stays true — never reset). Only newly-substantive edits are persisted; the import provenance
         // columns are never touched here, so imported lineage survives the version bump (T139).
         const newlySubstantive = !existing.recipe.hasSubstantiveEdit && detectSubstantiveEdit(existing, dto);
+
+        // A recipe may EXIST empty — that is what a draft IS — but it may not be PUBLISHED empty. The wire
+        // schema rejects a body that publishes while sending an empty array; only the service can judge the
+        // body that publishes WITHOUT resending the arrays, because only it knows what is already stored.
+        // Counting the patch when present and the persisted rows otherwise is the same "absent means
+        // unchanged" rule the DAL applies below, evaluated against the post-update state.
+        if (dto.status === RecipeStatus.PUBLISHED) {
+            const ingredientCount = dto.ingredients?.length ?? existing.ingredients.length;
+            const stepCount = dto.steps?.length ?? existing.steps.length;
+
+            if (ingredientCount === 0 || stepCount === 0) {
+                throw new BadRequestException('A published recipe needs at least one ingredient and one step.');
+            }
+        }
 
         const updated = await this.dal.update(id, {
             // The version predicate makes the write an atomic compare-and-swap (closes the lost-update

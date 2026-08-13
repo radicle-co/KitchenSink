@@ -35,7 +35,7 @@
  *
  * Every request body is `z.strictObject` (GR-017 §17-c), INCLUDING the nested line/step shapes — a misspelled
  * `userProteinG` in an ingredient line is the same silent partial write, so top-level-only strictness would be
- * cosmetic. `updateRecipeRequestSchema` inherits it through `.omit().partial().extend()` (zod carries the
+ * cosmetic. `updateRecipeRequestSchema` inherits it through `.omit().partial().extend()` off the shared base (zod carries the
  * `catchall`). ⚠️ The ONE non-strict shape is {@link listRecipesQuerySchema}, a READ query — see its own note.
  *
  * The `.min(1)`s on `title`, `cuisine`, `steps[].instruction` and `ingredients[].notes` fix a body the server
@@ -119,7 +119,7 @@ export type RecipeStepInput = z.infer<typeof recipeStepInputSchema>;
  * in practice only by the 100 kB JSON body limit. The asymmetry with `ingredients` (100) and `tags` (50) is
  * flagged for a product decision rather than resolved by guessing a number here.
  */
-export const createRecipeRequestSchema = z.strictObject({
+const createRecipeRequestBaseSchema = z.strictObject({
     title: recipeTitleSchema,
     description: recipeDescriptionSchema.optional(),
     cuisine: recipeCuisineSchema.optional(),
@@ -133,8 +133,8 @@ export const createRecipeRequestSchema = z.strictObject({
     /** Publication status (W8-a.3). Defaults to `published` server-side; the wizard's Save-Draft sends `draft`. */
     status: recipeStatusSchema.optional(),
     deviceLabel: recipeDeviceLabelSchema.optional(),
-    ingredients: z.array(recipeIngredientInputSchema).min(1).max(MAX_RECIPE_INGREDIENTS),
-    steps: z.array(recipeStepInputSchema).min(1),
+    ingredients: z.array(recipeIngredientInputSchema).max(MAX_RECIPE_INGREDIENTS),
+    steps: z.array(recipeStepInputSchema),
     servings: recipeServingsSchema,
     prepTimeMinutes: recipeMinutesSchema,
     cookTimeMinutes: recipeMinutesSchema,
@@ -143,6 +143,32 @@ export const createRecipeRequestSchema = z.strictObject({
     tags: z.array(recipeListMemberSchema).max(MAX_RECIPE_TAGS).optional(),
     dietaryFlags: z.array(recipeListMemberSchema).optional(),
 });
+
+/**
+ * Body of `POST /api/v1/recipes`.
+ *
+ * `ingredients` and `steps` carry no `.min(1)` on the base object; the floor is conditional and lives in the two
+ * refinements below, because it is a property of PUBLISHING rather than of existing. A `draft` is allowed to be
+ * empty — that is precisely what makes the wizard's Save-Draft-from-step-1 a legal request, and it was NOT legal
+ * before: the flat `.min(1)` meant the app built `{ ingredients: [], steps: [] }`, this service answered `400`,
+ * and the only reason no test caught it is that the web e2e mock validated nothing.
+ *
+ * An ABSENT `status` still requires content, because it defaults to `published` — so the exemption is keyed on
+ * the explicit literal, and every body that does not say `draft` behaves exactly as it did before.
+ *
+ * ⚠️ This condition does NOT survive into `openapi.yaml`: JSON Schema cannot express "required only when a
+ * sibling equals a literal" through `z.toJSONSchema`, so the document shows both arrays as merely arrays. The
+ * zod here is the contract; the document is a projection of it (ADR-0014).
+ */
+export const createRecipeRequestSchema = createRecipeRequestBaseSchema
+    .refine((value) => value.status === 'draft' || value.ingredients.length > 0, {
+        message: 'A published recipe needs at least one ingredient.',
+        path: ['ingredients'],
+    })
+    .refine((value) => value.status === 'draft' || value.steps.length > 0, {
+        message: 'A published recipe needs at least one step.',
+        path: ['steps'],
+    });
 
 /** Request body for creating a recipe. */
 export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
@@ -161,10 +187,32 @@ export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
  * `Partial<>`'s omitted-means-unchanged rule would make "not stated" reachable only at create time, so a user who
  * ever set a difficulty could never remove it.
  */
-export const updateRecipeRequestSchema = createRecipeRequestSchema.omit({ visibility: true }).partial().extend({
-    expectedVersion: recipeExpectedVersionSchema,
-    difficulty: recipeDifficultySchema.nullable().optional(),
-});
+export const updateRecipeRequestSchema = createRecipeRequestBaseSchema
+    .omit({ visibility: true })
+    .partial()
+    .extend({
+        expectedVersion: recipeExpectedVersionSchema,
+        difficulty: recipeDifficultySchema.nullable().optional(),
+    })
+    // Derived from the BASE, not from `createRecipeRequestSchema`: `.omit()` throws on an object carrying
+    // refinements. The publish floor is restated here rather than inherited, and its predicate is deliberately
+    // NOT create's — an absent `status` means "leave unchanged" on a PATCH, so only the explicit `published`
+    // literal triggers it, and only for an array the body actually supplies.
+    //
+    // A body that publishes WITHOUT resending the arrays cannot be judged here at all, since the wire does not
+    // carry what is already stored. `RecipesService.update` re-checks the persisted recipe on the publish
+    // transition; this pair is the fast, local half of that guarantee, not the whole of it.
+    .refine(
+        (value) => value.status !== 'published' || value.ingredients === undefined || value.ingredients.length > 0,
+        {
+            message: 'A published recipe needs at least one ingredient.',
+            path: ['ingredients'],
+        },
+    )
+    .refine((value) => value.status !== 'published' || value.steps === undefined || value.steps.length > 0, {
+        message: 'A published recipe needs at least one step.',
+        path: ['steps'],
+    });
 
 /** Request body for updating a recipe. */
 export type UpdateRecipeRequest = z.infer<typeof updateRecipeRequestSchema>;

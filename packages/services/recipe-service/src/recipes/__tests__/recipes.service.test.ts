@@ -6,6 +6,7 @@
  * `RECIPE_NOT_FOUND`, pagination `hasMore`, and the T033 optimistic-concurrency check
  * (`VERSION_CONFLICT` with `details.currentVersion`). No database is involved.
  */
+import { BadRequestException } from '@nestjs/common';
 import { describe, it, expect, vi } from 'vitest';
 
 import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
@@ -713,12 +714,54 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
     });
 
     it('Publish: an owner update forwards status=published to the DAL', async () => {
+        // A draft that HAS content. The publish floor below is what makes that distinction load-bearing.
+        const draft = publicDraft(OWNER);
         const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(publicDraft(OWNER)),
+            findById: vi.fn().mockResolvedValue({
+                ...draft,
+                ingredients: [makeRecipeIngredientRow({ recipeId: 'r-1' })],
+            }),
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
         await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' });
+
+        expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ status: 'published' }));
+    });
+
+    /**
+     * The half of the publish floor the wire cannot enforce. `updateRecipeRequestSchema` rejects a body that
+     * publishes while SENDING an empty array, but a body that publishes without resending the arrays is
+     * indistinguishable from a legitimate one until you look at what is stored — so only the service can
+     * refuse it. Reachable only since drafts were allowed to be empty; before that, no empty recipe existed.
+     */
+    it('Publish is REFUSED when the stored draft is empty and the patch does not supply content', async () => {
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue({ ...publicDraft(OWNER), ingredients: [], steps: [] }),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        const error = await catchError(
+            newService(dal).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' }),
+        );
+
+        expect(error).toBeInstanceOf(BadRequestException);
+        // Nothing was written: the refusal precedes the DAL, so a rejected publish cannot bump the version.
+        expect(dal.update).not.toHaveBeenCalled();
+    });
+
+    it('Publish SUCCEEDS when the patch itself supplies the missing content', async () => {
+        const dal = fakeDal({
+            findById: vi.fn().mockResolvedValue({ ...publicDraft(OWNER), ingredients: [], steps: [] }),
+            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
+        });
+
+        await newService(dal).update(principal(), 'r-1', {
+            expectedVersion: 1,
+            status: 'published',
+            ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Salt', quantity: 1 }],
+            steps: [{ instruction: 'Mix' }],
+        });
 
         expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ status: 'published' }));
     });

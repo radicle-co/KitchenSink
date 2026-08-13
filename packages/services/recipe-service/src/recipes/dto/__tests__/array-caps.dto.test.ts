@@ -92,15 +92,47 @@ describe('UpdateRecipeDto.ingredients cap (REQ-003a)', () => {
         expect(() => update({ ingredients: makeIngredients(MAX_RECIPE_INGREDIENTS + 1) })).toThrow();
     });
 
-    it('rejects an EMPTY ingredients array on update — omit the key to leave them unchanged', () => {
-        expect(() => update({ ingredients: [] })).toThrow();
+    it('accepts an EMPTY ingredients array on an update that is not publishing', () => {
+        // The draft floor: a draft may be emptied. Rejecting this is what made "remove your last ingredient,
+        // then save" impossible — the same defect, one edit later, as Save-Draft-from-step-1.
+        expect(update({ ingredients: [] }).ingredients).toEqual([]);
     });
 });
 
-describe('steps cardinality', () => {
-    it('rejects an EMPTY steps array on create and on update', () => {
+/**
+ * The publish floor is CONDITIONAL: a recipe may exist empty (a draft), but not be published empty.
+ *
+ * The pair these replaced asserted a FLAT `min(1)` on both arrays. That read as a cardinality rule and was
+ * really a publication rule, so it forbade the empty draft the wizard's Save-Draft is built to create — the
+ * app sent `{ ingredients: [], steps: [] }` and the service answered 400.
+ */
+describe('ingredients/steps cardinality is a PUBLISH floor, not an existence floor', () => {
+    it('rejects an empty array on create when status is absent — the server defaults it to published', () => {
+        expect(() => create({ ingredients: [] })).toThrow();
         expect(() => create({ steps: [] })).toThrow();
-        expect(() => update({ steps: [] })).toThrow();
+    });
+
+    it('rejects an empty array on create when publishing explicitly', () => {
+        expect(() => create({ ingredients: [], status: 'published' })).toThrow();
+        expect(() => create({ steps: [], status: 'published' })).toThrow();
+    });
+
+    it('ACCEPTS both empty on create when the body says draft', () => {
+        const draft = create({ ingredients: [], steps: [], status: 'draft' });
+
+        expect(draft.ingredients).toEqual([]);
+        expect(draft.steps).toEqual([]);
+    });
+
+    it('rejects an empty array on an update that publishes', () => {
+        expect(() => update({ ingredients: [], status: 'published' })).toThrow();
+        expect(() => update({ steps: [], status: 'published' })).toThrow();
+    });
+
+    it('accepts an update that publishes without resending the arrays — only the service can judge that', () => {
+        // Absent means unchanged, and the wire does not carry what is stored, so this MUST pass validation.
+        // `RecipesService.update` is what rejects it when the persisted recipe is empty.
+        expect(update({ status: 'published' }).status).toBe('published');
     });
 });
 

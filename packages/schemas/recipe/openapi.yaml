@@ -4105,7 +4105,6 @@ components:
           maxLength: 80
           pattern: ^[\p{L}\p{N} .,'()-]+$
         ingredients:
-          minItems: 1
           maxItems: 100
           type: array
           items:
@@ -4151,7 +4150,6 @@ components:
               - quantity
             additionalProperties: false
         steps:
-          minItems: 1
           type: array
           items:
             type: object
@@ -4236,7 +4234,6 @@ components:
           maxLength: 80
           pattern: ^[\p{L}\p{N} .,'()-]+$
         ingredients:
-          minItems: 1
           maxItems: 100
           type: array
           items:
@@ -4282,7 +4279,6 @@ components:
               - quantity
             additionalProperties: false
         steps:
-          minItems: 1
           type: array
           items:
             type: object

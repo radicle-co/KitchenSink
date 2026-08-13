@@ -965,7 +965,7 @@ export async function mockRecipeApi(
         if (path.endsWith('/api/v1/ingredients') && method === 'POST') {
             const { name } = body() as { name?: string };
             const freeform: Ingredient = {
-                // A UUID for the same reason as {@link E2E_INGREDIENT_IDS}: this id goes straight onto a recipe
+                // A UUID for the same reason as `E2E_INGREDIENT_IDS`: this id goes straight onto a recipe
                 // line, and the save that follows parses it against `z.uuid()` before sending.
                 id: `f0000000-0000-4000-8000-${String(nextFreeformIngredientId++).padStart(12, '0')}`,
                 name: name ?? 'Custom ingredient',

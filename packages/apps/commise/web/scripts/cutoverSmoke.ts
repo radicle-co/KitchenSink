@@ -38,22 +38,39 @@ export interface ProbeSignals {
 const DNS_ERROR_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'EAI_FAIL']);
 
 /**
+ * The lowercased host of a URL, or `undefined` when it does not parse. Pure.
+ *
+ * @param url - A possibly-malformed absolute URL.
+ */
+function hostOf(url: string): string | undefined {
+    try {
+        return new URL(url).host.toLowerCase();
+    } catch {
+        return undefined;
+    }
+}
+
+/** Whether a host is vercel.com itself or one of its subdomains — anchored at BOTH ends. Pure. */
+function isVercelHost(host: string | undefined): boolean {
+    return host !== undefined && (host === 'vercel.com' || host.endsWith('.vercel.com'));
+}
+
+/**
  * Whether a final URL is Vercel's own SSO/login page — the tell that the deployment-protection bypass key is
- * missing or wrong. Compares the parsed host and path rather than substring-matching the whole URL. An
+ * missing or wrong. Compares the parsed host and path rather than substring-matching the whole URL, so a
+ * preview that merely carries `vercel.com/sso` in its own path is not reported as a bypass failure. An
  * unparseable value is not a Vercel landing. Pure.
  */
 function isVercelAuthLanding(finalUrl: string): boolean {
-    let parsed: URL;
+    const host = hostOf(finalUrl);
 
-    try {
-        parsed = new URL(finalUrl);
-    } catch {
+    if (!isVercelHost(host)) {
         return false;
     }
 
-    const host = parsed.host.toLowerCase();
-
-    return (host === 'vercel.com' || host.endsWith('.vercel.com')) && /^\/(sso|login)(\/|$)/u.test(parsed.pathname);
+    // A leading anchor, not a whole-segment one: the real bounce is `/sso-api`, so requiring a `/` or
+    // end-of-string after the word would classify the commonest case as "reached the app".
+    return /^\/(sso|login)/u.test(new URL(finalUrl).pathname);
 }
 
 /**
@@ -86,8 +103,11 @@ export function classifyReachability(signals: ProbeSignals): ReachabilityResult 
         return { ok: false, kind: 'notfound', detail: '404 — route not registered in KVS, or app miss' };
     }
 
-    // Reached the app: a success/redirect that did NOT land on vercel.com.
-    if (status >= 200 && status < 400 && !/(^|\.)vercel\.com/i.test(new URL(finalUrl || 'http://x').host)) {
+    // Reached the app: a success/redirect that did NOT land on vercel.com. `hostOf` rather than a bare
+    // `new URL(...)`, which THROWS on a malformed non-empty value — a probe that follows a redirect to
+    // something unparseable took the whole script down instead of reporting `error`. The host comparison is
+    // also anchored at both ends now: `(^|\.)vercel\.com` alone matches `vercel.com.example.test`.
+    if (status >= 200 && status < 400 && !isVercelHost(hostOf(finalUrl))) {
         return {
             ok: true,
             kind: 'app',

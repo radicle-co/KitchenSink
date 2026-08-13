@@ -11,19 +11,17 @@
 /**
  * @requirements
  * 1. Presign against the identity service with the blob's REAL content-type and byte size (the presign
- *    endpoint re-validates both, and the signature binds the content-type), using the native Clerk token
- *    template so the azp-less native token is admitted.
+ *    endpoint re-validates both, and the signature binds the content-type), through the shared
+ *    {@link useProfileServiceClient} client — which mints the native Clerk token, parses both directions against
+ *    the published contract, and reports contract skew.
  * 2. PUT the exact blob to the returned presigned URL WITHOUT the Authorization header (the presigned URL is
  *    the credential) and with a matching `Content-Type`.
  * 3. Resolve the durable public URL on success; reject (never silently succeed) if either the presign or the
  *    S3 PUT fails, so the caller can surface a localized error and leave the stored avatar unchanged.
  */
-import { avatarPresignQuerySchema, avatarPresignResponseSchema } from '@kitchensink/schema-identity';
-import { useAuth } from '@clerk/expo';
 import { useCallback } from 'react';
 
-import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
-import { apiRequest, type GetToken } from '../services/api.js';
+import { useProfileServiceClient } from './useProfileServiceClient.js';
 
 /** The bytes + type of a picked avatar image, ready to upload. */
 export interface AvatarUploadInput {
@@ -33,7 +31,7 @@ export interface AvatarUploadInput {
     readonly contentType: string;
 }
 
-/** The avatar upload seam consumed by the profile screen's {@link import('../components/account/AvatarField.js')}. */
+/** The avatar upload seam consumed by the profile screen's `../components/account/AvatarField.tsx`. */
 export interface UseAvatarUpload {
     /**
      * Presign, PUT the bytes to S3, and resolve the durable public URL.
@@ -45,34 +43,19 @@ export interface UseAvatarUpload {
 
 /** Build the avatar upload seam bound to the current native session's token. */
 export function useAvatarUpload(): UseAvatarUpload {
-    const { getToken } = useAuth();
+    const client = useProfileServiceClient();
 
     const upload = useCallback(
         async ({ blob, contentType }: AvatarUploadInput): Promise<string> => {
-            // Native tokens are azp-less; the services only admit them when minted from the native template.
-            const getIdentityToken: GetToken = () => getToken({ template: NATIVE_JWT_TEMPLATE });
-            // ⚠️ THE QUERY AND THE RESPONSE BOTH GO THROUGH `@kitchensink/schema-identity` (§15 rule 4). This hook
-            // used to declare its OWN `interface AvatarPresignResponse { uploadUrl; publicUrl }` — a fresh
-            // declaration under the exact name the identity contract already publishes, in an app that already
-            // depends on that package and already imports three other types from it. Two representations of one
-            // wire shape, on either side of a boundary `typecheck` could not cross.
+            // ⚠️ THE PRESIGN GOES THROUGH `ProfileServiceClient`, NOT A TRANSPORT OF ITS OWN. This hook used to call
+            // `services/api.ts`'s `apiRequest` — a second way to reach identity, and the only one outside the funnel
+            // that reports contract skew, so a RELEASED binary uploading an avatar against a service that had moved
+            // ahead of it produced no signal (GR-017 §17-b.5). The client owns the path, the query encoding, and the
+            // parse of both directions against `@kitchensink/schema-identity`.
             //
-            // `size` goes IN as a string, because a query bag is strings on the wire, and comes OUT of the
-            // parse as a NUMBER: `avatarPresignQuerySchema.size` is `z.coerce.number().int().positive()`, so
-            // both sides of the exchange now reject a non-numeric size at the boundary rather than at the AWS
-            // SDK (`?size=abc` used to reach `ContentLength` as `NaN`). It is re-stringified here for the URL —
-            // the only place a string is genuinely required. The allowed-type list and the size cap are
-            // deliberately NOT in that schema (they live in the controller that owns the presigning, so there is
-            // one authority on the security rule), so an unlisted type or oversized image is still the server's
-            // `400` — this parse checks the SHAPE of the exchange, which is all the contract claims to describe.
-            const query = avatarPresignQuerySchema.parse({ type: contentType, size: String(blob.size) });
-            const search = new URLSearchParams({ type: query.type, size: String(query.size) });
-            const presign = await apiRequest(
-                getIdentityToken,
-                `/api/v1/users/me/avatar/presign?${search.toString()}`,
-                avatarPresignResponseSchema,
-                { method: 'POST' },
-            );
+            // `blob.size` — never `asset.fileSize`, which Android/web often omit — because the service signs it into
+            // the presigned URL as `ContentLength` and S3 rejects a PUT that does not match.
+            const presign = await client.presignAvatar({ type: contentType, size: blob.size });
 
             // The presigned URL is itself the credential — PUT the raw bytes with only the matching
             // Content-Type (adding Authorization would break the S3 signature).
@@ -88,7 +71,7 @@ export function useAvatarUpload(): UseAvatarUpload {
 
             return presign.publicUrl;
         },
-        [getToken],
+        [client],
     );
 
     return { upload };

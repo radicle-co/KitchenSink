@@ -1,6 +1,7 @@
 /**
  * `ProfileServiceClient` (DA10-c) — the typed client for the Commise identity/account profile endpoints
- * (`GET`/`PATCH`/`DELETE /api/v1/users/me`), given the SAME shape as `@kitchensink/recipe-service-client`'s
+ * (`GET`/`PATCH`/`DELETE /api/v1/users/me`, plus `POST /api/v1/users/me/avatar/presign`), given the SAME shape as
+ * `@kitchensink/recipe-service-client`'s
  * `RecipeServiceClient`: an injected {@link TokenSource} (a literal token or a per-request callback, so a
  * rotated Clerk session token is always current), typed methods returning DTOs from
  * `@kitchensink/identity-service`, and typed errors (`./errors.js`) for `400`/`401`/`403`/`404`. Replaces
@@ -36,11 +37,20 @@
 // boundary is CHECKED in both directions rather than asserted (§15.2 rules 2 and 4, ADR-0014).
 import {
     apiErrorSchema,
+    avatarPresignQuerySchema,
+    avatarPresignResponseSchema,
     deleteUserMeResponseSchema,
     patchUserMeRequestSchema,
     userProfileSchema,
 } from '@kitchensink/schema-identity';
-import type { ApiErrorBody, DeleteUserMeResponse, UserProfile, UserUpdateInput } from '@kitchensink/schema-identity';
+import type {
+    ApiErrorBody,
+    AvatarPresignQuery,
+    AvatarPresignResponse,
+    DeleteUserMeResponse,
+    UserProfile,
+    UserUpdateInput,
+} from '@kitchensink/schema-identity';
 import type { z } from 'zod';
 
 import {
@@ -63,6 +73,15 @@ import { reportContractSkewOnce } from './contractSkew.js';
  * different paths, and this constant is now the one place either platform encodes it.
  */
 export const PROFILE_ME_PATH = '/api/v1/users/me';
+
+/**
+ * `POST /api/v1/users/me/avatar/presign` — where the viewer's avatar upload is authorized.
+ *
+ * Under {@link PROFILE_ME_PATH} because it is served by the same `me` resource
+ * (`packages/services/identity/src/users/avatar-upload.controller.ts`), and derived from that constant so the two
+ * cannot drift apart.
+ */
+export const AVATAR_PRESIGN_PATH = `${PROFILE_ME_PATH}/avatar/presign`;
 
 /**
  * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
@@ -184,6 +203,44 @@ export class ProfileServiceClient {
     }
 
     /**
+     * `POST /api/v1/users/me/avatar/presign` — authorize a direct-to-S3 avatar upload.
+     *
+     * Image bytes never traverse the identity service: it signs a short-lived `PUT` bound to the exact `type` and
+     * `size`, so the caller PUTs the blob itself and then persists `publicUrl` via {@link patchMe}. Presigning is on
+     * THIS client — rather than in each app — because this is the funnel that parses both directions against
+     * `@kitchensink/schema-identity` and reports contract skew; mobile previously reached this endpoint through its
+     * own `services/api.ts` transport, where neither applied (GR-017 §17-b.5).
+     *
+     * @param query - The blob's real MIME type and exact byte length (`blob.size`), which S3 enforces against the
+     *   signature. The allowed-type list and the byte cap are the CONTROLLER's, deliberately not restated in the
+     *   schema, so an unlisted type or an oversized image is a {@link BadRequestError} rather than a local rejection.
+     * @param options - Per-call token/refresh options.
+     * @returns The presigned `PUT` URL and the durable public URL the object will be readable at.
+     * @throws {InvalidRequestError} when the type/size cannot satisfy the published contract — no request is sent;
+     *   {@link BadRequestError} when the controller refuses the type or size; {@link UnauthorizedError} on auth
+     *   failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async presignAvatar(
+        query: AvatarPresignQuery,
+        options?: ProfileRequestOptions,
+    ): Promise<AvatarPresignResponse> {
+        const { type, size } = this.request('presignAvatar', avatarPresignQuerySchema, query);
+        // `size` is re-stringified because a query string is strings on the wire; `avatarPresignQuerySchema` coerces
+        // it back to a number on the service's side of the same definition. `URLSearchParams` does the encoding — a
+        // MIME type's `/` must not reach the query raw.
+        const search = new URLSearchParams({ type, size: String(size) });
+
+        return this.send(
+            'POST',
+            `${AVATAR_PRESIGN_PATH}?${search.toString()}`,
+            avatarPresignResponseSchema,
+            undefined,
+            options,
+        );
+    }
+
+    /**
      * Resolve the current bearer token, forwarding `forceRefresh` to a callback {@link TokenSource}. A
      * callback that itself rejects/throws (e.g. mobile's "no session token available" guard) propagates
      * BEFORE any request is sent — the caller's own fail-fast policy, not this client's.
@@ -219,7 +276,7 @@ export class ProfileServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     private async send<S extends z.ZodType>(
-        method: 'GET' | 'PATCH' | 'DELETE',
+        method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
         path: string,
         schema: S,
         body: unknown,

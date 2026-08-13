@@ -201,6 +201,37 @@ describe('ProfileServiceClient — contract-skew reporting', () => {
         });
     });
 
+    /*
+     * ⚠️ THE MOBILE AVATAR PATH, WHICH IS WHY THIS CASE EXISTS. `POST /api/v1/users/me/avatar/presign` was reached
+     * through mobile's own `services/api.ts` `apiRequest`, a second transport to this service that no drift layer
+     * could see — so the one consumer §15.2.5 names (a RELEASED binary) had an identity call outside the guard.
+     * The probe firing from `presignAvatar` is what makes the guard reachable BY CONSTRUCTION on that path rather
+     * than by the luck of the profile read happening first in the same process.
+     */
+    it('reports skew from the avatar presign, not only from the profile methods', async () => {
+        const warn = vi.fn();
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            warn,
+            fetch: vi.fn(async (url: string | URL | Request) =>
+                String(url).endsWith('/health')
+                    ? new Response(JSON.stringify({ status: 'ok', service: 'identity', contractHash: SERVED_HASH }), {
+                          status: 200,
+                      })
+                    : new Response(
+                          JSON.stringify({ uploadUrl: 'https://s3.example.test/put', publicUrl: 'https://cdn/a.png' }),
+                          { status: 200 },
+                      ),
+            ) as unknown as typeof fetch,
+        });
+
+        await client.presignAvatar({ type: 'image/png', size: 2048 });
+
+        await vi.waitFor(() => {
+            expect(warn).toHaveBeenCalledTimes(1);
+        });
+    });
+
     // Absence is silence: an identity older than `contractHash` publication must not look like skew, or every
     // pre-publication deployment is noisy and the real warning gets muted.
     it('stays silent when identity publishes no fingerprint at all', async () => {

@@ -15,7 +15,7 @@ import {
 } from '../errors.js';
 import { makeUserProfile, makeUserProfileUser } from '../__fixtures__/index.js';
 import { isInvalidRequestError } from '../errors.js';
-import { PROFILE_ME_PATH, ProfileServiceClient } from '../profileServiceClient.js';
+import { AVATAR_PRESIGN_PATH, PROFILE_ME_PATH, ProfileServiceClient } from '../profileServiceClient.js';
 
 const BASE = 'https://identity.example.test';
 
@@ -300,5 +300,94 @@ describe('ProfileServiceClient — contract validation', () => {
         });
 
         await expect(client.getMe()).rejects.toThrow(/expected string/iu);
+    });
+});
+
+/**
+ * `POST /api/v1/users/me/avatar/presign` — the identity call MOBILE makes, and the ONE that used to bypass this
+ * client entirely (GR-017 §17-b.5's recorded residual). It lives here so the avatar path runs the published zod in
+ * both directions and reaches the same drift-layer-3 probe as every other identity call, rather than depending on
+ * a second hand-rolled transport (`mobile/src/services/api.ts`'s `apiRequest`, retired with this change) that no
+ * guard could see.
+ */
+describe('ProfileServiceClient — avatar presign', () => {
+    /** A valid presign response body. */
+    const presigned = { uploadUrl: 'https://s3.example.test/put', publicUrl: 'https://media.example.test/a.png' };
+
+    it('presigns UNDER the profile path — the avatar is a field of the viewer’s own profile', () => {
+        expect(AVATAR_PRESIGN_PATH).toBe(`${PROFILE_ME_PATH}/avatar/presign`);
+    });
+
+    it('POSTs to the presign path with type + size on the query string, and returns the parsed body', async () => {
+        const fetchMock = stubFetch({ status: 200, body: presigned });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        const result = await client.presignAvatar({ type: 'image/png', size: 2048 });
+
+        const apiCall = fetchMock.mock.calls.find(([called]) => !String(called).endsWith('/health'));
+
+        expect(apiCall).toBeDefined();
+        const [url, init] = apiCall as [string, RequestInit & { headers: Record<string, string> }];
+        // The MIME slash must be percent-encoded, or the query names a type the server never matches.
+        expect(url).toBe(`${BASE}${AVATAR_PRESIGN_PATH}?type=image%2Fpng&size=2048`);
+        expect(init.method).toBe('POST');
+        expect(init.headers['authorization']).toBe('Bearer tok_123');
+        // The presign carries its arguments in the query string; a body would be a different contract.
+        expect(init.body).toBeUndefined();
+        expect(init.headers['content-type']).toBeUndefined();
+        expect(result).toStrictEqual(presigned);
+    });
+
+    /*
+     * `size` is what makes this parse worth running at the CALLER. The identity controller signs it into the
+     * presigned URL as `ContentLength`, and its predecessor hand-parsed it with `Number.parseInt`, so `?size=abc`
+     * reached S3 as `ContentLength: NaN`. Rejecting it here fails at the call site that computed the number
+     * instead of spending a round trip — and every case below must issue NO request at all.
+     */
+    it.each([
+        ['zero', { type: 'image/png', size: 0 }],
+        ['negative', { type: 'image/png', size: -1 }],
+        ['fractional', { type: 'image/png', size: 2.5 }],
+        ['NaN', { type: 'image/png', size: Number.NaN }],
+        ['an empty MIME type', { type: '', size: 2048 }],
+    ] as const)('refuses %s without issuing a request', async (_label, query) => {
+        const fetchMock = stubFetch({ status: 200, body: presigned });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const error = await client.presignAvatar(query).catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        // Not a `BadRequestError`: nothing was sent, so the service said nothing.
+        expect(error).not.toBeInstanceOf(BadRequestError);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    /*
+     * The server keeps the ALLOWED-TYPE list and the size CAP (`avatar.schema.ts` deliberately restates neither, so
+     * there is one authority on the security rule). A type the schema admits and the controller refuses must
+     * therefore still surface as the service's own `400`, distinguishable from the caller-bug case above.
+     */
+    it('surfaces the controller’s policy rejection as BadRequestError, not InvalidRequestError', async () => {
+        const fetchMock = stubFetch({ status: 400, body: { code: 'BAD_REQUEST', message: 'Invalid type.' } });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const error = await client.presignAvatar({ type: 'image/gif', size: 2048 }).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(BadRequestError);
+        expect(isInvalidRequestError(error)).toBe(false);
+        expect((error as BadRequestError).message).toBe('Invalid type.');
+    });
+
+    /*
+     * A cast here is how an upload silently "succeeds" into nothing: `publicUrl` would be `undefined`, the caller
+     * would persist it as the avatar, and the failure would surface as a broken image rather than as a drift.
+     */
+    it('REJECTS a presign response missing publicUrl instead of casting it', async () => {
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch({ status: 200, body: { uploadUrl: 'https://s3.example.test/put' } }),
+        });
+
+        await expect(client.presignAvatar({ type: 'image/png', size: 2048 })).rejects.toThrow(/publicUrl/iu);
     });
 });

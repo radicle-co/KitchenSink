@@ -76,11 +76,6 @@
             "rule": "undeclared-dependency"
         },
         {
-            "package": "@kitchensink/eslint",
-            "dependency": "vitest",
-            "rule": "undeclared-dependency"
-        },
-        {
             "package": "@kitchensink/food-service",
             "dependency": "k6",
             "rule": "undeclared-dependency"
@@ -88,11 +83,6 @@
         {
             "package": "@kitchensink/identity-service",
             "dependency": "k6",
-            "rule": "undeclared-dependency"
-        },
-        {
-            "package": "@kitchensink/identity-service",
-            "dependency": "postgres",
             "rule": "undeclared-dependency"
         },
         {

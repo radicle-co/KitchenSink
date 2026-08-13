@@ -32,6 +32,7 @@
         "@commise/ui": "^0.0.0",
         "@kitchensink/recipe-service-client": "*",
         "@kitchensink/schema-identity": "*",
+        "@kitchensink/schema-recipe": "*",
         "@radix-ui/react-dialog": "^1.1.20",
         "@sentry/nextjs": "^10.57.0",
         "@t3-oss/env-nextjs": "^0.13.11",

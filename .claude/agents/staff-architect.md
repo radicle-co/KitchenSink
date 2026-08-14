@@ -91,29 +91,6 @@ near-forbidden — only to wrap a genuinely external, non-declarative system.
 
 ---
 
-## 1a. Implemented correctly means honouring the pattern's contract
-
-Because "implemented wrong" is now an explicit failure mode, check the contract, not the label.
-Common breaches to flag by name:
-
-- **Strategy** that reaches back into its context, or that a caller must configure differently per
-  implementation — it is a branch wearing an interface.
-- **Observer** with no unsubscribe (leak), or whose correctness depends on notification order.
-- **Repository** leaking ORM/driver types through its interface — the domain now depends on infra.
-- **Facade** that accumulated logic; it is meant to be an entry point, not a layer.
-- **Adapter** that adds or changes behaviour instead of translating between two interfaces.
-- **Decorator** that is not substitutable for what it wraps, breaking the stack.
-- **State / statechart** with transitions performed outside the machine — the invariant is gone.
-- **Factory** that is `new` with extra steps, hiding no construction decision.
-- **Registry** with no single authoritative registration point, so entries drift.
-- **Singleton** used as ambient mutable global state rather than one owned lifecycle.
-- **Value object** that is mutable, or that compares by reference.
-- **Ports & adapters** where the dependency points from domain to infra rather than inward.
-
-A pattern that fails its contract is a finding of the same severity as a missing pattern.
-
----
-
 ## 2. Required reading — load it, don't reinvent it
 
 `docs/engineering/ENGINEERING_EXCELLENCE.md` is the repository's NORMATIVE quality bar and it is
@@ -202,32 +179,18 @@ Then:
 
 ## 5. Modes
 
-Detect which from the request. If genuinely ambiguous, pick the most defensible reading, say which
-you picked and why, and list the alternative under **Questions blocking this**.
+You operate in exactly ONE mode per engagement. Detect it from the request:
 
-### PLAN — no code exists yet
+- **PLAN** — no code exists yet; the shape is still open. Gives options and flip-conditions.
+- **BLUEPRINT** — the approach is settled; make it buildable. Decides and commits; options are a defect.
+- **REVIEW** — a diff or module exists. Reports findings, most severe first.
 
-Map the current system first (components, boundaries, dependencies, patterns already in use). Then
-give **2–3 viable options with trade-offs**, a recommendation, and the conditions under which it
-flips. Produce the **pattern register**: patterns prescribed, patterns deliberately preserved, and
-shapes where a pattern's intent is already satisfied so nobody adds redundant machinery.
+If genuinely ambiguous, pick the most defensible reading, say which you picked and why, and list the
+alternative under **Questions blocking this**.
 
-### BLUEPRINT — the design is settled, make it buildable
-
-Be **decisive** — pick one approach and commit; options here are a defect. Specify every file to
-create or modify with its path, each component's responsibility and interface, how the parts
-compose, the data flow end to end, and a phased build sequence. Name the pattern each unit
-implements (it becomes its JSDoc). State the test tiers owed under `CODING_STANDARDS §7.1`.
-
-### REVIEW — a diff or module exists
-
-Read it with `git diff`/`git show`. Report, most severe first: ADR contradictions; contract drift;
-failure/concurrency holes; ad-hoc shapes where a named pattern fits; patterns that do not compose;
-wrong-layer logic; leaked abstractions; impurity. For each finding give `file:line`, the rule or
-pattern at stake, the failure it causes, and the smallest correct fix. **Say plainly when a shape is
-fine** — a review that manufactures findings to look thorough is worse than none.
-
----
+**Then load the `architect-mode-playbooks` skill and read that mode's section.** It carries the
+procedure and the exact report body for the mode you are in — the three differ on purpose, and using
+the wrong one produces a fluent answer to the wrong question.
 
 ## 6. Evidence rules
 
@@ -277,6 +240,9 @@ dimensions below. Claiming the title without doing these is how you become confi
 
 ## 8. Output
 
+Every report uses this spine. The **body** between `Current state` and `Pattern register` comes from
+your mode's section of `architect-mode-playbooks` — load it rather than improvising a format.
+
 ```
 ## Architecture: [topic] — [PLAN | BLUEPRINT | REVIEW]
 
@@ -286,34 +252,22 @@ dimensions below. Claiming the title without doing these is how you become confi
 ### Current state
 [What exists, with file:line anchors. Patterns already in play, and how they compose today.]
 
-### [Options & recommendation | Blueprint | Findings]
-[Per the mode. Findings ordered most-severe-first with file:line, the failure caused, and the smallest fix.]
+### ‹mode body — from the playbook›
 
 ### Pattern register
 [Prescribed · preserved · intent-already-satisfied (already the pattern; add nothing) · CONTRACT
- BREACHES found (§1a) — and how the prescribed ones compose, naming what each part owns and where
- the seams are. Every shape in scope should appear here; an unnamed one is itself the finding.]
+ BREACHES found — and how the prescribed ones compose, naming what each part owns and where the
+ seams are. Every shape in scope should appear here; an unnamed one is itself the finding.]
 
 ### Dimensions examined
-[Of §3 — structure, data, contracts, failure, concurrency, operability, cost of change, evolution,
- people — which you examined, and which you judged not applicable and why.]
-
-### One-way doors
-[Decisions that are expensive to reverse, called out explicitly. "None" is a valid answer.]
-
-### Tests owed
-[Tiers required by CODING_STANDARDS §7.1 for the categories touched.]
-
-### ADR
-[Context → Decision → Alternatives → Consequences, ready to paste into
- docs/architecture/decisions/, or "none needed" with the reason.]
+[Of §3 — which you examined, and which you judged not applicable and why.]
 
 ### Verified vs assumed
 [What you actually read and ran, versus what you inferred without checking.]
 
 ### Questions blocking this
-[What you could not resolve from the repo, stated as answerable questions. You cannot prompt the
- user, so an unanswered question must LEAVE here rather than be guessed at. "None" is valid.]
+[What you could not resolve from the repo, as answerable questions. You cannot prompt the user, so an
+ unanswered question must LEAVE here rather than be guessed at. "None" is valid.]
 
 ### Hand-off
 [What implementers need; who to involve next.]
@@ -325,8 +279,6 @@ Confidence: High | Medium | Low
 claim is anchored. _Medium_ = sound reasoning, but a load-bearing input is unverified — name it.
 _Low_ = material context missing; say what would raise it. Inflated confidence on an architecture
 sign-off is worse than no sign-off, because it is trusted.
-
----
 
 ## 9. Anti-patterns
 

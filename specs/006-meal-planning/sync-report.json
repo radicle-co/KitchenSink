@@ -1,145 +1,288 @@
 {
-  "feature": "006-meal-planning",
-  "scanDate": "2026-06-02",
-  "scanMode": "pre-implementation",
-  "scanDirective": {
-    "activeLayers": ["L1", "L2", "L3", "L4", "L7"],
-    "skippedLayers": ["L5"],
-    "l6MissingImplSeverity": "INFO"
-  },
-  "summary": {
-    "critical": 0,
-    "warning": 1,
-    "expectedGap": 0,
-    "passed": 6,
-    "overall": "PASS"
-  },
-  "layers": [
-    {
-      "layer": "L1",
-      "direction": "spec.md self-consistency",
-      "status": "PASS",
-      "findings": []
+    "feature": "006-meal-planning",
+    "scanDate": "2026-08-02",
+    "supersedes": "2026-06-02",
+    "scanMode": "pre-implementation",
+    "scanDirective": {
+        "activeLayers": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"],
+        "skippedLayers": [],
+        "l6MissingImplSeverity": "EXPECTED-GAP",
+        "notes": [
+            "L5 was skipped and L6 downgraded to INFO in the 2026-06-02 run; both are active here.",
+            "L8 (artifacts vs. codebase) is new. The previous run consulted no source code.",
+            "The previous run's evidence base was the now-prunable .worktrees/002-user-auth checkout.",
+            "2026-08-02 owner ruling closed all MAJOR gates: PRF-006-11 (residual accepted), PRF-006-12 (premise invalid \u2014 same owner owns 006 and the recipe service), PRF-006-13 (index corrected), PRF-006-16 (endpoint path settled)."
+        ]
     },
-    {
-      "layer": "L2",
-      "direction": "plan.md ↔ spec.md",
-      "status": "PASS",
-      "findings": []
-    },
-    {
-      "layer": "L3",
-      "direction": "tasks.md ↔ plan.md",
-      "status": "PASS",
-      "findings": []
-    },
-    {
-      "layer": "L4",
-      "direction": "product-spec/ ↔ spec.md",
-      "status": "PASS",
-      "findings": [
-        {
-          "id": "W-001",
-          "severity": "WARNING",
-          "description": "Inferred stories US-006-008 (Template/Recurring) and US-006-009 (Family Size Presets) lack explicit FR IDs in spec.md",
-          "location": "product-spec/product-spec.md:138-143, product-spec/README.md:70, verify-report.md:W-001, W-002",
-          "impact": "Low — artifacts self-label as inferred/out-of-scope; no false canonical claim",
-          "recommendation": "Add FR-028 (Templates) and FR-029 (Family Sizing) to spec.md during revalidation if product intent is to implement; otherwise keep as documented deferred scope"
-        }
-      ]
-    },
-    {
-      "layer": "L5",
-      "direction": "research/ ↔ product-spec/",
-      "status": "SKIP",
-      "findings": [],
-      "reason": "Per scan directive"
-    },
-    {
-      "layer": "L6",
-      "direction": "v-model/ ↔ spec.md + code traceability",
-      "status": "INFO",
-      "findings": [
-        {
-          "id": "L6-INFO-001",
-          "severity": "INFO",
-          "description": "No implementation files exist yet for MOD target paths under src/meal-planning/",
-          "location": "v-model/module-design.md:MOD-001..MOD-022",
-          "impact": "Expected — pre-implementation scan; all MODs are forward-specification only",
-          "recommendation": "Re-run L6 after implementation to verify MOD↔ARCH↔SYS↔REQ traceability against actual source files"
-        }
-      ]
-    },
-    {
-      "layer": "L7",
-      "direction": "cross-cutting artifacts ↔ all layers",
-      "status": "PASS",
-      "findings": []
-    }
-  ],
-  "criticalFindings": [],
-  "warningFindings": [
-    {
-      "id": "W-001",
-      "severity": "WARNING",
-      "title": "Inferred stories lack explicit FR IDs in spec.md",
-      "description": "US-006-008 (Template/Recurring Workflow) and US-006-009 (Family Size Presets) are referenced in personas and journeys but do not have upstream FR IDs in spec.md.",
-      "affectedArtifacts": [
-        "product-spec/product-spec.md",
-        "product-spec/user-journey.md",
-        "verify-report.md"
-      ],
-      "recommendedFix": "Add FR-028 (Templates) and FR-029 (Family Sizing) to spec.md if product intent is to implement; otherwise keep as documented deferred scope."
-    }
-  ],
-  "monorepoRefs": {
-    "validPaths": [
-      "packages/apps/commise/web",
-      "packages/apps/commise/mobile"
+    "evidenceBase": [
+        "/home/brandon/Development/KitchenSink/.worktrees/006-meal-planning/specs/006-meal-planning/",
+        "repository at main"
     ],
-    "invalidAppsXRefs": [],
-    "note": "All src/ paths in v-model are relative to expected workspace layout; flagged INFO only as no actual files exist yet."
-  },
-  "artifactCoverage": {
-    "scanned": [
-      "spec.md",
-      "plan.md",
-      "tasks.md",
-      "product-spec/product-spec.md",
-      "product-spec/user-journey.md",
-      "product-spec/metrics.md",
-      "product-spec/README.md",
-      "v-model/requirements.md",
-      "v-model/system-design.md",
-      "v-model/architecture-design.md",
-      "v-model/module-design.md",
-      "v-model/traceability-matrix.md",
-      "v-model/acceptance-plan.md",
-      "verify-report.md",
-      "review.md",
-      "checklists/requirements.md",
-      ".forge-status.yml"
+    "summary": {
+        "critical": 0,
+        "warning": 0,
+        "expectedGap": 1,
+        "passed": 8,
+        "overall": "PASS"
+    },
+    "layers": [
+        {
+            "layer": "L1",
+            "direction": "spec.md self-consistency",
+            "status": "PASS",
+            "metrics": {
+                "requirements": 42,
+                "clarifications": 11,
+                "successCriteria": 5,
+                "edgeCases": 8
+            },
+            "findings": []
+        },
+        {
+            "layer": "L2",
+            "direction": "plan.md <-> spec.md",
+            "status": "PASS",
+            "metrics": {
+                "phase1FrsWithArchitecturalHome": "21/21",
+                "patternRegisterPresent": true,
+                "complexityTrackingPresent": true
+            },
+            "findings": []
+        },
+        {
+            "layer": "L3",
+            "direction": "tasks.md <-> plan.md",
+            "status": "PASS",
+            "metrics": {
+                "tasks": 72,
+                "numberingSystems": 1,
+                "testFirstPairs": 24,
+                "pathsInRealWorkspaces": "72/72"
+            },
+            "findings": []
+        },
+        {
+            "layer": "L4",
+            "direction": "product-spec/ <-> spec.md",
+            "status": "PASS",
+            "metrics": {
+                "wireframes": 6,
+                "wireframesCoveringMobile": 6,
+                "stories": 7,
+                "deferredStories": 1
+            },
+            "findings": []
+        },
+        {
+            "layer": "L5",
+            "direction": "research/ <-> product-spec/",
+            "status": "PASS",
+            "previousStatus": "SKIPPED",
+            "metrics": {
+                "researchQuestionsSuperseded": 3,
+                "researchQuestionsRevised": 1
+            },
+            "findings": []
+        },
+        {
+            "layer": "L6",
+            "direction": "v-model/ <-> spec.md",
+            "status": "PASS",
+            "previousStatus": "INFO",
+            "metrics": {
+                "requirementsTraced": "37/37",
+                "missingMatrixCells": 0,
+                "previousMissingMatrixCells": 41,
+                "orphanTests": 0,
+                "hazardsWithMitigatingTests": "26/26"
+            },
+            "findings": []
+        },
+        {
+            "layer": "L7",
+            "direction": "cross-cutting artifacts <-> all layers",
+            "status": "PASS",
+            "findings": [
+                {
+                    "id": "W-003",
+                    "severity": "CLOSED",
+                    "description": "Three MAJOR peer-review findings were raised against the regenerated artifact set (PRF-006-11 latency target at the maximum supported plan size, PRF-006-12 a requirement obliging the recipe service, PRF-006-13 the cross-feature FR index marking deferred requirements Active). All three, plus PRF-006-16, were closed by owner ruling on 2026-08-02.",
+                    "location": "v-model/peer-review.md",
+                    "resolution": "Closed by owner ruling 2026-08-02. PRF-006-11 residual accepted (plan span carries no separate latency target); PRF-006-12 premise invalid (same owner owns 006 and the recipe service, so no cross-party gate exists); PRF-006-13 resolved; PRF-006-16 endpoint path settled on POST /v1/recipes/nutrition-batch.",
+                    "blocksImplementation": false
+                },
+                {
+                    "id": "W-004",
+                    "severity": "CLOSED",
+                    "description": "Scenario counts were derived from abbreviated ranges rather than enumerated.",
+                    "location": "v-model/unit-test.md, integration-test.md, system-test.md, traceability-matrix.md",
+                    "resolution": "Resolved 2026-08-02 by enumerating every id: 357 scenarios (was 341) and 81 component tests (was 63; 40 web / 41 mobile, not 34/29). A 19-test double-count in the release audit (Playwright/Maestro/k6 listed alongside the System total that already contains them) was also removed.",
+                    "blocksImplementation": false
+                },
+                {
+                    "id": "W-005",
+                    "severity": "CLOSED",
+                    "description": "cross-feature-FR-index.md still lists 006-FR-025/026/027 as Active references from 010-subscriptions; all three are now Phase 2 deferred.",
+                    "location": "specs/cross-feature-FR-index.md",
+                    "resolution": "Applied 2026-08-02: the three rows now read Deferred; a Status Values section defines the column; a Deferral Notes entry records the reason and the mutual 006<->010 dependency; Review Rule 5 requires future deferrals to flip their rows in the same change set.",
+                    "blocksImplementation": false
+                },
+                {
+                    "id": "W-006",
+                    "severity": "CLOSED",
+                    "description": "The per-PR cost figure (~$8/mo) is an estimate by analogy with the food service, not derived from this service's task definition.",
+                    "location": "plan.md",
+                    "resolution": "Resolved 2026-08-02: plan.md now decides the Fargate task sizing (cpu 512 / 1024 MiB / desiredCount 1, matching the shipped recipe and food API tasks), so the ~$8.25/mo per-PR figure derives from a stated configuration plus an identically-shaped measured comparable. Billing confirmation remains at T070.",
+                    "blocksImplementation": false
+                }
+            ]
+        },
+        {
+            "layer": "L8",
+            "direction": "artifacts <-> codebase",
+            "status": "PASS",
+            "isNewLayer": true,
+            "metrics": {
+                "codebaseChecks": 13,
+                "passing": 13
+            },
+            "checks": [
+                {
+                    "check": "every target package path is inside a real workspace glob",
+                    "result": "PASS"
+                },
+                {
+                    "check": "RecipeNutrition shape matches the rollup's consumption (no fibre)",
+                    "result": "PASS"
+                },
+                {
+                    "check": "per-100g values persisted on recipe ingredient rows",
+                    "result": "PASS"
+                },
+                {
+                    "check": "owner-id pattern matches shipped recipes.owner_id (varchar, no FK)",
+                    "result": "PASS"
+                },
+                {
+                    "check": "subscriptionTier is NOT a session-token claim",
+                    "result": "PASS"
+                },
+                {
+                    "check": "Home widget contract exists as described",
+                    "result": "PASS"
+                },
+                {
+                    "check": "@commise/features-meal-plan is the anticipated package name",
+                    "result": "PASS"
+                },
+                {
+                    "check": "FoodCatalogGateway exists as the gateway model",
+                    "result": "PASS"
+                },
+                {
+                    "check": "ALB priorities 100/200/300 taken; per-PR bands 10000/30000 in use",
+                    "result": "PASS"
+                },
+                {
+                    "check": "no Redis or ElastiCache anywhere in the platform",
+                    "result": "PASS"
+                },
+                {
+                    "check": "backend test-file conventions match",
+                    "result": "PASS"
+                },
+                {
+                    "check": "k6 harness exists at packages/tools/loadtest",
+                    "result": "PASS"
+                },
+                {
+                    "check": "i18n path exists at packages/apps/commise/i18n",
+                    "result": "PASS"
+                }
+            ],
+            "findings": []
+        }
     ],
-    "totalArtifactsRead": 17,
-    "totalLinesScanned": 2100
-  },
-  "mustHaveCoverage": {
-    "US-006-001": { "fr": "FR-022", "taskCount": 7, "status": "covered" },
-    "US-006-002": { "fr": "FR-023", "taskCount": 6, "status": "covered" },
-    "US-006-003": { "fr": "FR-024", "taskCount": 5, "status": "covered" },
-    "US-006-004": { "fr": "SC-008", "taskCount": 2, "status": "covered" }
-  },
-  "evidenceLog": [
-    { "artifact": "spec.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/spec.md", "lines": 92, "verified": "FR-022..027, NFR-001..004, SC-008" },
-    { "artifact": "plan.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/plan.md", "lines": 200, "verified": "Data model, API contracts, architecture overview" },
-    { "artifact": "tasks.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/tasks.md", "lines": 663, "verified": "38 tasks, dependency table" },
-    { "artifact": "product-spec/product-spec.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/product-spec/product-spec.md", "lines": 158, "verified": "MoSCoW stories, personas, out-of-scope" },
-    { "artifact": "v-model/requirements.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/v-model/requirements.md", "lines": 92, "verified": "REQ-001..REQ-010" },
-    { "artifact": "v-model/module-design.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/v-model/module-design.md", "lines": 200, "verified": "MOD-001..MOD-022 with target source files" },
-    { "artifact": "verify-report.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/verify-report.md", "lines": 80, "verified": "Prior scan results" },
-    { "artifact": "checklists/requirements.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/checklists/requirements.md", "lines": 35, "verified": "16/16 checklist items passed" },
-    { "artifact": ".forge-status.yml", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/006-meal-planning/.forge-status.yml", "lines": 100, "verified": "Phase completion states" }
-  ],
-  "reportGeneratedBy": "Sisyphus-Junior",
-  "notes": "Read-only scan; no code changes made. L5 skipped per directive. L6 missing-impl severity lowered to INFO per directive."
+    "expectedGaps": [
+        {
+            "id": "G-001",
+            "description": "No implementation exists: 72 tasks defined, 0 complete; 438 planned tests, 0 executed.",
+            "expected": true,
+            "rationale": "Feature is at planning hand-off. Under CODING_STANDARDS 7.1 the feature is INCOMPLETE by definition, which is the correct status."
+        }
+    ],
+    "resolvedSincePreviousRun": [
+        {
+            "id": "W-001",
+            "description": "templates/recurrence lacked explicit FR ids",
+            "resolution": "Templates promoted to FR-028; recurrence explicitly out of scope (C-006-008)."
+        },
+        {
+            "id": "W-002",
+            "description": "family sizing and leftovers were inferred",
+            "resolution": "Family sizing is FR-030; leftovers out of scope."
+        },
+        {
+            "id": "UNREPORTED-1",
+            "description": "backend task paths targeted packages/api/, not a workspace",
+            "resolution": "All paths verified against workspace globs."
+        },
+        {
+            "id": "UNREPORTED-2",
+            "description": "zero mobile artifacts despite CODING_STANDARDS 14.1",
+            "resolution": "Mobile wireframe, 29 component tests, 6 Maestro flows, paired tasks."
+        },
+        {
+            "id": "UNREPORTED-3",
+            "description": "tests scheduled after implementation",
+            "resolution": "24 test-first pairs."
+        },
+        {
+            "id": "UNREPORTED-4",
+            "description": "nutrition designed against a USDA path that does not exist",
+            "resolution": "Recipe-level rollup via one batch call."
+        },
+        {
+            "id": "UNREPORTED-5",
+            "description": "Redis cache specified on a platform with no Redis",
+            "resolution": "Removed; REQ-NF-009 + STS-008-A5 prevent reintroduction."
+        },
+        {
+            "id": "UNREPORTED-6",
+            "description": "premium gate read a token claim that does not exist",
+            "resolution": "Phase-2 deferral with the blocker named (C-006-009)."
+        }
+    ],
+    "comparisonWithPreviousRun": {
+        "layersActive": {
+            "previous": "5 of 7",
+            "current": "8 of 8"
+        },
+        "codebaseConsulted": {
+            "previous": false,
+            "current": true
+        },
+        "critical": {
+            "previous": 0,
+            "current": 0
+        },
+        "warning": {
+            "previous": 1,
+            "current": 4
+        },
+        "requirements": {
+            "previous": 23,
+            "current": 42
+        },
+        "taskNumberingSystems": {
+            "previous": 2,
+            "current": 1
+        },
+        "note": "More warnings is the improvement: the previous run reported one because five of eight layers either did not run or could not fail."
+    },
+    "recommendations": [
+        "Done \u2014 all MAJOR and MINOR findings closed 2026-08-02; no warnings remain.",
+        "Still standing: keep L8 mandatory in every future run for this feature.",
+        "T068-T070 remain in tasks.md as post-deploy confirmations (re-reconcile counts against real test files; confirm cost from billing data), not as open findings."
+    ]
 }

@@ -45,14 +45,58 @@ Decades of family recipes exist only on paper — fragile, unsearchable, and loc
 
 ## Prerequisites
 
-| Priority | Feature                                                     | Status     | Relationship | What's Needed                                                                                                                 |
-| -------- | ----------------------------------------------------------- | ---------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| P0       | [002-user-auth](../002-user-auth/spec.md)                   | 🟢 done    | blocks       | Authenticated `user_id` on every digitization + circle endpoint; Clerk session token validation.                              |
-| P0       | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | 🟢 done    | blocks       | `Recipe` entity (target of save) + S3 + CloudFront infra patterns + Drizzle/Pg conventions.                                   |
-| P1       | [004-recipe-importing](../004-recipe-importing/spec.md)     | ⏳ pending | complements  | Sibling boundary: 004 = structured/web-URL imports; 011 = unstructured photo imports. Coordinate `Recipe` save semantics.     |
-| P1       | [010-monetisation](../010-subscriptions/spec.md)            | ⏳ pending | complements  | Optional entitlement check before enqueuing OCR (Q-002 deferred to implementation). 011 ships ungated if 010 is not yet live. |
+| Priority | Feature                                                     | Status     | Relationship | What's Needed                                                                                                                                                                                                                                                                                                                                |
+| -------- | ----------------------------------------------------------- | ---------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0       | [002-user-auth](../002-user-auth/spec.md)                   | 🟢 done    | blocks       | Authenticated `user_id` on every digitization + circle endpoint; Clerk session token validation.                                                                                                                                                                                                                                             |
+| P0       | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | 🟢 done    | blocks       | `Recipe` entity (target of save) + S3 + CloudFront infra patterns + Drizzle/Pg conventions.                                                                                                                                                                                                                                                  |
+| P1       | [004-recipe-importing](../004-recipe-importing/spec.md)     | ⏳ pending | **blocks**   | **011 lands AFTER 004 and adds the image branch to 004's import spine** ([ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md)). 011 does **not** create its own path to a saved recipe — it submits extracted candidates to 004's **bulk import processor** (`004-FR-047`). See "Ownership of the photo channel" below. |
+| P1       | [010-monetisation](../010-subscriptions/spec.md)            | ⏳ pending | complements  | Optional entitlement check before enqueuing OCR (Q-002 deferred to implementation). 011 ships ungated if 010 is not yet live.                                                                                                                                                                                                                |
 
 ---
+
+## Ownership of the photo channel _(added 2026-08-14 — owner ruling; normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md))_
+
+**011 owns photo/OCR import outright.** Feature 004's `FR-012` and its `D-001` — which had committed
+photo/OCR to 004 at launch on AWS Textract — are **superseded**. Both specs previously claimed this channel;
+this section is the single place the boundary now lives.
+
+**What 011 builds.**
+
+1. **A dedicated image-processing service that owns NO database.** It accepts images, performs
+   OCR/normalisation, and emits candidate recipe records. It is a **named exception** to
+   [ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md)'s
+   "no new deployable" default, justified on that ADR's own flip criteria: the workload is CPU-shaped and
+   bursty rather than request-shaped, it carries a vendor dependency the recipe service should not link, and
+   it scales on a different axis from recipe CRUD.
+    - Images in flight live in object storage. The durable record of the import belongs to the recipe
+      service, exactly as for a URL import — so the image service can be redeployed or scaled to zero
+      without owning data, and there is **one** authoritative record of an import rather than two to
+      reconcile.
+2. **The handoff.** Once images are processed, 011 submits the resulting candidates to **004's bulk import
+   processor** (`004-FR-047`) with `sourceType = imported_physical`. Recipe creation, ingredient resolution
+   into food entities, per-recipe outcome reporting and provenance enforcement are **004's shared path**;
+   011 MUST NOT build a second one. This is what makes ingredients get "properly imported and linked" by the
+   same code every other channel uses.
+3. **The correction UI**, per-token confidence, handwriting support and multi-photo batches — the depth that
+   justified moving this channel here rather than leaving it as 004's single sentence.
+
+**What 011 inherits rather than re-derives.** 004's photo-specific _rules_ transfer with the channel and are
+binding on 011 (004 § "Channel-ownership transfer"): the premium entitlement gate on `imported_physical`
+(`004-FR-028`, D-014, enforced via the shared entitlement mechanism — never by importing the identity
+service, ADR-0017 decision 3), the tighter per-photo/OCR sub-quota (`004-FR-022`), deletion of OCR
+artifacts on draft expiry (`004-FR-018`), and the OCR vendor's classification as an untrusted third-party
+boundary whose output is parsed with zod at the boundary (ADR-0015, `CODING_STANDARDS` §15-d).
+
+**Status reporting is not optional.** 011's image branch is a producer on the import spine: it MUST emit the
+same **superseding, monotonically-sequenced** per-recipe status messages as every other channel
+(`004-FR-048`), and MUST honour the placeholder/shell-status model (`004-FR-050`) so a client that connects
+mid-batch renders correct state from a read. A 20-photo batch is exactly the case that motivated a bounded
+live view.
+
+> ⚠️ **The "no database" rule governs the image-processing service only.** 011 also specifies **Family
+> Circles**, an unrelated sharing primitive that genuinely requires persistence (circles, members, invite
+> tokens). That is a separate deployable with its own tables. Do not collapse the two, and do not read this
+> section as denying Circles a database.
 
 ## Goals
 

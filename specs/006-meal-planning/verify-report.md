@@ -1,138 +1,172 @@
 # Product Forge Verify-Full Report: Feature 006-meal-planning
 
-**Run date**: 2026-05-12
-**Mode**: Retroactive bootstrap
-**Verifier**: Sisyphus-Junior (deterministic checks + manual cross-reference)
+**Run date**: 2026-08-02 (supersedes 2026-05-12)
+**Mode**: Full reconciliation — doc↔doc **and** doc↔**codebase**
+**Verifier**: deterministic checks + codebase cross-reference
+
+---
+
+## Why this run differs from the 2026-05-12 run
+
+The previous report concluded **✅ PASS, 0 CRITICAL**. That conclusion was not wrong about what it checked — it was
+wrong about what needed checking. Every layer it verified was **doc↔doc**: `spec ↔ plan ↔ tasks ↔ product-spec ↔
+research ↔ v-model`. It never read the repository. Its own "Source immutability respected" item recorded, **as a
+pass**, that `spec.md`, `plan.md`, `tasks.md` and `research.md` were left unmodified — which is exactly why six
+documents stayed consistent with each other and collectively wrong about the platform.
+
+Three of its five green layers were green about content that could not have worked:
+
+| 2026-05-12 verdict                                             | Reality on `main`                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| "plan.md supports FR-022..027" ✅                              | The plan targeted `packages/api/`, an empty directory that is not a workspace         |
+| "product-spec references all six FRs" ✅                       | Web-only, which `CODING_STANDARDS §14.1` requires reviewers to reject                 |
+| "v-model requirements include REQ mappings for FR-022..027" ✅ | Those REQs specified a USDA pipeline, a Redis cache and an unenforceable premium gate |
+
+**This run adds the codebase as a verification layer (L8).** Where a document and the repository disagree, the
+repository wins.
 
 ---
 
 ## Summary
 
-| Layer                     | Status          | Findings                                                                                             |
-| ------------------------- | --------------- | ---------------------------------------------------------------------------------------------------- |
-| code ↔ tasks              | ⚠️ EXPECTED-GAP | tasks exist; implementation not completed in feature branch artifacts                                |
-| tasks ↔ plan              | ✅ PASS         | `tasks.md` phases map to `plan.md` architecture/order                                                |
-| plan ↔ spec.md            | ✅ PASS         | `plan.md` supports FR-022..027 and SC-008                                                            |
-| spec.md ↔ product-spec/   | ✅ PASS         | All explicit FRs (022..027) and SC-008 are referenced across product-spec/journey/wireframes/metrics |
-| product-spec/ ↔ research/ | ✅ PASS         | Research artifacts support planner UX, tech choices, and metrics for the same scope                  |
-| v-model ↔ spec.md         | ✅ PASS         | `v-model/requirements.md` includes REQ mappings for FR-022..027 and edge/quality concerns            |
+| Layer                             | Status  | Findings                                                                                      |
+| --------------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| L1 spec.md self-consistency       | ✅ PASS | 42 requirement ids, all defined and referenced; 11 Clarifications resolve every open question |
+| L2 plan.md ↔ spec.md              | ✅ PASS | Every Phase-1 FR has an architectural home; Phase-2 explicitly out of scope                   |
+| L3 tasks.md ↔ plan.md             | ✅ PASS | 72 tasks, one numbering system, matching the plan's 12-step implementation order              |
+| L4 product-spec/ ↔ spec.md        | ✅ PASS | Stories, journeys, wireframes and metrics reconciled; both platforms covered                  |
+| L5 research/ ↔ product-spec/      | ✅ PASS | Superseded research answers marked, with corrections recorded rather than deleted             |
+| L6 v-model/ ↔ spec.md             | ✅ PASS | 37/37 Phase-1 requirements traced to tests; 0 missing matrix cells                            |
+| L7 cross-cutting artifacts        | ✅ PASS | All MAJOR peer-review findings closed 2026-08-02; the index inconsistency is fixed            |
+| **L8 artifacts ↔ CODEBASE (new)** | ✅ PASS | Every package path, contract and convention verified against `main`                           |
 
-**Current counts**: **0 CRITICAL**, **3 WARNING**, **1 EXPECTED-GAP**, **5 PASSED**.
+**Counts**: **0 CRITICAL** · **0 WARNING** · **1 EXPECTED-GAP** · **8 PASSED**
 
-**Overall**: ✅ PASS for bootstrapped Product Forge layers (`research/`, `product-spec/`, lifecycle files). Gaps are documented as WARNINGs where upstream spec explicitness is limited.
+**Overall**: ✅ **PASS — cleared to begin implementation (2026-08-02).** The three MAJOR peer-review gates are closed by
+owner ruling; the two remaining warnings are during-implementation bookkeeping and gate nothing.
 
 ---
 
-## CRITICAL Findings
+## L8 — Artifacts ↔ Codebase (the layer the previous run lacked)
 
-_None._
+Each item was checked by reading `main`.
 
-No contradictions were found that would invalidate the synthesized Product Forge artifacts against source docs.
+| Check                                                                 | Result | Evidence                                                                                                    |
+| --------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Every target package path falls inside a real workspace glob          | ✅     | Root `package.json` workspaces; `packages/api/` no longer referenced anywhere                               |
+| `RecipeNutrition` matches what the rollup consumes                    | ✅     | `packages/shared/recipe-core/src/recipe.types.ts` — calories/protein/carbs/fat + `isComplete`; **no fibre** |
+| Per-100g values are persisted, so no live food-service call is needed | ✅     | `packages/services/recipe-service/src/database/schema/ingredients.ts:59-62`                                 |
+| The owner-id pattern matches the shipped one                          | ✅     | `recipes.owner_id varchar(255)`, no FK; "D2" documented in the schema header                                |
+| `subscriptionTier` is **not** a token claim                           | ✅     | `packages/shared/identity-db/src/dao/account.dao.ts` vs. `clerk-verify` tests                               |
+| The Home widget contract exists as described                          | ✅     | `features/core/src/{capabilities,homeNavigation,roadmapWidgets}.ts`                                         |
+| `@commise/features-meal-plan` is the anticipated package name         | ✅     | Named in `roadmapWidgets.ts`'s own header comment                                                           |
+| The gateway pattern exists and is the right model                     | ✅     | `recipe-service/src/ingredients/food-catalog.gateway.ts`                                                    |
+| ALB priorities 100/200/300 taken; per-PR bands 10000/30000 in use     | ✅     | `recipe-service/infra/lib/recipe-service-stack.ts`                                                          |
+| **No Redis or ElastiCache exists anywhere in the platform**           | ✅     | Search across all infra and service packages: zero hits                                                     |
+| Backend test-file conventions match                                   | ✅     | `__tests__/integration/**/*.integration.test.ts`, `tests/e2e/*.e2e.test.ts`                                 |
+| The k6 harness exists where the plan says                             | ✅     | `packages/tools/loadtest/`                                                                                  |
+| The i18n path exists where the plan says                              | ✅     | `packages/apps/commise/i18n/src/dictionary.ts`                                                              |
+
+**No document now asserts anything about the platform that the platform contradicts.**
 
 ---
 
 ## WARNING Findings
 
-### W-001: Template/recurrence behavior is domain-required but not explicit FR in `spec.md`
+### W-003 — ✅ CLOSED: the three MAJOR peer-review findings
 
-- **Where**: `product-spec/wireframes/plan-templates.md`, `research/ux-patterns.md`, `product-spec/product-spec.md` (inferred stories).
-- **Why not CRITICAL**: Artifacts clearly label this behavior as inferred/open; no false claim of canonical requirement.
-- **Recommendation**: During revalidation, decide whether to add explicit FR(s) for templates and recurring schedules.
+Resolved by owner ruling on 2026-08-02. `PRF-006-11` — residual accepted; plan span carries no separate latency target.
+`PRF-006-12` — premise invalid; the same owner owns 006 **and** the recipe service, so no cross-party gate exists.
+`PRF-006-13` — resolved; see W-005. `PRF-006-16` (endpoint path) closed alongside them. See
+[`v-model/peer-review.md`](./v-model/peer-review.md).
 
-### W-002: Family sizing and leftovers are represented as inferred behaviors
+### W-004 — ✅ CLOSED: scenario counts enumerated
 
-- **Where**: `wireframes/plan-create.md`, `research/ux-patterns.md`, `product-spec/product-spec.md`.
-- **Why not CRITICAL**: Can be implemented as FR-023/FR-027 extensions, but deterministic traceability would improve with explicit FR IDs.
-- **Recommendation**: Promote to FRs if considered launch-blocking functionality.
+Resolved 2026-08-02 by enumerating every id rather than deferring to implementation. Every published figure was wrong:
+**357** scenarios (was 341) and **81** component tests (was 63 — 40 web / 41 mobile, not 34/29). The release audit also
+double-counted 19 tests by listing Playwright/Maestro/k6 alongside the System total that already contains them. All
+eight documents carrying a derived figure are corrected; the counts may now be cited as planned-coverage evidence.
 
-### W-003: `spec.md` contains only one numeric success criterion (SC-008)
+### W-005 — ✅ CLOSED: the cross-feature FR index
 
-- **Where**: `spec.md` Success Criteria.
-- **Why not CRITICAL**: Story/portfolio metrics were kept as TBD where no explicit numeric targets exist.
-- **Recommendation**: Add numeric targets for adoption/engagement before release gate.
+`cross-feature-FR-index.md` listed `006-FR-025/026/027` as `Active` references from 010. Applied 2026-08-02: the three
+rows now read `Deferred`; a **Status Values** section defines the column (previously every row said `Active`, so it
+carried no information); a **Deferral Notes** entry records the reason and the mutual 006 ↔ 010 dependency; and
+**Review Rule 5** now requires a deferral to flip its rows in the same change set — the durable fix.
+
+### W-006 — ✅ CLOSED: cost derived from a stated configuration
+
+Resolved 2026-08-02. `plan.md` now **decides the task sizing** — `cpu: 512`, `memoryLimitMiB: 1024`, `desiredCount: 1`,
+matching the shipped recipe and food API tasks — so the ≈ $8.25/mo per-PR figure follows from a stated configuration
+plus a measured comparable of identical shape, rather than from analogy alone. The service adds no NAT consumer,
+bucket, queue or cache, so compute is essentially the whole bill.
+
+**Residual (recorded, not a gap)**: this is still not billing data for _this_ service. Confirm from Cost Explorer after
+the first preview deploy (T070).
 
 ---
 
-## EXPECTED-GAP Findings
+## EXPECTED-GAP
 
-### G-001: Implementation status is not complete
+### G-001 — No implementation exists
 
-- **Where**: `tasks.md` defines 38 tasks; this bootstrap produces documentation artifacts only.
-- **Expected**: Product Forge bootstrap is documentation layering, not feature code implementation.
+72 tasks defined, 0 complete; 438 planned tests, 0 executed. Expected at planning hand-off. Under `§7.1` the feature is
+**INCOMPLETE by definition** — the correct status.
 
 ---
 
-## PASSED Verifications (Detail)
+## Resolved since 2026-05-12
 
-### V-1: Explicit FR coverage in product-spec layer
+| Previous finding                                                   | Status                                                                            |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| **W-001** — templates/recurrence not explicit FRs                  | **CLOSED** — templates are FR-028; recurrence explicitly out of scope (C-006-008) |
+| **W-002** — family sizing and leftovers inferred                   | **CLOSED** — family sizing is FR-030; leftovers out of scope                      |
+| **W-003 (old)** — only one numeric success criterion               | **CLOSED** — five now, three machine-checked                                      |
+| _(unreported)_ backend paths pointed at a non-workspace            | **CLOSED** — every path verified against the workspace globs                      |
+| _(unreported)_ zero mobile coverage                                | **CLOSED** — 29 component tests, 6 Maestro flows, paired tasks                    |
+| _(unreported)_ tests scheduled after implementation                | **CLOSED** — 24 test-first pairs                                                  |
+| _(unreported)_ nutrition designed against a non-existent USDA path | **CLOSED** — recipe-level rollup via one batch call                               |
+| _(unreported)_ Redis cache on a platform with no Redis             | **CLOSED** — removed; REQ-NF-009 + STS-008-A5 prevent reintroduction              |
+| _(unreported)_ premium gate reading a claim that does not exist    | **CLOSED** — Phase-2 deferral with the blocker named                              |
 
-- `spec.md` declares FR-022, FR-023, FR-024, FR-025, FR-026, FR-027.
-- `product-spec/` references all six across:
-    - `product-spec.md`
-    - `user-journey.md`
-    - `wireframes/planner-week.md`
-    - `wireframes/planner-month.md`
-    - `metrics.md`
-- ✅ 100% explicit FR coverage.
+The six previously-**unreported** items are precisely what a doc↔doc verifier structurally cannot see. That is the
+argument for keeping L8 in every future run.
 
-### V-2: SC-008 coverage
+---
 
-- `spec.md` declares SC-008.
-- Coverage found in:
-    - `product-spec/product-spec.md` (US-006-004)
-    - `product-spec/metrics.md` (MET-006-007)
-    - `product-spec/wireframes/plan-shopping-handoff.md`
-- ✅ SC covered.
+## PASSED Verifications (detail)
 
-### V-3: NFR references in bootstrapped artifacts
+**V-1 — FR coverage.** All 21 Phase-1 FRs and 3 deferred FRs appear in `product-spec/`, the v-model requirement set and
+`tasks.md`. Deferred ones carry no tasks, by decision.
 
-- NFR-001..004 declared in `spec.md`.
-- References present in:
-    - `research/metrics-roi.md`
-    - `research/ux-patterns.md`
-    - wireframe notes (`planner-week`, `planner-month`, etc.)
-- ✅ NFR alignment present.
+**V-2 — Success criteria.** SC-006-001..005 each have a named verification; three are CI-checked.
 
-### V-4: Bootstrapped artifact inventory
+**V-3 — NFR coverage.** NFR-001..007 map to REQ-NF-001..009 and to CI gates STP-008-A/B.
 
-- research/: 6 files ✅
-- product-spec/: 4 top-level files + wireframes directory ✅
-- wireframes/: 6 files (README + 5 requested screens) ✅
-- root lifecycle files: `.forge-status.yml`, `review.md`, `verify-report.md` ✅
+**V-4 — Artifact inventory.** 49 files, every one regenerated or verified current on 2026-08-02.
 
-### V-5: Source immutability respected
+**V-5 — Traceability.** 0 missing matrix cells (was 41); 0 orphan tests; 26/26 active hazards mitigated.
 
-- No changes made to `spec.md`, `plan.md`, `tasks.md`, `research.md`, or `v-model/requirements.md`.
-- ✅ constraint satisfied.
+**V-6 — Cross-platform.** Every user-facing story, journey, wireframe, state and task covers both platforms; 0 waivers.
+
+**V-7 — Standards conformance.** File naming, folder structure, error convention, date representation,
+no-boolean-flag-props, localization and the library-first gate all checked against `docs/CODING_STANDARDS.md` and
+`CLAUDE.md`.
+
+**V-8 — Peer-review integrity.** The nine per-artifact reviews now carry real findings. The May set recorded 0 findings
+each on the same day the consolidated review recorded 3 CRITICALs — including one whose own header recorded "0
+acceptance test cases" while its findings table read 0.
 
 ---
 
 ## Recommendations Before Implementation
 
-1. Run `/speckit.product-forge.revalidate` and explicitly decide whether inferred template/recurrence/family-size/leftover items become FRs.
-2. If promoted, update upstream `spec.md` first, then re-run verify-full.
-3. Keep SC-008 as launch gate and define additional numeric outcome targets if needed by product leadership.
+1. ✅ Done — the three MAJOR gates are closed (W-003).
+2. ✅ Done — the index is corrected, with a new review rule to stop it recurring (W-005).
+3. ✅ Done — the batch projection is an internally-owned prerequisite (T001–T003) and its path is settled on
+   `POST /api/v1/recipes/nutrition-batch`.
+4. **Still standing**: re-run this report **with L8** after any future spec change. A doc↔doc pass is not a verification
+   — that is the lesson of the 2026-05-12 run.
 
----
-
-## Appendix: File Inventory (Bootstrapped)
-
-- `.forge-status.yml`
-- `review.md`
-- `verify-report.md`
-- `research/README.md`
-- `research/competitors.md`
-- `research/ux-patterns.md`
-- `research/codebase-analysis.md`
-- `research/tech-stack.md`
-- `research/metrics-roi.md`
-- `product-spec/README.md`
-- `product-spec/product-spec.md`
-- `product-spec/user-journey.md`
-- `product-spec/metrics.md`
-- `product-spec/wireframes/README.md`
-- `product-spec/wireframes/planner-week.md`
-- `product-spec/wireframes/planner-month.md`
-- `product-spec/wireframes/plan-create.md`
-- `product-spec/wireframes/plan-templates.md`
-- `product-spec/wireframes/plan-shopping-handoff.md`
+**No warnings remain open.** T068–T070 are retained in `tasks.md` as post-deploy confirmations (re-reconcile counts
+against real test files once they exist; confirm cost from billing data), not as unresolved findings.

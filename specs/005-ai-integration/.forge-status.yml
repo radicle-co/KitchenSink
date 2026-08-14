@@ -44,6 +44,208 @@ gates:
           - tasks.md
           - tasks/digest.md
           - traceability.yml
+forge_run_2026_08_05:
+    resume_point: 'Phase 5.5 (migration-plan) — conditional trigger MET (plan.md §2 declares four CREATE
+        TABLEs) but the phase was never run and is absent from the phases map; pre-impl-review (which
+        follows 5.5) was already marked skipped, so 5.5 was jumped silently.'
+    gate_risk:
+        value: high
+        method: 'HEURISTIC — gate-risk.js could NOT run (see tooling_defects). New schema + a security
+            boundary (BYOK secrets, MCP grants) + 94 unimplemented tasks.'
+    decision: 'Owner chose: fix tasks.md gaps BEFORE running Phase 5.5.'
+    tasks_gate_invalidated: 'The tasks gate (approved 2026-08-02) was given against a list now known to be
+        incomplete. Phase 5H adds the three artefacts other tasks already consume or test but nothing
+        created (F-02/F-04/F-13), and corrects the T045 contradiction. Counts 94 -> 98.'
+    t045_contradiction_resolved:
+        finding: 'F-03 — T045 asserted sanitization runs at ai-service intake before enqueue; plan §5.4
+            places SanitizeService in ai-workers before prompt construction.'
+        ruling: 'plan §5.4 WINS; T045 was wrong and its note is corrected. ai-workers is the last point
+            before the external LLM call AND the only place that sees the recipe/profile data it fetches
+            itself — intake-side sanitization would miss server-fetched PII entirely.'
+    coverage_table_gap: 'FR-023 and FR-024 had tasks (T092-T098) but NO Coverage rows at all. Added.'
+    tooling_defects:
+        gate_risk_js: 'BROKEN in this repo — CommonJS require() under root package.json "type": "module";
+            crashes with ReferenceError before doing any work.'
+        validate_traceability_js: 'BROKEN, same ESM/CJS cause.'
+        build_audit_report_sh: 'Emits "✅ RELEASE READY" for a feature with 578/578 scenarios untested —
+            ⬜ Untested never becomes an anomaly, and gate conditions 2 and 3 are not implemented at all.
+            Also mis-parses each matrix''s own coverage summary as data rows, fabricating gaps.'
+        consequence: 'All three automated gate tools are non-functional here, for EVERY feature — not just
+            005. Every forge/v-model gate in this repo is effectively manual until they are fixed, which
+            requires forking vendored extension scripts (owner previously declined a fork).'
+    phase_5_5_migration_plan:
+        status: completed
+        completed_at: '2026-08-05'
+        note: 'Phase 5.5 had never run AND was absent from the phases map entirely; pre-impl-review
+            (which follows it) was already marked skipped, so it had been jumped silently.'
+        verified_empirically: 'Applied against a real PostgreSQL 16 instance in a throwaway database
+            (dropped after; existing integration-test DBs untouched). forward.sql exit 0;
+            validation.sql PASS; rollback DDL removed all 4 tables and correctly LEFT pgcrypto
+            installed. Three MUTATION tests confirmed validation.sql fails when the schema is wrong:
+            the D-005 column-level unique (FAIL 2b), a non-partial index (FAIL 5b), and a
+            cross-service foreign key (FAIL 6). The mutation results are the load-bearing evidence —
+            they prove the gate discriminates rather than passing unconditionally.'
+    f06_resolved_2026_08_07:
+        decision: 'New shared package @kitchensink/ai-db owns the schema, DAOs and the migration. Both
+            ai-service and ai-workers take a workspace dependency on it; NEITHER declares the schema.'
+        why: 'ai-workers must write ai_generation_records, which ai-service also reads. Cross-workspace
+            relative imports are banned, and ai-service is a NestJS APPLICATION not a library — depending
+            on it would drag the whole app (and its Clerk secret surface, which plan §1.2 forbids in
+            ai-workers) into the workers package.'
+        precedent: 'Exact mirror of @kitchensink/identity-db — verified: it exports ./src/index.ts (source,
+            not dist), ships prod.package.json, depends only on drizzle-orm + ulidx, and is consumed by
+            BOTH packages/services/identity and packages/services/identity-webhooks. That is the same
+            service/worker split as ai-service/ai-workers.'
+        task_changes: 'Added T103 (scaffold the package; MUST precede T005/T006/T008). Repointed T005,
+            T006 and T008 paths from packages/services/ai-service/src/database/** to packages/shared/ai-db/**.
+            T001/T002 notes now declare the workspace dependency. Counts 98 -> 99.'
+        migration_impact: 'DDL is UNCHANGED — only its home moved. forward.sql / migration-plan.md /
+            digest.md repointed to packages/shared/ai-db/src/migrations/0001_ai_initial.sql.'
+    f01_resolved_2026_08_07:
+        finding: 'T073 prescribed `packages/apps/commise/i18n/src/locales/en/ai.json`. Verified: there
+            are ZERO locale JSON files in this repo — the path was fiction.'
+        convention: 'Co-located `messages.ts` typed as LocalizedMessages<T> (@commise/i18n →
+            src/dictionary.ts). features/recipes is the model: a ROOT src/messages.ts plus a messages.ts
+            in each sub-directory.'
+        resolution: "T073 now owns ONLY features/ai/src/messages.ts — the cross-cutting strings (EU AI
+            Act disclosure, medical disclaimer, guard copy). Component-specific strings belong to each
+            component task's own co-located messages.ts. That split is what removes the collision the
+            single-file path created with all five component tasks."
+    f07_resolved_2026_08_07:
+        finding: 'T052 cited "the existing ScopesGuard + @RequireScopes" as if importable. They live
+            ONLY in packages/services/identity/src/auth/ and are exported from no shared package.'
+        resolution: 'New task T104 extracts both into a NEW shared package @kitchensink/nest-auth,
+            which T052 then imports.'
+        why_not_clerk_verify: 'clerk-verify is deliberately framework-free — its only dependency is
+            @clerk/backend and it is consumed by three services plus lambdas. ScopesGuard is deeply
+            NestJS-coupled (@nestjs/common, Reflector), so hosting it there would drag Nest into every
+            consumer. @nestjs/common / @nestjs/core go in peerDependencies of the new package instead.'
+        move_not_copy: 'A scope guard is a SECURITY control, so two divergent copies is the failure mode
+            to avoid — a fix applied to one would silently miss the other. identity-service is migrated
+            to import from the shared package in the same change.'
+        risk: "T104 touches a SHIPPED service. It is verifiable rather than inspection-only:
+            packages/services/identity/tests/scopes.guard.test.ts already covers the guard, so the
+            extraction is proven by an existing test. Run identity's full suite before and after."
+    task_counts_after_f01_f06_f07: '100 total · 47 test-first · 53 implementation (T103 ai-db scaffold,
+        T104 nest-auth extraction).'
+    f12_resolved_2026_08_07: "T055's test path named generation.controller.test.ts — T046's source, not
+        the poll endpoint it tests (T056's generation-status.controller.ts). Violated §1a <source>.test.ts
+        and would have collided with the real generation.controller unit test. Repointed."
+    all_dependency_graph_flags_closed: 'F-01, F-02, F-03, F-04, F-06, F-07, F-12 and F-13 are resolved.
+        The remaining graph flags (F-05, F-08, F-09, F-10, F-11, F-14, F-15) are advisories about
+        sequencing and coverage, not blockers — they are recorded in tasks/dependency-graph.md and do not
+        prevent wave 1 from dispatching.'
+
+wave_1_2026_08_07:
+    status: complete
+    units: 'Five package scaffolds (T001-T004, T103) · nest-auth extraction (T104) · clerk-verify act
+        admission gate (T022 -> T023) · k6 SC-003 script (T084).'
+    verified_by_orchestrator: 'Suites re-run independently rather than trusting agent reports — identity
+        23/155, nest-auth 1/13, clerk-verify 2/79, ai-workers 1/2, recipe-service 90/1096, food-service
+        30/325. All match the reported numbers; no consumer regression from the shared-package changes.'
+
+    my_own_error_caught_twice: 'I prescribed KEBAB filenames under packages/shared/* in both T006 and
+        T104, copying the backend convention. packages/shared/* is the FRONTEND regime
+        (packages/tools/eslint/index.js -> namingRegimeForRoot; only /packages/services/ is backend),
+        machine-enforced by eslint-plugin-check-file, so those names FAIL npm run lint. Two independent
+        agents hit it. Corrected 2026-08-07 to camelCase (aiGenerationRecords.ts etc., ScopesGuard.ts).'
+
+    security_finding_prod:
+        what: 'ADR-0012 states the act admission gate "lives in the shared package, so all three services
+            gain it once". That is NOT what the code does. admitAzplessToken is consulted ONLY in pattern
+            mode. Prod runs LIST mode, where @clerk/backend assertAuthorizedPartiesClaim returns early on
+            an absent azp — so an azp-less actor-token session is ALREADY ADMITTED TODAY, ungated, by
+            identity, food-service and recipe-service in production.'
+        why_not_fixed: 'The behaviour is deliberately pinned by the existing R10 regression test because
+            mobile native tokens depend on it. Closing it changes shipped consumer behaviour and would
+            break mobile, so the agent stopped and reported rather than widening scope. CORRECT call.'
+        consequence: 'isAgentActorToken is a real boundary on sandbox/per-PR stages and a NO-OP on prod
+            until list-mode azp-absence is addressed as its own change. The ADR overstates the guarantee.'
+
+    missing_tasks_found:
+        - 'No task WIRES the act gate into any consumer. T023 ships the two shared files; nothing sets
+          mcpActorSub or a CLERK_MCP_ACTOR_SUB env on recipe/food/identity. The gate ships exported and
+          UNUSED. Same class as F-02/F-04/F-13.'
+        - 'No globalSetup exists for the new integration/e2e vitest configs. recipe-service points at
+          ./tests/global-setup.ts; referencing a missing file aborts the run before any spec. T007 must
+          add the harness wiring.'
+        - 'T001 includes no infra scaffolding, though tasks reference infra/{bin/app.ts,lib/…} and plan
+          §1.3 assigns ALB priority 400. ai-service typecheck is tsc --noEmit only; recipe-service also
+          typechecks infra. Whoever adds infra must extend it plus add infra:synth/deploy, esbuild.mjs,
+          Dockerfile and an ai-service prod.package.json.'
+        - 'T101 must declare the ./hooks export subpath when it writes hooks.ts, or T068/T072 pull the
+          React surface through the root barrel.'
+        - 'T004 shipped only the web vitest config. Both sibling feature slices also ship
+          vitest.native.config.ts and the cross-platform rule mandates mobile coverage. Native config is
+          a drop-in later (**/*.native.test.tsx already excluded).'
+
+    unconfirmed_assumptions:
+        - "The act claim SHAPE is unspecified in ADR-0012. isAgentActorToken assumes Clerk's documented
+          act.sub. If Clerk nests it differently the gate silently rejects everything — fail-closed, but
+          a dead preview. Confirm against a real minted actor token at T025."
+        - 'ADR-0012 promises act provenance "for free" for logs/audit, but VerifiedClerkClaims never
+          surfaces act and no task adds it.'
+
+    residual_risk:
+        - "passWithNoTests: true is set in four new unit configs as scaffold posture. It MUST be removed
+          as each package's first real spec lands, otherwise a suite that silently stops being collected
+          goes green."
+        - 'ai-service/src/index.ts and ai-workers/src/index.ts are scaffold ANCHORS only (TS18003 — a
+          project whose include matches nothing fails). Both carry a DELETE-THIS-FILE JSDoc; the real
+          entries belong to T099 and the workers handler task.'
+        - 'packages/services/identity/prod.package.json is STALE (pre-existing, not caused here): it
+          still lists ./database/* exports and omits clerk-verify/identity-db/identity-core. CI
+          regenerates it per image build so it is not load-bearing. Left alone to avoid widening the diff
+          on a shipped service.'
+        - 'ai-workers lint needs --no-error-on-unmatched-pattern until its __tests__ root exists.'
+
+    k6_t084_findings:
+        ran_for_real: 'k6 v0.54.0 IS installed, so the agent went past parsing and executed the script
+            four times against a local stub of the plan §3.2 contract: healthy (exit 0, p95 2.00s), jobs
+            never complete (exit 107, setup aborts), every submit 400s (exit 107), and 18s generations vs
+            the 15s budget (exit 99, threshold fails).'
+        the_load_bearing_result: 'In the FAILING 18s run, ai_generation_submit reported p95 = 0.70 ms.
+            Had the script thresholded the 202 ack instead of the full cycle, it would have passed at
+            sub-millisecond while every user waited 18 seconds. The trap was DEMONSTRATED, not asserted.'
+        k6_vacuous_pass_is_real: 'Measured, not assumed: a Trend threshold on a ZERO-sample metric PASSES
+            (p(95) of nothing is 0 < 15000, marked ✓, exit 0) — so a run where every submit 400s is
+            GREEN. A Rate threshold on zero samples also passes; only a Counter threshold fails. Thresholds
+            alone therefore cannot prevent a vacuous pass. Guarded three ways: a setup() preflight running
+            one real cycle, a Counter ai_generation_complete_total count>=30 (catches both zero samples and
+            a p95 computed from nine points), and a completion Rate so timeouts cannot hide behind the
+            survivors p95.'
+        defect_found_by_running: 'k6 grows an arrival-rate VU pool LAZILY (~1 VU/s) and each iteration is
+            a whole generation long, so the first sizing guard (which checked maxVUs) still dropped 5
+            iterations. Now requires preAllocatedVUs to cover steady state. Static review would not have
+            caught this.'
+        sc003_still_not_covered: 'Passing stub runs prove the INSTRUMENT works, not that the service meets
+            15s. No ai-service exists. Needs T085 (CDK) + T086 (CI leg) per F-11.'
+        owner_decisions_needed:
+            - 'CLOCK START IS CONTRADICTORY ACROSS OUR OWN DOCS: spec.md says "within 15 seconds of the
+              request"; research/metrics-roi.md says "from request accepted" (i.e. from the 202). The
+              script takes the spec reading (stricter, and the user''s actual clock) and records the
+              enqueue RTT separately so both are recoverable — but the two docs must be reconciled.'
+            - 'What is "preview-ready" on the SSE path? For the stream endpoint it is arguably FIRST
+              chunk, not last — a different measurement, needing its own scenario. Not covered.'
+            - 'Every p95 sample is a REAL LLM call on a real BYOK key. Defaults size ~60 generations per
+              10 min with a 30-sample floor. Nobody has decided whose key CI charges, and
+              provision-pool.mjs only mints Clerk users — there is NO provisioning path for BYOK keys
+              across the pool. T086 must solve this before the leg can run.'
+            - 'OQ-7 actor-mint round trip is covered BY CONSTRUCTION (any server-side mint falls inside
+              the window) but is not ISOLATED; isolating it needs a DCR-registered agent, OAuth token and
+              stored grant, for which no provisioning path exists. Deliberate gap.'
+        adjacent_drift_not_fixed:
+            - 'Token-mint logic is now duplicated a THIRD time in packages/tools/loadtest (journey.js,
+              ratelimit.js, ai-generation.js). That is the rule-of-three extraction trigger. Left alone
+              because extracting would have meant touching files outside this task.'
+            - 'service-erasure.load.js:32 comments that its open() path is "relative to the run cwd".
+              That is WRONG — k6 open() resolves relative to the SCRIPT. Latent drift, untouched, worth
+              its own fix.'
+    good_practice_worth_keeping: 'ai-workers Clerk isolation (plan §1.2, a SECURITY boundary) is enforced
+        by an executable test, not a comment: it asserts no manifest field names a Clerk package and no
+        shipped source matches @clerk/ or CLERK_SECRET_KEY. Mutation-verified — adding @clerk/backend plus
+        a file reading CLERK_SECRET_KEY made it fail, reverting made it pass.'
+
 reconciliation:
     v_model:
         state: complete-traceability-green
@@ -136,8 +338,11 @@ reconciliation:
                 on no test case, so it read as uncovered. It now has ATP-015-A.
             remaining_gaps:
                 REQ-CN-001:
-                    Inspection-only cross-spec dependency on 001 Recipe entities. This is peer-review PRF-005-A3,
-                    still open — it argues Inspection is insufficient for a P1 cross-spec dependency.
+                    CLOSED 2026-08-02 — superseded by the gaps_closed_2026_08_02 entry below. This block previously
+                    read "still open", contradicting that entry; the contradiction was corrected 2026-08-05 after
+                    verifying ATP-CN-001-A exists (acceptance-plan.md:374) with three executable scenarios against
+                    the REAL recipe-service client. PRF-005-A3 is discharged. Retained (not deleted) so the earlier
+                    citation resolves.
                 REQ-IF-004:
                     Web/mobile parity. Listed under the old second AT-005-F but supplied NO scenario, so it was never
                     actually covered. Parity is asserted by tasks T-076/T-077 (Playwright + Maestro).
@@ -158,8 +363,12 @@ reconciliation:
             checklist:
                 Revalidated against FR-022 and ADR-0012. The false pass on "Edge cases are identified" is corrected
                 to INCOMPLETE.
-            trace_md: 'Truncated to a pointer stub. Not deleted: peer-review.md cites it 7x and is a historical record,
-                so the path must stay resolvable.'
+            trace_md: 'Truncated to a pointer stub. Not deleted: peer-review.md cites it 9x across 5 findings
+                (A2, A3, B3, P4, P5) and is a historical record, so the path must stay resolvable; this file''s own
+                artifact manifest (v-model/trace.md, below) also lists it, so deletion is a coordinated two-file
+                change, not a git rm. Count corrected from 7x 2026-08-05. NOTE: the "deleting destroys audit
+                history" argument does NOT hold — the rejected-AES design and the original 7-hazard Matrix H are
+                recorded in peer-review.md (P4/P6/B4) and in this file. The path resolving is the only real reason.'
             system_design: Stale self-reported totals corrected (23/23 -> 27/27; interface 3/3 -> 4/4).
         traceability:
             matrix_A: 27/27
@@ -272,20 +481,45 @@ phases:
             that never existed for FR-022's confidence indicator, NFR-002, and SC-003.
 
             "
+    migration-plan:
+        state: complete
+        completed_at: '2026-08-05'
+        digest_path: migrations/digest.md
+        note: 'Conditional trigger MET (plan.md §2, four CREATE TABLEs). Previously absent from this
+            map, which is how the phase came to be skipped without a decision.'
+        artifacts:
+            - migrations/migration-plan.md
+            - migrations/forward.sql
+            - migrations/rollback.sql
+            - migrations/validation.sql
+            - migrations/risk-matrix.md
+            - migrations/digest.md
     pre-impl-review:
         state: skipped
         reason: Existing V-Model artifacts provide pre-implementation structure for this feature.
         artifact: null
     implement:
-        state: not-started
-        note:
-            'tasks.md present but no T-IDs marked complete. Blocked: plan.md (Draft), V-Model design artifacts (Draft),
-            release-audit-report.md (BLOCKED). Product decisions approved; implementation lifecycle has not started.
+        state: complete-with-one-open-task
+        completed_at: '2026-08-09'
+        note: 'RECONCILED 2026-08-09. This row read `not-started` / "no T-IDs marked complete" — true when
+            written, badly stale when read: 15 commits landed in between. 99 of 100 tasks are done,
+            verified and mutation-proven. T086 (CI wiring) is the one open task and is blocked on two
+            OWNER DECISIONS, not on effort. Deliberately NOT `complete`, because one task is genuinely
+            outstanding.
 
             '
+        tasks_done: 99
+        tasks_total: 100
+        open_tasks: [T086]
+        gates_green: 109/109 turbo typecheck+lint+test, repo-wide
+        tiers: ai-service 1108 unit / 239 integration / 79 e2e; both non-unit tiers pass twice on one DB
+        approach: five parallel agent waves plus a sequential composition root; every agent claim re-verified
     code-review:
-        state: not-applicable
-        reason: No implementation commits for feature 005 yet.
+        state: not-started
+        note: 'RECONCILED 2026-08-09. Was `not-applicable` ("No implementation commits for feature 005
+            yet") — stale; there are now 15. This phase is runnable and is the next gate.
+
+            '
     verify:
         state: complete
         note: 'verify-report.md updated 2026-05-10. W-003 resolved by D-003 (FR-022 added). W-001 and W-002 remain as
@@ -353,3 +587,205 @@ bootstrap:
         - No modifications to pre-existing spec/plan/tasks/v-model artifacts
         - Stories in product-spec must trace to FR-015..FR-021
         - Missing upstream detail is logged as WARNING (not invented)
+
+migration:
+    db_kind: postgres
+    logical_database: kitchensink_ai
+    strategy: big-bang
+    strategy_rationale: 'Permitted with written rationale per the migration-plan operating principles: the target
+        database does not exist yet, has no rows, no readers and no writers, and ai-service is not
+        deployed. Expand-migrate-contract or shadow-column over an empty database would add failure
+        modes while removing no risk. The real risk here is provisioning order and rollback safety,
+        not downtime.'
+    destructive_changes: false
+    rollback_destructive: true
+    rollback_note: 'Forward is non-destructive. ROLLBACK is destructive once rows exist, and uniquely so for
+        user_byok_keys: it stores only the Secrets Manager ARN, so DROP TABLE severs the only pointer
+        to LIVE third-party provider credentials — billed indefinitely and absent from every
+        inventory. rollback.sql therefore blocks on two mandatory manual pre-steps (export + schedule
+        secret deletion with a 30-day recovery window; revoke agent grants at the authorization layer
+        BEFORE the DDL).'
+    backfill_required: false
+    backfill_note: 'No backfill: kitchensink_ai has no pre-existing data and no column derives from another
+        service at migration time. Recorded explicitly so a missing backfill.md is not read as an
+        oversight.'
+    files:
+        plan: migrations/migration-plan.md
+        forward: migrations/forward.sql
+        rollback: migrations/rollback.sql
+        validation: migrations/validation.sql
+        risk_matrix: migrations/risk-matrix.md
+
+wave_2_2026_08_07:
+    status: complete
+    commit: d3469160
+    units: 'ai-db schema vertical (T005 -> T008) · PII SanitizeService (T041 -> T042) · ai-service config +
+        BYOK validator (T009/T010, T013/T014) · features-ai guard surfaces (T063/T064, T065/T066,
+        T069/T070, T073, T102).'
+    verified_by_orchestrator: 'Suites re-run and mutations independently REPRODUCED rather than trusting
+        agent reports — ai-db 24, ai-service 102 unit + 25 integration, ai-workers 64 unit + 3
+        integration, features-ai 87 web + 65 native. Repo-wide turbo: 78 typecheck/lint tasks and 50 test
+        tasks green. Mutations re-run by hand: partial-index dropped (1 fail), canApproveConsent made
+        always-true (web 3 + native 1 fail — proving the shared pure model binds BOTH platforms),
+        store-before-probe reorder (unit 3 + integration 2 fail, the integration failure being a REAL
+        orphaned secret in LocalStack Secrets Manager), allergy rescue removed (1 fail).'
+
+    the_defect_my_own_fan_out_caused: 'Two concurrent agents both owned packages/services/ai-service/tests/
+        global-setup.ts. The second Write-overwrote the first, dropping the TEST_DATABASE_URL / AI_TABLES
+        exports. Because migration.integration.test.ts derives describeWithDatabase from that import, the
+        undefined value silently degraded the suite to describe.skip: the tier reported "Test Files 2
+        skipped / Tests 25 skipped / EXIT=0" with no import error and no red. An entire integration tier
+        was dead behind a green check. Repaired additively; 25 passing confirmed.'
+
+    silent_skip_hole_closed: 'The collision was the trigger, but the STRUCTURAL flaw outlived it: a tier
+        that self-skips on a falsy env var exits 0 having run nothing, and passWithNoTests cannot catch it
+        because the spec files ARE collected — they merely decline to run. assertHarnessConfiguredInCi()
+        now guards BOTH ai-service and ai-workers: under CI a missing switch is a hard exit 1 naming the
+        variable; locally it still skips cleanly with no Docker. Verified in all three states. Switches
+        live in one HARNESS_SWITCHES list so a future dependency cannot quietly become skippable.'
+
+    caught_at_commit_not_by_agents:
+        - 'Lockfile drift — features/ai declared @testing-library/user-event but the lockfile workspace
+          entry omitted it, so npm ci would have failed in CI. Refreshed (26 lines, no churn). npm audit
+          confirms NONE of the 31 pre-existing advisories implicate the four new dependencies.'
+        - 'test-utils/ escapes the package lint script (globs src/** only); the pre-commit oxlint hook
+          caught unused params there. Fixed with the intent documented — those props are destructured
+          precisely to keep them out of ...rest.'
+
+    open_for_owner:
+        byok_secret_name_is_unsafe_across_stages: "HIGH. plan.md §6 specifies byok/{userId}/{provider} with
+            NO stage segment. All stages share one AWS account and, per ADR-0001, every preview signs in
+            against the SHARED identity service — so the same app ULID addresses the same user everywhere,
+            and a key configured on pr-{N} OVERWRITES that user's production API key. T012 must
+            stage-scope the name. (The stronger claim that PR teardown would then DELETE it was checked and
+            is FALSE — .github/scripts/teardown-sandbox-pr.sh does not touch Secrets Manager at all. It
+            becomes true the moment anyone tags BYOK secrets for cleanup.)"
+        fr_023_warnings_list_has_no_owner: 'T092-T095 build the validator and wire it into the response;
+            NO task builds the UI that lists the findings. ConfidenceIndicator takes only a findingCount,
+            so a user sees "3 issues" with no way to learn what they are.'
+        no_task_owns_the_ai_service_db_pool: 'T010 defines the config contract; nothing creates the
+            connection. Whoever writes it needs @aws-sdk/rds-signer (passwordless RDS-IAM, matching
+            recipe-service) — not currently a dependency.'
+        empty_scope_grant_is_representable: 'mcp_agent_grants.scopes is TEXT[] NOT NULL with no constraint.
+            The UI refuses it (canApproveConsent) but the server does not. Assigned to GrantPolicy (T018/
+            T019) in wave 3.'
+        health_category_table_needs_review: 'The 12 condition -> dietary-category rules in
+            ai-workers/src/sanitize/health-categories.ts are dietary guidance authored by an agent, not
+            specified anywhere. plan §5.4 gives no table. Owner review warranted.'
+        t095_is_mis_scoped: "It says it will edit ConfidenceIndicator.tsx. It should not — the props already
+            encode FR-022's basis. Its real work is mapping the wire type in the orchestration layer."
+        tasks_md_names_no_native_paths: 'Yet GR-010 AC-010-c requires both platforms. The .native.tsx leaves
+            were built anyway (CLAUDE.md cross-platform rule); the task paths should say so.'
+
+wave_3_2026_08_07:
+    status: in_progress
+    units: 'GrantPolicy (T018 -> T019, T020 -> T021) · act gate verification (T022/T023) · ActorTokenService
+        (T024 -> T025) · JSON-RPC envelope + tool registry (T026 -> T027, T028 -> T029).'
+    dispatch_error_i_made: 'I dispatched T022 -> T023 without checking that wave 1 had ALREADY delivered them
+        (commit 1f115388). The agent correctly declined to duplicate, made zero net change to the worktree,
+        and spent its budget adversarially verifying the existing gate instead — 79 tests green before and
+        after, RED reproduced by gutting isAgentActorToken to return false (4 failures), and all three
+        prescribed mutations killed (19 / 5 / 2 failures).'
+
+    PROD_SECURITY_GAP_CONFIRMED: 'VERIFIED INDEPENDENTLY, and it is WORSE than previously recorded. Not
+        merely "the act gate is unwired in prod" — in production the gate is STRUCTURALLY UNREACHABLE.
+        Chain: (1) resolveAzpEnforcement''s list-mode branch returns only { authorizedParties } and never
+        admitAzplessToken — its own JSDoc says "Ignored in list mode" three times; (2) verifyClerkToken
+        guards assertAzpMatchesPattern behind `authorizedPartyPattern !== undefined`, so in list mode it is
+        never called; (3) @clerk/backend assertAuthorizedPartiesClaim early-returns on falsy azp
+        (node_modules/@clerk/backend/dist/index.js:2913); (4) prod IS list mode — CLERK_AZP_PATTERN is set
+        only on non-prod, and identity/infra/__tests__/stacks.test.ts:132 explicitly asserts prod does NOT
+        have it. CONSEQUENCE: any azp-less token our Clerk instance signed authenticates as its subject
+        against identity, food and recipe in PROD with no act.sub check — including a Clerk support-staff
+        IMPERSONATION session. Blast radius is bounded to instance-signed tokens (not an unauthenticated
+        bypass). PRE-EXISTING; feature 005 does not widen it — the agent proved the gate strictly NARROWS
+        pattern mode and is a literal no-op in list mode, so mobile/R10 are untouched.'
+    prod_gap_why_it_is_not_a_quick_fix: "Closing it means changing verifyClerkToken's list-mode contract to
+        stop delegating absent-azp to Clerk. That breaks R10 and mobile unless CLERK_ADMIT_NATIVE_CLIENT is
+        simultaneously enabled for prod — and stacks.test.ts:141 currently asserts prod does NOT set it.
+        Shared verifier + three services + infra, in one change. Owner decision required."
+    adr_0012_overstates_coverage: 'Two sentences need correcting. "The gate lives in the shared package, so
+        all three services gain it once" is true only in PATTERN mode. And "the act claim gives downstream
+        services provenance for free ... for logs and audit" is NOT delivered: VerifiedClerkClaims has no
+        act field and verifyClerkToken drops it, so no downstream service can distinguish agent traffic.
+        Adding it is a cross-service contract change.'
+    act_gate_is_dead_code_today: 'No consumer passes mcpActorSub — grep across packages/ returns nothing
+        outside clerk-verify itself. The gate is verified but has never executed in any deployed stage.'
+    clerk_verify_lint_does_not_cover_tests: 'Its lint script is eslint src/**/*.ts --ignore-pattern
+        **/*.test.ts, so eslint-plugin-check-file does NOT enforce the camelCase filename rule on test
+        files in this package. The name happens to be correct; the safety net assumed to be active is not.'
+    clerk_verify_has_no_integration_tier: 'Unit only — no tests/ dir, no *.integration.test.ts, no config.
+        CLAUDE.md requires unit AND integration for non-UI library code. Real proof needs a service-level
+        test booting an auth guard against a genuinely Clerk-signed actor token.'
+
+tasks_md_checkbox_reconciliation_2026_08_07: 'Waves 1 and 2 were committed with ZERO tasks marked [x] —
+    the file claimed no work had started while 27 tasks were shipped and verified. Marked complete:
+    T001-T010, T013, T014, T022, T023, T041, T042, T063-T066, T069, T070, T073, T084, T102-T104.
+    27 done / 73 open of 100. The forge lifecycle reads "all tasks [x]" as the Phase 6 completion
+    signal, so this drift would have made the phase gate unreadable.'
+
+gate_2026_08_09_implement:
+    phase: implement
+    decision: revised
+    risk: high
+    risk_source: >-
+        heuristic — scripts/gate-risk.js is still broken (CJS `require` under the repo's "type": "module",
+        the defect already recorded for this feature). Classified HIGH on: auth/secret boundaries, a prod
+        DataStack template change, a two-major Clerk bump across three shipped services, and live
+        Vercel/Secrets Manager mutations.
+    owner_answer: 'Fix the three critical gaps and get it working end-to-end.'
+    open_criticals:
+        - id: F-101
+          title: No transport carries the generated draft from ai-workers to the user
+          status: CLOSED 2026-08-09
+          closed_note: >-
+              generated_draft jsonb on ai_generation_records (migration 0002 + its own validation gate),
+              written by the worker on completion, owner-scoped on read, cleared on save/discard, findings
+              DERIVED on read so staleness is unrepresentable. Verified: cross-tenant draft read kills 7
+              tests. NOT built: plan §3.2's token-level partial objects — the terminal draft only, stated
+              plainly rather than synthesised from a completed row.
+          decision: >-
+              Draft is persisted as a JSONB column on ai_generation_records, written by the worker on
+              completion and cleared when the user saves or discards. Chosen over S3 (adds a datastore and
+              lifecycle for a bounded ~5-20KB recipe document) and over stream-only (which breaks reload
+              and regenerate). plan §5.4 keeps PROMPT content out of this database; the draft is OUTPUT the
+              user is about to save, so it is a different privacy question and gets bounded retention.
+        - id: F-102
+          title: recipe-service has no M2M verification half
+          status: CLOSED 2026-08-09
+          closed_note: >-
+              AuthMiddleware dispatches on Clerk's own isMachineToken; the acting user comes ONLY from the
+              signed commise_acting_user_id claim. Verified: honouring a request header instead kills 7
+              tests. recipe-service 1096 -> 1141 unit, 188 -> 204 integration, 54 -> 57 e2e, zero existing
+              assertions changed. An e2e over real HTTP proves an agent-created recipe is visible to the
+              user's OWN browser session — same principal, two credential shapes.
+        - id: F-103
+          title: prod DataStack template gains 7 additive resources for the kitchensink_ai bootstrap
+          status: withdrawn-not-a-finding
+          note: >-
+              WITHDRAWN 2026-08-09 — this should never have been raised. `AiDbBootstrap` is the same
+              master-connected custom resource as `FoodDbBootstrap` and `RecipeDbBootstrap`, in the same
+              stack, documented beside them in data-stack.ts (lines 54/61/68). Both peers changed prod's
+              DataStack template when they landed. It is the ESTABLISHED PATTERN, not an exception.
+
+              The error was mine and worth recording so it is not repeated: CLAUDE.md's "prod's
+              synthesized template is unchanged" is scoped to ADR-0008's COST LEVERS (gp3 vs gp2, Spot vs
+              on-demand) and its actual instruction is "don't flip prod to gp3/Spot without its own PR +
+              no-diff proof". I lifted that sentence out of its context into a general rule and asked the
+              owner to approve conforming to precedent. Adding a service's DB bootstrap to DataStack needs
+              no special sign-off; deviating from that pattern would.
+
+open_after_f101_f102_2026_08_09:
+    - >-
+        BIGGEST: an abandoned draft is retained indefinitely. The bound is user-driven (save/discard),
+        not wall-clock, and 005 runs nothing on a schedule. Needs a scheduled reclaim clearing
+        generated_draft only, never the provenance row — a new deployable, so it was reported not invented.
+    - >-
+        recipe-service forwards the CALLER'S bearer to food-service, whose guard verifies a Clerk SESSION
+        token. An M2M token will not verify there, so agent-driven ingredient enrichment silently degrades
+        to catalogAvailability 'unavailable' — the exact green-but-degraded shape ADR-0010 exists to stop.
+    - McpModule.forRoot still has no production binding. The @clerk/backend v2 blocker is GONE (3.16.1).
+    - RECIPE_MCP_MACHINE_ID must be provisioned per stage or every tool call fails closed with a 401.
+    - output_entity_id is still not written on save — the generation->entity FR-022 link remains open.
+    - ai-service has no k6 tier at all (pre-existing feature-level testing-policy violation).
+    - T086's two legs, unchanged: the ai-service-client integration spec, and whose BYOK key CI charges.

@@ -219,3 +219,44 @@ prediction coming true in a document nobody treats as authoritative.
   `cooking-school-service`, plus worker packages). The same question this ADR answers — _does this need its
   own deployable, given what a deployable costs here?_ — is worth asking of each of them before any is built.
   It is **not** answered here, and no conclusion should be inferred from this ADR either way.
+
+---
+
+## Amendment (2026-08-14) — 006 is extracted into its own deployable
+
+**Status of the amendment**: Accepted. Owner decision, 2026-08-14.
+
+**006 gets its own deployable service and its own tables**, superseding the row for 006 in the Decision
+table above. 007, 009 and 010 are **unchanged** and remain in the services named there.
+
+| Feature | Owning service (amended)                            | Schema package                  |
+| ------- | --------------------------------------------------- | ------------------------------- |
+| **006** | `@kitchensink/meal-plan-service` _(new deployable)_ | `@kitchensink/schema-meal-plan` |
+
+**Why, stated honestly.** 006's recorded flip condition above is a _measured_ one — "meal planning grows a
+write volume or a scaling profile that competes with recipe search" — and it has **not** been measured,
+because 006 is not implemented. This amendment is therefore an **owner architectural decision**, not the
+firing of the recorded trigger, and it is recorded as such rather than dressed up as evidence.
+
+Two engineering facts support it, and are the reason it is accepted rather than merely obeyed:
+
+1. **The recipe service's scope grew after this ADR was written.**
+   [ADR-0019](0019-recipe-import-spine.md) places the bulk import processor, four channel adapters,
+   ingredient resolution and per-entity status emission in the recipe service. The original decision
+   weighed 006/007/009 against a service that owned recipe CRUD and search. That is no longer the service
+   being weighed, and "one more module" is a materially different proposition against the larger one.
+2. **The extraction cost this ADR quantified is lowest before implementation, not after.** The stated cost
+   of extracting later is "a new schema package plus a client base-URL change" — but that holds only while
+   there is no data to migrate and no consumer pinned to the shared contract. 006 has neither today. Paying
+   it now is strictly cheaper than paying it after 006 ships inside `@kitchensink/schema-recipe`.
+
+**What this costs, unchanged from the Context above.** One more ECS service per stage, one more task per
+open pull request (≈ $8.25/month each, ADR-0010), an ALB listener-rule priority drawn from the single
+allocator in `packages/infra/alb` — **never** a per-service constant (ADR-0003) — a logical database, a
+Dockerfile, a deploy job, a smoke test, a schema package, a client package, and a `CONTRACT_HASH` boot
+assertion. This amendment does not make a deployable cheap; it accepts the cost for 006 specifically.
+
+**What does NOT follow from this amendment.** It is **not** a precedent that each feature gets a service.
+007 and 009 remain in the recipe service, 010 remains in the identity service, and their flip conditions
+above are unchanged and still require their stated triggers. The default recorded by this ADR — a new
+deployable must be justified against what a deployable costs here — stands.

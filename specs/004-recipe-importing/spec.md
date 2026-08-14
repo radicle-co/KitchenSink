@@ -87,9 +87,12 @@ attribution, then clone it and verify the clone retains attribution.
 3. **Given** a draft missing a required field (servings, any time, at least one ingredient, or at least one
    step), **When** the user attempts to confirm it, **Then** confirmation is rejected with field-level errors
    and no recipe is created.
-4. **Given** a user photographs a physical recipe, **When** OCR completes, **Then** a draft is returned for
-   review and, on confirmation, the recipe is created with `sourceType = imported_physical` and
-   `visibility = private`.
+4. _(**Moved to 011** — D-001 as amended 2026-08-14. The photo→OCR→draft scenario is 011's to specify and
+   test; asserting it here would make 004's suite fail on a channel 004 no longer builds.)_ 004's residual
+   obligation is testable without OCR: **Given** a caller submits candidate recipes to the bulk import
+   processor declaring `sourceType = imported_physical`, **When** the import is confirmed, **Then** recipes
+   are created with `visibility = private` and no public source attribution (`FR-013`) — which is precisely
+   the contract 011's image branch submits against (`FR-047`).
 5. **Given** a recipe imported from Instagram, **When** it is displayed, **Then** the original creator's handle
    and post link are visible as attribution.
 6. **Given** a URL whose domain is on the paywalled-source blocklist, **When** the user attempts to import,
@@ -148,6 +151,18 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
 
 ### Functional Requirements
 
+> **Channel-ownership transfer (2026-08-14, D-001 as amended · [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md)).**
+> Photo/OCR is **011's channel**, not 004's. Consequently **every photo/OCR-specific provision below transfers
+> to 011 along with the channel** and is retained here only because the provision's _rule_ is still the right
+> one and 011 MUST inherit it rather than re-derive it — specifically: the premium gate on
+> `imported_physical` (`FR-028`, D-014), the tighter OCR sub-quota (`FR-022`), deletion of OCR artifacts on
+> draft expiry (`FR-018`), the OCR vendor's classification as an untrusted third-party boundary (§15-d), and
+> the per-photo rate limit. Read each as _"011 MUST satisfy this for the photo channel"_.
+> **004 retains exactly two photo-related obligations**: the chooser presents the method as
+> unavailable-until-011 (`FR-046`), and the bulk import contract accepts `sourceType = imported_physical`
+> without a contract change (`FR-047`). `FR-011`'s `sourceType` mapping stays here in full, because the
+> classification vocabulary is the shared contract both features bind to.
+
 **Ingestion**
 
 - **FR-008**: System MUST allow users to import recipes from public website URLs, extracting title, ingredient
@@ -161,8 +176,15 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   text; video-only or image-only posts without recipe text are unsupported and the user MUST be told so.
   Deduplication by canonicalized source URL applies. **This requirement cannot function without an approved
   Meta application** (D-002); it MUST ship behind a capability flag that is off until that credential exists.
-- **FR-012**: System MUST allow users to import recipes from physical copies via photo capture and OCR text
-  extraction, producing a draft for review.
+- **FR-012** _(REASSIGNED TO 011 — see D-001, amended 2026-08-14)_: Import from physical copies via photo
+  capture and OCR is owned by [011-recipe-digitization](../011-recipe-digitization/spec.md), **not by 004**.
+  011's image branch routes to a dedicated stateless image-processing service and then submits its extracted
+  candidates to **this feature's bulk import processor** (`FR-047`), so the post-extraction path is shared and
+  004 does not build a second one. 004's obligation is limited to two things: the import-method chooser
+  (`FR-046`) MUST present the photo method as **unavailable-until-011** rather than omitting it silently or
+  offering an affordance that does nothing, and the bulk import contract MUST accept the
+  `imported_physical` `sourceType` so 011 can submit against it without a contract change.
+  See [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §1 and §3.
 - **FR-019**: System MUST allow users to import recipes from structured files (JSON, YAML, or Markdown with
   YAML frontmatter), producing a draft. File type MUST be determined by content inspection (magic bytes), not
   by the client-supplied filename or MIME type.
@@ -174,6 +196,51 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
 - **FR-021**: System MUST normalize extracted ISO-8601 durations to integer minutes and free-text servings to
   a positive integer where unambiguous. Where a value is absent or ambiguous, the field MUST be left empty on
   the draft and flagged for user completion — the system MUST NOT substitute a default.
+
+**The import spine — method selection, one processor, and live status** _(added 2026-08-14, owner ruling;
+normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md))_
+
+- **FR-046**: System MUST present an **import-method chooser** on both web and mobile, listing every import
+  method as a distinct choice (URL, structured file, photo, and — when its capability flag is on — Instagram).
+  Selecting a method MUST route to a surface designed for **that input format**; there MUST NOT be a single
+  omni-input that infers the format from what the user supplied. A method that is not available in the current
+  build (photo before 011 ships, `FR-012`; Instagram while gated, `FR-009`/D-002) MUST be shown in a
+  visibly unavailable state with the reason, **not** omitted and **not** rendered as a control that does
+  nothing. Rationale: format inference is how a paste-a-URL field silently accepts a file path, and how
+  provenance gets guessed instead of declared.
+- **FR-047**: Every import channel MUST terminate in **one** bulk import processor. A channel's distinct
+  responsibility is limited to producing candidate recipe records from its source plus the `sourceType` that
+  records provenance; everything after extraction — validation, ingredient resolution, recipe creation, and
+  per-recipe outcome reporting (`FR-027`) — MUST be the shared path. `sourceType` MUST be **declared by the
+  invoking surface and whitelisted server-side** (`FR-025`), never inferred from the payload. Adding a channel
+  MUST be an adapter plus a `sourceType` member, not a new pipeline.
+- **FR-048**: System MUST emit a status message **per recipe** as that recipe advances through the import
+  spine — accepted, in flight (carrying the current stage), and terminal (succeeded, failed, or errored).
+  Messages for one recipe MUST **supersede** prior messages for that recipe rather than accumulating, so a
+  consumer holding only the latest message for an entity holds correct current state. Supersession MUST be
+  decided by a **monotonic sequence carried in the envelope**, never by arrival order: the bus is
+  at-least-once and out-of-order, and last-write-wins on arrival would silently revert a terminal
+  `succeeded` to `processing` on a redelivery. A 1,000-recipe import (`FR-026`) therefore produces a bounded
+  live view rather than an unbounded event log each client must reconcile.
+- **FR-049**: System MUST emit the same shape of superseding status message **per food item** as ingredient
+  resolution advances through its import/sync stages to a terminal state. The recipe-level status
+  (`FR-048`) MUST NOT be the only signal, because a recipe can be created while its ingredients are still
+  resolving (`FR-020` — an unresolved ingredient MUST NOT block confirmation).
+- **FR-050**: A recipe that references a food item which is not yet resolved MUST store a **placeholder
+  reference** to that item, and the food catalog MUST hold a corresponding **shell entry** carrying that
+  item's current processing/sync/import status. Status MUST therefore be readable **from the database at any
+  time**, not only by having observed the message stream: a client connecting mid-import, or after a dropped
+  connection, MUST render correct state from a read, with `FR-048`/`FR-049` making it live rather than being
+  the only source of truth. A status message is a notification **of** a committed state change and MUST NOT
+  be the state itself.
+    > ⛔ A shell entry is **not** a recipe written into the food database. The standing prohibition — a recipe
+    > is a method, not a substance, and is never registered as a food entity — is unchanged. A shell is a
+    > **food** in a pending state, created and advanced by the food service's own resolution pipeline because a
+    > recipe referenced an ingredient it had not yet resolved. The food database keeps exactly one writer and
+    > the recipe→food relationship stays one-directional.
+- **FR-051**: Ingestion of a status message MUST be **idempotent**. Delivery is at-least-once, so a consumer
+  MUST tolerate redelivery of a message it has already applied without duplicating an effect or regressing
+  state.
 
 **Attribution, visibility, and provenance**
 
@@ -508,11 +575,31 @@ The section above decides **who authors** the contract; this one is where it **r
 
 ## Owner decisions _(2026-08-02 — resolves the revalidation gate)_
 
-- **D-001 (OCR launch scope)**: Physical-copy import (`FR-012`) **ships at launch at P1**. Provider is **AWS
-  Textract** — the account is already AWS-native, credentials are IAM rather than a new vendor secret, and
-  `sharp` is already a service dependency for image preprocessing. It sits behind an `OcrProvider` port so the
-  pipeline is testable without the vendor and the choice is reversible. **Amended by D-014**: OCR import is
-  premium-only, which also bounds Textract spend to paying users.
+- **D-001 (OCR launch scope)** — ⛔ **SUPERSEDED 2026-08-14 by the owner ruling recorded in
+  [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md).** Read the amendment below; the
+  original text is retained struck-through so the reversal is auditable rather than invisible.
+    - _Original (2026-08-02):_ ~~Physical-copy import (`FR-012`) **ships at launch at P1**. Provider is **AWS
+      Textract** — the account is already AWS-native, credentials are IAM rather than a new vendor secret, and
+      `sharp` is already a service dependency for image preprocessing. It sits behind an `OcrProvider` port so
+      the pipeline is testable without the vendor and the choice is reversible. **Amended by D-014**: OCR
+      import is premium-only, which also bounds Textract spend to paying users.~~
+    - **Amended:** **photo/OCR does not ship with 004.** The image branch is owned by
+      [011-recipe-digitization](../011-recipe-digitization/spec.md), lands **after** 004, routes to a
+      dedicated **stateless** image-processing service, and then submits its extracted candidates to 004's
+      bulk import processor (`FR-047`). 004 ships the chooser (`FR-046`), the URL channel (`FR-008`) and the
+      structured-file channel (`FR-019`), plus the first phase of bulk import (`FR-026`, `FR-027`).
+    - **Why the original was wrong, not merely re-scoped.** It was never a clean decision to begin with:
+      011's own prerequisite table already declared the boundary — _"004 = structured/web-URL imports;
+      011 = unstructured photo imports"_ — while D-001 committed 004 to the same channel. **Two accepted
+      specs each owned photo import**, and whichever shipped second would have found the other already owning
+      `sourceType`, the draft-confirm flow and the recipe-creation call. The ruling resolves a real
+      contradiction; it did not introduce one.
+    - **Why 011 rather than 004 owns it.** 011's photo depth — handwriting, multi-photo batches, per-token
+      confidence, and a side-by-side correction UI — is a product in its own right and far exceeds 004's
+      single `FR-012` sentence. Folding it into 004 would have discarded the differentiator 011 exists for.
+    - **Consequence for D-014.** The premium gate on OCR moves with the channel; it becomes 011's to enforce,
+      via the same shared entitlement mechanism (never an import of the identity service — ADR-0017
+      decision 3). D-014's rule for 004's own non-public channels is unchanged.
 - **D-002 (Instagram)**: `FR-009` is **fully specified but gated**. The public no-auth oEmbed endpoint
   (`api.instagram.com/oembed`) was withdrawn on 2020-10-24; oEmbed now requires a Meta app credential and App
   Review. Instagram import therefore ships behind a capability flag, defaulting off, and its adapter is

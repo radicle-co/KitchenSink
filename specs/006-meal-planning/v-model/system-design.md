@@ -1,138 +1,159 @@
 # System Design: Meal Planning
 
 **Feature Branch**: `006-meal-planning`
-**Created**: 2026-05-09
+**Created**: 2026-05-09 | **Regenerated**: 2026-08-02
 **Status**: Draft
-**Source**: `specs/006-meal-planning/v-model/requirements.md`
+**Source**: [`v-model/requirements.md`](./requirements.md), [`plan.md`](../plan.md)
+
+> **Regeneration note.** The May decomposition had eight system components, four of which do not survive contact with
+> the shipped platform: a nutrition engine built on a USDA adapter and a cache, and three premium AI services with no
+> provider and no enforceable entitlement. The reconciled system is smaller and its dependency graph is much flatter —
+> which is the point. SYS ids are preserved where the component survives.
 
 ## Overview
 
-The Meal Planning system is decomposed into eight system components spanning meal plan lifecycle management, nutritional computation, AI-powered premium features, external service adapters, and cross-cutting infrastructure. The decomposition follows a layered architecture: a REST API layer handles client requests, a domain service layer enforces business rules, adapter components integrate external dependencies (Recipe API, USDA food data, Clerk, AI provider), and a persistence layer manages durable state. Cross-cutting concerns (type safety, documentation, accessibility) are addressed by a dedicated quality-assurance component.
+Meal Planning is one NestJS service plus one product feature package, decomposed into **six** system components: plan
+lifecycle, entry assignment, nutrition rollup, templates, the outbound recipe gateway, and the client planner surface.
+Nutrition is a **pure fold** over recipe-level values fetched in one bounded batch call, so there is no computation
+subsystem, no cache and no async recalculation path. The three premium AI components are retained as ids only, marked
+Phase 2.
 
 ## ID Schema
 
-- **System Component**: `SYS-NNN` — sequential identifier for each component
-- **Parent Requirements**: Comma-separated `REQ-NNN` list per component (many-to-many)
-- Example: `SYS-003` with Parent Requirements `REQ-001, REQ-005` — component satisfies both requirements
+- **System Component**: `SYS-NNN` — sequential; never renumbered.
+- **Parent Requirements**: comma-separated `REQ-NNN` list (many-to-many).
 
 ## Decomposition View (IEEE 1016 §5.1)
 
-| SYS ID  | Name                          | Description                                                                                                                                                                                                                    | Parent Requirements                                                    | Type      |
-| ------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | --------- |
-| SYS-001 | Meal Plan Manager             | Creates, reads, updates, and deletes meal plans. Manages date-range configuration, meal-slot definitions (breakfast, lunch, dinner, snacks), and plan lifecycle state. Enforces the 30-day+ scalability constraint.            | REQ-001, REQ-002, REQ-009, REQ-010                                     | Subsystem |
-| SYS-002 | Recipe Assignment Service     | Handles assignment and removal of recipes from meal slots within a plan. Validates that assigned recipes belong to the authenticated user's collection via the Recipe API adapter.                                             | REQ-003, REQ-009                                                       | Module    |
-| SYS-003 | Nutritional Summary Engine    | Computes daily and weekly nutritional summaries by aggregating ingredient data from assigned recipes via the USDA food data adapter. Caches computed summaries to meet the 10-minute workflow SLA.                             | REQ-004, REQ-005, REQ-011                                              | Service   |
-| SYS-004 | AI Meal Suggestion Service    | Provides AI-powered recipe recommendations for premium users. Invokes the AI provider adapter with user dietary preferences and available recipe collection to generate ranked suggestions.                                    | REQ-006                                                                | Service   |
-| SYS-005 | Meal Plan Auto-Generator      | Generates a complete meal plan for premium users based on user-defined preferences and constraints. Produces a reviewable, modifiable plan by orchestrating the AI provider adapter and Recipe Assignment Service.             | REQ-007                                                                | Service   |
-| SYS-006 | Food Waste Optimizer          | Analyzes ingredient overlap across assigned recipes within a plan and suggests rearrangements or swaps to maximize shared ingredient usage. Premium-only feature.                                                              | REQ-008                                                                | Service   |
-| SYS-007 | External Integration Adapters | Encapsulates all outbound integrations: Recipe API (001), USDA food data (003), Clerk authentication (002), AI provider (005). Exposes meal plan data for downstream consumers: grocery lists (007) and nutrition plans (009). | REQ-IF-001, REQ-IF-002, REQ-IF-003, REQ-IF-004, REQ-IF-005, REQ-IF-006 | Subsystem |
-| SYS-008 | Quality & Compliance Layer    | Cross-cutting component enforcing TypeScript strict-mode compilation, JSDoc documentation coverage, accessible UI component contracts, and color-state accessibility rules across all modules.                                 | REQ-NF-001, REQ-NF-002, REQ-NF-003, REQ-NF-004                         | Utility   |
+| SYS ID  | Name                        | Description                                                                                                                                                                                                                                                                     | Parent Requirements                                                                                                    | Type      | Phase |
+| ------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------- | ----- |
+| SYS-001 | Meal Plan Manager           | Creates, reads, updates and deletes plans. Owns date-range and meal-slot validation (≤ 90 days, ≥ 1 slot), owner scoping, keyset pagination, and cascade delete of entries.                                                                                                     | REQ-001, REQ-002, REQ-009, REQ-010, REQ-CN-002, REQ-CN-005                                                             | Subsystem | 1     |
+| SYS-002 | Entry Assignment Service    | Assigns, moves and removes entries within a plan. Validates the target cell against the plan's range and slot set, verifies recipe readability through SYS-007, and enforces idempotent creation.                                                                               | REQ-003, REQ-014, REQ-015, REQ-CN-002                                                                                  | Module    | 1     |
+| SYS-003 | Nutrition Rollup            | **Revised.** Folds `recipeNutrition × servings` into per-day and whole-plan totals, propagating a completeness flag. A **pure function** over data already fetched by SYS-007 — no persistence, no cache, no queue, no food-service call.                                       | REQ-004, REQ-005, REQ-009, REQ-014, REQ-CN-004                                                                         | Module    | 1     |
+| SYS-004 | AI Meal Suggestion Service  | **PHASE 2 — DEFERRED.** No provider (005) and no enforceable entitlement (010).                                                                                                                                                                                                 | REQ-006, REQ-CN-001                                                                                                    | Service   | **2** |
+| SYS-005 | Meal Plan Auto-Generator    | **PHASE 2 — DEFERRED.**                                                                                                                                                                                                                                                         | REQ-007, REQ-CN-001                                                                                                    | Service   | **2** |
+| SYS-006 | Food Waste Optimizer        | **PHASE 2 — DEFERRED.**                                                                                                                                                                                                                                                         | REQ-008, REQ-CN-001                                                                                                    | Service   | **2** |
+| SYS-007 | Recipe Gateway              | **Narrowed.** The single outbound door to the recipe service: readability checks and batch nutrition, with a bounded transport timeout, total-function failure handling, boundary normalization and a three-state availability discriminant. Formerly a four-adapter subsystem. | REQ-IF-001, REQ-IF-008, REQ-010, REQ-014                                                                               | Module    | 1     |
+| SYS-008 | Quality & Compliance Layer  | Cross-cutting: strict TypeScript, JSDoc + pattern-named module headers, accessible names, non-colour-only state, the test matrix, error-class conventions, and the no-cache/no-queue constraint.                                                                                | REQ-NF-001..009                                                                                                        | Utility   | 1     |
+| SYS-009 | Template Service            | **New.** Saves a plan as a template keyed by relative day offset, applies a template to a new start date, and produces the skip report.                                                                                                                                         | REQ-012, REQ-013, REQ-015, REQ-024, REQ-CN-002                                                                         | Module    | 1     |
+| SYS-010 | Planner Client Surface      | **New.** The web + mobile planner: shared headless orchestration and pure render components, the Home widget, and the localization surface. Absent from the May decomposition, which modelled only the backend.                                                                 | REQ-003, REQ-014, REQ-016, REQ-017, REQ-018, REQ-019, REQ-023, REQ-025, REQ-NF-003, REQ-NF-004, REQ-NF-007, REQ-IF-007 | Subsystem | 1     |
+| SYS-011 | Downstream Projection       | **New.** The versioned read shape 007/009 consume. Explicitly does **not** aggregate ingredients.                                                                                                                                                                               | REQ-IF-005, REQ-IF-006, REQ-011                                                                                        | Module    | 1     |
+| SYS-012 | Account Erasure Participant | **New.** Erases a user's plans, entries and templates on account erasure, joining the existing mechanism rather than adding a second.                                                                                                                                           | REQ-020                                                                                                                | Module    | 1     |
+
+**Retired**: the May `SYS-003` cache responsibility and `SYS-007`'s USDA, Clerk-adapter and AI-adapter roles. Clerk
+verification is not a 006 component — it is the shared `@kitchensink/clerk-verify` package consumed by middleware.
 
 ## Dependency View (IEEE 1016 §5.2)
 
-| Source  | Target  | Relationship | Failure Impact                                                                          |
-| ------- | ------- | ------------ | --------------------------------------------------------------------------------------- |
-| SYS-002 | SYS-001 | Calls        | Recipe assignment fails; meal slots cannot be populated                                 |
-| SYS-002 | SYS-007 | Calls        | Cannot validate recipe ownership; assignment blocked                                    |
-| SYS-003 | SYS-001 | Reads        | Nutritional summaries unavailable; plan view degrades to recipe-only display            |
-| SYS-003 | SYS-007 | Calls        | USDA food data unavailable; nutritional computation fails with partial/empty summaries  |
-| SYS-004 | SYS-007 | Calls        | AI suggestions unavailable; premium feature degrades gracefully with error message      |
-| SYS-005 | SYS-004 | Calls        | Auto-generation cannot produce AI-ranked plan; falls back to error or manual assignment |
-| SYS-005 | SYS-002 | Calls        | Auto-generated assignments cannot be persisted; plan generation fails                   |
-| SYS-006 | SYS-001 | Reads        | Optimizer cannot read plan; food waste analysis unavailable                             |
-| SYS-006 | SYS-007 | Calls        | Ingredient overlap data unavailable; optimization suggestions cannot be generated       |
-| SYS-001 | SYS-007 | Calls        | Clerk authentication unavailable; all meal planning operations blocked                  |
+| Source  | Target                      | Relationship | Failure impact                                                                                               |
+| ------- | --------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------ |
+| SYS-002 | SYS-001                     | Reads        | Cannot resolve the parent plan; assignment rejected with a not-found response.                               |
+| SYS-002 | SYS-007                     | Calls        | **Degrades, does not fail.** Readability unverifiable → assignment is rejected conservatively (fail-closed). |
+| SYS-003 | SYS-001, SYS-002            | Reads        | No entries → no totals. A plan with no entries legitimately reports no totals.                               |
+| SYS-003 | SYS-007                     | Calls        | **Degrades, does not fail.** Nutrition renders "unavailable"; the plan and its entries still render.         |
+| SYS-009 | SYS-001, SYS-002            | Writes       | Template application is transactional; a partial failure leaves no half-built plan.                          |
+| SYS-009 | SYS-007                     | Calls        | An unreadable recipe becomes a **skip** with a reported reason, not a failure.                               |
+| SYS-010 | SYS-001, 002, 003, 009      | Calls (HTTP) | Client-side query errors render per-surface error states; the shell still renders.                           |
+| SYS-011 | SYS-001, SYS-002            | Reads        | Projection unavailable; no downstream consumer exists yet.                                                   |
+| SYS-012 | SYS-001                     | Deletes      | Erasure retry is driven by the existing sweeper; an incomplete erasure is re-driven, never silently dropped. |
+| all     | `@kitchensink/clerk-verify` | Verifies     | Token verification failure → `401`. Networkless, so it does not add an availability dependency.              |
 
-### Dependency Diagram
+### Dependency diagram
 
 ```text
-SYS-007 (External Adapters)
-  ├── Clerk ← SYS-001 (auth gate for all operations)
-  ├── Recipe API ← SYS-002
-  ├── USDA Food Data ← SYS-003
-  ├── AI Provider ← SYS-004
-  └── Downstream (007, 009) ← exposed by SYS-001
+                       ┌──────────────────────────────┐
+                       │ SYS-010 Planner Client        │  web + mobile
+                       │  (shared hook + pure render)  │
+                       └───────────────┬───────────────┘
+                                       │ HTTPS (Bearer)
+                       ┌───────────────▼───────────────┐
+                       │  AuthMiddleware (clerk-verify) │  networkless
+                       └───────────────┬───────────────┘
+        ┌──────────────────┬───────────┼────────────┬──────────────────┐
+   ┌────▼─────┐      ┌─────▼─────┐ ┌───▼─────┐ ┌────▼──────┐    ┌──────▼──────┐
+   │ SYS-001  │◄─────┤ SYS-002   │ │ SYS-009 │ │ SYS-011   │    │ SYS-012     │
+   │ Plans    │      │ Entries   │ │Templates│ │Projection │    │ Erasure     │
+   └────┬─────┘      └─────┬─────┘ └───┬─────┘ └───────────┘    └─────────────┘
+        │                  │           │
+        │            ┌─────▼───────────▼─────┐
+        │            │ SYS-007 RecipeGateway │──► recipe-service (001)
+        │            │  total fn, 3-state    │     readability + nutrition-batch
+        │            └───────────┬───────────┘
+        │                        │
+        │                  ┌─────▼──────┐
+        └─────────────────►│ SYS-003    │   PURE fold — no I/O, no cache, no queue
+                           │ Nutrition  │
+                           └────────────┘
 
-SYS-001 (Meal Plan Manager)
-  └── SYS-002 (Recipe Assignment)
-        └── SYS-007
+  PostgreSQL (kitchensink_meal_plans)  ◄── SYS-001/002/009/011/012
 
-SYS-003 (Nutritional Engine)
-  ├── SYS-001
-  └── SYS-007
-
-SYS-004 (AI Suggestions)
-  └── SYS-007
-
-SYS-005 (Auto-Generator)
-  ├── SYS-004
-  └── SYS-002
-
-SYS-006 (Waste Optimizer)
-  ├── SYS-001
-  └── SYS-007
-
-SYS-008 (Quality Layer) — cross-cutting, no runtime dependencies
+  Phase 2, not built: SYS-004, SYS-005, SYS-006 (blocked on 005 + 010)
 ```
 
-## Interface View (IEEE 1016 §5.3)
+Three properties of this graph are deliberate and worth stating, because the May graph had none of them:
 
-### External Interfaces
+1. **One outbound edge.** Every cross-service call goes through SYS-007. There is no second door.
+2. **The nutrition component has no dependencies.** SYS-003 is a pure function; it receives data and returns totals.
+   That is what makes it exhaustively unit-testable and why no cache is needed.
+3. **Every external-dependency failure degrades rather than propagates.** The gateway is a total function; a recipe
+   service outage costs nutrition, not the planner.
 
-| Component | Interface Name               | Protocol  | Input                                                                                         | Output                                                | Error Handling                                |
-| --------- | ---------------------------- | --------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------- |
-| SYS-001   | Meal Plan REST API           | REST/JSON | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `MealPlanDTO`, `MealPlanListDTO` (Derived)            | HTTP 400 validation, 401 auth, 404 not found  |
-| SYS-002   | Recipe Assignment REST API   | REST/JSON | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `MealSlotDTO` (Derived)                               | HTTP 400, 404 slot/recipe not found           |
-| SYS-003   | Nutritional Summary REST API | REST/JSON | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `NutritionalSummaryDTO { daily[], weekly }` (Derived) | HTTP 404, 503 if USDA unavailable             |
-| SYS-004   | AI Suggestions REST API      | REST/JSON | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `SuggestionListDTO { recipes[] }` (Derived)           | HTTP 402 premium required, 503 AI unavailable |
-| SYS-005   | Auto-Generate REST API       | REST/JSON | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `MealPlanDTO` (draft) (Derived)                       | HTTP 402 premium required, 503 AI unavailable |
-| SYS-006   | Waste Optimize REST API      | REST/JSON | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `OptimizationSuggestionsDTO { swaps[] }` (Derived)    | HTTP 402 premium required, 404 plan not found |
+## Data View (IEEE 1016 §5.3)
 
-### Internal Interfaces
+| Store                               | Owner            | Contents                                                                 | Notes                                                     |
+| ----------------------------------- | ---------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `meal_plans`                        | SYS-001          | owner ULID, name, start/end date, slot set                               | `CHECK` on range, span ≤ 90 days, slot membership         |
+| `meal_plan_entries`                 | SYS-002          | plan id (FK, cascade), recipe id (**no FK**), date, slot, servings, note | `CHECK` on servings 1–99, slot value, note length         |
+| `meal_plan_templates` / `…_entries` | SYS-009          | owner ULID, name, span, slot set; entries by **day offset**              | Offsets, never dates — what makes a template re-appliable |
+| `meal_plan_idempotency_keys`        | SYS-002, SYS-009 | (owner, endpoint, key) → first response                                  | Scoped by owner so one user's key cannot replay another's |
+| _(none)_                            | SYS-003          | —                                                                        | **Nutrition is never persisted** (REQ-CN-004)             |
 
-| Source  | Target  | Interface Name                   | Protocol                                                                                      | Data Format                                               | Error Handling                           |
-| ------- | ------- | -------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- |
-| SYS-001 | SYS-007 | Clerk session-token verification | Derived — supports cross-cutting implementation constraints for traced parent system behavior | Bearer token → `AuthContext { userId, tier }` (Derived)   | Throw `UnauthorizedException`            |
-| SYS-002 | SYS-007 | Recipe API Fetch                 | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `recipeId` → `RecipeDTO { ingredients[] }` (Derived)      | Throw `RecipeNotFoundException`          |
-| SYS-003 | SYS-007 | USDA Food Data Lookup            | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `ingredientIds[]` → `NutrientDataDTO[]` (Derived)         | Throw `NutrientDataUnavailableException` |
-| SYS-004 | SYS-007 | AI Provider Invoke               | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `PromptDTO` → `AIResponseDTO { suggestions[] }` (Derived) | Throw `AIProviderException`              |
-| SYS-005 | SYS-004 | Suggestion Orchestration         | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `preferences` → `SuggestionListDTO` (Derived)             | Propagate `AIProviderException`          |
-| SYS-005 | SYS-002 | Bulk Assignment                  | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `AssignRecipeDTO[]` → `MealSlotDTO[]` (Derived)           | Rollback on partial failure              |
-| SYS-006 | SYS-007 | Ingredient Overlap Analysis      | Derived — supports cross-cutting implementation constraints for traced parent system behavior | `ingredientIds[][]` → `OverlapMatrixDTO` (Derived)        | Throw `NutrientDataUnavailableException` |
+No object store, no queue, no cache, no search index (REQ-NF-009).
 
-## Data Design View (IEEE 1016 §5.4)
+## Interface View (IEEE 1016 §5.4)
 
-| Entity             | Component | Storage     | Protection at Rest           | Protection in Transit | Retention                              |
-| ------------------ | --------- | ----------- | ---------------------------- | --------------------- | -------------------------------------- |
-| MealPlan           | SYS-001   | PostgreSQL  | Row-level security (userId)  | TLS 1.3               | Until user deletion or explicit delete |
-| MealSlot           | SYS-001   | PostgreSQL  | Row-level security (userId)  | TLS 1.3               | Cascade delete with MealPlan           |
-| RecipeAssignment   | SYS-002   | PostgreSQL  | Row-level security (userId)  | TLS 1.3               | Cascade delete with MealSlot           |
-| NutritionalSummary | SYS-003   | Redis cache | N/A (derived, non-sensitive) | TLS 1.3               | TTL 1 hour; invalidated on plan change |
-| AISuggestionCache  | SYS-004   | Redis cache | N/A (non-sensitive)          | TLS 1.3               | TTL 15 minutes                         |
-| OptimizationResult | SYS-006   | In-memory   | N/A (ephemeral)              | TLS 1.3               | Request-scoped; not persisted          |
+| Interface                  | Provider            | Consumer                 | Contract                                                                          |
+| -------------------------- | ------------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| Meal-plan REST API         | SYS-001/002/009/011 | SYS-010, 007, 009        | OpenAPI written before handlers; one error envelope `{code,message,details?}`     |
+| Batch nutrition projection | 001                 | SYS-007                  | `POST /api/v1/recipes/nutrition-batch` — additive, bounded, `null` for unreadable |
+| Recipe read                | 001                 | SYS-007                  | Existing `GET /api/v1/recipes/{id}`                                               |
+| Home widget descriptor     | SYS-010             | `@commise/features-core` | Loader-based registration, capability-gated                                       |
+| Grocery projection         | SYS-011             | 007, 009                 | Versioned `v1`; entries only                                                      |
+| Account erasure            | existing            | SYS-012                  | The mechanism 001 C-007 established                                               |
 
----
+## Traceability — REQ → SYS
 
-## Coverage Summary
+| REQ                    | SYS                                |
+| ---------------------- | ---------------------------------- |
+| REQ-001, 002, 009, 010 | SYS-001                            |
+| REQ-003                | SYS-002, SYS-010                   |
+| REQ-004, 005           | SYS-003                            |
+| REQ-006, 007, 008      | SYS-004, 005, 006 _(Phase 2)_      |
+| REQ-011                | SYS-011                            |
+| REQ-012, 013           | SYS-009                            |
+| REQ-014                | SYS-002, SYS-003, SYS-007, SYS-010 |
+| REQ-015                | SYS-002, SYS-009                   |
+| REQ-016, 017, 018, 019 | SYS-010                            |
+| REQ-020                | SYS-012                            |
+| REQ-021, 022           | SYS-002, SYS-010                   |
+| REQ-NF-001..010        | SYS-008                            |
+| REQ-IF-001, IF-008     | SYS-007                            |
+| REQ-IF-002             | _[DEPRECATED] — no component_      |
+| REQ-IF-003             | AuthMiddleware (shared pkg)        |
+| REQ-IF-004             | SYS-004 _(Phase 2)_                |
+| REQ-IF-005, IF-006     | SYS-011                            |
+| REQ-IF-007             | SYS-010                            |
+| REQ-CN-002             | SYS-001, 002, 009                  |
+| REQ-CN-003, CN-004     | SYS-001, 002, 003                  |
+| REQ-CN-005             | SYS-001, 002                       |
+| REQ-CN-006, CN-007     | SYS-008 _(absence, audited)_       |
+| REQ-CN-008, CN-009     | SYS-002                            |
+| REQ-CN-010             | SYS-001, SYS-002                   |
+| REQ-CN-011, CN-012     | SYS-002                            |
 
-| Metric                            | Count                                                 |
-| --------------------------------- | ----------------------------------------------------- |
-| Total System Components (SYS)     | 8                                                     |
-| Total Parent Requirements Covered | 22 / 22 (100%)                                        |
-| Components per Type               | Subsystem: 2 \| Module: 1 \| Service: 4 \| Utility: 1 |
-| **Forward Coverage (REQ→SYS)**    | **100%**                                              |
+**Forward coverage (REQ → SYS)**: 46 / 46 Phase-1 requirements mapped (100%). 5 Phase-2 requirements map to deferred
+components. REQ-IF-002 is intentionally unmapped — it is withdrawn (`[DEPRECATED]`), and mapping a component to it
+would fabricate a food-service dependency that does not exist; its live obligation is REQ-CN-007, which maps above.
 
-## Derived Requirements
-
-None — all components trace to existing requirements.
-
-## Glossary
-
-| Term                 | Definition                                                                                                  |
-| -------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Meal Plan            | A collection of meal slots organized by date and meal type spanning a configurable date range               |
-| Meal Slot            | An atomic unit within a meal plan representing a specific meal type (breakfast/lunch/dinner/snack) on a day |
-| Recipe Assignment    | The association of a Recipe entity to a Meal Slot                                                           |
-| Nutritional Summary  | Aggregated macro/micronutrient data computed from ingredient data of all recipes assigned to a plan         |
-| Premium Feature      | Functionality gated behind a paid subscription tier (AI suggestions, auto-generation, waste optimization)   |
-| Food Waste Optimizer | Algorithm that maximizes shared ingredient usage across meals to reduce grocery waste                       |
+REQ-CN-006 and REQ-CN-007 map to SYS-008 as **absence** properties: there is no component to point at precisely
+because the requirement is that no such surface or call exists. They are audited at T067 rather than exercised.

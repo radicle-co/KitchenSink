@@ -1,102 +1,139 @@
 # Product Forge Lifecycle Status
 # Feature: 010-subscriptions
-# Last updated: 2026-05-13
+#
+# Migrated from the pre-v3 legacy shape on 2026-08-07 (docs/schema.md §2 lazy migration).
+# The legacy file used `state:` instead of `status:`, kebab-case phase keys, and
+# `mode: retroactive-bootstrap` — none of which are v3 vocabulary, so every reader
+# (including scripts/gate-risk.js and scripts/validate-traceability.js) parsed it as
+# empty and reported a vacuous `risk: low, task_count: 0`.
+#
+# Preserved history the v3 shape has no field for:
+#   - `mode: retroactive-bootstrap` — the 2026-05-09 bootstrap that derived research/
+#     and product-spec/ from the pre-existing spec.md/plan.md/tasks.md corpus. This is
+#     NOT `backfilled` (that means reverse-engineered from shipped code; no code exists).
+#   - `pilot: true` — this feature was the pilot for that bootstrap operation.
+#
+# Two legacy status values have no v3 equivalent and were mapped conservatively:
+#   - verify: `failed`  -> `pending` (it ran and produced a report, but never passed a
+#     gate; `completed_with_known_issues` would falsely imply acceptance).
+#   - release-readiness: `blocked` -> `pending` (blocker recorded in blockers[] below).
 
+schema_version: 3
 feature: 010-subscriptions
-mode: retroactive-bootstrap
-pilot: true
+created_at: '2026-04-14'
+last_updated: '2026-08-07T22:05:10Z'
+
+feature_mode: 'v-model'
+speckit_mode: 'v-model'
+backfilled: false
+v2_native: false # grandfathered: created pre-v1.5.0, so missing digests are WARNING, not CRITICAL
 
 phases:
-    problem-discovery:
-        state: skipped
-        reason: Feature split from 001 and already validated through existing spec/research corpus.
-        artifact: null
+    problem_discovery:
+        status: 'skipped'
+        skipped: true
+        skip_reason: Feature split from 001 and already validated through existing spec/research corpus.
 
     research:
-        state: complete
-        bootstrapped_from:
-            - research.md
-            - plan.md
-            - spec.md
-        artifacts:
-            - research/competitors.md
-            - research/ux-patterns.md
-            - research/codebase-analysis.md
-            - research/tech-stack.md
-            - research/metrics-roi.md
-            - research/README.md
-        completed_at: 2026-05-09
+        status: 'completed'
+        completed_at: '2026-05-09'
+        # bootstrapped from research.md, plan.md, spec.md
+        # artifacts: research/{competitors,ux-patterns,codebase-analysis,tech-stack,metrics-roi,README}.md
 
-    product-spec:
-        state: complete
-        bootstrapped_from:
-            - spec.md
-            - plan.md
-            - tasks.md
-            - v-model/requirements.md
-        artifacts:
-            - product-spec/product-spec.md
-            - product-spec/user-journey.md
-            - product-spec/wireframes/
-            - product-spec/metrics.md
-            - product-spec/README.md
-        completed_at: 2026-05-09
+    product_spec:
+        status: 'completed'
+        completed_at: '2026-05-09'
+        # bootstrapped from spec.md, plan.md, tasks.md, v-model/requirements.md
+        # artifacts: product-spec/{product-spec,user-journey,metrics,README}.md + wireframes/
+
+    design_system_harvest:
+        status: 'not_applicable'
 
     revalidation:
-        state: complete
-        note: All open decisions closed by Product Owner on 2026-05-10. See review.md Revision 1.
-        artifact: review.md
-        completed_at: 2026-05-10
+        status: 'approved' # legacy literal, equivalent to `completed` (schema.md §5)
+        completed_at: '2026-05-10'
+        # All 8 open decisions closed by Product Owner. See review.md Revision 1.
 
     bridge:
-        state: complete
-        note: spec.md already exists from SpecKit flow; bridge is a no-op.
-        artifact: spec.md
+        status: 'completed'
+        # no-op: spec.md already existed from the SpecKit flow
 
     plan:
-        state: complete
-        artifact: plan.md
+        status: 'completed'
+        # SUPERSEDED IN PRACTICE — see blockers B-002/B-003 below. plan.md §2 targets
+        # TypeORM (repo is Drizzle) and §4 assumes a monolith. Left `completed` because
+        # that is the recorded gate outcome; the rollback decision is the user's.
 
     tasks:
-        state: complete
-        note: TASK-028 added 2026-05-10 for mobile subscription status + portal deep-link.
-        artifact: tasks.md
+        status: 'completed'
+        # 28 tasks. TASK-028 added 2026-05-10 (mobile subscription status + portal deep-link).
 
-    pre-impl-review:
-        state: skipped
-        reason: Existing V-Model design artifacts provide equivalent pre-implementation review surface.
-        artifact: null
+    i18n_harvest:
+        status: 'not_applicable'
+
+    migration_plan:
+        status: 'not_applicable'
+
+    pre_impl_review:
+        status: 'skipped'
+        skipped: true
+        skip_reason: Existing V-Model design artifacts provide an equivalent pre-implementation review surface.
 
     implement:
-        state: not-started
-        note: tasks.md present but no task execution markers in feature implementation packages.
+        status: 'pending'
+        # Verified 2026-08-07 against this worktree: zero Stripe/billing/PlanGuard code
+        # exists anywhere under packages/. `not-started` was accurate.
 
-    code-review:
-        state: not-applicable
-        reason: No implementation changes in this bootstrap operation.
+    code_review:
+        status: 'not_applicable'
 
     verify:
-        state: failed
-        note: verify-report.md now shows Matrix B coverage for REQ-026..REQ-031, but downstream architecture/module/hazard/unit/integration sync and execution evidence remain incomplete.
-        artifact: verify-report.md
+        status: 'pending'
+        # verify-report.md (2026-05-12) returned PARTIAL and predates the 2026-08-02
+        # spec rewrite. It also contradicts itself: Summary says CRITICAL: 0, Final
+        # Verdict says "one active critical V-Model synchronization finding".
 
-    test-plan:
-        state: not-started
-        artifact: null
+    test_plan:
+        status: 'pending'
 
-    test-run:
-        state: not-started
+    test_run:
+        status: 'pending'
 
-    release-readiness:
-        state: blocked
-        note: blocked until all downstream V-Model artifacts are synchronized, remaining traceability gaps are closed, and real execution results are ingested.
+    security_check:
+        status: 'not_applicable'
+
+    api_docs:
+        status: 'not_applicable'
+
+    tracking_plan:
+        status: 'not_applicable'
+
+    release_readiness:
+        status: 'pending'
+
+    monitoring_setup:
+        status: 'not_applicable'
+
+    experiment_design:
+        status: 'not_applicable'
+
+    spec_merge:
+        status: 'not_applicable'
 
     retrospective:
-        state: not-applicable
+        status: 'not_applicable'
 
+# V-Model artifact inventory (owned by the V-Model extension pack, v0.6.0).
+# Key kept in its legacy kebab-case form so the extension's own readers still match it.
 v-model:
-    state: complete
-    note: requirements.md, system-design.md, and acceptance-plan.md updated 2026-05-10 to reflect closed product decisions (pricing, trial, grace period, prompt hierarchy, web-only billing). Other V-Model artifacts (architecture-design, module-design, hazard-analysis, traceability-matrix, test plans) remain at their prior state and should be reviewed for consistency with REQ-026–REQ-031 before implementation begins.
+    state: partial
+    note: >-
+        requirements.md, system-design.md, and acceptance-plan.md were updated 2026-05-10 for the
+        closed product decisions (pricing, trial, grace period, prompt hierarchy, web-only billing).
+        architecture-design, module-design, integration-test, requirements and trace were further
+        touched by the 2026-08-02 spec sweep, but ONLY for path/naming normalization. No V-Model
+        artifact covers FR-044 (see blocker B-001). Downgraded from `complete` to `partial` on
+        2026-08-07 — the previous value was written before FR-044 existed.
     artifacts:
         - v-model/requirements.md
         - v-model/system-design.md
@@ -116,5 +153,92 @@ contracts:
     state: not-started
     artifacts: []
 
-next_action: resolve V-Model downstream sync blockers
+# Open blockers found during the 2026-08-07 pre-flight, verified against shipped `main`.
+blockers:
+    - id: B-001
+      severity: critical
+      summary: >-
+          FR-044 (subscription tier as a signed Clerk token claim) was added to spec.md on
+          2026-08-02 as DRAFT and exists ONLY there. No coverage in plan.md, tasks.md,
+          v-model/requirements.md (REQ-001..031), traceability-matrix.md, acceptance-plan.md,
+          or any test plan. Both sync-report.md (PASS) and verify-report.md (PARTIAL) predate
+          it and check only FR-040..FR-043, so their verdicts are stale, not clean.
+      decision: >-
+          Owner ruling 2026-08-07 — implement FR-044 as a DISTINCT `subscription_tier` claim in
+          public_metadata, taught to @kitchensink/clerk-verify. The shipped interim carrier
+          `permissions: ['premium']` MUST be retired in the same change, not left alongside it
+          as a second source of truth for one fact.
+    - id: B-002
+      severity: critical
+      summary: >-
+          plan.md §2 specifies the data model with TypeORM `@Column({...})` decorators; this
+          repo uses Drizzle ORM. It also adds a `plan: 'free'|'premium'` column when
+          `accounts.subscription_tier` (AccountTier, with an updateSubscriptionTier DAO method)
+          already ships. tasks.md T-002 correctly says Drizzle + subscriptionTier, so plan and
+          tasks disagree on the data model — and sync-report.md L3 recorded PASS.
+    - id: B-003
+      severity: critical
+      summary: >-
+          plan.md §4 applies one in-process PlanGuard, reading `user.plan`/`user.subscriptionStatus`
+          off the request, to 9 endpoints that live across recipe-service, ai, meal-plans,
+          grocery-lists and nutrition — separately deployed services that never see identity's
+          database. This is the exact gap FR-044 exists to close, and the plan predates it.
+          plan.md §5 also still references `jwt-auth.guard.ts`, which never existed.
+    - id: B-004
+      severity: warning
+      summary: >-
+          Cross-feature burndown IN-003 requires @RequirePremium() + PlanGuard to be extracted to
+          packages/shared/subscription/ early in 010 so 005/006/009 can import them. Neither
+          plan.md nor tasks.md mentions a shared package.
+    - id: B-005
+      severity: warning
+      summary: >-
+          The bundled Product Forge helper scripts cannot execute in this repo: the root
+          package.json declares "type": "module" and the scripts are CommonJS `.js`. Every
+          `node ${PLUGIN_ROOT}/scripts/*.js` invocation throws before running, so the
+          deterministic gate-risk and traceability pre-gates silently degrade to the LLM path
+          (runtime.md §1A). Worked around during pre-flight via a scratchpad copy carrying a
+          `{"type":"commonjs"}` marker.
+
+testing:
+    final_pass_rate: ''
+    bugs_found: 0
+    bugs_fixed: 0
+    bugs_deferred: 0
+    test_runs_total: 0
+
+task_log: []
+
+# NOTE: eight phases were recorded complete between 2026-05-09 and 2026-05-13 with no gate
+# entries written. The audit trail starts here rather than being back-filled with decisions
+# nobody can attest to.
+gates: []
+
+sync_runs:
+    last_run: '2026-08-07T22:40:00Z'
+    total_runs: 2
+    last_drift_count: 20
+    last_critical_count: 9
+    last_verdict: 'CRITICAL DRIFT'
+
+change_requests: []
+
+dependencies:
+    depends_on:
+        - 002-user-auth
+    depended_on_by:
+        - 001-commise-recipe-app
+        - 004-recipe-importing
+        - 005-ai-integration
+        - 006-meal-planning
+        - 007-grocery-lists
+        - 009-nutrition-planning
+        - 012-creator-profiles
+        - 013-cooking-school
+
+role_approvals:
+    solo_mode: true
+    required_roles_per_phase: {}
+
+next_action: run full sync-verify, then decide whether to roll back to Phase 5 (Plan)
 next_command: /speckit.product-forge.sync-verify

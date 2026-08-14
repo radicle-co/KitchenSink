@@ -1,21 +1,30 @@
 # Research: Feature 006 — Meal Planning
 
-**Branch**: `006-meal-planning` | **Date**: 2026-05-08
-**Spec**: [spec.md](./spec.md) | **Status**: Complete
+**Branch**: `006-meal-planning` | **Date**: 2026-05-08 | **Reconciled**: 2026-08-02
+**Spec**: [spec.md](./spec.md) | **Status**: Complete, partially superseded — see
+[Reconciliation (2026-08-02)](#reconciliation-2026-08-02)
+
+> **Read this first.** This document was written in May 2026, **before** features 001, 002 and 003 shipped. Its external
+> research (RQ-1 through RQ-5 — competitor UX, calendar-vs-list, AI patterns, drag-library selection, calendar
+> components) stands and is still the basis for the design. Its **platform-facing** answers (RQ-6, RQ-7, RQ-9) were
+> reasoned from an imagined codebase and are now contradicted by the shipped one; RQ-8 is half-right. Each superseded
+> answer is left in place with its reasoning intact and is corrected in the Reconciliation section at the end, because
+> knowing _why_ a plausible answer was wrong is worth more than a clean deletion. Where this document and the codebase
+> disagree, **the codebase wins**.
 
 ## Research Questions
 
-| #    | Question                                                                         | Status      |
-| ---- | -------------------------------------------------------------------------------- | ----------- |
-| RQ-1 | How do Paprika, Mealime, and Eat This Much handle meal planning UX?              | ✅ Answered |
-| RQ-2 | Calendar-based vs. list-based planning: which pattern wins and why?              | ✅ Answered |
-| RQ-3 | AI meal suggestion patterns — how do competitors implement them?                 | ✅ Answered |
-| RQ-4 | React drag-and-drop library selection for recipe-to-meal assignment              | ✅ Answered |
-| RQ-5 | Week/calendar view React libraries for meal planning                             | ✅ Answered |
-| RQ-6 | Meal plan data model: recipe-to-meal assignment schema in PostgreSQL             | ✅ Answered |
-| RQ-7 | Nutritional rollup aggregation — daily/weekly totals query strategy              | ✅ Answered |
-| RQ-8 | How does 006 consume recipes from 001 and feed into 007 (grocery lists)?         | ✅ Answered |
-| RQ-9 | Integration with 003 (USDA nutrition) and 009 (nutrition planning) for summaries | ✅ Answered |
+| #    | Question                                                                         | Status                                                        |
+| ---- | -------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| RQ-1 | How do Paprika, Mealime, and Eat This Much handle meal planning UX?              | ✅ Answered — stands                                          |
+| RQ-2 | Calendar-based vs. list-based planning: which pattern wins and why?              | ✅ Answered — stands                                          |
+| RQ-3 | AI meal suggestion patterns — how do competitors implement them?                 | ✅ Answered — stands, but **deferred to Phase 2** (C-006-009) |
+| RQ-4 | React drag-and-drop library selection for recipe-to-meal assignment              | ✅ Answered — stands, **web only** (see R-4 below)            |
+| RQ-5 | Week/calendar view React libraries for meal planning                             | ✅ Answered — stands                                          |
+| RQ-6 | Meal plan data model: recipe-to-meal assignment schema in PostgreSQL             | ⚠️ **Superseded** — see R-6                                   |
+| RQ-7 | Nutritional rollup aggregation — daily/weekly totals query strategy              | ⛔ **Reversed** — see R-7                                     |
+| RQ-8 | How does 006 consume recipes from 001 and feed into 007 (grocery lists)?         | ⚠️ **Revised** — see R-8                                      |
+| RQ-9 | Integration with 003 (USDA nutrition) and 009 (nutrition planning) for summaries | ⛔ **Reversed** — see R-9                                     |
 
 ---
 
@@ -425,16 +434,91 @@ The `nutrition_snapshot` JSONB stores the **macro summary** (calories, protein, 
 
 ## Summary of Key Decisions
 
-| Decision                         | Choice                                                                 | Rationale                                                                    |
-| -------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| **Primary UX pattern**           | Weekly calendar grid (7-column × meal-type rows)                       | Matches recipe-app identity; enables DnD; aligns with Paprika's proven model |
-| **Mobile UX**                    | Day-by-day vertical list (accordion)                                   | 7-column grid unusable on small screens                                      |
-| **Drag-and-drop library**        | `@dnd-kit/core` + `@dnd-kit/sortable`                                  | Community standard 2026; react-beautiful-dnd deprecated                      |
-| **Calendar component**           | Custom grid on shadcn/ui + Tailwind CSS v4                             | Matches existing stack; shadcn meal planner block as starting point          |
-| **Data model**                   | `meal_plans` → `meal_plan_entries` (flat, no days table)               | Minimal joins; date is a column, not a FK                                    |
-| **Nutrition rollup**             | Denormalized `nutrition_snapshot` JSONB + `GROUPING SETS` query        | Fast calendar render; no 6-table join per row                                |
-| **AI suggestions**               | Hybrid: preference-filter (free) + LLM structured output (premium)     | Cost-effective; LLM only for premium users                                   |
-| **LLM integration**              | LangChain `StructuredOutputParser` + Zod schema via 005-ai-integration | Guaranteed JSON validity; reuses existing AI provider config                 |
-| **Reusable templates**           | `meal_plan_templates` + `meal_plan_template_entries` tables            | Paprika "Menus" equivalent; enables repeat-week planning                     |
-| **007 integration surface**      | `GET /meal-plans/:id/ingredients?startDate=&endDate=`                  | Scoped ingredient aggregation for grocery list generation                    |
-| **Nutrition snapshot staleness** | Lazy refresh for MVP; SQS-triggered for post-003 launch                | Simple first; consistent with 003's SQS pattern later                        |
+Reconciled 2026-08-02. Rows marked **(revised)** replace the May answer; the original reasoning is preserved in the RQ
+section above and the correction is explained below.
+
+| Decision                                | Choice                                                                                                     | Rationale                                                                                                                                                                 |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Primary UX pattern**                  | Weekly calendar grid (7-column × meal-slot rows)                                                           | Matches recipe-app identity; enables DnD; aligns with Paprika's proven model                                                                                              |
+| **Mobile UX** _(revised)_               | Day-by-day vertical list with **tap-to-assign**, no drag                                                   | A 7-column grid is unusable on a phone, and card-dragging fights the scroll gesture. Fewer interactions (SC-006-002).                                                     |
+| **Drag-and-drop library**               | `@dnd-kit/core` + `@dnd-kit/sortable` — **web only**                                                       | Chosen for its **keyboard sensor**: NFR-003 requires a keyboard-operable equivalent, which pointer-only libraries cannot give.                                            |
+| **Calendar component**                  | Custom grid on the existing design tokens (`@commise/ui`) + Tailwind CSS v4                                | Slot semantics are domain-specific; a generic scheduler models timeline events, not named meal slots                                                                      |
+| **Data model** _(revised)_              | `meal_plans` → `meal_plan_entries`, **no FKs to users or recipes**, plus templates + an idempotency ledger | No local users table exists (001 "D2"); recipes live in a different logical database, so a recipe FK is unenforceable and contradicts orphan semantics                    |
+| **Nutrition rollup** _(revised)_        | **Pure read-time fold** over recipe-level `RecipeNutrition × servings`; no snapshot table, no cache        | 001 already computes per-serving recipe nutrition purely, with an `isComplete` partial flag. A snapshot is a second source of truth that goes stale on every recipe edit. |
+| **Nutrition source** _(revised)_        | The **recipe service**, via one additive batch projection                                                  | 006 never calls the food service; nutrition is already resolved and denormalized by 001                                                                                   |
+| **Fibre** _(new)_                       | Out of scope                                                                                               | Shipped `RecipeNutrition` is calories/protein/carbs/fat only                                                                                                              |
+| **Cache** _(revised)_                   | **None**                                                                                                   | No Redis/ElastiCache exists; ADR-0004/0007/0008 exist to keep this spend out. The fold is microseconds.                                                                   |
+| **Async layer** _(revised)_             | **None** — no SQS, no worker, no DLQ                                                                       | Its only purpose was to refresh the snapshot table that no longer exists                                                                                                  |
+| **AI suggestions**                      | Hybrid: preference-filter + LLM structured output — **Phase 2, deferred**                                  | Blocked on 005 (no provider surface) **and** 010 (tier is not a token claim, so no gate is enforceable)                                                                   |
+| **Reusable templates**                  | `meal_plan_templates` + `meal_plan_template_entries`, keyed by **relative day offset**                     | Paprika "Menus" equivalent; offsets (not dates) are what make a template re-appliable                                                                                     |
+| **Lock / finalize** _(new)_             | **Dropped**                                                                                                | Its only purpose was freezing a plan for grocery ordering; 007 does not exist. YAGNI.                                                                                     |
+| **007 integration surface** _(revised)_ | `GET /api/v1/meal-plans/{id}/grocery-projection` — a **read projection**, versioned additively             | 006 provides data; it does not aggregate ingredients or generate lists. Ingredient expansion belongs to 007, which owns the dedup/merge rules.                            |
+
+---
+
+## Reconciliation (2026-08-02)
+
+What changed after 001/002/003 shipped, and why each May answer failed. Recorded so the same reasoning is not repeated.
+
+### R-4 — `@dnd-kit` stands, but the _reason_ changed and its scope narrowed
+
+May chose `@dnd-kit` largely on ecosystem grounds (react-beautiful-dnd deprecated). That is still true, but the binding
+reason is **NFR-003**: the planner's drag interaction must have a keyboard-operable equivalent, and `@dnd-kit` ships an
+accessible keyboard sensor with screen-reader announcements. It is also now explicitly a **web-only** dependency — never
+imported from shared code — because mobile does not use drag at all.
+
+### R-6 — the data model was right in shape, wrong at every boundary
+
+The flat `meal_plans → meal_plan_entries` shape (date as a column, no days table) was a good call and is kept. What was
+wrong:
+
+- `user_id UUID REFERENCES users(id)` — **there is no users table**. `recipes.owner_id` is a `varchar(255)` app-user
+  ULID with no FK, and its schema header documents this as a deliberate decision ("D2: no local `users` table").
+- `recipe_id UUID REFERENCES recipes(id)` — a **cross-database** FK. Recipes are in `kitchensink_recipes`; meal plans
+  are in their own logical database. Postgres cannot enforce it. Worse, the same document required entries to survive
+  recipe removal as `orphaned` — a foreign key and an orphan requirement are mutually exclusive.
+- `meal_plan_nutrition` with `fiber_g_total` — see R-7; fibre is not obtainable from any shipped source.
+
+### R-7 — the nutrition strategy was solving a problem the platform had already solved
+
+May framed the problem as "6-table join per calendar row" and reached for a denormalized snapshot plus `GROUPING SETS`
+plus SQS-driven refresh. That framing assumed 006 would aggregate **ingredients**. It does not. 001 ships:
+
+- per-100g macros persisted on ingredient rows,
+- `@kitchensink/recipe-core/nutrition` — a pure per-serving fold with unit conversion, portion handling, user overrides
+  and an `isComplete` partial-estimate flag,
+- `leadCaloriesPerServing` and `hasPartialNutrition` denormalized onto the recipe **list** projection specifically to
+  avoid an N+1 on cards.
+
+So 006's aggregation is `Σ(recipeNutrition × servings)` over at most 360 entries — a pure fold costing microseconds. The
+snapshot table bought nothing and cost correctness: a recipe edited after the rollup leaves stored totals silently
+wrong, with no invalidation path. Removing it also removed the SQS layer, the DLQ, the worker and the "updating
+nutrition" UI state that existed only to service it.
+
+The real cost is the **network**, not the arithmetic — which is why the one genuine addition is a bounded **batch**
+nutrition projection on the recipe service, sized to a whole plan.
+
+### R-8 — consumption from 001 is right; the handoff to 007 was over-reaching
+
+Consuming recipes by id and honouring their access rules is correct. But the proposed
+`GET /meal-plans/:id/ingredients` had 006 expanding recipes into an aggregated ingredient list — that is 007's job, and
+007 owns the dedup, unit-merge and pantry rules that make it non-trivial. 006 now exposes a plain read projection of
+entries (recipe id, date, slot, servings) and lets 007 do the aggregation it is responsible for. This also means 006
+does not need recipe **ingredients** at all — only recipe **nutrition** — which materially narrows its dependency.
+
+### R-9 — 006 does not integrate with 003
+
+The May answer assumed a `usda_fdc_id` on ingredients and a live USDA nutrient fetch. Neither survives contact with the
+shipped platform: 003 is deliberately **source-agnostic** (USDA is one adapter behind
+`packages/services/food-service/src/sources/food-source-adapter.ts`), foods are referenced by an opaque internal id and
+never by `fdcId`, and nutrition is resolved asynchronously and denormalized by 001 long before 006 reads it. **006 makes
+no call to the food service.** The 009 half of RQ-9 stands: 009 links to meal plans and computes compliance itself;
+006 provides the projection (FR-036) and computes no compliance.
+
+### R-3 addendum — AI is deferred, and the entitlement is the harder blocker
+
+The AI patterns research is sound and is kept for when 005 exists. The blocker that May did not see is **010**: the
+premium gate was designed to read `tier` from the session token's `public_metadata`, but on `main` that claim carries
+only `scopes`/`permissions` — asserted by `packages/shared/clerk-verify/src/__tests__/clerkVerify.test.ts` — while
+`subscriptionTier` lives in the identity service's `accounts` table. A guard reading `tier` from the token denies every
+user. FR-025/026/027 are therefore Phase 2 (spec C-006-009).

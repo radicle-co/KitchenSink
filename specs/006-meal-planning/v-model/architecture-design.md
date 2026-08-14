@@ -1,468 +1,312 @@
 # Architecture Design: Meal Planning
 
 **Feature Branch**: `006-meal-planning`
-**Created**: 2026-05-09
+**Created**: 2026-05-09 | **Regenerated**: 2026-08-02
 **Status**: Draft
-**Source**: `specs/006-meal-planning/v-model/system-design.md`
+**Source**: [`v-model/system-design.md`](./system-design.md), [`plan.md`](../plan.md)
 
 ## Overview
 
-The Meal Planning architecture decomposes eight system components into twenty-two architecture modules organized across four Kruchten 4+1 views. The decomposition follows a NestJS layered pattern consistent with the existing Commise backend: REST controllers handle HTTP concerns, domain services enforce business rules, repository modules abstract persistence, and adapter modules encapsulate external service boundaries. Cross-cutting modules address authentication middleware, caching, error handling, and TypeScript/accessibility compliance. Every SYS-NNN from system-design.md maps to at least one ARCH-NNN; infrastructure modules are tagged `[CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]`.
+The Meal Planning architecture decomposes twelve system components into **eighteen** architecture modules across the
+Kruchten 4+1 views. The backend follows the platform's layered NestJS shape — controller → domain service → repository,
+with a single Gateway at the outbound edge — and is organized **by feature domain** (`plans/`, `entries/`, `templates/`,
+`nutrition/`), not by generic type. The client follows the platform's headless-hook-plus-pure-render shape shared across
+web and mobile.
+
+> **Regeneration note.** The May design had 22 modules; nine are deleted outright and three are materially redefined:
+>
+> | Deleted / changed                                                         | Why                                                                                                   |
+> | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+> | `ARCH-009 NutritionalSummaryCache` (Redis, TTL 3600)                      | No Redis or ElastiCache exists in this platform; ADR-0004/0007/0008 exist to keep that spend out.     |
+> | `ARCH-017 UsdaFoodDataAdapter`                                            | 006 makes no food-service call; nutrition is already resolved and denormalized by 001.                |
+> | `ARCH-010/011/012/013/014/015` (AI + waste optimizer)                     | Phase 2 — blocked on 005 and 010.                                                                     |
+> | `ARCH-021 PremiumTierGuard`                                               | Reads `tier` from `public_metadata`, which carries only `scopes`/`permissions`. Would 402 every user. |
+> | `ARCH-018 ClerkAuthService`                                               | Not a 006 module — it is the shared `@kitchensink/clerk-verify` package behind standard middleware.   |
+> | `ARCH-008 NutritionalSummaryService` (orchestrates USDA fetch)            | Redefined as a thin orchestrator over a **pure fold**; the maths moves to shared domain code.         |
+> | Type-based module grouping (`controllers/`, `services/`, `repositories/`) | `CODING_STANDARDS §3`: organize by feature domain, not generic type.                                  |
+> | `*Exception` error naming                                                 | `CODING_STANDARDS §6/§13`: `*Error` extending `Error` + `Object.setPrototypeOf` + `is*` guard.        |
+>
+> Every module below names the **design pattern** it implements, per `CLAUDE.md` design-pattern-first. The full pattern
+> register lives in [`plan.md`](../plan.md#pattern-register).
 
 ## ID Schema
 
-- **Architecture Module**: `ARCH-NNN` — sequential identifier for each module
-- **Parent System Components**: Comma-separated `SYS-NNN` list per module (many-to-many)
-- **Cross-Cutting Tag**: `[CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]` for infrastructure/utility modules not traceable to a specific SYS
-- Example: `ARCH-003` with Parent System Components `SYS-001, SYS-004` — module serves both components
-- Example: `ARCH-010 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]` — infrastructure module (e.g., Logger, Cache) with rationale
+- **Architecture Module**: `ARCH-NNN` — sequential; never renumbered.
+- **Parent System Components**: comma-separated `SYS-NNN` list.
+- **Cross-cutting**: tagged `[CROSS-CUTTING; rationale: …]`.
 
-## Logical View — Component Breakdown (IEEE 42010 / Kruchten 4+1)
+## Logical View — Component Breakdown
 
-| ARCH ID  | Name                         | Description                                                                                                                                                                                                                                                                                                                                 | Parent System Components  | Type      |
-| -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | --------- |
-| ARCH-001 | MealPlanController           | NestJS REST controller exposing CRUD endpoints for meal plans (`POST /meal-plans`, `GET /meal-plans/:id`, `PATCH /meal-plans/:id`, `DELETE /meal-plans/:id`).                                                                                                                                                                               | SYS-001                   | Component |
-| ARCH-002 | MealPlanService              | Domain service enforcing meal plan business rules: date-range validation, slot configuration, 30-day scalability constraints, and plan lifecycle state transitions.                                                                                                                                                                         | SYS-001                   | Service   |
-| ARCH-003 | MealPlanRepository           | Drizzle ORM repository for `meal_plans` and `meal_slots` tables. Implements row-level security scoping by `userId`. Handles pagination for large (30+ day) plans.                                                                                                                                                                           | SYS-001                   | Component |
-| ARCH-004 | RecipeAssignmentController   | NestJS REST controller exposing assignment endpoints (`POST /meal-plans/:id/slots/:slotId/recipes`, `DELETE /meal-plans/:id/slots/:slotId/recipes/:recipeId`).                                                                                                                                                                              | SYS-002                   | Component |
-| ARCH-005 | RecipeAssignmentService      | Domain service managing recipe-to-slot assignment logic. Validates slot existence, delegates recipe ownership check to RecipeApiAdapter, and persists assignments.                                                                                                                                                                          | SYS-002                   | Service   |
-| ARCH-006 | RecipeAssignmentRepository   | Drizzle ORM repository for `recipe_assignments` table. Supports bulk insert for auto-generated plans and cascade delete with meal slots.                                                                                                                                                                                                    | SYS-002, SYS-005          | Component |
-| ARCH-007 | NutritionalSummaryController | NestJS REST controller exposing nutritional summary endpoints (`GET /meal-plans/:id/nutrition/daily`, `GET /meal-plans/:id/nutrition/weekly`).                                                                                                                                                                                              | SYS-003                   | Component |
-| ARCH-008 | NutritionalSummaryService    | Orchestrates nutritional computation: fetches assigned recipes, retrieves ingredient nutrient data via UsdaFoodDataAdapter, aggregates daily and weekly totals.                                                                                                                                                                             | SYS-003                   | Service   |
-| ARCH-009 | NutritionalSummaryCache      | Redis-backed cache for computed nutritional summaries. TTL of 1 hour; invalidated on any plan mutation. Prevents redundant USDA API calls within the 10-minute workflow SLA.                                                                                                                                                                | SYS-003                   | Utility   |
-| ARCH-010 | AISuggestionController       | NestJS REST controller exposing AI suggestion endpoint (`POST /meal-plans/:id/suggestions`). Enforces premium-tier gate before delegating to AISuggestionService.                                                                                                                                                                           | SYS-004                   | Component |
-| ARCH-011 | AISuggestionService          | Constructs AI prompts from user dietary preferences and available recipe collection, invokes AiProviderAdapter, parses and ranks returned suggestions.                                                                                                                                                                                      | SYS-004                   | Service   |
-| ARCH-012 | AutoGenerateController       | NestJS REST controller exposing auto-generation endpoint (`POST /meal-plans/auto-generate`). Enforces premium-tier gate and returns a draft `MealPlanDTO`.                                                                                                                                                                                  | SYS-005                   | Component |
-| ARCH-013 | AutoGenerateService          | Orchestrates full plan generation: invokes AISuggestionService for ranked recipes, calls RecipeAssignmentService for bulk slot population, returns reviewable draft plan.                                                                                                                                                                   | SYS-005                   | Service   |
-| ARCH-014 | WasteOptimizerController     | NestJS REST controller exposing waste optimization endpoint (`POST /meal-plans/:id/optimize`). Enforces premium-tier gate.                                                                                                                                                                                                                  | SYS-006                   | Component |
-| ARCH-015 | WasteOptimizerService        | Analyzes ingredient overlap across all assigned recipes in a plan using an in-memory graph algorithm. Produces ranked swap/rearrangement suggestions.                                                                                                                                                                                       | SYS-006                   | Service   |
-| ARCH-016 | RecipeApiAdapter             | HTTP adapter wrapping the Recipe API from feature 001. Fetches recipe details and validates ownership for the authenticated user. Implements retry with exponential backoff.                                                                                                                                                                | SYS-007                   | Adapter   |
-| ARCH-017 | UsdaFoodDataAdapter          | HTTP adapter wrapping the USDA food data service from feature 003. Batch-fetches nutrient data for ingredient lists. Implements circuit breaker for resilience.                                                                                                                                                                             | SYS-007                   | Adapter   |
-| ARCH-018 | ClerkAuthService             | Networkless Clerk session-token verification from feature 002 (`verifyToken` via `CLERK_JWT_KEY` public key, with `azp`/`CLERK_AUTHORIZED_PARTIES` enforcement). Extracts `userId` and subscription `tier` (from `public_metadata`) from the verified token. Consumed by the global `AuthMiddleware` (NestJS middleware, not a guard).      | SYS-007                   | Adapter   |
-| ARCH-019 | AiProviderAdapter            | HTTP adapter wrapping the AI provider configuration from feature 005. Sends structured prompts and parses AI responses into typed `AIResponseDTO` objects.                                                                                                                                                                                  | SYS-007                   | Adapter   |
-| ARCH-020 | MealPlanPublicApiAdapter     | Outbound adapter exposing `MealPlanDTO` in a format consumable by downstream features 007 (grocery lists) and 009 (nutrition planning). Implements versioned serialization.                                                                                                                                                                 | SYS-007                   | Adapter   |
-| ARCH-021 | PremiumTierGuard             | NestJS guard enforcing premium subscription checks for AI suggestions, auto-generation, and waste optimization endpoints. Reads `tier` from `AuthContext`.                                                                                                                                                                                  | SYS-004, SYS-005, SYS-006 | Component |
-| ARCH-022 | QualityComplianceModule      | `[CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]` — Enforces TypeScript strict-mode compilation (tsconfig), JSDoc linting (eslint-plugin-jsdoc), accessible component contracts (aria-label rules), and color-state accessibility rules. No runtime behavior; build-time and lint-time enforcement only. | SYS-008                   | Utility   |
+### Shared domain — `@kitchensink/meal-plan-core` (pure, no I/O)
 
-## Process View — Dynamic Behavior (Kruchten 4+1)
+| ARCH ID  | Name                     | Pattern                  | Description                                                                                                                                                                    | Parent SYS        |
+| -------- | ------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| ARCH-001 | `MealPlanIds`            | Branded nominal id       | Zod-branded `MealPlanId`, `MealPlanEntryId`, `MealPlanTemplateId` with smart constructors and `is*` guards, extending the shipped `@kitchensink/recipe-core/ids` pattern.      | SYS-001, 002, 009 |
+| ARCH-002 | `DateRange`              | Value Object             | A calendar-date range that cannot exist inverted or longer than 90 days. Construction parses and throws; downstream code never re-checks. Locale-aware week grouping (FR-037). | SYS-001           |
+| ARCH-003 | `MealSlot`               | Value Object + union     | The slot union, its canonical display order, and membership predicates.                                                                                                        | SYS-001, 002      |
+| ARCH-004 | `aggregatePlanNutrition` | Pure fold                | `(entries, nutritionByRecipeId) → { perDay, planTotal }`, propagating `isComplete`. **No I/O, no clock, no randomness.** The single authoritative rollup.                      | SYS-003           |
+| ARCH-005 | `mealPlanAccessPolicy`   | Specification / policy   | Pure, total, fail-closed owner predicates, called identically by service and both clients — the D7 lesson from `recipeAccessPolicy`.                                           | SYS-001, 002, 009 |
+| ARCH-006 | `templateProjection`     | Pure mapping             | Plan ⇄ template by **relative day offset**; produces the apply result plus the skip report.                                                                                    | SYS-009           |
+| ARCH-007 | `groceryProjection`      | Adapter (outbound shape) | Versioned `v1` projection for 007/009. Entries only — no ingredient aggregation.                                                                                               | SYS-011           |
+| ARCH-008 | `mealPlanDatabaseName`   | Leaf derivation module   | ADR-0006 logical-DB derivation. **No imports, not barrel-exported** — the `recipeDatabaseName.ts` constraint whose violation caused defect #119.                               | SYS-001           |
 
-### Interaction 1: Manual Recipe Assignment to Meal Slot
+### Service — `@kitchensink/meal-plan-service`
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant ARCH-018 as ClerkAuthService (Middleware)
-    participant ARCH-004 as RecipeAssignmentController
-    participant ARCH-005 as RecipeAssignmentService
-    participant ARCH-016 as RecipeApiAdapter
-    participant ARCH-006 as RecipeAssignmentRepository
-    participant ARCH-009 as NutritionalSummaryCache
+| ARCH ID  | Name                                                       | Pattern                    | Description                                                                                                                                                                                                                                         | Parent SYS   |
+| -------- | ---------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| ARCH-009 | `MealPlansController`                                      | REST resource              | `plans/meal-plans.controller.ts`. Zod-parses at the edge; keyset pagination; `404` (never `403`) for not-owned.                                                                                                                                     | SYS-001      |
+| ARCH-010 | `MealPlansService`                                         | Domain service             | Range/slot rules via ARCH-002/003, owner scoping via ARCH-005, cascade delete.                                                                                                                                                                      | SYS-001      |
+| ARCH-011 | `MealPlansRepository`                                      | Repository                 | Drizzle over `meal_plans`; owner predicate applied in the query, not after it.                                                                                                                                                                      | SYS-001      |
+| ARCH-012 | `MealPlanEntriesController` + `…Service` + `…Repository`   | REST + domain + Repository | `entries/`. Cell validation against the plan's range and slot set, readability check via ARCH-015, move/remove, idempotent create.                                                                                                                  | SYS-002      |
+| ARCH-013 | `MealPlanTemplatesController` + `…Service` + `…Repository` | REST + domain + Repository | `templates/`. Save-as-template and transactional apply over ARCH-006, returning the skip report.                                                                                                                                                    | SYS-009      |
+| ARCH-014 | `PlanNutritionService`                                     | Orchestrator               | `nutrition/`. Collects distinct recipe ids, calls ARCH-015 once, hands the result to the **pure** ARCH-004. Holds no maths of its own.                                                                                                              | SYS-003      |
+| ARCH-015 | `RecipeGateway`                                            | **Gateway** (PoEAA)        | `recipes/recipe.gateway.ts`. The only door to 001: bounded `AbortSignal` timeout, **never throws**, boundary normalization, rate-limited failure logging, three-state `availability`, batch chunking. Modelled on the shipped `FoodCatalogGateway`. | SYS-007      |
+| ARCH-016 | `IdempotencyStore`                                         | Ledger / memento           | `common/`. `(owner, endpoint, key) → first response`, replayed rather than re-executed.                                                                                                                                                             | SYS-002, 009 |
+| ARCH-017 | `ApiExceptionFilter` + error classes                       | Single error envelope      | `common/api-exception.filter.ts` plus `*Error` classes with `Object.setPrototypeOf` and `is*` guards. **One** `{code,message,details?}` shape for the whole service.                                                                                | SYS-008      |
+| ARCH-018 | `AccountErasureParticipant`                                | Observer (existing bus)    | `erasure/`. Joins the mechanism 001 C-007 established; introduces no second erasure path.                                                                                                                                                           | SYS-012      |
 
-    Client->>ARCH-018: Bearer token
-    ARCH-018-->>ARCH-004: AuthContext { userId, tier }
-    ARCH-004->>ARCH-005: assignRecipe(slotId, recipeId, userId)
-    ARCH-005->>ARCH-016: fetchRecipe(recipeId, userId)
-    ARCH-016-->>ARCH-005: RecipeDTO { ingredients[] }
-    ARCH-005->>ARCH-006: insertAssignment(slotId, recipeId)
-    ARCH-006-->>ARCH-005: RecipeAssignment
-    ARCH-005->>ARCH-009: invalidate(planId)
-    ARCH-009-->>ARCH-005: ok
-    ARCH-005-->>ARCH-004: MealSlotDTO
-    ARCH-004-->>Client: 201 MealSlotDTO
-```
+### Client — `@commise/features-meal-plan`
 
-**Concurrency Model**: NestJS event loop (single-threaded async I/O); all I/O operations are non-blocking Promises.
-**Synchronization Points**: Cache invalidation is fire-and-forget (no await); recipe validation is awaited before persistence.
+| ARCH ID  | Name                       | Pattern                                                                              | Description                                                                                                                                                                                                                                 | Parent SYS |
+| -------- | -------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| ARCH-019 | `useMealPlanBoard`         | Headless hook + Command                                                              | Shared orchestration over TanStack mutations (`useMutation` **is** Command). Exposes `assign`/`move`/`remove`/`setServings`/`setNote` and a derived board view model. Both platforms drive this one surface.                                | SYS-010    |
+| ARCH-020 | Board render components    | Pure render + discriminated union                                                    | `DayColumn`, `SlotCell`, `EntryCard`, `NutritionSummary` — pure `props → JSX`. Entry state is `assigned \| orphaned \| pending`, consumed by an exhaustive switch (= Visitor). Parents compose by state; **no boolean flag props** (`§11`). | SYS-010    |
+| ARCH-021 | Platform interaction layer | Strategy via Metro resolution                                                        | `MealPlanBoard.tsx` (web: `@dnd-kit` pointer + **keyboard sensor**) and `MealPlanBoard.native.tsx` (tap-to-assign). Same public API; no strategy registry needed — `.native.tsx` resolution **is** the strategy selection.                  | SYS-010    |
+| ARCH-022 | `MealPlanHomeWidget`       | Registry + lazy loader (= Proxy)                                                     | Registers a **loader** with the `@commise/features-core` contract, gated on `ROADMAP_CAPABILITIES.mealPlanning`. Retires the roadmap placeholder and both app skeletons in the same change.                                                 | SYS-010    |
+| ARCH-023 | `messages.ts`              | Localization surface                                                                 | `LocalizedMessages` for every planner and widget string (FR-038). No user-visible literal anywhere else in the package.                                                                                                                     | SYS-010    |
+| ARCH-024 | `QualityComplianceModule`  | `[CROSS-CUTTING; rationale: shared build/lint infrastructure serves all components]` | Strict TS, JSDoc + pattern-named module headers, `eslint-plugin-check-file` naming, a11y lint, the `§7.1` test matrix, and CI enforcement of REQ-NF-009 (no cache/queue/worker dependency). No runtime behaviour.                           | SYS-008    |
 
----
+### Client transport — `@kitchensink/meal-plan-service-client`
 
-### Interaction 2: Nutritional Summary Computation
+| ARCH ID  | Name             | Pattern           | Description                                                                                                                                                                                       | Parent SYS |
+| -------- | ---------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| ARCH-025 | `MealPlanClient` | Gateway (inbound) | `ky`-based typed client + TanStack `queries.ts`/`hooks.ts` + `testing/` fixtures, mirroring the shipped recipe client. Shared by web and mobile — API clients do not fork per platform (`§14.2`). | SYS-010    |
+
+## Process View — Dynamic Behaviour
+
+### Interaction 1 — Assign a recipe to a slot
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant ARCH-018 as ClerkAuthService (Middleware)
-    participant ARCH-007 as NutritionalSummaryController
-    participant ARCH-008 as NutritionalSummaryService
-    participant ARCH-009 as NutritionalSummaryCache
-    participant ARCH-017 as UsdaFoodDataAdapter
-    participant ARCH-003 as MealPlanRepository
+    participant C as Client (web drag / mobile tap)
+    participant MW as AuthMiddleware (clerk-verify, networkless)
+    participant CT as ARCH-012 EntriesController
+    participant SV as ARCH-012 EntriesService
+    participant ID as ARCH-016 IdempotencyStore
+    participant GW as ARCH-015 RecipeGateway
+    participant RP as ARCH-012 EntriesRepository
 
-    Client->>ARCH-018: Bearer token
-    ARCH-018-->>ARCH-007: AuthContext { userId }
-    ARCH-007->>ARCH-008: getSummary(planId, userId)
-    ARCH-008->>ARCH-009: get(planId)
-    alt Cache hit
-        ARCH-009-->>ARCH-008: NutritionalSummaryDTO
-    else Cache miss
-        ARCH-008->>ARCH-003: getAssignedRecipes(planId)
-        ARCH-003-->>ARCH-008: RecipeAssignment[]
-        ARCH-008->>ARCH-017: batchFetchNutrients(ingredientIds[])
-        ARCH-017-->>ARCH-008: NutrientDataDTO[]
-        ARCH-008->>ARCH-008: aggregate(daily, weekly)
-        ARCH-008->>ARCH-009: set(planId, summary, ttl=3600)
+    C->>MW: POST /entries + Bearer + Idempotency-Key
+    MW-->>CT: principal { userId (app ULID) }
+    CT->>CT: Zod parse (parse, don't validate)
+    CT->>SV: assign(planId, dto, userId, key)
+    SV->>ID: lookup(userId, endpoint, key)
+    alt key seen
+        ID-->>SV: stored response
+        SV-->>C: 201 (replayed — no second entry)
+    else new key
+        SV->>RP: loadPlan(planId, userId)
+        Note over SV: cell validated against DateRange + slot set (ARCH-002/003)
+        SV->>GW: isReadable(recipeId, principal)
+        GW-->>SV: readable | not-readable | unavailable
+        Note over SV: unavailable ⇒ FAIL CLOSED (reject), never assume readable
+        SV->>RP: insert(entry)
+        SV->>ID: store(userId, endpoint, key, response)
+        SV-->>C: 201 { entry }
     end
-    ARCH-008-->>ARCH-007: NutritionalSummaryDTO
-    ARCH-007-->>Client: 200 NutritionalSummaryDTO
 ```
 
-**Concurrency Model**: Event loop; USDA batch fetch uses `Promise.all` for parallel ingredient lookups.
-**Synchronization Points**: Cache read precedes USDA call; cache write is awaited before response.
+**Concurrency**: single-threaded event loop, non-blocking I/O. **Synchronization**: the readability check is awaited
+before persistence; the idempotency write shares the entry's transaction, so a crash between them cannot leave a key
+recorded for an entry that was never created.
 
----
-
-### Interaction 3: AI-Powered Auto-Generation (Premium)
+### Interaction 2 — Read a plan with nutrition
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant ARCH-018 as ClerkAuthService (Middleware)
-    participant ARCH-021 as PremiumTierGuard
-    participant ARCH-012 as AutoGenerateController
-    participant ARCH-013 as AutoGenerateService
-    participant ARCH-011 as AISuggestionService
-    participant ARCH-019 as AiProviderAdapter
-    participant ARCH-005 as RecipeAssignmentService
-    participant ARCH-006 as RecipeAssignmentRepository
+    participant C as Client
+    participant CT as ARCH-009 PlansController
+    participant SV as ARCH-010 PlansService
+    participant RP as ARCH-011 + ARCH-012 Repositories
+    participant NS as ARCH-014 PlanNutritionService
+    participant GW as ARCH-015 RecipeGateway
+    participant AG as ARCH-004 aggregatePlanNutrition (PURE)
 
-    Client->>ARCH-018: Bearer token
-    ARCH-018-->>ARCH-021: AuthContext { userId, tier }
-    ARCH-021-->>ARCH-012: tier === premium ✓
-    ARCH-012->>ARCH-013: autoGenerate(preferences, dateRange, userId)
-    ARCH-013->>ARCH-011: getSuggestions(preferences, userId)
-    ARCH-011->>ARCH-019: invoke(PromptDTO)
-    ARCH-019-->>ARCH-011: AIResponseDTO { suggestions[] }
-    ARCH-011-->>ARCH-013: SuggestionListDTO
-    ARCH-013->>ARCH-005: bulkAssign(slots[], recipes[])
-    ARCH-005->>ARCH-006: bulkInsert(assignments[])
-    ARCH-006-->>ARCH-005: RecipeAssignment[]
-    ARCH-005-->>ARCH-013: MealSlotDTO[]
-    ARCH-013-->>ARCH-012: MealPlanDTO (draft)
-    ARCH-012-->>Client: 201 MealPlanDTO
+    C->>CT: GET /api/v1/meal-plans/{id}
+    CT->>SV: getPlan(planId, userId)
+    SV->>RP: plan + entries (1 query)
+    SV->>NS: summarize(entries)
+    NS->>GW: batchNutrition(distinct recipeIds)
+    GW->>GW: chunk to batch limit
+    GW-->>NS: [{recipeId, nutrition|null}] or availability='unavailable'
+    NS->>AG: fold(entries, byRecipeId)
+    AG-->>NS: { perDay[], planTotal, isComplete }
+    NS-->>SV: summary
+    SV-->>C: 200 { plan, entries, perDay, planTotal }
 ```
 
-**Concurrency Model**: Sequential orchestration; AI invocation is a single awaited HTTP call.
-**Synchronization Points**: Bulk assignment uses a database transaction; partial failure triggers full rollback.
+**Bounded fan-out**: exactly **one** database query and **one** logical gateway call regardless of entry count
+(REQ-010, REQ-NF-006). The May design's per-ingredient fetch is gone.
+**Degradation**: `availability='unavailable'` yields entries with nutrition marked unavailable — a `200` with an honest
+gap, not a `503`.
 
----
-
-### Interaction 4: Food Waste Optimization (Premium)
+### Interaction 3 — Apply a template
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant ARCH-018 as ClerkAuthService (Middleware)
-    participant ARCH-021 as PremiumTierGuard
-    participant ARCH-014 as WasteOptimizerController
-    participant ARCH-015 as WasteOptimizerService
-    participant ARCH-003 as MealPlanRepository
-    participant ARCH-017 as UsdaFoodDataAdapter
+    participant C as Client
+    participant CT as ARCH-013 TemplatesController
+    participant SV as ARCH-013 TemplatesService
+    participant TP as ARCH-006 templateProjection (PURE)
+    participant GW as ARCH-015 RecipeGateway
+    participant RP as Repositories
 
-    Client->>ARCH-018: Bearer token
-    ARCH-018-->>ARCH-021: AuthContext { userId, tier }
-    ARCH-021-->>ARCH-014: tier === premium ✓
-    ARCH-014->>ARCH-015: optimize(planId, userId)
-    ARCH-015->>ARCH-003: getAssignedRecipes(planId)
-    ARCH-003-->>ARCH-015: RecipeAssignment[]
-    ARCH-015->>ARCH-017: batchFetchNutrients(ingredientIds[])
-    ARCH-017-->>ARCH-015: NutrientDataDTO[]
-    ARCH-015->>ARCH-015: buildOverlapGraph(ingredients)
-    ARCH-015->>ARCH-015: rankSwaps(graph)
-    ARCH-015-->>ARCH-014: OptimizationSuggestionsDTO { swaps[] }
-    ARCH-014-->>Client: 200 OptimizationSuggestionsDTO
+    C->>CT: POST /meal-plan-templates/{id}/apply + Idempotency-Key
+    CT->>SV: apply(templateId, startDate, name, userId, key)
+    SV->>RP: load template + entries
+    SV->>GW: batchReadable(distinct recipeIds)
+    GW-->>SV: readability map
+    SV->>TP: project(template, startDate, readability)
+    TP-->>SV: { entries[], skipped: { outOfRange, unreadableRecipe } }
+    SV->>RP: BEGIN; insert plan + entries; COMMIT
+    SV-->>C: 201 { plan, skipped }
 ```
 
-**Concurrency Model**: Event loop; overlap graph computation is synchronous CPU-bound work (in-memory, bounded by plan size).
-**Synchronization Points**: No shared mutable state; result is ephemeral and request-scoped.
-
-## Interface View — API Contracts (Kruchten 4+1)
-
-### ARCH-001: MealPlanController
-
-| Direction | Name              | Type             | Format                                                                        | Constraints                                 |
-| --------- | ----------------- | ---------------- | ----------------------------------------------------------------------------- | ------------------------------------------- |
-| Input     | CreateMealPlanDTO | object           | `{ name: string, startDate: ISO8601, endDate: ISO8601, slots: SlotConfig[] }` | startDate < endDate; max 365 days range     |
-| Input     | UpdateMealPlanDTO | object (partial) | `{ name?: string, endDate?: ISO8601 }`                                        | endDate must not precede existing startDate |
-| Output    | MealPlanDTO       | object           | `{ id, name, startDate, endDate, slots[], createdAt }`                        | Always includes slot array (may be empty)   |
-| Exception | ValidationError   | HTTP 400         | `{ message, errors[] }`                                                       | On DTO constraint violation                 |
-| Exception | UnauthorizedError | HTTP 401         | `{ message }`                                                                 | On missing/invalid Clerk session token      |
-| Exception | NotFoundError     | HTTP 404         | `{ message }`                                                                 | On unknown planId for authenticated user    |
-
-### ARCH-002: MealPlanService
-
-| Direction | Name             | Type   | Format                                             | Constraints                             |
-| --------- | ---------------- | ------ | -------------------------------------------------- | --------------------------------------- |
-| Input     | createPlan       | method | `(dto: CreateMealPlanDTO, userId: string)`         | userId must be non-empty string         |
-| Input     | updatePlan       | method | `(planId: string, dto: UpdateMealPlanDTO, userId)` | planId must exist and belong to userId  |
-| Output    | MealPlan         | domain | `MealPlan` entity                                  | Validated date range; slots initialized |
-| Exception | InvalidDateRange | domain | `InvalidDateRangeException`                        | Thrown when endDate ≤ startDate         |
-| Exception | PlanNotFound     | domain | `PlanNotFoundException`                            | Thrown when planId not found for userId |
-
-### ARCH-003: MealPlanRepository
-
-| Direction | Name          | Type   | Format                                            | Constraints                                   |
-| --------- | ------------- | ------ | ------------------------------------------------- | --------------------------------------------- |
-| Input     | findById      | method | `(planId: string, userId: string)`                | Row-level security enforced via userId filter |
-| Input     | findAll       | method | `(userId: string, pagination: PaginationDTO)`     | Default page size 20; max 100                 |
-| Output    | MealPlanRow   | object | Drizzle `meal_plans` row with joined `meal_slots` | Null if not found                             |
-| Exception | DatabaseError | infra  | `DatabaseException`                               | On connection failure or constraint violation |
-
-### ARCH-004: RecipeAssignmentController
-
-| Direction | Name                | Type     | Format                                  | Constraints                               |
-| --------- | ------------------- | -------- | --------------------------------------- | ----------------------------------------- |
-| Input     | AssignRecipeDTO     | object   | `{ recipeId: string }`                  | recipeId must be non-empty UUID           |
-| Input     | slotId (path param) | string   | UUID                                    | Must reference existing slot in plan      |
-| Output    | MealSlotDTO         | object   | `{ slotId, date, mealType, recipes[] }` | recipes array updated with new assignment |
-| Exception | NotFoundError       | HTTP 404 | `{ message }`                           | On unknown slotId or recipeId             |
-| Exception | UnauthorizedError   | HTTP 401 | `{ message }`                           | On missing/invalid token                  |
-
-### ARCH-005: RecipeAssignmentService
-
-| Direction | Name           | Type   | Format                                     | Constraints                                |
-| --------- | -------------- | ------ | ------------------------------------------ | ------------------------------------------ |
-| Input     | assignRecipe   | method | `(slotId, recipeId, userId)`               | Validates slot belongs to user's plan      |
-| Input     | bulkAssign     | method | `(assignments: AssignRecipeDTO[], userId)` | Transactional; all-or-nothing              |
-| Output    | MealSlot       | domain | Updated `MealSlot` entity                  | Includes full recipe list after assignment |
-| Exception | RecipeNotFound | domain | `RecipeNotFoundException`                  | When RecipeApiAdapter returns 404          |
-| Exception | SlotNotFound   | domain | `SlotNotFoundException`                    | When slotId not found for userId           |
-
-### ARCH-006: RecipeAssignmentRepository
-
-| Direction | Name             | Type   | Format                                  | Constraints                           |
-| --------- | ---------------- | ------ | --------------------------------------- | ------------------------------------- |
-| Input     | insert           | method | `(slotId: string, recipeId: string)`    | FK constraint on slotId and recipeId  |
-| Input     | bulkInsert       | method | `(assignments: { slotId, recipeId }[])` | Wrapped in DB transaction             |
-| Output    | RecipeAssignment | object | `{ id, slotId, recipeId, assignedAt }`  | —                                     |
-| Exception | DatabaseError    | infra  | `DatabaseException`                     | On FK violation or connection failure |
-
-### ARCH-007: NutritionalSummaryController
-
-| Direction | Name                  | Type     | Format                                             | Constraints                           |
-| --------- | --------------------- | -------- | -------------------------------------------------- | ------------------------------------- |
-| Input     | planId (path param)   | string   | UUID                                               | Must reference existing plan for user |
-| Output    | NutritionalSummaryDTO | object   | `{ daily: DayNutrition[], weekly: WeekNutrition }` | daily array length = plan day count   |
-| Exception | NotFoundError         | HTTP 404 | `{ message }`                                      | On unknown planId                     |
-| Exception | ServiceUnavailable    | HTTP 503 | `{ message }`                                      | When USDA adapter unavailable         |
-
-### ARCH-008: NutritionalSummaryService
-
-| Direction | Name                | Type   | Format                                                | Constraints                                     |
-| --------- | ------------------- | ------ | ----------------------------------------------------- | ----------------------------------------------- |
-| Input     | getSummary          | method | `(planId: string, userId: string)`                    | Checks cache first; falls back to computation   |
-| Output    | NutritionalSummary  | domain | `{ daily[], weekly }` with macro/micronutrient totals | Aggregated from all assigned recipe ingredients |
-| Exception | NutrientUnavailable | domain | `NutrientDataUnavailableException`                    | When USDA adapter fails                         |
-
-### ARCH-009: NutritionalSummaryCache
-
-| Direction | Name                          | Type   | Format                           | Constraints                                    |
-| --------- | ----------------------------- | ------ | -------------------------------- | ---------------------------------------------- |
-| Input     | get                           | method | `(planId: string)`               | Returns null on miss                           |
-| Input     | set                           | method | `(planId, summary, ttl: number)` | TTL default 3600 seconds                       |
-| Input     | invalidate                    | method | `(planId: string)`               | Fire-and-forget; no error propagation          |
-| Output    | NutritionalSummaryDTO \| null | object | Cached DTO or null               | —                                              |
-| Exception | CacheError                    | infra  | `CacheException` (swallowed)     | Cache failures degrade gracefully to recompute |
-
-### ARCH-010: AISuggestionController
-
-| Direction | Name                 | Type     | Format                                                | Constraints                               |
-| --------- | -------------------- | -------- | ----------------------------------------------------- | ----------------------------------------- |
-| Input     | SuggestionRequestDTO | object   | `{ preferences: DietaryPreferences, planId: string }` | Requires premium tier (enforced by guard) |
-| Output    | SuggestionListDTO    | object   | `{ recipes: RecipeSuggestion[] }`                     | Ordered by AI confidence score            |
-| Exception | PaymentRequired      | HTTP 402 | `{ message }`                                         | On non-premium user                       |
-| Exception | ServiceUnavailable   | HTTP 503 | `{ message }`                                         | When AI provider unavailable              |
-
-### ARCH-011: AISuggestionService
-
-| Direction | Name              | Type   | Format                                              | Constraints                                      |
-| --------- | ----------------- | ------ | --------------------------------------------------- | ------------------------------------------------ |
-| Input     | getSuggestions    | method | `(preferences: DietaryPreferences, userId: string)` | Constructs prompt from preferences + recipe list |
-| Output    | SuggestionListDTO | domain | `{ recipes: RecipeSuggestion[] }`                   | Parsed from AI provider response                 |
-| Exception | AIProviderError   | domain | `AIProviderException`                               | On provider timeout or malformed response        |
-
-### ARCH-012: AutoGenerateController
-
-| Direction | Name               | Type     | Format                                             | Constraints                                  |
-| --------- | ------------------ | -------- | -------------------------------------------------- | -------------------------------------------- |
-| Input     | AutoGenerateDTO    | object   | `{ preferences, startDate, endDate, slotsPerDay }` | Requires premium tier; date range ≤ 365 days |
-| Output    | MealPlanDTO        | object   | Draft plan with all slots populated                | Status = "draft"; user can modify            |
-| Exception | PaymentRequired    | HTTP 402 | `{ message }`                                      | On non-premium user                          |
-| Exception | ServiceUnavailable | HTTP 503 | `{ message }`                                      | When AI provider unavailable                 |
-
-### ARCH-013: AutoGenerateService
-
-| Direction | Name            | Type   | Format                                   | Constraints                                   |
-| --------- | --------------- | ------ | ---------------------------------------- | --------------------------------------------- |
-| Input     | autoGenerate    | method | `(dto: AutoGenerateDTO, userId: string)` | Orchestrates AISuggestionService + bulkAssign |
-| Output    | MealPlanDTO     | domain | Fully populated draft plan               | Transactional; rollback on partial failure    |
-| Exception | AIProviderError | domain | `AIProviderException`                    | Propagated from AISuggestionService           |
-| Exception | BulkAssignError | domain | `BulkAssignException`                    | On DB transaction failure; plan rolled back   |
-
-### ARCH-014: WasteOptimizerController
-
-| Direction | Name                       | Type     | Format                        | Constraints                      |
-| --------- | -------------------------- | -------- | ----------------------------- | -------------------------------- |
-| Input     | planId (path param)        | string   | UUID                          | Requires premium tier            |
-| Output    | OptimizationSuggestionsDTO | object   | `{ swaps: SwapSuggestion[] }` | Ordered by waste reduction score |
-| Exception | PaymentRequired            | HTTP 402 | `{ message }`                 | On non-premium user              |
-| Exception | NotFoundError              | HTTP 404 | `{ message }`                 | On unknown planId                |
-
-### ARCH-015: WasteOptimizerService
-
-| Direction | Name                       | Type   | Format                                | Constraints                                     |
-| --------- | -------------------------- | ------ | ------------------------------------- | ----------------------------------------------- |
-| Input     | optimize                   | method | `(planId: string, userId: string)`    | Reads plan from repository; ephemeral result    |
-| Output    | OptimizationSuggestionsDTO | domain | `{ swaps[] }` ranked by overlap score | In-memory computation; not persisted            |
-| Exception | NutrientUnavailable        | domain | `NutrientDataUnavailableException`    | When USDA adapter fails during ingredient fetch |
-
-### ARCH-016: RecipeApiAdapter
-
-| Direction | Name           | Type   | Format                                    | Constraints                               |
-| --------- | -------------- | ------ | ----------------------------------------- | ----------------------------------------- |
-| Input     | fetchRecipe    | method | `(recipeId: string, userId: string)`      | Adds auth header; validates ownership     |
-| Output    | RecipeDTO      | object | `{ id, name, ingredients: Ingredient[] }` | Typed response; throws on 404             |
-| Exception | RecipeNotFound | infra  | `RecipeNotFoundException`                 | On 404 from Recipe API                    |
-| Exception | AdapterError   | infra  | `ExternalAdapterException`                | On network failure; retries up to 3 times |
-
-### ARCH-017: UsdaFoodDataAdapter
-
-| Direction | Name                | Type   | Format                                      | Constraints                                     |
-| --------- | ------------------- | ------ | ------------------------------------------- | ----------------------------------------------- |
-| Input     | batchFetchNutrients | method | `(ingredientIds: string[])`                 | Max batch size 50; splits into chunks if needed |
-| Output    | NutrientDataDTO[]   | object | `{ ingredientId, nutrients: Nutrient[] }[]` | Parallel fetch via `Promise.all`                |
-| Exception | NutrientUnavailable | infra  | `NutrientDataUnavailableException`          | On circuit breaker open or 5xx response         |
-
-### ARCH-018: ClerkAuthService
-
-| Direction | Name                  | Type   | Format                                          | Constraints                                                                                    |
-| --------- | --------------------- | ------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Input     | verifySessionToken    | method | `(bearerToken: string)`                         | Networkless verification via public `CLERK_JWT_KEY`; enforces `azp`/`CLERK_AUTHORIZED_PARTIES` |
-| Output    | AuthContext           | object | `{ userId: string, tier: 'free' \| 'premium' }` | `userId` from `sub`; `tier` from `public_metadata` of the verified token                       |
-| Exception | UnauthorizedException | infra  | `UnauthorizedException`                         | On invalid/expired token or unauthorized `azp`                                                 |
-
-### ARCH-019: AiProviderAdapter
-
-| Direction | Name                | Type   | Format                      | Constraints                                    |
-| --------- | ------------------- | ------ | --------------------------- | ---------------------------------------------- |
-| Input     | invoke              | method | `(prompt: PromptDTO)`       | Uses AI provider config from feature 005       |
-| Output    | AIResponseDTO       | object | `{ suggestions: string[] }` | Raw AI response; parsed by AISuggestionService |
-| Exception | AIProviderException | infra  | `AIProviderException`       | On timeout (30s), 5xx, or malformed response   |
-
-### ARCH-020: MealPlanPublicApiAdapter
-
-| Direction | Name               | Type   | Format                                   | Constraints                                   |
-| --------- | ------------------ | ------ | ---------------------------------------- | --------------------------------------------- |
-| Input     | serialize          | method | `(plan: MealPlan, version: 'v1')`        | Versioned serialization for downstream compat |
-| Output    | PublicMealPlanDTO  | object | `{ planId, slots[], nutritionSummary? }` | Consumed by features 007 and 009              |
-| Exception | SerializationError | infra  | `SerializationException`                 | On unknown version or missing required fields |
-
-### ARCH-021: PremiumTierGuard
-
-| Direction | Name                     | Type   | Format                           | Constraints                           |
-| --------- | ------------------------ | ------ | -------------------------------- | ------------------------------------- |
-| Input     | canActivate              | method | `(context: ExecutionContext)`    | Reads `AuthContext.tier` from request |
-| Output    | boolean                  | bool   | `true` if premium; throws if not | —                                     |
-| Exception | PaymentRequiredException | infra  | HTTP 402                         | When `tier !== 'premium'`             |
-
-### ARCH-022: QualityComplianceModule
-
-| Direction | Name                | Type   | Format                                  | Constraints                                    |
-| --------- | ------------------- | ------ | --------------------------------------- | ---------------------------------------------- |
-| Input     | tsconfig.json       | config | `{ strict: true, noImplicitAny: true }` | Build-time enforcement; CI fails on violation  |
-| Input     | eslint config       | config | `eslint-plugin-jsdoc`, `jsx-a11y` rules | Lint-time enforcement; CI fails on violation   |
-| Output    | Compliance report   | build  | CI pass/fail                            | No runtime artifact                            |
-| Exception | ComplianceViolation | build  | Build/lint failure                      | Blocks merge; must be resolved before PR merge |
-
-## Data Flow View — Data Transformation Chains (Kruchten 4+1)
-
-### Data Flow 1: Recipe Assignment → Nutritional Summary
-
-| Stage | Module                   | Input Format            | Transformation                               | Output Format                  |
-| ----- | ------------------------ | ----------------------- | -------------------------------------------- | ------------------------------ |
-| 1     | ARCH-004 (Controller)    | HTTP POST body          | Parse + validate `AssignRecipeDTO`           | `AssignRecipeDTO`              |
-| 2     | ARCH-005 (Service)       | `AssignRecipeDTO`       | Validate slot ownership; fetch recipe        | `RecipeDTO { ingredients[] }`  |
-| 3     | ARCH-016 (RecipeAdapter) | `recipeId`              | HTTP GET to Recipe API; deserialize          | `RecipeDTO`                    |
-| 4     | ARCH-006 (Repository)    | `{ slotId, recipeId }`  | INSERT into `recipe_assignments`             | `RecipeAssignment`             |
-| 5     | ARCH-009 (Cache)         | `planId`                | Invalidate cached nutritional summary        | Cache miss on next read        |
-| 6     | ARCH-008 (NutritionSvc)  | `planId`                | Fetch all assignments; batch-fetch nutrients | `NutritionalSummaryDTO`        |
-| 7     | ARCH-017 (UsdaAdapter)   | `ingredientIds[]`       | HTTP GET to USDA API; deserialize            | `NutrientDataDTO[]`            |
-| 8     | ARCH-008 (NutritionSvc)  | `NutrientDataDTO[]`     | Aggregate daily/weekly totals                | `NutritionalSummaryDTO`        |
-| 9     | ARCH-009 (Cache)         | `NutritionalSummaryDTO` | Store with TTL=3600                          | Cached `NutritionalSummaryDTO` |
-
-### Data Flow 2: Auto-Generation → Draft Meal Plan
-
-| Stage | Module                  | Input Format             | Transformation                               | Output Format            |
-| ----- | ----------------------- | ------------------------ | -------------------------------------------- | ------------------------ |
-| 1     | ARCH-012 (Controller)   | HTTP POST body           | Parse + validate `AutoGenerateDTO`           | `AutoGenerateDTO`        |
-| 2     | ARCH-021 (PremiumGuard) | `AuthContext`            | Check `tier === 'premium'`                   | Pass-through or HTTP 402 |
-| 3     | ARCH-013 (AutoGenSvc)   | `AutoGenerateDTO`        | Orchestrate AI suggestions + bulk assignment | `MealPlanDTO` (draft)    |
-| 4     | ARCH-011 (AISuggSvc)    | `DietaryPreferences`     | Build prompt; invoke AI provider             | `SuggestionListDTO`      |
-| 5     | ARCH-019 (AiAdapter)    | `PromptDTO`              | HTTP POST to AI provider; parse response     | `AIResponseDTO`          |
-| 6     | ARCH-005 (AssignSvc)    | `AssignRecipeDTO[]`      | Bulk assign recipes to slots (transactional) | `MealSlotDTO[]`          |
-| 7     | ARCH-006 (Repository)   | `{ slotId, recipeId }[]` | Bulk INSERT in DB transaction                | `RecipeAssignment[]`     |
-| 8     | ARCH-012 (Controller)   | `MealPlanDTO`            | Serialize draft plan                         | HTTP 201 `MealPlanDTO`   |
-
-### Data Flow 3: Meal Plan → Downstream Consumers (007, 009)
-
-| Stage | Module                   | Input Format        | Transformation                                      | Output Format            |
-| ----- | ------------------------ | ------------------- | --------------------------------------------------- | ------------------------ |
-| 1     | ARCH-003 (Repository)    | `planId`            | SELECT plan + slots + assignments                   | `MealPlan` domain entity |
-| 2     | ARCH-020 (PublicAdapter) | `MealPlan`          | Versioned serialization (v1)                        | `PublicMealPlanDTO`      |
-| 3     | Feature 007              | `PublicMealPlanDTO` | Extract ingredient lists for grocery list           | `GroceryListDTO`         |
-| 4     | Feature 009              | `PublicMealPlanDTO` | Link plan to nutrition plan for compliance tracking | `NutritionPlanLinkDTO`   |
-
----
-
-## SYS↔ARCH Traceability Matrix
-
-| SYS ID  | SYS Name                      | ARCH Modules                                     |
-| ------- | ----------------------------- | ------------------------------------------------ |
-| SYS-001 | Meal Plan Manager             | ARCH-001, ARCH-002, ARCH-003                     |
-| SYS-002 | Recipe Assignment Service     | ARCH-004, ARCH-005, ARCH-006                     |
-| SYS-003 | Nutritional Summary Engine    | ARCH-007, ARCH-008, ARCH-009                     |
-| SYS-004 | AI Meal Suggestion Service    | ARCH-010, ARCH-011, ARCH-021                     |
-| SYS-005 | Meal Plan Auto-Generator      | ARCH-012, ARCH-013, ARCH-006 (shared)            |
-| SYS-006 | Food Waste Optimizer          | ARCH-014, ARCH-015, ARCH-021 (shared)            |
-| SYS-007 | External Integration Adapters | ARCH-016, ARCH-017, ARCH-018, ARCH-019, ARCH-020 |
-| SYS-008 | Quality & Compliance Layer    | ARCH-022                                         |
-
----
-
-## Coverage Summary
-
-| Metric                            | Count                                                  |
-| --------------------------------- | ------------------------------------------------------ |
-| Total Architecture Modules (ARCH) | 22                                                     |
-| Total Parent SYS Covered          | 8 / 8 (100%)                                           |
-| Modules per Type                  | Component: 8 \| Service: 7 \| Adapter: 5 \| Utility: 2 |
-| Cross-Cutting Modules             | 1 (ARCH-022)                                           |
-| Derived Modules                   | 0                                                      |
-| **Forward Coverage (SYS→ARCH)**   | **100%**                                               |
-
-## Derived Modules
-
-None — all architecture modules trace to system components from system-design.md.
-
-## Glossary
-
-| Term                 | Definition                                                                                                                                               |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ARCH-NNN             | Sequential architecture module identifier; never renumbered                                                                                              |
-| Cross-Cutting Module | Infrastructure/utility module serving all system components; tagged `[CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]` |
-| NestJS Guard         | Interceptor that runs before a route handler; used for auth and premium-tier enforcement                                                                 |
-| Drizzle ORM          | TypeScript-first ORM used for type-safe PostgreSQL queries                                                                                               |
-| Circuit Breaker      | Resilience pattern that stops calls to a failing external service after a threshold of failures                                                          |
-| Row-Level Security   | PostgreSQL feature restricting data access to rows matching a `userId` predicate                                                                         |
-| TTL                  | Time-to-live; duration after which a cache entry is automatically invalidated                                                                            |
-
-## Physical View — Deployment Topology
-
-The feature deploys within the Commise AWS/serverless topology. Client-facing web/mobile modules run in their respective application packages. Backend API, worker, queue, database, cache, storage, observability, and infrastructure modules deploy to the configured AWS account and region. Each ARCH module maps to the runtime described in the Logical View and the package/source paths listed in the Development View.
+**Transactional**: all-or-nothing, so a partial failure never leaves a half-built plan. **The skip report is part of the
+success response**, not a log line — silent partial success is the failure mode this design exists to avoid.
+
+### Interaction 4 — Home widget lights up
+
+```mermaid
+flowchart TD
+    A[Home composition root] --> B[curateHomeWidgets: capability + tier gate]
+    B -->|meal-planning live| C[ARCH-022 loader → widget module]
+    B -->|capability absent| D[Widget absent — roadmap skeleton already retired]
+    C --> E{plan covering today?}
+    E -->|yes| F[Today's entries]
+    E -->|no| G[Widget empty state + CTA]
+    C -.->|load or fetch fails| H[Per-widget error boundary; rest of Home renders]
+```
+
+## Interface View — Contracts
+
+Only the contracts that carry real decisions are tabulated; the rest are mechanical CRUD and live in the OpenAPI
+document written before the handlers.
+
+### ARCH-009 `MealPlansController`
+
+| Direction | Name               | Format                                                                        | Constraints                                                 |
+| --------- | ------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Input     | `CreateMealPlan`   | `{ name, startDate: ISO-date, endDate: ISO-date, mealSlots: MealSlot[] }`     | end ≥ start; span ≤ 90 days; 1–4 distinct slots             |
+| Input     | list query         | `{ cursor?, limit? }`                                                         | **Keyset** pagination; limit ≤ 100, default 20. Not offset. |
+| Output    | `MealPlanDetail`   | `{ id, name, startDate, endDate, mealSlots, entries[], perDay[], planTotal }` | Nutrition **inline** — one round trip                       |
+| Error     | validation         | `422 { code, message, details[] }`                                            | Field-bound details                                         |
+| Error     | absent / not-owned | `404 { code, message }`                                                       | **Identical** for both — never `403` (REQ-CN-002)           |
+
+### ARCH-014 `PlanNutritionService`
+
+| Direction | Name        | Format                                                                                   | Constraints                                                          |
+| --------- | ----------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Input     | `summarize` | `(entries: MealPlanEntry[])`                                                             | Pure orchestration; holds no macro maths                             |
+| Output    | summary     | `{ perDay: Array<{date, totals?: Macros, isComplete}>, planTotal?: Macros, isComplete }` | A day with no entries has **`totals: undefined`** — never zeroes     |
+| Error     | —           | —                                                                                        | **Cannot fail.** Gateway unavailability is a value, not an exception |
+
+### ARCH-015 `RecipeGateway`
+
+| Direction | Name             | Format                                                                                                                         | Constraints                                                                  |
+| --------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Input     | `batchNutrition` | `(recipeIds: RecipeId[], principal)`                                                                                           | Chunked to the batch limit by the gateway; callers pass all ids              |
+| Input     | `isReadable`     | `(recipeId: RecipeId, principal)`                                                                                              | Bounded `AbortSignal` timeout                                                |
+| Output    | result           | `{ results: Array<{recipeId, nutrition: RecipeNutrition \| null}>, availability: 'available' \| 'degraded' \| 'unavailable' }` | **Three-state, not boolean.** `nutrition: null` ⇒ unreadable ⇒ orphaned      |
+| Error     | —                | —                                                                                                                              | **Never throws.** Timeout, 5xx, malformed body and partial batch all degrade |
+
+### ARCH-017 error envelope
+
+One shape for the whole service: `{ code: string, message: string, details?: unknown[] }`. Domain errors are
+`MealPlanNotFoundError`, `InvalidDateRangeError`, `SlotNotInPlanError`, `DateOutsidePlanRangeError`,
+`RecipeNotReadableError`, `TemplateNotFoundError`, `IdempotencyConflictError` — each extending `Error`, calling
+`Object.setPrototypeOf`, and paired with an `is*` guard.
+
+## Data Flow View
+
+### Flow 1 — Assignment → nutrition
+
+| Stage | Module       | Input              | Transformation                                   | Output                                  |
+| ----- | ------------ | ------------------ | ------------------------------------------------ | --------------------------------------- |
+| 1     | ARCH-012     | HTTP body          | Zod parse → typed DTO                            | `AssignEntry`                           |
+| 2     | ARCH-002/003 | dto + plan         | Validate cell against range + slot set           | validated cell                          |
+| 3     | ARCH-015     | recipeId           | Bounded HTTP; normalize; never throw             | readable \| not-readable \| unavailable |
+| 4     | ARCH-012     | entry              | INSERT (+ idempotency record, same transaction)  | `MealPlanEntry`                         |
+| 5     | ARCH-015     | distinct recipeIds | Chunked batch nutrition                          | `Map<RecipeId, RecipeNutrition\|null>`  |
+| 6     | ARCH-004     | entries + map      | **Pure fold** × servings; propagate `isComplete` | `{ perDay, planTotal }`                 |
+
+Note there is **no stage 7**. The May flow had two more — cache invalidate and cache store.
+
+### Flow 2 — Plan → downstream consumers
+
+| Stage | Module       | Input      | Transformation                    | Output              |
+| ----- | ------------ | ---------- | --------------------------------- | ------------------- |
+| 1     | ARCH-011/012 | planId     | SELECT plan + entries             | domain entities     |
+| 2     | ARCH-007     | plan       | Versioned `v1` serialization      | `GroceryProjection` |
+| 3     | 007          | projection | **007's** aggregation/dedup/units | grocery list        |
+| 4     | 009          | projection | **009's** compliance vs. targets  | compliance view     |
+
+Stages 3 and 4 are explicitly **outside** 006.
+
+## Physical View — Deployment
+
+One Fargate service per stage behind the **shared** ALB (ADR-0003) at base listener priority **400**; per-PR band
+**50000–59999** and named-ephemeral band **60000–69999**, disjoint from food (10000/20000) and recipe (30000/40000).
+Public subnets with `assignPublicIp`, egress via IGW — **not** the NAT (ADR-0004); this service adds no NAT consumers
+because it has no VPC-attached Lambdas. Storage is one logical database on the shared RDS instance (ADR-0006).
+Non-prod runs `FARGATE_SPOT` + `gp3`, prod on-demand + `gp2` (ADR-0008). Tagging `Environment=global` for base stages,
+`Environment=pr-{N}` for previews (ADR-0005). Deploy is ensure-exists gated with an ecosystem smoke (ADR-0010).
+
+**No** S3 bucket, queue, worker Lambda or cache cluster (REQ-NF-009).
 
 ## Development View — Source Organization
 
-Implementation modules are organized by platform and service boundary: web code under Next.js application packages, mobile code under Expo packages, backend services under API/Lambda packages, shared contracts under shared TypeScript packages, and infrastructure under CDK/IaC packages. This view constrains ownership, build boundaries, and deployment units for every ARCH-NNN module listed above.
+| Package                                    | Modules       | Naming regime                                       |
+| ------------------------------------------ | ------------- | --------------------------------------------------- |
+| `packages/shared/meal-plan-core`           | ARCH-001..008 | camelCase modules (`§1b`)                           |
+| `packages/services/meal-plan-service`      | ARCH-009..018 | kebab `name.type.ts` (`§1a`), **by feature domain** |
+| `packages/clients/meal-plan-service`       | ARCH-025      | camelCase (`§1b`)                                   |
+| `packages/apps/commise/features/meal-plan` | ARCH-019..023 | PascalCase components, camelCase modules (`§1b`)    |
+| cross-cutting                              | ARCH-024      | tooling configs                                     |
 
-## Scenarios — Architecture Validation
+## SYS ↔ ARCH Traceability
 
-Primary scenarios validate the 4+1 architecture: successful request flow through user-facing entrypoints, dependency failure propagation through process boundaries, data persistence and retrieval through storage boundaries, and deployment/change isolation through development-view package ownership. Each scenario traces back to the SYS coverage listed on ARCH rows.
+| SYS             | Name                        | ARCH modules                      |
+| --------------- | --------------------------- | --------------------------------- |
+| SYS-001         | Meal Plan Manager           | ARCH-002, 003, 008, 009, 010, 011 |
+| SYS-002         | Entry Assignment            | ARCH-001, 003, 005, 012, 016      |
+| SYS-003         | Nutrition Rollup            | ARCH-004, 014                     |
+| SYS-004/005/006 | AI + waste optimizer        | — _(Phase 2, no modules)_         |
+| SYS-007         | Recipe Gateway              | ARCH-015                          |
+| SYS-008         | Quality & Compliance        | ARCH-017, 024                     |
+| SYS-009         | Template Service            | ARCH-006, 013, 016                |
+| SYS-010         | Planner Client Surface      | ARCH-019, 020, 021, 022, 023, 025 |
+| SYS-011         | Downstream Projection       | ARCH-007                          |
+| SYS-012         | Account Erasure Participant | ARCH-018                          |
+
+## Coverage Summary
+
+| Metric                          | Count                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Architecture modules            | 25 (18 Phase-1 backend/shared, 6 client, 1 cross-cutting)                                                |
+| Parent SYS covered              | 9 / 9 Phase-1 components (100%); 3 Phase-2 components have no modules by design                          |
+| By type                         | Pure domain: 8 · Service/controller/repository: 10 · Gateway/client: 2 · Client UI: 4 · Cross-cutting: 1 |
+| Derived modules                 | 0 — every module traces to a SYS component                                                               |
+| **Forward coverage (SYS→ARCH)** | **100% of Phase 1**                                                                                      |
+
+## Glossary
+
+| Term                     | Definition                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| ARCH-NNN                 | Architecture module id; never renumbered.                                                                                       |
+| Gateway (PoEAA)          | An availability-disciplined object encapsulating access to an external system — bounded timeout, total function, normalization. |
+| Total function           | A function with no exceptional exit: every failure is a value in the return type. Why `RecipeGateway` cannot throw.             |
+| Three-state availability | `available \| degraded \| unavailable` — not a boolean, so "partially answered" is representable.                               |
+| Pure fold                | A referentially transparent reduction with no I/O, clock or randomness. `aggregatePlanNutrition`.                               |
+| Keyset pagination        | Cursor paging on an indexed sort key; does not drift under concurrent inserts and does not degrade on deep pages.               |
+| Fail closed              | On an unverifiable authorization input, deny. Applied when the gateway cannot confirm recipe readability.                       |

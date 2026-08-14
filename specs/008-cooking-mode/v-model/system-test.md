@@ -454,6 +454,82 @@ Each test case MUST identify its technique by name:
 
 ---
 
+### Component Verification: SYS-009 (Session Extras)
+
+**Parent Requirements**: REQ-012, REQ-013, REQ-014, REQ-015
+
+#### Test Case: STP-009-A (Ingredient checkoff is per-ingredient and step-independent)
+
+**Technique**: Branch Coverage
+**Target View**: Interface View
+**Description**: Verifies that checkoff toggles exactly one ingredient and that opening the list does not change the active step.
+
+- **System Scenario: STS-009-A1**
+    - **Given** SYS-009 holds an empty `checkedIngredientIds` and SYS-001 is on step N
+    - **When** the ingredient list is opened
+    - **Then** the list is exposed as visible and SYS-001's `currentStepIndex` is still N (REQ-012)
+
+- **System Scenario: STS-009-A2**
+    - **Given** a recipe with M ingredients and none checked
+    - **When** ingredient _i_ is toggled
+    - **Then** `checkedIngredientIds` contains exactly `[i]`; no other ingredient's state changed (REQ-012)
+
+#### Test Case: STP-009-B (Checkoff state survives navigation and restore)
+
+**Technique**: Statement Coverage
+**Target View**: Information View
+**Description**: Verifies checkoff persistence across step navigation and across a serialize/restore cycle.
+
+- **System Scenario: STS-009-B1**
+    - **Given** ingredient _i_ is checked while on step N
+    - **When** SYS-002 advances to N+1 and returns to N
+    - **Then** `checkedIngredientIds` still contains _i_ (REQ-013)
+
+- **System Scenario: STS-009-B2**
+    - **Given** a session with checked ingredients and a non-default scale factor
+    - **When** the session is serialized to JSON and restored
+    - **Then** the restored session deep-equals the original — no `Set` collapses to `{}` (REQ-013, plan.md §2 Serializability)
+
+#### Test Case: STP-009-C (Scaling recalculates quantities only)
+
+**Technique**: Equivalence Partitioning
+**Target View**: Interface View
+**Description**: Verifies quantity recalculation across representative scale factors.
+
+- **System Scenario: STS-009-C1**
+    - **Given** an ingredient of 200 g and scale factor 1
+    - **When** the factor is set to 2, then 0.5
+    - **Then** the displayed quantity reads 400 g, then 100 g (REQ-014)
+
+#### Test Case: STP-009-D (Timer durations are invariant under scaling — D-002)
+
+**Technique**: Fault Injection / Invariant Assertion
+**Target View**: Dependency View
+**Description**: Verifies the safety-relevant invariant that SYS-009 cannot alter SYS-003's durations, and that the advisory tracks the factor.
+
+- **System Scenario: STS-009-D1**
+    - **Given** a step with `timerSeconds = 1500` and SYS-003 holding that duration
+    - **When** SYS-009's scale factor is set to 2, 0.5, and back to 1
+    - **Then** SYS-003's duration reads 1500 at every point; SYS-009 issues no write to SYS-003 (REQ-015)
+
+- **System Scenario: STS-009-D2**
+    - **Given** scale factor 1 with no advisory rendered
+    - **When** the factor becomes any value ≠ 1, then returns to 1
+    - **Then** the not-scaled advisory appears, then is removed (REQ-015)
+
+#### Test Case: STP-009-E (SYS-009 never mutates the Recipe entity)
+
+**Technique**: Inspection / Interface Contract Testing
+**Target View**: Dependency View
+**Description**: Verifies the read-only constraint inherited from REQ-CN-001.
+
+- **System Scenario: STS-009-E1**
+    - **Given** a recipe snapshot taken on Cooking Mode entry
+    - **When** ingredients are checked/unchecked and the scale factor is changed repeatedly
+    - **Then** no write request is issued through SYS-006, and the recipe snapshot compares equal on exit (REQ-CN-001)
+
+---
+
 ## Coverage Summary
 
 | SYS ID    | Component Name          | Test Cases | Scenarios | Techniques Used                                                       |

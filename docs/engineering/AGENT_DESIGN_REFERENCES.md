@@ -177,6 +177,32 @@ The one place the agent adds nothing is when the intent is **already satisfied**
 union with an exhaustive switch IS Visitor. That is not an exception to maximalism; the pattern is
 present and simply needed no ceremony. It gets credited in the register.
 
+### What went into a skill, and what deliberately did not
+
+`.claude/skills/design-pattern-contracts/` holds the **composition catalogue** and the **per-pattern
+contract table**, loaded on demand through the `Skill` tool. Everything else stayed in the agent.
+
+That split is not arbitrary — the two ways to attach a skill behave very differently:
+
+| Mechanism             | Effect                                                                  |
+| --------------------- | ----------------------------------------------------------------------- |
+| `skills:` frontmatter | **"The full skill content is injected"** at startup — zero size savings |
+| `Skill` tool          | Loaded on demand — real progressive disclosure                          |
+
+So preloading would have bought nothing but indirection and a second file to drift. On-demand loading
+buys something real, but **only for content that degrades gracefully when not loaded**. That test is
+what decided each section:
+
+- **Moved** — the composition and contract catalogues. Reference material consulted _per pattern_,
+  which will keep growing, and which `code-reviewer` and `staff-engineer` can use too. Not loading it
+  costs precision on one judgement, not correctness of the whole review.
+- **Kept** — identity, the maximalist doctrine, HALT gates, mode detection, evidence rules, the nine
+  dimensions, the output contract, calibration. These must shape **every** response. Making the HALT
+  gates loadable would make them skippable, which inverts their entire purpose.
+
+`Skill` survives the background-subagent tool filter, so the on-demand path works in the default
+execution mode.
+
 ### The failure this was built around
 
 During PR 91 a Postgres equivalence proof was "fixed" with `enable_seqscan = off` — a change that

@@ -78,57 +78,73 @@ defines immutable principles; this document translates them into enforceable rul
 
 ## 1. File Naming
 
-> **Enforced, not advisory.** File names are checked in CI by `eslint-plugin-check-file` per package
-> (see `packages/tools/eslint`). A non-conforming name FAILS lint — this is the guardrail that keeps the
-> convention from drifting. There are **two regimes**, because the backend and frontend follow different
-> ecosystem norms; pick by the package the file lives in.
+> **Enforced, not advisory.** File names are checked in CI by `eslint-plugin-check-file`
+> (see `packages/tools/eslint`). A non-conforming name FAILS lint.
 
-### 1a. Backend services — NestJS packages (`packages/services/*`)
+## ⛔ ONE regime, every package. NO HYPHENS IN FILE NAMES.
 
-Follow the **NestJS `name.type.ts` convention**: a **kebab-case** name plus a dot-separated role suffix,
-for **every** file (services, controllers, filters, guards, decorators, modules, DALs, DTOs, and plain
-domain/utility modules) — regardless of whether the file exports a class. This is the framework-idiomatic
-convention the entire backend uses (e.g. `recipes.service.ts` exports `RecipesService`).
+**`camelCase` for everything, except `PascalCase` when the file's subject is a class or a React
+component.** This applies to **every** package — services, apps, shared libraries, clients, infra,
+tools. There is no backend exception, no frontend exception, and no ecosystem carve-out.
 
-| Context                 | Convention                               | Example                                                                  |
-| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------ |
-| Provider / injectable   | `<name>.<role>.ts` (kebab)               | `recipes.service.ts`, `clerk-auth.service.ts`, `api-exception.filter.ts` |
-| Domain / utility module | kebab-case `.ts`                         | `recipe-visibility.ts`, `pool-config.ts`                                 |
-| Unit test               | `<source>.test.ts` in `__tests__/`       | `recipes.service.test.ts`                                                |
-| Integration test        | `<name>.integration.test.ts` in `tests/` | `create-user-flow.integration.test.ts`                                   |
-| E2E test                | `<name>.e2e.test.ts` in `tests/e2e/`     | `users-validation.e2e.test.ts`                                           |
+**Hyphens and underscores are PROHIBITED in file names**, with only the two exception classes listed
+below. Kebab-case is not an alternative convention here; it is a violation.
 
-Directories and the reason `.test` (not `.spec`) is the vitest suffix are in
-[§7 Test File Location](#test-file-location). Integration and E2E tests are wired into their own
-vitest configs and MUST NOT run in the default `test` task.
+| Context                             | Convention                                      | Example                                                                |
+| ----------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
+| Module / util / hook / type / const | `camelCase.ts`                                  | `authState.ts`, `useUserProfile.ts`, `recipeVisibility.ts`             |
+| Class (any kind)                    | `PascalCase.ts`                                 | `RecipeRepository.ts`, `FoodEventEmitter.ts`                           |
+| React component                     | `PascalCase.tsx`                                | `RecipeCard.tsx`, `AccountStateGate.tsx`                               |
+| NestJS provider / injectable        | `camelCase.<role>.ts` or `PascalCase.<role>.ts` | `recipes.service.ts`, `clerkAuth.service.ts`, `apiException.filter.ts` |
+| Mobile (Expo/RN) variant            | `<source>.native.ts(x)`                         | `RecipeCard.native.tsx`, `storage.native.ts`                           |
+| Unit / component test               | `<source>.test.ts(x)`                           | `authState.test.ts`, `RecipeCard.test.tsx`                             |
+| Integration test                    | `<name>.integration.test.ts(x)`                 | `createUserFlow.integration.test.ts`                                   |
+| E2E test (vitest)                   | `<name>.e2e.test.ts` in `tests/e2e/`            | `usersValidation.e2e.test.ts`                                          |
+| E2E (Playwright)                    | `<feature>.spec.ts` in `tests/e2e/`             | `signIn.spec.ts`                                                       |
 
-### 1b. Frontend & shared libraries (`packages/apps/*`, `packages/shared/*`, `packages/clients/*`, `packages/utils/*`)
+The dot-separated role suffix (`.service`, `.controller`, `.filter`, `.dao`, …) is **retained** for
+NestJS providers — it is a _dot_, never a hyphen. `clerk-auth.service.ts` is wrong;
+`clerkAuth.service.ts` is right.
 
-Kebab is **not** allowed here — use camelCase for modules, PascalCase for a file that exports a React
-component or a class (name matching the export).
+> **⛔ Why this section is emphatic.** A prior revision of this document split §1 into a "backend
+> (kebab)" regime and a "frontend (camelCase)" regime, justified as framework-idiomatic for NestJS.
+> The linter implemented that split faithfully. The result: **505 hyphenated files passed lint and read
+> as compliant**, and every audit run against the standard reported clean, because the standard, the
+> linter and the audits were mutually consistent and all wrong. NestJS does **not** require kebab file
+> names — it resolves modules through imports, not filenames. Do not reintroduce a per-package regime.
 
-| Context                             | Convention                                                  | Example                                             |
-| ----------------------------------- | ----------------------------------------------------------- | --------------------------------------------------- |
-| Module / util / hook / type / const | `camelCase.ts`                                              | `authState.ts`, `useUserProfile.ts`, `apiClient.ts` |
-| React component                     | `PascalCase.tsx`                                            | `RecipeCard.tsx`, `AccountStateGate.tsx`            |
-| Non-component class                 | `PascalCase.ts`                                             | `RecipeRepository.ts`                               |
-| Mobile (Expo/RN) variant            | `<source>.native.ts(x)`                                     | `RecipeCard.native.tsx`, `storage.native.ts`        |
-| Unit / component test               | `<source>.test.ts(x)`                                       | `authState.test.ts`, `RecipeCard.test.tsx`          |
-| Integration test                    | `<name>.integration.test.ts(x)` in `tests/__integration__/` | `tailwindTheme.integration.test.ts`                 |
-| E2E (Playwright)                    | `<feature>.spec.ts` in `tests/e2e/`                         | `signIn.spec.ts`                                    |
+### The only two exception classes
 
-**Framework-mandated exceptions (allowed, not renameable):** Next.js special files
-(`page.tsx`, `layout.tsx`, `route.ts`, `not-found.tsx`, `global-error.tsx`, `middleware.ts`,
-`instrumentation-client.ts`, `next-env.d.ts`) and Expo Router route files keep the names those frameworks
-require. The lint config exempts them explicitly.
+1. **Framework-mandated names** (allowed, not renameable): Next.js special files — `page.tsx`,
+   `layout.tsx`, `route.ts`, `not-found.tsx`, `global-error.tsx`, `middleware.ts`,
+   `instrumentation-client.ts`, `next-env.d.ts` — and Expo Router route files (`_layout.tsx`,
+   `+*.tsx`, `[param].tsx`). These frameworks resolve BY FILENAME; renaming them breaks routing.
+2. **Tool-generated artifacts**: Drizzle migrations under `**/database/migrations/**` and
+   `**/db/migrations/**` (e.g. `0005_identity_reset.sql`). `meta/_journal.json` references these
+   **by filename** — renaming them breaks migration. They are generated, not authored.
 
-### Rules (both regimes)
+Both classes are exempted explicitly in the lint config. Nothing else is exempt.
 
-- One class or component per file. No exceptions.
-- The filename matches the exported class/component name (kebab-cased for backend, PascalCase for frontend).
+## One file, one thing
+
+**A file does exactly ONE thing.** One class, or one component, or one cohesive piece of
+functionality — never a mix, never several.
+
+- **One class per file.** A second exported class means a second file, even a small one.
+- **One React component per file.**
+- **No god files.** If a file needs "and" to describe it — an emitter _and_ a console fake _and_
+  builder functions _and_ constants _and_ eight interfaces — it is several files wearing one name.
+- **The filename names the thing.** `FoodEventEmitter.ts` exports `FoodEventEmitter` and nothing that
+  isn't part of it. Types that exist solely to describe that class's inputs/outputs may live beside it;
+  an unrelated implementation may not.
+- Files should be **as simple as possible** and have **one purpose**.
 - Barrel `index.ts` files MUST contain only named re-exports. No logic, no side effects.
 - The `.mobile.ts` / `.mobile.tsx` suffix is **prohibited**. Use `.native.ts(x)` —
   see [§14 Cross-Platform File Conventions](#14-cross-platform-file-conventions).
+
+Directories, and the reason `.test` (not `.spec`) is the vitest suffix, are in
+[§7 Test File Location](#test-file-location). Integration and E2E tests are wired into their own
+vitest configs and MUST NOT run in the default `test` task.
 
 ---
 

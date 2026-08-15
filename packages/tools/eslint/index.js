@@ -7,33 +7,27 @@ import { nativeA11yPlugin } from './nativeA11y.js';
 
 /**
  * Picks the file-naming regime for a package from its root directory (§1 of
- * docs/CODING_STANDARDS.md). The two regimes follow different ecosystem norms:
+ * docs/CODING_STANDARDS.md). There is exactly ONE regime, applied to every package:
  *
- *  - `backend`  — NestJS/Lambda services under `packages/services/*`: kebab-case
- *                 `name.<role>.ts` for every file (§1a).
- *  - `frontend` — app/shared/client/util libraries under `packages/apps/*`,
- *                 `packages/shared/*`, `packages/clients/*`, `packages/utils/*`:
- *                 camelCase modules / PascalCase components & classes, NO hyphens (§1b).
- *  - `none`     — anything else (tooling configs, CDK infra apps): the filename
- *                 rule is not applied because §1 defines no convention for them.
+ *  - `standard` — camelCase modules; PascalCase for a file whose subject is a class or a React
+ *                 component. **Hyphens are prohibited in file names**, everywhere, without exception
+ *                 beyond the framework-mandated names listed in the ignore globs below.
+ *  - `none`     — paths outside `packages/` only.
+ *
+ * ⛔ **Do NOT reintroduce a per-package regime.** A prior revision applied `KEBAB_CASE` to
+ * `packages/services/*` on the grounds that it was "framework-idiomatic" for NestJS. That is the
+ * failure this comment exists to prevent: the linter, `CODING_STANDARDS §1a`, and every audit run
+ * against them were mutually consistent and all wrong, so 505 hyphenated files read as COMPLIANT and
+ * no check could ever surface them. NestJS does not require kebab file names — it resolves modules
+ * through imports, not filenames. One regime, no ecosystem carve-outs.
  *
  * @param {string} rootDir - Absolute package root (the caller's `import.meta.dirname`).
- * @returns {'backend' | 'frontend' | 'none'}
+ * @returns {'standard' | 'none'}
  */
 function namingRegimeForRoot(rootDir) {
     const normalized = String(rootDir).replaceAll('\\', '/');
 
-    if (normalized.includes('/packages/services/')) {
-        return 'backend';
-    }
-
-    const frontendSegments = ['/packages/apps/', '/packages/shared/', '/packages/clients/', '/packages/utils/'];
-
-    if (frontendSegments.some((segment) => normalized.includes(segment))) {
-        return 'frontend';
-    }
-
-    return 'none';
+    return normalized.includes('/packages/') ? 'standard' : 'none';
 }
 
 /**
@@ -50,60 +44,44 @@ function namingRegimeForRoot(rootDir) {
  * @returns {import('eslint').Linter.Config[]}
  */
 function filenameConventionConfig(regime) {
-    if (regime === 'backend') {
-        return [
-            {
-                files: ['**/*.{ts,tsx,js,jsx}'],
-                ignores: [
-                    // Drizzle migration artifacts are tool-generated and numbered/snake_case
-                    // (e.g. `0005_identity_reset.*`) — they mirror generated SQL, not source we name.
-                    '**/database/migrations/**',
-                ],
-                plugins: { 'check-file': checkFile },
-                rules: {
-                    // §1a — kebab-case name + dot-separated role suffix for EVERY file.
-                    'check-file/filename-naming-convention': [
-                        'error',
-                        { '**/*.{ts,tsx,js,jsx}': 'KEBAB_CASE' },
-                        { ignoreMiddleExtensions: true },
-                    ],
-                },
-            },
-        ];
+    if (regime !== 'standard') {
+        return [];
     }
 
-    if (regime === 'frontend') {
-        return [
-            {
-                files: ['**/*.{ts,tsx,js,jsx}'],
-                ignores: [
-                    // Config files — `<tool>.config.*` (§1, both regimes).
-                    '**/*.config.*',
-                    // Next.js framework-mandated file names (§1b — allowed, not renameable).
-                    '**/next-env.d.ts',
-                    '**/{page,layout,route,not-found,global-error,template,loading,error,default,middleware,instrumentation,instrumentation-client,sitemap,robots,manifest,opengraph-image,twitter-image,icon,apple-icon}.{ts,tsx,js,jsx}',
-                    // Expo Router route files — special prefixes/dynamic segments the router requires.
-                    '**/_layout.{ts,tsx,js,jsx}',
-                    '**/+*.{ts,tsx,js,jsx}',
-                    '**/[[]*[]]*.{ts,tsx,js,jsx}',
+    return [
+        {
+            files: ['**/*.{ts,tsx,js,jsx}'],
+            ignores: [
+                // Config files — `<tool>.config.*`.
+                '**/*.config.*',
+                // Drizzle migration artifacts are TOOL-GENERATED and numbered/snake_case
+                // (e.g. `0005_identity_reset.*`). They mirror generated SQL, not source we name, and
+                // `meta/_journal.json` references them BY FILENAME — renaming them breaks migration.
+                '**/database/migrations/**',
+                '**/db/migrations/**',
+                // Next.js framework-mandated file names — allowed, not renameable.
+                '**/next-env.d.ts',
+                '**/{page,layout,route,not-found,global-error,template,loading,error,default,middleware,instrumentation,instrumentation-client,sitemap,robots,manifest,opengraph-image,twitter-image,icon,apple-icon}.{ts,tsx,js,jsx}',
+                // Expo Router route files — special prefixes/dynamic segments the router requires.
+                '**/_layout.{ts,tsx,js,jsx}',
+                '**/+*.{ts,tsx,js,jsx}',
+                '**/[[]*[]]*.{ts,tsx,js,jsx}',
+            ],
+            plugins: { 'check-file': checkFile },
+            rules: {
+                // §1 — camelCase modules; PascalCase when the file's subject is a class or a React
+                // component. The glob accepts a leading letter followed by alphanumerics only, which
+                // admits camelCase and PascalCase while rejecting BOTH kebab-case and snake_case.
+                // `ignoreMiddleExtensions` keeps role/variant tags (`.service`, `.native`, `.test`,
+                // `.integration`, `.e2e`, `.spec`) transparent to the check.
+                'check-file/filename-naming-convention': [
+                    'error',
+                    { '**/*.{ts,tsx,js,jsx}': '[a-zA-Z]*([a-zA-Z0-9])' },
+                    { ignoreMiddleExtensions: true },
                 ],
-                plugins: { 'check-file': checkFile },
-                rules: {
-                    // §1b — camelCase modules / PascalCase components & classes; NO hyphens.
-                    // The custom glob accepts a leading letter (upper or lower) followed by
-                    // alphanumerics only, which admits both camelCase and PascalCase while
-                    // rejecting kebab-case and snake_case.
-                    'check-file/filename-naming-convention': [
-                        'error',
-                        { '**/*.{ts,tsx,js,jsx}': '[a-zA-Z]*([a-zA-Z0-9])' },
-                        { ignoreMiddleExtensions: true },
-                    ],
-                },
             },
-        ];
-    }
-
-    return [];
+        },
+    ];
 }
 
 /**

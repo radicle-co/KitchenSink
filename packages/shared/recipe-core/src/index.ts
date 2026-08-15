@@ -1,14 +1,167 @@
-export * from './recipe.types.js';
-export * from './recipeRequestBounds.js';
-export * from './recipeObjectKeys.js';
+export {
+    ALLOWED_RECIPE_PHOTO_MIME_TYPES,
+    CUISINES,
+    FoodResolutionStatus,
+    IDENTITY_SYNC_PENDING_CODE,
+    MAX_RECIPE_DEVICE_LABEL_LENGTH,
+    MAX_RECIPE_PHOTOS,
+    MAX_RECIPE_PHOTO_UPLOAD_BYTES,
+    RecipeCollectionAddedVia,
+    RecipeDifficulty,
+    RecipeErrorCode,
+    RecipeSearchSortBy,
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVersionArchiveStatus,
+    RecipeVisibility,
+    collectionSchema,
+    foodResolutionStatusSchema,
+    ingredientPortionSchema,
+    ingredientSchema,
+    isRecipeError,
+    isoDateTimeSchema,
+    paginatedResponseSchema,
+    recipeCollectionAddedViaSchema,
+    recipeCollectionSchema,
+    recipeDetailSchema,
+    recipeDifficultySchema,
+    recipeErrorCodeSchema,
+    recipeErrorSchema,
+    recipeFacetCountSchema,
+    recipeIngredientSchema,
+    recipeIngredientViewSchema,
+    recipeNutritionSchema,
+    recipePhotoSchema,
+    recipeRatingSchema,
+    recipeSchema,
+    recipeSearchResultSchema,
+    recipeSearchSortBySchema,
+    recipeSnapshotSchema,
+    recipeSourceTypeSchema,
+    recipeStatusSchema,
+    recipeStepSchema,
+    recipeStepViewSchema,
+    recipeVersionArchiveStatusSchema,
+    recipeVersionPendingArchiveSchema,
+    recipeVersionSchema,
+    recipeVisibilitySchema,
+    usesPremiumCapability,
+    versionConflictDetailsSchema,
+    versionConflictSideSchema,
+} from './recipe.types.js';
+export type {
+    AllowedRecipePhotoMimeType,
+    Collection,
+    Cuisine,
+    Ingredient,
+    IngredientPortion,
+    IsoDateTimeString,
+    PaginatedResponse,
+    Recipe,
+    RecipeCollection,
+    RecipeDetail,
+    RecipeError,
+    RecipeFacetCount,
+    RecipeIngredient,
+    RecipeIngredientView,
+    RecipeNutrition,
+    RecipePhoto,
+    RecipeRating,
+    RecipeSearchResult,
+    RecipeSnapshot,
+    RecipeStep,
+    RecipeStepView,
+    RecipeVersion,
+    RecipeVersionPendingArchive,
+    VersionConflictDetails,
+    VersionConflictSide,
+} from './recipe.types.js';
+export {
+    INT4_CEILING,
+    MAX_RECIPE_CUISINE_LENGTH,
+    MAX_RECIPE_DESCRIPTION_LENGTH,
+    MAX_RECIPE_INGREDIENTS,
+    MAX_RECIPE_INGREDIENT_NAME_LENGTH,
+    MAX_RECIPE_INGREDIENT_QUANTITY,
+    MAX_RECIPE_LIST_PAGE_SIZE,
+    MAX_RECIPE_TAGS,
+    MAX_RECIPE_TITLE_LENGTH,
+    MAX_SEARCH_PAGE_SIZE,
+    MIN_RECIPE_INGREDIENT_QUANTITY,
+    NUMERIC_8_2_CEILING,
+    RECIPE_DEVICE_LABEL_PATTERN,
+    recipeCuisineSchema,
+    recipeDescriptionSchema,
+    recipeDeviceLabelSchema,
+    recipeExpectedVersionSchema,
+    recipeIngredientIdSchema,
+    recipeIngredientNameSchema,
+    recipeIngredientNotesSchema,
+    recipeIngredientQuantitySchema,
+    recipeIngredientUnitSchema,
+    recipeLineNutritionSchema,
+    recipeListMemberSchema,
+    recipeMinutesSchema,
+    recipeRatingStarsSchema,
+    recipeServingsSchema,
+    recipeStepInstructionSchema,
+    recipeTimerSecondsSchema,
+    recipeTitleSchema,
+} from './recipeRequestBounds.js';
+export {
+    RECIPE_PHOTO_THUMBNAIL_SUFFIX,
+    ownerMediaPrefix,
+    recipeMediaPrefix,
+    recipePhotoKeyPrefix,
+    recipePhotoOriginalKey,
+    recipePhotoThumbnailKey,
+    recipeVersionArchiveKey,
+} from './recipeObjectKeys.js';
+export type { RecipeVersionArchiveKeyParts } from './recipeObjectKeys.js';
 // NOTE: `recipeDatabaseName.ts` is deliberately NOT re-exported here. It is reachable ONLY as
 // `@kitchensink/recipe-core/database-name` — see that module's doc comment for the reason (CDK infra apps
 // that run as COMPILED JavaScript cannot load this barrel).
-export * from './accountErasure.js';
-export * from './serviceErasureToken.js';
-export * from './cdnInvalidation.js';
-export * from './ids.js';
-export * from './viewer.js';
-export * from './recipeAccessPolicy.js';
-export * from './units.js';
-export * from './nutrition.js';
+export { ACCOUNT_ALREADY_ERASED_CODE, pseudonymizedAuthorHandle } from './accountErasure.js';
+export type { AccountErasureMessage } from './accountErasure.js';
+export {
+    ERASURE_TRIGGER_SOURCES,
+    SERVICE_ERASURE_TOKEN_ALG,
+    SERVICE_ERASURE_TOKEN_AUDIENCE,
+    SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD,
+    SERVICE_ERASURE_TOKEN_ISSUER,
+    SERVICE_ERASURE_TOKEN_MAX_TTL_SECONDS,
+    buildServiceErasureJwtClaims,
+    isErasureTriggerSource,
+    parseServiceErasureClaims,
+} from './serviceErasureToken.js';
+export type {
+    ErasureTriggerSource,
+    ServiceErasureJwtClaims,
+    ServiceErasureTokenClaims,
+} from './serviceErasureToken.js';
+export { cdnOwnerPrefixInvalidationPath, cdnPathForKey } from './cdnInvalidation.js';
+export type { CdnInvalidationPort } from './cdnInvalidation.js';
+export {
+    foodId,
+    ingredientId,
+    isFoodId,
+    isIngredientId,
+    isRecipeId,
+    isS3Key,
+    isUserId,
+    recipeId,
+    s3Key,
+    userId,
+} from './ids.js';
+export type { FoodId, IngredientId, RecipeId, S3Key, UserId } from './ids.js';
+export { makeViewer, rankTier, tierSchema } from './viewer.js';
+export type { Tier, Viewer } from './viewer.js';
+export { canClone, canGoPrivate, canRate, isOwner } from './recipeAccessPolicy.js';
+export { MASS_UNIT_TO_GRAMS, normalizeUnit, unitToGrams } from './units.js';
+export {
+    computeRecipeNutrition,
+    hasUserEnteredIngredients,
+    leadCaloriesPerServing,
+    toNutritionLine,
+} from './nutrition.js';
+export type { LineCatalogNutrition, LineMeasure, NutritionLine } from './nutrition.js';

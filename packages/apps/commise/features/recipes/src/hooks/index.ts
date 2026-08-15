@@ -5,13 +5,45 @@
  * pure models never pulls React hooks in.
  */
 
-export * from './ingredientResolver.model.js';
-export * from './useDebouncedValue.js';
-export * from './usePollIngredientStatus.js';
-export * from './useRecipePhotoUpload.js';
-export * from './useRecipePhotoUploadQueue.js';
-export * from './useIngredientResolver.js';
-export * from './useIngredientFilterSearch.js';
-export * from './useRecipeEditor.js';
-export * from './useBrowseRails.js';
-export * from './useRecentSearches.js';
+export {
+    INGREDIENT_SEARCH_DEBOUNCE_MS,
+    MIN_INGREDIENT_QUERY_LENGTH,
+    deriveViewState,
+    isTerminalStatus,
+    isUnresolvedStatus,
+    meetsIngredientSearchThreshold,
+    nextMatchAction,
+    rankIngredientResults,
+    rankIngredientSuggestions,
+    suggestionKey,
+    suggestionName,
+    toIngredientLine,
+} from './ingredientResolver.model.js';
+export type { DeriveViewStateInput, IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
+export { useDebouncedValue } from './useDebouncedValue.js';
+export { usePollIngredientStatus } from './usePollIngredientStatus.js';
+export { useRecipePhotoUpload } from './useRecipePhotoUpload.js';
+export type { RecipePhotoUploadFile, UseRecipePhotoUploadResult } from './useRecipePhotoUpload.js';
+export { useRecipePhotoUploadQueue } from './useRecipePhotoUploadQueue.js';
+export type {
+    RecipePhotoQueueFile,
+    RecipePhotoQueueItem,
+    RecipePhotoQueueStatus,
+    RecipePhotoValidationMessages,
+    UseRecipePhotoUploadQueueResult,
+} from './useRecipePhotoUploadQueue.js';
+export { useIngredientResolver } from './useIngredientResolver.js';
+export type { UseIngredientResolverResult } from './useIngredientResolver.js';
+export { useIngredientFilterSearch } from './useIngredientFilterSearch.js';
+export type { UseIngredientFilterSearchResult } from './useIngredientFilterSearch.js';
+export { useRecipeEditor } from './useRecipeEditor.js';
+export type {
+    EditorState,
+    RecipeEditorQueryState,
+    UseRecipeEditorOptions,
+    UseRecipeEditorResult,
+} from './useRecipeEditor.js';
+export { useBrowseRails } from './useBrowseRails.js';
+export type { BrowseRailQuery, UseBrowseRailsResult } from './useBrowseRails.js';
+export { useRecentSearches } from './useRecentSearches.js';
+export type { UseRecentSearchesResult } from './useRecentSearches.js';

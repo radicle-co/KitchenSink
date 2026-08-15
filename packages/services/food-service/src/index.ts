@@ -2,5 +2,60 @@
  * Public surface of `@kitchensink/food-service`. The Drizzle schema is the stable foundation
  * export consumed by migrations and downstream tooling; service internals are added per phase.
  */
-export * from './config/index.js';
-export * from './db/schema/index.js';
+export {
+    AppConfigModule,
+    EnvironmentSchema,
+    FOOD_SETTING_SCHEMAS,
+    resolveEnvironment,
+    settingFromEnv,
+} from './config/index.js';
+export type { Environment, FoodSetting, FoodSettingName } from './config/index.js';
+export {
+    fetchQueue,
+    fetchRequesters,
+    food,
+    foodCandidates,
+    foodCategory,
+    foodCategoryAssignment,
+    foodFieldEnum,
+    foodFieldProvenance,
+    foodKindEnum,
+    foodNutrients,
+    foodOriginEnum,
+    foodPortions,
+    foodSourceEnum,
+    foodSources,
+    foodStatusEnum,
+    nutrient,
+    nutrientBasisEnum,
+    sourceCallLog,
+    sourceSyncMetadata,
+} from './db/schema/index.js';
+export type {
+    FetchQueueRow,
+    FetchRequesterRow,
+    FoodCandidateRow,
+    FoodCategoryAssignmentRow,
+    FoodCategoryRow,
+    FoodFieldProvenanceRow,
+    FoodNutrientRow,
+    FoodPortionRow,
+    FoodRow,
+    FoodSourceRow,
+    NewFetchQueueRow,
+    NewFetchRequesterRow,
+    NewFoodCandidateRow,
+    NewFoodCategoryAssignmentRow,
+    NewFoodCategoryRow,
+    NewFoodFieldProvenanceRow,
+    NewFoodNutrientRow,
+    NewFoodPortionRow,
+    NewFoodRow,
+    NewFoodSourceRow,
+    NewNutrientRow,
+    NewSourceCallLogRow,
+    NewSourceSyncMetadataRow,
+    NutrientRow,
+    SourceCallLogRow,
+    SourceSyncMetadataRow,
+} from './db/schema/index.js';

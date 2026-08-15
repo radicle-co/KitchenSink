@@ -1,7 +1,7 @@
 ---
 title: PR 91 — foundation hardening, status substrate, and portfolio respec
 date: 2026-08-15
-status: ready for ce-plan
+status: ready for ce-plan (all open questions resolved 2026-08-15)
 origin: conversation (owner rulings, 2026-08-14/15)
 evidence: docs/reviews/2026-08-14-pr91-findings/ (24 reports, 12 of them adversarial)
 ---
@@ -142,7 +142,39 @@ raw-text channel, and 011's reaper and timestamp-selection rule.
   transaction. Any index work must account for this.
 - **A4** Mobile on-device OCR is a build-posture change: it forces an EAS dev-client and retires Expo Go.
 
-## Outstanding questions
+## Resolved open questions (owner, 2026-08-15)
+
+All five are closed. Recorded with the reasoning so ce-plan does not re-open them.
+
+- **Q1 — 006 keeps its own service and database.** 007's foreign key to `meal_plans` and 009's
+  `meal_plan_nutrition_link` join table are reworked into cross-service calls. Note the ADR-0017
+  amendment's _reasoning_ must be rewritten: both arguments originally given for the extraction were
+  refuted (one circular, one resting on a premise that proved empirically false). The decision is an
+  owner call about bounded contexts, not a measured trigger that fired — record it as such.
+- **Q2 — Order the writes so the harmless failure wins.** Progress messages (`queued`, `processing`)
+  are written **before** the row, since a premature one is corrected by the next message. Terminal
+  messages (`succeeded`, `failed`) are written **after** the row commits, so the system never claims a
+  success that did not happen. No reconciliation sweep.
+- **Q3 — Reading B, streamed.** Recipes hold no nutrition copy; the recipe service calls the food
+  service and **streams** the response so recipe data reaches the client first and nutrition follows as
+  it arrives. Streaming goes to **both** platforms via a React Native streaming-fetch polyfill.
+    - Fallback when food is slow or down: serve **heavily cached last-known values, clearly marked
+      stale**, with a retry that goes **direct from the client to the food service** (both apps already
+      hold a food client for ingredient search).
+    - `recipes.lead_calories_per_serving` is dropped either way.
+    - ⚠️ **Risk to carry into planning:** RN streaming-fetch polyfills are fragile and this sits on the
+      critical read path for every recipe. Spike it before committing; fallback is two requests on mobile.
+    - ⚠️ Streaming improves perceived latency but not load — a 20-recipe list can fan out to ~200 food
+      lookups. The cache is what makes this viable, not the streaming.
+- **Q4 — On-device OCR first, fall back to Textract on low confidence.** 011 only, and **docs only in
+  PR 91 — no code**. The spec must name the failure mode explicitly: the heuristic's weakness is a
+  result that is _wrong but confident_, which never trips the threshold. Requires a measurable
+  threshold **and** a manual "re-run in the cloud" escape hatch.
+- **Q5 — TTL stamped at 3 days; a target, not a deadline.** Actual removal lands within roughly 2 days
+  after that. Free, no job, no alarm. If a retention period is ever stated publicly, the honest figure
+  is ~5 days, not 3.
+
+## Superseded questions
 
 - **Q1** Feature 006's extraction into its own service has been refuted twice — first as circular
   reasoning, then because C-006-001's "three destructive sweepers" premise is empirically false (all

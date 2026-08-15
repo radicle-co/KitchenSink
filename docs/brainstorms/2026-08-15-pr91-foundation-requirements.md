@@ -222,3 +222,39 @@ on cards. Any two are compatible; all three are not.
 - ⚠️ **The refresh path needs an alarm.** A silently-stopped refresher reproduces exactly the staleness
   this decision exists to fix, and this codebase already has three live examples of a monitor that
   cannot fire. Whatever updates this column must be observable.
+
+## Status of R4 (standards) — landed 2026-08-15
+
+R4 is **complete**. Recorded here so ce-plan does not re-plan it.
+
+| Req                                           | Status   | Evidence                                                                                                              |
+| --------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| R4.1 one naming regime, no hyphens            | **done** | `028f88c9` (standard + lint), `c627679d` (511 renames, every reference repointed)                                     |
+| R4.2 one file, one thing                      | **done** | `1f90abc7` (AST gate), `17af5a5d`/`05b8cd7b`/`c891ae04` (9 splits), `293a21af` (rulings recorded, split debt retired) |
+| R4.3 mechanically enforced, no contradictions | **done** | `02ebf2cb` (rulings + `export *` ban + stale JSDoc), `72ff7884` (17 barrels converted)                                |
+
+Verified on the committed tree: typecheck 54/54, lint 54/54 (including both new rules), build 30/30,
+tests at baseline (one known pre-existing `specTaskIds` failure in `specs/008-cooking-mode/tasks.md`).
+
+### Residuals — small, tracked, NOT blockers
+
+- **The 6 generated schema barrels still use `export *`.** They are emitted by `@kitchensink/contract-gen`
+  and asserted verbatim by three contract suites, so converting them is generator work plus its tests
+  plus three suites. The tree-shaking harm is real — they feed the web and mobile bundles.
+- **`packages/apps/commise/web/.auth/` is gitignored but not prettier-ignored**, so `format:check` fails
+  for anyone who has run the local web E2E suite. One line in `.prettierignore`.
+- **`AccountSuspendedError` / `ImpersonationBlockedError` have no thrower and no catcher** — only their
+  own test and a pass-through re-export. Possibly dead public API; deleting exported surface of a shared
+  package is an owner call.
+- **`specs/008-cooking-mode/tasks.md` has duplicate task IDs** (T-018/019/020), failing `specTaskIds`.
+  Pre-existing, and inside the 004+ spec-only scope, so it is fixed with the respec.
+
+### ⚠️ Landmine discovered while doing this
+
+**`CONTRACT_HASH` fingerprints the TEXT of every module a schema transitively reaches — including
+re-export plumbing.** Converting `recipe-core`'s barrel moved the hash even though every exported shape
+was byte-identical; causation was proved by reverting that one file and watching the hash return.
+
+So **a purely cosmetic edit to a shared leaf's barrel will trip contract-skew detection for pinned
+consumers**, with a diff that shows no shape change and therefore no obvious cause. Anyone debugging an
+inexplicable skew failure should suspect this first.

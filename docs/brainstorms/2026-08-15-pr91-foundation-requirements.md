@@ -67,8 +67,15 @@ the AWS SDK for the bus is a dependency of no package.
   the UI MUST NOT claim more than it does.
 - **R3.2** Every alarm MUST be capable of firing and MUST reach a human.
 - **R3.3** Nutrition selection MUST be deterministic. Energy in kJ MUST NOT be stored as kcal.
-- **R3.4** Every finding in `docs/reviews/2026-08-14-pr91-findings/` MUST be resolved, or explicitly
-  recorded as rejected with a reason.
+- **R3.4** Every finding in **`docs/reviews/2026-08-14-pr91-findings/00-INDEX.md`** MUST end as `fixed`,
+  `rejected` (with a reason) or `deferred` (with a target). **203 findings across 18 reports**; 201 need a
+  disposition (2 are REFUTED attacks that need none). Severity: **6 CRITICAL, 38 HIGH, 56 MED, 25 LOW**,
+  plus adversarial verdicts and 43 unrated.
+    - IDs are `<report>.<local>` because `A-1` and `P-1` are **reused across six documents**.
+    - Eleven further reports are design/research narratives with no enumerable findings and are excluded
+      from the count — listed explicitly in the index so their exclusion is visible rather than assumed.
+    - The earlier figures of "112" and "174" were both artifacts of counting mid-review with a pattern that
+      missed formats; the index is now the single authority.
 
 ### R4 — Standards conformance
 

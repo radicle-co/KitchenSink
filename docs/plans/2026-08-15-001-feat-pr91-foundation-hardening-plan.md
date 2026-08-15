@@ -16,14 +16,23 @@ branch: chore/code-quality-enforcement-phase-1-2
 Harden the three shipped features, build a durable per-group message substrate on DynamoDB that any
 producer can write to fire-and-forget, make the food service the sole owner of nutrition data, put a
 CloudFront edge in front of every production service, give all 203 verified findings a disposition, and
-re-specify features 004–014 so the other worktrees can rebase onto something coherent. No new
-user-visible feature ships.
+re-specify features 004–014 so the other worktrees can rebase onto something coherent. **No new
+user-visible feature ships, but user-visible behaviour does change** — see _User-visible consequences_
+below.
 
-> **Revision note (2026-08-15).** This plan was rewritten after a multi-persona document review raised
-> 31 findings, of which 16 were substantive. Two design decisions were invalidated outright and
-> replaced by owner rulings: the food service does **not** store per-100g macros (KTD-3), and U9's
-> "two-line reorder" is impossible (U9). The edge/CDN track (U15–U17) is new scope added by owner
-> ruling on the same day and is **not** derived from the origin document.
+> **Revision history.**
+>
+> **Round 1 (2026-08-15).** Rewritten after a six-persona review raised 31 findings, 16 substantive.
+> Two decisions were invalidated outright: food does **not** store per-100g macros (KTD-3), and U9's
+> "two-line reorder" is impossible (U9). The edge track (U15–U17) was added by owner ruling and is
+> **not** derived from the origin document.
+>
+> **Round 2 (2026-08-15).** A second six-persona review raised ~25 substantive findings, including
+> **two P0s with three-persona agreement**. Both were defects in the round-1 edge design: caching
+> recipe responses on a URL-only key leaks users' private recipes to each other, and rejecting
+> tokenless requests at the edge breaks CORS preflight, `/health`, and the GDPR erasure fan-out.
+> Owner ruling: keep all three distributions and fix every defect. Four more corrections landed on the
+> non-edge units — see KTD-3, U8, U9 and U10.
 
 ---
 
@@ -41,6 +50,23 @@ each other and the decisions of the last three days.
 of open PRs, no production traffic beyond occasional test traffic, and — owner ruling, 2026-08-15 —
 **service disruption and downtime are acceptable.** Migrations, DNS cutovers and stack replacements are
 therefore sequenced for correctness and verifiability, not for zero-downtime.
+
+---
+
+## User-visible consequences
+
+The summary says no new feature ships. That is not the same as no user-visible change, and the
+following are the changes a person using the product would notice. They are gathered here so the
+blast radius is legible in one place rather than scattered across units.
+
+| Change                                                                                                             | Unit     |
+| ------------------------------------------------------------------------------------------------------------------ | -------- |
+| Calorie and macro values change wherever the energy nutrient was previously mis-selected, potentially by 4.184×    | U8, U10  |
+| Nutrition falls back to a stale cached value, marked stale, when food is unreachable — and to absent when uncached | U10      |
+| The account-erasure confirmation copy narrows to claim only what the flow actually performs                        | U2       |
+| A placeholder ingredient now shows an explicit retrying state, and a terminal failed state after five attempts     | U9       |
+| Recipe `visibility` stops defaulting to public, so free-tier users can make a recipe private                       | U12      |
+| All three production services take planned downtime during the migration and the DNS cutover                       | U10, U17 |
 
 ---
 
@@ -78,9 +104,10 @@ written in the same millisecond and returns HTTP 200 — unobservable to a fire-
 partition key, so the "a group arrives in order for free" premise is false. A consumer must therefore
 treat the stream as a doorbell and **re-query the group** — which _is_ ordered — rather than read record
 contents. This makes ordering correct by construction, duplicates harmless, `parallelizationFactor`
-safe, and `KEYS_ONLY` the right stream view.
+safe, and `KEYS_ONLY` the right stream view. ⚠️ **A DynamoDB partition and sort key are immutable after
+table creation** — see U5's pre-freeze verification step.
 
-**KTD-3 — The food service owns nutrition outright, including the projection.**
+**KTD-3 — The food service owns nutrition outright, including the projection and the portion parser.**
 The plan previously assumed food stores per-100g macros. **It does not.** Food stores nutrients as EAV
 rows and returns them raw as `NutrientView[]` (`foods.schema.ts:79`), plus portions as
 `{label, gramWeight}`. The projection into calories/protein/carbs/fat lives in the **recipe** service —
@@ -88,32 +115,51 @@ rows and returns them raw as `NutrientView[]` (`foods.schema.ts:79`), plus porti
 (`name.includes('energy') || name.includes('calorie')`). So "food owns nutrition" is only true if the
 projection moves with the data. It does (owner ruling).
 
-This is smaller than it sounds: food **already holds the canonical mapping** at
-`usda.adapter.ts:114` — `calories: { name: 'Energy', unit: 'kcal' }`. U8 uses the map food already owns
-instead of recipe guessing at it, which **closes the kcal/kJ non-determinism finding as a side effect**
-rather than as separate work.
+_(Round-2 correction: the round-1 text claimed this was "smaller than it sounds" because food "already
+holds the canonical mapping" at `usda.adapter.ts:114`. That overstated it. `LABEL_NUTRIENT_MAP` is
+**module-private**, keyed by FDC **label-panel** keys, while foods ingested through the `foodNutrients`
+path store names canonicalized by `canonicalizeNutrientName`. The map must be **extracted into a shared
+module**, not merely imported — see U8.)_
+
+Two further facts the round-1 text got wrong, both of which would have reintroduced the exact defect
+class KTD-3 exists to eliminate:
+
+- **Nutrients carry a basis.** `nutrientBasisEnum` is `['per_100g','per_serving']`, and branded foods
+  keep label values as `per_serving` whenever the serving is ml or a count. The existing
+  `nutrientPer100g` filters on basis **before** matching the name. Selecting by name+unit alone would
+  project per-serving figures as per-100g. **Selection is `basis === 'per_100g'` AND canonical name AND
+  unit**, and a nutrient available only per-serving reports **absent**, never coerced.
+- **Returning `portions` is not sufficient on its own.** Food returns raw `{label, gramWeight}`;
+  `unitToGrams` (`units.ts:83`) consumes `{unit, gramsPerUnit}` produced by recipe-side
+  `parsePortion`/`extractPortions`. **That parser moves into food too** (owner ruling), so food returns
+  an already-normalized portion shape and recipe keeps no heuristic that interprets food's data.
 
 Consequently the recipe service drops `calories_per_100g`, `protein_g_per_100g`, `carbs_g_per_100g`,
 `fat_g_per_100g` **and `portions`** from `ingredients`, and drops **both** `recipes.lead_calories_per_serving`
-**and `recipes.has_partial_nutrition`** — the second was missed in the first draft and is the same
-derived data, present in the wire contract and the GDPR export, so leaving it would freeze it at its
-last pre-migration value. `portions` may only be dropped because U8 returns it; without that,
-`unitToGrams` (`units.ts:83`) loses its gram weights, every volumetric line becomes unaccountable, and
-recipes silently flip to "partial estimate". `recipeIngredients.userCalories` and siblings are
-**user overrides, not food data** — they stay and remain pinned. Supersedes the 2026-08-15
-card-calorie amendment: with no event consumption there is nothing to refresh a stored total, and the
-total is itself duplicated data.
+**and `recipes.has_partial_nutrition`** — the second is the same derived data, present in the wire
+contract and the GDPR export, so leaving it would freeze it at its last pre-migration value.
+`recipeIngredients.userCalories` and siblings are **user overrides, not food data** — they stay and
+remain pinned. Supersedes the 2026-08-15 card-calorie amendment: with no event consumption there is
+nothing to refresh a stored total, and the total is itself duplicated data.
 
 **KTD-3a — Ingredients carry nutrition inline **and** expose food ids** (owner ruling). Recipe-service
 calls food and returns ingredients with nutrition attached under today's field names, so no app change
 is required, **and** also exposes `food_id` so a client can go direct later. Accepted cost: two routes
-to the same data, which tend to drift — U10 owns a test that asserts they agree.
+to the same data, which tend to drift — U10 owns a guard test.
+
+**KTD-3b — When food is unreachable, recipe serves stale, then absent** (owner ruling). Recipe's
+in-process cache serves its last known value on a food error, **marked stale in the response**, and
+falls back to nutrition-absent when it holds nothing. This recovers most of the origin document's
+intent — which resolved this case with cached last-known values, clearly marked — without
+reintroducing a persisted duplicate, since a TTL cache is not a schema column. Accepted limitation: the
+cache dies with the Fargate task, so a cold task during an outage has nothing to serve. **This is a new
+runtime dependency: the recipe read path now depends on food's availability where today it does not.**
 
 **KTD-4 — The recipe service does not consume food events.** It asks when it needs data.
-_(Corrected: the first draft justified this by claiming food cannot know who requested a food. That is
-false — `FetchQueueDao.listRequesterIds()` exists and is already called before publish.)_ The real
-reason is narrower and stronger: copying requester identity into a TTL'd message store would recreate
-the user↔food linkage **outside food's erasure boundary**, where the erasure path cannot reach it.
+_(Corrected in round 1: the first draft claimed food cannot know who requested a food. That is false —
+`FetchQueueDao.listRequesterIds()` exists and is already called before publish.)_ The real reason is
+narrower and stronger: copying requester identity into a TTL'd message store would recreate the
+user↔food linkage **outside food's erasure boundary**, where the erasure path cannot reach it.
 Consumers subscribe by the group key of KTD-2, which the client receives in the recipe response.
 
 **KTD-5 — `expo/fetch` streaming, repointed at import progress** (owner ruling). KTD-3 removes the
@@ -128,30 +174,70 @@ official Expo guide depending on it. Gated because SDK 57 has an open Android la
 rule closed a false-guarantee hazard three days ago) or "prod is stale" (the alarm code is already
 correct and gated).
 
-**KTD-7 — Every production service sits behind CloudFront; the ALB moves to an internal name**
-(owner ruling, new scope). Public hostnames become `{service}.commise.app` on CloudFront; ALB origins
-become `{service}.internal.commise.app`. **Prod only** — no sandbox, no per-PR, because a distribution
-takes 5–15 minutes to deploy and cannot be deleted without first disabling and waiting for propagation,
-which would wreck the ADR-0005/0010 preview machinery.
+**KTD-7 — Every production service sits behind CloudFront; the ALB moves to an internal origin name**
+(owner ruling, new scope; substantially rewritten in round 2). Public hostnames become
+`{service}.commise.app` on CloudFront; ALB origins become `{service}.internal.commise.app`.
+**Prod only** — no sandbox, no per-PR, because a distribution takes 5–15 minutes to deploy and cannot be
+deleted without first disabling and waiting for propagation, which would wreck the ADR-0005/0010
+preview machinery. **All traffic goes through CloudFront, including service-to-service** (owner ruling).
 
-Three consequences the implementer must not discover the hard way:
+Six things the implementer must not discover the hard way. The first three are round-2 corrections to
+a round-1 design that would have leaked data and taken production down.
 
-1. **The current ALB certificate does not cover `*.internal.commise.app`.** It covers `commise.app`,
-   `*.commise.app` and `*.sandbox.commise.app` — **single-label wildcards only**. This is the identical
-   trap already documented at `FoodServiceStack.ts:99-103` (why the host is `food-pr-7`, not
-   `food.pr-7`). One added `*.internal.commise.app` wildcard covers every service and every stage, but
-   it requires an ACM change with DNS validation **before any ALB can answer on the new name**.
-2. **Caching and per-request auth are in tension, and the resolution is edge verification.** Including
-   `Authorization` in the cache key gives each rotating Clerk JWT its own entry, so the hit rate is
-   ~zero. Excluding it makes CloudFront serve cached `200`s to requests the origin never authenticated —
-   an auth bypass. Therefore **Lambda@Edge on viewer-request verifies the Clerk JWT** (reusing the
-   existing networkless verifier in `@kitchensink/clerk-verify`) and the cache key is the URL alone.
-   `CLERK_JWT_KEY` is a **public** key, so baking it into the bundle is safe — which matters because
-   Lambda@Edge cannot read environment variables.
-3. **Identity is fronted but not cached.** Its responses are per-user and would cache nothing, and it
-   sits directly in the Clerk auth path where CloudFront's default `Host` rewriting is the exact failure
-   class that made PR 73's previews unreachable (ADR-0001). It gets the edge for the security layer —
-   WAF attachment point, TLS termination, request shaping — with caching explicitly disabled.
+1. **The tension is caching versus AUTHORIZATION, not authentication.** Round 1 framed it as
+   authentication and "resolved" it by verifying the JWT at the edge and caching on the URL alone.
+   That is wrong and would have leaked private data: the verifier proves the caller is _someone_, not
+   that they may read _this resource_. Recipe's read routes are owner-scoped from the token —
+   `recipes.controller.ts` declares `@Get()` → `list(ownerId, query)` — so **every user requests the
+   identical URL and receives different content**. A URL-only key would serve the first caller's recipe
+   list to every other authenticated caller. Resolution (owner ruling): **owner-scoped routes use a
+   per-principal cache key** — the edge verifier extracts the owner from the verified JWT and injects it
+   into the key — while **genuinely public routes cache with no owner id in the key**. Food's nutrition
+   route is caller-independent and keys on URL alone. Identity caches nothing.
+2. **The edge must NOT reject every tokenless request.** Round 1 specified exactly that, which would
+   have blocked all browser traffic and failed every deploy. CORS preflights carry no credentials by
+   spec — this repo already encodes that failure in `deployedSmoke.ts`'s `classifyPreflight`
+   ("auth is running BEFORE CORS … every browser call is blocked even though the service is healthy to
+   curl") — and `prod-deploy.yml` curls `/health` unauthenticated expecting `200`. The verifier
+   therefore **passes through, before verifying**: any `OPTIONS` request, the `/health*` prefix, and the
+   internal service-principal route prefixes below.
+3. **Service-to-service traffic does not carry Clerk tokens.** The erasure fan-out
+   (`erasureFanout.ts`) POSTs to `{recipeBaseUrl}/api/v1/internal/account/erasure` carrying a
+   short-lived **EdDSA service token minted by identity**. A Clerk verifier rejects it, the deletion
+   worker rethrows, and SQS retries forever — silently re-breaking the exact GDPR path U1 and U2 exist
+   to repair. The edge **exempts the `/api/v1/internal/*` prefix** and passes it to the origin, which
+   performs its own EdDSA verification. Accepted consequence of routing everything through CloudFront:
+   the erasure path and every recipe→food call now depend on CloudFront being healthy, and recipe→food
+   becomes an internet round trip.
+4. **The certificate must be ADDED, not amended.** `DomainStack.ts:21-25` builds one `acm.Certificate`
+   whose ARN is consumed by `SharedAlbStack.ts:47` and exported as `${stackName}:CertificateArn`.
+   Changing its `subjectAlternativeNames` **replaces** the resource and mints a new ARN — and ADR-0002
+   already records that "CloudFormation refuses to change an export while another stack imports it …
+   A naive deploy deadlocks on export-in-use." Add a **second, additive** certificate for
+   `*.internal.commise.app` with its own logical id and export, attached to the HTTPS listener via
+   `addCertificates`. The original is never touched.
+5. **"Internal" is a naming convention, not a network boundary** — until it is made one.
+   `*.internal.commise.app` is published in the public Route 53 zone on the same internet-facing ALB, so
+   removing the public host condition does not stop anyone who resolves the origin name from reaching it
+   directly and skipping the edge. Since all traffic now goes through CloudFront, **prod's ALB security
+   group restricts :443 ingress to the `com.amazonaws.global.cloudfront.origin-facing` managed prefix
+   list.** ⚠️ **Prod only.** The ALB is per stage; sandbox and every per-PR preview have no distribution
+   and must keep reaching their own ALB directly.
+6. **`CLERK_JWT_KEY` reaches the bundle at BUILD time, from CI** (owner ruling). Lambda@Edge cannot read
+   environment variables, and the repo's `ssm.StringParameter.valueForStringParameter` pattern resolves
+   at _deploy_ time — too late for an asset bundled and hashed at synth. CI reads the key from SSM and
+   exports it before synth; the bundler inlines it. The key is public, so nothing secret is embedded, and
+   rotation is a redeploy rather than a commit. **Synth must fail loudly when the variable is unset**, or
+   a stage silently ships a verifier that rejects everything. Measured: `@kitchensink/clerk-verify`
+   bundles to ~34kb minified / ~13kb zipped, well inside the 1MB viewer-request limit.
+
+**Identity is fronted but not cached.** Its responses are per-user, and it sits directly in the Clerk
+auth path where CloudFront's default `Host` rewriting is the failure class that made PR 73's previews
+unreachable (ADR-0001). Three reviewers noted that its three stated benefits — WAF attachment point,
+TLS termination, request shaping — are respectively deferred, already provided by the ALB, and
+unspecified, and that this repo has twice declined WAF on cost grounds (`acceptedNagFindings.ts`,
+`AwsSolutions-APIG3` and `CFR1`/`CFR2`). **The owner ruled to keep it anyway**; it is recorded here so
+the trade is visible rather than implied, and it cuts over last.
 
 ---
 
@@ -171,31 +257,33 @@ flowchart LR
     P -->|DynamoAdapter PutItem| T[(DynamoDB per stage<br/>PK=type#id<br/>SK=ts#ULID<br/>TTL 3d)]
     T -.->|Stream KEYS_ONLY<br/>enabled, unattached| F014[consumer — feature 014]
 
-    subgraph edge[CloudFront — prod only]
-        CFF[food.commise.app]
-        CFR[recipe.commise.app]
-        CFI[identity.commise.app<br/>no caching]
-    end
     C[web / mobile client] --> CFR
+    subgraph edge["CloudFront — prod only, viewer-request verifier"]
+        CFR["recipe.commise.app<br/>per-principal key"]
+        CFF["food.commise.app<br/>URL key"]
+        CFI["identity.commise.app<br/>no caching"]
+    end
     CFR -->|origin| RS[recipe-service<br/>recipe.internal.commise.app]
     RS -->|batch nutrition by ids| CFF
     CFF -->|origin| FS[food-service<br/>food.internal.commise.app]
     FS --> FDB[(food db)]
     C --> CFI
+    EW[erasure fan-out<br/>EdDSA service token] -->|/api/v1/internal/* exempt| CFR
 ```
 
 **The read path, after KTD-3.** A recipe detail or a recipe list collects the distinct `food_id`s it
-references, makes **one** batched call to food's new endpoint through the edge, and attaches the
-returned nutrition to its ingredients inline (KTD-3a). The recipe service holds `food_id` and
+references, makes **one** batched call to food's endpoint through the edge, and attaches the returned
+nutrition to its ingredients inline (KTD-3a). The recipe service holds `food_id` and
 `food_resolution_status` and nothing else food-derived. Two caches sit on this path: a short-lived
-in-process cache in recipe-service, and CloudFront in front of food.
+in-process cache in recipe-service (which also serves stale on a food error, KTD-3b), and CloudFront in
+front of food.
 
-**The substrate, after the owner ruling.** PR 91 builds the **producer half only** — the port, the
-adapter, the per-stage table, and the stream **enabled but unattached**. There is no consumer in this
-PR; consumers arrive with feature 014. This is deliberate and safe because the store is durable, not a
-transient bus: messages written today are still there when a reader appears. **One consequence worth
-stating plainly — with the 3-day reaper, anything published before 014 exists is gone before any
-consumer can read it. The substrate is not a backfill source.**
+**The substrate.** PR 91 builds the **producer half only** — the port, the adapter, the per-stage table,
+and the stream **enabled but unattached**. Consumers arrive with feature 014. The store is durable, so
+nothing is dropped on the floor between writing and reading — **but with the 3-day reaper, anything
+published before 014 exists is gone before a consumer can read it. The substrate is not a backfill
+source, and PR 91 cannot exercise its read path at all.** Because the key schema is immutable after
+table creation, U5 carries a pre-freeze verification step.
 
 ---
 
@@ -246,9 +334,11 @@ consumer-side selection, recording the single-writer-per-group invariant as the 
 mandates one shared processor — replace with per-domain processors converging at recipe creation.
 ADR-0016 records its escalation clause firing on R1.3, and states plainly that the substrate and the
 notification service's pending set are two stores. ADR-0017's 006 amendment gets honest reasoning —
-both original arguments were refuted. **ADR-0020 is new** and must record all three traps from KTD-7:
-the single-label wildcard cert constraint, the cache-key-versus-auth tension and its edge-verification
-resolution, and identity being fronted-but-uncached with its ADR-0001 host-header hazard.
+both original arguments were refuted. **ADR-0020 is new** and must record all six traps from KTD-7
+(cache-vs-authorization and the per-principal key; the tokenless-request passthrough list; the
+service-principal exemption; the additive certificate; the prefix-list restriction and its prod-only
+scope; the build-time key delivery), plus the Clerk key-rotation runbook step from the risk table, and
+the fact that identity's distribution is kept by owner ruling against three reviewers' objection.
 **Verification** No ADR asserts behaviour this PR contradicts; each amendment names what changed and why.
 **Test expectation: none — documentation.**
 
@@ -280,16 +370,33 @@ precedent: the contract is shared, adapters stay local to each runtime. One clas
 **Goal** A durable per-group message store with TTL, reachable by IAM without VPC attachment, **per
 stage including per-PR**.
 **Requirements** R1.1, R1.2, R1.3, R1.5, R1.7 · **Dependencies** U3
-**Files** `packages/infra/global/lib/platform/MessageSubstrateStack.ts` (+ `__tests__/`),
-`packages/infra/global/bin/app.ts`
-**Approach** `PK = <groupType>#<groupId>`, `SK = <ISO-8601 ms>#<ULID>` per KTD-2. **One table per stage,
-including every `pr-{N}`** (owner ruling) — full isolation, and teardown removes it with the stack, so
-it must carry `Environment=pr-{N}` per ADR-0005 and must **never** be named or tagged such that a global
-resource could match. On-demand billing, so an idle per-PR table costs essentially nothing. TTL attribute
-as a **Number** (a string TTL is silently ignored and nothing ever expires). Stream enabled `KEYS_ONLY`
-**with no consumer attached** — enabling it now means feature 014 can attach without a table change. No
-Local Secondary Index. **Add a DynamoDB gateway VPC endpoint** — free, and without it VPC-attached
-Lambdas bill NAT data processing. One SNS topic with an alarm action, per house convention.
+**Files** `packages/services/food-service/infra/lib/FoodServiceStack.ts`,
+`packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts`,
+`packages/infra/global/lib/platform/MessageSubstrateStack.ts` (+ `__tests__/`) for the base stages
+**Approach** `PK = <groupType>#<groupId>`, `SK = <ISO-8601 ms>#<ULID>` per KTD-2.
+
+**Ownership, corrected in round 2.** The round-1 text put the table in `packages/infra/global` and
+required one per `pr-{N}`. Those cannot both hold: `packages/infra/global/bin/app.ts:18` applies
+`Tags.of(app).add('Environment','global')` to the whole app, and `sandbox-deploy.yml` never deploys the
+global app with `stage=pr-{N}` — so a per-PR table would never be created, and would carry the wrong
+tag if it were. Two reviewers independently reached the same resolution: **the per-PR table is created
+inside the producer's own service stack** (already deployed per-PR and already tagged
+`Environment=pr-{N}`, so teardown removes it), and the global `MessageSubstrateStack` owns the table for
+the **base stages only** — mirroring how `foodDatabaseNameForStage` already branches on
+`stage === baseStage`.
+
+On-demand billing, so an idle per-PR table costs essentially nothing. TTL attribute as a **Number**
+(a string TTL is silently ignored and nothing ever expires). Stream enabled `KEYS_ONLY` **with no
+consumer attached** — enabling it now means feature 014 can attach without a table change. No Local
+Secondary Index. Add a DynamoDB gateway VPC endpoint for throughput and blast radius. _(Round-2
+correction: the round-1 rationale — that it avoids NAT data-processing charges — does not hold. ADR-0004
+records a t4g.nano NAT **instance**, not a managed Gateway, so there is no per-GB processing charge to
+avoid.)_ One SNS topic with an alarm action, per house convention.
+
+**Before the key schema is frozen**, run a throwaway script performing the exact `Query`-the-group read
+feature 014 will issue. A DynamoDB partition and sort key are immutable after creation, so changing them
+later means a new table plus a producer migration across two stacks — and nothing in PR 91 exercises the
+read path these choices exist to serve.
 **Test scenarios**
 
 - Synth asserts partition and sort key names and types
@@ -297,7 +404,8 @@ Lambdas bill NAT data processing. One SNS topic with an alarm action, per house 
 - Stream view type is `KEYS_ONLY`
 - Gateway endpoint present
 - Every alarm carries `addAlarmAction`
-- A `pr-{N}` stage synthesizes a table tagged `Environment=pr-{N}`, and a global stage never does
+- A `pr-{N}` stage synthesizes the table in the producer stack tagged `Environment=pr-{N}`
+- A base stage synthesizes it in `MessageSubstrateStack` and never tags it `pr-{N}`
 - The table name matches the `pr-scope.sh` delimiter rule (pr-1 must not match pr-15)
 - cdk-nag advisory attaches and the template is byte-identical
   **Verification** `cdk synth` clean; the table is reachable from a non-VPC Lambda with `PutItem` only.
@@ -313,11 +421,16 @@ Lambdas bill NAT data processing. One SNS topic with an alarm action, per house 
 **Approach** `@aws-sdk/lib-dynamodb` (DocumentClient) for the Number-typed TTL invariant, with
 `removeUndefinedValues: true`. Producer IAM is `PutItem` on **one table ARN** — no read, no query, no
 scan. `ConsolePublisher` stays as the local-dev default so the worker never requires AWS.
-**Cross-stack wiring, previously unspecified:** `MessageSubstrateStack` lives in `packages/infra/global`
-while both producers live in their own apps, so the table name and ARN cross an app boundary. Export
-them as CloudFormation outputs and `Fn.importValue` them, exactly as the services already import the
-shared ALB listener ARN (ADR-0003) — **and inherit that ADR's ordering constraint: the substrate stack
-must deploy before either producer.**
+
+**Cross-stack wiring — corrected in round 2. Use SSM, not `Fn.importValue`.** The round-1 text
+prescribed `Fn.importValue` "exactly as the services already import the shared ALB listener ARN". The
+analogy fails: `kitchensink-alb-${baseStage}` is a **persistent** export that is never deleted, whereas
+a per-PR substrate export **is** deleted on PR close. `RecipeServiceStack.ts:230-233` documents the
+rule already — "Read from SSM, NOT a cross-stack export: an `Fn.importValue` would lock the workers
+export while this stack imports it, and the ADR-0005 PR-close cleanup deletes a PR's stacks in no fixed
+order … the export-in-use deadlock ADR-0002 documents, unattended, in CI." Publish the table name and
+ARN to `/kitchensink/{stage}/messaging/table-{name,arn}` and read them with
+`ssm.StringParameter.valueForStringParameter`, matching the account-erasure-queue precedent.
 **Execution note** A currently-green test certifies that a bus failure is swallowed. Invert it first.
 **Test scenarios**
 
@@ -325,8 +438,11 @@ must deploy before either producer.**
 - The TTL attribute is written as a Number
 - Two messages in the same millisecond both persist (the ULID suffix works)
 - IAM grants `PutItem` and nothing else
-- Both producers resolve the table by import, not by a hardcoded name
-- Synth fails loudly when the substrate export is absent, rather than producing a dangling reference
+- Both producers resolve the table from SSM, not a hardcoded name and not a CFN import
+- Synth asserts the producer template reads the SSM parameter path for its stage
+  _(The round-1 scenario "synth fails loudly when the export is absent" was unwritable —
+  `Fn.importValue` synthesizes an unresolved intrinsic and only fails at deploy time. Under SSM the
+  parameter path is assertable at synth, which is what this scenario now checks.)_
   **Verification** Messages appear in the table from a real producer path on the local stack.
 
 ### U7. Enable the stream and hand the doorbell contract to 014
@@ -334,9 +450,9 @@ must deploy before either producer.**
 **Goal** Leave the substrate consumable without building a consumer that has nothing to notify.
 **Requirements** R1.2, R1.6, R1.8 · **Dependencies** U5
 **Files** `specs/014-notification-service/**`, `docs/architecture/decisions/0016-*.md`
-**Approach** **Scope change from the first draft.** Owner ruling: consumers arrive with feature 014, so
-PR 91 builds no consumer Lambda. The stream is enabled in U5; this unit records the contract 014 must
-implement, so the design work already done is not lost:
+**Approach** Owner ruling: consumers arrive with feature 014, so PR 91 builds no consumer Lambda. The
+stream is enabled in U5; this unit records the contract 014 must implement, so the design work already
+done is not lost:
 
 - Doorbell pattern per KTD-2 — on trigger, re-`Query` the group rather than reading record contents.
 - **Every read needs a TTL filter expression**: expired-but-unreaped items still return from `Query`.
@@ -353,79 +469,110 @@ implement, so the design work already done is not lost:
 **Verification** 014's spec carries every item above, and no code in PR 91 attaches to the stream.
 **Test expectation: none — documentation. The listed behaviours become 014's test scenarios.**
 
-### U8. Food's batch nutrition endpoint — including the projection
+### U8. Food's batch nutrition endpoint — projection and portions
 
-**Goal** One call returns **normalized** nutrition for many food ids, fast and cacheable.
+**Goal** One `GET` returns **normalized** nutrition and portions for many food ids, cacheable at the edge.
 **Requirements** R2.2, KTD-3 · **Dependencies** none
 **Files** `packages/services/food-service/src/foods/foods.controller.ts`,
-`packages/services/food-service/src/foods/**/*.schema.ts`, `packages/schemas/food/**`,
-`packages/clients/food-service/src/client.ts`,
-moved from `packages/services/recipe-service/src/ingredients/ingredients.service.ts:131`
-**Approach** The endpoint returns **per-100g macros and portions**, not raw EAV rows — the projection
-moves here (KTD-3). Use food's **existing canonical map** at `usda.adapter.ts:114`
-(`calories: { name: 'Energy', unit: 'kcal' }`) rather than porting recipe's substring guess; this closes
-the kcal/kJ non-determinism finding in passing. `portions` must be in the response or `unitToGrams`
-breaks downstream (see U10).
+`packages/services/food-service/src/foods/**/*.schema.ts`,
+`packages/services/food-service/src/sources/usda/usda.adapter.ts` (extract the map),
+`packages/schemas/food/**`, `packages/clients/food-service/src/client.ts`,
+projection moved from `packages/services/recipe-service/src/ingredients/ingredients.service.ts:131`,
+portion parser moved from `packages/shared/recipe-core/src/units.ts`
+(`parsePortion`/`extractPortions`)
+**Approach** The endpoint returns **per-100g macros and normalized portions**, not raw EAV rows — the
+projection and the portion parser both move here (KTD-3).
+
+**Method: `GET /api/v1/foods/nutrition?ids=<comma-separated>`**, with the id list **sorted,
+deduplicated and length-capped** so the URL is a stable cache key. This deliberately departs from the
+existing `POST /api/v1/foods/batch` precedent (`foods.controller.ts:114`) because **CloudFront does not
+cache POST responses at all** — following local precedent here would silently void U16's entire
+rationale for food's distribution.
+
+**Selection is `basis === 'per_100g'` AND canonical name AND unit.** Extract `LABEL_NUTRIENT_MAP` from
+`usda.adapter.ts` into a shared module used by both the adapter and this endpoint — it is currently
+module-private and keyed by FDC label-panel keys, while the `foodNutrients` path canonicalizes names
+through `canonicalizeNutrientName`, so both key spaces must resolve. A nutrient available only on a
+`per_serving` basis reports **absent**, never coerced.
+
 Authored zod beside the controller, generated into the schema package, `CONTRACT_HASH` regenerated.
-Bounded input length — an unbounded id array is the shape that produced an existing finding.
-**Cache headers must be set deliberately**, since U16 puts CloudFront in front of this route and the
-cache key will be the URL alone. Include resolution status per id so a caller can distinguish "not yet
-resolved" from "no data".
+Cache headers set deliberately, and the response must not vary by caller — U16 keys food's cache on the
+URL alone, so this is an invariant food must preserve, not a one-time test.
 **Test scenarios**
 
 - Many ids in one call return in one response
-- Energy is selected by name+unit, not substring — a food with a `kJ` energy row does not yield a
-  4.184×-wrong calorie figure
+- Energy is selected by basis+name+unit — a food with a `kJ` energy row does not yield a 4.184×-wrong
+  calorie figure
+- **A branded food whose energy row is `per_serving` reports absent, not a per-100g value**
 - A food with no energy row reports absent, not zero
-- Portions are returned with gram weights for every id that has them
+- Normalized portions with gram weights are returned for every id that has them
+- A food whose portion label the parser cannot interpret reports that portion absent, not a wrong weight
 - An unresolved id returns a status rather than being omitted silently
 - An unknown id is reported, not an error for the whole batch
 - Input over the cap is rejected with a structured error
+- Two callers requesting the same id set produce byte-identical URLs
 - Response parses against the generated schema; `CONTRACT_HASH` matches on both sides
-- The response carries cache headers, and they do not vary by caller
+- The response is byte-identical for two different authenticated callers
   **Verification** The recipe service can render a 20-recipe list with one call to this endpoint, and
   the numbers match the pre-change values for a fixture recipe.
 
-### U9. Placeholder lifecycle — mark on failure, retry to a capped budget
+### U9. Placeholder lifecycle — mark on failure, retry with backoff to a capped budget
 
-**Goal** A placeholder always reaches a terminal state, its status is readable, and a failed sync is
-retried a bounded number of times.
+**Goal** A placeholder always reaches a terminal state, its status is readable **on the wire**, and a
+failed sync is retried with exponential backoff up to five attempts before failing terminally.
 **Requirements** R2.1, R2.3, R2.4 · **Dependencies** U8
 **Files** `packages/services/food-service/src/foods/foods.service.ts`,
-`packages/services/food-service/src/foods/dao/**`, food's existing sweep/reaper worker
-**Approach** **The first draft was wrong and is withdrawn.** It claimed a "two-line reorder — admit
-before create" fixes this. It cannot: `admission.admit()` is conditioned on `createByName`'s dedupe
-result (`if (result.created || result.reactivated)`), so admitting first would shed cheap catalog hits
-as 503s — inverting the "never shed non-new work" rule — and `batchAdd` admits once after N creates,
-so there is no single reorder that covers both paths.
+`packages/services/food-service/src/foods/dao/**`, a new migration under food's schema directory,
+`packages/services/food-service/src/foods/foods.schema.ts` (`foodStatusEnum`),
+`packages/schemas/food/**` (+ `CONTRACT_HASH` regeneration), food's existing sweep/reaper worker
+**Approach** **The round-1 draft was withdrawn.** It claimed a "two-line reorder — admit before create"
+fixes this. It cannot: `admission.admit()` is conditioned on `createByName`'s dedupe result
+(`if (result.created || result.reactivated)`), so admitting first would shed cheap catalog hits as
+503s — inverting the "never shed non-new work" rule — and `batchAdd` admits once after N creates.
 
-The owner-specified design instead: food checks whether the item exists; if not it creates a placeholder
-to be filled when USDA data arrives; **if the sync fails the record is marked accordingly**; and a
-retry function re-enqueues it to the food processor queue, **tracking attempts so it is never tried more
-than three times**. Concretely — when admission sheds, the placeholder is marked as awaiting retry
-rather than left silently stranded; the sweep re-enqueues records awaiting retry whose attempt count is
-under three; at three the record goes to a terminal failed state with a readable reason. Respect DSN-9:
-a `NOT_FOUND` tombstone is a normal outcome and must not alarm.
-**Verify before building** that food's existing reaper is actually scheduled — U1's sibling question
-(Q-C) found one sweep whose schedule is unverified. If it is not scheduled, scheduling it is part of
-this unit, not an assumption.
+The owner-specified design: food checks whether the item exists; if not it creates a placeholder to be
+filled when USDA data arrives; **if the sync fails the record is marked accordingly**; and a retry
+function re-enqueues it with **exponential backoff**, tracking attempts so it is never tried more than
+**five** times. ⚠️ **Five supersedes the earlier ruling of three** (owner, 2026-08-15).
+
+**Where the state lives (owner ruling): visible on the wire.** The awaiting-retry state is added to
+`foodStatusEnum`, so a client can distinguish "retrying" from "failed" — which is the point, given the
+substrate exists to carry exactly these status messages. That means a migration, a schema-package
+change, a `CONTRACT_HASH` regeneration, and updates to the pinned enum test and its
+`pendingFoodStatusSchema`/`terminalFoodStatusSchema` partition. _(Round-2 correction: the round-1 unit
+listed no schema or migration file at all, and neither candidate home accepts a new value —
+`fetch_queue`'s check constraint is `IN ('pending','in_flight','tombstone')` and `foodStatusEnum` is a
+pinned five-value set.)_
+
+**The attempt counter is `fetch_queue.attempts`** — the existing column, not a second one. A duplicate
+counter can disagree with the lease loop's.
+
+**Recovery (owner ruling).** Exhausting five attempts raises **an alarm distinct from the `NOT_FOUND`
+tombstone DSN-9 silences**, and an **operator-invokable requeue** clears the count and the terminal
+mark. Without both, a transient USDA outage or a bad API key would blackhole that food permanently for
+every user, invisibly.
+
+**Verify before building** that food's existing reaper is actually scheduled — Q-C found one sweep whose
+schedule is unverified. If it is not scheduled, scheduling it is part of this unit, not an assumption.
 **Test scenarios**
 
 - A shed request leaves a placeholder marked awaiting retry, never a silently stranded row
 - A shed request does **not** consume admission capacity that a dedupe hit would have needed
 - `batchAdd` under partial shed marks exactly the shed rows
-- The retry path re-enqueues a marked record and increments its attempt count
-- A record at three attempts is not re-enqueued and reads as terminally failed with a reason
+- The retry path re-enqueues a marked record and increments `fetch_queue.attempts`
+- Successive retries back off exponentially rather than re-firing immediately
+- A record at five attempts is not re-enqueued and reads as terminally failed with a reason
 - The attempt counter is not reset by a re-request of the same food
-- `NOT_FOUND` raises no alarm
-- Status is readable for every placeholder state
-  **Verification** No placeholder can remain non-terminal with no queue row, and no record is retried
-  more than three times.
+- Exhaustion raises an alarm; a `NOT_FOUND` tombstone does not
+- An operator requeue clears both the count and the terminal mark, and the food resolves
+- The awaiting-retry status round-trips through the schema package and `CONTRACT_HASH` matches
+  **Verification** No placeholder can remain non-terminal with no queue row; no record is retried more
+  than five times; and a blackholed food has a path back that is not a database edit.
 
 ### U10. Remove duplicated nutrition from the recipe service
 
 **Goal** The food service is the sole owner of nutrition data.
-**Requirements** KTD-3, KTD-3a · **Dependencies** U8
+**Requirements** KTD-3, KTD-3a, KTD-3b · **Dependencies** U8
 **Files** `packages/services/recipe-service/src/database/schema/ingredients.ts`,
 `packages/services/recipe-service/src/database/schema/recipes.ts`, a new migration,
 `packages/services/recipe-service/src/ingredients/dal/ingredients.dal.ts`,
@@ -435,12 +582,13 @@ this unit, not an assumption.
 `packages/shared/recipe-core/src/nutrition.ts`, `packages/shared/recipe-core/src/units.ts`
 **Approach** Drop the four per-100g columns **and `portions`** from `ingredients`, and drop **both**
 `recipes.lead_calories_per_serving` **and `recipes.has_partial_nutrition`**. Delete
-`ingredients.service.ts:131`'s substring projection — U8 owns it now. Detail, list and search all
-compute from U8's endpoint. Ingredients carry nutrition **inline under today's field names and also
-expose `food_id`** (KTD-3a), so no app change is required.
+`ingredients.service.ts:131`'s substring projection and move `parsePortion`/`extractPortions` out —
+U8 owns both now. Detail, list and search all compute from U8's endpoint. Ingredients carry nutrition
+**inline under today's field names and also expose `food_id`** (KTD-3a), so no app change is required.
 
-**Recipe-side cache** (owner ruling — caches at both layers): a short-lived in-process cache of resolved
-food ids. Prefer `lru-cache` over `keyv` — keyv is a multi-backend adapter layer and this is a
+**Recipe-side cache** (KTD-3b): a short-lived in-process cache of resolved food ids that **serves stale
+on a food error, marked stale in the response**, and falls back to nutrition-absent when it holds
+nothing. Prefer `lru-cache` over `keyv` — keyv is a multi-backend adapter layer and this is a
 single-process TTL cache; check the advisory state of whichever is chosen before adopting it.
 
 `recipeIngredients.userCalories` and siblings **stay** — user overrides, pinned. Rewrite
@@ -461,12 +609,14 @@ users see.
 
 - Detail nutrition matches the pre-change values for a fixture recipe
 - A list of 20 recipes issues exactly one call to food
-- A volumetric line (cup, tbsp, clove) still resolves to grams using U8's portions
+- A volumetric line (cup, tbsp, clove) still resolves to grams using U8's normalized portions
 - A recipe that previously read "partial estimate" still does, derived rather than stored
-- Nutrition read inline and nutrition fetched by `food_id` agree for the same ingredient (KTD-3a drift guard)
+- **Catalog** nutrition read inline and the same food fetched by `food_id` agree (KTD-3a drift guard —
+  the guard compares catalog values on both paths, **not** user overrides, which are expected to differ)
 - A user override is preserved and is not overwritten by catalog data
 - A recipe whose food is unresolved renders a defined state, not an error
-- Food unreachable → the recipe renders without nutrition rather than failing
+- Food unreachable with a warm cache → the last known value renders, marked stale
+- Food unreachable with a cold cache → the recipe renders with nutrition absent, not an error
 - The in-process cache returns a hit within its TTL and re-fetches after it
 - The migration states its effect on existing rows and does not claim reversibility
 - The GDPR export no longer carries a stale stored total or a stale partial-nutrition flag
@@ -496,23 +646,25 @@ committed source.
 **Goal** Every finding ends `fixed`, `rejected` with a reason, or `deferred` with a trigger.
 **Requirements** R3.3, R3.4 · **Dependencies** U1–U11
 **Files** `docs/reviews/2026-08-14-pr91-findings/00-INDEX.md`, plus the files each fix touches
-**Approach** Work the index. Fix in severity order. **Known non-fixes**: the contract-hash corpus rule
-is working as designed and gets a diagnostic note, not a change; the erasure alarm is a stale prod
-deploy; two `DROP INDEX` recommendations must not ship without `EXPLAIN (ANALYZE, BUFFERS)` evidence;
-several findings assume snapshot nutrition and are superseded by KTD-3; the kcal/kJ finding is closed
-by U8 rather than separately.
+**Approach** Work the index. Fix in severity order. Owner ruling: this stays **one unit**, not severity
+-banded sub-passes — the index itself carries the severities and an implementer can self-organize.
+**Known non-fixes**: the contract-hash corpus rule is working as designed and gets a diagnostic note,
+not a change; the erasure alarm is a stale prod deploy; two `DROP INDEX` recommendations must not ship
+without `EXPLAIN (ANALYZE, BUFFERS)` evidence; several findings assume snapshot nutrition and are
+superseded by KTD-3; the kcal/kJ finding is closed by U8 rather than separately.
 
 **`CREATE INDEX CONCURRENTLY` — corrected.** All three migration runners wrap each file in
-`BEGIN/COMMIT`, so `CONCURRENTLY` cannot run. The first draft told the implementer to "follow food's
+`BEGIN/COMMIT`, so `CONCURRENTLY` cannot run. The round-1 text told the implementer to "follow food's
 `CREATE DATABASE` carve-out shape" — **that shape does not exist**; the `CREATE DATABASE` call lives in
 `ensureDatabase`, outside `runMigrations` entirely. With no production traffic, use **plain
 `CREATE INDEX`**: the lock is milliseconds. A runner carve-out is the right answer once traffic exists;
-it is deliberately **not** built now (YAGNI — the need is presumed, not present) and is recorded under
-deferred work.
+it is deliberately **not** built now and is recorded under deferred work.
 
 **Priority fixes** `addByName` writing a caller's raw string as a shared global name; the
 unauthenticated memory-exhaustion vector; zero `reservedConcurrency`; free-tier users unable to make a
-recipe private with `visibility` defaulting to public.
+recipe private with `visibility` defaulting to public. ⚠️ Fixing that default does **not** change rows
+already written public against their author's intent — decide and record whether those get a
+remediation pass (Q-E).
 **Test scenarios** Each fix carries the tiers §7.1 requires for its category; each rejection names a
 reason a reviewer can check without reading code.
 **Verification** No row in the index reads `open`.
@@ -545,24 +697,31 @@ the supersession machinery the substrate no longer needs; it also states that th
 backfill source, since the 3-day reaper outruns 014's own delivery.
 **Verification** Every 2026-08-14/15 decision appears in the spec that owns it; tasks regenerate cleanly.
 
-### U15. The certificate and the internal ALB hostnames
+### U15. The additive certificate and the internal ALB hostnames
 
 **Goal** Every production service answers on `{service}.internal.commise.app` over TLS, **before** any
 DNS moves to CloudFront.
 **Requirements** R6, KTD-7 · **Dependencies** none
-**Files** `packages/infra/global/lib/platform/SharedAlbStack.ts`, the DomainStack certificate,
+**Files** `packages/infra/global/lib/platform/DomainStack.ts`,
+`packages/infra/global/lib/platform/SharedAlbStack.ts`,
 `packages/services/food-service/infra/lib/FoodServiceStack.ts:652`,
 `packages/services/recipe-service/infra/lib/RecipeServiceStack.ts:441`,
 `packages/services/identity/infra/lib/IdentityServiceStack.ts:376`
-**Approach** Add `*.internal.commise.app` to the shared ALB certificate — **this is the gate for
-everything else in R6**, because the existing cert covers single-label wildcards only and a 3-label
-internal name fails the TLS handshake (the trap documented at `FoodServiceStack.ts:99-103`). One
-wildcard covers all services and all stages. Then add the internal hostname as an **additional** host
+**Approach** ⚠️ **Do not mutate `KitchenSinkCertificate`.** `DomainStack.ts:21-25` builds one
+`acm.Certificate` whose ARN `SharedAlbStack.ts:47` consumes and which is exported as
+`${stackName}:CertificateArn`; changing its SANs replaces the resource, mints a new ARN, and deadlocks
+on the export-in-use failure ADR-0002 already documents. Add a **second, additive** `acm.Certificate`
+for `*.internal.commise.app` with a new logical id and export, and attach it to the shared HTTPS
+listener via `addCertificates`. Purely additive: no resource replacement, no in-use export change.
+
+This is the gate for everything else in R6. Then add the internal hostname as an **additional** host
 condition on each service's existing listener rule, and publish the matching Route 53 records — so both
 the current public name and the new internal name resolve, and nothing has cut over yet.
 **Test scenarios**
 
-- Synth asserts the cert carries `*.internal.commise.app`
+- Synth asserts a second certificate exists covering `*.internal.commise.app`
+- Synth asserts the original certificate's SAN list is unchanged
+- The HTTPS listener carries both certificates
 - Each listener rule matches both its current public host and its new internal host
 - Rule priorities are unchanged and still unique (ADR-0003's allocator)
 - A DNS record exists for each internal name
@@ -571,64 +730,103 @@ the current public name and the new internal name resolve, and nothing has cut o
 
 ### U16. The edge verifier and the distributions
 
-**Goal** Three CloudFront distributions in production, with Clerk verification at the edge.
+**Goal** Three CloudFront distributions in production, with Clerk verification at the edge that
+authorizes correctly and lets through what must not be blocked.
 **Requirements** R6, KTD-7 · **Dependencies** U15, U8
 **Files** new `packages/infra/global/lib/platform/EdgeStack.ts` (+ `__tests__/`), new Lambda@Edge
-handler package, `packages/infra/global/bin/app.ts`
+handler package, `packages/infra/global/bin/app.ts`, CI workflow (build-time key export)
 **Approach** A viewer-request Lambda@Edge validates the Clerk session JWT using the existing networkless
-verifier in `@kitchensink/clerk-verify`; the cache key is then the URL alone. `CLERK_JWT_KEY` is public,
-so it is baked into the bundle — required, because **Lambda@Edge cannot read environment variables** —
-and the bundle is therefore per-stage. Lambda@Edge must be deployed in `us-east-1`, which this account
-already is. It runs on **every** request including cache hits; at current volume that is cents.
+verifier in `@kitchensink/clerk-verify`.
 
-Three distributions: food and recipe cache, **identity does not** — its responses are per-user, it would
-cache nothing, and it sits in the Clerk auth path where CloudFront's default `Host` rewriting is the
-ADR-0001 failure class. Identity's distribution therefore forwards the viewer `Host` and disables
-caching outright; its origin request policy must be verified against `azp` and CORS behaviour before
-cutover. **Prod only** — no sandbox, no per-PR (owner ruling).
+**Passthrough list — evaluated BEFORE verification** (KTD-7 traps 2 and 3): any `OPTIONS` request
+(CORS preflights carry no credentials by spec), the `/health*` prefix (unauthenticated by design and
+curled by `prod-deploy.yml` expecting `200`), and the `/api/v1/internal/*` prefix (service-principal
+traffic carrying an EdDSA token, verified at the origin).
+
+**Cache keys, per route class** (KTD-7 trap 1): food's nutrition route keys on **URL alone** — its
+response is caller-independent and U8 tests that invariant. Recipe's **owner-scoped** routes key on
+**URL plus the owner extracted from the verified JWT** and injected as a header by the verifier;
+recipe's **public** routes key on URL alone with no owner component. Identity **caches nothing** and
+forwards the viewer `Host`.
+
+**Identity's origin request policy must explicitly forward `Authorization` and `Origin`** in addition
+to `Host` — `AuthMiddleware` verifies the Bearer token itself and `azp`/CORS enforcement reads `Origin`.
+`CachingDisabled` controls caching, not header forwarding, so an unconfigured policy silently strips
+them and breaks sign-in in exactly the ADR-0001 failure class.
+
+`CLERK_JWT_KEY` arrives as a **build-time environment variable exported by CI** before synth (KTD-7
+trap 6); synth fails loudly if it is unset. Lambda@Edge deploys in `us-east-1`, which this account
+already is; pin the Node runtime explicitly, since `@kitchensink/clerk-verify` declares
+`engines: node 24.x` and Lambda@Edge offers no `nodejs24.x`. **Prod only** — no sandbox, no per-PR.
 **Test scenarios**
 
 - A request with a valid Clerk token passes the edge verifier
-- A request with an expired, malformed, or wrong-issuer token is rejected at the edge, never reaching
-  the origin
-- A request with no token is rejected at the edge
-- Two different valid tokens for the same URL hit the same cache entry
+- A request with an expired, malformed, or wrong-issuer token is rejected at the edge
+- An `OPTIONS` preflight with no `Authorization` reaches the origin and returns 2xx with
+  `access-control-allow-origin`
+- `GET /health` with no token returns 200 through each distribution
+- A request to `/api/v1/internal/*` carrying an EdDSA service token reaches the origin unrejected
+- **Two different valid tokens requesting the same owner-scoped recipe URL do NOT share a cache entry**
+- Two different valid tokens requesting the same food nutrition URL DO share a cache entry
 - A rejected request does not populate the cache
-- Identity's distribution forwards the viewer `Host` and has caching disabled
+- Identity's distribution forwards viewer `Host`, `Authorization` and `Origin`, and caches nothing
 - Synth asserts each distribution's origin is the `{service}.internal.commise.app` name, not the raw ALB
+- Synth fails when the build-time key variable is absent
 - cdk-nag advisory attaches
   **Verification** With the distributions live but DNS not yet cut over, requesting the distribution
-  domain directly authenticates, caches, and returns the same body as the ALB.
+  domain directly authenticates, caches per the route class, and returns the same body as the ALB.
 
-### U17. DNS cutover and stale-record cleanup
+### U17. DNS cutover, origin lockdown, and stale-record cleanup
 
-**Goal** `{service}.commise.app` resolves to CloudFront; the ALB is reachable only at its internal name.
+**Goal** `{service}.commise.app` resolves to CloudFront, and prod's ALB is reachable only from it.
 **Requirements** R6 · **Dependencies** U16
-**Files** Route 53 records (operational), the three service stacks' A-record aliases
+**Files** the three service stacks' A-record aliases,
+`packages/infra/global/lib/platform/EdgeStack.ts`, `NetworkStack`'s ALB security group,
+SSM `erasure/recipe-base-url` and `erasure/food-base-url`, `RECIPE_FOOD_SERVICE_URL`
 **Approach** Cut over one service at a time, food first (most cacheable, least coupled), then recipe,
 then identity last — identity carries the auth path and the ADR-0001 hazard, so it moves only after the
 other two are proven. Downtime during cutover is acceptable (owner ruling), so no weighted or staged
-DNS is needed; each cutover is verified before the next begins. After cutover, remove the public host
-condition from each ALB listener rule so the ALB answers only on its internal name.
+DNS is needed; each cutover is verified before the next begins.
 
-**Cleanup, surfaced while verifying live DNS:** `food-pr-92.commise.app` and `recipe-pr-92.commise.app`
-records exist — if PR 92 is closed, teardown leaked them and `teardown-sandbox-pr.sh` needs examining,
-not just the records deleting. A stale ACM validation CNAME for a `identity.dev.commise.app` that no
-longer exists should also go.
+**Per-service sequence — the record has an owner, and a collision fails the deploy.** Each service
+stack today creates its own alias to the shared ALB (`FoodServiceStack.ts:668`,
+`RecipeServiceStack.ts:457`, `IdentityServiceStack.ts:392`). For each service: **(1)** remove the
+`{Service}ServiceAliasRecord` construct and deploy that stack, **(2)** deploy `EdgeStack` with the
+CloudFront alias for `{service}.commise.app`, **(3)** verify, **(4)** drop the public host condition
+from the ALB listener rule. Ownership of the public record moves permanently from the service app to
+`EdgeStack`.
+
+**Origin lockdown.** Since all traffic now routes through CloudFront, restrict **prod's** ALB security
+group :443 ingress to the `com.amazonaws.global.cloudfront.origin-facing` managed prefix list.
+⚠️ **Prod only** — the ALB is per stage, and sandbox plus every per-PR preview have no distribution and
+must keep reaching their own ALB directly.
+
+**Service-principal URLs.** Everything goes through CloudFront, so the erasure SSM base URLs and the
+recipe task's `RECIPE_FOOD_SERVICE_URL` keep naming the **public** hostnames — but the edge exemption in
+U16 is what makes that work, so the erasure fan-out must be exercised after each cutover, not assumed.
+
+**Cleanup, surfaced while verifying live DNS:** `food-pr-92.commise.app` and
+`recipe-pr-92.commise.app` records exist — if PR 92 is closed, teardown leaked them and
+`teardown-sandbox-pr.sh` needs examining, not just the records deleting. A stale ACM validation CNAME
+for a `identity.dev.commise.app` that no longer exists should also go.
 **Test scenarios**
 
 - After cutover, each public name resolves to a CloudFront domain
 - The prod smoke suite passes against the public name for all three services
+- **An account-erasure fan-out completes end-to-end after each cutover**
 - Sign-in succeeds end-to-end on web and mobile after identity's cutover
-- The ALB no longer answers on any public `{service}.commise.app` host
+- A request to prod's ALB from outside CloudFront's prefix list is refused
+- A sandbox and a `pr-{N}` host still answer directly, unaffected by the prod lockdown
   **Verification** All three services serve production traffic through CloudFront; the existing prod
-  smoke checks pass unchanged against the public hostnames.
+  smoke checks pass against the public hostnames; a real erasure completes.
 
 ---
 
 ## Scope boundaries
 
-**In scope** — everything above, in PR 91, on the existing branch.
+**In scope** — everything above, in PR 91, on the existing branch. Owner ruling: **no declared landing
+order**; the dependency fields carry the hard constraints and sequencing is left to execution.
+Consequence accepted: the 004, 005, 006 and 011 worktrees stay un-rebasable until U13/U14 land.
 
 **Explicitly not in scope**
 
@@ -643,46 +841,55 @@ longer exists should also go.
 
 ### Deferred to follow-up work
 
-- A `CREATE INDEX CONCURRENTLY` carve-out in the three migration runners. Needed once production traffic
-  exists; deliberately not built now.
+- **WAF rules on the new distributions.** The edge is the attachment point; the rules are their own
+  work. ⚠️ Recorded honestly: this repo has twice declined WAF on cost grounds
+  (`acceptedNagFindings.ts`, `AwsSolutions-APIG3` and `CFR1`/`CFR2`), so the attachment point is
+  presently unrealized value.
+- A `CREATE INDEX CONCURRENTLY` carve-out in the three migration runners. Needed once production
+  traffic exists; deliberately not built now.
 - The six generated schema barrels still use `export *` — generator work plus its tests plus three
   contract suites.
 - Widening the nightly-shutdown selector to `pr-{N}` clusters (~37% preview compute saving). ADR-0010
   scopes it to its own PR, and it needs a matching IAM widening or it fails silently.
 - `AccountSuspendedError` / `ImpersonationBlockedError` have no thrower and no catcher — possibly dead
   public API; deleting exported surface of a shared package is an owner call.
-- WAF attachment to the new distributions. The edge is the attachment point; the rules are their own work.
 
 ---
 
 ## Risks and dependencies
 
-| Risk                                                                                                                                                                                                                                     | Mitigation                                                                                                                                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **This PR carries two independent, hard-to-reverse production changes** — the column drop (U10) and the DNS cutover of all three services (U17) — both run manually.                                                                     | Downtime is acceptable (owner ruling), which removes the coupling pressure. Sequence them apart: U15 and U16 land and are verified with DNS untouched; U17 cuts one service at a time, identity last. |
-| **The ALB certificate does not cover `*.internal.commise.app`.** Until it does, no ALB can answer on the new name and every later unit is blocked.                                                                                       | U15 is the gate and has no dependencies — do it first. Its verification is a live `curl` against a real cert, not a synth assertion.                                                                  |
-| **Lambda@Edge cannot read environment variables and must live in `us-east-1`.**                                                                                                                                                          | `CLERK_JWT_KEY` is a public key, so baking it per-stage into the bundle is safe. The account is already `us-east-1`.                                                                                  |
-| **A CloudFront misconfiguration on identity breaks sign-in for both apps** — the ADR-0001 host-header failure class.                                                                                                                     | Identity is fronted but **not cached**, forwards the viewer `Host`, and cuts over last, after food and recipe are proven. Its `azp` and CORS behaviour is verified before the record moves.           |
-| **The column drop is irreversible by image rollback** — no runner has a down path and prod deploys code before migrating.                                                                                                                | Accepted, stated explicitly rather than claimed reversible. Characterization tests first; recovery is forward-only. No production traffic to lose.                                                    |
-| **Background recipe→food calls have no service credential.** The erasure token cannot simply gain an audience — its claims model "erasure of one owner", its `sub` must be an owner ULID, and its key lives only in the webhook Lambdas. | A new capability token, designed as such. Not a one-line change. Blocks nothing in U1–U12 as scoped, since U8's endpoint is called on a user request.                                                 |
-| **`expo/fetch` has an open SDK 57 Android bug.**                                                                                                                                                                                         | KTD-5's spike verifies against SDK 57 with real payload boundaries before any streaming work. Fallback is two requests.                                                                               |
-| **LocalStack Community was discontinued 2026-03-23**, replaced by a token-gated free tier. The repo's harness assumes "Community, no token".                                                                                             | Pre-existing CI risk, independent of this work. Verify before relying on the local tier; DynamoDB Local is free and tokenless but cannot reproduce partitioning.                                      |
-| **Per-PR substrate tables add a resource to the teardown path.**                                                                                                                                                                         | Tagged `Environment=pr-{N}` per ADR-0005 so the existing tag-or-name sweep catches it. U5 tests the delimiter rule (pr-1 must not match pr-15). No new matcher is introduced.                         |
+| Risk                                                                                                                                                                                                        | Mitigation                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Prod becomes the only stage exercising the edge path.** Every edge-specific failure — Host rewriting, CORS, `azp`, a cached 401, cold start — is discoverable only in production, on a 5–15 minute loop.  | Direct consequence of the prod-only ruling, recorded so it is chosen rather than stumbled into. U16 verifies against the distribution domain **before** DNS moves, which is the only pre-cutover rehearsal available. |
+| **A Clerk signing-key rotation becomes an outage of both cached services.** The edge key is compiled into a versioned bundle, unlike the origin which reads it from an env var and picks it up on redeploy. | ADR-0020 carries a rotation runbook: on rotation, rebuild and redeploy the edge bundle, then wait out propagation. Name who notices — Clerk's rotation notice or a periodic verification job.                         |
+| **This PR carries two independent, hard-to-reverse production changes** — the column drop (U10) and the DNS cutover of three services (U17) — both run manually.                                            | Downtime is acceptable (owner ruling), which removes the coupling pressure. U15 and U16 land and are verified with DNS untouched; U17 cuts one service at a time, identity last.                                      |
+| **The additive certificate is the gate.** Until `*.internal.commise.app` resolves and validates, no ALB answers on the new name and every later R6 unit is blocked.                                         | U15 has no dependencies — do it first. Its verification is a live `curl` against a real cert, not a synth assertion. The additive shape sidesteps ADR-0002's export-in-use deadlock.                                  |
+| **The GDPR erasure path now depends on CloudFront.** Routing everything through the edge puts the fan-out behind a component that did not previously exist in its path.                                     | U16's `/api/v1/internal/*` exemption, plus a U17 test scenario asserting a real erasure completes **after each cutover** rather than assuming it.                                                                     |
+| **Recipe rendering gains a hard runtime dependency on food** where today nutrition comes from recipe's own database.                                                                                        | KTD-3b: serve stale from the in-process cache on error, then absent. Accepted limitation: a cold task during an outage has nothing to serve.                                                                          |
+| **The column drop is irreversible by image rollback** — no runner has a down path and prod deploys code before migrating.                                                                                   | Accepted, stated explicitly rather than claimed reversible. Characterization tests first; recovery is forward-only. No production traffic to lose.                                                                    |
+| **The substrate key schema is immutable after table creation**, and PR 91 has no consumer to validate the access pattern against.                                                                           | U5's pre-freeze step runs the exact `Query`-the-group read 014 will issue, before the table is created for real.                                                                                                      |
+| **Background recipe→food calls have no service credential.** The erasure token cannot simply gain an audience — its claims model "erasure of one owner" and its key lives only in the webhook Lambdas.      | A new capability token, designed as such. Not a one-line change. Blocks nothing in U1–U12 as scoped, since U8's endpoint is called on a user request.                                                                 |
+| **`expo/fetch` has an open SDK 57 Android bug.**                                                                                                                                                            | KTD-5's spike verifies against SDK 57 with real payload boundaries before any streaming work. Fallback is two requests.                                                                                               |
+| **LocalStack Community was discontinued 2026-03-23**, replaced by a token-gated free tier. The repo's harness assumes "Community, no token".                                                                | Pre-existing CI risk, independent of this work. Verify before relying on the local tier; DynamoDB Local is free and tokenless but cannot reproduce partitioning.                                                      |
+| **Per-PR substrate tables add a resource to the teardown path.**                                                                                                                                            | Created inside the producer's own stack, which is already tagged `Environment=pr-{N}` and already torn down by the existing sweep. U5 tests the delimiter rule (pr-1 must not match pr-15).                           |
 
 ---
 
 ## Open questions
 
-- **Q-A** ~~Does the client-subscribes-by-food-id model hold when a recipe references many foods?~~
-  **Resolved** — KTD-2's group key is `type` + `id`, owner ruling 2026-08-15.
+- **Q-A** ~~Group key when a recipe references many foods?~~ **Resolved** — KTD-2, `type` + `id`.
 - **Q-B** Does the DynamoDB gateway endpoint cover the separate `streams.dynamodb` endpoint? Flagged
-  unresolved by research. Now lower-stakes, since PR 91 attaches no consumer — but it must be resolved
+  unresolved by research. Lower-stakes now that PR 91 attaches no consumer, but it must be resolved
   before 014 builds one.
-- **Q-C** Is the 12-month tombstone→erasure sweep scheduled? Plan 002 accepted it as a time-boxed risk
-  with a hard due-by, and `tombstoneSweep` exists but its schedule is unverified. **U9 depends on the
-  answer for food's own reaper** — if food's sweep is likewise unscheduled, scheduling it is in U9's scope.
+- **Q-C** Is the 12-month tombstone→erasure sweep scheduled? `tombstoneSweep` exists but its schedule is
+  unverified. **U9 depends on the answer for food's own reaper** — if food's sweep is likewise
+  unscheduled, scheduling it is in U9's scope.
 - **Q-D** Is PR 92 open? If closed, the live `food-pr-92` / `recipe-pr-92` DNS records mean teardown
   leaked, which is a defect in `teardown-sandbox-pr.sh`, not just stale records to delete (U17).
+- **Q-E** Do recipes already written public under the `visibility` default get a remediation pass, or is
+  the fix forward-only? A user-facing decision, not an implementation detail (U12).
+- **Q-F** Does the `*.internal.commise.app` wildcard need scoping away from sandbox and per-PR? It is
+  added to the shared ALB certificate, which fronts every stage, but only prod has origins that use it.
 
 ---
 
@@ -695,4 +902,4 @@ longer exists should also go.
 - Live infrastructure verified 2026-08-15 against account `040663841500`: one CloudFront distribution
   (`E16KE2M2O5UD4J`, the legacy ADR-0001 preview router), zero `Distribution` constructs in CDK, and the
   Route 53 record set for `commise.app`
-- ADRs: 0001, 0003, 0005, 0006, 0010, 0014, 0015, 0016, 0017, 0018, 0019, and new 0020
+- ADRs: 0001, 0002, 0003, 0004, 0005, 0006, 0009, 0010, 0014, 0015, 0016, 0017, 0018, 0019, and new 0020

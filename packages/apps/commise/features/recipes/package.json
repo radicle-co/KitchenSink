@@ -10,7 +10,7 @@
         "./hooks": "./src/hooks/index.ts",
         "./widget/web": "./src/widget/RecipeHomeWidget.tsx",
         "./widget/mobile": "./src/widget/RecipeHomeWidget.native.tsx",
-        "./source-tabs/mobile": "./src/list/RecipeSourceTabs.native.tsx"
+        "./source-tab/mobile": "./src/list/RecipeSourceTab.native.tsx"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",

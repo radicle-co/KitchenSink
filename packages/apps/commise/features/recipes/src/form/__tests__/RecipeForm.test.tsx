@@ -194,7 +194,7 @@ describe('RecipeForm (web) — basics fields', () => {
 
 /**
  * The form's seafoam-tinted leaves (`ChipInput`'s chips,
- * `../RecipeFormSections.tsx`'s per-row calories badge) render through THIS form, so their
+ * `../RecipeIngredientsFields.tsx`'s per-row calories badge) render through THIS form, so their
  * contrast is asserted here rather than by reaching past the public component. Ratios are measured from the
  * class list each leaf actually rendered — see `@commise/ui`'s palette JSDoc for which seafoam sites are
  * accents (3:1) and which are text (4.5:1).

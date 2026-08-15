@@ -5,12 +5,10 @@
  * into their recipe create/edit page/screen, wiring validation, ingredient typeahead, and submission.
  */
 export { RecipeForm } from './RecipeForm.js';
-export {
-    RecipeBasicsFields,
-    RecipeIngredientsFields,
-    RecipeInstructionsFields,
-    RecipeVisibilityField,
-} from './RecipeFormSections.js';
+export { RecipeBasicsFields } from './RecipeBasicsFields.js';
+export { RecipeIngredientsFields } from './RecipeIngredientsFields.js';
+export { RecipeInstructionsFields } from './RecipeInstructionsFields.js';
+export { RecipeVisibilityField } from './RecipeVisibilityField.js';
 export { ChipInput } from './ChipInput.js';
 export type { ChipInputProps } from './ChipInput.js';
 

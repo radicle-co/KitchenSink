@@ -12,7 +12,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 
 import { palette } from '@commise/ui';
 
-import { ImpersonationWarning, SuspensionBanner } from '../../src/components/SuspensionBanner.js';
+import { ImpersonationWarning } from '../../src/components/ImpersonationWarning.js';
+import { SuspensionBanner } from '../../src/components/SuspensionBanner.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
 
 afterEach(cleanup);

@@ -15,7 +15,7 @@
  * Photo upload (wireframe step 4) is intentionally OUT OF SCOPE here — a later increment adds it.
  *
  * The field groups below (Basics, Ingredients, Instructions, Visibility) are the shared
- * `RecipeFormSections.js` leaves (w3) — this component's job is now just the `<form>` shell (heading +
+ * `Recipe*Fields.js`/`RecipeVisibilityField.js` leaves (w3) — this component's job is now just the `<form>` shell (heading +
  * submit/cancel chrome) that arranges them in one page; the SAME leaves compose the 4-step edit wizard
  * (`wizard/Wizard.tsx`) one-to-one with its steps. This is a pure relocation: the rendered markup and every
  * accessible name are unchanged from before the extraction.
@@ -26,12 +26,10 @@ import type { FC } from 'react';
 
 import { CheckIcon, XIcon } from './icons.js';
 import { recipeFormMessages } from './messages.js';
-import {
-    RecipeBasicsFields,
-    RecipeIngredientsFields,
-    RecipeInstructionsFields,
-    RecipeVisibilityField,
-} from './RecipeFormSections.js';
+import { RecipeBasicsFields } from './RecipeBasicsFields.js';
+import { RecipeIngredientsFields } from './RecipeIngredientsFields.js';
+import { RecipeInstructionsFields } from './RecipeInstructionsFields.js';
+import { RecipeVisibilityField } from './RecipeVisibilityField.js';
 import type { RecipeFormProps } from './props.js';
 
 export const RecipeForm: FC<RecipeFormProps> = ({

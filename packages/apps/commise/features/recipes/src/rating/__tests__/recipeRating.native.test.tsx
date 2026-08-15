@@ -18,7 +18,8 @@ import { computedContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { RecipeRatingDisplay, RecipeRatingInput } from '../RecipeRatingControl.native.js';
+import { RecipeRatingDisplay } from '../RecipeRatingDisplay.native.js';
+import { RecipeRatingInput } from '../RecipeRatingInput.native.js';
 import type { RecipeRatingDisplayProps, RecipeRatingInputProps } from '../model.js';
 
 afterEach(cleanup);
@@ -197,7 +198,7 @@ describe('RecipeRatingInput (native) — interactive variant', () => {
     });
 });
 
-describe('RecipeRatingControl (native) — text contrast (WCAG 2.1 AA)', () => {
+describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
     /**
      * The U4 pass demoted the sibling leaf's empty pips to `slate` ("a mist empty star is 1.9:1 — slate (5:1)
      * makes the empty pips legible for low vision", `RecipeCard.native.tsx`) but MISSED this leaf, so both its

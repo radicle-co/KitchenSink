@@ -18,7 +18,8 @@ import userEvent from '@testing-library/user-event';
 import { LocaleProvider } from '@commise/i18n/react';
 import { utilityContrast } from '@commise/test-utils';
 
-import { RecipeRatingDisplay, RecipeRatingInput } from '../RecipeRatingControl.js';
+import { RecipeRatingDisplay } from '../RecipeRatingDisplay.js';
+import { RecipeRatingInput } from '../RecipeRatingInput.js';
 import type { RecipeRatingDisplayProps, RecipeRatingInputProps } from '../model.js';
 
 afterEach(cleanup);
@@ -179,7 +180,7 @@ describe('RecipeRatingInput (web) — interactive variant', () => {
     });
 });
 
-describe('RecipeRatingControl (web) — text contrast (WCAG 2.1 AA)', () => {
+describe('recipe rating (web) — text contrast (WCAG 2.1 AA)', () => {
     /**
      * An `<svg>`'s `className` is an `SVGAnimatedString`, NOT a string — `utilityContrast(svg.className)`
      * would measure an object. The rendered class list comes off the attribute instead.

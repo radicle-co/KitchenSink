@@ -16,7 +16,7 @@
  *
  * The Wizard is a SHELL: it renders none of `RecipeForm`'s fields itself. The composing container places the
  * SAME extracted `RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/
- * `RecipeVisibilityField` leaves (`../form/RecipeFormSections.js`) — plus the app-owned ingredient picker and
+ * `RecipeVisibilityField` leaves (`../form/`, one file each) — plus the app-owned ingredient picker and
  * photo manager — as children of the matching `Wizard.Step`, so no field is duplicated or rewritten.
  *
  * **Deliberate split from the plan's literal "Wizard.Controls (footer nav + top-bar actions)" wording**: this

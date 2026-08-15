@@ -39,8 +39,9 @@ export interface RecipeFormProps {
 }
 
 /**
- * Props shared by every extracted field-group leaf (`RecipeFormSections.tsx`/`.native.tsx`) — Basics,
- * Ingredients, Instructions, Visibility. Deliberately narrower than {@link RecipeFormProps}: a section is a
+ * Props shared by every extracted field-group leaf (`RecipeBasicsFields`, `RecipeIngredientsFields`,
+ * `RecipeInstructionsFields`, `RecipeVisibilityField`, in both their `.tsx` and `.native.tsx` forms).
+ * Deliberately narrower than {@link RecipeFormProps}: a section is a
  * pure `values -> JSX` slice with no `mode`/`submitting`/`onSubmit`/`onCancel` concerns, so it composes
  * equally under `RecipeForm`'s single `<form>` (T067) AND under a `Wizard.Step` (w3), which needs the SAME
  * fields with none of the form-level chrome.

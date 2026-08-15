@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RecipeSourceTab } from '@commise/features-recipes/source-tabs/mobile';
+import { RecipeSourceTab } from '@commise/features-recipes/source-tab/mobile';
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 

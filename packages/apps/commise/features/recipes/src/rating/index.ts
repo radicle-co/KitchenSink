@@ -5,7 +5,8 @@
  * own-vs-rate decision is NOT a behavior-switching prop on one component (B15). The specifier resolves to its
  * web (`*.tsx`) or native (`*.native.tsx`) leaf at bundle time; the model + messages are platform-agnostic.
  */
-export { RecipeRatingDisplay, RecipeRatingInput } from './RecipeRatingControl.js';
+export { RecipeRatingDisplay } from './RecipeRatingDisplay.js';
+export { RecipeRatingInput } from './RecipeRatingInput.js';
 
 export { recipeRatingMessages } from './messages.js';
 export type { RecipeRatingMessages } from './messages.js';

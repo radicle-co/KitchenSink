@@ -1052,7 +1052,7 @@ describe('RecipeForm (native) — PLACEHOLDER text clears the AA body-text floor
      * `--placeholderTextColor` custom property that the compiled `::placeholder` rule resolves), so this fails
      * both if the token drifts and if the prop stops being passed at all.
      */
-    it('gives the basics fields (RecipeFormSections) a legible placeholder', () => {
+    it('gives the basics fields (RecipeBasicsFields) a legible placeholder', () => {
         renderForm({ values: filledValues({ title: '' }) });
 
         expect(

@@ -147,6 +147,27 @@ functionality — never a mix, never several.
   an unrelated implementation may not.
 - Files should be **as simple as possible** and have **one purpose**.
 - Barrel `index.ts` files MUST contain only named re-exports. No logic, no side effects.
+  **`export *` is NOT a named re-export** and is therefore prohibited: it makes a package's public API
+  implicit, re-exports internals by accident, and defeats tree-shaking. List the names.
+
+### What counts as "one thing" — rulings (2026-08-15)
+
+"One class per file" is the rule; these three shapes are **cohesive units** where the class count is
+incidental, and are **exempt**. An exempt file must contain that unit and **nothing else** — the
+exemption covers the shape, not the file.
+
+| Shape                                           | Ruling        | Why                                                                                                                                                                                                                                       |
+| ----------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Error taxonomy** (`errors.ts`, `*.errors.ts`) | **One thing** | The unit is "the errors this boundary can raise". They share a base, are imported together, and are exhaustively matched together. Splitting 11 classes into 11 files makes the surface harder to read and use, with no isolation gained. |
+| **Icon set** (`icons.tsx`)                      | **One thing** | The unit is "the glyphs this surface draws". Each is a few lines of path data with no behaviour and no independent lifecycle.                                                                                                             |
+| **Test double** mirroring a subject             | **One thing** | A double must present its subject's surface to be substitutable. Splitting it makes the fake harder to use than the real thing, which is how doubles drift out of sync.                                                                   |
+
+Everything else splits. In particular a file mixing an implementation with an unrelated second
+implementation is **never** one thing — `FoodEventEmitter` plus `ConsoleEventBus` is two, regardless of
+how small the second is.
+
+The gate pins each exempt file to an **exact** count, so an exempted file that grows still fails.
+
 - The `.mobile.ts` / `.mobile.tsx` suffix is **prohibited**. Use `.native.ts(x)` —
   see [§14 Cross-Platform File Conventions](#14-cross-platform-file-conventions).
 

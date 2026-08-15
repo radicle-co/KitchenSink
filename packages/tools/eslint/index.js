@@ -40,7 +40,7 @@ function namingRegimeForRoot(rootDir) {
  * (`.service`, `.middleware`, `.integration`, `.test`, `.native`, `.spec`, `.config`)
  * and platform variants are transparently ignored.
  *
- * @param {'backend' | 'frontend' | 'none'} regime
+ * @param {'standard' | 'none'} regime
  * @returns {import('eslint').Linter.Config[]}
  */
 function filenameConventionConfig(regime) {
@@ -143,7 +143,7 @@ function appServiceTypeOnlyConfig(rootDir) {
  *    - Enforces strict rules: no unused variables (ignoring _ prefixed), always use braces, padding between statements
  * 5. Relaxes rules for test files (__tests__/**\/*.ts, \*.test.ts) to allow 'any' types and non-null assertions
  * 6. Machine-enforces the §1 file-naming convention via `eslint-plugin-check-file`, picking the
- *    backend (kebab) or frontend (camel/Pascal) regime from `tsconfigRootDir`.
+ *    single camelCase/PascalCase regime -- there is no per-package variant (see §1).
  *
  * Platform-agnostic (no node/browser globals) for code that runs on web, node, and react native.
  *

@@ -31,25 +31,32 @@
  * the same mechanism `serviceSecurityInvariants.test.ts` uses) rather than pattern-matching source text.
  *
  * ⚠️ **ESLint 10 DOES ship a native ratchet** — bulk suppressions (`--suppress-rule`, `eslint-suppressions.json`),
- * which self-expire when a violation is fixed. It is the better mechanism for the burn-down half and is the
- * recommended destination, but it is NOT what runs today for one concrete reason: a suppression file records a
- * count, not a REASON, and four of the five groups below are rulings ("an error taxonomy is one thing") rather
- * than debt. §16.3 makes an exemption's `why` mandatory, and a JSON count cannot carry one. Moving to
- * suppressions means first settling the open rulings listed with the last group, then encoding the permanent
- * ones as parsed properties of the code (an empty-bodied `createZodDto` adapter; a single rooted `Error` tree)
- * so they bind services that do not exist yet — at which point only genuine debt is left to suppress.
+ * which self-expire when a violation is fixed. It was the recommended destination while this registry still
+ * held DEBT, and it is now the wrong tool: a suppression file records a count, not a REASON, and every group
+ * below is a RULING ("an error taxonomy is one thing") rather than a violation awaiting a fix. §16.3 makes an
+ * exemption's `why` mandatory, and a JSON count cannot carry one. The remaining improvement is not to move to
+ * suppressions but to encode each ruling as a PARSED PROPERTY of the code (a single rooted `Error` tree; an
+ * empty-bodied `createZodDto` adapter), so the rulings bind services that do not exist yet instead of being
+ * re-litigated file by file. Until then the registry is the authority, and it is the narrower one.
  *
- * ## Why a ratchet and not a clean bill of health
+ * ## Why a registry of rulings, and not a clean bill of health
  *
- * 25 files violate this today. They are recorded below with their EXACT export counts, so:
+ * The tree has NO pending violations: the nine god files this gate was born recording — `FoodEventEmitter.ts`
+ * (the §1 section's own worked example), `foodSourceAdapter.ts`, `workerLogger.ts`, the
+ * `RecipeFormSections`/`RecipeRatingControl` web+native pairs, `RecipeSourceTabs.native.tsx` and
+ * `SuspensionBanner.tsx` — have all been split, and their entries deleted with them.
+ *
+ * What is left is 17 files whose multi-class/multi-component shape §1 RULES to be one thing. They are recorded
+ * with their EXACT export counts, so:
  *
  *   - a NEW file with two exported classes or two exported components fails;
- *   - an EXISTING recorded file that grows a further export fails, because the count is pinned, not a floor.
+ *   - an EXEMPTED file that grows a further export fails too, because the count is pinned, not a floor —
+ *     "these five DTOs were ruled acceptable" says nothing about a sixth.
  *
  * An exemption is a ruling, so every category carries a substantive `why` — `validateExemptions` fails a
- * missing, blank or one-word reason, exactly as `specTableCollisions.test.ts` does for its table registry. The
- * last category is deliberately NOT a ruling that the shape is acceptable; it records files that should be
- * split, so that the gate can hold the line while the split happens separately.
+ * missing, blank or one-word reason, exactly as `specTableCollisions.test.ts` does for its table registry. A
+ * category that records DEBT rather than a ruling must say so in its `why`; there is no such category today,
+ * and adding one is a decision to be argued in the message that adds it.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -92,29 +99,44 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
     {
         kind: 'error taxonomy',
         why:
-            'A base `Error` subclass plus its leaves is ONE thing: the set IS the type. CLAUDE.md requires every ' +
-            'custom error to extend `Error`, call `Object.setPrototypeOf`, and ship a matching `is*` guard, and ' +
-            'callers discriminate across the whole set in a single `catch`. Splitting a taxonomy one-class-per-file ' +
-            'puts a base class and its leaves in a cycle-prone import graph and buys nothing a reader wants — the ' +
-            'file is named for the taxonomy, not for one member of it.',
+            'RULED ONE THING (§1, 2026-08-15). The unit is "the errors this boundary can raise": the set IS the ' +
+            'type. CLAUDE.md requires every custom error to extend `Error`, call `Object.setPrototypeOf`, and ship ' +
+            'a matching `is*` guard, and callers discriminate across the whole set in a single `catch`. Splitting ' +
+            'a taxonomy one-class-per-file puts a base class and its leaves in a cycle-prone import graph and buys ' +
+            'nothing a reader wants — the file is named for the taxonomy, not for one member of it. The exemption ' +
+            'covers the SHAPE, not the path: a file must hold the taxonomy and nothing else, which is why ' +
+            '`authState.ts` does NOT appear here — it is a state module that merely happened to declare two error ' +
+            'classes, so its errors were moved out to `authState.errors.ts` and the state model stayed behind.',
         files: [
-            { file: 'packages/apps/commise/features/account/src/authState.ts', classes: 2, components: 0 },
+            { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/clients/food-service/src/errors.ts', classes: 10, components: 0 },
             { file: 'packages/clients/recipe-service/src/errors.ts', classes: 11, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 5, components: 0 },
+            { file: 'packages/services/food-service/src/sources/foodSource.errors.ts', classes: 4, components: 0 },
         ],
     },
     {
-        kind: 'NestJS DTO module',
+        kind: 'NestJS zod-DTO adapter module',
         why:
-            'A `*.dto.ts` holds the request/response shapes of ONE endpoint group, and a nested input shape ' +
-            '(`RecipeIngredientInputDto` inside `CreateRecipeDto`) is part of the outer shape rather than a ' +
-            'second subject. These classes are `createZodDto` wrappers over the authored zod that §15.2 makes ' +
-            'the single authority, so the class carries no logic to separate — the "thing" the file names is the ' +
-            'endpoint contract, and the classes are its fields.',
+            'RULED ONE THING. The decisive fact is not that these are "DTOs" but that every class here is an ' +
+            'EMPTY-BODIED `createZodDto(...)` extension — `export class X extends createZodDto(schema) {}`, no ' +
+            'members, no logic, no behaviour. The knowledge lives entirely in the authored zod that §15.2 / ' +
+            'ADR-0014 make the single authority; the class exists only because Nest resolves a validator from a ' +
+            "handler parameter's runtime `design:paramtypes` METATYPE, so it is the framework's HANDLE on the " +
+            'schema, not a second description of it. The unit is therefore "the metatypes this endpoint group ' +
+            'needs", and splitting it produces N files whose entire content is one `extends` clause, at a ' +
+            'granularity that COMPETES with the `*.schema.ts` files these mirror one-for-one — two places to look ' +
+            'for one contract. The rejected counter-argument is that `CreateRecipeDto` and its nested ' +
+            '`RecipeIngredientInputDto` are separate shapes; they are not separable, the nested one is part of the ' +
+            "outer body's own definition. Weighing ADR-0014/0015 confirms rather than decides it: the repo is " +
+            'migrating toward zod schemas over class DTOs, so this whole layer is expected to shrink, and ' +
+            'splitting it now would be churn on code scheduled to thin out. ⛔ The exemption is the SHAPE, not the ' +
+            'filename: a `*.dto.ts` that grows a class with a BODY (a constructor, a method, a `class-validator` ' +
+            'decorator, a hand-written field) is no longer this shape and must not be added here — pin it, split ' +
+            'it, or argue a new ruling.',
         files: [
             { file: 'packages/services/food-service/src/foods/dto/foods.dto.ts', classes: 4, components: 0 },
             { file: 'packages/services/identity/src/admin/dto/admin.dto.ts', classes: 5, components: 0 },
@@ -125,7 +147,8 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
     {
         kind: 'icon set',
         why:
-            'An `icons.tsx` is a sheet of inline SVG leaves — no state, no props beyond size/colour, no branching. ' +
+            'RULED ONE THING (§1, 2026-08-15). The unit is "the glyphs this surface draws". An `icons.tsx` is a ' +
+            'sheet of inline SVG leaves — no state, no props beyond size/colour, no branching. ' +
             'One file per glyph would be 15 files whose entire content is a `<path d="…">`, and the import site ' +
             'wants the sheet. This is the one place where "one component per file" costs more than it returns.',
         files: [
@@ -137,7 +160,8 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
     {
         kind: 'test double mirroring a third-party module',
         why:
-            "A stub's export surface is dictated by the module it replaces, not chosen — `react-native-safe-area-" +
+            "RULED ONE THING (§1, 2026-08-15). A double must present its subject's surface to be " +
+            "substitutable, so a stub's export surface is dictated by the module it replaces, not chosen — `react-native-safe-area-" +
             'context` exports `SafeAreaProvider` and `SafeAreaView`, so a stub that exports one of them does not ' +
             'substitute for it. Splitting the double would make the test setup import two files to replace one, ' +
             'and would let the two halves drift apart from the single upstream surface they mirror.',
@@ -148,54 +172,6 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
                 components: 2,
             },
             { file: 'packages/apps/commise/mobile/tests/stubs/safeAreaContext.tsx', classes: 0, components: 2 },
-        ],
-    },
-    {
-        kind: 'god file pending split — NOT ruled acceptable',
-        why:
-            '⚠️ These are recorded so the gate can RATCHET, not because the shape was approved. Each genuinely ' +
-            'holds more than one subject and each should become several files: `FoodEventEmitter.ts` is the §1 ' +
-            "section's own worked example (an emitter AND a console fake AND builders AND constants AND eight " +
-            'interfaces); `foodSourceAdapter.ts` mixes four error types with a registry; `workerLogger.ts` holds ' +
-            'two independent logger implementations; the `RecipeFormSections`/`RecipeRatingControl` pairs hold ' +
-            'several sibling components each, once per platform. The counts are pinned, so none of them may grow ' +
-            'while the split is pending. Splitting them is separate work and must delete the entry it fixes.' +
-            ' ⚠️ FOUR RULINGS ARE STILL OPEN and decide whether the four groups above stay exempt or join this ' +
-            'one: (1) does "even a small one" break the five rooted `errors.ts` taxonomies into ~40 files? ' +
-            '(2) is an `icons.tsx` glyph sheet one thing? (3) must a test double mirroring a third-party ' +
-            'module\'s export surface be split? (4) does §1\'s "only NAMED re-exports" ban `export *`, which 20 ' +
-            "barrels use, including every package's public API? Until they are settled in §1 itself, the gate " +
-            'and the prose can only agree by accident — which is exactly how §1 hid 505 hyphenated files.',
-        files: [
-            {
-                file: 'packages/apps/commise/features/recipes/src/form/RecipeFormSections.native.tsx',
-                classes: 0,
-                components: 4,
-            },
-            {
-                file: 'packages/apps/commise/features/recipes/src/form/RecipeFormSections.tsx',
-                classes: 0,
-                components: 4,
-            },
-            {
-                file: 'packages/apps/commise/features/recipes/src/list/RecipeSourceTabs.native.tsx',
-                classes: 0,
-                components: 2,
-            },
-            {
-                file: 'packages/apps/commise/features/recipes/src/rating/RecipeRatingControl.native.tsx',
-                classes: 0,
-                components: 2,
-            },
-            {
-                file: 'packages/apps/commise/features/recipes/src/rating/RecipeRatingControl.tsx',
-                classes: 0,
-                components: 2,
-            },
-            { file: 'packages/apps/commise/mobile/src/components/SuspensionBanner.tsx', classes: 0, components: 2 },
-            { file: 'packages/services/food-service/src/events/FoodEventEmitter.ts', classes: 2, components: 0 },
-            { file: 'packages/services/food-service/src/sources/foodSourceAdapter.ts', classes: 5, components: 0 },
-            { file: 'packages/services/food-service/src/worker/workerLogger.ts', classes: 2, components: 0 },
         ],
     },
 ];

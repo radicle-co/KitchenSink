@@ -129,11 +129,12 @@ Both classes are exempted explicitly in the lint config. Nothing else is exempt.
 
 > **Enforced, not advisory.** The class/component half is checked in CI by
 > `packages/infra/global/__tests__/oneFileOneThing.test.ts`, which parses every tracked source with the
-> TypeScript AST and fails a file exporting more than one class or more than one React component. The 25
-> files that predate the gate are recorded there with their **exact** export counts and a written reason,
-> so a new violation fails and an existing one may not grow. Core ESLint's `max-classes-per-file` is
-> deliberately not what runs: it counts private classes too, says nothing about components, and cannot
-> express the ratchet without writing 25 suppressions into the files it is meant to hold.
+> TypeScript AST and fails a file exporting more than one class or more than one React component. The
+> tree carries **no pending violations**: the nine god files the gate was born recording have been split.
+> The 17 files still listed there are the **ruled exemptions** below, each pinned to its **exact** export
+> counts with a written reason, so a new violation fails and a ruled file may not grow. Core ESLint's
+> `max-classes-per-file` is deliberately not what runs: it counts private classes too, says nothing about
+> components, and cannot express a reason — only a count — for the shapes that are ruled acceptable.
 
 **A file does exactly ONE thing.** One class, or one component, or one cohesive piece of
 functionality — never a mix, never several.
@@ -152,19 +153,23 @@ functionality — never a mix, never several.
 
 ### What counts as "one thing" — rulings (2026-08-15)
 
-"One class per file" is the rule; these three shapes are **cohesive units** where the class count is
+"One class per file" is the rule; these four shapes are **cohesive units** where the class count is
 incidental, and are **exempt**. An exempt file must contain that unit and **nothing else** — the
-exemption covers the shape, not the file.
+exemption covers the shape, not the file. That qualifier does real work: `authState.ts` looked like an
+error taxonomy and was not — it was a state module that happened to declare two error classes, so the
+errors moved to `authState.errors.ts` and the state model stayed put.
 
-| Shape                                           | Ruling        | Why                                                                                                                                                                                                                                       |
-| ----------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Error taxonomy** (`errors.ts`, `*.errors.ts`) | **One thing** | The unit is "the errors this boundary can raise". They share a base, are imported together, and are exhaustively matched together. Splitting 11 classes into 11 files makes the surface harder to read and use, with no isolation gained. |
-| **Icon set** (`icons.tsx`)                      | **One thing** | The unit is "the glyphs this surface draws". Each is a few lines of path data with no behaviour and no independent lifecycle.                                                                                                             |
-| **Test double** mirroring a subject             | **One thing** | A double must present its subject's surface to be substitutable. Splitting it makes the fake harder to use than the real thing, which is how doubles drift out of sync.                                                                   |
+| Shape                                           | Ruling        | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Error taxonomy** (`errors.ts`, `*.errors.ts`) | **One thing** | The unit is "the errors this boundary can raise". They share a base, are imported together, and are exhaustively matched together. Splitting 11 classes into 11 files makes the surface harder to read and use, with no isolation gained.                                                                                                                                                                                                                                           |
+| **Icon set** (`icons.tsx`)                      | **One thing** | The unit is "the glyphs this surface draws". Each is a few lines of path data with no behaviour and no independent lifecycle.                                                                                                                                                                                                                                                                                                                                                       |
+| **Test double** mirroring a subject             | **One thing** | A double must present its subject's surface to be substitutable. Splitting it makes the fake harder to use than the real thing, which is how doubles drift out of sync.                                                                                                                                                                                                                                                                                                             |
+| **NestJS zod-DTO adapter** (`*.dto.ts`)         | **One thing** | Only when every class is an EMPTY-BODIED `createZodDto(...)` extension. Such a class holds no knowledge — the authored zod (§15.2 / ADR-0014) does — it is only the runtime metatype Nest resolves a validator from. Splitting yields N files of one `extends` clause each, at a granularity that competes with the `*.schema.ts` files they mirror. A class that grows a BODY (constructor, method, `class-validator` decorator, hand-written field) leaves this shape and splits. |
 
 Everything else splits. In particular a file mixing an implementation with an unrelated second
 implementation is **never** one thing — `FoodEventEmitter` plus `ConsoleEventBus` is two, regardless of
-how small the second is.
+how small the second is. (That worked example is now history: `FoodEventEmitter.ts` was split into the
+`eventBus.ts` port, the `ConsoleEventBus.ts` adapter, and the emitter itself.)
 
 The gate pins each exempt file to an **exact** count, so an exempted file that grows still fails.
 

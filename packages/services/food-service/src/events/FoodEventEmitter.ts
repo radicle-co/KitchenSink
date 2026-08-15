@@ -16,35 +16,13 @@
 import { ulid } from 'ulidx';
 
 import type { FoodStatus } from '../foods/dao/index.js';
+import type { EventBus } from './eventBus.js';
 
 /** Canonical EventBridge `detailType` for the completion event (matches the CDK `FoodFetchCompletedRule`). */
 export const FOOD_FETCH_COMPLETED_DETAIL_TYPE = 'FoodFetchCompleted';
 
 /** Canonical EventBridge `detailType` for the terminal-failure alarm event (FAILED only, DSN-9). */
 export const FETCH_FAILED_DETAIL_TYPE = 'FetchFailed';
-
-/** A single event to put on the bus (the source-agnostic shape the {@link EventBus} seam accepts). */
-export interface EventBusPutInput {
-    /** The canonical `detailType` (e.g. `FoodFetchCompleted`). */
-    readonly detailType: string;
-    /** The event detail payload (serialized by the concrete bus). */
-    readonly detail: Record<string, unknown>;
-}
-
-/**
- * The AWS-put seam (EventBridge/SNS). The concrete implementation lives in the worker bootstrap; tests
- * inject a fake that captures puts. Keeping the real SDK call behind this interface is what lets the
- * worker resolve foods with no AWS dependency.
- */
-export interface EventBus {
-    /**
-     * Put one event on the bus.
-     *
-     * @param input - The `detailType` + detail payload.
-     * @sideEffect Performs the underlying AWS `PutEvents` (or test capture).
-     */
-    putEvent(input: EventBusPutInput): Promise<void>;
-}
 
 /** The `FoodFetchCompleted` detail payload (plan §4) — carries the internal food `id`, never `fdcId`. */
 export interface FoodFetchCompletedDetail {
@@ -191,26 +169,6 @@ export class FoodEventEmitter implements FoodEventPublisher {
         } catch (error) {
             this.onError?.(error, FETCH_FAILED_DETAIL_TYPE);
         }
-    }
-}
-
-/**
- * The default no-AWS {@link EventBus}: logs each put to the provided sink (or `console.info`) instead
- * of calling EventBridge. Used as a safe fallback in the worker bootstrap when no real bus is wired
- * (and so the worker never *requires* AWS). The real EventBridge bus is added with the infra slice.
- */
-export class ConsoleEventBus implements EventBus {
-    /** @param log - Optional structured log sink; defaults to `console.info`. */
-    public constructor(private readonly log: (input: EventBusPutInput) => void = (input) => console.info(input)) {}
-
-    /**
-     * Log the event instead of putting it on a real bus.
-     *
-     * @param input - The event to log.
-     * @sideEffect Writes to the log sink.
-     */
-    public async putEvent(input: EventBusPutInput): Promise<void> {
-        this.log(input);
     }
 }
 

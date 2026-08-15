@@ -12,7 +12,8 @@
 import type { Notification, PoolClient } from 'pg';
 
 import type { FetchQueueDao } from '../foods/dao/fetchQueue.dao.js';
-import { ConsoleWorkerLogger, type WorkerLogger } from './workerLogger.js';
+import { ConsoleWorkerLogger } from './ConsoleWorkerLogger.js';
+import { type WorkerLogger } from './workerLogger.js';
 import { acquireWorkerLock, releaseWorkerLock, type LockSession } from './workerLock.js';
 import type { FoodConsumerService } from './foodConsumer.service.js';
 

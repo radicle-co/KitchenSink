@@ -4,7 +4,6 @@
  */
 export {
     FoodEventEmitter,
-    ConsoleEventBus,
     buildFoodFetchCompleted,
     buildFetchFailed,
     newEventId,
@@ -12,8 +11,6 @@ export {
     FETCH_FAILED_DETAIL_TYPE,
 } from './FoodEventEmitter.js';
 export type {
-    EventBus,
-    EventBusPutInput,
     EventClock,
     FoodEventPublisher,
     FoodFetchCompletedDetail,
@@ -21,3 +18,5 @@ export type {
     PublishCompletedInput,
     PublishFailedInput,
 } from './FoodEventEmitter.js';
+export { ConsoleEventBus } from './ConsoleEventBus.js';
+export type { EventBus, EventBusPutInput } from './eventBus.js';

@@ -49,7 +49,8 @@ import type {
 } from '../merge/mergeAndPersist.service.js';
 import type { PersistResult } from '../merge/mergeAndPersist.service.js';
 import { normalizeName } from '../merge/mergeEngine.js';
-import { ConsoleWorkerLogger, type WorkerLogger } from '../../worker/workerLogger.js';
+import { ConsoleWorkerLogger } from '../../worker/ConsoleWorkerLogger.js';
+import { type WorkerLogger } from '../../worker/workerLogger.js';
 import { BulkSeedAbortedError } from './bulkSeed.errors.js';
 
 /** The `food` reads/writes the importer needs — satisfied structurally by `FoodDao`. */

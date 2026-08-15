@@ -9,5 +9,6 @@ export type { WorkerRuntimeDeps, ListenSession } from './WorkerRuntime.js';
 export { acquireWorkerLock, releaseWorkerLock, WORKER_LOCK_CLASS, WORKER_LOCK_OBJECT } from './workerLock.js';
 export type { LockSession } from './workerLock.js';
 export { backoffSeconds, isRetryBudgetExhausted, MAX_FAILURE_ATTEMPTS } from './backoff.js';
-export { ConsoleWorkerLogger, SilentWorkerLogger } from './workerLogger.js';
 export type { WorkerLogger, LogContext } from './workerLogger.js';
+export { ConsoleWorkerLogger } from './ConsoleWorkerLogger.js';
+export { SilentWorkerLogger } from './SilentWorkerLogger.js';

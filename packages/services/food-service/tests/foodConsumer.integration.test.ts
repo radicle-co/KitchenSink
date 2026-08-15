@@ -8,7 +8,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type pg from 'pg';
 
-import { FoodEventEmitter, type EventBus, type EventBusPutInput } from '../src/events/FoodEventEmitter.js';
+import type { EventBus, EventBusPutInput } from '../src/events/eventBus.js';
+import { FoodEventEmitter } from '../src/events/FoodEventEmitter.js';
 import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
@@ -17,16 +18,16 @@ import { SourceCallLogDao } from '../src/foods/dao/sourceCallLog.dao.js';
 import { makeMergeCandidate } from '../src/foods/merge/__fixtures__/merge.fixtures.js';
 import { GoldenRecordMergeEngine } from '../src/foods/merge/mergeEngine.js';
 import { MergeAndPersistService } from '../src/foods/merge/mergeAndPersist.service.js';
+import { SourceAdapterRegistry } from '../src/sources/SourceAdapterRegistry.js';
+import { SourceApiError } from '../src/sources/foodSource.errors.js';
 import {
-    SourceAdapterRegistry,
-    SourceApiError,
     type CanonicalCandidate,
     type FoodSourceAdapter,
     type SourceCandidate,
 } from '../src/sources/foodSourceAdapter.js';
 import { RollingWindowLimiter, sourceCapsFromEnv, type SourceCap } from '../src/sources/RollingWindowLimiter.js';
 import { FoodConsumerService } from '../src/worker/foodConsumer.service.js';
-import { SilentWorkerLogger } from '../src/worker/workerLogger.js';
+import { SilentWorkerLogger } from '../src/worker/SilentWorkerLogger.js';
 import { acquireWorkerLock } from '../src/worker/workerLock.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 

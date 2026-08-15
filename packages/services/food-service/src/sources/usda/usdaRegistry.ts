@@ -23,7 +23,7 @@
 import { UsdaApiClient } from '@kitchensink/usda-client';
 
 import { settingFromEnv } from '../../config/env.schema.js';
-import { SourceAdapterRegistry } from '../foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../SourceAdapterRegistry.js';
 import { UsdaSourceAdapter } from './usda.adapter.js';
 
 /**

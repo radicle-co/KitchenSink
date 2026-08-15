@@ -13,7 +13,8 @@ import { availableParallelism } from 'node:os';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { ConsoleEventBus, FoodEventEmitter } from '../events/FoodEventEmitter.js';
+import { ConsoleEventBus } from '../events/ConsoleEventBus.js';
+import { FoodEventEmitter } from '../events/FoodEventEmitter.js';
 import { AdminMetricsDao } from '../foods/admin/adminMetrics.dao.js';
 import { FetchQueueDao } from '../foods/dao/fetchQueue.dao.js';
 import { FoodDao } from '../foods/dao/food.dao.js';
@@ -28,7 +29,7 @@ import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
 import { createUsdaSourceRegistry } from '../sources/usda/usdaRegistry.js';
 import { containerCpus, workerConcurrency } from './concurrency.js';
 import { FoodConsumerService } from './foodConsumer.service.js';
-import { ConsoleWorkerLogger } from './workerLogger.js';
+import { ConsoleWorkerLogger } from './ConsoleWorkerLogger.js';
 import { WorkerRuntime } from './WorkerRuntime.js';
 
 const { Pool } = pg;

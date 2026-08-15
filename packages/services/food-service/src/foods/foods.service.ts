@@ -37,12 +37,9 @@ import type {
     SearchResponse,
     StatusResponse,
 } from './foods.schema.js';
-import {
-    isSourceApiError,
-    type CanonicalCandidate,
-    type FoodSourceId,
-    SourceAdapterRegistry,
-} from '../sources/foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../sources/SourceAdapterRegistry.js';
+import { isSourceApiError } from '../sources/foodSource.errors.js';
+import { type CanonicalCandidate, type FoodSourceId } from '../sources/foodSourceAdapter.js';
 import { FoodMetrics } from '../observability/emfMetrics.js';
 import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
 

@@ -23,7 +23,7 @@ import { foodPoolConfigFromEnv } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
 import { RollingWindowLimiter } from '../../sources/RollingWindowLimiter.js';
 import { createUsdaSourceRegistry } from '../../sources/usda/usdaRegistry.js';
-import { ConsoleWorkerLogger } from '../workerLogger.js';
+import { ConsoleWorkerLogger } from '../ConsoleWorkerLogger.js';
 import { ChangeRefreshConsumer } from './changeRefresh.consumer.js';
 
 const { Pool } = pg;

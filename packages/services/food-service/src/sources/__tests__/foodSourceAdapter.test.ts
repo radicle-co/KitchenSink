@@ -7,13 +7,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { SourceAdapterRegistry } from '../SourceAdapterRegistry.js';
+import { isDuplicateSourceError, isUnknownSourceError } from '../foodSource.errors.js';
 import {
-    SOURCE_PRIORITY,
-    SourceAdapterRegistry,
-    isDuplicateSourceError,
-    isUnknownSourceError,
     type CanonicalCandidate,
     type FoodSourceAdapter,
+    SOURCE_PRIORITY,
     type SourceCandidate,
 } from '../foodSourceAdapter.js';
 

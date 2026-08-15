@@ -38,9 +38,8 @@ import {
 } from '@kitchensink/usda-client';
 import { z } from 'zod';
 
+import { AdapterValidationError, SourceApiError } from '../foodSource.errors.js';
 import {
-    AdapterValidationError,
-    SourceApiError,
     type CanonicalCandidate,
     type CanonicalKind,
     type CanonicalNutrient,

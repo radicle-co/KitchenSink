@@ -26,9 +26,9 @@ import pg from 'pg';
 
 import { foodPoolConfigFromEnv } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
-import { SourceAdapterRegistry } from '../../sources/foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../../sources/SourceAdapterRegistry.js';
 import { streamBulkCandidates } from '../../sources/usda/bulk/usdaBulk.reader.js';
-import { ConsoleWorkerLogger } from '../../worker/workerLogger.js';
+import { ConsoleWorkerLogger } from '../../worker/ConsoleWorkerLogger.js';
 import { FoodDao } from '../dao/food.dao.js';
 import { FoodSourcesDao } from '../dao/foodSources.dao.js';
 import { GoldenRecordMergeEngine } from '../merge/mergeEngine.js';

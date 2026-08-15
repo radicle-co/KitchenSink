@@ -20,7 +20,7 @@ import { FoodMetrics } from '../observability/emfMetrics.js';
 import { FoodAuthGuard } from '../auth/foodAuth.guard.js';
 import { FoodServiceErasureAuthService } from '../auth/foodServiceErasureAuth.service.js';
 import { FoodServiceErasureGuard } from '../auth/foodServiceErasure.guard.js';
-import { SourceAdapterRegistry } from '../sources/foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../sources/SourceAdapterRegistry.js';
 import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
 import { createUsdaSourceRegistry } from '../sources/usda/usdaRegistry.js';
 import { AdmissionService } from './admission.service.js';

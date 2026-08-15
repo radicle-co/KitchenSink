@@ -26,9 +26,11 @@ import { settingFromEnv } from '../../config/env.schema.js';
 import { CandidateStore } from '../../foods/dao/foodCandidates.dao.js';
 import { FoodSourcesDao } from '../../foods/dao/foodSources.dao.js';
 import { EnqueueEmitter } from '../../foods/enqueue.emitter.js';
-import { isAdapterValidationError, isSourceApiError, SourceAdapterRegistry } from '../../sources/foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../../sources/SourceAdapterRegistry.js';
+import { isAdapterValidationError, isSourceApiError } from '../../sources/foodSource.errors.js';
 import { RollingWindowLimiter } from '../../sources/RollingWindowLimiter.js';
-import { ConsoleWorkerLogger, type WorkerLogger } from '../workerLogger.js';
+import { ConsoleWorkerLogger } from '../ConsoleWorkerLogger.js';
+import { type WorkerLogger } from '../workerLogger.js';
 
 /** The named service principal recorded as the refresh requester (FR-048 — never a `'system'` shortcut). */
 export const SVC_CHANGE_REFRESH = 'svc_change_refresh';

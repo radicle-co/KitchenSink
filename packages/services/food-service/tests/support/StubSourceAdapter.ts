@@ -11,8 +11,8 @@
  * (→ UNRESOLVED), zero hits (→ NOT_FOUND), or a transport error (→ the FAILED retry path). Call counts
  * are tracked so the search-never-calls-a-source invariant can be asserted.
  */
+import { SourceApiError } from '../../src/sources/foodSource.errors.js';
 import {
-    SourceApiError,
     type CanonicalCandidate,
     type CanonicalNutrient,
     type CanonicalPortion,

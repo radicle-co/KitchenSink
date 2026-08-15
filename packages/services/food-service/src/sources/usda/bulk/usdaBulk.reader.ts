@@ -31,7 +31,8 @@ import { join } from 'node:path';
 import { parse } from 'csv-parse';
 
 import type { CanonicalCandidate } from '../../foodSourceAdapter.js';
-import { SilentWorkerLogger, type WorkerLogger } from '../../../worker/workerLogger.js';
+import { SilentWorkerLogger } from '../../../worker/SilentWorkerLogger.js';
+import { type WorkerLogger } from '../../../worker/workerLogger.js';
 import { UsdaBulkFormatError } from './usdaBulk.errors.js';
 import { mapBulkFoodToCanonical } from './usdaBulk.parser.js';
 import {

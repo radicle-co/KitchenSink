@@ -33,8 +33,8 @@ import { makeMergeCandidate } from '../src/foods/merge/__fixtures__/merge.fixtur
 import { GoldenRecordMergeEngine } from '../src/foods/merge/mergeEngine.js';
 import { MergeAndPersistService } from '../src/foods/merge/mergeAndPersist.service.js';
 import { BulkSeedService } from '../src/foods/seed/bulkSeed.service.js';
+import { SourceAdapterRegistry } from '../src/sources/SourceAdapterRegistry.js';
 import {
-    SourceAdapterRegistry,
     type CanonicalCandidate,
     type FoodSourceAdapter,
     type SourceCandidate,
@@ -42,7 +42,7 @@ import {
 import { streamBulkCandidates } from '../src/sources/usda/bulk/usdaBulk.reader.js';
 import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
 import { ChangeRefreshConsumer } from '../src/worker/change-refresh/changeRefresh.consumer.js';
-import { SilentWorkerLogger } from '../src/worker/workerLogger.js';
+import { SilentWorkerLogger } from '../src/worker/SilentWorkerLogger.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 
 describe.skipIf(!DATABASE_URL)('USDA bulk seed importer (integration)', () => {

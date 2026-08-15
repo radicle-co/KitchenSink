@@ -20,7 +20,8 @@ import { FoodFieldProvenanceDao } from '../src/foods/dao/foodFieldProvenance.dao
 import { GoldenRecordMergeEngine } from '../src/foods/merge/mergeEngine.js';
 import { MergeAndPersistService } from '../src/foods/merge/mergeAndPersist.service.js';
 import { makeMergeCandidate } from '../src/foods/merge/__fixtures__/merge.fixtures.js';
-import { SourceAdapterRegistry, type CanonicalCandidate } from '../src/sources/foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../src/sources/SourceAdapterRegistry.js';
+import { type CanonicalCandidate } from '../src/sources/foodSourceAdapter.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 
 describe.skipIf(!DATABASE_URL)('MergeAndPersistService (integration)', () => {

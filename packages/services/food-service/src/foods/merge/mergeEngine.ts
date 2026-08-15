@@ -25,7 +25,7 @@ import type {
     CanonicalNutrientBasis,
     FoodSourceId,
 } from '../../sources/foodSourceAdapter.js';
-import { SourceAdapterRegistry } from '../../sources/foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../../sources/SourceAdapterRegistry.js';
 
 /**
  * A merge input candidate, generic over the source-id type. Structurally a {@link CanonicalCandidate}

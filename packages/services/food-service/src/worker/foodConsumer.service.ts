@@ -34,18 +34,15 @@ import { FetchQueueDao } from '../foods/dao/fetchQueue.dao.js';
 import { FoodDao } from '../foods/dao/food.dao.js';
 import { FoodSourcesDao } from '../foods/dao/foodSources.dao.js';
 import { MergeAndPersistService } from '../foods/merge/mergeAndPersist.service.js';
-import {
-    isAdapterValidationError,
-    isSourceApiError,
-    SourceAdapterRegistry,
-    type CanonicalCandidate,
-    type FoodSourceAdapter,
-} from '../sources/foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../sources/SourceAdapterRegistry.js';
+import { isAdapterValidationError, isSourceApiError } from '../sources/foodSource.errors.js';
+import { type CanonicalCandidate, type FoodSourceAdapter } from '../sources/foodSourceAdapter.js';
 import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
 import { FoodMetrics } from '../observability/emfMetrics.js';
 import { isRetryBudgetExhausted } from './backoff.js';
 import { hasValidProvenance } from './provenance.js';
-import { ConsoleWorkerLogger, type WorkerLogger } from './workerLogger.js';
+import { ConsoleWorkerLogger } from './ConsoleWorkerLogger.js';
+import { type WorkerLogger } from './workerLogger.js';
 
 /** Max keys pulled in one batch source call (USDA's `POST /api/v1/foods` cap; counts as 1 windowed call). */
 const FETCH_BATCH_MAX = 20;

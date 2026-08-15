@@ -32,11 +32,12 @@ vi.mock('../../src/sources/usda/usda.adapter.js', async () => {
 });
 
 import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
-import { FoodEventEmitter, type EventBus, type EventBusPutInput } from '../../src/events/FoodEventEmitter.js';
+import type { EventBus, EventBusPutInput } from '../../src/events/eventBus.js';
+import { FoodEventEmitter } from '../../src/events/FoodEventEmitter.js';
 import { FetchQueueDao, FoodDao, FoodSourcesDao } from '../../src/foods/dao/index.js';
 import { foodErrorSchema } from '../../src/foods/foods.schema.js';
 import { MergeAndPersistService } from '../../src/foods/merge/mergeAndPersist.service.js';
-import { SourceAdapterRegistry } from '../../src/sources/foodSourceAdapter.js';
+import { SourceAdapterRegistry } from '../../src/sources/SourceAdapterRegistry.js';
 import { RollingWindowLimiter } from '../../src/sources/RollingWindowLimiter.js';
 import { FoodConsumerService } from '../../src/worker/foodConsumer.service.js';
 import type { WorkerLogger } from '../../src/worker/workerLogger.js';

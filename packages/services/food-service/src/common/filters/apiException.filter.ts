@@ -11,7 +11,8 @@ import {
     isNotResolvableError,
 } from '../../foods/foods.errors.js';
 import { foodErrorCodeSchema, type FoodErrorCode } from '../../foods/foods.schema.js';
-import { ConsoleWorkerLogger, type LogContext, type WorkerLogger } from '../../worker/workerLogger.js';
+import { ConsoleWorkerLogger } from '../../worker/ConsoleWorkerLogger.js';
+import { type LogContext, type WorkerLogger } from '../../worker/workerLogger.js';
 import { FOOD_ERROR_STATUS, FOOD_STATUS_CODE } from '../apiError.js';
 
 /**

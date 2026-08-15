@@ -1,15 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-    buildFetchFailed,
-    buildFoodFetchCompleted,
+    type EventClock,
     FETCH_FAILED_DETAIL_TYPE,
     FOOD_FETCH_COMPLETED_DETAIL_TYPE,
     FoodEventEmitter,
-    type EventBus,
-    type EventBusPutInput,
-    type EventClock,
+    buildFetchFailed,
+    buildFoodFetchCompleted,
 } from '../FoodEventEmitter.js';
+import { type EventBus, type EventBusPutInput } from '../eventBus.js';
 
 const fixedClock: EventClock = {
     now: () => new Date('2026-06-29T00:00:00.000Z'),

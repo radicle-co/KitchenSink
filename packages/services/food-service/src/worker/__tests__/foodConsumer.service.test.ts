@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { FetchQueueDao } from '../../foods/dao/fetchQueue.dao.js';
 import { FoodConsumerService, type FoodConsumerDeps } from '../foodConsumer.service.js';
-import { SilentWorkerLogger } from '../workerLogger.js';
+import { SilentWorkerLogger } from '../SilentWorkerLogger.js';
 
 const dialect = new PgDialect();
 

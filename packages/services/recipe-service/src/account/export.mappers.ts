@@ -6,11 +6,11 @@
  * document declares every field), and photo object keys resolved to CDN URLs. The impure assembly (the
  * DB reads) lives in `AccountExportService`; these are the composable, exhaustively-testable core.
  */
-import { resolveCdnUrl } from '../photos/photo-view.js';
+import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CollectionRow, RecipeCollectionRow } from '../database/schema/collections.js';
 import type { RecipeRatingRow } from '../database/schema/ratings.js';
 import type { RecipePhotoRow } from '../database/schema/photos.js';
-import type { AuthorHandleRow } from '../database/schema/author-handles.js';
+import type { AuthorHandleRow } from '../database/schema/authorHandles.js';
 import type { RecipeExportRow, VersionMetadataRow } from './dal/export.dal.js';
 import type {
     AuthorHandleExport,

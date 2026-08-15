@@ -1,8 +1,8 @@
 /**
  * The ONE authoritative `Authorization: Bearer <token>` parser for the food service's auth layer.
  *
- * Shared by the Clerk user-token `FoodAuthGuard` (`./food-auth.guard.ts`) and the
- * service-principal `FoodServiceErasureGuard` (`./food-service-erasure.guard.ts`) so both
+ * Shared by the Clerk user-token `FoodAuthGuard` (`./foodAuth.guard.ts`) and the
+ * service-principal `FoodServiceErasureGuard` (`./foodServiceErasure.guard.ts`) so both
  * verification surfaces extract the credential identically — a security-relevant parse kept in one place.
  */
 

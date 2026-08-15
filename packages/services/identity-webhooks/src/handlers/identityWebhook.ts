@@ -15,15 +15,10 @@ import {
 import { setExternalId } from '../common/identityClient.js';
 import { buildProvisionDeps } from '../common/provisioning.js';
 import { getWebhookConfig } from '../config/env.js';
-import {
-    withDb,
-    withVerifiedWebhook,
-    type DbContext,
-    type VerifiedWebhookContext,
-} from '../common/handler-pipeline.js';
+import { withDb, withVerifiedWebhook, type DbContext, type VerifiedWebhookContext } from '../common/handlerPipeline.js';
 import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
-import { traceAuth } from '../common/auth-trace.js';
-import type { IdentityUserData as ValidatedIdentityUserData } from '../common/idp-payload.schema.js';
+import { traceAuth } from '../common/authTrace.js';
+import type { IdentityUserData as ValidatedIdentityUserData } from '../common/idpPayload.schema.js';
 
 /**
  * The user payload of a `user.created` / `user.updated` event.
@@ -146,9 +141,9 @@ const handleUserCreated = async (
     // ⛔ NO `identityId` DIMENSION. In EMF every distinct dimension VALUE is a separately billed custom metric
     // (~$0.30/mo, 15-month retention), so a per-user dimension costs one metric PER USER — ~$3,000/mo at 10k
     // users — for a series holding one datapoint that aggregates to nothing. The id is on the log line below,
-    // where it is searchable AND pseudonymized by `sentry-scrubbers.ts`; the EMF line goes straight to stdout
+    // where it is searchable AND pseudonymized by `sentryScrubbers.ts`; the EMF line goes straight to stdout
     // and never passes a scrubber. Enforced repo-wide by
-    // `packages/infra/global/__tests__/emf-identifier-dimension-repo-gate.test.ts`.
+    // `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts`.
     emitMetric('UserCreatedWebhook', 1);
     logger.info('identity-webhook: user.created processed', { requestId, identityId: data.id, userId: user.id });
 };

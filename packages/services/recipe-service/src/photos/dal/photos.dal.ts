@@ -16,9 +16,9 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipePhotos, type RecipePhotoRow } from '../../database/schema/index.js';
-import { type Writer } from '../../database/unit-of-work.js';
+import { type Writer } from '../../database/unitOfWork.js';
 import { maxPhotosExceeded } from '../photo.error.js';
-import { isExactReorder } from '../photo-reorder.js';
+import { isExactReorder } from '../photoReorder.js';
 
 /** The hard cap on photos per recipe, enforced by {@link PhotosDal.create}. */
 export const MAX_PHOTOS_PER_RECIPE = 10;

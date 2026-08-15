@@ -76,14 +76,14 @@ export function uuidv4() {
     });
 }
 
-// Seeded baseline ingredient ids (must match tests/global-setup.ts SEED_INGREDIENTS + the k6 CI job's
+// Seeded baseline ingredient ids (must match tests/globalSetup.ts SEED_INGREDIENTS + the k6 CI job's
 // seed step). Since T043b, recipe create validates every line's `ingredientId` against the catalog, so a
 // random uuid would 400 (UNKNOWN_INGREDIENT) and trip the failure-rate threshold. Load payloads must
 // reference ids that actually exist.
 export const SEED_INGREDIENT_FLOUR = '00000000-0000-4000-8000-0000000000aa';
 export const SEED_INGREDIENT_SUGAR = '00000000-0000-4000-8000-0000000000bb';
 
-// The fixture recipe `tests/load/prepare-version-archive-fixture.ts` seeds (must match its
+// The fixture recipe `tests/load/prepareVersionArchiveFixture.ts` seeds (must match its
 // ARCHIVE_FIXTURE_RECIPE_ID): version 1 exists ONLY in the S3 archive (its `recipe_versions` row is
 // deliberately absent), so a GET of it always exercises the W8-a.7 transparent S3 fallback.
 export const ARCHIVE_FIXTURE_RECIPE_ID =

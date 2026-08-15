@@ -69,7 +69,7 @@ name: Heavy E2E (Maestro + k6)
 # gating it on `pull_request` would silently kill the nightly and dispatch runs while every `if:` below still
 # read correctly — the same silent-skip class as ADR-0010's `deploy-food`. Only the paths-filter STEP is
 # PR-scoped; on any other event the step is skipped, the job output is empty, and the gate falls through to
-# clause 1. `packages/infra/global/__tests__/heavy-e2e-load-tier-gate.test.ts` evaluates all of that from the
+# clause 1. `packages/infra/global/__tests__/heavyE2eLoadTierGate.test.ts` evaluates all of that from the
 # parsed YAML and fails if any link of it drifts.
 on:
     schedule:
@@ -127,7 +127,7 @@ jobs:
             # These do NOT decide whether the emulator boots (`mobile`, above, does that). They narrow WHICH
             # FLOWS it runs once it has, and they are strictly finer than `mobile`: every pattern behind them
             # is inside one of `mobile`'s, so a vertical can never fire for a change that does not enter the
-            # tier in the first place (asserted in maestro-flow-selection.test.ts — a mapping that narrows but
+            # tier in the first place (asserted in maestroFlowSelection.test.ts — a mapping that narrows but
             # cannot admit reads, in the log, exactly like one that did).
             #
             # Deliberately NO `flows_all` key. "Everything else" is the FALLBACK inside
@@ -157,10 +157,10 @@ jobs:
             #   • `src/db/**`             the ordered migration DDL and the Drizzle schema. `food_search_vector_idx`
             #                             is created in `0001_food_fts.sql`; dropping or altering an index is the
             #                             central scenario, and it is invisible to every deterministic test.
-            #   • `src/foods/dao/**`      the SQL itself. `food-search.dao.ts` is the query T-198 tuned, and the
+            #   • `src/foods/dao/**`      the SQL itself. `foodSearch.dao.ts` is the query T-198 tuned, and the
             #                             same job measures reads (`food.dao`, nutrients/portions), the drain
-            #                             claim (`fetch-queue.dao`) and the erasure DELETE
-            #                             (`fetch-requesters.dao`). A DIRECTORY, not a file list, so a DAO added
+            #                             claim (`fetchQueue.dao`) and the erasure DELETE
+            #                             (`fetchRequesters.dao`). A DIRECTORY, not a file list, so a DAO added
             #                             to a measured path is covered on the day it lands rather than the day
             #                             somebody remembers to extend this filter.
             #   • `foods.service.ts`      the orchestration ON the measured paths — `search()` is a thin pass to
@@ -435,7 +435,7 @@ jobs:
             #   • `workflow_dispatch` likewise: a human asking for the tier by hand gets all of it.
             # Everything not covered by a vertical below ALSO ends up full, but through the script's fallback
             # rather than here (see the `flows_*` note on the detect job) — one fail-safe, in one place,
-            # exercised by every malformed/unattributed case in maestro-flow-selection.test.ts.
+            # exercised by every malformed/unattributed case in maestroFlowSelection.test.ts.
             maestro_flow_selector: >-
                 ${{ format('full={0} auth={1} home={2} collections={3} discovery={4} recipes={5}',
                 github.event_name != 'pull_request' ||

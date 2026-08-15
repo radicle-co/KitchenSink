@@ -19,7 +19,7 @@
  * the comparison was missing.
  *
  * ⚠️ A MISMATCH WARNS, IT DOES NOT REFUSE (owner ruling, 2026-08-11). The asymmetry with the fail-closed
- * SERVICE-side boot check (`identity/src/contract/contract-skew.ts`) is deliberate: that one compares two stamps
+ * SERVICE-side boot check (`identity/src/contract/contractSkew.ts`) is deliberate: that one compares two stamps
  * baked into ONE image, so refusing costs no availability, whereas this compares two INDEPENDENTLY DEPLOYED
  * artifacts. Refusing here would let any identity deploy brick every client not shipped in lockstep — and since
  * this is the AUTH surface, "brick" means nobody can sign in or reach their profile, on a path where a released

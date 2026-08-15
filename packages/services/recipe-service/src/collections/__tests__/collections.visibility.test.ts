@@ -11,7 +11,7 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
-import type { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
+import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
 import { makeCollectionRow } from '../__fixtures__/collections.fixtures.js';
 import type { UpdateCollectionRequest } from '../collections.schema.js';
 

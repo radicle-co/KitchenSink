@@ -22,7 +22,7 @@
  *    duplicate is deleted, so the old import cannot resolve and the drift cannot come back.
  *
  * 2. Assert `patchUserMeRequestSchema` enforces what the pipe, the published document, and the two suites that
- *    pin the `400` (`tests/app-validation.test.ts`, `tests/e2e/users-validation.e2e.test.ts`) all rely on — with
+ *    pin the `400` (`tests/appValidation.test.ts`, `tests/e2e/usersValidation.e2e.test.ts`) all rely on — with
  *    the boundary values, not just the happy path.
  */
 import { describe, expect, it } from 'vitest';

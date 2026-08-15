@@ -4,7 +4,7 @@
  * ⚠️ WHAT THIS FILE USED TO ASSERT, AND WHY THAT WAS WORSE THAN NO TEST. The old suite fed
  * `buildCorsOptions(['https://commise.app', ...])` and concluded "deployed stages are origin-pinned", then
  * asserted `buildCorsOptions([]).origin === true` as if reflecting any origin were the intended local
- * behaviour. That empty list is not a local-only case: `infra/lib/recipe-service-stack.ts` sets
+ * behaviour. That empty list is not a local-only case: `infra/lib/RecipeServiceStack.ts` sets
  * `CLERK_AUTHORIZED_PARTIES` only on prod, non-prod gets `CLERK_AZP_PATTERN`, and `config.types.ts` enforces
  * exactly one of the two — so the branch actually taken on sandbox and on every `pr-{N}` was the empty-list
  * one, and the suite PINNED the any-origin reflector as correct.
@@ -12,7 +12,7 @@
  * The cases below are therefore written from the ENVIRONMENT's configuration, not from a hand-picked list, so
  * the inputs are the ones the process really sees. `describe` blocks name the shape they model. The emitted
  * headers — including the two representations of "closed" that this file cannot tell apart — are asserted in
- * `cors-headers.test.ts`.
+ * `corsHeaders.test.ts`.
  *
  * @module
  */
@@ -157,7 +157,7 @@ describe('buildCorsPolicy', () => {
         // ⚠️ THE REPRESENTATION IS LOAD-BEARING, NOT COSMETIC — but not for the reason folklore gives. `false`
         // does NOT emit `*` (`cors`'s `middlewareWrapper` short-circuits before `configureOrigin` can); it
         // removes the CORS middleware from the request path, so the denial stops being this policy's decision.
-        // `cors-headers.test.ts` proves that distinction over real HTTP; here the shape is simply pinned.
+        // `corsHeaders.test.ts` proves that distinction over real HTTP; here the shape is simply pinned.
         it('expresses "closed" as an EMPTY LIST, never a boolean', () => {
             expect(buildCorsPolicy(brokenInput).options.origin).toEqual([]);
         });

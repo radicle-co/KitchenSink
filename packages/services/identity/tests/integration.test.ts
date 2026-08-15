@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { noopHandleSyncPublisher } from '../src/users/handle-sync.publisher.js';
+import { noopHandleSyncPublisher } from '../src/users/handleSync.publisher.js';
 
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(),
@@ -7,8 +7,8 @@ vi.mock('@aws-sdk/client-sqs', () => ({
 }));
 
 const reportDeletionEnqueueFailure = vi.fn();
-vi.mock('../src/queue/deletion-enqueue.error.js', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('../src/queue/deletion-enqueue.error.js')>()),
+vi.mock('../src/queue/deletionEnqueue.error.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../src/queue/deletionEnqueue.error.js')>()),
     reportDeletionEnqueueFailure: (input: unknown) => reportDeletionEnqueueFailure(input),
 }));
 

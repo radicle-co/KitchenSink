@@ -16,7 +16,7 @@
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import { RecipeDomainError } from '../recipes/recipe.error.js';
-import type { PullDiff } from './domain/pull-diff.js';
+import type { PullDiff } from './domain/pullDiff.js';
 
 /** The caller does not own the collection (→ 403). */
 export const collectionNotOwnedError = (collectionId: string): RecipeDomainError =>

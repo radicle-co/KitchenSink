@@ -26,10 +26,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { RatingsDal } from './dal/ratings.dal.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { RecipesDal } from '../recipes/dal/recipes.dal.js';
-import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
+import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
 import { cannotRateOwnRecipe, recipeNotFound } from '../recipes/recipe.error.js';
-import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
-import type { SetRatingDto } from './dto/set-rating.dto.js';
+import type { RecipeResponse } from '../recipes/dto/recipeResponse.dto.js';
+import type { SetRatingDto } from './dto/setRating.dto.js';
 
 /** DI token for the ratings DAL — provided by `RatingsModule` via `useFactory` over the Drizzle client. */
 export const RATINGS_DAL = 'RATINGS_DAL';

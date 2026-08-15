@@ -80,7 +80,7 @@ describe('EnvironmentSchema — source-agnostic operational defaults', () => {
         expect(env.FOOD_STALE_THRESHOLD_DAYS).toBe(30);
         // Worker lease (FR-018). The Fargate TASK COUNTS are deliberately absent: `FOOD_DESIRED_COUNT` /
         // `FOOD_WORKER_DESIRED_COUNT` are consumed only by the CDK app at synth time and never reach a
-        // container, so they are defined and validated in `infra/lib/synth-env.ts` instead of here.
+        // container, so they are defined and validated in `infra/lib/synthEnv.ts` instead of here.
         expect(env.FOOD_LEASE_TIMEOUT_SECONDS).toBe(30);
     });
 
@@ -242,7 +242,7 @@ describe('settingFromEnv', () => {
         expect(SETTING_NAMES).toContain('FOOD_WORKER_CONCURRENCY');
         expect(SETTING_NAMES).toContain('PORT');
         // The DB block is a union (`DATABASE_URL` OR the discrete `DB_*` parts), so it is deliberately NOT
-        // a per-variable setting — `database/pool-config.ts` owns that either/or contract.
+        // a per-variable setting — `database/poolConfig.ts` owns that either/or contract.
         expect(SETTING_NAMES).not.toContain('DATABASE_URL');
         expect(SETTING_NAMES).not.toContain('DB_PORT');
     });

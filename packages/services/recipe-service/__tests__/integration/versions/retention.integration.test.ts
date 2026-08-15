@@ -2,7 +2,7 @@
  * T044 — version retention integration test (real Nest app + Docker Postgres).
  *
  * Drives {@link VersionsService.createSnapshot} against the harness (booted by `bootRecipeApp`, migrated
- * + seeded by `tests/global-setup.ts`) to prove the FR-007b / FR-007b-i retention behavior end to end AS
+ * + seeded by `tests/globalSetup.ts`) to prove the FR-007b / FR-007b-i retention behavior end to end AS
  * SHIPPED post-T130: at save time NOTHING is pruned — every version stays in Postgres because the row is
  * the payload the async archive retry replays — and each version beyond the newest 10 is recorded in the
  * `recipe_version_pending_archives` outbox for the version-archive worker to archive-then-prune out of

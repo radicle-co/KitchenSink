@@ -11,7 +11,7 @@
 #
 # They live here, in one sourceable file, so the on-close cleanup and the daily reaper share ONE matcher
 # that cannot drift — and so the rule can be regression-tested for real, by
-# `packages/infra/global/__tests__/pr-scope.test.ts`, which executes this file rather than
+# `packages/infra/global/__tests__/prScope.test.ts`, which executes this file rather than
 # re-implementing it.
 #
 # Usage — source it:

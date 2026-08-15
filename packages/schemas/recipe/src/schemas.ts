@@ -10,7 +10,7 @@
 
 export * from './schemas/account.schema.js';
 export * from './schemas/collections.schema.js';
-export * from './schemas/api-error.schema.js';
+export * from './schemas/apiError.schema.js';
 export * from './schemas/health.schema.js';
 export * from './schemas/ingredients.schema.js';
 export * from './schemas/photos.schema.js';

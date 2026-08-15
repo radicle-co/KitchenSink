@@ -3,20 +3,20 @@
  * `usda.adapter.ts` this is the only place USDA's native `fdc_id` is named (FR-IDN-2); everything it emits
  * is a source-agnostic `CanonicalCandidate`.
  */
-export { isUsdaBulkFormatError, UsdaBulkFormatError } from './usda-bulk.errors.js';
+export { isUsdaBulkFormatError, UsdaBulkFormatError } from './usdaBulk.errors.js';
 export {
     BULK_ITEM_VERSION_PREFIX,
     bulkItemVersion,
     canonicalizeBulkUnit,
     mapBulkFoodToCanonical,
     type BulkVersionInput,
-} from './usda-bulk.parser.js';
+} from './usdaBulk.parser.js';
 export {
     loadBulkLookups,
     streamBulkCandidates,
     streamBulkFoodBundles,
     type UsdaBulkReadOptions,
-} from './usda-bulk.reader.js';
+} from './usdaBulk.reader.js';
 export {
     SEEDED_BULK_DATA_TYPES,
     type BulkFoodBundle,
@@ -25,4 +25,4 @@ export {
     type BulkNutrientRow,
     type BulkPortionRow,
     type SeededBulkDataType,
-} from './usda-bulk.types.js';
+} from './usdaBulk.types.js';

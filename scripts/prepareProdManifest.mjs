@@ -18,7 +18,7 @@
  * generator is ONE piece of knowledge ("what a production manifest is") and now has one home, next to the
  * repo's other cross-cutting scripts (`contractGenerate.mjs`, `contractDriftGate.mjs`, `pr-scope.sh`).
  *
- * `prod-manifest-parity.test.ts` remains the complementary guard: it checks the CONTENTS of every committed
+ * `prodManifestParity.test.ts` remains the complementary guard: it checks the CONTENTS of every committed
  * manifest, so it catches a generator that was never re-run just as well as a hand edit. The generator removes
  * the need to hand-maintain; the guard proves the result is true.
  *

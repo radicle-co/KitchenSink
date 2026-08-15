@@ -86,7 +86,7 @@ client half got skipped portfolio-wide.
 - **Service half.** `@kitchensink/creator-profiles-service` **authors** every wire shape as zod at
   `src/**/*.schema.ts` beside its controller, **validates its own requests with that same zod** via
   `nestjs-zod`'s `createZodDto`, and generates the committed `@kitchensink/schema-creator-profiles` package at
-  `packages/schemas/creator-profiles` (zod + `z.infer` types + `contract-hash.ts` + barrel + a **derived**,
+  `packages/schemas/creator-profiles` (zod + `z.infer` types + `contractHash.ts` + barrel + a **derived**,
   outbound-only `openapi.yaml`). A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files**.
 - **Client half.** `packages/clients/creator-profiles`, `@commise/web` and `@commise/mobile` import wire types
   **and zod** from that schema package and **declare no wire shape of their own**; a divergent consumer shape

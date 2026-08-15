@@ -4,7 +4,7 @@
  * Asserts the thin controller's only responsibilities: it receives the owner key / principal already
  * resolved by the `@OwnerId()` / `@CurrentPrincipal()` decorators, delegates to the service with the
  * right arguments, and returns the service's result verbatim. The "missing principal → 401" path now
- * lives on the decorators and is covered by `auth/__tests__/current-principal.decorator.test.ts`. HTTP
+ * lives on the decorators and is covered by `auth/__tests__/currentPrincipal.decorator.test.ts`. HTTP
  * status codes (`201`/`204`) are declared with framework decorators and verified by the integration/e2e
  * specs.
  */
@@ -13,12 +13,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { RecipesController } from '../recipes.controller.js';
 import type { RecipesService } from '../recipes.service.js';
 import type { Principal } from '../../auth/principal.js';
-import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
-import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
-import type { ListRecipesQueryDto } from '../dto/list-recipes.query.dto.js';
-import type { RecipeResponse } from '../dto/recipe-response.dto.js';
-import type { CloneRecipeDto } from '../dto/clone-recipe.dto.js';
-import type { SetVisibilityDto } from '../dto/set-visibility.dto.js';
+import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
+import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
+import type { ListRecipesQueryDto } from '../dto/listRecipes.query.dto.js';
+import type { RecipeResponse } from '../dto/recipeResponse.dto.js';
+import type { CloneRecipeDto } from '../dto/cloneRecipe.dto.js';
+import type { SetVisibilityDto } from '../dto/setVisibility.dto.js';
 
 const OWNER = '01J000000000000000000FREE0';
 const PRINCIPAL = { userId: OWNER, sub: 'clerk_sub', scopes: [], permissions: ['premium'] } as Principal;

@@ -158,7 +158,7 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
              * ⚠️ These are the ONLY thing standing between `eslint .` and a package's build output.
              *
              * Every package's `lint` script is the bare `eslint .` (pinned by
-             * `packages/infra/global/__tests__/static-analysis-coverage.test.ts`) because a per-package glob is a
+             * `packages/infra/global/__tests__/staticAnalysisCoverage.test.ts`) because a per-package glob is a
              * claim about a file tree that only the tree can settle — `lib/**\/*.ts` looked correct beside a
              * `lib/` directory while 62 conformance suites in the `__tests__/` next to it were linted by nothing.
              * Handing ESLint the directory removes the glob, and moves the whole exclusion decision HERE, where

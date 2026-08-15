@@ -56,7 +56,7 @@ script exists — and the `.prettierignore` justified itself with a claim that w
 already covers `dist` and `packages/schemas/*/openapi.yaml`). Wiring the scripts instead would be worse than dead
 config: a formatter rewriting generated `src/` reads as contract drift and reds layer 2 until the generator is
 re-run. The authored sources are linted and formatted in the service that owns them, which is the one place that
-knowledge belongs. `packages/infra/global/__tests__/generated-schema-packages.test.ts` pins this, so the config
+knowledge belongs. `packages/infra/global/__tests__/generatedSchemaPackages.test.ts` pins this, so the config
 cannot quietly come back.
 
 ## What `openapi.yaml` is

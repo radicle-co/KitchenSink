@@ -12,7 +12,7 @@ export default tseslint.config(
         // for the edge and Node runtimes, ordinary application code — so those two shipped unlinted. The
         // exemption is only ever meant for a root tool manifest (`next.config.ts`, `playwright.config.ts`), which
         // is what the shared config in `packages/tools/eslint` excludes and what
-        // `__tests__/static-analysis-coverage.test.ts` pins.
+        // `__tests__/staticAnalysisCoverage.test.ts` pins.
         ignores: ['.next/**', 'next-env.d.ts', '*.config.*', '**/*.cff.js'],
     },
     {

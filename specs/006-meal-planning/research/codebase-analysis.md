@@ -98,7 +98,7 @@ additive batch projection on the recipe service to fetch many recipes' nutrition
 
 ### Cross-service integration exemplar
 
-- `packages/services/recipe-service/src/ingredients/food-catalog.gateway.ts` is the platform's worked example of calling
+- `packages/services/recipe-service/src/ingredients/foodCatalog.gateway.ts` is the platform's worked example of calling
   another service: bounded transport timeout via a real `AbortSignal` (with an explicit note that `Promise.race` leaks
   pending requests), a total function that never throws, boundary normalization, rate-limited failure logging, and a
   three-state `availability` discriminant. 006's `RecipeGateway` is modelled on it.
@@ -164,18 +164,18 @@ entries with recipe names and meal type."_ 006 is fulfilling a contract that was
 
 ## Infrastructure facts 006 must respect
 
-| Fact                                                                                 | Source                                           |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| One shared internet-facing ALB per stage; services add host rules, never own an ALB  | ADR-0003, `SharedAlbStack`                       |
-| Base listener priorities: identity 100, food 200, recipe 300 → **006 takes 400**     | `recipe-service-stack.ts`                        |
-| Per-PR priority bands must be disjoint: food 10000s, recipe 30000s → **006: 50000s** | `recipe-service-stack.ts` (documented collision) |
-| NAT is a single `t4g.nano` instance; Fargate egresses via IGW, not NAT               | ADR-0004                                         |
-| Logical DB per service on the shared RDS instance; per-PR DB derived from base       | ADR-0006                                         |
-| DB-name derivation must be a **leaf module with no imports**, not barrel-exported    | `recipeDatabaseName.ts`, defect #119             |
-| `Environment=global` persists; `Environment=pr-{N}` is deleted on PR close           | ADR-0005                                         |
-| Non-prod uses `gp3` + `FARGATE_SPOT`; a $300 account budget guardrail exists         | ADR-0008                                         |
-| Per-PR deploy jobs are gated **ensure-exists**, not on changed paths                 | ADR-0010, `.github/scripts/deploy-gate.sh`       |
-| **No Redis or ElastiCache exists anywhere in the platform**                          | verified by search across all infra packages     |
+| Fact                                                                                 | Source                                         |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| One shared internet-facing ALB per stage; services add host rules, never own an ALB  | ADR-0003, `SharedAlbStack`                     |
+| Base listener priorities: identity 100, food 200, recipe 300 → **006 takes 400**     | `RecipeServiceStack.ts`                        |
+| Per-PR priority bands must be disjoint: food 10000s, recipe 30000s → **006: 50000s** | `RecipeServiceStack.ts` (documented collision) |
+| NAT is a single `t4g.nano` instance; Fargate egresses via IGW, not NAT               | ADR-0004                                       |
+| Logical DB per service on the shared RDS instance; per-PR DB derived from base       | ADR-0006                                       |
+| DB-name derivation must be a **leaf module with no imports**, not barrel-exported    | `recipeDatabaseName.ts`, defect #119           |
+| `Environment=global` persists; `Environment=pr-{N}` is deleted on PR close           | ADR-0005                                       |
+| Non-prod uses `gp3` + `FARGATE_SPOT`; a $300 account budget guardrail exists         | ADR-0008                                       |
+| Per-PR deploy jobs are gated **ensure-exists**, not on changed paths                 | ADR-0010, `.github/scripts/deploy-gate.sh`     |
+| **No Redis or ElastiCache exists anywhere in the platform**                          | verified by search across all infra packages   |
 
 ---
 

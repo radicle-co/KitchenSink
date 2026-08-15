@@ -2,7 +2,7 @@
  * T100 — recipe-photo upload lifecycle integration test (real Nest app + Docker Postgres + LocalStack S3).
  *
  * Drives the full presign → upload → confirm flow end to end against the harness (booted by
- * `bootRecipeApp`, migrated + seeded — including the `commise-photos` bucket — by `tests/global-setup.ts`):
+ * `bootRecipeApp`, migrated + seeded — including the `commise-photos` bucket — by `tests/globalSetup.ts`):
  *   1. create a recipe (photos FK-reference `recipes.id`),
  *   2. `POST …/photos/upload-url` → presigned S3 PUT (returns `200` + `{ uploadUrl, key, expiresIn, maxBytes }`),
  *   3. PUT real PNG bytes to LocalStack via that URL,

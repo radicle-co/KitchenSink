@@ -78,11 +78,11 @@ WINDOW_SECONDS=60 BURST_COUNT=60 npm run ratelimit
 the admin `/metrics` (`sources[usda].paused`/`utilization`) + `/queue` depth and prints a **verdict**:
 STALL seen (worker paused at the cap, queue backed up) → RESUME seen (paused clears, queue drains).
 Deterministic correctness of the same behavior lives in
-`food-service/tests/food-consumer.integration.test.ts` (`stall→resume`) — the load test demonstrates it end-to-end.
+`food-service/tests/foodConsumer.integration.test.ts` (`stall→resume`) — the load test demonstrates it end-to-end.
 
 > **Promotion-by-request-count** (#2) and **flooding-user demotion/flood-shed** (#3) are queue-ordering
 > invariants that only manifest under a backlog / near the depth ceiling — proven deterministically by
-> `fetch-queue.dao`, `fairness-demotion`, and `admission` integration tests, not the k6 load test.
+> `fetchQueue.dao`, `fairness-demotion`, and `admission` integration tests, not the k6 load test.
 
 ### Does the food really land in the DB?
 

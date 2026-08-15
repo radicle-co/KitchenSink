@@ -2,7 +2,7 @@
  * T098 — recipe CRUD lifecycle integration test (real Nest app + Docker Postgres + LocalStack).
  *
  * Drives the `/api/v1/recipes` HTTP surface end to end against the harness (booted by `bootRecipeApp`,
- * migrated + seeded by `tests/global-setup.ts`). The dev-auth bypass injects a fixed owner ULID so the
+ * migrated + seeded by `tests/globalSetup.ts`). The dev-auth bypass injects a fixed owner ULID so the
  * routes authenticate without a Clerk token. Runs only when the harness DB is configured — otherwise
  * skipped in lockstep with the global setup (`describe.skipIf(!hasDatabaseUrl)`).
  */

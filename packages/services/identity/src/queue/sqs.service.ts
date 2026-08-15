@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
-import { createServiceLogger } from '../observability/sentry-logging.js';
-import { DeletionEnqueueError } from './deletion-enqueue.error.js';
+import { createServiceLogger } from '../observability/sentryLogging.js';
+import { DeletionEnqueueError } from './deletionEnqueue.error.js';
 
 export const SQS_CLIENT = 'SQS_CLIENT';
 

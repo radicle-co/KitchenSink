@@ -145,7 +145,7 @@ on the REQ-NF-016/017 CloudWatch alarms for ongoing production verification.
 **Artifact:** REQ-CN-005
 **Justification:** REQ-CN-005 requires that recipes flagged as imported from a physical copy
 (photo/OCR) default to private visibility on creation. The `imported_physical` `sourceType` is a fully
-implemented, policy-enforced enum value in this feature — `recipes/domain/visibility-policy.ts`
+implemented, policy-enforced enum value in this feature — `recipes/domain/visibilityPolicy.ts`
 correctly forces it (and `imported_paid`) to private-only — but the **only way to create** a recipe with
 that `sourceType` in 001 is via clone/seed data; the actual user-facing photo/OCR import action that
 would set it from a real user flow is owned by feature `004` (out of 001's scope) and does not exist

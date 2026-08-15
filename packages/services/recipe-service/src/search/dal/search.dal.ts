@@ -30,9 +30,9 @@ import type { RecipeSearchFacets } from '../search.schema.js';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE } from '../../common/pagination.js';
-import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
-import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipe-row-to-domain.js';
-import { resolveCdnUrl } from '../../photos/photo-view.js';
+import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipePredicates.js';
+import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipeRowToDomain.js';
+import { resolveCdnUrl } from '../../photos/photoView.js';
 
 /** Default page size when the caller does not specify one — the shared S-R8 default (20). */
 export const DEFAULT_SEARCH_PAGE_SIZE = DEFAULT_PAGE_SIZE;
@@ -43,7 +43,7 @@ export const DEFAULT_SEARCH_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 // the same backwards dependency `../search.schema.ts`'s header records for `RecipeSearchFacets`, and the fix is
 // the same one: the bound lives in `@kitchensink/recipe-core` and this module consumes it like any other reader.
 // `MAX_PAGE_SIZE` below remains the INTERNAL clamp shared with the collections and recipes lists; the two are
-// asserted equal in `../__tests__/page-size-bound.test.ts`.
+// asserted equal in `../__tests__/pageSizeBound.test.ts`.
 
 // Re-exported so existing importers (this module's own `search()` and this module's tests) keep resolving
 // `clampPage`/`clampPageSize` from `search.dal.js` unchanged — the S-R8 clamps themselves now live once, in

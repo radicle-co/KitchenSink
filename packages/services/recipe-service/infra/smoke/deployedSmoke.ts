@@ -357,7 +357,7 @@ export interface SmokeTarget {
      * opening a browser-facing surface with no browser consumer.
      *
      * Which deploy legs MUST supply it is not a judgement call left to the caller:
-     * `prod-deploy-smoke-depth.test.ts` derives it from whether the service's `main.ts` enables CORS, so a
+     * `prodDeploySmokeDepth.test.ts` derives it from whether the service's `main.ts` enables CORS, so a
      * service that gains CORS immediately owes the assertion and one that has it cannot silently drop it.
      */
     readonly webOrigin?: string;

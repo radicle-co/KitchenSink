@@ -32,7 +32,7 @@ import {
 } from '../search.dal.js';
 // The clamp's own ceiling, from the clamp's own module. It used to be spelled `MAX_SEARCH_PAGE_SIZE` and
 // imported from `search.dal.js`; that name is now the WIRE bound in `@kitchensink/recipe-core` (which is a
-// different concern — see `../../__tests__/page-size-bound.test.ts`, which asserts the two agree).
+// different concern — see `../../__tests__/pageSizeBound.test.ts`, which asserts the two agree).
 import { MAX_PAGE_SIZE } from '../../../common/pagination.js';
 
 /** A minimal `db.execute` mock. */

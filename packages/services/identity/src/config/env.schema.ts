@@ -63,7 +63,7 @@ const NON_DEPLOYED_STAGES = new Set(['dev', 'test', 'local']);
 /**
  * Whether `stage` names a DEPLOYED environment (`prod`, `sandbox`, `pr-{N}`, …) as opposed to one of the
  * local/test sentinels. Exported because three security-relevant decisions must agree on it — this schema's
- * "Clerk config is required" refinement, `config/cors.ts`'s fail-closed branch, and `observability/auth-trace.ts`'s
+ * "Clerk config is required" refinement, `config/cors.ts`'s fail-closed branch, and `observability/authTrace.ts`'s
  * sink selection. Each used to carry its own copy of the set. Pure.
  *
  * @param stage - The raw `STAGE` value.

@@ -2,7 +2,7 @@
  * Standalone DB preparation for the k6 load suite (used by the CI `load-test` job and local validation).
  *
  * Applies the ordered `src/database/migrations/*.sql` files against `DATABASE_URL` and seeds the baseline
- * catalog ingredients the load payloads reference (must match `tests/global-setup.ts` SEED_INGREDIENTS
+ * catalog ingredients the load payloads reference (must match `tests/globalSetup.ts` SEED_INGREDIENTS
  * and `tests/load/lib/common.js` SEED_INGREDIENT_*). Since T043b, recipe create validates each line's
  * `ingredientId` against the catalog, so these rows MUST exist or every create 400s and trips the k6
  * failure-rate threshold. Idempotent: drops/recreates `public`, re-applies migrations, upserts seeds.

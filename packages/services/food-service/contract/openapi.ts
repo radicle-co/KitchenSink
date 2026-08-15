@@ -23,7 +23,7 @@ import { buildOpenApiDocument } from '@kitchensink/contract-gen';
 import type { OpenApiBuildResult } from '@kitchensink/contract-gen';
 import { z } from 'zod';
 
-import { apiErrorSchema } from '../src/common/api-error.schema.js';
+import { apiErrorSchema } from '../src/common/apiError.schema.js';
 import {
     addFoodRequestSchema,
     addResponseSchema,
@@ -48,8 +48,8 @@ import {
     operationalMetricsSchema,
     queueDepthMetricsSchema,
     sourceWindowMetricsSchema,
-} from '../src/foods/admin/admin-metrics.schema.js';
-import { foodServiceErasureAcceptedResponseSchema } from '../src/foods/dto/service-erasure.schema.js';
+} from '../src/foods/admin/adminMetrics.schema.js';
+import { foodServiceErasureAcceptedResponseSchema } from '../src/foods/dto/serviceErasure.schema.js';
 import { healthStatusSchema } from '../src/health/health.schema.js';
 
 /**

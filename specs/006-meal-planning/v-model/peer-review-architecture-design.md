@@ -54,4 +54,4 @@ than merely described.
 - Every module's target package matches the `CODING_STANDARDS §5.1` platform/product split.
 - The Development View's naming regimes match `§1a`/`§1b` for each package.
 - The Physical View's listener priority (400) and bands (50000/60000) are disjoint from food and recipe — cross-checked
-  against `recipe-service-stack.ts`.
+  against `RecipeServiceStack.ts`.

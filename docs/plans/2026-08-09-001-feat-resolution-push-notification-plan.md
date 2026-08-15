@@ -294,5 +294,5 @@ rather than left standing.
 - `packages/services/recipe-service/src/database/schema/ingredients.ts` — `food_id` and its unique index.
 - `packages/services/food-service/src/db/schema/operational.ts` — `fetch_requesters`, whose comment names
   WebSocket targeting.
-- `packages/services/food-service/src/events/food-event-emitter.ts` — the EventBridge `detailType`.
+- `packages/services/food-service/src/events/FoodEventEmitter.ts` — the EventBridge `detailType`.
 - `docs/architecture/decisions/0003-shared-alb-per-stage.md` — the shared ALB and host-based routing.

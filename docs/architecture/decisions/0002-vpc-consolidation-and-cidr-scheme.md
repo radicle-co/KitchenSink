@@ -3,7 +3,7 @@
 - **Status:** Accepted — _per-stage CIDR threading implemented_ (`NetworkStack` takes `stage`, `cidrForStage` assigns the range; prod unchanged, sandbox renumbered). The **sandbox VPC/RDS recreation** and **legacy `dev` retirement** are operational steps (see the runbook) and remain to be executed.
 - **Date:** 2026-06-14
 - **Area:** AWS network topology · CDK global infra · RDS · cross-stack exports
-- **Related:** `docs/plans/2026-06-14-004-refactor-vpc-consolidation-plan.md`, `docs/runbooks/sandbox-vpc-recreation.md`, `docs/plans/2026-06-14-003-feat-tailscale-private-aws-access-plan.md` (depends on this), `packages/infra/global/lib/platform/network-stack.ts`, `.github/workflows/prod-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`
+- **Related:** `docs/plans/2026-06-14-004-refactor-vpc-consolidation-plan.md`, `docs/runbooks/sandbox-vpc-recreation.md`, `docs/plans/2026-06-14-003-feat-tailscale-private-aws-access-plan.md` (depends on this), `packages/infra/global/lib/platform/NetworkStack.ts`, `.github/workflows/prod-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`
 
 ## ⚠️ Before you change this — the trap
 
@@ -15,7 +15,7 @@ If you are about to change a stage's VPC CIDR in `cidrForStage`, or "just `cdk d
 
 ## Context
 
-- Both prod and sandbox VPCs were created from one `network-stack.ts` with no explicit `ipAddresses`, so both defaulted to `10.0.0.0/16`. Identical CIDRs block VPC peering and forced the Tailscale router design into 4via6 site-ID gymnastics.
+- Both prod and sandbox VPCs were created from one `NetworkStack.ts` with no explicit `ipAddresses`, so both defaulted to `10.0.0.0/16`. Identical CIDRs block VPC peering and forced the Tailscale router design into 4via6 site-ID gymnastics.
 - A parentless `IdentityNetwork-dev` VPC + `kitchensink-data-dev` RDS linger from an earlier `STAGE=dev` deploy that no current workflow reproduces.
 - The network/data/domain stacks were also duplicated (byte-identical in the service package; an older, SG-pairing-missing copy in the webhooks package), referenced only by tests — drift waiting to happen.
 - The identity VPC is the only VPC-attached prod infrastructure (the web app's `SandboxRouterStack` is CloudFront-based and VPC-independent), so "one VPC per stage" was already nearly true.
@@ -51,5 +51,5 @@ If you are about to change a stage's VPC CIDR in `cidrForStage`, or "just `cdk d
 
 ## Implementation guards
 
-- `packages/infra/global/lib/platform/network-stack.ts` — `cidrForStage` carries the prod-stays-10.0.0.0/16 rationale; the prod-CIDR and SG-pairing assertions in `packages/infra/global/__tests__/network-stack.test.ts` guard against accidental prod renumbering and the `ENI_SG_RULES_MISMATCH` regression.
+- `packages/infra/global/lib/platform/NetworkStack.ts` — `cidrForStage` carries the prod-stays-10.0.0.0/16 rationale; the prod-CIDR and SG-pairing assertions in `packages/infra/global/__tests__/NetworkStack.test.ts` guard against accidental prod renumbering and the `ENI_SG_RULES_MISMATCH` regression.
 - The ordered-teardown sequence, CI suppression, verified-empty check, and fix-forward recovery live in `docs/runbooks/sandbox-vpc-recreation.md`.

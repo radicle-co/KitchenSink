@@ -66,7 +66,7 @@ jobs:
         # binding is a place a run can be made to WAIT, and the failure modes are not symmetric — a stalled
         # deploy is loud and costs nothing, while a stalled cleanup silently leaks AWS spend, which is the
         # exact failure this script exists to prevent. So reclamation is never gated, and the guard is code,
-        # not convention: `__tests__/reclamation-never-gated.test.ts` fails if either job gains an
+        # not convention: `__tests__/reclamationNeverGated.test.ts` fails if either job gains an
         # `environment:` key. The deploying jobs below (`preview-domain`, `deploy-food`, `deploy-recipe`) ARE
         # bound, because stalling them is merely visible.
         #
@@ -106,7 +106,7 @@ jobs:
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
             # ⚠️ DELIBERATE — this step MUST NOT be able to abort the job. See the analyzer in
-            # packages/infra/global/__tests__/sandbox-reclamation-reachability.test.ts.
+            # packages/infra/global/__tests__/sandboxReclamationReachability.test.ts.
             #
             # The hosted zone is an input to ONE part of teardown (the preview DNS record). The stacks, ECR
             # repos and log groups — all of the billable compute — need no zone at all. When this step
@@ -343,7 +343,7 @@ jobs:
                   # 403) stranded that name PERMANENTLY — by the next sweep the stacks, ECR repos and the
                   # CNAME were already reclaimed, leaving no token to rediscover the PR by. Same defect
                   # shape as the log-group sweep that matched nothing for two years, and cheap to close.
-                  # Asserted by `packages/infra/global/__tests__/reaper-discovery-covers-teardown.test.ts`.
+                  # Asserted by `packages/infra/global/__tests__/reaperDiscoveryCoversTeardown.test.ts`.
                   stacks=$(aws cloudformation list-stacks --region "$REGION" \
                       --stack-status-filter CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED DELETE_FAILED \
                       --query 'StackSummaries[].StackName' --output text 2>/dev/null | tr '\t' '\n')
@@ -541,7 +541,7 @@ jobs:
                       food:
                           - 'packages/services/food-service/**'
             # Node + deps + credentials are UNCONDITIONAL: the gate needs the AWS CLI, and it derives the
-            # food host by RUNNING `print-food-host.ts` rather than re-typing `food-pr-{N}.<domain>` in YAML
+            # food host by RUNNING `printFoodHost.ts` rather than re-typing `food-pr-{N}.<domain>` in YAML
             # (that dash form is a TLS constraint — ADR-0003/0006 — and a second copy here is exactly what
             # drifts). Cheap next to what the gate can now skip: a turbo build, a Docker build+push, and two
             # `cdk deploy` passes.
@@ -558,7 +558,7 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
-            # `print-food-host.ts` imports the food stack module, so every workspace package that module
+            # `printFoodHost.ts` imports the food stack module, so every workspace package that module
             # reaches must be BUILT first. `@kitchensink/infra-security` and `@kitchensink/infra-alb` export
             # `./dist`, not `./src` — deliberately, because the COMPILED CDK apps run under plain `node`,
             # whose type-stripping resolves a `.js` specifier inside a `.ts` file literally rather than
@@ -577,7 +577,7 @@ jobs:
               id: host
               run: |
                   set -euo pipefail
-                  url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
+                  url=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts \
                     "${STAGE}" "${DOMAIN_NAME}")
                   echo "url=${url}" >>"$GITHUB_OUTPUT"
                   echo "food preview origin: ${url}"
@@ -692,7 +692,7 @@ jobs:
     # Ordering is load-bearing: recipe-WORKERS owns the account-erasure queue and publishes its URL/ARN to
     # SSM (`/kitchensink/{stage}/recipe/account-erasure-queue-*`), which recipe-SERVICE reads at deploy
     # time. Deploying the service first fails with "Unable to fetch parameters ... from parameter store".
-    # SSM (rather than a CFN export) is deliberate — see the comment in recipe-service-stack.ts: an
+    # SSM (rather than a CFN export) is deliberate — see the comment in RecipeServiceStack.ts: an
     # `Fn.importValue` would lock the workers export while the service imports it, and ADR-0005's PR-close
     # cleanup deletes a PR's stacks in no fixed order, so workers-first would hit the ADR-0002
     # export-in-use deadlock unattended.
@@ -731,7 +731,7 @@ jobs:
             BASE_STAGE: sandbox
             IMAGE_TAG: pr-${{ github.event.pull_request.number }}-${{ github.sha }}
             # This stage's recipe origin, in ONE place — the gate probes it and the smoke step verifies it.
-            # The shape is owned by `recipeSubdomainForStage` (recipe-service-stack.ts): a SINGLE label, so
+            # The shape is owned by `recipeSubdomainForStage` (RecipeServiceStack.ts): a SINGLE label, so
             # the `*.<domain>` ALB cert covers it; a 3-label `recipe.pr-7.<domain>` fails the TLS handshake.
             RECIPE_ORIGIN: https://recipe-${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}.${{ vars.DOMAIN_NAME }}
         steps:
@@ -842,7 +842,7 @@ jobs:
             # re-typing `food-pr-{N}.${DOMAIN_NAME}` here: the dash form is a TLS constraint (a 3-label
             # `food.pr-7...` matches no wildcard on the shared ALB cert — ADR-0003/0006), and a second copy of
             # that rule in YAML is exactly the kind of thing that drifts silently. One definition, imported.
-            # `print-food-host.ts` imports the food stack module, so every workspace package that module
+            # `printFoodHost.ts` imports the food stack module, so every workspace package that module
             # reaches must be BUILT first. `@kitchensink/infra-security` and `@kitchensink/infra-alb` export
             # `./dist`, not `./src` — deliberately, because the COMPILED CDK apps run under plain `node`,
             # whose type-stripping resolves a `.js` specifier inside a `.ts` file literally rather than
@@ -861,7 +861,7 @@ jobs:
               id: food
               run: |
                   set -euo pipefail
-                  food_url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
+                  food_url=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts \
                     "${STAGE}" "${DOMAIN_NAME}")
                   echo "url=${food_url}" >> "$GITHUB_OUTPUT"
                   echo "recipe will call food at ${food_url}"
@@ -896,7 +896,7 @@ jobs:
                   # Regenerate prod.package.json from the dev manifest before the image is built — the same
                   # step food and identity already had. Recipe was the ONE service without it, which is how its
                   # manifest came to omit eight declared runtime dependencies and to name `./dist/main.js`, an
-                  # entry point the build does not emit. prod-manifest-parity.test.ts checks the CONTENTS; this
+                  # entry point the build does not emit. prodManifestParity.test.ts checks the CONTENTS; this
                   # is what stops them going stale in the first place.
                   npm run docker:prepare --workspace=packages/services/recipe-service
                   docker buildx build --platform linux/amd64 \
@@ -909,7 +909,7 @@ jobs:
             # reads them from `process.env` either way.
             # Same closure requirement as the resolvers above: this app imports `@kitchensink/infra-security`,
             # which exports `./dist`. It has not failed only because an earlier step in this job happens to
-            # build it — an accident of ordering, not a guarantee. `cdk-entrypoint-build-order.test.ts` found
+            # build it — an accident of ordering, not a guarantee. `cdkEntrypointBuildOrder.test.ts` found
             # this while pinning the two resolver steps.
             - name: Build the workspace packages the recipe-workers app imports
               if: steps.gate.outputs.deploy == 'true'

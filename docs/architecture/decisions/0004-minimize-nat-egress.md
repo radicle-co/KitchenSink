@@ -3,7 +3,7 @@
 - **Status:** Accepted — _implemented_ (`NetworkStack` uses `NatProvider.instanceV2`; the identity Fargate service moved to public subnets with `assignPublicIp`). Food's equivalent (API + worker to public subnets; batch jobs as Fargate, not Lambdas) lands with feature 003.
 - **Date:** 2026-06-21
 - **Area:** AWS network topology · cost · `NetworkStack` NAT · ECS subnet placement · VPC Lambda egress
-- **Related:** issue #46, `packages/infra/global/lib/platform/network-stack.ts`, `packages/services/identity/infra/lib/identity-service-stack.ts`, `packages/infra/global/__tests__/network-stack.test.ts`, ADR-0002 (VPC/CIDR — the replacement trap)
+- **Related:** issue #46, `packages/infra/global/lib/platform/NetworkStack.ts`, `packages/services/identity/infra/lib/IdentityServiceStack.ts`, `packages/infra/global/__tests__/NetworkStack.test.ts`, ADR-0002 (VPC/CIDR — the replacement trap)
 
 ## ⚠️ Before you change this — the trap
 
@@ -47,5 +47,5 @@
 
 ## Implementation guards
 
-- `packages/infra/global/__tests__/network-stack.test.ts` asserts `AWS::EC2::NatGateway` count 0 and a `t4g.nano` NAT instance — fails if a Gateway is reintroduced.
-- The NAT instance SG is VPC-CIDR-scoped (`network-stack.ts`), not `0.0.0.0/0`.
+- `packages/infra/global/__tests__/NetworkStack.test.ts` asserts `AWS::EC2::NatGateway` count 0 and a `t4g.nano` NAT instance — fails if a Gateway is reintroduced.
+- The NAT instance SG is VPC-CIDR-scoped (`NetworkStack.ts`), not `0.0.0.0/0`.

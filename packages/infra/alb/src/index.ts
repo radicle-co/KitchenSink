@@ -18,4 +18,4 @@ export {
     type ListenerPriorityRequest,
     type PriorityBand,
     type SharedListenerService,
-} from './listener-priority.js';
+} from './listenerPriority.js';

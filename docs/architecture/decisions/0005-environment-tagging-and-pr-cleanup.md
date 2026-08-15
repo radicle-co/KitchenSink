@@ -3,12 +3,12 @@
 - **Status:** Accepted — _convention + cleanup implemented_. The four CDK apps tag at the `App` level (propagates to every resource); the **`cleanup` job in `.github/workflows/sandbox-deploy.yml`** runs on PR close. That job _replaced_ the prior name-only `*-pr-{N}` stack destroy with this tag/name-driven sweep — the per-PR feature workflow owns both deploy (templates) and teardown, so there is no separate cleanup workflow. Per-PR feature **deploy** (food etc.) is wired in the feature's deploy phase; until a feature deploys per-PR there is simply nothing for cleanup to match.
 - **Date:** 2026-06-21
 - **Area:** AWS resource lifecycle · cost · CDK tagging · CI teardown · global-vs-ephemeral split
-- **Related:** `.github/workflows/sandbox-deploy.yml` (the `cleanup` + `reap-abandoned` jobs), `.github/scripts/teardown-sandbox-pr.sh` + `.github/scripts/pr-scope.sh` (+ its regression suite `packages/infra/global/__tests__/pr-scope.test.ts`), `packages/infra/global/__tests__/sandbox-reclamation-reachability.test.ts` (the reachability + export-lookup guards, _Update (2026-08-10)_), `.github/scripts/cfn-export.sh`, `packages/apps/commise/web/scripts/teardownPreviewDomain.ts`, ADR-0001 (the preview address this now reclaims), `packages/infra/global/bin/app.ts`, `packages/services/identity{,-webhooks}/infra/bin/app.ts`, `packages/services/food-service/infra/bin/app.ts`, `docs/CI_ARCHITECTURE.md`, ADR-0002 (the global infra it protects)
+- **Related:** `.github/workflows/sandbox-deploy.yml` (the `cleanup` + `reap-abandoned` jobs), `.github/scripts/teardown-sandbox-pr.sh` + `.github/scripts/pr-scope.sh` (+ its regression suite `packages/infra/global/__tests__/prScope.test.ts`), `packages/infra/global/__tests__/sandboxReclamationReachability.test.ts` (the reachability + export-lookup guards, _Update (2026-08-10)_), `.github/scripts/cfn-export.sh`, `packages/apps/commise/web/scripts/teardownPreviewDomain.ts`, ADR-0001 (the preview address this now reclaims), `packages/infra/global/bin/app.ts`, `packages/services/identity{,-webhooks}/infra/bin/app.ts`, `packages/services/food-service/infra/bin/app.ts`, `docs/CI_ARCHITECTURE.md`, ADR-0002 (the global infra it protects)
 
 ## ⚠️ Before you change this — the trap
 
 - **Never name or tag a persistent/global resource with `pr-{N}` (or `Environment=pr-{N}`).** The cleanup deletes by `Environment=pr-{N}` tag **or** a `pr-{N}` name match — there is deliberately **no denylist**; the precision of "only `pr-{N}` matches" is the entire safety model. A global resource that accidentally carries a `pr-{N}` name/tag will be deleted on PR close.
-- **The match requires a delimiter:** a name belongs to PR _N_ only if it is exactly `pr-{N}` or starts with `pr-{N}-`. A plain `starts-with("pr-1")` would also match `pr-15` / `pr-100`. `pr_scope_belongs` / `pr_scope_path_belongs` in **`.github/scripts/pr-scope.sh`** enforce this — do not relax them to a bare prefix, do not add a second matcher elsewhere, and do not add an "orphaned-looking" sweep. They are regression-tested by `packages/infra/global/__tests__/pr-scope.test.ts`, which executes the real shell functions (a TypeScript copy would be free to drift) and asserts that every persistent name — `kitchensink-identity-service-*`, `kitchensink-{data,network,alb,domain,global}-*`, `sandbox`, `prod` — answers **false**.
+- **The match requires a delimiter:** a name belongs to PR _N_ only if it is exactly `pr-{N}` or starts with `pr-{N}-`. A plain `starts-with("pr-1")` would also match `pr-15` / `pr-100`. `pr_scope_belongs` / `pr_scope_path_belongs` in **`.github/scripts/pr-scope.sh`** enforce this — do not relax them to a bare prefix, do not add a second matcher elsewhere, and do not add an "orphaned-looking" sweep. They are regression-tested by `packages/infra/global/__tests__/prScope.test.ts`, which executes the real shell functions (a TypeScript copy would be free to drift) and asserts that every persistent name — `kitchensink-identity-service-*`, `kitchensink-{data,network,alb,domain,global}-*`, `sandbox`, `prod` — answers **false**.
 - **Global stays global.** Identity, networking, RDS, domain, the shared ALB, and the webhook lambdas are `Environment=global` and named `kitchensink-*` even in the sandbox stage. They are persistent and must never be torn down per-PR (ADR-0002 — replacing the network/data stacks replaces the RDS).
 
 ## Context
@@ -86,7 +86,7 @@ defect and **failed all 11 runs it has ever made**, which also meant the only re
   never ran" were indistinguishable from outside — which is precisely how this stayed invisible. The signal is
   keyed on a **stack**, not on any leftover token, so it reports real un-reclaimed infrastructure and stays
   silent in steady state.
-- All of it is enforced by `packages/infra/global/__tests__/sandbox-reclamation-reachability.test.ts`, which
+- All of it is enforced by `packages/infra/global/__tests__/sandboxReclamationReachability.test.ts`, which
   parses the workflow YAML: analyzer 1 removes the _coupling_, analyzer 2 removes the _trigger_ (every export
   lookup is pinned to the shared helper), analyzer 3 removes the _consequence_. Neither `actionlint` nor
   `zizmor` can see any of these failures — the YAML is valid and the shell is well-formed.
@@ -121,7 +121,7 @@ by an exact `Environment=pr-{N}` tag, the same authority that already licenses d
 is widened; the per-PR cluster NAME is deliberately not used, because `pr_scope_belongs` is a prefix rule and
 loosening it is what this ADR forbids. Proven live: pr-82, pr-83 and pr-90 deleted all three stacks cleanly with
 no `DELETE_FAILED` at all, where every earlier PR had left two. Covered by
-`packages/infra/global/__tests__/ecs-quiesce.integration.test.ts`, which executes the real script against a
+`packages/infra/global/__tests__/ecsQuiesce.integration.test.ts`, which executes the real script against a
 stubbed AWS CLI and asserts the call ORDER (a wait that ran before the deletes, or not at all, is the whole bug).
 
 **Pattern worth naming: `list-exports` + `--query` is broken per-page, and it has now bitten twice.**
@@ -130,7 +130,7 @@ stubbed AWS CLI and asserts the call ORDER (a wait that ran before the deletes, 
 demonstrably existed); the reclamation jobs were the **second** confirmed instance, and there the two-line value
 did not merely mislead a guard — it produced an `Invalid format 'None'` `$GITHUB_OUTPUT` write that killed the
 step. Treat any new `aws cloudformation list-exports … --query` as a defect on sight; analyzer 2 of
-`sandbox-reclamation-reachability.test.ts` now enforces that across every workflow.
+`sandboxReclamationReachability.test.ts` now enforces that across every workflow.
 
 **Known residues found while reclaiming, NOT fixed here** — each is a real leak, each deserves its own change:
 

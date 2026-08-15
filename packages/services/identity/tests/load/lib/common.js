@@ -24,7 +24,7 @@ export const BASE_URL = (__ENV['IDENTITY_API_BASE_URL'] || 'http://localhost:300
 //   - Webhook processing <= 2s P99            (identity-webhooks' Lambda tier — out of scope here)
 // plus SC-005 (profile page within 2s), SC-006 (100% of requests without a valid token get 401) and
 // SC-007 (10,000 concurrent authenticated users, aligned to Commise SC-009). They were previously
-// "asserted" only by `tests/perf/latency-perf.test.ts`, a vitest stub in the UNIT tier that compares
+// "asserted" only by `tests/perf/latencyPerf.test.ts`, a vitest stub in the UNIT tier that compares
 // constants to themselves under no load at all; these thresholds are what actually enforces them.
 //
 // The cross-service reference point is the recipe/food k6 suites: p95 <= 500ms for an indexed read or a
@@ -66,7 +66,7 @@ export const ADMIN_LOOKUP_P95_MS = Number(__ENV['IDENTITY_ADMIN_LOOKUP_P95_MS'] 
 
 // `GET /health/ready` while the service is saturated. `READINESS_PROBE_TIMEOUT_MS` (src/health/readiness.ts)
 // is 2000ms, past which the probe REJECTS and the route answers 503 — and the ECS/ALB health checks
-// (infra/lib/identity-service-stack.ts) use a 10s timeout on a 30s interval, so sustained 503s drain
+// (infra/lib/IdentityServiceStack.ts) use a 10s timeout on a 30s interval, so sustained 503s drain
 // otherwise-healthy tasks. Budgeting p95 at HALF the probe timeout is the early-warning line: it fails
 // while the probe is merely at risk, not after the ALB has already started cycling tasks. BREACHABLE BY:
 // the probe shares the same 20-connection `pg` pool as request traffic, so pool exhaustion starves it.
@@ -133,7 +133,7 @@ export function totalRampDuration() {
 }
 
 // --- Token pool ---------------------------------------------------------------------------------
-// Where `prepare-clerk-tokens.ts` wrote the pools: `tests/load/clerk-tokens.json`, one level ABOVE this
+// Where `prepareClerkTokens.ts` wrote the pools: `tests/load/clerk-tokens.json`, one level ABOVE this
 // helper. Hence `'../clerk-tokens.json'`.
 //
 // ⚠️ READ THIS BEFORE "FIXING" THE PATH. This constant has now been wrong in BOTH directions, each time
@@ -161,7 +161,7 @@ export function totalRampDuration() {
 //
 // That regression survived review because NO CI JOB RAN THIS TIER — the comment it replaced even said so
 // ("latent rather than observed"). `_ci-heavy.yml`'s `load-test-identity` job now executes exactly this
-// default path on every heavy run, and `packages/infra/global/__tests__/k6-load-tier-wiring.test.ts` fails
+// default path on every heavy run, and `packages/infra/global/__tests__/k6LoadTierWiring.test.ts` fails
 // if any committed `.load.js` stops being invoked, so the next such edit fails loudly instead of latently.
 const TOKENS_FILE = __ENV['IDENTITY_TOKENS_FILE'] || '../clerk-tokens.json';
 
@@ -215,7 +215,7 @@ export function jsonHeaders(token) {
  *
  * `iterationInTest` is unique and monotonic PER SCENARIO across all its VUs, so consecutive in-flight
  * iterations get consecutive users. Distinctness of concurrent iterations therefore holds as long as a
- * scenario's peak VU count is below the pool size — which `prepare-db.ts` asserts
+ * scenario's peak VU count is below the pool size — which `prepareDb.ts` asserts
  * (`IDENTITY_WARM_POOL_SIZE >= IDENTITY_LOAD_PEAK_VUS`) rather than leaving to chance.
  */
 export function warmTokenForIteration(pool) {

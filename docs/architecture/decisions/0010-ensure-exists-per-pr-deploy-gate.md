@@ -133,7 +133,7 @@ Two offsets are part of this decision:
 
 CI-minute delta: `setup-node` + `npm ci` + credentials + the gate now run unconditionally in both jobs (~1–2
 min per job per event) so the gate can query CloudFormation and derive the food host by **running**
-`print-food-host.ts` instead of re-typing `food-pr-{N}.<domain>` in YAML. That is far cheaper than what the
+`printFoodHost.ts` instead of re-typing `food-pr-{N}.<domain>` in YAML. That is far cheaper than what the
 gate skips, and it avoids a second copy of a host shape that is a TLS constraint.
 
 ## Teardown (verified, not assumed)

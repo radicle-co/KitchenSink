@@ -8,7 +8,7 @@ cdk.out
 cdk.context.json
 *.tsbuildinfo
 
-# k6 load-test CREDENTIAL MATERIAL — generated per run by `tests/load/prepare-clerk-tokens.ts`, and
+# k6 load-test CREDENTIAL MATERIAL — generated per run by `tests/load/prepareClerkTokens.ts`, and
 # gitignored at the repo root for the reason spelled out there: it is a pool of ~6,000 live Clerk bearer
 # tokens (4.2 MB) and THIS REPO IS PUBLIC. Formatting a generated blob that large is pointless, and failing
 # the build on it is worse — the run that mints the pool would red every unrelated check in the package.

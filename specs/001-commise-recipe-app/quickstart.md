@@ -404,7 +404,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_load PORT=3000 \
 
 # 3. Run the SC-009 read/write scenario (p95 ≤ 500ms threshold; a breach exits non-zero):
 RECIPE_API_BASE_URL=http://localhost:3000 \
-  k6 run packages/services/recipe-service/tests/load/sc009-read-write.load.js
+  k6 run packages/services/recipe-service/tests/load/sc009ReadWrite.load.js
 ```
 
 `prepare-db.mjs` is mandatory: since T043b every recipe create validates each line's `ingredientId` against the catalog, so the seed ingredients must exist or every write 400s and trips the failure-rate threshold. The `search-latency` and `save-under-archive` scenarios live alongside it.
@@ -448,7 +448,7 @@ Recipe photos never pass through the API body — the client uploads directly to
 1. **Request an upload URL** — `POST …/photos/upload-url` `{ fileName, fileSize, contentType }` → `{ uploadUrl, key, expiresIn, maxBytes }`. The service pre-checks the 5 MB / 10-photo caps and returns a presigned S3 PUT.
 2. **PUT the bytes to S3** — the client `PUT`s the image straight to the `uploadUrl` (LocalStack `commise-photos` bucket locally). _LocalStack quirk:_ the S3 client is configured `requestChecksumCalculation: 'WHEN_REQUIRED'`, otherwise the presigned PUT fails an `x-amz-checksum-crc32` check under the aws-sdk v3 defaults.
 3. **Confirm** — `POST …/photos/confirm` `{ key, contentType }`. The service validates the object's **magic bytes** (jpeg/png/webp — the `file-type` library, not a hand-rolled sniff), records the `recipe_photos` row, and generates a **cover thumbnail**.
-4. **Cover thumbnail (synchronous, in-API)** — `photo-thumbnail.ts` resizes the first photo with **sharp/libvips** to `THUMBNAIL_MAX_PX` longest edge (default 400) at `THUMBNAIL_QUALITY` JPEG (default 80) and stores it under `thumbnail_key` (migration `0011`). If generation fails (e.g. an S3 5xx, or a `sharp` arch mismatch on a deployed task), it logs and **serves the original as the cover** — the cover projection resolves `COALESCE(thumbnail_key, s3_key)`, so the card degrades gracefully rather than 500-ing. The gallery always serves full-size originals; only the **cover** is a thumbnail.
+4. **Cover thumbnail (synchronous, in-API)** — `photoThumbnail.ts` resizes the first photo with **sharp/libvips** to `THUMBNAIL_MAX_PX` longest edge (default 400) at `THUMBNAIL_QUALITY` JPEG (default 80) and stores it under `thumbnail_key` (migration `0011`). If generation fails (e.g. an S3 5xx, or a `sharp` arch mismatch on a deployed task), it logs and **serves the original as the cover** — the cover projection resolves `COALESCE(thumbnail_key, s3_key)`, so the card degrades gracefully rather than 500-ing. The gallery always serves full-size originals; only the **cover** is a thumbnail.
 5. **Serve** — URLs are resolved against `CLOUDFRONT_URL` (a LocalStack stand-in locally).
 
 `sharp` is a native binary: it installs with a plain `npm i` for the local/Fargate `linux-x64` platform. On a deployed task the image build arch **must** match the task arch (`X86_64`) or every thumbnail falls back to the original (see release-readiness).

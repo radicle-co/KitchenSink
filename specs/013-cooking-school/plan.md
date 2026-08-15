@@ -94,7 +94,7 @@ Reference: [`governance-rules.md`](../governance-rules.md)
   and the **author** of the wire contract, as zod at `src/**/*.schema.ts` (GR-015; see _API Surface_ below)
 - `packages/services/cooking-school-workers` (Node 24 worker): async transcode callback/status projection
 - `packages/schemas/cooking-school` (`@kitchensink/schema-cooking-school`): **GENERATED, committed** copy of the
-  service's zod — the zod itself, `z.infer` types, `contract-hash.ts`, a barrel, and a **derived** `openapi.yaml`
+  service's zod — the zod itself, `z.infer` types, `contractHash.ts`, a barrel, and a **derived** `openapi.yaml`
 - `packages/clients/cooking-school`: the typed client every consumer depends on (never on the service package)
 
 > ⚠️ **Amended 2026-08-11 (GR-015).** This list previously named a
@@ -159,7 +159,7 @@ All non-preview playback endpoints enforce auth + entitlement checks.
 **The service MUST** author every course, lesson, enrollment, progress, playback and analytics
 request/response shape as **zod in `cooking-school-service`** at `src/**/*.schema.ts` beside the controller it
 serves; **validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto`; generate and commit
-`@kitchensink/schema-cooking-school` (zod + `z.infer` types + `contract-hash.ts` + barrel + a **derived**,
+`@kitchensink/schema-cooking-school` (zod + `z.infer` types + `contractHash.ts` + barrel + a **derived**,
 outbound-only `openapi.yaml` — `oasdiff`/docs/integrators, **never a codegen input**); and keep every
 `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
 

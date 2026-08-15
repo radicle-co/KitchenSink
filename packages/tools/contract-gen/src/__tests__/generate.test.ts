@@ -84,7 +84,7 @@ async function makeHarness(): Promise<Harness> {
             regenerateCommand: 'npm run contract:generate --workspace=@kitchensink/widget-service',
             contractDisplayName: 'widget service',
             allowedPackageImports: [{ specifier: 'zod', why: 'The schema language itself.' }],
-            serviceStampPath: 'src/contract/contract-hash.ts',
+            serviceStampPath: 'src/contract/contractHash.ts',
             openApi: makeOpenApi(),
         },
     };
@@ -130,7 +130,7 @@ describe('generateSchemaPackage', () => {
         expect(await readGenerated(harness, 'src/types.ts')).toContain("export type * from './schemas.js';");
         expect(await readGenerated(harness, 'src/index.ts')).toContain("export * from './schemas.js';");
         expect(await readGenerated(harness, 'src/index.ts')).toContain(
-            "export { CONTRACT_HASH } from './contract-hash.js';",
+            "export { CONTRACT_HASH } from './contractHash.js';",
         );
         expect(await readGenerated(harness, 'openapi.yaml')).toContain('openapi: 3.0.3');
     });
@@ -148,8 +148,8 @@ describe('generateSchemaPackage', () => {
     it('stamps the SAME contract hash into the service and the schema package', async () => {
         const result = await generateSchemaPackage(harness.config);
 
-        const leaf = await readGenerated(harness, 'src/contract-hash.ts');
-        const service = await readFile(join(harness.serviceRoot, 'src/contract/contract-hash.ts'), 'utf8');
+        const leaf = await readGenerated(harness, 'src/contractHash.ts');
+        const service = await readFile(join(harness.serviceRoot, 'src/contract/contractHash.ts'), 'utf8');
 
         expect(leaf).toContain(`export const CONTRACT_HASH = '${result.contractHash}';`);
         expect(service).toContain(`export const CONTRACT_HASH = '${result.contractHash}';`);
@@ -179,7 +179,7 @@ describe('generateSchemaPackage', () => {
                 'src/schemas/widgets.schema.ts',
                 'src/schemas.ts',
                 'src/index.ts',
-                'src/contract-hash.ts',
+                'src/contractHash.ts',
                 'openapi.yaml',
             ].map((path) => readGenerated(harness, path)),
         );
@@ -190,7 +190,7 @@ describe('generateSchemaPackage', () => {
                 'src/schemas/widgets.schema.ts',
                 'src/schemas.ts',
                 'src/index.ts',
-                'src/contract-hash.ts',
+                'src/contractHash.ts',
                 'openapi.yaml',
             ].map((path) => readGenerated(harness, path)),
         );

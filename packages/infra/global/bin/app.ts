@@ -5,8 +5,8 @@ import { App, Tags } from 'aws-cdk-lib';
 
 import { attachSecurityChecks } from '@kitchensink/infra-security';
 
-import { CostGuardrailsStack } from '../lib/platform/cost-guardrails-stack.js';
-import { GlobalStack } from '../lib/platform/global-stack.js';
+import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
+import { GlobalStack } from '../lib/platform/GlobalStack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
@@ -18,7 +18,7 @@ const app = new App();
 Tags.of(app).add('Environment', 'global');
 // U9: cdk-nag AwsSolutions review, ADVISORY — findings are reported as warnings, the build is not failed.
 // Annotation-only, so it does not change synthesized output (the ADR-0002/ADR-0008 no-prod-diff line);
-// `packages/infra/global/__tests__/cdk-nag-template-parity.test.ts` asserts that byte-for-byte.
+// `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` asserts that byte-for-byte.
 attachSecurityChecks(app);
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
 const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';

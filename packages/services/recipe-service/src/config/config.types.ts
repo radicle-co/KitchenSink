@@ -144,7 +144,7 @@ export const DEFAULT_AWS_REGION = 'us-east-1';
 
 /**
  * Database CONNECTION config — passwordless **RDS-IAM**, mirroring the shipped food service
- * (`packages/services/food-service/src/database/pool-config.ts`). There is deliberately **no**
+ * (`packages/services/food-service/src/database/poolConfig.ts`). There is deliberately **no**
  * database password secret and **no** `secret: true` `DATABASE_URL` fetched from SSM.
  *
  * Either/or, exactly like the food service's `EnvironmentSchema`:
@@ -310,7 +310,7 @@ export const storageConfigSchema = z.object({
      * (HAZ-051/067/039). OPTIONAL: no `Distribution` construct exists in this repo's CDK (the
      * distribution is provisioned outside it), so a stage without one yet — or local/dev — simply omits
      * this. When unset, invalidation degrades to a logged no-op rather than failing to boot or failing a
-     * delete request; see `photos/cdn-invalidation.ts`.
+     * delete request; see `photos/cdnInvalidation.ts`.
      */
     CLOUDFRONT_DISTRIBUTION_ID: z.string().min(1).optional(),
 
@@ -403,7 +403,7 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
  * **There is deliberately NO `FOOD_SERVICE_TOKEN`.** Food's `FoodAuthGuard` verifies a *Clerk* token, and a
  * long-lived static env string cannot satisfy that verifier (session tokens live ~60s) — the variable was
  * read as a static bearer and was never set anywhere in the repo. Recipe now forwards the CALLER's own
- * verified token instead (`auth/caller-token.ts` → `ingredients/food-service-clients.factory.ts`), so there
+ * verified token instead (`auth/CallerToken.ts` → `ingredients/FoodServiceClients.factory.ts`), so there
  * is no service credential to configure here.
  */
 export const foodServiceConfigSchema = z.object({

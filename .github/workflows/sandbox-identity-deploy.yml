@@ -167,7 +167,7 @@ jobs:
             # the real food/recipe bootstrap, which is how BOTH stages came to hold 217-byte stubs that
             # created no `food_app`/`recipe_app` role while CloudFormation reported success. Must stay ABOVE
             # the prune below: `bundle:lambda` runs esbuild, a devDependency the prune deletes (exit 127).
-            # Guarded by global-bootstrap-bundle.test.ts, which discovers every global-deploying workflow.
+            # Guarded by globalBootstrapBundle.test.ts, which discovers every global-deploying workflow.
             - name: Bundle global infra custom-resource handlers
               if: steps.flags.outputs.deploy_global == 'true'
               run: npm run bundle:lambda --workspace=packages/infra/global

@@ -19,12 +19,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
 
-import type { ErasureJobsDal } from '../dal/erasure-jobs.dal.js';
+import type { ErasureJobsDal } from '../dal/erasureJobs.dal.js';
 import type { ErasureQueuePort } from '../erasure.queue.js';
-import type { ServicePrincipalErasureMetrics } from '../erasure-metrics.js';
+import type { ServicePrincipalErasureMetrics } from '../erasureMetrics.js';
 import { ErasureService, MAX_ERASURE_REQUEST_ATTEMPTS } from '../erasure.service.js';
 import { makeActiveErasureJob } from '../__fixtures__/erasure.fixtures.js';
-import type { ServicePrincipal } from '../../auth/service-principal.js';
+import type { ServicePrincipal } from '../../auth/servicePrincipal.js';
 
 type DalMock = { [K in keyof ErasureJobsDal]: ReturnType<typeof vi.fn> };
 type QueueMock = { [K in keyof ErasureQueuePort]: ReturnType<typeof vi.fn> };

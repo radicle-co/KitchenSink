@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../../database/database.module.js';
-import { makeFakeDrizzle, methodsOf } from '../../../__testing__/make-fake-drizzle.js';
+import { makeFakeDrizzle, methodsOf } from '../../../__testing__/makeFakeDrizzle.js';
 import { isRecipeDomainError } from '../../../recipes/recipe.error.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../../__fixtures__/collections.fixtures.js';
 import { CollectionsDal } from '../collections.dal.js';

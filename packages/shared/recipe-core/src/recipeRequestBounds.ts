@@ -17,7 +17,7 @@
  * column can store. {@link INT4_CEILING} and {@link NUMERIC_8_2_CEILING} are that floor — PHYSICAL facts,
  * spelled as literals because this is an ASSERTION, not a DERIVATION: importing a drizzle type would turn a
  * storage type into a wire type, and `recipe-core` is a zod-only leaf both apps bundle. Each service's
- * `storage-capacity.test.ts` checks the assertion against every bounded column mechanically.
+ * `storageCapacity.test.ts` checks the assertion against every bounded column mechanically.
  *
  * ⚠️ The character limits below have NO storage floor — the text columns behind them are unbounded `text`,
  * so each is a PRODUCT decision with no column to derive it from.
@@ -85,7 +85,7 @@ export const MAX_RECIPE_LIST_PAGE_SIZE = 100;
  * module the source of a published constraint.
  *
  * ⚠️ Must stay equal to the internal `MAX_PAGE_SIZE` clamp in the service's `common/pagination.ts`. The two are
- * ASSERTED equal (`src/search/__tests__/page-size-bound.test.ts`) rather than derived: the clamp is shared
+ * ASSERTED equal (`src/search/__tests__/pageSizeBound.test.ts`) rather than derived: the clamp is shared
  * defense-in-depth for three endpoints, this is one endpoint's published contract. If they disagree,
  * `search.service.ts` echoes the requested `pageSize` into the envelope while the DAL clamps the `LIMIT`, so
  * the envelope would report a page size the response does not have.
@@ -238,6 +238,6 @@ export const recipeMinutesSchema = z.number().int().nonnegative().max(INT4_CEILI
  *
  * `.max(5)` is the product rule and `.int()` the column's; both are stricter than the `integer` column, so
  * {@link INT4_CEILING} is not additionally applied. The DB agrees independently via
- * `CHECK (stars BETWEEN 1 AND 5)`, and `storage-capacity.test.ts` asserts the pairing.
+ * `CHECK (stars BETWEEN 1 AND 5)`, and `storageCapacity.test.ts` asserts the pairing.
  */
 export const recipeRatingStarsSchema = z.number().int().min(1).max(5);

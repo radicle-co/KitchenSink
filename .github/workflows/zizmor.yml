@@ -135,7 +135,7 @@
 #       i.e. the exact leak the teardown script exists to prevent, reintroduced through the front door.
 #       Documenting "never protect `Sandbox`" was not enough, because that lives in repo settings where no
 #       test can see it and any admin can flip it from a UI that gives no hint a reaper depends on it. The
-#       invariant is now enforced in code by `packages/infra/global/__tests__/reclamation-never-gated.test.ts`,
+#       invariant is now enforced in code by `packages/infra/global/__tests__/reclamationNeverGated.test.ts`,
 #       which fails if either job gains an `environment:` key. Those 8 findings are the honest cost of
 #       removing a real stall hazard — and per the note below, binding them was buying nothing anyway.
 #     • Workflow-level `SENTRY_AUTH_TOKEN` reads moved into the single consuming job in prod-deploy and
@@ -172,7 +172,7 @@
 #   `secrets-outside-env` points at the same LINE — it is where the token is read — but what it asserts is
 #   "no Environment scopes this secret", not "any stranger can trigger this job", so adopting `auditor`
 #   would not have caught it either. That invariant is asserted only by the repo's own test:
-#   `packages/infra/global/__tests__/comment-trigger-guard.test.ts`. So: green here means "no pedantic-tier
+#   `packages/infra/global/__tests__/commentTriggerGuard.test.ts`. So: green here means "no pedantic-tier
 #   zizmor finding outside the 18 declared ignores". It does NOT mean "the workflows are audited for actor
 #   trust", and it does NOT mean the repo's secrets are environment-scoped.
 #

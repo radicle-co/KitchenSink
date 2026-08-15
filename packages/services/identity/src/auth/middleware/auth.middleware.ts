@@ -3,11 +3,11 @@ import type { Request, Response, NextFunction } from 'express';
 import * as Sentry from '@sentry/nestjs';
 
 import type { AuthorizerContext, UserId } from '../../types/index.js';
-import { ClerkAuthService } from '../clerk-auth.service.js';
+import { ClerkAuthService } from '../clerkAuth.service.js';
 import { UsersService } from '../../users/users.service.js';
-import { createServiceLogger } from '../../observability/sentry-logging.js';
-import { scrubText } from '../../observability/sentry-scrubbers.js';
-import { traceAuth } from '../../observability/auth-trace.js';
+import { createServiceLogger } from '../../observability/sentryLogging.js';
+import { scrubText } from '../../observability/sentryScrubbers.js';
+import { traceAuth } from '../../observability/authTrace.js';
 
 // `/health` (liveness) and `/health/ready` (readiness) are the only unauthenticated routes — the ALB
 // and ECS probe them with no bearer token, so both must bypass auth (ARCH-PS-3).

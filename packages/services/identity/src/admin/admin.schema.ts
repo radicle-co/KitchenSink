@@ -17,8 +17,8 @@
  * action routes handed an arbitrary caller-supplied string straight into `eq(users.id, …)`. Drizzle
  * parameterises, so it was never injectable, but nothing checked the FORMAT of a path parameter on an
  * admin-privileged route, and the published document described it as a bare `z.string()`. It is re-authored
- * here as {@link adminUserIdParamSchema}, bound through `dto/admin-user-id.param.dto.ts`, and asserted to be
- * REACHED by `tests/admin-param-validation.test.ts` (§15.4(1): path params go through the pipe).
+ * here as {@link adminUserIdParamSchema}, bound through `dto/adminUserId.param.dto.ts`, and asserted to be
+ * REACHED by `tests/adminParamValidation.test.ts` (§15.4(1): path params go through the pipe).
  *
  * WHY THE STATUS FIELDS ARE LITERALS. `suspendUser` always answers `status: 'suspended'` and the two recovery
  * routes always answer `status: 'active'`. Modelling them as the full `userStatusSchema` would widen the contract

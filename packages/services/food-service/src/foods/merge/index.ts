@@ -5,7 +5,7 @@
  * project's barrel convention. NOT wired into a NestJS module here (that is the API/worker slice).
  */
 
-export { GoldenRecordMergeEngine, blendCandidates, mergeCandidates, normalizeName } from './merge-engine.js';
+export { GoldenRecordMergeEngine, blendCandidates, mergeCandidates, normalizeName } from './mergeEngine.js';
 export type {
     GoldenRecordDraft,
     MergeCandidate,
@@ -15,9 +15,9 @@ export type {
     MergedNutrient,
     MergedPortion,
     MergedScalar,
-} from './merge-engine.js';
+} from './mergeEngine.js';
 
-export { sanitizeCandidates } from './merge-sanitize.js';
+export { sanitizeCandidates } from './mergeSanitize.js';
 
-export { MergeAndPersistService } from './merge-and-persist.service.js';
-export type { PersistResult, ResolveAndPersistInput, ResolveFromPicksInput } from './merge-and-persist.service.js';
+export { MergeAndPersistService } from './mergeAndPersist.service.js';
+export type { PersistResult, ResolveAndPersistInput, ResolveFromPicksInput } from './mergeAndPersist.service.js';

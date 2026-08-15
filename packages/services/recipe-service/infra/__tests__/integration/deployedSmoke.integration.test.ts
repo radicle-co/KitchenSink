@@ -337,7 +337,7 @@ describe('deployedSmoke CLI — the exit status is what turns a deploy red', () 
     // `--base-url` is the ONLY required flag. `--web-origin` became optional in #152 so food — which has no
     // `app.enableCors(…)` because nothing outside the cluster calls it — can take the rest of the smoke
     // without being asked to prove a browser reaches it. Which deploy legs still OWE the preflight is not
-    // left to the caller's discretion: `prod-deploy-smoke-depth.test.ts` derives it from whether the
+    // left to the caller's discretion: `prodDeploySmokeDepth.test.ts` derives it from whether the
     // service's `main.ts` enables CORS.
     it('exits 2 when --base-url, the only required flag, is missing', async () => {
         const result = await runCli('--web-origin', WEB_ORIGIN);

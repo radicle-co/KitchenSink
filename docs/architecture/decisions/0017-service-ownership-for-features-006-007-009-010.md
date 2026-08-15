@@ -69,7 +69,7 @@ Consequences that follow immediately and are not separate decisions:
    service — so the guard is a **shared** concern (`packages/shared/*`) reading a claim from the Clerk session
    token, not an import from the identity service. An app or service importing
    `@kitchensink/identity-service` to gate a route would violate the boundary
-   `packages/infra/global/__tests__/app-service-dependency.test.ts` already enforces.
+   `packages/infra/global/__tests__/appServiceDependency.test.ts` already enforces.
 4. **Existing NestJS modules are the internal boundary.** `MealPlansModule`, `GroceryListsModule`,
    `NutritionPlansModule` are siblings of `RecipesModule`/`SearchModule`, each with its own DAL and its own
    `*.schema.ts` beside its controller. This is a modular monolith on purpose; the module edges are where a

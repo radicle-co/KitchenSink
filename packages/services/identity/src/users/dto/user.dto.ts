@@ -10,7 +10,7 @@
  * ⚠️ THE PIPE MUST BE `nestjs-zod`'s. Nest's own `ValidationPipe` reads `class-validator` metadata, of which a
  * `createZodDto` class has none — bound to it, this DTO would validate NOTHING while looking validated, on a
  * route that writes user data. `app.module.ts` binds `ZodValidationPipe` under `APP_PIPE` for exactly this
- * reason, and `tests/app-validation.test.ts` pins the binding.
+ * reason, and `tests/appValidation.test.ts` pins the binding.
  */
 import { createZodDto } from 'nestjs-zod';
 

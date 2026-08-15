@@ -104,14 +104,14 @@ phases:
         resumed_at: 2026-06-29
         progress_2026_06_29: >
             Phase 6 RESUMED on the stabilized design. Phase-1 SCHEMA + MIGRATION slice COMPLETE (TDD):
-            T-100/T-101/T-111 (schema food.ts + operational.ts + food-candidates.ts + index.ts barrel,
+            T-100/T-101/T-111 (schema food.ts + operational.ts + foodCandidates.ts + index.ts barrel,
             13 source-agnostic tables, usda.ts deleted), T-102/T-103/T-104 (0000_food_schema.sql rebuilt
             to plan §2 with all hardening: composite same-food provenance FKs, leased_at + reaper index,
             nutrient (name,unit) dedup, amount/gram_weight CHECKs, fetch_state CHECK, pg_trgm indexes),
             + src/db/ulid.ts (newFoodId), drizzle.config.ts repointed, ulidx added (lockfile synced).
             Red gate: schema.integration.test.ts RED vs old migration → GREEN 18/18 vs new (verified
             against Docker Postgres 16, independently re-run). DEFERRED to T-130 (Phase 3): the old
-            foods/* layer (foods.repository/service/fixtures) + foods-api.integration.test.ts (quarantined
+            foods/* layer (foods.repository/service/fixtures) + foodsApi.integration.test.ts (quarantined
             via vitest exclude) still target the removed fdcId API — rewired onto the new DAOs there.
             NEXT: T-105..T-110 DAO slice. red_gate: confirmed_failing (T-100..T-104, T-111).
         note: >

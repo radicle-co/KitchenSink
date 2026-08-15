@@ -21,11 +21,11 @@ export {
     flattenSiblingImports,
     isAuthoredSchemaFile,
     isWalkableDirectory,
-} from './authored-schema.js';
-export type { AuthoredSchema, SchemaDiscoveryOptions, SchemaExclusion } from './authored-schema.js';
+} from './authoredSchema.js';
+export type { AuthoredSchema, SchemaDiscoveryOptions, SchemaExclusion } from './authoredSchema.js';
 
-export { collectComposedSources, composedSourceKey } from './composed-sources.js';
-export type { ComposedSource, ComposedSourceOptions } from './composed-sources.js';
+export { collectComposedSources, composedSourceKey } from './composedSources.js';
+export type { ComposedSource, ComposedSourceOptions } from './composedSources.js';
 
 export {
     collectModuleReferences,
@@ -35,7 +35,7 @@ export {
     formatViolations,
     isAllowedSpecifier,
     siblingModuleName,
-} from './schema-imports.js';
+} from './schemaImports.js';
 export type {
     AllowedPackageImport,
     ModuleReference,
@@ -43,7 +43,7 @@ export type {
     SchemaImportViolation,
     UnpublishedSiblingImport,
     ViolationMessageContext,
-} from './schema-imports.js';
+} from './schemaImports.js';
 
 export { buildOpenApiDocument } from './openapi.js';
 export type {
@@ -74,7 +74,7 @@ export {
     INT2_MAX,
     INT4_MAX,
     INT8_MAX,
-} from './storage-capacity.js';
+} from './storageCapacity.js';
 export type {
     BoundedColumn,
     ColumnAccount,
@@ -83,4 +83,4 @@ export type {
     StorageCapacityFinding,
     WireField,
     WireUpperBound,
-} from './storage-capacity.js';
+} from './storageCapacity.js';

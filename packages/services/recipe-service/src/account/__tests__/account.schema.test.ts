@@ -28,10 +28,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { AccountExportService, type AccountExportConfig } from '../export.service.js';
 import { ErasureService } from '../erasure.service.js';
 import { AccountExportDal } from '../dal/export.dal.js';
-import { ErasureJobsDal } from '../dal/erasure-jobs.dal.js';
-import { ServicePrincipalErasureMetrics } from '../erasure-metrics.js';
+import { ErasureJobsDal } from '../dal/erasureJobs.dal.js';
+import { ServicePrincipalErasureMetrics } from '../erasureMetrics.js';
 import type { ErasureQueuePort } from '../erasure.queue.js';
-import type { ServicePrincipal } from '../../auth/service-principal.js';
+import type { ServicePrincipal } from '../../auth/servicePrincipal.js';
 import {
     ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
     accountExportSchema,

@@ -281,8 +281,8 @@ describe('identity-webhook handler', () => {
     // retention). `{ identityId: data.id }` therefore bought one metric PER USER — ~$3,000/mo at 10k users —
     // holding a single datapoint each. This asserts BOTH halves of the fix on the same invocation: the metric
     // carries no per-user dimension, AND the identifier is still emitted, as a structured log attribute (where
-    // `sentry-scrubbers.ts` pseudonymizes it; the EMF line goes to raw stdout and passes no scrubber).
-    // `packages/infra/global/__tests__/emf-identifier-dimension-repo-gate.test.ts` is the repo-wide version of the same rule.
+    // `sentryScrubbers.ts` pseudonymizes it; the EMF line goes to raw stdout and passes no scrubber).
+    // `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts` is the repo-wide version of the same rule.
     it('user.created -> counts the event with NO per-user dimension, and keeps the id on the log line', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);
@@ -634,7 +634,7 @@ describe('identity-webhook handler', () => {
         // "delivered" and discards every queued real Clerk event permanently behind a green check (the recorded
         // dropped-`user.created` incident). It also tells a forger their forgery was accepted, on an endpoint
         // whose signature is the only trust boundary. The ERROR log + per-reason metric are asserted in
-        // `common/__tests__/handler-pipeline.test.ts`, which owns that path.
+        // `common/__tests__/handlerPipeline.test.ts`, which owns that path.
         mockVerifyWebhook.mockImplementation(() => {
             throw new Error('Invalid signature');
         });

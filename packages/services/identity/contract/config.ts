@@ -51,7 +51,7 @@ export const EXCLUDED_FILES: readonly SchemaExclusion[] = [
 ];
 
 /** Path, relative to the service root, of the service-embedded `CONTRACT_HASH` stamp. */
-export const SERVICE_STAMP_PATH = 'src/contract/contract-hash.ts';
+export const SERVICE_STAMP_PATH = 'src/contract/contractHash.ts';
 
 /** Repo-relative path of this service, used in each generated file's `// Source:` provenance comment. */
 export const SERVICE_PATH_PREFIX = 'packages/services/identity';

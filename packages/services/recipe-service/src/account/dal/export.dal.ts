@@ -39,7 +39,7 @@ import {
 import { recipeRatings, type RecipeRatingRow } from '../../database/schema/ratings.js';
 import { recipePhotos, type RecipePhotoRow } from '../../database/schema/photos.js';
 import { recipeVersions } from '../../database/schema/versions.js';
-import { authorHandles, type AuthorHandleRow } from '../../database/schema/author-handles.js';
+import { authorHandles, type AuthorHandleRow } from '../../database/schema/authorHandles.js';
 
 /**
  * A `recipes` row as returned for export: every column EXCEPT the two internal search-index artifacts

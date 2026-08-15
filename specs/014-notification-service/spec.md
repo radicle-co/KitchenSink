@@ -594,7 +594,7 @@ idempotencyKey)` claim (FR-018) already exists MUST be treated as a **duplicate*
       landed. So the status comes from **one complete `reason`→status lookup**, never a second code path. The
       question a status answers is _"would a redelivery ever succeed?"_ See
       [GR-018 §18-a](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) and
-      `packages/services/identity-webhooks/src/common/handler-pipeline.ts`, where returning `2xx` for **both**
+      `packages/services/identity-webhooks/src/common/handlerPipeline.ts`, where returning `2xx` for **both**
       once dropped a real `user.created`. A contributor will get one of the two backwards on instinct.
     - **This service has no signature-verifying ingress today**, so the clause above is forward-looking here.
       014's live cases are the HTTP publish path — called by our own producers, which do not blind-retry, so it
@@ -731,7 +731,7 @@ representations that were never compared. That is the failure GR-015 exists to m
   put 014 in violation of its own FR-023 — do not "improve" it that way. FR-037's canonical hash is **not** such
   a schema: it treats every payload identically and asserts nothing about its shape.
 - `@kitchensink/schema-notifications` is **generated and committed** — the zod, `z.infer` types,
-  `contract-hash.ts`, a barrel, and a **derived** `openapi.yaml` (for `oasdiff`, docs and integrators;
+  `contractHash.ts`, a barrel, and a **derived** `openapi.yaml` (for `oasdiff`, docs and integrators;
   **never a codegen input**). Nothing in it is hand-edited.
 - Every `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** — no SQS/EventBridge SDK type, no
   Drizzle schema, no Nest symbol. This matters more here than anywhere else: the envelope schema is imported by

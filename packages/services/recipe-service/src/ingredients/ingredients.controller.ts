@@ -45,7 +45,7 @@
  * `@CallerBearerToken()`: food verifies a Clerk token, so recipe calls it AS the authenticated user rather
  * than with a service credential. The decorator yields `undefined` when the request carried no bearer (the
  * non-production dev-auth bypass) and the ingredient paths degrade rather than substitute a credential — see
- * `auth/caller-token.ts` for why the credential is an opaque value object and never a `string`. The
+ * `auth/CallerToken.ts` for why the credential is an opaque value object and never a `string`. The
  * local-only routes (`/search`, `POST /`) take no credential because they make no cross-service call.
  *
  * @implements FR-007 FR-007a FR-047
@@ -66,15 +66,15 @@ import {
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { Ingredient } from '@kitchensink/recipe-core';
 
-import { CallerBearerToken } from '../auth/caller-token.decorator.js';
-import type { CallerToken } from '../auth/caller-token.js';
-import { OwnerId } from '../auth/current-principal.decorator.js';
+import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
+import type { CallerToken } from '../auth/CallerToken.js';
+import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { IngredientsService } from './ingredients.service.js';
-import type { IngredientSuggestions } from './ingredient-suggestion.js';
+import type { IngredientSuggestions } from './ingredientSuggestion.js';
 import type { IngredientCandidate } from './ingredients.schema.js';
-import { AddIngredientByFoodDto } from './dto/add-ingredient-by-food.dto.js';
-import { CreateIngredientDto } from './dto/create-ingredient.dto.js';
-import { ResolveIngredientDto } from './dto/resolve-ingredient.dto.js';
+import { AddIngredientByFoodDto } from './dto/addIngredientByFood.dto.js';
+import { CreateIngredientDto } from './dto/createIngredient.dto.js';
+import { ResolveIngredientDto } from './dto/resolveIngredient.dto.js';
 import { SearchRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 /** Parse the optional `limit` query param into a number (the DAL clamps it into `[1, 50]`, default 10). */

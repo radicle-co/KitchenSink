@@ -176,7 +176,7 @@ export async function provisionCompleteUser<TUser extends ProvisionedUser = Prov
  * Advisory-lock namespace (the first key of the two-argument `pg_advisory_xact_lock`), so this lock can never
  * collide with an advisory lock some other feature takes on a coincidentally equal hash. Arbitrary but fixed.
  *
- * EXPORTED so `provisioning-race.integration.test.ts` can hold the very same lock and assert that provisioning
+ * EXPORTED so `provisioningRace.integration.test.ts` can hold the very same lock and assert that provisioning
  * BLOCKS behind it. That makes the serialization guarantee deterministically testable rather than only
  * observable as the absence of a racy deadlock — and it means deleting the lock breaks the test's import
  * instead of quietly leaving a green suite.

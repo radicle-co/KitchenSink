@@ -16,26 +16,26 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
-import { FoodMetrics } from '../observability/emf-metrics.js';
-import { FoodAuthGuard } from '../auth/food-auth.guard.js';
-import { FoodServiceErasureAuthService } from '../auth/food-service-erasure-auth.service.js';
-import { FoodServiceErasureGuard } from '../auth/food-service-erasure.guard.js';
-import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
-import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
-import { createUsdaSourceRegistry } from '../sources/usda/usda-registry.js';
+import { FoodMetrics } from '../observability/emfMetrics.js';
+import { FoodAuthGuard } from '../auth/foodAuth.guard.js';
+import { FoodServiceErasureAuthService } from '../auth/foodServiceErasureAuth.service.js';
+import { FoodServiceErasureGuard } from '../auth/foodServiceErasure.guard.js';
+import { SourceAdapterRegistry } from '../sources/foodSourceAdapter.js';
+import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
+import { createUsdaSourceRegistry } from '../sources/usda/usdaRegistry.js';
 import { AdmissionService } from './admission.service.js';
-import { AdminMetricsDao } from './admin/admin-metrics.dao.js';
-import { AdminMetricsService } from './admin/admin-metrics.service.js';
-import { FoodsAdminController } from './admin/foods-admin.controller.js';
+import { AdminMetricsDao } from './admin/adminMetrics.dao.js';
+import { AdminMetricsService } from './admin/adminMetrics.service.js';
+import { FoodsAdminController } from './admin/foodsAdmin.controller.js';
 import { CandidateStore, FoodDao, FoodSourcesDao, SourceCallLogDao } from './dao/index.js';
-import { FoodSearchDao } from './dao/food-search.dao.js';
+import { FoodSearchDao } from './dao/foodSearch.dao.js';
 import { EnqueueEmitter } from './enqueue.emitter.js';
 import { FoodsController } from './foods.controller.js';
 import { FoodsService } from './foods.service.js';
-import { ServiceErasureController } from './service-erasure.controller.js';
-import { GoldenRecordMergeEngine } from './merge/merge-engine.js';
-import { MergeAndPersistService } from './merge/merge-and-persist.service.js';
-import { UserErasureService } from './user-erasure.service.js';
+import { ServiceErasureController } from './serviceErasure.controller.js';
+import { GoldenRecordMergeEngine } from './merge/mergeEngine.js';
+import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
+import { UserErasureService } from './userErasure.service.js';
 
 @Module({
     controllers: [FoodsController, FoodsAdminController, ServiceErasureController],

@@ -16,10 +16,10 @@ import { CollectionsModule } from './collections/collections.module.js';
 import { SearchModule } from './search/search.module.js';
 import { AccountModule } from './account/account.module.js';
 import { AuthMiddleware } from './auth/auth.middleware.js';
-import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
+import { ApiExceptionFilter } from './common/filters/apiException.filter.js';
 import { throttlerModuleOptions } from './common/throttle/throttle.config.js';
-import { UserThrottlerGuard } from './common/throttle/user-throttler.guard.js';
-import { ErasureLockGuard } from './account/erasure-lock.guard.js';
+import { UserThrottlerGuard } from './common/throttle/userThrottler.guard.js';
+import { ErasureLockGuard } from './account/erasureLock.guard.js';
 
 /**
  * Root application module. Wires the config, per-domain feature modules, the global Drizzle provider,

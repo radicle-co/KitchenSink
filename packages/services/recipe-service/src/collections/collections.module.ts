@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { DrizzleProvider } from '../database/database.module.js';
 import type { RecipeDrizzle } from '../database/client.js';
-import { AuthorHandlesDal } from '../authors/dal/author-handles.dal.js';
+import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { CollectionsController } from './collections.controller.js';
 import { CollectionsService } from './collections.service.js';
 import { CollectionsDal } from './dal/collections.dal.js';

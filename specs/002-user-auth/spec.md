@@ -373,7 +373,7 @@ option (b) is the status quo by default rather than by decision.
 **CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): the schema package, the typed
 consumer, response validation **on receipt**, and a **contract-skew guard** are tasks in
 [`tasks.md`](./tasks.md) — not consequences of finishing the service. ⚠️ Measured 2026-08-12, identity's skew
-guard lives on the **service** side (`src/contract/contract-skew.ts`); the **client-side** guard pattern exists
+guard lives on the **service** side (`src/contract/contractSkew.ts`); the **client-side** guard pattern exists
 only at `packages/clients/{food-service,recipe-service}/src/contractSkew.ts`, so 002's consumer half of §17-b.5
 is unbuilt and depends on the OPEN above.
 
@@ -386,8 +386,8 @@ is unbuilt and depends on the OPEN above.
    compiles what is on disk. What is needed is **cache invalidation** when an authored schema changes.
 2. **Correctness (CI):** regenerate and fail on any diff against the committed artifacts — the strong gate, and
    the only one that catches a hand-edited generated file.
-3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion** (`src/main.ts` + `src/contract/contract-skew.ts`,
-   ordered by `src/contract/__tests__/main-boot-order.test.ts`). This is the gate that matters most on 002:
+3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion** (`src/main.ts` + `src/contract/contractSkew.ts`,
+   ordered by `src/contract/__tests__/mainBootOrder.test.ts`). This is the gate that matters most on 002:
    identity is the one service every **already-shipped mobile binary** must keep talking to, and neither the
    turbo layer nor CI can see a deployed service running ahead of a released binary's pinned schema.
 
@@ -406,7 +406,7 @@ its contract can change without telling us. So **all four** of these are governe
   (`user.created` / `user.updated` / `user.deleted`) — **Clerk's** shape, not ours.
 
 Each **validates the raw upstream shape at the boundary with its own zod** (identity-webhooks authors
-`src/common/idp-payload.schema.ts` for exactly this), **MAY declare its own types**, and **gets NO OpenAPI
+`src/common/idpPayload.schema.ts` for exactly this), **MAY declare its own types**, and **gets NO OpenAPI
 document**. None of those shapes enters `@kitchensink/schema-identity` as though we owned it. `packages/clients/usda`
 is the portfolio's reference implementation and its `schemas.ts` must **never** be "converged" — doing so
 replaces a checked parse with unchecked trust in a remote party's JSON, which is a **security regression, not a
@@ -435,7 +435,7 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
   "6 / 6 (8 `extends`) … up from 3/4" this bullet carried, which has now been superseded twice in two days.
   ⛔ **Stop quoting the number and run the count** — adoption is still climbing, and `ZodValidationPipe` coverage over
   every controller is asserted repo-wide by **G5** in
-  `packages/infra/global/__tests__/service-security-invariants.test.ts`, which is the durable statement. Identity is
+  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which is the durable statement. Identity is
   genuinely on **one** mechanism, and ✅ so is `recipe-service` now — the "still has one `class-validator` importer"
   clause here is **corrected**: that importer is converged and the dependency is removed from its `package.json`
   and `prod.package.json`. Every `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*` and
@@ -455,8 +455,8 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
     - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
       **not** generated from drizzle and a `*.schema.ts` **never imports a storage type** — GR-015 §15-a.5 is
       unchanged by this rule. Enforcement is the per-service parity test GR-017 §17-d requires, and it **exists**:
-      `packages/services/identity/src/types/schema/__tests__/storage-capacity.test.ts`, over shared machinery in
-      `@kitchensink/contract-gen` (`src/storage-capacity.ts`). It **may** import both artifacts because a test is
+      `packages/services/identity/src/types/schema/__tests__/storageCapacity.test.ts`, over shared machinery in
+      `@kitchensink/contract-gen` (`src/storageCapacity.ts`). It **may** import both artifacts because a test is
       not a wire schema; it **derives** the bounded-column set from the drizzle tables via
       `collectBoundedColumns` rather than typing it out, and requires a stated `why` for each exemption — which is
       what makes it exhaustive over **columns** rather than over today's known defects.
@@ -467,7 +467,7 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
       derive from. "The column allows it" is not an argument.
 - **Non-HTTP ingress this feature owns, enumerated** (a Nest pipe reaches none of them): the **svix webhook**
   `POST /api/v1/webhooks/users`, plus `deletion-worker` (SQS retry payload, authored zod at
-  `src/common/deletion-queue.schema.ts`), `reconciliation`, `erasure-reconciliation`, `tombstone-sweep`,
+  `src/common/deletionQueue.schema.ts`), `reconciliation`, `erasure-reconciliation`, `tombstone-sweep`,
   `log-forwarder` and `migrate`. Each parses its event against an authored zod before acting on it — a
   **scheduled** invocation included, because "ours" is an assumption about a deploy that has already drifted
   once.
@@ -481,7 +481,7 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
     - **One path, one shape, the cause in a `reason` field.** A signature failure and a shape failure are
       **equally invalid**; they differ only in `reason`. Two behaviours means two error contracts and — measured
       repeatedly in this repo — one of the two ends up without a counter. ✅ Implemented:
-      `rejectInvalidWebhook` in `packages/services/identity-webhooks/src/common/handler-pipeline.ts` is a single
+      `rejectInvalidWebhook` in `packages/services/identity-webhooks/src/common/handlerPipeline.ts` is a single
       function taking `reason: 'shape' | 'signature'`, with a per-`reason` metric dimension
       (`IdentityWebhookRejected`).
     - **svix retries on ANY non-2xx**, so returning `400` for an invalid body **requests** exactly the retry
@@ -503,7 +503,7 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
           **signature** failure is the more expensive one of the two inversions.
         - **(ii) The `IdentityWebhookRejected` counter IS alarmed.** This bullet previously said "no alarm is
           defined on it … alarms only on `ErasureIncomplete`", which was true when measured and is not now:
-          `packages/services/identity-webhooks/infra/lib/webhooks-stack.ts` defines
+          `packages/services/identity-webhooks/infra/lib/WebhooksStack.ts` defines
           **`WebhookShapeRejectionAlarm`** and **`WebhookSignatureRejectionAlarm`**, both dimensioned per
           `reason`, alongside `ErasureIncompleteAlarm`. §18-c.4 / AC-018-f are **met**. ⚠️ Two alarms, not one
           dimensionless one, is the point — a signature-rejection threshold has to be set independently, because
@@ -523,7 +523,7 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
   and when the id is a principal, defaulting it means the **authorization decision was made by a string
   literal**.
 - **Service-to-service, both directions — identity is the CALLER on the erasure fan-out.**
-  `packages/services/identity-webhooks/src/common/erasure-fanout.ts` posts
+  `packages/services/identity-webhooks/src/common/erasureFanout.ts` posts
   `POST /api/v1/internal/account/erasure` to **recipe and food**. The outbound body is validated against the
   **callee's** schema-package zod **before the call** (GR-016 §16-c.2), and each response is validated **on
   receipt** — a fan-out that silently mis-reads a partial failure is how an erasure is reported complete when it

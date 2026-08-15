@@ -26,7 +26,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { writeLimit } from '../../src/common/throttle/throttle.config.js';
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
-import { SEED_OWNER_FREE } from '../global-setup.js';
+import { SEED_OWNER_FREE } from '../globalSetup.js';
 
 describe.skipIf(!hasDatabaseUrl)('recipe-service rate limiting (e2e, assembled app)', () => {
     let booted: BootedRecipeApp;

@@ -10,7 +10,7 @@ export {
     newEventId,
     FOOD_FETCH_COMPLETED_DETAIL_TYPE,
     FETCH_FAILED_DETAIL_TYPE,
-} from './food-event-emitter.js';
+} from './FoodEventEmitter.js';
 export type {
     EventBus,
     EventBusPutInput,
@@ -20,4 +20,4 @@ export type {
     FetchFailedDetail,
     PublishCompletedInput,
     PublishFailedInput,
-} from './food-event-emitter.js';
+} from './FoodEventEmitter.js';

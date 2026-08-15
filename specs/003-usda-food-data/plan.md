@@ -548,7 +548,7 @@ is a deliberate non-rename; see`CLAUDE.md`.)\_
   batch endpoint's ≤100-name bound (FR-045) and the candidate-set membership check (FR-RES-2) belong in that
   schema, so the client sees the same constraint the server enforces.
 - `packages/schemas/food` is **generated and committed** from those sources — `schemas.ts`, `types.ts`,
-  `contract-hash.ts`, barrel, plus a **derived** `openapi.yaml`. Nothing in it is hand-edited.
+  `contractHash.ts`, barrel, plus a **derived** `openapi.yaml`. Nothing in it is hand-edited.
 - A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** — no Drizzle schema, no DAO type, no
   Nest symbol, and **nothing from `@kitchensink/usda-client`**. The upstream USDA shape and our wire shape are
   different contracts and must not be joined by an import.
@@ -599,7 +599,7 @@ paragraph exists to prevent.
 
 #### Status — RE-MEASURED 2026-08-12, and the first two bullets were WRONG
 
-- ✅ **`packages/schemas/food` EXISTS** — 5 copied schema files plus `contract-hash.ts` and a derived
+- ✅ **`packages/schemas/food` EXISTS** — 5 copied schema files plus `contractHash.ts` and a derived
   `openapi.yaml` (**1,134 lines / 12 paths**). ⚠️ This bullet previously read _"Food is being converged now.
   `packages/schemas/food` does not exist yet."_
 - ✅ **`openapi.yaml` exists for ALL THREE services** — recipe **5,700** lines / 34 paths, food **1,134** / 12,
@@ -629,7 +629,7 @@ rather than deleted, because it is the argument for the rule.** Food now registe
 `z.strictObject` schemas; its controllers hold **no** `safeParse` and **no** `@Body() body: unknown`. Committed in
 **`49a1df7f`** — ⛔ so do not re-schedule the convergence, and do not restore a per-method `safeParse` "as belt
 and braces" (§16-a.2: a second mechanism is a second error contract). The invariant is now held repo-wide by **G5**
-in `packages/infra/global/__tests__/service-security-invariants.test.ts`, which requires a `ZodValidationPipe`
+in `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which requires a `ZodValidationPipe`
 over every HTTP controller in every discovered deployable and runs with **no exception list at all**.
 
 - **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates,
@@ -647,7 +647,7 @@ over every HTTP controller in every discovered deployable and runs with **no exc
   pipeline writes golden records.
 - **003 is CALLED by another service, and by identity's Lambdas.** `@kitchensink/recipe-service` resolves
   ingredients here, and identity's fan-out posts `POST /api/v1/internal/account/erasure`
-  (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`). Both inbound bodies are validated like
+  (`packages/services/identity-webhooks/src/common/erasureFanout.ts`). Both inbound bodies are validated like
   any other — **"internal" is not a synonym for "trusted"**, and this service is the one whose 401/403 posture
   is already load-bearing (§2A).
 - **The floor.** Every input field writing a bounded column is validated at least as strictly as the column

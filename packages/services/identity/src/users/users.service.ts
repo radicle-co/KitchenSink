@@ -4,19 +4,19 @@ import { eq } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { buildHandleSyncMessage, computeProfileScrub, deriveDisplayName } from '@kitchensink/identity-core';
 
-import { HANDLE_SYNC_PUBLISHER, type HandleSyncPublisher } from './handle-sync.publisher.js';
-import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatar-object-store.js';
+import { HANDLE_SYNC_PUBLISHER, type HandleSyncPublisher } from './handleSync.publisher.js';
+import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatarObjectStore.js';
 
 import { users, accounts, profiles, lifecycleEvents } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';
 import { SqsService } from '../queue/sqs.service.js';
-import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
-import type { VerifiedClerkClaims } from '../auth/clerk-auth.service.js';
+import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
+import type { VerifiedClerkClaims } from '../auth/clerkAuth.service.js';
 import { ResolveUserService } from './resolveUser.js';
 import { newUserId, type UserId } from '../types/index.js';
-import { createServiceLogger } from '../observability/sentry-logging.js';
-import { traceAuth } from '../observability/auth-trace.js';
-import { reportDeletionEnqueueFailure } from '../queue/deletion-enqueue.error.js';
+import { createServiceLogger } from '../observability/sentryLogging.js';
+import { traceAuth } from '../observability/authTrace.js';
+import { reportDeletionEnqueueFailure } from '../queue/deletionEnqueue.error.js';
 
 /** Per-identity, never-deliverable placeholder for users whose Clerk token carries no email claim. */
 function placeholderEmail(sub: string): string {
@@ -316,7 +316,7 @@ export class UsersService {
         //
         // ⛔ NOT BEST-EFFORT, AND NOT A `warn`. The tombstone above is committed, so a failure here leaves the
         // database saying "closed" while Clerk keeps the session alive and keeps minting JWTs for the account
-        // the user just closed. It is reported through the ONE paging path in `deletion-enqueue.error.ts` — see
+        // the user just closed. It is reported through the ONE paging path in `deletionEnqueue.error.ts` — see
         // that module for why the state is left divergent-but-loud rather than rolled back (the audit row is
         // append-only, so a retry of closure would write a second one) and for the sweep that should converge it.
         try {

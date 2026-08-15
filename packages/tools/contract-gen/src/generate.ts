@@ -33,8 +33,8 @@ import {
     flattenSiblingImports,
     type AuthoredSchema,
     type SchemaExclusion,
-} from './authored-schema.js';
-import { collectComposedSources, type ComposedSource } from './composed-sources.js';
+} from './authoredSchema.js';
+import { collectComposedSources, type ComposedSource } from './composedSources.js';
 import {
     findUnpublishedSiblingImports,
     findViolations,
@@ -43,7 +43,7 @@ import {
     type AllowedPackageImport,
     type SchemaImportViolation,
     type UnpublishedSiblingImport,
-} from './schema-imports.js';
+} from './schemaImports.js';
 import type { OpenApiBuildResult } from './openapi.js';
 
 /** Everything a service must state about its own contract. Nothing here has a default that could be wrong. */
@@ -244,7 +244,7 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
             ` * Fingerprint of the ${config.contractDisplayName}'s authored wire contract (${context}).`,
             ' *',
             ' * SHA-256 over the authored `*.schema.ts` sources AND the composed sources they transitively',
-            ' * reach (see @kitchensink/contract-gen composed-sources.ts). The generator writes this value into',
+            ' * reach (see @kitchensink/contract-gen composedSources.ts). The generator writes this value into',
             ' * BOTH the service and the schema package, so a consumer pinned to an older schema package can',
             ' * detect that the service it is talking to has moved ahead of it.',
             ' */',
@@ -252,11 +252,11 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
             '',
         ].join('\n');
 
-    await writeFile(join(generatedSrc, 'contract-hash.ts'), stamp('schema package copy'));
+    await writeFile(join(generatedSrc, 'contractHash.ts'), stamp('schema package copy'));
 
     await writeFile(
         join(generatedSrc, 'index.ts'),
-        [banner, '', "export * from './schemas.js';", "export { CONTRACT_HASH } from './contract-hash.js';", ''].join(
+        [banner, '', "export * from './schemas.js';", "export { CONTRACT_HASH } from './contractHash.js';", ''].join(
             '\n',
         ),
     );

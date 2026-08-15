@@ -23,7 +23,7 @@
 #
 # ADR-0008 runs non-prod Fargate tasks on `FARGATE_SPOT` to cut cost. Binding a service to a capacity
 # provider requires the cluster to advertise it, so the CDK sets `enableFargateCapacityProviders: useSpot`
-# (`food-service-stack.ts`, `recipe-service-stack.ts`, `identity-service-stack.ts`) — which emits an
+# (`FoodServiceStack.ts`, `RecipeServiceStack.ts`, `IdentityServiceStack.ts`) — which emits an
 # `AWS::ECS::ClusterCapacityProviderAssociations` resource **only when `useSpot` is true**. Verified against
 # the live account: `kitchensink-food-service-prod` has no such resource, `kitchensink-food-service-pr-81`
 # does. So the cost lever introduced a teardown defect that exists exclusively in the stages that get torn

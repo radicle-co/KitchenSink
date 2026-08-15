@@ -267,7 +267,7 @@ requirements.
     - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
       **not** generated from drizzle and a `*.schema.ts` **never imports a storage type** — GR-015 §15-a.5 is
       unchanged. Enforcement is the per-service parity test GR-017 §17-d requires, over the shared machinery
-      already in `@kitchensink/contract-gen` (`src/storage-capacity.ts`), which **derives** the bounded-column
+      already in `@kitchensink/contract-gen` (`src/storageCapacity.ts`), which **derives** the bounded-column
       set from the drizzle tables via `collectBoundedColumns` and requires a stated `why` for each exemption, with
       mapping completeness asserted **in both directions**. `ai-service`'s own bounded columns — provider enum,
       job status enum, retry/attempt counters — are in scope the day the table exists.

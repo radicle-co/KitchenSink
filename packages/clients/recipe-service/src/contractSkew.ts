@@ -4,7 +4,7 @@
  * `GET /health`, and reports a difference.
  *
  * ⚠️ A MISMATCH WARNS, IT DOES NOT REFUSE (owner ruling, 2026-08-11). The asymmetry with the fail-closed
- * SERVICE-side boot check (`recipe-service/src/contract/contract-skew.ts`) is deliberate: that one compares two
+ * SERVICE-side boot check (`recipe-service/src/contract/contractSkew.ts`) is deliberate: that one compares two
  * stamps baked into ONE image, so refusing costs no availability, whereas this compares two INDEPENDENTLY
  * DEPLOYED artifacts. THIS client is where a refusal would be worst: it ships inside the released MOBILE
  * binary — the case §15.2.5 names as the reason drift layer 3 exists — so it could not be rolled back by

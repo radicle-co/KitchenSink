@@ -173,7 +173,7 @@ export class FoodServiceClient {
 
         // 201, not 200 — and that is worth pinning rather than tolerating. `POST /api/v1/foods/batch` carries no
         // `@HttpCode` and does not set a status on the response, so it gets Nest's POST default of 201 (asserted
-        // by `tests/foods-api.integration.test.ts`). The old check here was `res.status >= 200 && res.status < 300`,
+        // by `tests/foodsApi.integration.test.ts`). The old check here was `res.status >= 200 && res.status < 300`,
         // which accepted ANY 2xx and so hid which one the service actually sends — a range that would also have
         // returned a `204`'s empty body as a `BatchResult` of `undefined`. Naming the exact status means a
         // service-side change to it now fails loudly here instead of silently.

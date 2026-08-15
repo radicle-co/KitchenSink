@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { ArgumentMetadata } from '@nestjs/common';
 
-import { SetRatingDto } from '../dto/set-rating.dto.js';
+import { SetRatingDto } from '../dto/setRating.dto.js';
 import { setRatingRequestSchema } from '../ratings.schema.js';
 
 const pipe = new ZodValidationPipe();

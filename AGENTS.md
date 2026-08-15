@@ -4,7 +4,7 @@
 > CodeRabbit and Qodo. A stale claim here is not a typo — it is an instruction, and a bot acting on it
 > produces confidently wrong review advice that a human then has to spend budget rejecting.
 > Every technology claim below is verified against the actual dependency graph, and every ADR ruling
-> against `CLAUDE.md`, by `packages/infra/global/__tests__/reviewer-context.test.ts`. Keep it that way:
+> against `CLAUDE.md`, by `packages/infra/global/__tests__/reviewerContext.test.ts`. Keep it that way:
 > if you change the stack, change this file in the same PR.
 
 ## Active Technologies
@@ -21,7 +21,7 @@ enforcement. There is deliberately no API Gateway JWT authorizer and no trusted-
 **Backend.** NestJS 11, Drizzle ORM 0.45, `pg` 8 (node-postgres), RDS PostgreSQL 16 (`pg_trgm`, JSONB,
 `tsvector` FTS), **`nestjs-zod` (`createZodDto` + its OWN `ZodValidationPipe`) is the ONE validation
 mechanism per service** — `class-validator` + `class-transformer` are still installed, but exactly **ONE**
-service file still imports them (`recipe-service/src/search/dto/search-recipes.query.dto.ts`; the "19 files"
+service file still imports them (`recipe-service/src/search/dto/searchRecipes.query.dto.ts`; the "19 files"
 figure in older docs is a **mention** count, mostly JSDoc about migrating away). That one file is residue, not
 the pattern: do not propose `class-validator` for new code (ADR-0015 / GR-016). `@nestjs/config` with a Zod env
 schema, `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (photo objects),
@@ -198,7 +198,7 @@ yet** — the case prose in a feature spec has repeatedly failed to cover.
 - ⚠️ **A conformance test that enumerates services or clients from a HARDCODED LIST is itself the defect** — it
   cannot see the next package. Discover them from `packages/services/*/package.json`,
   `packages/clients/*/package.json` or `git ls-files`, as
-  `packages/infra/global/__tests__/app-service-dependency.test.ts` and `scripts/contractOwners.mjs` already do.
+  `packages/infra/global/__tests__/appServiceDependency.test.ts` and `scripts/contractOwners.mjs` already do.
 - **`z.strictObject()` is the portfolio default for every MUTATING request body.** Plain `z.object()` needs a
   forward-compatibility reason documented at the schema, which in practice means a read surface. On a mutating
   body a silently stripped unknown key is a `200` **plus a partial write the caller was told succeeded**.
@@ -219,7 +219,7 @@ yet** — the case prose in a feature spec has repeatedly failed to cover.
   **our** signing secret is stale — a **transient, operator-fixable** condition where the sender's retry window
   is the recovery mechanism. `2xx` there says "delivered" and discards every queued real event permanently behind
   a green check. An earlier revision of
-  `packages/services/identity-webhooks/src/common/handler-pipeline.ts` did exactly that and dropped a real
+  `packages/services/identity-webhooks/src/common/handlerPipeline.ts` did exactly that and dropped a real
   `user.created`. So the **status comes from ONE complete `reason`→status lookup**
   (`WEBHOOK_REJECTION_STATUS`: `shape → 200`, `signature → 401`), never a second branch — the question a status
   answers is **"would a redelivery ever succeed?"**. Do **not** "simplify" the two onto one status; it breaks
@@ -285,8 +285,8 @@ documents that had already been reviewed.
   duplicates; 001's suffixed IDs (`T001`, `T001a`, `T001-alb` are three different tasks) make a `T\d+` match
   manufacture **~50 more**; drizzle writes `pgTable(` and the table name on **different lines**, so a single-line
   regex sees **3** of this repo's tables instead of all of them; and SQL comments name tables constantly. Gates:
-  `packages/infra/global/__tests__/spec-task-ids.test.ts` and `.../spec-table-collisions.test.ts` over
-  `.../spec-declarations.ts`.
+  `packages/infra/global/__tests__/specTaskIds.test.ts` and `.../specTableCollisions.test.ts` over
+  `.../specDeclarations.ts`.
 - **An exemption needs a substantive written `why`, and pins the owner set EXACTLY** (precedent:
   `contract-gen`'s `AllowedPackageImport.why`, `ColumnAccount.why`). A blank or one-word reason is a hard failure,
   and a **third** declarer joining an exempted pair fails — "two of these were ruled acceptable" says nothing

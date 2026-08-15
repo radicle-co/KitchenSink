@@ -19,12 +19,12 @@ Art. 17 posture; the only unbounded hazard is a **manual RDS snapshot** (§4).
 
 | Copy                                              | Retention (verified)                                 | Source                                                                                          |
 | ------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **RDS automated backups** (point-in-time)         | **7 days**                                           | `packages/infra/global/lib/platform/data-stack.ts:148` (`backupRetention: Duration.days(7)`)    |
+| **RDS automated backups** (point-in-time)         | **7 days**                                           | `packages/infra/global/lib/platform/DataStack.ts:148` (`backupRetention: Duration.days(7)`)     |
 | **RDS manual snapshots**                          | **UNBOUNDED** until deleted                          | operator-created; **not** governed by `backupRetention` — see §4                                |
-| **SQS deletion / erasure queues**                 | 14 days (message retention) / 4 days (DLQ)           | `data-stack.ts:257,263`; `recipe-workers-stack.ts:184,206`                                      |
-| **S3 versioned buckets** (recipe media/versions)  | non-current versions expire per lifecycle (≈30 days) | `data-stack.ts:296` (`expiration: Duration.days(30)`) — verify per bucket                       |
-| **CloudWatch logs** — identity, identity-webhooks | 1 month                                              | `identity-service-stack.ts:176`, `webhooks-stack.ts:167,344,350`                                |
-| **CloudWatch logs** — recipe-workers              | 2 weeks                                              | `recipe-workers-stack.ts:175`                                                                   |
+| **SQS deletion / erasure queues**                 | 14 days (message retention) / 4 days (DLQ)           | `DataStack.ts:257,263`; `RecipeWorkersStack.ts:184,206`                                         |
+| **S3 versioned buckets** (recipe media/versions)  | non-current versions expire per lifecycle (≈30 days) | `DataStack.ts:296` (`expiration: Duration.days(30)`) — verify per bucket                        |
+| **CloudWatch logs** — identity, identity-webhooks | 1 month                                              | `IdentityServiceStack.ts:176`, `WebhooksStack.ts:167,344,350`                                   |
+| **CloudWatch logs** — recipe-workers              | 2 weeks                                              | `RecipeWorkersStack.ts:175`                                                                     |
 | **Sentry**                                        | per project retention (Sentry-side setting)          | out-of-repo; confirm in the Sentry org settings                                                 |
 | **Vercel Web Analytics** (web page views)         | **24 h** visitor hash, then aggregate-only — see §1a | `packages/apps/commise/web/src/lib/analyticsRedaction.ts` (redaction); retention is Vercel-side |
 

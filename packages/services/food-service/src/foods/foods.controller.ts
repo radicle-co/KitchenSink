@@ -12,7 +12,7 @@
  * controller's copy was also the one emitting the second of this service's three legacy error shapes.
  *
  * The domain errors now simply propagate. The FR-051 precedence `401 → 403 → 400 → 404/202/200` is unchanged and
- * still asserted end-to-end (`tests/foods-api.integration.test.ts`); what changed is that only ONE place decides
+ * still asserted end-to-end (`tests/foodsApi.integration.test.ts`); what changed is that only ONE place decides
  * it. Do not re-add a `catch` that re-raises a domain error as an `HttpException`.
  *
  * What genuinely belongs here, and stays:
@@ -53,8 +53,8 @@ import {
     resolveRequesterId,
     type AuthenticatedPrincipal,
     type AuthenticatedRequest,
-} from '../auth/authenticated-principal.js';
-import { apiError } from '../common/api-error.js';
+} from '../auth/authenticatedPrincipal.js';
+import { apiError } from '../common/apiError.js';
 import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
 import { isFoodPendingError } from './foods.errors.js';
@@ -224,7 +224,7 @@ export class FoodsController {
         const resolution = resolveRequesterId(principal);
 
         if (resolution.status === IDENTITY_SYNC_PENDING_CODE) {
-            // `IDENTITY_SYNC_PENDING_CODE` is `auth/authenticated-principal.ts`'s constant and `apiError` takes a
+            // `IDENTITY_SYNC_PENDING_CODE` is `auth/authenticatedPrincipal.ts`'s constant and `apiError` takes a
             // PUBLISHED `FoodErrorCode`, so the two agreeing is a `typecheck` obligation rather than a
             // convention: change the auth constant's string and this line stops compiling.
             throw apiError(

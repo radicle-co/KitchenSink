@@ -24,7 +24,7 @@
 --
 -- **It cannot change a search result.** `%` is rechecked from the heap (`Recheck Cond` in the plan), so a
 -- trigram index — precise or lossy — can only change how fast rows are found, never which rows or in what
--- order. Proved rather than asserted: `tests/food-search-access-path.integration.test.ts` compares the
+-- order. Proved rather than asserted: `tests/foodSearchAccessPath.integration.test.ts` compares the
 -- statement's `(id, name, score)` sequence against a pure Seq Scan with every index path disabled, and the
 -- same comparison was run over 932 probes on two 50,000-row fixture shapes.
 --

@@ -88,7 +88,7 @@ import {
     pullFromSourceResponseSchema,
     updateCollectionRequestSchema,
 } from '../src/collections/collections.schema.js';
-import { apiErrorSchema, recipeApiErrorSchema } from '../src/common/api-error.schema.js';
+import { apiErrorSchema, recipeApiErrorSchema } from '../src/common/apiError.schema.js';
 import { healthStatusSchema } from '../src/health/health.schema.js';
 import {
     addIngredientByFoodRequestSchema,

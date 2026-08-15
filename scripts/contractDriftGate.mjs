@@ -3,7 +3,7 @@
  * DRIFT LAYER 2 — the CORRECTNESS gate on the checked-in wire contracts (`docs/CODING_STANDARDS.md` §15.2.5).
  *
  * `packages/schemas/<service>` publishes each service's API contract as CHECKED-IN GENERATED artifacts: the
- * OpenAPI document, the zod, the `z.infer` types, and the two `contract-hash` modules (schema package +
+ * OpenAPI document, the zod, the `z.infer` types, and the two `contractHash` modules (schema package +
  * service). Committing generated output is a deliberate trade — a consumer reads the contract straight out of
  * the tree instead of having to run a generator — and it has exactly one failure mode: DRIFT. The source of
  * truth moves and the artifacts do not, or an artifact gets hand-edited.
@@ -198,7 +198,7 @@ export function formatDriftReport(drift) {
     }
 
     lines.push(
-        'Do NOT hand-edit them. If the change to a `contract-hash.ts` is a surprise, the API contract itself',
+        'Do NOT hand-edit them. If the change to a `contractHash.ts` is a surprise, the API contract itself',
         'moved — say so in the PR description.',
     );
 

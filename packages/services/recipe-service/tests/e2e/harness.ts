@@ -4,7 +4,7 @@
  * Thin wrapper over the shared {@link bootServiceApp} template (`@kitchensink/service-test-harness`,
  * promoted from identity in T6 / CP-9) that supplies the recipe `AppModule` loader and the env its
  * `apiConfigSchema` + `DatabaseModule` require, against the Docker Postgres + LocalStack S3 harness
- * (migrated + seeded ONCE per run by `tests/global-setup.ts` — DB-isolation strategy 2 of the contract
+ * (migrated + seeded ONCE per run by `tests/globalSetup.ts` — DB-isolation strategy 2 of the contract
  * documented on {@link bootServiceApp}). Phase-3 e2e specs import {@link bootRecipeApp} to drive real
  * endpoints on the ephemeral-port app it hands back.
  *
@@ -22,7 +22,7 @@
  */
 import { bootServiceApp, type BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { SEED_ERASURE_QUEUE_URL } from '../global-setup.js';
+import { SEED_ERASURE_QUEUE_URL } from '../globalSetup.js';
 
 /** The harness Postgres connection string the booted app is configured against. */
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];

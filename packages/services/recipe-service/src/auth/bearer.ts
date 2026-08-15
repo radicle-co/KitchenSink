@@ -2,7 +2,7 @@
  * The ONE authoritative `Authorization: Bearer <token>` parser for the recipe service's auth layer.
  *
  * Shared by the user-token `AuthMiddleware` (`./auth.middleware.ts`) and the service-principal
- * `ServiceErasureGuard` (`./service-erasure.guard.ts`) so the two verification surfaces extract
+ * `ServiceErasureGuard` (`./serviceErasure.guard.ts`) so the two verification surfaces extract
  * the credential identically — a security-relevant parse worth having in exactly one place.
  */
 

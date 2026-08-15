@@ -11,7 +11,7 @@
  *
  * That divergence survived because the files holding those imports — `infra/**` in two services — were excluded
  * from the lint run by an `ignores: ['infra/**']` workaround. It became visible the moment coverage widened
- * (`packages/infra/global/__tests__/static-analysis-coverage.test.ts`), which is the general lesson: a false
+ * (`packages/infra/global/__tests__/staticAnalysisCoverage.test.ts`), which is the general lesson: a false
  * positive in an unlinted directory is indistinguishable from no rule at all.
  *
  * ## Why the subjects are DISCOVERED

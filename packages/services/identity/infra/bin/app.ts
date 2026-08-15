@@ -8,7 +8,7 @@ import { attachSecurityChecks } from '@kitchensink/infra-security';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
 
-import { IdentityServiceStack } from '../lib/identity-service-stack.js';
+import { IdentityServiceStack } from '../lib/IdentityServiceStack.js';
 
 const app = new App();
 // Identity is persistent global platform infra (auth service) — never per-PR. See ADR-0005.

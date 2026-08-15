@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ZodValidationPipe } from 'nestjs-zod';
 
-import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
+import { ApiExceptionFilter } from './common/filters/apiException.filter.js';
 import { AppConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { FoodsModule } from './foods/foods.module.js';

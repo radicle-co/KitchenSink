@@ -321,7 +321,7 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
       numbers, all of which were wrong in different ways.** The **"19 files"** was a **mention** count (JSDoc
       narrating the migration away from it), not an importer count. The **"18 `ZodValidationPipe` / 26
       `createZodDto` (21 `extends`)"** triple was **unreproducible by any parse**. And the "ONE file still
-      imports it" — `src/search/dto/search-recipes.query.dto.ts` — is now **converged** onto `createZodDto` +
+      imports it" — `src/search/dto/searchRecipes.query.dto.ts` — is now **converged** onto `createZodDto` +
       `ZodValidationPipe`, with `class-validator` and `class-transformer` **removed from
       `packages/services/recipe-service/package.json` and `prod.package.json`**. Re-measured today:
       recipe-service has **23 `ZodValidationPipe` references** and **22 classes extending `createZodDto`** across
@@ -330,7 +330,7 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
       inside the repo-wide AST gate.
     - So recipe-service is **no longer the GR-016 §16-a.2 example**; it is the converged case. The rule is
       unchanged and now enforced repo-wide by **G5** in
-      `packages/infra/global/__tests__/service-security-invariants.test.ts`, which requires a `ZodValidationPipe`
+      `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which requires a `ZodValidationPipe`
       over every HTTP controller in every discovered deployable and runs with **no exception list at all** — the
       `UNCONVERGED_CONTROLLERS` ratchet was **deleted** when search's controller, its one entry, converged. A new
       endpoint never adds a `class-validator` DTO, and the gate now fails the build rather than trusting prose.
@@ -369,8 +369,8 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
       (GR-017 §17-d), which **may** import both artifacts — a test is not a wire schema — enumerates bounded
       columns **derived from the drizzle schema** rather than typed out, and asserts its field→column mapping
       complete **in both directions**, without which it silently shrinks to the fields someone remembered. It
-      exists: `packages/services/recipe-service/src/database/__tests__/storage-capacity.test.ts`, over shared
-      machinery in `@kitchensink/contract-gen` (`src/storage-capacity.ts`), whose `collectBoundedColumns`
+      exists: `packages/services/recipe-service/src/database/__tests__/storageCapacity.test.ts`, over shared
+      machinery in `@kitchensink/contract-gen` (`src/storageCapacity.ts`), whose `collectBoundedColumns`
       derives the column set from the drizzle tables and requires a stated `why` on every exemption.
     - ⚠️ **A floor is not a target.** Recipe's text columns are PostgreSQL `text()` — **unbounded** — so limits
       on `title`, step text, notes and ingredient names are **product decisions 001 owns**, with no floor to
@@ -387,7 +387,7 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
 - **Service-to-service, both directions.** 001 **calls** food via `@kitchensink/food-service-client`: outbound
   bodies validated against `@kitchensink/schema-food` **before the call**, responses validated **on receipt**.
   001 is also **called** — `POST /api/v1/internal/account/erasure` from identity's fan-out
-  (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`) — and that inbound body is validated like
+  (`packages/services/identity-webhooks/src/common/erasureFanout.ts`) — and that inbound body is validated like
   any other. **"Internal" is not a synonym for "trusted"**: a caller inside our VPC still sends the wrong shape
   after a one-sided deploy. Because these are **our own** callers, an invalid body gets the `400` GR-016
   §16-a.3 requires, **not** the `2xx` that GR-018 §18-c reserves for signature-verifying third-party webhook
@@ -406,7 +406,7 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
   Those sites now pass a **bound parameter** (`${value}`, or `${value}::interval` for an interval) instead.
   ⛔ **Do not "restore" a `sql.raw()` for readability** — two gates now hold the count at zero: an ESLint
   **`no-restricted-syntax`** ban in `packages/tools/eslint/index.js`, and repo-wide AST gate **G3** in
-  `packages/infra/global/__tests__/service-security-invariants.test.ts`. Search is still the surface that would
+  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`. Search is still the surface that would
   break it first — facet, sort and filter selections arrive **from the request** — so a validated enum still maps
   to a **closed allowlist of literals in code**: the request supplies the key, never the SQL fragment.
 - **⛔ Server-side RESPONSE validation is DEFERRED by owner decision (GR-016 §16-g) and MUST NOT be

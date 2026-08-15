@@ -9,4 +9,4 @@
  */
 
 export * from './schemas.js';
-export { CONTRACT_HASH } from './contract-hash.js';
+export { CONTRACT_HASH } from './contractHash.js';

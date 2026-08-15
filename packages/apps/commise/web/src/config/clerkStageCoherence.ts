@@ -16,7 +16,7 @@
  * trailing `$`. Decoding it is what makes the instance identity legible: `pk_test_bmljZS1mb3dsLTYu…`
  * decodes to `nice-fowl-6.clerk.accounts.dev`, which is unmistakably not production.
  *
- * KNOWN DUPLICATION, recorded rather than hidden: `packages/infra/global/__tests__/prod-web-surface.ts`
+ * KNOWN DUPLICATION, recorded rather than hidden: `packages/infra/global/__tests__/prodWebSurface.ts`
  * implements the same classification for the post-deploy runtime probe. One rule, two places — a
  * build-time gate here and a live check there. Extracting to a shared package is the correct end state;
  * it is not done here only because that copy lives in a test directory this package cannot import.

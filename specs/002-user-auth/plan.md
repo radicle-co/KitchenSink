@@ -216,7 +216,7 @@ the **bindings for this feature**; the rule lives there and wins on any detail.
   identity service** at `src/**/*.schema.ts`, next to its controller.
 - The service **validates its own requests with that same zod** via `nestjs-zod`'s `createZodDto`.
 - `packages/schemas/identity` is **generated and committed** from those sources — `schemas.ts`, `types.ts`,
-  `contract-hash.ts`, barrel, plus a **derived** `openapi.yaml`. Nothing in it is hand-edited.
+  `contractHash.ts`, barrel, plus a **derived** `openapi.yaml`. Nothing in it is hand-edited.
 - A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** — no Drizzle schema, no DAO type, no
   Nest symbol.
 
@@ -273,7 +273,7 @@ can change without telling us. So everything on the Clerk boundary is governed b
 
 ### Status — RE-MEASURED 2026-08-12, and the first bullet was WRONG in BOTH halves
 
-- ✅ **`packages/schemas/identity` EXISTS** — 5 copied schema files plus `contract-hash.ts` and a derived
+- ✅ **`packages/schemas/identity` EXISTS** — 5 copied schema files plus `contractHash.ts` and a derived
   `openapi.yaml` (**760 lines / 10 paths**) — **and `openapi.yaml` exists for ALL THREE services**: recipe
   **5,700** lines / 34 paths, food **1,134** / 12, identity **760** / 10. ⚠️ This bullet previously read
   _"Identity is being converged now. `packages/schemas/identity` does not exist yet, and no `openapi.yaml` exists
@@ -320,11 +320,11 @@ can change without telling us. So everything on the Clerk boundary is governed b
   shape, not ours, and does not enter `@kitchensink/schema-identity`); GR-016 is what makes that parse
   **mandatory rather than a good idea**.
 - **The other Lambda ingress points are in scope too**, because a pipe reaches none of them:
-  `deletion-worker.ts` (SQS retry payload), `reconciliation.ts` / `erasure-reconciliation.ts`,
-  `tombstone-sweep.ts`, `log-forwarder.ts`, `migrate.ts`. Each parses its event against an authored zod before
+  `deletionWorker.ts` (SQS retry payload), `reconciliation.ts` / `erasureReconciliation.ts`,
+  `tombstoneSweep.ts`, `logForwarder.ts`, `migrate.ts`. Each parses its event against an authored zod before
   acting on it. A scheduled invocation's payload is "ours" only until a deploy drifts.
 - **Service-to-service, outbound: identity is the CALLER on the erasure fan-out.**
-  `packages/services/identity-webhooks/src/common/erasure-fanout.ts` posts
+  `packages/services/identity-webhooks/src/common/erasureFanout.ts` posts
   `POST /api/v1/internal/account/erasure` to **recipe and food**. The outbound body is validated against the
   callee's schema-package zod **before the call**, and each response is **validated on receipt** — a
   fan-out that silently mis-reads a partial failure is how an erasure is reported complete when it is not.

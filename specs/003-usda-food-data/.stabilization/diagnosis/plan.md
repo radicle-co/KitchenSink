@@ -7,7 +7,7 @@ Feature 003 source-agnostic food data, doc-stabilization. Cluster docs read in f
 
 Cross-checked against the canonical inputs (`.stabilization/inputs/staff-review.md`,
 `.stabilization/inputs/autoresolutions.md`), `spec.md`, `v-model/architecture-design.md`, `tasks.md`,
-`.forge-status.yml`, and the deployed CDK (`packages/services/food-service/infra/lib/food-service-stack.ts`).
+`.forge-status.yml`, and the deployed CDK (`packages/services/food-service/infra/lib/FoodServiceStack.ts`).
 
 Severity: C=critical, H=high, M=medium. Each finding cites doc:location, the problem, and the
 autoresolution default that resolves it (or "needs decision").
@@ -43,7 +43,7 @@ autoresolution default that resolves it (or "needs decision").
 - **Where**: `plan.md` uses `FoodDataReceived` in 6 places — §1 ASCII context (line 48), §2A.5 (line 408),
   §4 event-taxonomy note (line 548), §4 event payload definition (line 591), §5 worker step 6
   (line 673), §5 food-search-indexer (line 721).
-- **Problem**: The deployed CDK (`food-service-stack.ts` lines 290-296) defines
+- **Problem**: The deployed CDK (`FoodServiceStack.ts` lines 290-296) defines
   `FoodFetchCompletedRule` with `detailType: ['FoodFetchCompleted']`; `tasks.md` and `.forge-status.yml`
   use `FoodFetchCompleted`. So the worker will emit `FoodFetchCompleted` while plan.md documents
   `FoodDataReceived` — a direct contradiction with shipped infrastructure. Note: `.forge-status.yml`

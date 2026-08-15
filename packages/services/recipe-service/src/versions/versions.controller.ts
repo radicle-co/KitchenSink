@@ -17,14 +17,14 @@
  * What actually validates these params is per-parameter and visible at each use site: `ParseUUIDPipe` on
  * `recipeId`, `ParseIntPipe` on `versionNumber`. If a body is ever added to this controller, it needs
  * `nestjs-zod`'s `ZodValidationPipe` over a `createZodDto` — NOT Nest's, which would silently validate nothing
- * against a zod DTO. `packages/infra/global/__tests__/service-security-invariants.test.ts` (G5) enforces that
+ * against a zod DTO. `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts` (G5) enforces that
  * for every service the moment a `@Body()`/`@Query()` appears.
  */
 import { Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, ParseUUIDPipe, Post } from '@nestjs/common';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 
 import { VersionsService, type RestoreVersionResult } from './versions.service.js';
-import { CurrentPrincipal, OwnerId } from '../auth/current-principal.decorator.js';
+import { CurrentPrincipal, OwnerId } from '../auth/currentPrincipal.decorator.js';
 import type { Principal } from '../auth/principal.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 

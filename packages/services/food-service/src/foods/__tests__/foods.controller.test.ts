@@ -3,11 +3,11 @@
  * boundary rejections, the `202` pending READ body, the `/refetch` scope gate, and the requester key.
  *
  * ⚠️ WHAT IS DELIBERATELY NOT HERE ANY MORE. The controller no longer maps a domain error to a status: that
- * knowledge lives in ONE table (`common/api-error.ts` → `FOOD_ERROR_STATUS`), executed by `ApiExceptionFilter`,
+ * knowledge lives in ONE table (`common/apiError.ts` → `FOOD_ERROR_STATUS`), executed by `ApiExceptionFilter`,
  * and asserting it here as well would be a second copy of the assertion for a second copy of the code that no
  * longer exists. So these cases assert that a domain error PROPAGATES UNCHANGED — which is the controller's actual
  * contribution — and the status/body it becomes is pinned in
- * `common/filters/__tests__/api-exception.filter.test.ts` (unit) and `tests/foods-api.integration.test.ts`
+ * `common/filters/__tests__/apiException.filter.test.ts` (unit) and `tests/foodsApi.integration.test.ts`
  * (end-to-end, over a real HTTP request).
  *
  * That split matters for a specific reason: a `rejects.toBeInstanceOf(ConflictException)` here would still pass if
@@ -26,9 +26,9 @@ import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AuthenticatedRequest } from '../../auth/authenticated-principal.js';
-import { FOOD_ERROR_STATUS } from '../../common/api-error.js';
-import type { ApiErrorBody } from '../../common/api-error.schema.js';
+import type { AuthenticatedRequest } from '../../auth/authenticatedPrincipal.js';
+import { FOOD_ERROR_STATUS } from '../../common/apiError.js';
+import type { ApiErrorBody } from '../../common/apiError.schema.js';
 import type { Environment } from '../../config/env.schema.js';
 import { FoodsController } from '../foods.controller.js';
 import {
@@ -47,7 +47,7 @@ const VALID_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
  *
  * Reads the status from `FOOD_ERROR_STATUS` rather than restating it, so this helper cannot disagree with the
  * table the service actually serves — and asserts on `getStatus()` rather than on which `HttpException` SUBCLASS
- * was constructed, because picking a subclass is picking the status a second time (see `common/api-error.ts`).
+ * was constructed, because picking a subclass is picking the status a second time (see `common/apiError.ts`).
  */
 function expectApiError(thrown: unknown, code: keyof typeof FOOD_ERROR_STATUS): ApiErrorBody {
     expect(thrown).toBeInstanceOf(HttpException);
@@ -293,7 +293,7 @@ describe('FoodsController.patchResolve', () => {
 /**
  * The FIVE raw `@Param('id')` inputs, all in one place.
  *
- * `__tests__/route-validation.test.ts` enumerates them from Nest's own route metadata and asserts the list is
+ * `__tests__/routeValidation.test.ts` enumerates them from Nest's own route metadata and asserts the list is
  * exhaustive, on the claim that each is validated by `requireId`. This is the behavioural half of that claim: the
  * list is only trustworthy if every entry on it actually rejects. A new by-id route fails the inventory (its
  * parameter is not on the list) and then fails here (nobody added the case), which is one gate more than either

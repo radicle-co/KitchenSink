@@ -60,8 +60,8 @@ Each item was checked by reading `main`.
 | `subscriptionTier` is **not** a token claim                           | ✅     | `packages/shared/identity-db/src/dao/account.dao.ts` vs. `clerk-verify` tests                               |
 | The Home widget contract exists as described                          | ✅     | `features/core/src/{capabilities,homeNavigation,roadmapWidgets}.ts`                                         |
 | `@commise/features-meal-plan` is the anticipated package name         | ✅     | Named in `roadmapWidgets.ts`'s own header comment                                                           |
-| The gateway pattern exists and is the right model                     | ✅     | `recipe-service/src/ingredients/food-catalog.gateway.ts`                                                    |
-| ALB priorities 100/200/300 taken; per-PR bands 10000/30000 in use     | ✅     | `recipe-service/infra/lib/recipe-service-stack.ts`                                                          |
+| The gateway pattern exists and is the right model                     | ✅     | `recipe-service/src/ingredients/foodCatalog.gateway.ts`                                                     |
+| ALB priorities 100/200/300 taken; per-PR bands 10000/30000 in use     | ✅     | `recipe-service/infra/lib/RecipeServiceStack.ts`                                                            |
 | **No Redis or ElastiCache exists anywhere in the platform**           | ✅     | Search across all infra and service packages: zero hits                                                     |
 | Backend test-file conventions match                                   | ✅     | `__tests__/integration/**/*.integration.test.ts`, `tests/e2e/*.e2e.test.ts`                                 |
 | The k6 harness exists where the plan says                             | ✅     | `packages/tools/loadtest/`                                                                                  |

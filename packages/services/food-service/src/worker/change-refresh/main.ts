@@ -15,16 +15,16 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { CandidateStore } from '../../foods/dao/food-candidates.dao.js';
-import { FoodSourcesDao } from '../../foods/dao/food-sources.dao.js';
-import { SourceCallLogDao } from '../../foods/dao/source-call-log.dao.js';
+import { CandidateStore } from '../../foods/dao/foodCandidates.dao.js';
+import { FoodSourcesDao } from '../../foods/dao/foodSources.dao.js';
+import { SourceCallLogDao } from '../../foods/dao/sourceCallLog.dao.js';
 import { EnqueueEmitter } from '../../foods/enqueue.emitter.js';
-import { foodPoolConfigFromEnv } from '../../database/pool-config.js';
+import { foodPoolConfigFromEnv } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
-import { RollingWindowLimiter } from '../../sources/rolling-window-limiter.js';
-import { createUsdaSourceRegistry } from '../../sources/usda/usda-registry.js';
-import { ConsoleWorkerLogger } from '../worker-logger.js';
-import { ChangeRefreshConsumer } from './change-refresh.consumer.js';
+import { RollingWindowLimiter } from '../../sources/RollingWindowLimiter.js';
+import { createUsdaSourceRegistry } from '../../sources/usda/usdaRegistry.js';
+import { ConsoleWorkerLogger } from '../workerLogger.js';
+import { ChangeRefreshConsumer } from './changeRefresh.consumer.js';
 
 const { Pool } = pg;
 

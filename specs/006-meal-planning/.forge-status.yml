@@ -261,7 +261,7 @@ task_log:
           - packages/services/recipe-service/src/recipes/dto/batch-nutrition.dto.ts
           - packages/services/recipe-service/src/recipes/recipes.service.ts
           - packages/services/recipe-service/src/recipes/recipe.error.ts
-          - packages/services/recipe-service/src/common/filters/api-exception.filter.ts
+          - packages/services/recipe-service/src/common/filters/apiException.filter.ts
       implements: [REQ-IF-008]
       note: >-
           Green: 6 unit + 8 integration. Registered CANONICAL-ONLY on its own controller because

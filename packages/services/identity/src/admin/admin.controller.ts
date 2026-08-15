@@ -1,11 +1,11 @@
 import { Controller, Get, Post, Param, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
-import { AdminListUsersQueryDto } from './dto/admin-list-users.query.dto.js';
-import { AdminUserIdParamDto } from './dto/admin-user-id.param.dto.js';
+import { AdminListUsersQueryDto } from './dto/adminListUsers.query.dto.js';
+import { AdminUserIdParamDto } from './dto/adminUserId.param.dto.js';
 import { AdminService } from './admin.service.js';
-import { CurrentAuthorizerContext } from '../auth/decorators/current-user.decorator.js';
-import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import { CurrentAuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
+import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import { ScopesGuard } from '../auth/guards/scopes.guard.js';
-import { RequireScopes } from '../auth/decorators/require-scopes.decorator.js';
+import { RequireScopes } from '../auth/decorators/requireScopes.decorator.js';
 import {
     AdminSuspendUserResponseDto,
     AdminUnsuspendUserResponseDto,
@@ -33,7 +33,7 @@ export class AdminController {
     // (`strictSchemaDeclaration: false`) passes straight through — so the five routes below used to hand an
     // arbitrary caller-supplied string into `eq(users.id, …)` with no format check at all. Annotating the whole
     // params object with the Zod DTO is what puts the pipe in the path. A new admin action must do the same;
-    // `tests/admin-param-validation.test.ts` discovers every `:userId` route from Nest's own metadata and fails
+    // `tests/adminParamValidation.test.ts` discovers every `:userId` route from Nest's own metadata and fails
     // on one that reverts to a bare string.
 
     /**

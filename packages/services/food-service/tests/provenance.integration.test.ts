@@ -11,24 +11,24 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type pg from 'pg';
 
-import { FoodEventEmitter, type EventBus, type EventBusPutInput } from '../src/events/food-event-emitter.js';
-import { FetchQueueDao } from '../src/foods/dao/fetch-queue.dao.js';
-import { FetchRequestersDao } from '../src/foods/dao/fetch-requesters.dao.js';
+import { FoodEventEmitter, type EventBus, type EventBusPutInput } from '../src/events/FoodEventEmitter.js';
+import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
+import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
-import { FoodSourcesDao } from '../src/foods/dao/food-sources.dao.js';
-import { SourceCallLogDao } from '../src/foods/dao/source-call-log.dao.js';
+import { FoodSourcesDao } from '../src/foods/dao/foodSources.dao.js';
+import { SourceCallLogDao } from '../src/foods/dao/sourceCallLog.dao.js';
 import { makeMergeCandidate } from '../src/foods/merge/__fixtures__/merge.fixtures.js';
-import { GoldenRecordMergeEngine } from '../src/foods/merge/merge-engine.js';
-import { MergeAndPersistService } from '../src/foods/merge/merge-and-persist.service.js';
+import { GoldenRecordMergeEngine } from '../src/foods/merge/mergeEngine.js';
+import { MergeAndPersistService } from '../src/foods/merge/mergeAndPersist.service.js';
 import {
     SourceAdapterRegistry,
     type CanonicalCandidate,
     type FoodSourceAdapter,
     type SourceCandidate,
-} from '../src/sources/food-source-adapter.js';
-import { RollingWindowLimiter } from '../src/sources/rolling-window-limiter.js';
-import { FoodConsumerService } from '../src/worker/food-consumer.service.js';
-import { SilentWorkerLogger } from '../src/worker/worker-logger.js';
+} from '../src/sources/foodSourceAdapter.js';
+import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
+import { FoodConsumerService } from '../src/worker/foodConsumer.service.js';
+import { SilentWorkerLogger } from '../src/worker/workerLogger.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 
 type FakeAdapter = FoodSourceAdapter & {

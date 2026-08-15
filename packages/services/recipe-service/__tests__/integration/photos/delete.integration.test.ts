@@ -15,7 +15,7 @@
  * `docker-compose.test.yml`'s `SERVICES` is `s3,sqs` only), the resolved port is the logging no-op
  * adapter; spying its `invalidate` method still proves the WIRING and the exact paths it is called with,
  * which is the part a real CloudFront distribution cannot be exercised against in this harness anyway.
- * `src/photos/__tests__/cdn-invalidation.test.ts` separately proves the real (`CLOUDFRONT_DISTRIBUTION_ID`
+ * `src/photos/__tests__/cdnInvalidation.test.ts` separately proves the real (`CLOUDFRONT_DISTRIBUTION_ID`
  * SET) adapter branch issues the correct `CreateInvalidationCommand` against a mocked AWS SDK client.
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup

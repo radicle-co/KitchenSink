@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 
 import { SqsService } from '../sqs.service.js';
-import { DeletionEnqueueError, isDeletionEnqueueError } from '../deletion-enqueue.error.js';
+import { DeletionEnqueueError, isDeletionEnqueueError } from '../deletionEnqueue.error.js';
 
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(),

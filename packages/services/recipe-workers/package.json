@@ -4,7 +4,7 @@
     "private": true,
     "type": "module",
     "exports": {
-        "./infra": "./infra/lib/recipe-workers-stack.ts"
+        "./infra": "./infra/lib/RecipeWorkersStack.ts"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json && npm run package",

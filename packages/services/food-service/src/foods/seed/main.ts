@@ -24,17 +24,17 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { foodPoolConfigFromEnv } from '../../database/pool-config.js';
+import { foodPoolConfigFromEnv } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
-import { SourceAdapterRegistry } from '../../sources/food-source-adapter.js';
-import { streamBulkCandidates } from '../../sources/usda/bulk/usda-bulk.reader.js';
-import { ConsoleWorkerLogger } from '../../worker/worker-logger.js';
+import { SourceAdapterRegistry } from '../../sources/foodSourceAdapter.js';
+import { streamBulkCandidates } from '../../sources/usda/bulk/usdaBulk.reader.js';
+import { ConsoleWorkerLogger } from '../../worker/workerLogger.js';
 import { FoodDao } from '../dao/food.dao.js';
-import { FoodSourcesDao } from '../dao/food-sources.dao.js';
-import { GoldenRecordMergeEngine } from '../merge/merge-engine.js';
-import { MergeAndPersistService } from '../merge/merge-and-persist.service.js';
-import { BulkSeedService } from './bulk-seed.service.js';
-import { parseSeedArgs, take } from './seed-cli.js';
+import { FoodSourcesDao } from '../dao/foodSources.dao.js';
+import { GoldenRecordMergeEngine } from '../merge/mergeEngine.js';
+import { MergeAndPersistService } from '../merge/mergeAndPersist.service.js';
+import { BulkSeedService } from './bulkSeed.service.js';
+import { parseSeedArgs, take } from './seedCli.js';
 
 const { Pool } = pg;
 

@@ -23,7 +23,7 @@
  * ── WHY `contractHash` IS PUBLISHED HERE, ON AN UNAUTHENTICATED ROUTE ──
  *
  * It is the SKEW SIGNAL for drift layer 3 (§15.2.5), and it mirrors `recipe-service`'s health payload field for
- * field so the three services agree. The boot assertion in `src/contract/contract-skew.ts` compares the two
+ * field so the three services agree. The boot assertion in `src/contract/contractSkew.ts` compares the two
  * stamps baked into ONE image, so it is structurally blind to the case the layer exists for — a deployed
  * service running ahead of a CONSUMER's pinned schema, which is the live problem for a released mobile binary
  * that cannot be updated in step with a backend deploy. That comparison is cross-process, so the service has to

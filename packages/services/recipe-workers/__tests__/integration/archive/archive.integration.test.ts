@@ -9,13 +9,13 @@ import {
     loadVersionSnapshot,
     pruneArchivedVersion,
     snapshotObjectKey,
-} from '../../../src/handlers/version-archive-worker.js';
+} from '../../../src/handlers/versionArchiveWorker.js';
 import {
     claimPendingArchives,
     countBacklog,
     oldestPendingArchiveAgeSeconds,
     toArchiveMessage,
-} from '../../../src/handlers/archive-sweeper.js';
+} from '../../../src/handlers/archiveSweeper.js';
 
 /**
  * T133 — the async version-archive path, against real Postgres + real S3 (LocalStack).

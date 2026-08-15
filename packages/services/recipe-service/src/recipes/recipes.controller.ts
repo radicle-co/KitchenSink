@@ -32,13 +32,13 @@ import {
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { RecipesService } from './recipes.service.js';
-import { CreateRecipeDto } from './dto/create-recipe.dto.js';
-import { UpdateRecipeDto } from './dto/update-recipe.dto.js';
-import { ListRecipesQueryDto } from './dto/list-recipes.query.dto.js';
-import { CloneRecipeDto } from './dto/clone-recipe.dto.js';
-import { SetVisibilityDto } from './dto/set-visibility.dto.js';
-import type { PaginatedRecipesResponse, RecipeResponse } from './dto/recipe-response.dto.js';
-import { CurrentPrincipal, OwnerId } from '../auth/current-principal.decorator.js';
+import { CreateRecipeDto } from './dto/createRecipe.dto.js';
+import { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
+import { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
+import { CloneRecipeDto } from './dto/cloneRecipe.dto.js';
+import { SetVisibilityDto } from './dto/setVisibility.dto.js';
+import type { PaginatedRecipesResponse, RecipeResponse } from './dto/recipeResponse.dto.js';
+import { CurrentPrincipal, OwnerId } from '../auth/currentPrincipal.decorator.js';
 import type { Principal } from '../auth/principal.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 

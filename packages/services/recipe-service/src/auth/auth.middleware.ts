@@ -26,7 +26,7 @@ import { Injectable, UnauthorizedException, type NestMiddleware } from '@nestjs/
 import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 import type { NextFunction, Response } from 'express';
 
-import { ClerkAuthService } from './clerk-auth.service.js';
+import { ClerkAuthService } from './clerkAuth.service.js';
 import { extractBearer } from './bearer.js';
 import type { AuthenticatedRequest, Principal } from './principal.js';
 

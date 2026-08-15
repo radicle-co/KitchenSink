@@ -37,8 +37,8 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     banUser: vi.fn(),
     unbanUser: vi.fn(),
 }));
-vi.mock('../../../src/common/erase-identity.js', () => ({ eraseIdentityRow: mockEraseIdentityRow }));
-vi.mock('../../../src/common/erasure-fanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
+vi.mock('../../../src/common/eraseIdentity.js', () => ({ eraseIdentityRow: mockEraseIdentityRow }));
+vi.mock('../../../src/common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
 vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn(function () {
         return {
@@ -94,7 +94,7 @@ afterEach(() => vi.clearAllMocks());
  * `attributes` was `{} as Record<string, string>`, which is NOT an `SQSRecordAttributes`: that type requires
  * `ApproximateReceiveCount`, `SentTimestamp`, `SenderId` and `ApproximateFirstReceiveTimestamp`. The record was
  * therefore not assignable to `SQSRecord` (7 x TS2322) and this tier had no typecheck project to say so. Filled
- * in with the same four fields `src/handlers/__tests__/deletion-worker.test.ts` already supplies, and the return
+ * in with the same four fields `src/handlers/__tests__/deletionWorker.test.ts` already supplies, and the return
  * type is annotated so a future omission fails here rather than being absorbed by inference.
  */
 const makeSqsRecord = (body: object, id = 'msg-1'): SQSRecord => ({
@@ -124,7 +124,7 @@ type ScheduledTestHandler = (event: ScheduledEvent, context: Context) => Promise
 
 /** @sideEffect Dynamically imports the deletion-worker module. */
 const loadDeletionWorker = async (): Promise<SqsTestHandler> => {
-    const { handler } = await import('../../../src/handlers/deletion-worker.js');
+    const { handler } = await import('../../../src/handlers/deletionWorker.js');
 
     return handler as unknown as SqsTestHandler;
 };

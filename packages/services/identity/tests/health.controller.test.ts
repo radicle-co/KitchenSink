@@ -12,7 +12,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CONTRACT_HASH } from '../src/contract/contract-hash.js';
+import { CONTRACT_HASH } from '../src/contract/contractHash.js';
 import { HealthController } from '../src/health/health.controller.js';
 import type { ReadinessExecutor } from '../src/health/readiness.js';
 

@@ -625,7 +625,7 @@ behaviour are asserted at the integration tier, where a real transaction and a r
 
 ### MOD-017 (ApiExceptionFilter + error classes)
 
-**Parent**: ARCH-017 · **Target**: `src/common/api-exception.filter.ts`, `src/common/errors/*.ts` · **Purity**: pure
+**Parent**: ARCH-017 · **Target**: `src/common/apiException.filter.ts`, `src/common/errors/*.ts` · **Purity**: pure
 error constructors; impure filter
 
 ```pseudocode

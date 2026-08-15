@@ -16,7 +16,7 @@ import { Injectable } from '@nestjs/common';
 
 import { AdmissionService } from './admission.service.js';
 import { CandidateStore, FoodDao, FoodSourcesDao, type FoodStatus, type GoldenFoodRecord } from './dao/index.js';
-import { FoodSearchDao } from './dao/food-search.dao.js';
+import { FoodSearchDao } from './dao/foodSearch.dao.js';
 import { EnqueueEmitter } from './enqueue.emitter.js';
 import {
     CandidateMismatchError,
@@ -25,8 +25,8 @@ import {
     FoodPendingError,
     NotResolvableError,
 } from './foods.errors.js';
-import { normalizeName } from './merge/merge-engine.js';
-import { MergeAndPersistService } from './merge/merge-and-persist.service.js';
+import { normalizeName } from './merge/mergeEngine.js';
+import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import type {
     AddResponse,
     BatchItemView,
@@ -42,9 +42,9 @@ import {
     type CanonicalCandidate,
     type FoodSourceId,
     SourceAdapterRegistry,
-} from '../sources/food-source-adapter.js';
-import { FoodMetrics } from '../observability/emf-metrics.js';
-import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
+} from '../sources/foodSourceAdapter.js';
+import { FoodMetrics } from '../observability/emfMetrics.js';
+import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
 
 /** Estimated wait reported on a fresh enqueue (plan §3). */
 const ESTIMATED_WAIT_SECONDS = 30;

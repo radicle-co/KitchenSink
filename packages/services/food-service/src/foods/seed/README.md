@@ -180,7 +180,7 @@ are excluded from **nothing else** — they are fully searchable and readable li
 
 - `src/sources/usda/bulk/` owns the bulk file format — it and `usda.adapter.ts` are the only places USDA's
   native `fdc_id` is named (FR-IDN-2). It emits source-agnostic `CanonicalCandidate`s.
-- `src/foods/seed/bulk-seed.service.ts` is **source-agnostic**: it never names USDA, `fdcId`, or CSV, so a
+- `src/foods/seed/bulkSeed.service.ts` is **source-agnostic**: it never names USDA, `fdcId`, or CSV, so a
   future bulk source reuses it unchanged.
 - The bulk mapper is **not** a reuse of the adapter's private `mapToCanonical` (different schema entirely),
   but it **does** import the adapter's `(name, unit)` canonicalization so a bulk value and a live value for

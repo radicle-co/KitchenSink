@@ -4,7 +4,7 @@
  * (never the body) and that a missing principal is a 401. Body/query validation runs at `nestjs-zod`'s
  * `ZodValidationPipe` framework seam — BEFORE these handlers execute — so malformed-input rejection is
  * not observable by calling a handler directly; that coverage lives in
- * `../dto/__tests__/collection-dtos.test.ts`, which drives the real pipe over the DTOs that ARE the
+ * `../dto/__tests__/collectionDtos.test.ts`, which drives the real pipe over the DTOs that ARE the
  * published contract. (It previously lived in `common/pipes/__tests__/zod-validation.pipe.test.ts`,
  * alongside a hand-rolled pipe that has since been deleted in favour of the library's.) End-to-end
  * behaviour is covered by the integration/e2e tiers.

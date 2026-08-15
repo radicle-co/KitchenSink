@@ -13,7 +13,7 @@
  * numbers. They are NOT derived from a drizzle column and must never be: `recipe-core` is a zod-only leaf
  * that both apps bundle, and letting a storage type reach it is the coupling §15.2 removed. The equality
  * against the real columns is asserted, separately and mechanically, by each service's own
- * `storage-capacity.test.ts` — which READS both models and compares them.
+ * `storageCapacity.test.ts` — which READS both models and compares them.
  *
  * The character limits have NO storage floor to derive from at all: every text column behind them is
  * unbounded `text`, so each is purely a PRODUCT decision. That is recorded where a reader would otherwise

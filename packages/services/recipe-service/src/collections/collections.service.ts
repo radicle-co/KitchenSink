@@ -15,10 +15,10 @@ import { RecipeCollectionAddedVia, recipeVisibilitySchema, type RecipeVisibility
 
 import { toPageEnvelope } from '../common/pagination.js';
 import type { CollectionRow } from '../database/schema/collections.js';
-import { AuthorHandlesDal } from '../authors/dal/author-handles.dal.js';
+import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { CollectionsDal } from './dal/collections.dal.js';
-import { isRecipeViewableBy } from '../recipes/domain/recipe-visibility.js';
-import { recipeRowToDomain } from '../recipes/mappers/recipe-row-to-domain.js';
+import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
+import { recipeRowToDomain } from '../recipes/mappers/recipeRowToDomain.js';
 import {
     collectionNotClonedError,
     collectionNotOwnedError,
@@ -26,7 +26,7 @@ import {
     pullDriftError,
     recipeNotFoundError,
 } from './collections.errors.js';
-import { computePullDiff, pullDiffsAgree } from './domain/pull-diff.js';
+import { computePullDiff, pullDiffsAgree } from './domain/pullDiff.js';
 import type {
     CloneCollectionRequest,
     CollectionListResponse,

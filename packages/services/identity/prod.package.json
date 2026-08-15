@@ -7,7 +7,7 @@
         ".": "./dist/src/index.js",
         "./types": "./dist/src/types/index.js",
         "./types/*": "./dist/src/types/*.js",
-        "./users/handle-sync-publisher": "./dist/src/users/handle-sync.publisher.js"
+        "./users/handle-sync-publisher": "./dist/src/users/handleSync.publisher.js"
     },
     "dependencies": {
         "@aws-lambda-powertools/logger": "^2.33.1",

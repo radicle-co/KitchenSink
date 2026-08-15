@@ -4,7 +4,7 @@ import { z } from 'zod';
  * IdP (Clerk) credentials/config. Only `IDP_SECRET_KEY`/`AUTH_SECRET_ARN` are enforced (either-or, via
  * the refine below) — the rest are optional here because not every Lambda's deployed env carries every
  * field (e.g. `IDP_PUBLISHABLE_KEY` is a browser-side credential never injected into any of these
- * server-side functions; see `infra/lib/webhooks-stack.ts`'s `commonEnv`/`clerkBackendEnv`).
+ * server-side functions; see `infra/lib/WebhooksStack.ts`'s `commonEnv`/`clerkBackendEnv`).
  */
 const IdpConfigSchema = z.object({
     IDP_SECRET_KEY: z.string().startsWith('sk_').optional(),

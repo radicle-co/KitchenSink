@@ -1,7 +1,7 @@
 import { Logger } from '@aws-lambda-powertools/logger';
 import type { LogItemExtraInput, LogItemMessage } from '@aws-lambda-powertools/logger/types';
 
-import { scrubLogInput } from './log-scrub.js';
+import { scrubLogInput } from './logScrub.js';
 
 /**
  * Shared structured logger for the recipe-workers Lambdas. `serviceName` and the ambient

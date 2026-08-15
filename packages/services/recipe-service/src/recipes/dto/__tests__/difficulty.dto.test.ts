@@ -16,8 +16,8 @@ import type { ArgumentMetadata } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { describe, expect, it } from 'vitest';
 
-import { CreateRecipeDto } from '../create-recipe.dto.js';
-import { UpdateRecipeDto } from '../update-recipe.dto.js';
+import { CreateRecipeDto } from '../createRecipe.dto.js';
+import { UpdateRecipeDto } from '../updateRecipe.dto.js';
 
 /** The exact pipe the `RecipesController` applies (`@UsePipes(ZodValidationPipe)`). */
 const pipe = new ZodValidationPipe();

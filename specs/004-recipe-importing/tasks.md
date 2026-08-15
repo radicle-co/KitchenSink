@@ -120,7 +120,7 @@ Contract-first: the contract is authored **before** any handler.
       count was a mention count anyway.** The service has **zero** `class-validator` importers and has dropped the
       dependency from `package.json` and `prod.package.json`, so a DTO added here would **re-introduce** the second
       mechanism GR-016 §16-a.2 forbids and would fail repo-wide gate **G5** in
-      `packages/infra/global/__tests__/service-security-invariants.test.ts`, which has no exception list
+      `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which has no exception list
 - [ ] **Every mutating body uses `z.strictObject()`** (GR-017 §17-c) — `z.object()` strips unknown keys silently,
       so a misspelled field on an import request yields a `200` and a partial write the caller was told succeeded
 - [ ] `Idempotency-Key` required on `/api/v1/import/{url,instagram,photo}` — modelled in the schema (a required
@@ -128,8 +128,8 @@ Contract-first: the contract is authored **before** any handler.
 - [ ] Every error response references the shipped `ErrorResponse` envelope, with the new codes enumerated
 - [ ] Status codes match `plan.md §3` exactly (422 for policy/extraction failures, not 400)
 - [ ] `npm run contract:verify` regenerates `packages/schemas/recipe` — `schemas.ts`, `types.ts` (`z.infer` only),
-      `contract-hash.ts`, barrel, and the **derived** `openapi.yaml` — with **no diff**; nothing in it is hand-edited
-- [ ] `packages/services/recipe-service/src/__tests__/build-inputs.test.ts` covers the new schema file, so turbo's
+      `contractHash.ts`, barrel, and the **derived** `openapi.yaml` — with **no diff**; nothing in it is hand-edited
+- [ ] `packages/services/recipe-service/src/__tests__/buildInputs.test.ts` covers the new schema file, so turbo's
       `$TURBO_ROOT$` **`inputs`** glob rebuilds the copy on a content change; the `CONTRACT_HASH` boot assertion
       still holds
 
@@ -149,7 +149,7 @@ half (GR-017 §17-f).
 - [ ] **Unit tests**: each schema accepts a valid fixture and rejects every malformed variant — wrong-typed field,
       missing field, unknown key, absent `Idempotency-Key`
 - [ ] **Integration test**: a known-bad body posted to a **real** import route on a booted app returns `400`
-      naming the offending field (modelled on `packages/services/identity/tests/app-validation.test.ts`) — this is
+      naming the offending field (modelled on `packages/services/identity/tests/appValidation.test.ts`) — this is
       the **only** thing that can observe the wrong-pipe failure; plus regenerate-and-diff clean
 
 **Files** `packages/services/recipe-service/src/imports/imports.schema.ts`, `packages/schemas/recipe/*` (generated),
@@ -191,7 +191,7 @@ half (GR-017 §17-f).
 - [ ] **Unit tests**: every code maps to its documented status; unknown code falls through to 500
 - [ ] Client `errors.ts` extended so each code is discriminable downstream
 
-**Files** `packages/shared/recipe-core/src/recipe.types.ts`, `src/common/filters/api-exception.filter.ts`, `src/imports/import.error.ts`, `packages/clients/recipe-service/src/errors.ts`
+**Files** `packages/shared/recipe-core/src/recipe.types.ts`, `src/common/filters/apiException.filter.ts`, `src/imports/import.error.ts`, `packages/clients/recipe-service/src/errors.ts`
 
 ---
 
@@ -472,7 +472,7 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
       private recipe by declaring a physical/imported source; false `imported_public` is unrepresentable
 - [ ] **Integration tests** against real Postgres for both `create` and `createMany`
 
-**Files** `packages/services/recipe-service/src/recipes/recipes.service.ts`, `dto/create-recipe.dto.ts`, tests alongside
+**Files** `packages/services/recipe-service/src/recipes/recipes.service.ts`, `dto/createRecipe.dto.ts`, tests alongside
 
 ---
 

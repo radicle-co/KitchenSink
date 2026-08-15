@@ -21,12 +21,12 @@ import { recipeVersionArchiveKey } from '@kitchensink/recipe-core';
 import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { VersionsDal, type CreateSnapshotInput } from './dal/versions.dal.js';
-import { PendingArchivesDal } from './dal/pending-archives.dal.js';
-import { VERSION_ARCHIVE_READER, type VersionArchiveReader } from './version-archive.storage.js';
+import { PendingArchivesDal } from './dal/pendingArchives.dal.js';
+import { VERSION_ARCHIVE_READER, type VersionArchiveReader } from './versionArchive.storage.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner, recipeNotFound } from '../recipes/recipe.error.js';
 import type { Principal } from '../auth/principal.js';
-import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
+import type { RecipeResponse } from '../recipes/dto/recipeResponse.dto.js';
 import type { RecipeVersionRow } from '../database/schema/index.js';
 
 /**

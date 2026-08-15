@@ -15,8 +15,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type pg from 'pg';
 
 import { AdmissionService } from '../src/foods/admission.service.js';
-import { FetchQueueDao } from '../src/foods/dao/fetch-queue.dao.js';
-import { FetchRequestersDao } from '../src/foods/dao/fetch-requesters.dao.js';
+import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
+import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
 import { isFetchUnavailableError } from '../src/foods/foods.errors.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';

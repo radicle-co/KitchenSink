@@ -36,7 +36,7 @@ on:
         # `required: false` is deliberate, not laziness: GitHub WITHHOLDS secrets from fork PRs and
         # Dependabot runs, and this pipeline is built to degrade gracefully there — `load-secrets` carries
         # `continue-on-error` and the dependent steps gate on `steps.secrets.outcome` (see the inventory in
-        # `workflow-invariants.test.ts`). Marking them required would turn that designed skip into an
+        # `workflowInvariants.test.ts`). Marking them required would turn that designed skip into an
         # unfixable red check on exactly the PRs that cannot supply them.
         secrets:
             AWS_ACCESS_KEY_ID:
@@ -235,12 +235,12 @@ jobs:
     # wire contract as CHECKED-IN GENERATED artifacts, and nothing else in this pipeline can see them go stale:
     # lint, typecheck and test all pass against a stale contract, because a stale contract is still valid
     # TypeScript. What ships is a published document describing a service that no longer exists, plus two
-    # `contract-hash` stamps asserting they agree when they do not.
+    # `contractHash` stamps asserting they agree when they do not.
     #
     # Same shape as the `format` job: re-run the tool that OWNS the file, then require the tree to be unchanged.
     # The whole decision lives in `scripts/contractDriftGate.mjs` — runnable locally as `npm run contract:verify`
     # and regression-tested against REAL temp git repositories by
-    # `packages/infra/global/__tests__/contract-drift-gate.test.ts`, including the two states a plausible
+    # `packages/infra/global/__tests__/contractDriftGate.test.ts`, including the two states a plausible
     # implementation gets wrong (a DELETED artifact, and one a `.gitignore` entry has made invisible).
     #
     # It lives here, in the base tier, rather than in a workflow of its own: `_ci.yml` already owns the
@@ -535,7 +535,7 @@ jobs:
         # schema — it deliberately drives the exported `db`-taking seams over a caller-supplied pool and
         # ASSUMES the recipe schema already exists (see the spec headers). So this job applies the SAME
         # ordered, hand-authored recipe-service migrations (src/database/migrations/000*_*.sql — the single
-        # source of truth for the schema, applied exactly as recipe-service's tests/global-setup.ts does:
+        # source of truth for the schema, applied exactly as recipe-service's tests/globalSetup.ts does:
         # a clean `public`, then each file in filename order) to the throwaway DB BEFORE the run. Without
         # this step every spec errors with `relation "recipes" does not exist` (verified). The specs
         # self-provision their S3 buckets via CreateBucket, so no bucket-init step is needed here.
@@ -586,7 +586,7 @@ jobs:
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # Apply the recipe schema to the throwaway DB FIRST — the workers integration specs have no
             # globalSetup and assume the schema is present. This is the SAME set of ordered migration SQL
-            # files recipe-service's tests/global-setup.ts applies (drop `public`, then each file in
+            # files recipe-service's tests/globalSetup.ts applies (drop `public`, then each file in
             # filename order), so the schema under test is byte-identical to the recipe-service run.
             - name: Apply recipe schema migrations to the throwaway DB
               env:
@@ -604,7 +604,7 @@ jobs:
             # Drives the erasure/archive integration specs against the real, migrated Postgres + LocalStack
             # S3. The S3 clients hardcode `test`/`test` creds and force path-style addressing, so only the
             # endpoint + bucket names come from env; both are set for parity with `integration-recipe`.
-            # The lambda BUNDLE must exist before the integration tier. `workers-app-synth.integration.test.ts`
+            # The lambda BUNDLE must exist before the integration tier. `workersAppSynth.integration.test.ts`
             # spawns the real CDK app, and `RecipeWorkersStack` refuses to synth without `dist/` — it asserts
             # the bundle is present rather than deploying a phantom `lambda.Code.fromAsset`. That check is
             # correct; what was missing is that this job never built it, so the spec passed locally (where a
@@ -743,8 +743,8 @@ jobs:
 
     # recipe-service's ENTIRE e2e tier was dark until 2026-08-07: 14 spec files / 54 tests existed and NO
     # workflow invoked them. `test:e2e` was wired for food-service, identity, identity-webhooks, web and
-    # mobile — never recipe-service. Among the unrun specs: `erasure-lock.e2e.test.ts` (GDPR C-007),
-    # `throttle.e2e.test.ts`, `recipe-input-validation.e2e.test.ts`. A regression in any of those reached
+    # mobile — never recipe-service. Among the unrun specs: `erasureLock.e2e.test.ts` (GDPR C-007),
+    # `throttle.e2e.test.ts`, `recipeInputValidation.e2e.test.ts`. A regression in any of those reached
     # production behind green checks. Measured green in 15s before wiring, so this is not papering over a
     # broken tier. Same services and env block as `integration-recipe` — the environment it was verified in.
     e2e-recipe:

@@ -8,7 +8,7 @@ import { attachSecurityChecks } from '@kitchensink/infra-security';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
 
-import { RecipeWorkersStack } from '../lib/recipe-workers-stack.js';
+import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
 
 const app = new App();
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';

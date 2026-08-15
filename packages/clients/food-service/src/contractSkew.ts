@@ -4,7 +4,7 @@
  * `GET /health`, and reports a difference.
  *
  * ⚠️ A MISMATCH WARNS, IT DOES NOT REFUSE (owner ruling, 2026-08-11). The asymmetry with the fail-closed
- * SERVICE-side boot check (`food-service/src/contract/contract-skew.ts`) is deliberate: that one compares two
+ * SERVICE-side boot check (`food-service/src/contract/contractSkew.ts`) is deliberate: that one compares two
  * stamps baked into ONE image, so refusing costs no availability, whereas this compares two INDEPENDENTLY
  * DEPLOYED artifacts — refusing would let any backend deploy brick every client not shipped in lockstep, and
  * on mobile, where a released binary cannot be updated in step, it would brick the app until an App Store

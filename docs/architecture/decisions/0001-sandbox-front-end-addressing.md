@@ -3,7 +3,7 @@
 - **Status:** Accepted, **with a reachability defect whose cure is now automated but not yet observed on a fresh PR** — see the _Update (2026-07-28)_ below: the router's Host swap makes every subdomain preview unreachable in a browser, and the fix is the addressing change (previews resolve to Vercel directly), which CI now performs per PR (`preview-domain` job, #94) after being executed by hand once on PR #73. Originally _path routing implemented_ (per-PR `basePath` builds + a singleton CloudFront + CloudFront Function (runtime 2.0) + KeyValueStore router that host-swaps `/pr-{N}/*` to each PR's app, with the project-wide Vercel bypass token injected at the edge). The **manifest/static-resource mechanism** and **native mobile** remain deferred. **Revisited 2026-07-12** — a feasibility spike found per-PR **subdomains are viable** after all (see the Update below); migration to subdomains is planned. Path routing stays in place until it lands.
 - **Date:** 2026-06-14
 - **Area:** sandbox deploy topology · web/mobile serving · Clerk session-token auth
-- **Related:** service-side Clerk session-token verification (PR #39), `.github/workflows/sandbox-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`, `packages/services/identity/src/auth/clerk-auth.service.ts`, `packages/services/identity/src/config/env.schema.ts`, the Option B′ spike (`docs/brainstorms/2026-07-10-sandbox-subdomain-azp-spike-requirements.md`, `docs/plans/2026-07-11-001-feat-sandbox-subdomain-azp-spike-plan.md`)
+- **Related:** service-side Clerk session-token verification (PR #39), `.github/workflows/sandbox-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`, `packages/services/identity/src/auth/clerkAuth.service.ts`, `packages/services/identity/src/config/env.schema.ts`, the Option B′ spike (`docs/brainstorms/2026-07-10-sandbox-subdomain-azp-spike-requirements.md`, `docs/plans/2026-07-11-001-feat-sandbox-subdomain-azp-spike-plan.md`)
 
 ## Update (2026-07-12) — spike revisited the premise: per-PR **subdomains are viable** (recommendation: GO)
 
@@ -135,6 +135,6 @@ Path-routing guards are in place (`// ⚠️ DELIBERATE — see docs/architectur
 - `packages/apps/commise/web/src/middleware.ts` — the prefix-aware Clerk matcher (do not "simplify" back to root-anchored patterns — it silently makes protected routes public).
 - `packages/apps/commise/web/router/src/*` + `infra/lib/sandbox-router-stack.ts` — the host-swap router (do not switch to a prefix-stripping proxy or per-PR subdomains).
 
-The **azp** tripwires the ADR originally listed — `clerk-auth.service.ts` (azp handling) and `env.schema.ts` (`CLERK_AUTHORIZED_PARTIES`) — are owned by the create-user-flow work (PR #39) and the `CLAUDE.md` "Deliberate decisions" entry; not duplicated here.
+The **azp** tripwires the ADR originally listed — `clerkAuth.service.ts` (azp handling) and `env.schema.ts` (`CLERK_AUTHORIZED_PARTIES`) — are owned by the create-user-flow work (PR #39) and the `CLAUDE.md` "Deliberate decisions" entry; not duplicated here.
 
 The **manifest/static-resource loader** guard lands with that deferred mechanism.

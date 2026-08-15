@@ -411,7 +411,7 @@ open_decisions_round_2:
         finding: >-
             v-model/architecture-design.md (ARCH-022), hazard-analysis.md, and imports/policy/provenance.policy.ts
             all say evaluateVisibility lives in @kitchensink/recipe-core. It lives in
-            src/recipes/domain/visibility-policy.ts. recipe-core's recipeAccessPolicy.ts holds only the
+            src/recipes/domain/visibilityPolicy.ts. recipe-core's recipeAccessPolicy.ts holds only the
             client-side half. REQ-015 is an Inspection requirement, so a wrong stated location matters for the
             audit trail.
         owner_ruling: PENDING (documentation fix, no code change)

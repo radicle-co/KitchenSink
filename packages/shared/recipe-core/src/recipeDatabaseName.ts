@@ -15,7 +15,7 @@
  * prune, GDPR erasure sweep, orphan deletion), so the divergence was a cross-stage data-loss path, not a
  * read-side inconsistency. Nothing tied the two resolutions together, which is exactly why they drifted
  * silently — so the cross-stack parity test in
- * `packages/services/recipe-service/infra/__tests__/recipe-database-name-parity.test.ts` is part of this
+ * `packages/services/recipe-service/infra/__tests__/recipeDatabaseNameParity.test.ts` is part of this
  * contract, not an optional extra.
  *
  * **Import it as `@kitchensink/recipe-core/database-name`, never through the package barrel — and keep this

@@ -22,7 +22,7 @@
  *
  * ⚠️ AND "CLOSED" IS AN EMPTY LIST, NOT `false` — for a reason that is NOT the one this comment used to give.
  * It claimed `origin: false` emits `Access-Control-Allow-Origin: *`, i.e. "the OPPOSITE of denied". That is
- * FALSE, and the claim was load-bearing: `tests/cors-headers.test.ts` cited it as a mutation guard, and the
+ * FALSE, and the claim was load-bearing: `tests/corsHeaders.test.ts` cited it as a mutation guard, and the
  * mutant it named was then MEASURED to leave that suite fully green (6 passed, 0 failed). `cors@2.8.6`'s
  * `configureOrigin` does open with `if (!options.origin || options.origin === '*')` → `*`, but that branch is
  * UNREACHABLE for a falsy static option: the package's `middlewareWrapper` tests `corsOptions.origin` first
@@ -36,7 +36,7 @@
  * decision (no `Vary: Origin` for caches, and the preflight — where a browser actually checks — answered by
  * whatever the router does with an unrouted `OPTIONS`). An empty list keeps the middleware IN the path and
  * denies by FAILING THE MATCH. Because absence of the header is what BOTH values produce, the guard in
- * `tests/cors-headers.test.ts` is re-anchored on the OBSERVABLE difference — `Vary: Origin` present and the
+ * `tests/corsHeaders.test.ts` is re-anchored on the OBSERVABLE difference — `Vary: Origin` present and the
  * preflight answered `204` — which is what now reds if `[]` is ever "simplified" to `false`.
  *
  * ⛔ PRECONDITION — THIS SERVICE IS BEARER-ONLY, AND THAT IS WHAT MAKES A PERMISSIVE ORIGIN SURVIVABLE.
@@ -47,7 +47,7 @@
  * anchored `azp` regex — not CORS — is the real trust boundary on sandbox (ADR-0001: the sandbox Clerk dev
  * instance reflects any `Origin` regardless of what we send). **If a route ever reads a cookie, a session
  * credential, or accepts a WebSocket upgrade, this precondition is broken and these branches must be
- * re-derived before that route ships.** `tests/bearer-only-precondition.test.ts` parses `src/` (AST, not
+ * re-derived before that route ships.** `tests/bearerOnlyPrecondition.test.ts` parses `src/` (AST, not
  * grep — this very comment mentions `req.cookies`) and fails the build if the premise stops holding.
  */
 import { resolveAzpEnforcement } from '@kitchensink/clerk-verify';

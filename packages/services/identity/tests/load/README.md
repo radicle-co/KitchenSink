@@ -9,7 +9,7 @@ Identity has the widest blast radius of any service here — it is the ONE ident
 and both stages sign in against (the shared persistent `identity.sandbox.commise.app`), so a latency or
 throughput regression here degrades everything.
 
-> **This tier replaces `tests/perf/latency-perf.test.ts` as the enforcement of identity's latency
+> **This tier replaces `tests/perf/latencyPerf.test.ts` as the enforcement of identity's latency
 > targets.** That file is a vitest test in the UNIT tier that asserts constants against themselves
 > (`expect(targets.profileP99).toBe(1000)`) under no load, no concurrency and no service — it cannot fail
 > for any reason related to performance. It should be deleted; the thresholds below are what actually
@@ -17,12 +17,12 @@ throughput regression here degrades everything.
 
 ## Scenarios
 
-| Script                            | Endpoint(s)                                          | Asserts (via `options.thresholds`)                                                                                               |
-| --------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `session-hot-path.load.js`        | `GET /api/v1/users/me` + `GET /health/ready`         | profile p95 ≤ 500ms **and p99 ≤ 1s** (NFR-011a); readiness stays 200 and p95 ≤ 1s _while the service is saturated_               |
-| `auth-rejection.load.js`          | `GET /api/v1/users/me` with 5 bad credentials        | every invalid credential → `401` (SC-006), rejection p95 ≤ 250ms, and legitimate traffic keeps its 500ms budget during the storm |
-| `admin-user-search.load.js`       | `GET /api/v1/admin/users` (`?email` `?name` `?sub`)  | `ilike` scan p95 ≤ 1s; primary-key probe p95 ≤ 500ms (the indexed contrast)                                                      |
-| `provisioning-and-rename.load.js` | first request for an unseen `sub`; `PATCH /users/me` | first-sight provisioning p95 ≤ 1s; rename p95 ≤ 500ms                                                                            |
+| Script                          | Endpoint(s)                                          | Asserts (via `options.thresholds`)                                                                                               |
+| ------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `sessionHotPath.load.js`        | `GET /api/v1/users/me` + `GET /health/ready`         | profile p95 ≤ 500ms **and p99 ≤ 1s** (NFR-011a); readiness stays 200 and p95 ≤ 1s _while the service is saturated_               |
+| `authRejection.load.js`         | `GET /api/v1/users/me` with 5 bad credentials        | every invalid credential → `401` (SC-006), rejection p95 ≤ 250ms, and legitimate traffic keeps its 500ms budget during the storm |
+| `adminUserSearch.load.js`       | `GET /api/v1/admin/users` (`?email` `?name` `?sub`)  | `ilike` scan p95 ≤ 1s; primary-key probe p95 ≤ 500ms (the indexed contrast)                                                      |
+| `provisioningAndRename.load.js` | first request for an unseen `sub`; `PATCH /users/me` | first-sight provisioning p95 ≤ 1s; rename p95 ≤ 500ms                                                                            |
 
 A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job.
 
@@ -66,7 +66,7 @@ plan's third target — it lives in `@kitchensink/identity-webhooks`, a Lambda, 
 - **The recipe/food k6 suites** — p95 ≤ 500ms for an indexed read or a single-row write (SC-009), < 2s
   for a full-text search. Used as the cross-service reference point.
 - **`src/health/readiness.ts`** — `READINESS_PROBE_TIMEOUT_MS = 2000`, and the ECS/ALB health checks in
-  `infra/lib/identity-service-stack.ts` (30s interval, 10s timeout). The readiness budget is set at HALF
+  `infra/lib/IdentityServiceStack.ts` (30s interval, 10s timeout). The readiness budget is set at HALF
   the probe timeout so it fails while the probe is merely at risk, not after the ALB starts cycling tasks.
 
 Every budget is env-overridable, and `lib/common.js` states for each one a **concrete mechanism that can
@@ -77,7 +77,7 @@ breach it** — a budget nothing can cross is theatre.
 Identity protects everything except `/health` and `/health/ready`, verifying Clerk session tokens
 networklessly against a pinned PEM public key with `azp` enforcement. So:
 
-1. `prepare-clerk-tokens.ts` generates a **throwaway RSA keypair**, mints the token pools locally, and
+1. `prepareClerkTokens.ts` generates a **throwaway RSA keypair**, mints the token pools locally, and
    writes the public half to `clerk-public-key.pem`.
 2. The service under test is booted with `CLERK_JWT_KEY="$(cat clerk-public-key.pem)"` and
    `CLERK_AUTHORIZED_PARTIES=https://identity-load.test` — exact-match `azp` list mode, the production
@@ -94,7 +94,7 @@ not** "improve" this by provisioning real Clerk users.
 > ⚠️ `IDENTITY_DEV_AUTH_USER_ID` **must not be set** for these runs. That non-production dev bypass
 > short-circuits `AuthMiddleware` entirely — no token verification and no read-through provisioning —
 > i.e. it removes the two things this tier exists to measure. (The recipe load job legitimately uses its
-> equivalent, because recipe's load is about recipe routes, not about auth.) `auth-rejection.load.js`
+> equivalent, because recipe's load is about recipe routes, not about auth.) `authRejection.load.js`
 > detects the mistake for free: under the bypass its invalid credentials would answer `200` instead of
 > `401` and the SC-006 check would collapse.
 
@@ -107,7 +107,7 @@ not** "improve" this by provisioning real Clerk users.
 - The **k6 binary** — <https://grafana.com/docs/k6/latest/set-up/install-k6/>, or
   `npm run k6:install --workspace=packages/tools/loadtest` (downloads a pinned binary into
   `node_modules/.bin`).
-- A Postgres reachable at `DATABASE_URL`, holding a **disposable** database (`prepare-db.ts` DROPs its
+- A Postgres reachable at `DATABASE_URL`, holding a **disposable** database (`prepareDb.ts` DROPs its
   `public` schema).
 - A running identity-service reachable at `IDENTITY_API_BASE_URL`, booted with the generated public key.
   A **container** is the reliable way to boot it: `node dist/src/main.js` outside the image cannot resolve
@@ -168,7 +168,7 @@ docker run -d --name identity-load --network host \
 IDENTITY_API_BASE_URL=http://localhost:3001 npm run test:load
 
 # …or one scenario, with a machine-readable summary for triage:
-k6 run --summary-export=k6-hotpath-summary.json tests/load/session-hot-path.load.js
+k6 run --summary-export=k6-hotpath-summary.json tests/load/sessionHotPath.load.js
 ```
 
 ### ⚠️ Script ORDER is load-bearing — `provisioning-and-rename` runs LAST
@@ -265,13 +265,13 @@ exists.
 
 Three repo-level guards now hold this in place, in `packages/infra/global/__tests__/`:
 
-- `k6-load-tier-wiring.test.ts` — fails if any committed `*.load.js` is invoked by no workflow step (the
+- `k6LoadTierWiring.test.ts` — fails if any committed `*.load.js` is invoked by no workflow step (the
   state this suite was in), if a CI job's script order contradicts the `test:load` chain above, if an
   artifact-upload path could capture the token pool, or if a prepare step emits credentials outside the
   `.gitignore` rule.
-- `heavy-e2e-load-tier-gate.test.ts` — evaluates the real gate expressions and asserts this job runs on
+- `heavyE2eLoadTierGate.test.ts` — evaluates the real gate expressions and asserts this job runs on
   every trigger the recipe and food jobs do.
-- `workflow-invariants.test.ts` — no `continue-on-error` / `|| true` may appear in the job un-inventoried.
+- `workflowInvariants.test.ts` — no `continue-on-error` / `|| true` may appear in the job un-inventoried.
 
 **Verified locally end to end** (2026-08-09, k6 v0.54.0, the production Docker image against a throwaway
 Docker Postgres 16 on a non-default port): all four scripts exit `0` on a reduced shape, both

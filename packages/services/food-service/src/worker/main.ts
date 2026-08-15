@@ -13,23 +13,23 @@ import { availableParallelism } from 'node:os';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { ConsoleEventBus, FoodEventEmitter } from '../events/food-event-emitter.js';
-import { AdminMetricsDao } from '../foods/admin/admin-metrics.dao.js';
-import { FetchQueueDao } from '../foods/dao/fetch-queue.dao.js';
+import { ConsoleEventBus, FoodEventEmitter } from '../events/FoodEventEmitter.js';
+import { AdminMetricsDao } from '../foods/admin/adminMetrics.dao.js';
+import { FetchQueueDao } from '../foods/dao/fetchQueue.dao.js';
 import { FoodDao } from '../foods/dao/food.dao.js';
-import { FoodSourcesDao } from '../foods/dao/food-sources.dao.js';
-import { SourceCallLogDao } from '../foods/dao/source-call-log.dao.js';
-import { GoldenRecordMergeEngine } from '../foods/merge/merge-engine.js';
-import { MergeAndPersistService } from '../foods/merge/merge-and-persist.service.js';
-import { FoodMetrics } from '../observability/emf-metrics.js';
-import { foodPoolConfigFromEnv } from '../database/pool-config.js';
+import { FoodSourcesDao } from '../foods/dao/foodSources.dao.js';
+import { SourceCallLogDao } from '../foods/dao/sourceCallLog.dao.js';
+import { GoldenRecordMergeEngine } from '../foods/merge/mergeEngine.js';
+import { MergeAndPersistService } from '../foods/merge/mergeAndPersist.service.js';
+import { FoodMetrics } from '../observability/emfMetrics.js';
+import { foodPoolConfigFromEnv } from '../database/poolConfig.js';
 import * as schema from '../db/schema/index.js';
-import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
-import { createUsdaSourceRegistry } from '../sources/usda/usda-registry.js';
+import { RollingWindowLimiter } from '../sources/RollingWindowLimiter.js';
+import { createUsdaSourceRegistry } from '../sources/usda/usdaRegistry.js';
 import { containerCpus, workerConcurrency } from './concurrency.js';
-import { FoodConsumerService } from './food-consumer.service.js';
-import { ConsoleWorkerLogger } from './worker-logger.js';
-import { WorkerRuntime } from './worker-runtime.js';
+import { FoodConsumerService } from './foodConsumer.service.js';
+import { ConsoleWorkerLogger } from './workerLogger.js';
+import { WorkerRuntime } from './WorkerRuntime.js';
 
 const { Pool } = pg;
 

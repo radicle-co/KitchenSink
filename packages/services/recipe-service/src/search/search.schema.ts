@@ -53,7 +53,7 @@ import {
 // `packages/services/**`, i.e. a second DTO framework inside a service ADR-0015 §1 requires to have exactly
 // one. Because `class-validator` reports its constraints on `message[]` rather than on the `errors` key
 // `nestjs-zod` uses, this route's `400` missed `ApiExceptionFilter`'s validation branch and published
-// `BAD_REQUEST` — a code deliberately absent from `recipeErrorCodeSchema` (see `../common/api-error.ts`), so the
+// `BAD_REQUEST` — a code deliberately absent from `recipeErrorCodeSchema` (see `../common/apiError.ts`), so the
 // typed client's union rejected it and fell back to status-mapping, while the published document promised
 // `VALIDATION_FAILED` "from the boundary parser". One endpoint out of forty-one spoke a different dialect.
 //

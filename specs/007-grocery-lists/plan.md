@@ -153,7 +153,7 @@ actually creates gets chosen. Here the two moved together, in one commit; keep t
 **`@kitchensink/recipe-service` MUST** author every grocery-list, item, pantry-flag and order request/response
 shape as **zod in the service** at `src/grocery-lists/*.schema.ts` beside its controller; **validate its own
 requests with that same zod** via `nestjs-zod`'s `createZodDto`; extend the committed
-`@kitchensink/schema-recipe`, which exports the zod, `z.infer` types, `contract-hash.ts`, a barrel and a
+`@kitchensink/schema-recipe`, which exports the zod, `z.infer` types, `contractHash.ts`, a barrel and a
 **derived** `openapi.yaml` (outbound only — never a codegen input); and keep every `*.schema.ts` importing
 **only `zod` and other `*.schema.ts` files**.
 

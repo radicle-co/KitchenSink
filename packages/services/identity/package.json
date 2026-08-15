@@ -7,7 +7,7 @@
         ".": "./src/index.ts",
         "./types": "./src/types/index.ts",
         "./types/*": "./src/types/*.ts",
-        "./users/handle-sync-publisher": "./src/users/handle-sync.publisher.ts"
+        "./users/handle-sync-publisher": "./src/users/handleSync.publisher.ts"
     },
     "scripts": {
         "dev": "nest start --watch",
@@ -19,9 +19,9 @@
         "test": "vitest run",
         "test:e2e": "vitest run --config vitest.e2e.config.ts",
         "test:integration": "vitest run --config vitest.integration.config.ts",
-        "test:load:tokens": "tsx tests/load/prepare-clerk-tokens.ts",
-        "test:load:db": "tsx tests/load/prepare-db.ts",
-        "test:load": "k6 run tests/load/session-hot-path.load.js && k6 run tests/load/auth-rejection.load.js && k6 run tests/load/admin-user-search.load.js && k6 run tests/load/provisioning-and-rename.load.js",
+        "test:load:tokens": "tsx tests/load/prepareClerkTokens.ts",
+        "test:load:db": "tsx tests/load/prepareDb.ts",
+        "test:load": "k6 run tests/load/sessionHotPath.load.js && k6 run tests/load/authRejection.load.js && k6 run tests/load/adminUserSearch.load.js && k6 run tests/load/provisioningAndRename.load.js",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",

@@ -79,11 +79,11 @@ import type {
     RecipeStepInput,
     UpdateRecipeRequest,
 } from '../recipes.schema.js';
-import { CreateRecipeDto } from '../dto/create-recipe.dto.js';
-import { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
-import { CloneRecipeDto } from '../dto/clone-recipe.dto.js';
-import { SetVisibilityDto } from '../dto/set-visibility.dto.js';
-import { ListRecipesQueryDto } from '../dto/list-recipes.query.dto.js';
+import { CreateRecipeDto } from '../dto/createRecipe.dto.js';
+import { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
+import { CloneRecipeDto } from '../dto/cloneRecipe.dto.js';
+import { SetVisibilityDto } from '../dto/setVisibility.dto.js';
+import { ListRecipesQueryDto } from '../dto/listRecipes.query.dto.js';
 
 /** A valid ingredient line the individual cases override one field of. */
 const A_LINE = {

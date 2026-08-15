@@ -30,8 +30,8 @@ import {
     type RecipeCollectionRow,
 } from '../../database/schema/collections.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
-import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
-import { withTransaction, type RecipeTx, type Writer } from '../../database/unit-of-work.js';
+import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipePredicates.js';
+import { withTransaction, type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
 
 /** Row shape for creating a collection (owner resolved from the principal by the service). */
@@ -350,7 +350,7 @@ export class CollectionsDal {
      *    draft (which add-time validation cannot catch) is filtered out here at read time. This ONE read
      *    serves three callers (the `CollectionWithRecipes` embed, `cloneCollection`'s clone-seed, and
      *    `pullFromSource`/preview), so patching this predicate covers all three. Keep it in lockstep with
-     *    `isRecipeViewableBy` (recipes/domain/recipe-visibility.ts).
+     *    `isRecipeViewableBy` (recipes/domain/recipeVisibility.ts).
      *
      * Also projects each membership's `added_via` (W5 Task 4) alongside the recipe columns, so the
      * `CollectionWithRecipes` embed can surface per-member provenance (the source-indicator checkbox,

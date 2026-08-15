@@ -1,7 +1,7 @@
 // Local search scenario — SC-007 ("Food search queries against a local store of up to 50,000 foods MUST
 // return results (canonical ids) within 200ms at p95").
 //
-// Exercises `GET /api/v1/foods/search?query=` against the 50,000-food population `prepare-perf-fixture.ts`
+// Exercises `GET /api/v1/foods/search?query=` against the 50,000-food population `preparePerfFixture.ts`
 // seeds. Search is LOCAL-ONLY by requirement (FR-009) — `FoodsService.search` never reaches an adapter — so
 // this is a no-source-call measurement by construction, not by configuration.
 //

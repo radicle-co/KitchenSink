@@ -17,7 +17,7 @@ export default defineConfig({
         // The `infra/__tests__` half of this run SYNTHESIZES CDK stacks, which is CPU-heavy: fast locally
         // (~1s) but intermittently past the 5s default under the parallel turbo test load on a CI runner.
         // The cost also lands unevenly — whichever synth-backed test runs FIRST absorbs `aws-cdk-lib`'s
-        // one-time initialization on top of its own work, which is why `recipe-database-name-parity`
+        // one-time initialization on top of its own work, which is why `recipeDatabaseNameParity`
         // (two synths) timed out while the test after it (six) passed. Same figure and same reason as
         // `packages/services/identity` and `packages/infra/global`, which already carry this headroom:
         // a slow-but-correct synth must never read as a failure. This does not relax any assertion —

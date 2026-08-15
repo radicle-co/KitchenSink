@@ -108,7 +108,7 @@ hard part:
 
 The old design (`ARCH-017 UsdaFoodDataAdapter`, batch-fetching nutrients per ingredient from "the USDA API") would have
 reimplemented all of that, worse: no partial-estimate concept, no unit conversion, and a dependency on a source that 003
-deliberately abstracted behind `food-source-adapter.ts`. **006 does not call the food service at all.**
+deliberately abstracted behind `foodSourceAdapter.ts`. **006 does not call the food service at all.**
 
 ### Trade-off
 

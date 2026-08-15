@@ -8,8 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 
 const reportDeletionEnqueueFailure = vi.fn();
-vi.mock('../../queue/deletion-enqueue.error.js', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('../../queue/deletion-enqueue.error.js')>()),
+vi.mock('../../queue/deletionEnqueue.error.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../queue/deletionEnqueue.error.js')>()),
     reportDeletionEnqueueFailure: (input: unknown) => reportDeletionEnqueueFailure(input),
 }));
 

@@ -19,7 +19,7 @@
  * `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds` and `expectedVersion` → `integer` (int4); the four
  * per-line nutrition overrides → `numeric(8,2)`. Unbounded, `servings: 9999999999` passed validation and failed
  * at the INSERT (Postgres `22003`), which `ApiExceptionFilter` collapses to a generic **500**.
- * `src/database/__tests__/storage-capacity.test.ts` asserts this per column as an ASSERTION, never a derivation:
+ * `src/database/__tests__/storageCapacity.test.ts` asserts this per column as an ASSERTION, never a derivation:
  * nothing here imports a drizzle type, and no storage type is ever a wire type.
  *
  * Every request body is `z.strictObject` (GR-017 §17-c), INCLUDING the nested line/step shapes — a misspelled

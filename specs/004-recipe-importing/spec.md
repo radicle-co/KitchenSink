@@ -41,7 +41,7 @@ was originally written to create. 004 **consumes** the following and MUST NOT re
 | The C-004 visibility policy over `(sourceType, isPremium, hasSubstantiveEdit, requested)`                    | `evaluateVisibility` in `@kitchensink/recipe-core`      |
 | Clone with attribution retention, `POST /api/v1/recipes/{id}/clone`                                          | `recipes.service.ts` `clone()`, `recipes.controller.ts` |
 | `canClone` / `canGoPrivate` access policy                                                                    | `recipeAccessPolicy.ts` in `@kitchensink/recipe-core`   |
-| Single error envelope `{ code, message, details? }`, `RecipeErrorCode` → HTTP mapping                        | `common/filters/api-exception.filter.ts`                |
+| Single error envelope `{ code, message, details? }`, `RecipeErrorCode` → HTTP mapping                        | `common/filters/apiException.filter.ts`                 |
 | Per-user rate limiting                                                                                       | `common/throttle/` (`@nestjs/throttler`)                |
 
 **004's scope is ingestion**: fetching, extracting, normalising, classifying, de-duplicating, and policy-checking
@@ -476,12 +476,12 @@ The section above decides **who authors** the contract; this one is where it **r
   `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **004 adds NO `class-validator` DTO.** ✅ ⚠️ **CORRECTED
   2026-08-12 — the residue is now ZERO, not "one file", and not the 19 recorded elsewhere.** The "19" was always a
   **mention** count (JSDoc about the migration away from it); there was exactly one importer,
-  `src/search/dto/search-recipes.query.dto.ts`, and it is now **converged** onto `createZodDto` +
+  `src/search/dto/searchRecipes.query.dto.ts`, and it is now **converged** onto `createZodDto` +
   `ZodValidationPipe`, with `class-validator` and `class-transformer` **removed from recipe-service's
   `package.json` and `prod.package.json`**. `grep -rn "from 'class-validator'" packages --include="*.ts"` finds no
   importer anywhere under `packages/services`. So 004 inherits a **single-mechanism** service — ⛔ which raises the
   cost of adding a `class-validator` DTO here from "joining a mess" to "**re-creating** one", and it would now also
-  fail **G5** in `packages/infra/global/__tests__/service-security-invariants.test.ts`, which carries **no
+  fail **G5** in `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which carries **no
   exception list**.
 - **⚠️ The pipe hazard is invisible in review.** Under Nest's **own** built-in `ValidationPipe`, a
   `createZodDto` DTO **validates nothing while looking correctly wired** — the schema is present, the DTO is
@@ -506,8 +506,8 @@ The section above decides **who authors** the contract; this one is where it **r
     - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
       **not** generated from drizzle and a `*.schema.ts` **never imports a storage type** — GR-015 §15-a.5 is
       unchanged. Enforcement is 001's per-service parity test, which 004 **extends rather than duplicates**:
-      `packages/services/recipe-service/src/database/__tests__/storage-capacity.test.ts`, over shared machinery in
-      `@kitchensink/contract-gen` (`src/storage-capacity.ts`). It **may** import both artifacts because a test is
+      `packages/services/recipe-service/src/database/__tests__/storageCapacity.test.ts`, over shared machinery in
+      `@kitchensink/contract-gen` (`src/storageCapacity.ts`). It **may** import both artifacts because a test is
       not a wire schema; it **derives** the bounded-column set from the drizzle tables, so a new import-draft
       column fails the test until it is bound to the wire field that writes it or **exempted with a stated
       `why`**, and its field→column mapping completeness is asserted **in both directions**.

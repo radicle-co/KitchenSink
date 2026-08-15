@@ -2,7 +2,7 @@
  * T028/T029/T067 — ingredient async-resolution DISAMBIGUATION integration (data-model R5).
  *
  * Exercises {@link IngredientsService} over the REAL {@link IngredientsDal} against Docker Postgres
- * (migrated + seeded by `tests/global-setup.ts`) with the external food service (003) stubbed at the
+ * (migrated + seeded by `tests/globalSetup.ts`) with the external food service (003) stubbed at the
  * `FoodServiceClient` boundary — the ONLY external dependency, and the one 001 does not own. This proves
  * the behaviours a mocked `db.execute` cannot: the poll's write-through actually persists the golden-record
  * per-100g nutrition + household portions into the `ingredients` row, a terminal food is recorded (never
@@ -20,7 +20,7 @@ import { FoodServiceClient, NotFoundError } from '@kitchensink/food-service-clie
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
-import type { FoodCatalogGateway } from '../../../src/ingredients/food-catalog.gateway.js';
+import type { FoodCatalogGateway } from '../../../src/ingredients/foodCatalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import {
     CALLER_TOKEN as CALLER,
@@ -45,7 +45,7 @@ function makeFoodClientStub(): FoodServiceClient {
     } as unknown as FoodServiceClient;
 }
 
-/** A no-op catalog gateway — the disambiguation path never blends (see `blended-suggest.integration.test.ts`). */
+/** A no-op catalog gateway — the disambiguation path never blends (see `blendedSuggest.integration.test.ts`). */
 function makeCatalogStub(): FoodCatalogGateway {
     return { search: vi.fn().mockResolvedValue({ hits: [], availability: 'ok' }) } as unknown as FoodCatalogGateway;
 }

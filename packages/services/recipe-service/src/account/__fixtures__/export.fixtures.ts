@@ -7,7 +7,7 @@
 import type { CollectionRow, RecipeCollectionRow } from '../../database/schema/collections.js';
 import type { RecipeRatingRow } from '../../database/schema/ratings.js';
 import type { RecipePhotoRow } from '../../database/schema/photos.js';
-import type { AuthorHandleRow } from '../../database/schema/author-handles.js';
+import type { AuthorHandleRow } from '../../database/schema/authorHandles.js';
 import type { RecipeExportRow, VersionMetadataRow } from '../dal/export.dal.js';
 
 /** A stable owner ULID the fixtures default to. */

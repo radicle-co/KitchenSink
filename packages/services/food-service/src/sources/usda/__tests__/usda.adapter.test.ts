@@ -9,7 +9,7 @@
 import { UsdaApiClient } from '@kitchensink/usda-client';
 import { describe, expect, it } from 'vitest';
 
-import { isAdapterValidationError, isSourceApiError } from '../../food-source-adapter.js';
+import { isAdapterValidationError, isSourceApiError } from '../../foodSourceAdapter.js';
 import { UsdaSourceAdapter } from '../usda.adapter.js';
 import {
     makeAbortingFetch,

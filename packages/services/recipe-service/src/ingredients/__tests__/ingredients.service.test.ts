@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FoodResolutionStatus, RecipeErrorCode, isRecipeError } from '@kitchensink/recipe-core';
 import { NotFoundError } from '@kitchensink/food-service-client';
 
-import type { FoodCatalogGateway } from '../food-catalog.gateway.js';
-import type { FoodServiceClients } from '../food-service-clients.factory.js';
+import type { FoodCatalogGateway } from '../foodCatalog.gateway.js';
+import type { FoodServiceClients } from '../FoodServiceClients.factory.js';
 import type { IngredientsDal } from '../dal/ingredients.dal.js';
 import { IngredientsService, extractNutrition, extractPortions, parsePortion } from '../ingredients.service.js';
 import {
@@ -152,7 +152,7 @@ describe('IngredientsService', () => {
     });
 
     // Stage 2 replaced the dead `suggestFoods` proxy with `suggest` (the blended typeahead) + `addByFoodId`
-    // (the pick). Both are covered in `ingredients-suggest.service.test.ts`.
+    // (the pick). Both are covered in `ingredientsSuggest.service.test.ts`.
 
     describe('addByName', () => {
         it('adds an unknown food (202 PENDING) and persists a new food-backed ingredient', async () => {

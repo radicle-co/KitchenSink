@@ -44,8 +44,8 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { PhotosDal, type CreatePhotoInput } from './dal/photos.dal.js';
-import { resolvePhotoView } from './photo-view.js';
-import { generateThumbnail, THUMBNAIL_CONTENT_TYPE } from './photo-thumbnail.js';
+import { resolvePhotoView } from './photoView.js';
+import { generateThumbnail, THUMBNAIL_CONTENT_TYPE } from './photoThumbnail.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner } from '../recipes/recipe.error.js';
 import type { RecipePhotoRow } from '../database/schema/index.js';

@@ -8,8 +8,8 @@
  * discarded rather than shipped.
  */
 
-export * from './schemas/api-error.schema.js';
-export * from './schemas/admin-metrics.schema.js';
-export * from './schemas/service-erasure.schema.js';
+export * from './schemas/apiError.schema.js';
+export * from './schemas/adminMetrics.schema.js';
+export * from './schemas/serviceErasure.schema.js';
 export * from './schemas/foods.schema.js';
 export * from './schemas/health.schema.js';

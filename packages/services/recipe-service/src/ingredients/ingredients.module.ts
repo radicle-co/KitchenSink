@@ -9,7 +9,7 @@
  * **Factory (`FoodServiceClients`) over singleton clients — because the credential is per request.** Food's
  * `FoodAuthGuard` verifies a *Clerk* token, so the only credential that can satisfy it is the CALLER's own
  * (issue #120). This module therefore provides no long-lived client at all: it provides one **Factory**, and
- * the controller threads an opaque `CallerToken` (a redacting **Value Object**, `auth/caller-token.ts`)
+ * the controller threads an opaque `CallerToken` (a redacting **Value Object**, `auth/CallerToken.ts`)
  * down to it, where it is exchanged for a client bound to that caller and to the ONE config-supplied origin.
  * The alternative — a `Scope.REQUEST` provider — was rejected because request scope bubbles up the whole
  * injection chain (gateway, service, controller) to buy an implicit version of a value that reads better
@@ -46,8 +46,8 @@ import { ConfigService } from '@nestjs/config';
 import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
 import { IngredientsController } from './ingredients.controller.js';
 import { IngredientsService } from './ingredients.service.js';
-import { FoodCatalogGateway } from './food-catalog.gateway.js';
-import { FoodServiceClients } from './food-service-clients.factory.js';
+import { FoodCatalogGateway } from './foodCatalog.gateway.js';
+import { FoodServiceClients } from './FoodServiceClients.factory.js';
 import { IngredientsDal } from './dal/ingredients.dal.js';
 
 /**

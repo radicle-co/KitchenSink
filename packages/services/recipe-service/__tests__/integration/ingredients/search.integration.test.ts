@@ -2,7 +2,7 @@
  * T099 — ingredient search integration test (pg_trgm fuzzy + tsvector FTS).
  *
  * Exercises {@link IngredientsDal.search} against REAL Docker Postgres (migrated + seeded by
- * `tests/global-setup.ts`, which enables `pg_trgm` and creates `idx_ingredients_name_trgm` +
+ * `tests/globalSetup.ts`, which enables `pg_trgm` and creates `idx_ingredients_name_trgm` +
  * `idx_ingredients_search_vector`). It proves the two matching paths the picker autocomplete depends on:
  *
  *   - **Full-text search** — a lexeme query (`'flour'`) matches ingredients whose DAL-maintained
@@ -20,7 +20,7 @@ import pg from 'pg';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
-import { SEED_INGREDIENTS } from '../../../tests/global-setup.js';
+import { SEED_INGREDIENTS } from '../../../tests/globalSetup.js';
 
 /** The harness Postgres connection string. Unset → the suite skips entirely. */
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];

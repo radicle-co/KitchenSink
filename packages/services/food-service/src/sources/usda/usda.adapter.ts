@@ -47,7 +47,7 @@ import {
     type CanonicalPortion,
     type FoodSourceAdapter,
     type SourceCandidate,
-} from '../food-source-adapter.js';
+} from '../foodSourceAdapter.js';
 
 /** The canonical source identifier for this adapter. */
 const SOURCE = 'usda' as const;

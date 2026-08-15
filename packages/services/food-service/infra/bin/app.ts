@@ -8,11 +8,11 @@ import { attachSecurityChecks } from '@kitchensink/infra-security';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
 
-import { FoodServiceStack } from '../lib/food-service-stack.js';
-import { synthEnv } from '../lib/synth-env.js';
+import { FoodServiceStack } from '../lib/FoodServiceStack.js';
+import { synthEnv } from '../lib/synthEnv.js';
 
 // Validated ONCE, up front: a malformed count or TTL fails the synth here rather than being coerced to
-// `NaN`/`0` and emitted into a CloudFormation template (see lib/synth-env.ts).
+// `NaN`/`0` and emitted into a CloudFormation template (see lib/synthEnv.ts).
 const { desiredCount, workerDesiredCount, unresolvedTtlDays } = synthEnv();
 
 const app = new App();

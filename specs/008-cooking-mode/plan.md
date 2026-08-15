@@ -124,7 +124,7 @@ state is local. That is precisely the shape in which the client half gets skippe
 sync below — **the service half applies in full**: zod authored in the owning service at
 `src/**/*.schema.ts` beside its controller, requests validated with that same zod via `nestjs-zod`'s
 `createZodDto`, a generated and committed `packages/schemas/<service>` (zod + `z.infer` types +
-`contract-hash.ts` + barrel + a **derived**, outbound-only `openapi.yaml`), and `*.schema.ts` files importing
+`contractHash.ts` + barrel + a **derived**, outbound-only `openapi.yaml`), and `*.schema.ts` files importing
 **only `zod` and other `*.schema.ts` files**.
 
 🟠 **OPEN — is `CookingSessionEvent` a wire contract, and if so whose?** The WebSocket block below declares

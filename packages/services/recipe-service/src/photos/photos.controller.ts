@@ -27,10 +27,10 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 
 import { PhotosService, type UploadUrlResponse } from './photos.service.js';
-import { CreatePhotoUploadDto } from './dto/create-photo-upload.dto.js';
-import { ConfirmPhotoDto } from './dto/confirm-photo.dto.js';
-import { ReorderPhotosDto } from './dto/reorder-photos.dto.js';
-import { OwnerId } from '../auth/current-principal.decorator.js';
+import { CreatePhotoUploadDto } from './dto/createPhotoUpload.dto.js';
+import { ConfirmPhotoDto } from './dto/confirmPhoto.dto.js';
+import { ReorderPhotosDto } from './dto/reorderPhotos.dto.js';
+import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { PhotoRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:

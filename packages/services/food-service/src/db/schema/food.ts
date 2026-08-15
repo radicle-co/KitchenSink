@@ -123,7 +123,7 @@ export const food = pgTable(
         // `ILIKE '%q%'` branches, which GiST can only serve by scanning its whole index. The planner picks
         // per branch. An index cannot change which rows match or their order (`%` is rechecked from the
         // heap), which is why this is a pure access-path change; see 0004 and
-        // `tests/food-search-access-path.integration.test.ts`.
+        // `tests/foodSearchAccessPath.integration.test.ts`.
         index('food_name_trgm_gist_idx').using('gist', sql`${table.name} gist_trgm_ops`),
         // Ranked full-text search (T-180): GIN over the generated tsvector (FR-008/FR-010).
         index('food_search_vector_idx').using('gin', table.searchVector),

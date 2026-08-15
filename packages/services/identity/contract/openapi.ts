@@ -21,7 +21,7 @@ import { buildOpenApiDocument } from '@kitchensink/contract-gen';
 import type { OpenApiBuildResult } from '@kitchensink/contract-gen';
 import { z } from 'zod';
 
-import { apiErrorSchema } from '../src/common/api-error.schema.js';
+import { apiErrorSchema } from '../src/common/apiError.schema.js';
 import {
     deleteUserMeResponseSchema,
     patchUserMeRequestSchema,
@@ -77,7 +77,7 @@ const userNotFound = { description: 'No such user.', schema: 'ApiError' } as con
  * `400` — the `{userId}` path parameter is not a ULID.
  *
  * Ordered AFTER the guard: an unauthorized caller gets the `403` and never this, so the validation error cannot
- * be used as an existence oracle (`tests/admin-param-validation.test.ts` pins that precedence).
+ * be used as an existence oracle (`tests/adminParamValidation.test.ts` pins that precedence).
  */
 const malformedUserId = {
     description: 'The `{userId}` path parameter is not a ULID.',

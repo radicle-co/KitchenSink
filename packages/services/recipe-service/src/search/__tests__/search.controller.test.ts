@@ -4,14 +4,14 @@
  * Asserts the thin controller's only responsibilities: it receives the owner key already resolved by
  * the `@OwnerId()` decorator, delegates the validated query to the service, and returns the service's
  * result verbatim. The "missing principal → 401" path lives on the decorator and is covered by
- * `auth/__tests__/current-principal.decorator.test.ts`.
+ * `auth/__tests__/currentPrincipal.decorator.test.ts`.
  */
 import { describe, it, expect, vi } from 'vitest';
 
 import { SearchController } from '../search.controller.js';
 import type { SearchService } from '../search.service.js';
 import type { RecipeSearchResponse } from '../search.schema.js';
-import type { SearchRecipesQueryDto } from '../dto/search-recipes.query.dto.js';
+import type { SearchRecipesQueryDto } from '../dto/searchRecipes.query.dto.js';
 
 const OWNER = '01J000000000000000000FREE0';
 

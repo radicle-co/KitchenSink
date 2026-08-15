@@ -2,7 +2,7 @@
  * T102 — recipe search integration test (tsvector FTS + facet aggregation + pagination).
  *
  * Exercises {@link SearchDal.search} against REAL Docker Postgres (migrated + seeded by
- * `tests/global-setup.ts`, which creates the `recipes` GIN indexes and the `search_vector` maintenance
+ * `tests/globalSetup.ts`, which creates the `recipes` GIN indexes and the `search_vector` maintenance
  * trigger). It proves the behaviors the discovery surface depends on and which a mocked `db.execute`
  * cannot: the trigger-maintained weighted `search_vector` actually ranks matches, visibility scoping
  * (public + owner-owned, tombstones excluded) really filters, facet counts aggregate over the matched

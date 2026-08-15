@@ -4,8 +4,8 @@
  * `prod.package.json` from its dev manifest.
  *
  * Tested here rather than beside the script because that is where this repo tests its root `scripts/` (see
- * `pr-scope.test.ts` and `deploy-gate.test.ts`), and because the generator is a deploy-path artifact: a wrong
- * manifest is not caught by any build, only by `prod-manifest-parity.test.ts` reading the result.
+ * `prScope.test.ts` and `deployGate.test.ts`), and because the generator is a deploy-path artifact: a wrong
+ * manifest is not caught by any build, only by `prodManifestParity.test.ts` reading the result.
  *
  * The case that matters most is `exports`. This script replaced two per-service copies whose logic did
  * `{ ...pkg, exports: rewritten }` unconditionally — correct for the two services that HAVE an `exports` map,

@@ -17,8 +17,8 @@ import { Controller, Get, Inject } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import type pg from 'pg';
 
-import { CONTRACT_HASH } from '../contract/contract-hash.js';
-import { apiError } from '../common/api-error.js';
+import { CONTRACT_HASH } from '../contract/contractHash.js';
+import { apiError } from '../common/apiError.js';
 import type { HealthStatus } from './health.schema.js';
 import { PgPoolProvider } from '../database/database.module.js';
 

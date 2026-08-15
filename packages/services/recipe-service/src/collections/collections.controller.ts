@@ -13,7 +13,7 @@
  * stating, because they are the reason the swap is an improvement and not a lateral move:
  *
  *  - **The shape enforced here and the shape `@kitchensink/schema-recipe` publishes are ONE object**
- *    (`Dto.schema === …RequestSchema`, asserted in `dto/__tests__/collection-dtos.test.ts`). With the
+ *    (`Dto.schema === …RequestSchema`, asserted in `dto/__tests__/collectionDtos.test.ts`). With the
  *    hand-rolled pipe the schema was passed in at the call site, so nothing structurally tied the
  *    validated shape to the published one.
  *  - **The `optionalBody` helper is gone.** Its whole job was folding an absent body to `{}` for the two
@@ -39,12 +39,12 @@ import { ZodValidationPipe } from 'nestjs-zod';
 
 import type { AuthenticatedRequest, Principal } from '../auth/principal.js';
 import { CollectionsService } from './collections.service.js';
-import { AddRecipeToCollectionDto } from './dto/add-recipe-to-collection.dto.js';
-import { CloneCollectionDto } from './dto/clone-collection.dto.js';
-import { CreateCollectionDto } from './dto/create-collection.dto.js';
-import { ListCollectionsQueryDto } from './dto/list-collections.query.dto.js';
-import { PullFromSourceDto } from './dto/pull-from-source.dto.js';
-import { UpdateCollectionDto } from './dto/update-collection.dto.js';
+import { AddRecipeToCollectionDto } from './dto/addRecipeToCollection.dto.js';
+import { CloneCollectionDto } from './dto/cloneCollection.dto.js';
+import { CreateCollectionDto } from './dto/createCollection.dto.js';
+import { ListCollectionsQueryDto } from './dto/listCollections.query.dto.js';
+import { PullFromSourceDto } from './dto/pullFromSource.dto.js';
+import { UpdateCollectionDto } from './dto/updateCollection.dto.js';
 import type {
     CollectionListResponse,
     CollectionRecipeMembershipResponse,

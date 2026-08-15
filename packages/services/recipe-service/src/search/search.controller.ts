@@ -16,9 +16,9 @@ import { Controller, Get, Query, UsePipes } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { SearchService } from './search.service.js';
-import { SearchRecipesQueryDto } from './dto/search-recipes.query.dto.js';
+import { SearchRecipesQueryDto } from './dto/searchRecipes.query.dto.js';
 import type { RecipeSearchResponse } from './search.schema.js';
-import { OwnerId } from '../auth/current-principal.decorator.js';
+import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { SearchRateLimit } from '../common/throttle/throttle.decorators.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:

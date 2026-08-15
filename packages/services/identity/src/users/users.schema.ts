@@ -15,7 +15,7 @@
  * only half done). When the seam was introduced, only `@commise/features-account` was repointed. Both apps kept
  * declaring `@kitchensink/identity-service` and kept importing types from it in nine source files — mobile even
  * pulling the deliberately-unpublished, branded `UserReadDto`. All three consumers now import the published leaf,
- * and the boundary is no longer a claim in a comment: `packages/infra/global/__tests__/app-service-dependency.test.ts`
+ * and the boundary is no longer a claim in a comment: `packages/infra/global/__tests__/appServiceDependency.test.ts`
  * fails the build if any `packages/apps/**` manifest or source names ANY `packages/services/*` package, type-only
  * imports included. That gate exists because nothing else could see this: the ratchet
  * (`scripts/boundariesRatchet.mjs`) reports UNDECLARED dependencies, and these were declared.
@@ -109,7 +109,7 @@ export type UserProfile = z.infer<typeof userProfileSchema>;
  *
  * STRICT (`z.strictObject`) on purpose, and the strictness is load-bearing rather than stylistic. The global pipe
  * this replaces ran with `whitelist: true, forbidNonWhitelisted: true`, so an unknown field was a `400` — the
- * property `tests/app-validation.test.ts` and `tests/e2e/users-validation.e2e.test.ts` both pin. zod v4's
+ * property `tests/appValidation.test.ts` and `tests/e2e/usersValidation.e2e.test.ts` both pin. zod v4's
  * `z.object()` STRIPS unknown keys silently instead of rejecting them, so using it here would have quietly
  * downgraded a rejecting boundary to a permissive one on a route that writes user data.
  *

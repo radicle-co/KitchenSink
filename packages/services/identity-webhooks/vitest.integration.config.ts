@@ -14,7 +14,7 @@ import { defineConfig } from 'vitest/config';
  * database and reset it, so they run serially, and the whole tier is a no-op (`describe.skipIf`) when
  * `DATABASE_URL` is unset so a machine without the harness up skips rather than fails.
  *
- * The schema is applied ONCE per run by `tests/global-setup.ts` from identity-service's ordered migration
+ * The schema is applied ONCE per run by `tests/globalSetup.ts` from identity-service's ordered migration
  * SQL — the single source of truth for the identity schema.
  *
  * DANGER: this tier DROPS and recreates the `public` schema on whatever `DATABASE_URL` points at. Point it
@@ -26,7 +26,7 @@ export default defineConfig({
     test: {
         include: ['tests/**/*.integration.test.ts'],
         exclude: ['node_modules', 'dist'],
-        globalSetup: ['./tests/global-setup.ts'],
+        globalSetup: ['./tests/globalSetup.ts'],
         typecheck: { enabled: false },
         // One shared database + a per-file schema reset: keep the specs serial and unhurried.
         fileParallelism: false,

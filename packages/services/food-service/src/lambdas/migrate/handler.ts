@@ -20,7 +20,7 @@ import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 
-import { FOOD_DB_USERNAME, foodPoolConfig } from '../../database/pool-config.js';
+import { FOOD_DB_USERNAME, foodPoolConfig } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
 
 const { Pool } = pg;

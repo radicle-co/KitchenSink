@@ -55,8 +55,8 @@ export type { RecipePhotoRow, NewRecipePhotoRow } from './photos.js';
 export { recipeRatings } from './ratings.js';
 export type { RecipeRatingRow, NewRecipeRatingRow } from './ratings.js';
 
-export { authorHandles } from './author-handles.js';
-export type { AuthorHandleRow, AuthorHandleInsert } from './author-handles.js';
+export { authorHandles } from './authorHandles.js';
+export type { AuthorHandleRow, AuthorHandleInsert } from './authorHandles.js';
 
 // ── collections + recipe_collections (T014, T119) ─────────────────────────────────────────────────
 export { collections, recipeCollections, COLLECTION_VISIBILITIES, RECIPE_COLLECTION_ADDED_VIA } from './collections.js';

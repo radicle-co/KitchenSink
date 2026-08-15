@@ -39,12 +39,12 @@ import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
 import { isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, FoodStatus, FoodView, StatusResult } from '@kitchensink/food-service-client';
 
-import type { CallerToken } from '../auth/caller-token.js';
+import type { CallerToken } from '../auth/CallerToken.js';
 import { clampLimit, IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
-import { FoodCatalogGateway } from './food-catalog.gateway.js';
-import { FoodServiceClients } from './food-service-clients.factory.js';
-import { blendIngredientSuggestions } from './ingredient-suggestion.js';
-import type { IngredientSuggestions } from './ingredient-suggestion.js';
+import { FoodCatalogGateway } from './foodCatalog.gateway.js';
+import { FoodServiceClients } from './FoodServiceClients.factory.js';
+import { blendIngredientSuggestions } from './ingredientSuggestion.js';
+import type { IngredientSuggestions } from './ingredientSuggestion.js';
 import type { IngredientCandidate } from './ingredients.schema.js';
 import { foodNotAdmissible, ingredientNotFound } from '../recipes/recipe.error.js';
 

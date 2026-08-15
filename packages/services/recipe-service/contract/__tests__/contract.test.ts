@@ -186,7 +186,7 @@ describe('drift layer 2 — the committed package matches a fresh generation', (
         const index = await readCommitted('src/index.ts');
 
         expect(index).toContain("export * from './schemas.js';");
-        expect(index).toContain("export { CONTRACT_HASH } from './contract-hash.js';");
+        expect(index).toContain("export { CONTRACT_HASH } from './contractHash.js';");
     });
 
     it('re-exports the inferred types type-only', async () => {
@@ -211,7 +211,7 @@ describe('drift layer 3 — the contract hash', () => {
     const expected = computeContractHash(authored, composed);
 
     it('is stamped in the schema package as the fingerprint of the authored sources', async () => {
-        expect(await readCommitted('src/contract-hash.ts')).toContain(`export const CONTRACT_HASH = '${expected}';`);
+        expect(await readCommitted('src/contractHash.ts')).toContain(`export const CONTRACT_HASH = '${expected}';`);
     });
 
     // Both sides, or the runtime skew check compares a value with itself. That is the live case for mobile,

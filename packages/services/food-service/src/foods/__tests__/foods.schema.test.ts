@@ -17,7 +17,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { apiErrorSchema } from '../../common/api-error.schema.js';
+import { apiErrorSchema } from '../../common/apiError.schema.js';
 import { foodStatusEnum } from '../../db/schema/food.js';
 import {
     addFoodRequestSchema,
@@ -197,7 +197,7 @@ describe('foodErrorSchema', () => {
     // THE REFINEMENT INVARIANT. `foodErrorSchema` is the TYPED view of the same bytes `apiErrorSchema`
     // describes — not a second, competing error shape. Asserted rather than derived, because the two files
     // cannot import each other: generation flattens every authored schema into one directory, so a
-    // `*.schema.ts` may import only a FLAT sibling, and `common/api-error.schema.ts` is not one of
+    // `*.schema.ts` may import only a FLAT sibling, and `common/apiError.schema.ts` is not one of
     // `foods.schema.ts`'s. This test is what makes that separation safe.
     it('every arm is also a valid apiErrorSchema envelope', () => {
         for (const [code, body] of Object.entries(BODIES)) {

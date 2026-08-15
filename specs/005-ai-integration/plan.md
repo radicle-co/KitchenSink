@@ -412,9 +412,9 @@ redeploying this repo — already-shipped mobile builds and cached web bundles h
 from build-time `NEXT_PUBLIC_*` values, the Clerk dashboard holds the webhook URL, and
 `POST /v1/internal/account/erasure` is dialed service-to-service by independently-deployed identity
 Lambdas. Both halves are pinned by tests that fail if either path disappears:
-`packages/services/recipe-service/src/common/__tests__/api-route-paths.test.ts`,
-`packages/services/identity/tests/api-route-paths.test.ts`, and the over-the-wire
-`packages/services/identity/tests/e2e/deprecated-path-alias.e2e.test.ts`. **Retiring the alias is a
+`packages/services/recipe-service/src/common/__tests__/apiRoutePaths.test.ts`,
+`packages/services/identity/tests/apiRoutePaths.test.ts`, and the over-the-wire
+`packages/services/identity/tests/e2e/deprecatedPathAlias.e2e.test.ts`. **Retiring the alias is a
 separate decision with its own consumer-drain evidence, tracked against ADR-0011 — it is explicitly OUT
 of 005's scope.**
 

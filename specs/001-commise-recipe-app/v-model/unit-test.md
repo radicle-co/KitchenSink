@@ -38,7 +38,7 @@ isolation, and state transitions where applicable). They do not verify user jour
 ### Module: MOD-001 (Clerk Auth Service)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `packages/services/recipe-service/src/auth/clerk-auth.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/auth/clerkAuth.service.ts`
 
 #### Test Case: UTP-001-A (session token verification branch paths)
 

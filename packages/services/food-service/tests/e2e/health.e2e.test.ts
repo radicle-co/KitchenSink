@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import pg from 'pg';
-import { CONTRACT_HASH } from '../../src/contract/contract-hash.js';
+import { CONTRACT_HASH } from '../../src/contract/contractHash.js';
 import { resetSchema } from '../support/db.js';
 
 /**

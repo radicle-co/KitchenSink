@@ -27,7 +27,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { collectionSchema, recipeVisibilitySchema } from '@kitchensink/recipe-core';
 
-import { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
+import { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
 import { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';

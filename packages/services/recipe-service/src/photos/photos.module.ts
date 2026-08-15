@@ -16,7 +16,7 @@ import {
 } from './photos.service.js';
 import { PhotosDal } from './dal/photos.dal.js';
 import { createS3PhotoStorage } from './photos.storage.js';
-import { createCloudFrontInvalidation } from './cdn-invalidation.js';
+import { createCloudFrontInvalidation } from './cdnInvalidation.js';
 
 /**
  * Photos module (recipe photos vertical). Owns the presign → upload → confirm → delete flow and the
@@ -62,7 +62,7 @@ import { createCloudFrontInvalidation } from './cdn-invalidation.js';
             provide: PHOTOS_CDN,
             inject: [ConfigService],
             // CLOUDFRONT_DISTRIBUTION_ID is OPTIONAL (config.types.ts) — an unset/blank value degrades to
-            // the adapter's own logged no-op rather than failing here; see cdn-invalidation.ts.
+            // the adapter's own logged no-op rather than failing here; see cdnInvalidation.ts.
             useFactory: (config: ConfigService) =>
                 createCloudFrontInvalidation({
                     distributionId: config.get<string>('CLOUDFRONT_DISTRIBUTION_ID'),

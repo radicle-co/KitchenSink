@@ -191,7 +191,7 @@ packages/
       own `digitization_jobs` table and references the recipe by id. This is also what this feature's own
       `pre-impl-review.md` already assumed when it filed `recipe_versions` under _"Feature 001 recipe persistence —
       ✅ Covered"_; the plan and the task list were the outliers.
-    - Enforced by `packages/infra/global/__tests__/spec-table-collisions.test.ts`
+    - Enforced by `packages/infra/global/__tests__/specTableCollisions.test.ts`
       ([GR-021](../governance-rules.md#gr-021-one-declarer-per-table-name-and-one-definition-per-task-id)).
 7. Raw OCR retention
     - daily purge process updates `digitization_jobs.raw_ocr_json = NULL` for rows older than 90 days (FR-036, NFR-008)
@@ -265,7 +265,7 @@ shape — plus the Problem Details envelope and `error_code` enum — as **zod i
 `src/**/*.schema.ts` beside its controller; **validate its own requests with that same zod** via `nestjs-zod`'s
 `createZodDto` (this is where the payload constraints of FR-027/FR-028 belong, so a client sees the same bound
 the server enforces); generate and commit its schema package exporting the zod, `z.infer` types,
-`contract-hash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — never a codegen input); and keep
+`contractHash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — never a codegen input); and keep
 every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
 
 **Every client MUST** — separately mandatory, because mandating only the service half is exactly how the client

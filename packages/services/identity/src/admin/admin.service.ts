@@ -3,11 +3,11 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq, ilike } from 'drizzle-orm';
 
 import { users, lifecycleEvents, DrizzleProvider } from '../database/index.js';
-import { containsPattern } from '../common/like-pattern.js';
-import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import { containsPattern } from '../common/likePattern.js';
+import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import { SqsService } from '../queue/sqs.service.js';
-import { createServiceLogger } from '../observability/sentry-logging.js';
-import { reportDeletionEnqueueFailure } from '../queue/deletion-enqueue.error.js';
+import { createServiceLogger } from '../observability/sentryLogging.js';
+import { reportDeletionEnqueueFailure } from '../queue/deletionEnqueue.error.js';
 
 // Authorization (the `admin:users` scope check) is enforced declaratively by `ScopesGuard` +
 // `@RequireScopes('admin:users')` on `AdminController` — see that guard's JSDoc for the pattern. This
@@ -29,7 +29,7 @@ export class AdminService {
         // `containsPattern`, not a template literal: `%` and `_` in the caller's filter are ILIKE SYNTAX, and
         // they live inside the bound parameter's value where parameterisation cannot help. `?email=%` used to
         // build `ILIKE '%%%'` — the filter silently became "match every user" — and `?email=a_b` over-matched
-        // addresses that do not contain `a_b`. See `common/like-pattern.ts`.
+        // addresses that do not contain `a_b`. See `common/likePattern.ts`.
         const predicates = [
             filters.email ? ilike(users.email, containsPattern(filters.email)) : undefined,
             filters.name ? ilike(users.name, containsPattern(filters.name)) : undefined,
@@ -151,7 +151,7 @@ export class AdminService {
             // ⛔ NOT a `warn`. The tombstone is already cleared and committed, so the database says `active`
             // while Clerk still has the identity BANNED — the recovered user stays locked out, and the support
             // agent who called this was told it worked. Announced through the ONE paging path in
-            // `deletion-enqueue.error.ts`.
+            // `deletionEnqueue.error.ts`.
             reportDeletionEnqueueFailure({
                 event: 'reactivation',
                 userId: existing.id,

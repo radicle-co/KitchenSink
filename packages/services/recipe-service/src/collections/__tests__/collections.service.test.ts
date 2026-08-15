@@ -14,7 +14,7 @@ import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService, MAX_COLLECTIONS_PER_OWNER } from '../collections.service.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
-import type { AuthorHandlesDal } from '../../authors/dal/author-handles.dal.js';
+import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = {

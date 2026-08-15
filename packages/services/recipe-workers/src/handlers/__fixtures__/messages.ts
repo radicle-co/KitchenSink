@@ -1,7 +1,7 @@
 import type { SQSEvent, SQSRecord } from 'aws-lambda';
 
-import type { AccountErasureMessage } from '../account-erasure-worker.js';
-import type { RecipeVersionArchiveMessage } from '../version-archive-worker.js';
+import type { AccountErasureMessage } from '../accountErasureWorker.js';
+import type { RecipeVersionArchiveMessage } from '../versionArchiveWorker.js';
 
 /**
  * Fixture factories for the recipe-workers SQS handlers. Each `make*` accepts a `Partial<T>` of

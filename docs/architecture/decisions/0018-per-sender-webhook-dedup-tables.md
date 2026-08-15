@@ -118,7 +118,7 @@ relax exactly the constraint this ADR preserves.
 
 ## Enforcement
 
-`packages/infra/global/__tests__/spec-table-collisions.test.ts` discovers every `specs/*/` feature and every
+`packages/infra/global/__tests__/specTableCollisions.test.ts` discovers every `specs/*/` feature and every
 shipped `pgTable(...)` / `CREATE TABLE`, and fails when one table name is declared by more than one owner
 without a ruled exemption carrying a written `why`. It parses rather than greps — fenced-block-aware for
 markdown, comment-stripped for SQL, and TypeScript-AST-based for `pgTable`, because a text search cannot tell

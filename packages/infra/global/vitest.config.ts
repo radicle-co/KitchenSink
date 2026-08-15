@@ -10,7 +10,7 @@ export default defineConfig({
             // `dist/` in tests too would mean the suites assert against whatever was last built, so an edit
             // to the Aspect could pass a stale-dist run: exactly the false green a template-parity guard
             // must not have. Tests therefore run the SOURCE, and the compiled artifact gets its own,
-            // explicit coverage in `cdk-nag-synth.integration.test.ts`, which shells out to
+            // explicit coverage in `cdkNagSynth.integration.test.ts`, which shells out to
             // `cdk synth --app "node dist/bin/app.js"`.
             '@kitchensink/infra-security': fileURLToPath(new URL('../security/src/index.ts', import.meta.url)),
         },

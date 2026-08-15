@@ -1312,7 +1312,7 @@ export class RecipeServiceClient {
      * arm, so the 3-way-merge snapshots arrive typed) and `PULL_DRIFT` carries `details.diff`.
      *
      * ⚠️ `details.diff` is the ONE value still narrowed here rather than by the union, and the reason is a real
-     * constraint recorded at the schema: generation flattens the authored schemas, so `api-error.schema.ts` cannot
+     * constraint recorded at the schema: generation flattens the authored schemas, so `apiError.schema.ts` cannot
      * import `pullDiffSchema` from `collections.schema.ts` to type it, and re-declaring the diff shape would make
      * a second authority for `PullDiff`. So the arm guarantees `diff` is PRESENT and this parses it with the
      * published `pullDiffSchema` — the same schema the preview response is parsed with.

@@ -9,13 +9,13 @@
  * anything wider would make the runtime metric and the load-test metric mean different things.
  *
  * The rest of `FoodsService` (dedup/enqueue/resolve/backpressure) is covered end-to-end by
- * `tests/foods-api.integration.test.ts`; this suite pins the emission contract only.
+ * `tests/foodsApi.integration.test.ts`; this suite pins the emission contract only.
  *
  * @implements SC-004 SC-005
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FoodMetrics } from '../../observability/emf-metrics.js';
+import { FoodMetrics } from '../../observability/emfMetrics.js';
 import type { FoodDao, FoodStatus, GoldenFoodRecord } from '../dao/index.js';
 import { FoodsService } from '../foods.service.js';
 

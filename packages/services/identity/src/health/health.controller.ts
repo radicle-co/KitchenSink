@@ -1,6 +1,6 @@
 import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
 
-import { CONTRACT_HASH } from '../contract/contract-hash.js';
+import { CONTRACT_HASH } from '../contract/contractHash.js';
 import { DrizzleProvider } from '../database/database.module.js';
 import { probeDatabase, type ReadinessExecutor } from './readiness.js';
 // AUTHORED wire contract, published via `@kitchensink/schema-identity` (CODING_STANDARDS §15.2). The probe

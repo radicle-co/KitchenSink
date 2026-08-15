@@ -334,12 +334,12 @@ with `class-validator`". That is a **GR-016 §16-a.2 violation**: 006 lands in `
 already validates with **`nestjs-zod`**. ⚠️ **CORRECTED 2026-08-12 — this paragraph said recipe-service was
 "mid-removal of **19 residual `class-validator` files**"; that removal is DONE, and the 19 was a MENTION count in
 the first place** (JSDoc narrating the migration), not an importer count. There was exactly one importer,
-`src/search/dto/search-recipes.query.dto.ts`, it is converged, and `class-validator` / `class-transformer` are
+`src/search/dto/searchRecipes.query.dto.ts`, it is converged, and `class-validator` / `class-transformer` are
 **removed from the service's `package.json` and `prod.package.json`**. Adding a **second** mechanism to a service
 that has exactly one means two error contracts, two sets of edge cases, and a mechanism-per-route that is a
 per-file accident — and **006 would now be the one INTRODUCING the second mechanism**, not joining a residue, which
 is a strictly worse position to be in. **006's own `plan.md` forbids it**, and so does repo-wide gate **G5** in
-`packages/infra/global/__tests__/service-security-invariants.test.ts`, which runs with no exception list.
+`packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which runs with no exception list.
 
 Schemas are authored as zod at **`packages/services/recipe-service/src/meal-plans/meal-plans.schema.ts`**,
 **beside the controller they serve** (`docs/CODING_STANDARDS.md` §15.2) — **never** in a `dto/` directory — and
@@ -370,7 +370,7 @@ regenerates `packages/schemas/recipe` with no diff.
 **Tests**: unit (each schema accepts a valid fixture and rejects every malformed variant — wrong-typed field,
 missing field, unknown key, `startDate >= endDate`, `servings` at `0` and at ceiling+1) **AND** integration (a
 known-bad body posted to a **real** route on a booted app returns `400` with the field name, modelled on
-`packages/services/identity/tests/app-validation.test.ts`).
+`packages/services/identity/tests/appValidation.test.ts`).
 
 ---
 
@@ -963,9 +963,9 @@ soft-deleting one leaves the plan readable — the second half is what stops the
 
 - `npm run contract:verify` regenerates `packages/schemas/recipe` from the service's `src/**/*.schema.ts`,
   including 006's new `src/meal-plans/meal-plans.schema.ts`, with **no diff**
-- The regenerated package exports `schemas.ts`, `types.ts` (`z.infer` only), `contract-hash.ts`, the barrel, and
+- The regenerated package exports `schemas.ts`, `types.ts` (`z.infer` only), `contractHash.ts`, the barrel, and
   the **derived** `openapi.yaml` — **add to the existing package, never fork it**, and never hand-edit it
-- `packages/services/recipe-service/src/__tests__/build-inputs.test.ts` covers the new schema files, so the turbo
+- `packages/services/recipe-service/src/__tests__/buildInputs.test.ts` covers the new schema files, so the turbo
   `$TURBO_ROOT$` **`inputs`** glob rebuilds the copy on a content change
 - The `CONTRACT_HASH` boot assertion still holds — the service refuses to start on mismatch, before it listens
 
@@ -977,7 +977,7 @@ edge closes the cycle `client → schema → service → client` and turbo rejec
 **Acceptance**: regenerate-and-diff clean; `@kitchensink/schema-recipe` exports the meal-plan wire types and zod;
 `openapi.yaml` grows to cover the new paths (ADR-0017 accepts that it becomes the largest such document).
 
-**Tests**: unit (`build-inputs.test.ts` and `main-boot-order.test.ts` still pass with the new files) **AND**
+**Tests**: unit (`buildInputs.test.ts` and `mainBootOrder.test.ts` still pass with the new files) **AND**
 integration (`scripts/contractDriftGate.mjs` clean on a fresh checkout, red on a hand-edited schema package).
 
 ---
@@ -987,8 +987,8 @@ integration (`scripts/contractDriftGate.mjs` clean on a fresh checkout, red on a
 **Priority**: P1
 **Depends on**: TASK-004, TASK-008
 
-- Lives **in the service** at `packages/services/recipe-service/src/meal-plans/__tests__/storage-capacity.test.ts`
-    - ⛔ **DO NOT BUILD A NEW GATE — the mechanism already EXISTS.** `@kitchensink/contract-gen` exports `auditStorageCapacity` / `collectBoundedColumns` / `formatStorageCapacityFindings` (`packages/tools/contract-gen/src/storage-capacity.ts`), and a `storage-capacity.test.ts` already wires it in **all three** shipped services (recipe `src/database/__tests__/`, food `src/db/schema/__tests__/`, identity `src/types/schema/__tests__/`). Copy that pattern; do not hand-roll a second one — a second mechanism for one invariant is the failure GR-016 §16-a.2 forbids, one layer up. It reads drizzle **structurally** via `Symbol.for('drizzle:Columns')` (so `contract-gen` needs no `drizzle-orm` dependency) and zod bounds via the **public** `z.toJSONSchema`; it is already **exhaustive over columns**, with `stale-account` / `duplicate-account` findings as the reverse-direction check. The work here is the **mapping**: every bounded column bound to the wire fields that write it, or declared not-client-writable **with a reason** (GR-017 §17-d).
+- Lives **in the service** at `packages/services/recipe-service/src/meal-plans/__tests__/storageCapacity.test.ts`
+    - ⛔ **DO NOT BUILD A NEW GATE — the mechanism already EXISTS.** `@kitchensink/contract-gen` exports `auditStorageCapacity` / `collectBoundedColumns` / `formatStorageCapacityFindings` (`packages/tools/contract-gen/src/storageCapacity.ts`), and a `storageCapacity.test.ts` already wires it in **all three** shipped services (recipe `src/database/__tests__/`, food `src/db/schema/__tests__/`, identity `src/types/schema/__tests__/`). Copy that pattern; do not hand-roll a second one — a second mechanism for one invariant is the failure GR-016 §16-a.2 forbids, one layer up. It reads drizzle **structurally** via `Symbol.for('drizzle:Columns')` (so `contract-gen` needs no `drizzle-orm` dependency) and zod bounds via the **public** `z.toJSONSchema`; it is already **exhaustive over columns**, with `stale-account` / `duplicate-account` findings as the reverse-direction check. The work here is the **mapping**: every bounded column bound to the wire fields that write it, or declared not-client-writable **with a reason** (GR-017 §17-d).
 - Imports **both** the Drizzle schema and the authored zod — **a test is not a wire schema**, so GR-016 §16-d's
   ban on the _production_ coupling is not weakened; this is exactly the "assertion between two independently
   authored artifacts" §16-d asks for

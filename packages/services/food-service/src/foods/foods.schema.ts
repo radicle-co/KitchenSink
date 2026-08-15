@@ -291,7 +291,7 @@ export type ResolveFoodRequest = z.infer<typeof resolveFoodRequestSchema>;
  * the reason given on {@link MAX_FOOD_NAME_LENGTH}.
  *
  * ⚠️ Wildcards are NOT escaped here. `?query=%` built the `ILIKE` pattern `'%%%'`, which matches every row that
- * has a name; that is fixed at the point the pattern is BUILT (`toIlikePattern` in `dao/food-search.dao.ts`),
+ * has a name; that is fixed at the point the pattern is BUILT (`toIlikePattern` in `dao/foodSearch.dao.ts`),
  * because escaping at validation time would corrupt the full-text and trigram branches, which receive the same
  * string as a VALUE and where a backslash is a character to match.
  */
@@ -308,7 +308,7 @@ export type SearchFoodQuery = z.infer<typeof searchFoodQuerySchema>;
  *
  * ⚠️ BRANCH ON THIS, NEVER ON `message`. Telling a candidate-not-in-set `409` from a lifecycle-conflict `409`
  * once required `/candidate/i.test(body.error)` — a parser for English, which breaks on the first copy edit and
- * fires on any unrelated message containing the word. There is ONE error shape (`common/api-error.schema.ts`)
+ * fires on any unrelated message containing the word. There is ONE error shape (`common/apiError.schema.ts`)
  * and `code` is the discriminant.
  *
  * ⚠️ Deliberately NOT "every string that can ever appear in `code`": these are the codes the FOOD DOMAIN owns
@@ -353,7 +353,7 @@ export type FoodErrorCode = z.infer<typeof foodErrorCodeSchema>;
  * It is a REFINEMENT of the one published envelope, not a second error shape — every value here is also a valid
  * `apiErrorSchema` body, asserted per arm by `__tests__/foods.schema.test.ts`. The separate file is forced
  * rather than chosen: generation FLATTENS every authored schema into one directory, so a `*.schema.ts` may
- * import only a flat `./x.schema.js` sibling, and `common/api-error.schema.ts` is not one. The lifecycle enum IS
+ * import only a flat `./x.schema.js` sibling, and `common/apiError.schema.ts` is not one. The lifecycle enum IS
  * here, which is the whole reason the typed view lives on this side of the line — `details.status` can be a real
  * {@link FoodStatus} instead of the bare `z.string()` the cross-vertical envelope was reduced to.
  *

@@ -247,7 +247,7 @@ _The service authors it; clients declare nothing._
 shape as **zod in the service** beside its controller; **validate its own requests with that same zod** via
 `nestjs-zod`'s `createZodDto` (handle format and uniqueness-error shapes included, so a client sees the same
 constraint the server enforces); generate and commit `@kitchensink/schema-creator-profiles` exporting the zod,
-`z.infer` types, `contract-hash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — for `oasdiff`,
+`z.infer` types, `contractHash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — for `oasdiff`,
 docs and integrators, **never a codegen input**); and keep every `*.schema.ts` importing **only `zod` and other
 `*.schema.ts` files**.
 

@@ -223,7 +223,7 @@ T-020, T-021 → T-095[P]
     - Support display name and avatar URL updates with validation. Return updated representation with consistent timestamps.
     - **Acceptance**: Valid updates persist; invalid payloads return deterministic 4xx errors.
 
-- [x] **T-032b** [P] [US-006] Implement avatar upload validation endpoint — `packages/services/identity/src/users/avatar-upload.controller.ts`
+- [x] **T-032b** [P] [US-006] Implement avatar upload validation endpoint — `packages/services/identity/src/users/avatarUpload.controller.ts`
     - **Depends on**: T-030
     - **Implements**: FR-022, REQ-021
     - Accept multipart/form-data avatar uploads with MIME-type validation (JPEG, PNG, WebP). Enforce 5 MB file-size limit and virus scan stub. Return deterministic 4xx errors for invalid uploads.
@@ -262,7 +262,7 @@ T-020, T-021 → T-095[P]
 
 > Covers FR-022..FR-026: DB cascade delete, async IdP deletion via SQS, retry/DLQ, cascade to user-owned data.
 
-- [x] **T-022** [US-007] Implement async deletion-worker Lambda (SQS consumer) — `packages/services/identity-webhooks/src/handlers/deletion-worker.ts`
+- [x] **T-022** [US-007] Implement async deletion-worker Lambda (SQS consumer) — `packages/services/identity-webhooks/src/handlers/deletionWorker.ts`
     - **Depends on**: T-012
     - **Implements**: REQ-025, REQ-026, REQ-IF-005, REQ-CN-001, FR-025, FR-026, ARCH-017, MOD-017
     - Consume deletion messages from SQS queue. Retry IdP delete with exponential backoff policy; move to DLQ after 5 receives.
@@ -368,25 +368,25 @@ T-020, T-021 → T-095[P]
     - Initialize `packages/services/identity/infra/` with CDK app entrypoint for ECS service + domain stacks. Initialize `packages/services/identity-webhooks/infra/` with CDK app entrypoint for Lambda/API Gateway stacks. Register npm workspace scripts and Turbo tasks for synth/deploy/dev-local flows. Add environment contract docs for dev/staging/prod IdP tenants and AWS accounts.
     - **Acceptance**: `npm run turbo -- filter infra/identity` targets resolve; package is self-contained in this repo.
 
-- [x] **T-011** [INFRA] Implement NetworkStack (VPC, subnets, SGs, routing) — `packages/services/identity/infra/lib/network-stack.ts`
+- [x] **T-011** [INFRA] Implement NetworkStack (VPC, subnets, SGs, routing) — `packages/services/identity/infra/lib/NetworkStack.ts`
     - **Depends on**: T-010
     - **Implements**: REQ-050, REQ-IF-007, REQ-CN-007, FR-038, ARCH-031, MOD-031
     - CDK `NetworkStack` with VPC/subnets/security groups for ECS service + DB connectivity. Define ingress path ALB → ECS and controlled egress for IdP Backend API calls. Export stack outputs consumed by `IdentityServiceStack` and `DataStack`.
     - **Acceptance**: `cdk synth` emits NetworkStack resources and cross-stack exports with no unresolved refs.
 
-- [x] **T-012** [INFRA] Implement DataStack (RDS, SQS+DLQ, S3, secrets) — `packages/services/identity/infra/lib/data-stack.ts`
+- [x] **T-012** [INFRA] Implement DataStack (RDS, SQS+DLQ, S3, secrets) — `packages/services/identity/infra/lib/DataStack.ts`
     - **Depends on**: T-011
     - **Implements**: REQ-013, REQ-014, REQ-017, REQ-025, REQ-026, REQ-050, REQ-IF-007, REQ-CN-007, FR-013, FR-014, FR-017, FR-025, FR-026, ARCH-017, ARCH-031, MOD-017, MOD-031
     - CDK `DataStack` resources: RDS PostgreSQL 16 (`db.t4g.micro`), SQS deletion queue + DLQ (`maxReceiveCount=5`), S3 bucket(s) required by feature boundary, Secrets Manager entries for DB/IdP credentials. Enable `pg_trgm` extension bootstrap migration hooks in deployment plan.
     - **Acceptance**: Synth shows RDS/SQS/DLQ/S3/secrets defined; queue redrive policy correct.
 
-- [x] **T-013** [INFRA] Implement IdentityServiceStack (ECR, ECS/Fargate, ALB, IAM) — `packages/services/identity/infra/lib/identity-service-stack.ts`
+- [x] **T-013** [INFRA] Implement IdentityServiceStack (ECR, ECS/Fargate, ALB, IAM) — `packages/services/identity/infra/lib/IdentityServiceStack.ts`
     - **Depends on**: T-011, T-012
     - **Implements**: REQ-018, REQ-019, REQ-020, REQ-021, REQ-022, REQ-023, REQ-024, REQ-035, REQ-036, REQ-037, REQ-038, REQ-050, FR-018..FR-024, FR-036..FR-040, ARCH-015, ARCH-016, ARCH-026, ARCH-031, MOD-015, MOD-016, MOD-026, MOD-031
     - CDK `IdentityServiceStack`: ECR repo and image deployment pipeline hooks, ECS task/service (Fargate) for NestJS identity API (Node 24), ALB + target group + health checks, IAM role policies for DB/SQS/secrets access, CloudWatch log group and alarm wiring.
     - **Acceptance**: Synth includes ECS service reachable through ALB; IAM least-privilege policies in place.
 
-- [x] **T-014** [INFRA] Implement WebhooksStack boundary (CDK owns Lambda + REST API + authorizer) — `packages/services/identity-webhooks/infra/lib/webhooks-stack.ts`
+- [x] **T-014** [INFRA] Implement WebhooksStack boundary (CDK owns Lambda + REST API + authorizer) — `packages/services/identity-webhooks/infra/lib/WebhooksStack.ts`
     - **Depends on**: T-012, T-013
     - **Implements**: REQ-039, REQ-040, REQ-042, REQ-050, REQ-IF-007, REQ-IF-009, FR-038, FR-039, FR-040, FR-042, ARCH-024, ARCH-031, MOD-024, MOD-031
     - In CDK `WebhooksStack`, define Lambda functions and API Gateway REST resources. Wire REQUEST authorizer Lambda to protected routes. Ensure ALB-backed identity API routes are integrated through API Gateway mapping. All infrastructure is CDK-owned; no Serverless Framework or `serverless.yml` references.
@@ -500,7 +500,7 @@ T-020, T-021 → T-095[P]
     - Wire CI jobs for all new workspaces and localstack-backed e2e stage. Add performance benchmark gates (NFR-011a): CI MUST fail if token refresh >500ms P99, profile endpoint >1s P99, or webhook processing >2s P99. Test split: `@kitchensink/identity-service` exposes `npm test` (unit/integration, Vitest, excluding LocalStack e2e); `@kitchensink/identity-webhooks` exposes `npm test` (unit); root e2e target exercises LocalStack stack.
     - **Acceptance**: CI validates strict typing/lint/tests across shared, infra, webhook, service, web, and mobile packages.
 
-- [x] **T-088** [QUALITY] Add feature flag for staged rollout — `packages/services/identity/src/config/feature-flags.ts`
+- [x] **T-088** [QUALITY] Add feature flag for staged rollout — `packages/services/identity/src/config/featureFlags.ts`
     - **Depends on**: T-083
     - **Implements**: NFR-001, NFR-014
     - Implement feature flag `auth-v2-rollout` with percentage-based traffic split. Staged rollout: 10% → 50% → 100% over 2-week period. Fallback to legacy auth path if flag disabled or error.
@@ -530,7 +530,7 @@ T-020, T-021 → T-095[P]
     - **Acceptance**: All three layers are wired and each is proven by a test, because each catches what the others cannot. **(1) Rebuild** — `turbo.json` gives `@kitchensink/schema-identity#build` `$TURBO_ROOT$`-anchored **`inputs`** covering `packages/services/identity/src/**/*.schema.ts`. **(2) Correctness** — `contract:generate` is declared so `scripts/contractOwners.mjs` `discoverContractOwners` finds the service **with no list edit**, and `npm run contract:verify` regenerates and fails on any diff. **(3) Skew** — the service asserts `CONTRACT_HASH` equality against `@kitchensink/schema-identity` **at boot** and **refuses to start** on mismatch, **before** the HTTP listener binds.
     - **⛔ NOT `dependsOn`** — `schema-<service>#build` `dependsOn` `<service>#build` closes the cycle `client → schema → service → client` and turbo rejects the graph. The generated files are committed, so ordering was never the requirement; content-hashed `inputs` are.
     - **⚠️ The boot assertion is the layer that matters for a released mobile binary**, which cannot be updated in step with a backend deploy — invisible to both the rebuild and the CI gate.
-    - **Tests**: unit (`src/__tests__/build-inputs.test.ts` and `src/__tests__/main-boot-order.test.ts`, modelled on `packages/services/recipe-service/src/__tests__/{build-inputs,main-boot-order}.test.ts`) **AND** integration (`scripts/contractDriftGate.mjs` clean on a fresh checkout, red on a hand-edited schema package; boot with a skewed hash binds no port).
+    - **Tests**: unit (`src/__tests__/buildInputs.test.ts` and `src/__tests__/mainBootOrder.test.ts`, modelled on `packages/services/recipe-service/src/__tests__/{build-inputs,main-boot-order}.test.ts`) **AND** integration (`scripts/contractDriftGate.mjs` clean on a fresh checkout, red on a hand-edited schema package; boot with a skewed hash binds no port).
 
 - [ ] **T-093** [P] [US-006] Move every identity wire shape out of the consumer and into `@kitchensink/schema-identity` — `packages/apps/commise/features/account/src/`
     - **Depends on**: T-091, T-092
@@ -538,7 +538,7 @@ T-020, T-021 → T-095[P]
     - **⚠️ 002's consumer is an APP-FEATURE package, and GR-015 §15-b.4 binds it identically** — the rule is about **who authors a wire shape**, not which directory it sits in. `ProfileServiceClient` in `@commise/features-account` is where identity's wire shapes currently land.
     - **Acceptance**: The consumer imports its wire **types and runtime zod** from `@kitchensink/schema-identity` and declares **no** identity request/response body type, including type-only. `DeleteAccountResult` and every profile/account response shape are **wire** shapes and move to the schema package; what stays in the consumer's own `types.ts` is genuinely client-side — base URL and fetch config, `TokenSource`, request options, its own error shapes. A divergent consumer shape (the settings form model, a redacted profile view) is **DERIVED** with `Pick`/`Omit`/`Partial` over the wire type. Reference implementation: `packages/apps/commise/features/recipes/src/filters/model.ts`.
     - **⚠️ Depends on an OPEN owner decision, and does NOT pre-empt it.** `plan.md` L246-250 asks: **(a)** introduce `packages/clients/identity` and have `@commise/features-account` wrap it, or **(b)** have `@commise/features-account` import `@kitchensink/schema-identity` directly and remain the only consumer. **Neither §15 nor any ADR decides it.** The obligations in this task are identical either way; only the file layout differs. ⚠️ If **(a)** is chosen, that new client also owes a **contract-skew guard** (`src/contractSkew.ts`, modelled on `packages/clients/{food-service,recipe-service}/src/contractSkew.ts`) and its own `src/__tests__/contractSkew.test.ts` — obligations option **(b)** does not create, since the schema package is then imported directly and pinned by the workspace.
-    - **Tests**: unit (each derived model asserted **assignable from** its wire parent, so a contract change breaks the derivation instead of drifting past it) **AND** integration (a parser-based guard over `git ls-files` asserting no client/app/feature file declares an identity wire shape, modelled on `packages/infra/global/__tests__/app-service-dependency.test.ts` — ⚠️ this repo-wide guard **does not exist yet**; see GR-017's enforcement table).
+    - **Tests**: unit (each derived model asserted **assignable from** its wire parent, so a contract change breaks the derivation instead of drifting past it) **AND** integration (a parser-based guard over `git ls-files` asserting no client/app/feature file declares an identity wire shape, modelled on `packages/infra/global/__tests__/appServiceDependency.test.ts` — ⚠️ this repo-wide guard **does not exist yet**; see GR-017's enforcement table).
 
 - [ ] **T-094** [P] [US-006] Validate every identity response on receipt and every outbound body before the call — `packages/apps/commise/features/account/src/`
     - **Depends on**: T-093

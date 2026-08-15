@@ -20,7 +20,7 @@
 
 1. **`cdk-nag`'s `AwsSolutionsChecks` is attached to every CDK app**, at the app root, via one shared helper — `attachSecurityChecks(app)` from `@kitchensink/infra-security`. The pack is not subsetted: review breadth is whatever cdk-nag ships.
 2. **Advisory mode, via a logger Decorator.** `AdvisoryAnnotationLogger` extends cdk-nag's `AnnotationLogger` and rewrites ERROR-level findings to WARN, passing WARN and INFO through unchanged. `AdvisoryAwsSolutionsChecks` filters the stock annotation logger out of the pack's logger list and prepends the advisory one, so exactly one annotation logger survives and it cannot raise errors. Findings are visible on every synth; nothing fails.
-3. **One wiring point, discovery-enforced.** The posture lives in one function, and `cdk-nag-attachment.test.ts` walks the workspace for CDK apps (parsing each entrypoint with the TypeScript compiler, not regex) and fails if any discovered app does not call it, attaches a raw `AwsSolutionsChecks`, or omits the dependency. A new CDK app cannot ship unreviewed.
+3. **One wiring point, discovery-enforced.** The posture lives in one function, and `cdkNagAttachment.test.ts` walks the workspace for CDK apps (parsing each entrypoint with the TypeScript compiler, not regex) and fails if any discovered app does not call it, attaches a raw `AwsSolutionsChecks`, or omits the dependency. A new CDK app cannot ship unreviewed.
 4. **Zero suppressions at adoption.** Because a suppression mutates the template, the advisory-first change carries none; the byte-identical guarantee and a suppression are mutually exclusive in one commit. cdk-nag itself rejects a `reason` under 10 characters at the call site, so a suppression can never be added without a stated justification. **Superseded by burn-down #1** — suppressions now exist, they go through the `AcceptedNagFindings` register, and "zero suppressions" became an explicit allowlist. See the 2026-08-07 update.
 5. **Compliance reports stay on** (cdk-nag's default): one `AwsSolutions-{stack}-NagReport.csv` per stack in `cdk.out`, which is the burn-down inventory for free.
 
@@ -29,7 +29,7 @@
 **Positive**
 
 - Every stack in every app is now security-reviewed on every synth, including per-PR previews, with no deploy risk.
-- The no-prod-diff line is now _asserted_, not merely intended: `cdk-nag-template-parity.test.ts` compares full template JSON per stack, with and without the Aspect, for prod and sandbox — and includes a negative control proving the comparison detects a mutating Aspect.
+- The no-prod-diff line is now _asserted_, not merely intended: `cdkNagTemplateParity.test.ts` compares full template JSON per stack, with and without the Aspect, for prod and sandbox — and includes a negative control proving the comparison detects a mutating Aspect.
 - Proven byte-identical at adoption: all **12** synthesized prod templates across the 7 apps had identical checksums before and after. Only `*.metadata.json` (the cloud-assembly annotation sidecar, which CloudFormation never sees) changed, plus 11 added NagReport CSVs.
 
 **Negative / costs**
@@ -49,10 +49,10 @@
 
 ## Implementation guards
 
-- `packages/infra/security/src/attach-security-checks.ts` carries the "annotation-only, and a suppression is NOT" rationale at the wiring point.
-- `packages/infra/global/__tests__/cdk-nag-template-parity.test.ts` — byte-identical prod + sandbox templates, per stack, plus "a suppression would show up here" (`no cdk_nag metadata`) and a mutating-Aspect negative control.
-- `packages/infra/global/__tests__/cdk-nag-synth.integration.test.ts` — a real `cdk synth` at prod and sandbox: exit 0, warnings present, no CLI error line. This is the only tier that can catch the ERROR→exit-1 regression, because it is a property of the CLI, not of in-process synthesis.
-- `packages/infra/global/__tests__/cdk-nag-attachment.test.ts` — discovery-based; also pins the known entrypoint set so a broken walk cannot pass silently.
+- `packages/infra/security/src/attachSecurityChecks.ts` carries the "annotation-only, and a suppression is NOT" rationale at the wiring point.
+- `packages/infra/global/__tests__/cdkNagTemplateParity.test.ts` — byte-identical prod + sandbox templates, per stack, plus "a suppression would show up here" (`no cdk_nag metadata`) and a mutating-Aspect negative control.
+- `packages/infra/global/__tests__/cdkNagSynth.integration.test.ts` — a real `cdk synth` at prod and sandbox: exit 0, warnings present, no CLI error line. This is the only tier that can catch the ERROR→exit-1 regression, because it is a property of the CLI, not of in-process synthesis.
+- `packages/infra/global/__tests__/cdkNagAttachment.test.ts` — discovery-based; also pins the known entrypoint set so a broken walk cannot pass silently.
 
 ---
 
@@ -126,7 +126,7 @@ Today: `multiAz: false`. An AZ failure or a failed instance means downtime until
 
 The triage listed this under FIX. **Enabling rotation as-is would cause a production outage**, and the evidence is specific:
 
-- `identity-service-stack.ts` injects the password with `ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'password')`. ECS resolves that **at task start** and hands it to the container as an environment variable for the task's whole lifetime.
+- `IdentityServiceStack.ts` injects the password with `ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'password')`. ECS resolves that **at task start** and hands it to the container as an environment variable for the task's whole lifetime.
 - `database.module.ts` builds the connection string **once**, at module init, from `process.env['DB_PASSWORD']`, and the `pg` Pool runs `idleTimeoutMillis: 30_000`.
 
 So a `HostedRotation.postgreSqlSingleUser()` rotation changes the password at the database, and within ~30 seconds the running tasks re-dial with the stale one and every query fails — until the ECS tasks are replaced. Adding a rotation schedule would satisfy cdk-nag and take identity down.

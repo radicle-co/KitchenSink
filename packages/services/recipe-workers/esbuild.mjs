@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 
 /**
  * Bundle each Lambda handler into a self-contained ESM file under dist/, mirroring the src/ layout
- * (outbase: src) so the CDK `handler:` strings (e.g. `handlers/version-archive-worker.handler`) resolve.
+ * (outbase: src) so the CDK `handler:` strings (e.g. `handlers/versionArchiveWorker.handler`) resolve.
  * The CDK ships `dist/` via `Code.fromAsset`, which carries no node_modules, so every JS dependency
  * (drizzle, pg, powertools, …) is inlined here.
  *
@@ -17,24 +17,24 @@ import { writeFileSync } from 'node:fs';
 /**
  * ⛔ THIS LIST MUST COVER EVERY `lambda.Function` THE STACK DEPLOYS, AND IT IS NO LONGER TRUSTED TO.
  *
- * `handle-sync-worker` was missing here while `recipe-workers-stack.ts` deployed it, so its asset carried the
+ * `handle-sync-worker` was missing here while `RecipeWorkersStack.ts` deployed it, so its asset carried the
  * raw `tsc` output (4.6 KB, opening `import { sql } from 'drizzle-orm'`) instead of a bundle — against siblings
  * of 436 KB–981 KB — and `dist/` has no `node_modules`, so every cold start died on `ERR_MODULE_NOT_FOUND`.
  * Two guard tests missed it because both enumerated the same five names this array did; a copy of a list cannot
  * detect that the list is incomplete.
  *
- * The check now DERIVES the required set from the stack instead: `service-infra-wiring-invariants.test.ts` (W2)
+ * The check now DERIVES the required set from the stack instead: `serviceInfraWiringInvariants.test.ts` (W2)
  * discovers every `new lambda.Function(…)` handler string in any service's infra and requires its entry point
- * here, and `recipe-workers-stack.test.ts` re-asserts it against the synthesized template. Adding a Lambda
+ * here, and `RecipeWorkersStack.test.ts` re-asserts it against the synthesized template. Adding a Lambda
  * without adding its entry point is now a red test, not a runtime discovery.
  */
 const entryPoints = [
-    'src/handlers/version-archive-worker.ts',
-    'src/handlers/account-erasure-worker.ts',
-    'src/handlers/handle-sync-worker.ts',
-    'src/handlers/archive-sweeper.ts',
-    'src/handlers/erasure-sweeper.ts',
-    'src/handlers/erasure-orphan-sweeper.ts',
+    'src/handlers/versionArchiveWorker.ts',
+    'src/handlers/accountErasureWorker.ts',
+    'src/handlers/handleSyncWorker.ts',
+    'src/handlers/archiveSweeper.ts',
+    'src/handlers/erasureSweeper.ts',
+    'src/handlers/erasureOrphanSweeper.ts',
 ];
 
 await build({

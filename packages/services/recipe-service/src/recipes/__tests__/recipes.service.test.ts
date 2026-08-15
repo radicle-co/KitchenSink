@@ -25,10 +25,10 @@ import {
 import type { PhotosDal } from '../../photos/dal/photos.dal.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
-import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photos-dal.fixture.js';
-import { fakeRatingsDal } from '../__fixtures__/ratings-dal.fixture.js';
-import type { CreateRecipeDto } from '../dto/create-recipe.dto.js';
-import type { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
+import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photosDal.fixture.js';
+import { fakeRatingsDal } from '../__fixtures__/ratingsDal.fixture.js';
+import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
+import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 
 const OWNER = '01J000000000000000000FREE0';

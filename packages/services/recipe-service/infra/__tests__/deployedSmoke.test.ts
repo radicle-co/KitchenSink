@@ -320,13 +320,13 @@ describe('classifyDependencyReachability — 401 proves reachability; unreachabl
  * The preflight check asserts a BROWSER can reach the service. That is the right assertion for identity and
  * recipe, which both call `app.enableCors(…)` in `main.ts` and are called cross-origin by the web app. The
  * FOOD service deliberately has no `enableCors` at all: nothing outside the cluster calls it, and its only
- * consumer is the recipe service server-to-server (`food-catalog.gateway.ts`). So sending it a preflight
+ * consumer is the recipe service server-to-server (`foodCatalog.gateway.ts`). So sending it a preflight
  * asserts something that is false by design — `OPTIONS /api/v1/recipes` against food is an app 404, which
  * `classifyPreflight` correctly rejects.
  *
  * The alternative was to give food CORS purely so a smoke could pass, i.e. open a browser-facing surface
  * with no browser consumer to satisfy a check. Skipping the check the way the food/ecosystem checks are
- * already skipped (by omitting their flag) is the honest shape, and `prod-deploy-smoke-depth.test.ts`
+ * already skipped (by omitting their flag) is the honest shape, and `prodDeploySmokeDepth.test.ts`
  * derives WHICH services must supply the flag from whether their `main.ts` enables CORS — so a service that
  * gains CORS immediately owes the assertion, and one that has it cannot silently drop it.
  */

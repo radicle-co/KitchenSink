@@ -27,7 +27,7 @@ COPY packages/clients/food-service/dist ./packages/clients/food-service/dist
 # as a VALUE for the drift-layer-3 skew comparison (CODING_STANDARDS §15.2.5). Before that the import was
 # `import type` only, so it erased at compile time and the image never needed the package on disk. The moment it
 # became a runtime import, omitting this COPY turned a diagnostic WARNING into `ERR_MODULE_NOT_FOUND` at boot —
-# a crash-loop caused by the feature meant to report drift. service-dockerfile-deps.test.ts now walks the
+# a crash-loop caused by the feature meant to report drift. serviceDockerfileDeps.test.ts now walks the
 # TRANSITIVE @kitchensink closure precisely so this class cannot return.
 COPY packages/schemas/food/prod.package.json ./packages/schemas/food/package.json
 COPY packages/schemas/food/dist ./packages/schemas/food/dist

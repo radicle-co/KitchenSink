@@ -5,7 +5,7 @@
  * token. Idempotent via stable ids + `ON CONFLICT (id) DO NOTHING`, so it is safe to run on every
  * deploy / test boot.
  *
- * This module is the ONE authoritative definition of "the seeded world" (T097): `tests/global-setup.ts`
+ * This module is the ONE authoritative definition of "the seeded world" (T097): `tests/globalSetup.ts`
  * calls {@link seed} and re-exports {@link SEED_INGREDIENTS} for the specs that reference the catalog, so
  * there is a single source of truth rather than a divergent hand-rolled baseline.
  *

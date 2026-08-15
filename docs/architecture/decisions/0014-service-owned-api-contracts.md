@@ -50,7 +50,7 @@ packages/services/<service>/src/**/*.schema.ts   ← zod AUTHORED here, beside t
 packages/schemas/<service>/    @kitchensink/schema-<service>  — GENERATED, committed
 ├── src/schemas.ts             the zod, assembled from the service's *.schema.ts
 ├── src/types.ts               `z.infer` types
-├── src/contract-hash.ts       SHA-256 over the service's authored *.schema.ts sources
+├── src/contractHash.ts       SHA-256 over the service's authored *.schema.ts sources
 ├── src/index.ts               barrel — named exports only
 └── openapi.yaml               DERIVED from the zod, for oasdiff / docs / integrators
                         │
@@ -205,7 +205,7 @@ under time pressure. Authoring lives beside the controller it serves.
 > a count taken from the **worktree** (including `.next/standalone/` and `dist/`) rather than from
 > **`git ls-files`**.
 
-- ✅ **Three schema packages now exist**, each with `schemas.ts`, `types.ts`, `contract-hash.ts`, a barrel and a
+- ✅ **Three schema packages now exist**, each with `schemas.ts`, `types.ts`, `contractHash.ts`, a barrel and a
   generated `openapi.yaml`: `packages/schemas/recipe` (**8** published wire-schema files, `openapi.yaml` 4,945
   lines / 34 paths), `packages/schemas/food` (5, 922 / 12), `packages/schemas/identity` (5, 716 / 10).
   ~~"Converged so far: the search/photos/ratings vertical only"~~ and ~~"Food and identity … neither has a schema

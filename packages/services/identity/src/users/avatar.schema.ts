@@ -7,7 +7,7 @@
  * and `ContentLength`, so S3 itself rejects an upload that does not match what was presigned.
  *
  * ⚠️ THE ALLOWED TYPE LIST AND SIZE CAP ARE **NOT** IN THIS SCHEMA, and that is deliberate rather than an
- * oversight. They live in `avatar-upload.controller.ts`, which owns the presigning, and duplicating them here
+ * oversight. They live in `avatarUpload.controller.ts`, which owns the presigning, and duplicating them here
  * would create two representations of one security rule that can disagree — the strictly worse outcome, because
  * the copy a client reads would then claim a bound the server does not actually enforce. This schema describes
  * the SHAPE of the exchange; the controller remains the authority on which types and sizes are admitted, and

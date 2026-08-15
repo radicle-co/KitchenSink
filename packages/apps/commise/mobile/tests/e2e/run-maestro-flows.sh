@@ -28,7 +28,7 @@
 #
 # `maestro_select_flows` is PURE — plan + selector pairs in, verdict out; no adb, no network, no device — and
 # it is regression-tested by EXECUTING this file (never by re-implementing it) from
-# `packages/infra/global/__tests__/maestro-flow-selection.test.ts`, which also owns the inventory assertion
+# `packages/infra/global/__tests__/maestroFlowSelection.test.ts`, which also owns the inventory assertion
 # that every committed `.maestro` flow is planned, is a `runFlow` sub-flow, is inert for a stated reason, or
 # is a recorded gap. That guard exists because `recipes/ingredient-catalog-blend.yaml` was committed and then
 # executed by nothing for months: `FLOWS` was a hand-maintained list and nobody added it.

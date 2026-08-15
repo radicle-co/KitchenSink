@@ -86,7 +86,7 @@ The four deletions in step 4 below were written as one batch. They are **not** o
 share a consumer, and the webhook half has now shipped on its own.
 
 **Retired: the `v1` base-path mapping on the webhook API** (`customDomain.addBasePathMapping(api, { basePath: 'v1' })`
-in `packages/services/identity-webhooks/infra/lib/webhooks-stack.ts`). Step 1's precondition is **satisfied and
+in `packages/services/identity-webhooks/infra/lib/WebhooksStack.ts`). Step 1's precondition is **satisfied and
 measured**, and steps 2 and 3 do not apply to it: the webhook path's only caller is Clerk's svix sender. No shipped
 mobile build and no cached web bundle has ever posted a Clerk webhook, so "clients with inlined endpoints" — the
 reason steps 2–3 exist — cannot keep this particular path alive.
@@ -108,7 +108,7 @@ How it was proven, since the original blocker was precisely that it _could not_ 
 
 **Residual risk, recorded rather than hidden:** a second, currently-idle svix endpoint configured at `/v1` would be
 invisible to this method. If user sync stops, a `404` on `/v1/webhooks/users` is the signature — check the Clerk
-dashboard's endpoint list first. Asserted by `webhooks-stack.test.ts` ("maps exactly ONE base path").
+dashboard's endpoint list first. Asserted by `WebhooksStack.test.ts` ("maps exactly ONE base path").
 
 **Also worth knowing: `cdk diff` did not report the access-log change.** Against the un-instrumented sandbox stack it
 listed only Lambda code/`SENTRY_RELEASE` deltas and no `AWS::ApiGateway::Stage` change, while the synthesized template

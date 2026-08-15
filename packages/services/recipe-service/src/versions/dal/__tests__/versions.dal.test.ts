@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { VersionsDal, VERSION_RETENTION_LIMIT } from '../versions.dal.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
-import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/make-fake-drizzle.js';
+import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
 import { makeVersionRow } from '../../../__fixtures__/index.js';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 

@@ -187,7 +187,7 @@ route is in some _other_ service (001's visibility PATCH is in the recipe servic
 routes likewise), so the guard is a **shared** concern under `packages/shared/*` that reads the entitlement as a
 **claim from the signed Clerk session token** — the mechanism `FR-044` specifies and
 `packages/shared/clerk-verify` already implements for admin `scopes`/`permissions`. It is **NOT** an import of
-`@kitchensink/identity-service`: `packages/infra/global/__tests__/app-service-dependency.test.ts` already
+`@kitchensink/identity-service`: `packages/infra/global/__tests__/appServiceDependency.test.ts` already
 forbids an app depending on a service package, and ADR-0014's rejected alternative 2 is exactly this — it drags
 NestJS, Drizzle and the AWS SDK into every consumer and inverts the build order. ⚠️ §4's `PlanGuard` sketch reads
 `user.plan` / `user.subscriptionStatus` off the request; under `FR-044` those values arrive from the verified
@@ -201,7 +201,7 @@ regulatory and security posture and should not share a process with authenticati
 request/response shape — and the webhook endpoint's own response — as **zod in the service** at
 `src/billing/*.schema.ts` beside its controller; **validate its own requests with that same zod** via
 `nestjs-zod`'s `createZodDto`; extend the committed `@kitchensink/schema-identity`, which exports the zod,
-`z.infer` types, `contract-hash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — never a codegen
+`z.infer` types, `contractHash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — never a codegen
 input); and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files** — notably **no
 Stripe SDK type**, since importing one would drag a third-party shape into a contract we publish.
 
@@ -280,7 +280,7 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
       says "delivered" while discarding every real event behind a green check. §18-c calls this the **more
       expensive** inversion, and the incident is on record (a dropped `user.created`). The shipped lookup to copy
       is `WEBHOOK_REJECTION_STATUS` in
-      `packages/services/identity-webhooks/src/common/handler-pipeline.ts` — `shape → 200`, `signature → 401`, a
+      `packages/services/identity-webhooks/src/common/handlerPipeline.ts` — `shape → 200`, `signature → 401`, a
       complete `Record`. **Either** rejection carries **(1)** the response body (so the Stripe dashboard shows
       what was wrong), **(2)** structured logs with its `reason`, **(3)** a **per-`reason` counter**, and **(4)**
       an **alarm** on that counter — because a rejection nobody sees is indistinguishable from success.
@@ -315,7 +315,7 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
   `ZodValidationPipe` references and 10 classes extending `createZodDto` across 6 files**, correcting the "6 sites,
   up from 3" this line carried. Adoption is still climbing, so **count it rather than quoting this number**;
   `ZodValidationPipe` coverage over every controller is now also asserted repo-wide by **G5** in
-  `packages/infra/global/__tests__/service-security-invariants.test.ts`, which runs with **no exception list**.
+  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`, which runs with **no exception list**.
 - **⛔ THE FLOOR — and 010 has the TIGHTEST real bounds of any of these features, with a thin margin.** §2's
   `stripe_webhook_events` declares `stripe_event_id VARCHAR(255)`, `event_type VARCHAR(100)` and `status VARCHAR(20)`.
   ⚠️ **`'processing'` is 10 characters, so `VARCHAR(20)` leaves almost no room** — a future status string longer
@@ -553,7 +553,7 @@ export class BillingModule {}
 ⚠️ `PlanGuard` / `@RequirePremium()` are deliberately **absent** from this module's providers. Per ADR-0017 they
 live in a shared `packages/shared/*` package and read the entitlement as a claim from the signed Clerk session
 token, because every gated route is in some **other** service. Registering them here would be the
-`@kitchensink/identity-service` import that `app-service-dependency.test.ts` already forbids.
+`@kitchensink/identity-service` import that `appServiceDependency.test.ts` already forbids.
 
 ### `main.ts` — no change required
 

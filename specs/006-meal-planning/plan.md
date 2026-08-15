@@ -141,7 +141,7 @@ packages/
 │       │   ├── recipes/                #   recipe.gateway.ts — the ONLY door to the recipe service
 │       │   ├── erasure/                #   account-erasure participation (FR-039)
 │       │   ├── auth/                   #   AuthMiddleware over @kitchensink/clerk-verify (no local users table)
-│       │   ├── common/                 #   api-exception.filter.ts (one error envelope), idempotency, pagination
+│       │   ├── common/                 #   apiException.filter.ts (one error envelope), idempotency, pagination
 │       │   ├── config/                 #   Zod env schema
 │       │   ├── database/               #   Drizzle schema + hand-authored SQL migrations
 │       │   └── health/
@@ -370,7 +370,7 @@ per `ENGINEERING_EXCELLENCE.md` → Backend §1. Handlers derive from it; the e2
 | GET    | `/health`                                    | ✖    | The only unauthenticated route                                                                                                                                                                 |
 
 Conventions, all inherited rather than invented: one error envelope `{ code, message, details? }` emitted by a single
-`api-exception.filter.ts`; `401` unauthenticated, `404` for both absent and not-owned (FR-029 — never `403`, which would
+`apiException.filter.ts`; `401` unauthenticated, `404` for both absent and not-owned (FR-029 — never `403`, which would
 disclose existence), `409` genuine conflict, `422` semantically invalid, `503` when the recipe gateway is unavailable
 **and** the request cannot be served degraded. Zod parses at the controller edge so the interior only sees valid data.
 
@@ -425,7 +425,7 @@ a premium side feature.
   `class-validator` DTO that agrees with the schema by convention. ⚠️ 006 adds **no** `class-validator` DTO to
   the 19 files already being removed from that service (re-measured 2026-08-12).
 - Extend the committed `@kitchensink/schema-recipe`, which exports the zod, `z.infer` types,
-  `contract-hash.ts`, a barrel, and a **derived** `openapi.yaml` (outbound only — for `oasdiff`, docs and
+  `contractHash.ts`, a barrel, and a **derived** `openapi.yaml` (outbound only — for `oasdiff`, docs and
   integrators, **never a codegen input**).
 - Keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
 
@@ -488,7 +488,7 @@ authors** the zod; GR-016 decides **where it runs**. ✅ **§3.0 now names the o
       bound to derive from**, so its length limit is a product decision 006 owns.
     - ✅ **OPEN-GR-016-A is CLOSED (ruled 2026-08-12, GR-017 §17-d):**
       the floor is enforced by a **per-service boundary-parity test**, not a review checklist. It lives in
-      `@kitchensink/recipe-service` (beside `recipes/dto/__tests__/numeric-bounds.dto.test.ts`, the existing
+      `@kitchensink/recipe-service` (beside `recipes/dto/__tests__/numericBounds.dto.test.ts`, the existing
       example); it **may import both** the Drizzle schema and the authored zod, because **a test is not a wire
       schema**; it **derives** the bounded-column enumeration from the Drizzle schema rather than typing it
       out; and it asserts the field→column mapping complete **in both directions** — every bounded column has

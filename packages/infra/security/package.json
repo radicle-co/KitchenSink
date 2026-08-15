@@ -10,7 +10,7 @@
         "A `main` of ./src/index.ts made that path fail with ERR_MODULE_NOT_FOUND: node type-strips",
         "index.ts but cannot resolve its `./x.js` relative imports, since no built .js sits beside them.",
         "Verified by running the real compiled entrypoint; see ADR-0013 and the integration suite in",
-        "packages/infra/global/__tests__/cdk-nag-synth.integration.test.ts, which drives `node dist/bin/app.js`."
+        "packages/infra/global/__tests__/cdkNagSynth.integration.test.ts, which drives `node dist/bin/app.js`."
     ],
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",

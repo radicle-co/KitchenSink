@@ -21,11 +21,11 @@ import {
     type RecipeStepRow,
     type RecipeVersionRow,
 } from '../../database/schema/index.js';
-import { type Writer } from '../../database/unit-of-work.js';
+import { type Writer } from '../../database/unitOfWork.js';
 import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
-import type { RecipeListSortBy } from '../dto/list-recipes.query.dto.js';
-import { activeRecipe } from './recipe-predicates.js';
-import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipe-ingredients.dal.js';
+import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
+import { activeRecipe } from './recipePredicates.js';
+import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipeIngredients.dal.js';
 
 /** A single instruction line to persist (the DAL assigns 1-based `stepNumber` from array order). */
 export interface StepInput {

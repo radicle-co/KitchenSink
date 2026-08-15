@@ -3,7 +3,7 @@
 #
 # Two tiers:
 #   A. SHIPPED — CloudWatch alarms already defined in
-#      packages/services/recipe-workers/infra/lib/recipe-workers-stack.ts and
+#      packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts and
 #      created per stage. These fire to the per-stage recipe-workers SNS topic.
 #      ACTION before ship: subscribe a human/pager to that SNS topic per stage
 #      (the topic exists; a subscription does not — see release-readiness.md).

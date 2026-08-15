@@ -19,7 +19,7 @@ import { RatingsService } from '../ratings.service.js';
 import type { RatingsDal } from '../dal/ratings.dal.js';
 import type { RecipesDal, RecipeAggregate } from '../../recipes/dal/recipes.dal.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
-import type { RecipeResponse } from '../../recipes/dto/recipe-response.dto.js';
+import type { RecipeResponse } from '../../recipes/dto/recipeResponse.dto.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import { makeRecipeRow } from '../../__fixtures__/index.js';

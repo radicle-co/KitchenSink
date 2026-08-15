@@ -18,10 +18,10 @@ mind rather than as configuration.
 - **Step ORDERING.** A build step placed after `npm prune --omit=dev` dies with exit 127 because the
   devDependency binary is gone. Bundling must precede pruning, and any `cdk deploy` of the global app must
   be preceded by the handler-bundling step. Guarded by
-  `packages/infra/global/__tests__/global-bootstrap-bundle.test.ts` and `prod-deploy-build-order.test.ts`.
+  `packages/infra/global/__tests__/globalBootstrapBundle.test.ts` and `prodDeployBuildOrder.test.ts`.
 - **Job REACHABILITY.** Production deploy legs existed that no trigger could reach, so they silently never
   ran. When reviewing a job, check that it is reachable from a real trigger through its whole `needs`
-  closure — a skipped dependency skips every dependent. Guarded by `prod-deploy-reachability.test.ts`.
+  closure — a skipped dependency skips every dependent. Guarded by `prodDeployReachability.test.ts`.
 - **Artifact pairing.** A `download-artifact` with no earlier matching upload yields an empty directory
   rather than an error.
 - **Assertions that cannot fail.** A smoke test that only checks `/health` returns 200 does not prove the
@@ -48,7 +48,7 @@ second copy of the rules will drift from the one CI actually runs.
   matching `pr-{N}` by tag or name, so safety rests entirely on the delimiter-aware match living once in
   `.github/scripts/pr-scope.sh` (`pr-{N}` exactly or `pr-{N}-…`, so pr-1 ≠ pr-15). Do not add a second
   matcher, do not relax it to a bare prefix, and do not add an "orphaned-looking" sweep. It is
-  regression-tested against the real shell functions by `pr-scope.test.ts`.
+  regression-tested against the real shell functions by `prScope.test.ts`.
 - **Preview-address teardown ordering.** DNS is deleted **before** the Vercel domain claim is released;
   reversing that manufactures the subdomain-takeover window the code exists to close. An absent record or
   domain is **success** (idempotent); anything else is an error. DNS scope is exact first-label equality.

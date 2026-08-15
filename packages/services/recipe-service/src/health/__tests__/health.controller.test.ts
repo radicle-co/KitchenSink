@@ -13,7 +13,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type pg from 'pg';
 
-import { CONTRACT_HASH } from '../../contract/contract-hash.js';
+import { CONTRACT_HASH } from '../../contract/contractHash.js';
 import { HealthController, READINESS_QUERY_TIMEOUT_MS } from '../health.controller.js';
 
 /**
@@ -22,7 +22,7 @@ import { HealthController, READINESS_QUERY_TIMEOUT_MS } from '../health.controll
  * ⚠️ ASSERTED ON `getStatus()` AND THE BODY, NOT ON THE EXCEPTION SUBCLASS — this used to be
  * `toBeInstanceOf(ServiceUnavailableException)`. The controller now raises `apiError('NOT_READY', …)`, which
  * returns a BARE `HttpException` on purpose: choosing `ServiceUnavailableException` would be choosing the status
- * a second time, from a second place, when the code→status table already assigns it (see `common/api-error.ts`).
+ * a second time, from a second place, when the code→status table already assigns it (see `common/apiError.ts`).
  * So the subclass is not part of the contract and asserting it would pin an implementation detail; the status and
  * the body ARE the contract.
  *

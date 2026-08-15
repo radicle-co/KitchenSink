@@ -1,7 +1,7 @@
 # `wire-contract` fixtures
 
 Each directory is a **deliberately non-compliant** stand-in for a client package, used by
-`../../wire-contract-consumers.test.ts` to watch one rule of `docs/CODING_STANDARDS.md` §15 / ADR-0014 go
+`../../wireContractConsumers.test.ts` to watch one rule of `docs/CODING_STANDARDS.md` §15 / ADR-0014 go
 red. `compliant/` and `design-tokens/` are the negative controls: they must stay silent, so the gate is
 provably satisfiable rather than merely strict.
 

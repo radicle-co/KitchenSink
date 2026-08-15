@@ -12,6 +12,7 @@ origin: owner ask (this session) — "autocomplete from both our database and US
 > USDA**, fast, without the per-keystroke performance/quota problem. This document is the design.
 
 ## TL;DR — the reframe
+
 "Autocomplete from DB + USDA" naively reads as "add a live USDA search box." That is the **expensive, risky
 20%**. The high-leverage path to the same user outcome is **coverage-first**, in three stages that each ship
 value independently:
@@ -31,13 +32,14 @@ tail, not the primary load against a shared quota.
 warranted — it may be needed only for a thin branded tail, or deferrable. Do NOT build (3) first.
 
 ## Feasibility resolutions (round 2 — code-verified adversarial pass)
+
 A feasibility review against the real code corrected four things in the first draft; they are folded into the
 sections below and summarized here so the record is honest:
 
 - **F-C2 (was missed) — "seed is free" is only true at ingest.** Seeding ~8k RESOLVED foods turns the
   **change-refresh worker into a sustained consumer of the same 1,000/hr USDA window**: `refreshResolvedFood`
   does a live `fetchByKey` per backing item to compare `item_version`
-  (`food-service/src/worker/food-consumer.service.ts:337-385`). ~8k re-fetches/cycle would compete with the
+  (`food-service/src/worker/foodConsumer.service.ts:337-385`). ~8k re-fetches/cycle would compete with the
   interactive reserve — and **SR Legacy is a frozen dataset that never changes**, so those calls are pure
   waste. **Seeded foods MUST be excluded from live change-refresh and re-freshed from the next bulk download.**
   This is a **Stage-1 requirement**, not deferrable (the drain starts the moment the seed lands).
@@ -56,61 +58,63 @@ sections below and summarized here so the record is honest:
   the API `UsdaFoodDetail` shape) + an explicit **find-or-create on the crosswalk** (a blind re-create causes an
   FK violation — `onConflictDoUpdate` doesn't update `foodId`); the nutrient dictionary **does** auto-resolve
   (no pre-population). Stage 3's `admitByExternalKey` is a **new** `MergeAndPersistService` method (find-or-create
-  food → `fetchByKey` → single-survivor persist) reusing the merge *primitive* (`blendPicks`), not
+  food → `fetchByKey` → single-survivor persist) reusing the merge _primitive_ (`blendPicks`), not
   `resolveFromPicks` (which is bound to an existing food row). The opaque token **reuses the existing `jose`
-  codec** (`recipe-service/src/auth/service-erasure-auth.service.ts`). Stage 2 blend is feasible
+  codec** (`recipe-service/src/auth/serviceErasureAuth.service.ts`). Stage 2 blend is feasible
   (`SearchResultView.id` **is** the `food_id`), needs null-name handling + merged ranking.
 - **Round-3 (adversarial pass on the revision, Stage 1+2 focus) — folded in:**
-  - **F1 (material)** — Stage 2 "synchronous, no poll, already has RESOLVED nutrition" was WRONG (re-introduced
-    the very over-claim Stage 3 retracted). Food search carries no nutrition; `createFoodBacked` writes none;
-    the pick MUST do one immediate `getStatus`+`updateResolution` backfill or ship NULL calories. Corrected.
-  - **F2 (medium)** — Stage 2 adds a **per-keystroke cross-service call** to food-service; it is "no quota," NOT
-    "entirely local." Given the same timeout + local-fallback discipline as USDA. Corrected.
-  - **F3 (medium-low)** — the refresh-exclusion marker lives on **`food` (`origin` column)**, NOT
-    `food_sources.fetch_state` (CHECK-constrained + clobbered); and the exclusion is **correctness-critical**
-    (null `item_version` → permanent churn + nutrition clobber), not just quota. Corrected + strengthened.
-  - **F4 (low, Stage 3)** — `admitByExternalKey` needs BOTH external-key dedup AND a normalized-name
-    find-or-create (a different fdcId can collide on a seeded row's normalized name). Flagged in Stage 3.
-  - **Verified sound:** seeding does NOT change by-name merge semantics (a RESOLVED seed stays RESOLVED,
-    no enqueue, the merge engine is never re-run); Stage-1 create-PENDING-then-`resolveAndPersist` is a legal
-    transition; `SearchResultView.id` IS the `food_id`.
+    - **F1 (material)** — Stage 2 "synchronous, no poll, already has RESOLVED nutrition" was WRONG (re-introduced
+      the very over-claim Stage 3 retracted). Food search carries no nutrition; `createFoodBacked` writes none;
+      the pick MUST do one immediate `getStatus`+`updateResolution` backfill or ship NULL calories. Corrected.
+    - **F2 (medium)** — Stage 2 adds a **per-keystroke cross-service call** to food-service; it is "no quota," NOT
+      "entirely local." Given the same timeout + local-fallback discipline as USDA. Corrected.
+    - **F3 (medium-low)** — the refresh-exclusion marker lives on **`food` (`origin` column)**, NOT
+      `food_sources.fetch_state` (CHECK-constrained + clobbered); and the exclusion is **correctness-critical**
+      (null `item_version` → permanent churn + nutrition clobber), not just quota. Corrected + strengthened.
+    - **F4 (low, Stage 3)** — `admitByExternalKey` needs BOTH external-key dedup AND a normalized-name
+      find-or-create (a different fdcId can collide on a seeded row's normalized name). Flagged in Stage 3.
+    - **Verified sound:** seeding does NOT change by-name merge semantics (a RESOLVED seed stays RESOLVED,
+      no enqueue, the merge engine is never re-run); Stage-1 create-PENDING-then-`resolveAndPersist` is a legal
+      transition; `SearchResultView.id` IS the `food_id`.
 
 ---
 
 ## 1. Research synthesis (all cited)
 
 ### 1a. Internal system — what exists vs what's missing (code-grounded)
+
 - **USDA search is non-persisting but unreachable interactively.** `UsdaSourceAdapter.searchByName`
   (`food-service/src/sources/usda/usda.adapter.ts:181`) returns `SourceCandidate[] = {source, externalKey=fdcId,
-  name}` **without persisting** — but its ONLY caller is the Fargate worker's `fanOut`
-  (`worker/food-consumer.service.ts:446`), which immediately fetch-merges-persists. **No public / read-only /
+name}` **without persisting** — but its ONLY caller is the Fargate worker's `fanOut`
+  (`worker/foodConsumer.service.ts:446`), which immediately fetch-merges-persists. **No public / read-only /
   cached USDA-search path exists.**
 - **Neither ingredient search nor food search touches USDA today.** recipe `GET /v1/ingredients/search`
   (`recipe-service/src/ingredients/dal/ingredients.dal.ts:149`) is a **local** Postgres FTS+trgm query over the
   recipe-service `ingredients` catalog. food-service `GET /v1/foods/search`
-  (`food-service/src/foods/foods.service.ts:164`) is **also local** (it only crosswalks the raw query if it *is*
+  (`food-service/src/foods/foods.service.ts:164`) is **also local** (it only crosswalks the raw query if it _is_
   a barcode/fdcId). And **the ingredient search does not even call food-service** — the bridge proxy
   `IngredientsService.suggestFoods` (`ingredients.service.ts:146`) is **dead code with no endpoint/caller**.
 - **The quota is the constraint.** `RollingWindowLimiter`: `DEFAULT_SOURCE_CAPS.usda = {hardCap: 1000,
-  pauseThreshold: 900}` (`sources/rolling-window-limiter.ts:24`), a rolling **60-min** window over
+pauseThreshold: 900}` (`sources/RollingWindowLimiter.ts:24`), a rolling **60-min** window over
   `source_call_log`, atomic `tryRecord` (strict, no token-bucket overshoot), 429 → **60s in-process** backoff
   (`markWindowFull`, `:154`, **not** cross-process visible). This 1,000/hr is **shared** with the worker
   fan-out; there is **no separate budget for interactive search**, and **no cache of USDA search results**
   (`source_call_log` is a rate ledger, not a result cache).
 - **The identity boundary.** `fdcId`/`externalKey` is confined to the adapter (FR-IDN-2); `SearchResultView` /
   `FoodView` carry no fdcId. The crosswalk `FoodSourcesDao.findFoodIdByExternalKey('usda', key)`
-  (`dao/food-sources.dao.ts:92`) is **single-key** — no bulk `external_key IN` reconciliation exists.
+  (`dao/foodSources.dao.ts:92`) is **single-key** — no bulk `external_key IN` reconciliation exists.
 - **Admit is name-fan-out, async, and can land UNRESOLVED.** Picking an unknown today = `POST
-  /v1/ingredients/by-name` → food `POST /v1/foods` (202 PENDING) → worker fans out `searchByName` + top-20
+/v1/ingredients/by-name` → food `POST /v1/foods` (202 PENDING) → worker fans out `searchByName` + top-20
   `fetchByKeys` → `GoldenRecordMergeEngine` survivor-count: **1→RESOLVED, >1→UNRESOLVED (needs disambiguation),
-  0→NOT_FOUND** (`merge/merge-engine.ts:294`). There is **no synchronous by-fdcId admit** — so even a hit the
+  0→NOT_FOUND** (`merge/mergeEngine.ts:294`). There is **no synchronous by-fdcId admit** — so even a hit the
   user explicitly chose re-enters the fan-out and may split UNRESOLVED.
 - **Reusable primitives:** the API process already has `UsdaSourceAdapter` + `RollingWindowLimiter` in DI
   (`foods.module.ts:76-102`); `searchByName` (non-persisting); the local `FoodSearchDao`; the merge/persist
-  pipeline (`resolveFromPicks` bypasses the survivor gate for a human-chosen pick — `merge-and-persist.service.ts:138`);
+  pipeline (`resolveFromPicks` bypasses the survivor gate for a human-chosen pick — `mergeAndPersist.service.ts:138`);
   the client/hook + debounce patterns.
 
 ### 1b. Market / competitive (sources below)
+
 - **The single biggest lever: USDA bulk download.** Full CSV/JSON dumps of Foundation, SR Legacy, FNDDS,
   Branded exist ([FDC downloads]). Foundation + SR Legacy are **small, stable, lab-analyzed whole foods** —
   pre-seeding them makes local-first cover the everyday case with **no** live-API cost. Branded (~1.5M, ~3GB) is
@@ -130,6 +134,7 @@ sections below and summarized here so the record is honest:
   FatSecret/Edamam (paid).
 
 ### 1c. Federated-autocomplete UX (sources below)
+
 - **Section, don't blend** (command-palette pattern — Linear/Slack/Raycast): local results render instantly in
   one section; a slower source **appends below in its own labeled section**, never interleaving/reordering the
   fast section — structurally eliminates layout-shift jank.
@@ -153,40 +158,40 @@ sections below and summarized here so the record is honest:
 ## 2. Architecture — three stages
 
 ### Stage 1 — Seed the local catalog from the USDA bulk download _(highest leverage; zero quota at ingest)_
+
 - **What:** a one-time (+ periodic) importer that parses the USDA **bulk** Foundation + SR Legacy datasets
   (~8k whole-food records) and inserts them as **RESOLVED golden records** into food-service (`food`,
   `food_sources` crosswalk on `(usda, fdcId)`, `food_nutrients`, `food_portions`, `food_field_provenance`).
 - **How (honest sizing — F-W2):** a food-service **admin/CLI lambda or worker task** (NOT the rate-limited API
-  — bulk files are downloads, not API calls). It needs:
-  1. **A new bulk parser** — the bulk CSV/JSON schema (`food.csv`/`food_nutrient.csv`/`food_portion.csv`, fields
-     like `gram_weight`, `portion_description`, `measure_unit`) differs from the API's `UsdaFoodDetail` that
-     `mapToCanonical` consumes, so the mapping to `CanonicalCandidate` is **re-implemented for the bulk shape**,
-     not a reuse of the private API mapper.
-  2. **Explicit find-or-create per fdcId** — `findFoodIdByExternalKey('usda', fdcId)` → reuse the existing
-     `food` row if present, else create a PENDING row FIRST; then `MergeAndPersistService.resolveAndPersist({
-     foodId, candidates:[canonical]})` (single survivor ⇒ RESOLVED). A blind re-create then upsert would keep
-     the old crosswalk `foodId` while values write against a new one → same-food FK violation. The **nutrient
-     dictionary auto-resolves** (`NutrientDao.resolveOrCreate` inside `persistResolved`) — no pre-population.
+  — bulk files are downloads, not API calls). It needs: 1. **A new bulk parser** — the bulk CSV/JSON schema (`food.csv`/`food_nutrient.csv`/`food_portion.csv`, fields
+  like `gram_weight`, `portion_description`, `measure_unit`) differs from the API's `UsdaFoodDetail` that
+  `mapToCanonical` consumes, so the mapping to `CanonicalCandidate` is **re-implemented for the bulk shape**,
+  not a reuse of the private API mapper. 2. **Explicit find-or-create per fdcId** — `findFoodIdByExternalKey('usda', fdcId)` → reuse the existing
+  `food` row if present, else create a PENDING row FIRST; then `MergeAndPersistService.resolveAndPersist({
+foodId, candidates:[canonical]})` (single survivor ⇒ RESOLVED). A blind re-create then upsert would keep
+  the old crosswalk `foodId` while values write against a new one → same-food FK violation. The **nutrient
+  dictionary auto-resolves** (`NutrientDao.resolveOrCreate` inside `persistResolved`) — no pre-population.
   Idempotent via the find-or-create, NOT the raw unique constraint.
 - **Scope decision:** Foundation + SR Legacy only (small, high quality). **Branded is NOT seeded** (~3GB, junk
   risk) — it stays on-demand (Stage 3). FNDDS (Survey) optional later.
 - **Refresh — F-C2, a HARD Stage-1 requirement (CORRECTNESS-critical, not just quota):** seeded foods MUST be
   **excluded from the live change-refresh scan** and re-freshed from the **next bulk download**, not the API.
   `refreshResolvedFood` / `ChangeRefreshConsumer` do a live `fetchByKey` per backing item to compare
-  `item_version` (`worker/food-consumer.service.ts:357,385`, `change-refresh/change-refresh.consumer.ts:138`).
+  `item_version` (`worker/foodConsumer.service.ts:357,385`, `change-refresh/changeRefresh.consumer.ts:138`).
   Two failure modes if not excluded: (1) ~8k seeded foods drain the 1,000/hr window (~8h/sweep) against the
   interactive reserve (SR Legacy never changes upstream — pure waste); and (2) **data corruption** — a bulk row
   has `item_version = null`, which never equals an API version, so every sweep treats it as "changed",
   re-enqueues forever **and clobbers the lab-analyzed bulk nutrition with API data** via `mergeChangedSources`.
   **Marker:** a NEW `origin` column on **`food`** (`bulk` | `live`) — NOT `food_sources.fetch_state` (CHECK-
   constrained to `fetched`/`error` and overwritten by every `upsertSource`). `listResolvedBackingItems` already
-  joins `food_sources → food` (`food-sources.dao.ts:144`), so the gate is a clean `AND f.origin <> 'bulk'`.
+  joins `food_sources → food` (`foodSources.dao.ts:144`), so the gate is a clean `AND f.origin <> 'bulk'`.
 - **Value:** most everyday ingredient searches become **instant local hits with real nutrition, and zero live
   USDA calls** — at ingest AND at refresh (once excluded). This is the bulk of the user-visible win.
 
 ### Stage 2 — Blend the food-service catalog into the ingredient typeahead _(instant; no quota)_
+
 - **Problem:** the ingredient typeahead queries only the recipe-service `ingredients` table (rows that have
-  already been *used* in a recipe). After Stage 1, ~8k seeded golden records live in the **food-service** `food`
+  already been _used_ in a recipe). After Stage 1, ~8k seeded golden records live in the **food-service** `food`
   catalog but are invisible to the typeahead until someone add-by-names them.
 - **What:** the ingredient search returns a **blended, deduped** local result set = recipe-service `ingredients`
   (freeform + previously-used, includes the 4 cached macros) **+** food-service `/v1/foods/search` (the seeded
@@ -210,6 +215,7 @@ sections below and summarized here so the record is honest:
   one immediate round-trip."
 
 ### Stage 3 — On-demand live USDA search (the long tail) _(cached, budgeted, explicit)_
+
 Only the residual (branded, obscure, misspelled, not-yet-seeded) reaches here. New pieces:
 
 - **A read-only, cached, non-persisting, USER-AGNOSTIC live-search endpoint** in **food-service** (it owns the
@@ -217,28 +223,28 @@ Only the residual (branded, obscure, misspelled, not-yet-seeded) reaches here. N
   **M2M** (`svc_recipe`) path. **No owner identity is needed or accepted here** (F-#4): USDA limits by IP, so the
   aggregate limiter is the quota authority; the endpoint stays identity-free and never trusts a caller-supplied
   owner. Flow:
-  1. **Result cache first.** New short-TTL `usda_search_cache` (normalized query → `SourceCandidate[]`, TTL ~24h
-     — USDA data is stable). A popular long-tail query ("bimbo bread") hits USDA **once per TTL, across all
-     users** — the primary quota amplifier-killer.
-  2. **On cache miss, gate the interactive sub-budget** (below), then `searchByName` (one windowed charge),
-     cache the result.
-  3. **Bulk-crosswalk** the returned fdcIds against `food_sources` via a NEW `external_key IN (...)` batch
-     method — a live hit **already admitted/seeded** returns its **internal id** (dedup vs local); a
-     not-yet-admitted hit returns an **opaque admit token** (below). fdcId never leaves the boundary (FR-IDN-2).
+    1. **Result cache first.** New short-TTL `usda_search_cache` (normalized query → `SourceCandidate[]`, TTL ~24h
+       — USDA data is stable). A popular long-tail query ("bimbo bread") hits USDA **once per TTL, across all
+       users** — the primary quota amplifier-killer.
+    2. **On cache miss, gate the interactive sub-budget** (below), then `searchByName` (one windowed charge),
+       cache the result.
+    3. **Bulk-crosswalk** the returned fdcIds against `food_sources` via a NEW `external_key IN (...)` batch
+       method — a live hit **already admitted/seeded** returns its **internal id** (dedup vs local); a
+       not-yet-admitted hit returns an **opaque admit token** (below). fdcId never leaves the boundary (FR-IDN-2).
 - **Interactive quota sub-budget (the quota lever — F-W1, a real migration).** The 1,000/hr USDA key is split
   into two lanes summing to ≤ the key cap: `FOOD_INTERACTIVE_SEARCH_CAP_PER_HOUR` (a **reserved floor** for
   user-facing search, e.g. ~300) and the worker fan-out gets the remainder. User search is prioritized (a
   waiting human > admission lag; the worker already tolerates `isPaused`). **This is not config:** it needs a
   new `channel` dimension on `source_call_log`, a channel-aware count/insert (keep the advisory lock on `source`
   so both lanes serialize), a limiter-API arg, and two-cap DI wiring. Plus load-shedding analogous to
-  `AuthLoadShedder`. **No per-owner throttle here** — quota is aggregate/IP; optional per-owner *fairness* is a
+  `AuthLoadShedder`. **No per-owner throttle here** — quota is aggregate/IP; optional per-owner _fairness_ is a
   recipe-service concern, deferred (see §4).
 - **Opaque admit token + by-fdcId admit (F-W3 — net-new, reuses the merge primitive).** A not-yet-admitted hit
   carries an **opaque token** (server-encoded `{source, externalKey}`) — **reuse the existing `jose` codec**
-  (`recipe-service/src/auth/service-erasure-auth.service.ts`), not a hand-rolled one; NOT the raw fdcId. Picking
+  (`recipe-service/src/auth/serviceErasureAuth.service.ts`), not a hand-rolled one; NOT the raw fdcId. Picking
   it → `POST /v1/foods/admit-by-key {token}` → a **NEW `MergeAndPersistService.admitByExternalKey`**:
   `findFoodIdByExternalKey` (dedup vs already-admitted → return its id) else create a food row **via the
-  `createByName` `ON CONFLICT (normalized_name)` path** — NOT a blind insert (F4): a *different* fdcId can
+  `createByName` `ON CONFLICT (normalized_name)` path** — NOT a blind insert (F4): a _different_ fdcId can
   normalize to a seeded row's name (branded "chicken breast" vs seeded SR-Legacy "chicken breast") and
   `food.normalized_name` is a NOT-NULL unique index, so the admit needs **both** external-key dedup AND a
   normalized-name find-or-create or it 23505s. Then `fetchByKey` → persist as a single survivor via
@@ -255,6 +261,7 @@ Only the residual (branded, obscure, misspelled, not-yet-seeded) reaches here. N
 ---
 
 ## 3. Data-model & contract changes (summary)
+
 - **New:** `usda_search_cache` (query-normalized key, `SourceCandidate[]` payload, `fetched_at`, TTL index) —
   food-service. A bulk-crosswalk DAO method (`findFoodIdsByExternalKeys(source, keys[])`). A **`channel` column
   on `source_call_log`** (+ channel-aware count/insert, limiter-API arg, two-cap DI) for the interactive
@@ -268,13 +275,15 @@ Only the residual (branded, obscure, misspelled, not-yet-seeded) reaches here. N
   owner-scoped (F-#4).
 - **New importer:** food-service bulk-seed task (Foundation + SR Legacy) — own bulk parser + find-or-create.
 - **Unchanged / preserved:** fdcId boundary (FR-IDN-2), the golden-record merge, the existing by-name async path
-  (kept as a fallback), recipe→food **M2M** auth, the 1,000/hr key cap (now *split into lanes*, not raised).
+  (kept as a fallback), recipe→food **M2M** auth, the 1,000/hr key cap (now _split into lanes_, not raised).
 - **Client/UI:** a blended-result shape (discriminated: `local` | `catalog` | `usda-admitted` | `usda-token`),
   a live-search hook (heavier debounce + on-demand), the sectioned/badged picker, the by-key admit mutation.
 
 ## 4. Rate/quota strategy (the crux, restated)
+
 USDA rate-limits by **IP** (our food-service egress), not by user — so quota protection is entirely **aggregate**
 and user-agnostic (F-#4). The levers, in order of impact:
+
 1. **Seed** removes most demand from the live path entirely — at ingest AND at refresh (seeded foods excluded
    from live change-refresh, F-C2).
 2. **Result cache** (24h) collapses repeated long-tail queries to **one call per query per day across ALL users**.
@@ -285,27 +294,29 @@ and user-agnostic (F-#4). The levers, in order of impact:
 5. **Escape valve:** USDA grants higher limits on request for OSS/research — a lever if the tail is bigger than
    expected. (Also: Open Food Facts as an unlimited branded/barcode supplement — future.)
 6. **Per-owner fairness (NOT a quota mechanism, optional, deferred):** since quota is aggregate/IP, a per-owner
-   limit only prevents one user hogging *our own* interactive lane — a fairness concern, not quota. If wanted it
+   limit only prevents one user hogging _our own_ interactive lane — a fairness concern, not quota. If wanted it
    lives at **recipe-service** (verified `@OwnerId()`, M2M unchanged). **Deferred pending measurement** — the
    on-demand trigger + cache + aggregate cap already bound the abuse surface; add it only if a single user is
    shown to meaningfully starve the lane.
 
 ## 5. Risks & mitigations
-| Risk | Mitigation |
-|---|---|
-| **Seed floods live change-refresh against the 1,000/hr window (F-C2)** | **Stage-1 hard requirement:** mark seeded foods `bulk`-origin + skip them in `listResolvedBackingItems`; re-freshen from the next bulk download (SR Legacy never changes upstream anyway) |
-| Bulk-seed ETL complexity / nutrient mapping (F-W2) | Foundation+SR Legacy only (~8k, small); **own bulk parser** (bulk CSV ≠ API shape) + explicit find-or-create on the crosswalk; nutrient dictionary auto-resolves |
-| Two-catalog dedup (recipe `ingredients` vs food `food`) | Dedup on `food_id`; section by provenance; long-term one-catalog is a separate refactor (flagged) |
-| **Stage 2 adds a per-keystroke food-service dependency (F2)** — typeahead no longer "entirely local" | Short timeout + **fall back to recipe-local DAL results** if food-service slow/down; local section always renders |
-| **Stage 2 pick backfill (F1)** — food search carries no nutrition | Create row RESOLVED **then** one immediate `getStatus`+`updateResolution` backfill; never ship NULL-calorie rows |
-| Interactive lane starves worker (or vice-versa) | Two-lane split summing ≤ key cap (a schema+limiter migration, F-W1); worker tolerates pause; monitor both lanes |
-| USDA search junk / bad ranking (Branded spam, "almonds"→"almond milk") | Live search is the *tail*, explicitly triggered + badged; prefer Foundation/SR/Survey `dataType` filters; whole-food core is seeded + locally ranked |
-| One user hogging the interactive lane | **Fairness, not quota** — aggregate cap + cache + on-demand trigger already bound it; optional per-owner limit at recipe-service, deferred (§4) |
-| By-key admit latency (10s USDA timeout, F-info) | Fast-poll via the existing status mechanism (median sub-second, ≤10s tail); deterministic single-survivor merge; not promised-instant |
-| fdcId leakage | Opaque token (reuse `jose` codec); bulk crosswalk stays inside food-service |
-| Scope creep — building Stage 3 before proving Stages 1–2 suffice | **Instrument local hit-rate after 1–2; gate 3 on the measured tail** |
+
+| Risk                                                                                                 | Mitigation                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Seed floods live change-refresh against the 1,000/hr window (F-C2)**                               | **Stage-1 hard requirement:** mark seeded foods `bulk`-origin + skip them in `listResolvedBackingItems`; re-freshen from the next bulk download (SR Legacy never changes upstream anyway) |
+| Bulk-seed ETL complexity / nutrient mapping (F-W2)                                                   | Foundation+SR Legacy only (~8k, small); **own bulk parser** (bulk CSV ≠ API shape) + explicit find-or-create on the crosswalk; nutrient dictionary auto-resolves                          |
+| Two-catalog dedup (recipe `ingredients` vs food `food`)                                              | Dedup on `food_id`; section by provenance; long-term one-catalog is a separate refactor (flagged)                                                                                         |
+| **Stage 2 adds a per-keystroke food-service dependency (F2)** — typeahead no longer "entirely local" | Short timeout + **fall back to recipe-local DAL results** if food-service slow/down; local section always renders                                                                         |
+| **Stage 2 pick backfill (F1)** — food search carries no nutrition                                    | Create row RESOLVED **then** one immediate `getStatus`+`updateResolution` backfill; never ship NULL-calorie rows                                                                          |
+| Interactive lane starves worker (or vice-versa)                                                      | Two-lane split summing ≤ key cap (a schema+limiter migration, F-W1); worker tolerates pause; monitor both lanes                                                                           |
+| USDA search junk / bad ranking (Branded spam, "almonds"→"almond milk")                               | Live search is the _tail_, explicitly triggered + badged; prefer Foundation/SR/Survey `dataType` filters; whole-food core is seeded + locally ranked                                      |
+| One user hogging the interactive lane                                                                | **Fairness, not quota** — aggregate cap + cache + on-demand trigger already bound it; optional per-owner limit at recipe-service, deferred (§4)                                           |
+| By-key admit latency (10s USDA timeout, F-info)                                                      | Fast-poll via the existing status mechanism (median sub-second, ≤10s tail); deterministic single-survivor merge; not promised-instant                                                     |
+| fdcId leakage                                                                                        | Opaque token (reuse `jose` codec); bulk crosswalk stays inside food-service                                                                                                               |
+| Scope creep — building Stage 3 before proving Stages 1–2 suffice                                     | **Instrument local hit-rate after 1–2; gate 3 on the measured tail**                                                                                                                      |
 
 ## 6. Alternatives considered (and why not)
+
 - **Live USDA on every debounced keystroke (blend live).** Rejected: exhausts the shared per-IP 1,000/hr in
   minutes; adds USDA latency to every search; the UX research + rate facts both kill it.
 - **Skip seeding; live-search only.** Rejected: makes the fragile live path carry all load; worse coverage,
@@ -318,6 +329,7 @@ and user-agnostic (F-#4). The levers, in order of impact:
   large refactor orthogonal to this feature; the blend + `food_id` dedup is the pragmatic path.
 
 ## 7. Open decisions for the owner
+
 1. **Stage-gate:** ship **Stage 1+2, measure local hit-rate, then decide on Stage 3** (recommended) — or commit
    to all three up front?
 2. **Seed breadth:** Foundation + SR Legacy only (recommended), or also FNDDS/Survey? (Branded stays on-demand
@@ -333,6 +345,7 @@ and user-agnostic (F-#4). The levers, in order of impact:
 **user-agnostic** (quota is aggregate/IP); per-owner throttle is **fairness, deferred** to recipe-service.
 
 ## 8. Rollout & measurement
+
 - Ship Stage 1 (seed) behind an importer + verify catalog coverage; Stage 2 (blend) behind a flag; instrument
   **% of ingredient searches served fully locally** and **the residual (would-hit-USDA) rate**. Only build
   Stage 3 if the residual justifies it, sized to the measured tail. Each stage carries the full test matrix
@@ -342,8 +355,9 @@ and user-agnostic (F-#4). The levers, in order of impact:
 ---
 
 ## Sources
-- Internal: `food-service/src/sources/usda/usda.adapter.ts`, `sources/rolling-window-limiter.ts`,
-  `foods/foods.service.ts`, `foods/dao/food-sources.dao.ts`, `merge/*`, `worker/food-consumer.service.ts`;
+
+- Internal: `food-service/src/sources/usda/usda.adapter.ts`, `sources/RollingWindowLimiter.ts`,
+  `foods/foods.service.ts`, `foods/dao/foodSources.dao.ts`, `merge/*`, `worker/foodConsumer.service.ts`;
   `recipe-service/src/ingredients/*`; `features/recipes/src/hooks/{useIngredientResolver,ingredientResolver.model}.*`.
 - USDA FoodData Central API Guide (1,000 req/hr per IP) — fdc.nal.usda.gov/api-guide; FDC bulk downloads —
   fdc.nal.usda.gov/download-datasets.html.

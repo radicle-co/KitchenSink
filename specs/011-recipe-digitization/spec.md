@@ -245,7 +245,7 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 >
 > **Where 011 lands**: a photo-digitized recipe is `sourceType: 'imported_physical'`, which the shipped
 > policy makes **private-only**. 011 MUST call `evaluateVisibility`
-> (`packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`) rather than deciding
+> (`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts`) rather than deciding
 > visibility itself — the same constraint `004-FR-011` carries. The "unless otherwise marked" carve-out
 > never applies here: a cookbook page, recipe card, or handwritten note is not a publicly available source.
 
@@ -381,7 +381,7 @@ New tables (PostgreSQL 16, Drizzle): `circles`, `circle_members` (PK = `circle_i
   their wire shapes as zod at `src/**/*.schema.ts` beside the controller that serves them, **validate their own
   requests with that same zod** (`nestjs-zod` `createZodDto`), and each generates a committed
   `@kitchensink/schema-digitization` / `@kitchensink/schema-circles` package exporting the zod, `z.infer` types,
-  a `contract-hash.ts`, and a **derived** `openapi.yaml` (outbound only — for `oasdiff`, docs and integrators,
+  a `contractHash.ts`, and a **derived** `openapi.yaml` (outbound only — for `oasdiff`, docs and integrators,
   never a codegen input).
 - **The client half — separately mandatory.** Every consumer, whether it is `@commise/web`, `@commise/mobile`,
   a feature package, or **another service (001 / 006 / 007)**, imports its wire types **and zod** from those

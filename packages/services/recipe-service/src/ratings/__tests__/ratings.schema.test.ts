@@ -20,7 +20,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { describe, expect, it } from 'vitest';
 
 import { setRatingRequestSchema } from '../ratings.schema.js';
-import { SetRatingDto } from '../dto/set-rating.dto.js';
+import { SetRatingDto } from '../dto/setRating.dto.js';
 
 /** Run a body through the exact pipe an inbound request meets. */
 function throughPipe(body: unknown): unknown {

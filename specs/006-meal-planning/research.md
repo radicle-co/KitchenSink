@@ -510,7 +510,7 @@ does not need recipe **ingredients** at all — only recipe **nutrition** — wh
 
 The May answer assumed a `usda_fdc_id` on ingredients and a live USDA nutrient fetch. Neither survives contact with the
 shipped platform: 003 is deliberately **source-agnostic** (USDA is one adapter behind
-`packages/services/food-service/src/sources/food-source-adapter.ts`), foods are referenced by an opaque internal id and
+`packages/services/food-service/src/sources/foodSourceAdapter.ts`), foods are referenced by an opaque internal id and
 never by `fdcId`, and nutrition is resolved asynchronously and denormalized by 001 long before 006 reads it. **006 makes
 no call to the food service.** The 009 half of RQ-9 stands: 009 links to meal plans and computes compliance itself;
 006 provides the projection (FR-036) and computes no compliance.

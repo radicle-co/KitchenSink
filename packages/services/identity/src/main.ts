@@ -12,7 +12,7 @@
  *    `import { AppModule } from './app.module.js'`, a broken environment throws `ConfigValidationError` out of
  *    the ESM loader before `bootstrap()` is entered, so the contract-skew assertion could not be the first thing
  *    to run no matter where it was written. Deferring the import makes the ordering real instead of
- *    asserted-in-a-comment. `__tests__/main-boot-order.test.ts` fails if the static form comes back.
+ *    asserted-in-a-comment. `__tests__/mainBootOrder.test.ts` fails if the static form comes back.
  */
 import './instrument.js';
 import 'reflect-metadata';
@@ -20,16 +20,16 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { CONTRACT_HASH as SCHEMA_PACKAGE_CONTRACT_HASH } from '@kitchensink/schema-identity';
 
-import { CONTRACT_HASH } from './contract/contract-hash.js';
-import { assertContractHashesAgree } from './contract/contract-skew.js';
-import { NestSentryLogger } from './observability/sentry-logging.js';
+import { CONTRACT_HASH } from './contract/contractHash.js';
+import { assertContractHashesAgree } from './contract/contractSkew.js';
+import { NestSentryLogger } from './observability/sentryLogging.js';
 import { buildCorsPolicy } from './config/cors.js';
 
 async function bootstrap(): Promise<void> {
     // DRIFT LAYER 3 (Skew) — the first thing this process does after Sentry is installed, and before config is
     // validated, the DI graph exists, or any database pool / AWS client is constructed. If the contract every
     // client compiles against does not describe this binary, there is nothing to be gained by getting further.
-    // See `contract/contract-skew.ts` for what this does and does not catch, and for why failing closed costs no
+    // See `contract/contractSkew.ts` for what this does and does not catch, and for why failing closed costs no
     // availability: both values are baked into the image, so the outcome is fixed at build time and the unit
     // suite asserts it on the committed stamps.
     assertContractHashesAgree(CONTRACT_HASH, SCHEMA_PACKAGE_CONTRACT_HASH);

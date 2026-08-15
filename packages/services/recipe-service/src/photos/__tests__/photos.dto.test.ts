@@ -20,9 +20,9 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import type { ArgumentMetadata } from '@nestjs/common';
 import { ALLOWED_RECIPE_PHOTO_MIME_TYPES, MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '@kitchensink/recipe-core';
 
-import { ConfirmPhotoDto } from '../dto/confirm-photo.dto.js';
-import { CreatePhotoUploadDto } from '../dto/create-photo-upload.dto.js';
-import { ReorderPhotosDto } from '../dto/reorder-photos.dto.js';
+import { ConfirmPhotoDto } from '../dto/confirmPhoto.dto.js';
+import { CreatePhotoUploadDto } from '../dto/createPhotoUpload.dto.js';
+import { ReorderPhotosDto } from '../dto/reorderPhotos.dto.js';
 import {
     confirmPhotoRequestSchema,
     createPhotoUploadRequestSchema,

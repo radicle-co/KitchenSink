@@ -3,8 +3,8 @@
  *
  * ## Why this is a module and not copied into each guard
  *
- * Two repo-wide guard suites (`service-security-invariants.test.ts` and
- * `service-infra-wiring-invariants.test.ts`) constrain services that DO NOT EXIST YET, and both depend on the
+ * Two repo-wide guard suites (`serviceSecurityInvariants.test.ts` and
+ * `serviceInfraWiringInvariants.test.ts`) constrain services that DO NOT EXIST YET, and both depend on the
  * same property to do it: the service list is DISCOVERED from each service's own `package.json`, never
  * enumerated. That property is the whole point — a new service is covered the day its manifest lands and cannot
  * opt out by not being mentioned.
@@ -206,7 +206,7 @@ export function moduleSpecifiers(source: SourceFile): readonly string[] {
  * Whether a file is a test/fixture rather than production source.
  *
  * `__mocks__` is included deliberately, and is the ONE difference from the copy this was extracted from
- * (`service-security-invariants.test.ts` listed `__tests__`, `__fixtures__`, `tests`). It is inert today —
+ * (`serviceSecurityInvariants.test.ts` listed `__tests__`, `__fixtures__`, `tests`). It is inert today —
  * `git ls-files` finds no `__mocks__` directory anywhere under `packages/services` — and a mock is test code by
  * any reading, so the alternative would be a gate that treats a hand-written mock as production source. Recorded
  * here rather than left as an unexplained widening, since the effect of adding a name is to EXCLUDE more files

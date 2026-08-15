@@ -10,7 +10,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CONTRACT_HASH } from '../../contract/contract-hash.js';
+import { CONTRACT_HASH } from '../../contract/contractHash.js';
 import { HealthController } from '../health.controller.js';
 
 function makeController(query: ReturnType<typeof vi.fn>): HealthController {

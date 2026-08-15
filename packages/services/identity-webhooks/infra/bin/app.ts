@@ -8,7 +8,7 @@ import { attachSecurityChecks } from '@kitchensink/infra-security';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
 
-import { WebhooksStack } from '../lib/webhooks-stack.js';
+import { WebhooksStack } from '../lib/WebhooksStack.js';
 
 const app = new App();
 // Identity webhooks are persistent global platform lambdas — never per-PR. See ADR-0005.

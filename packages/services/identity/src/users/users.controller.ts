@@ -1,7 +1,7 @@
 import { Controller, Get, Patch, Delete, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service.js';
-import { CurrentAuthorizerContext } from '../auth/decorators/current-user.decorator.js';
-import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import { CurrentAuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
+import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import { PatchUserMeBodyDto, DeleteUserMeResponseDto } from './dto/user.dto.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:

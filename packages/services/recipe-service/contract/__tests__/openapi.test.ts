@@ -52,7 +52,7 @@ import { INT4_CEILING, MAX_SEARCH_PAGE_SIZE } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import { AccountController } from '../../src/account/account.controller.js';
-import { ServiceErasureController } from '../../src/account/service-erasure.controller.js';
+import { ServiceErasureController } from '../../src/account/serviceErasure.controller.js';
 import { CollectionsController } from '../../src/collections/collections.controller.js';
 import { HealthController } from '../../src/health/health.controller.js';
 import { IngredientsController } from '../../src/ingredients/ingredients.controller.js';

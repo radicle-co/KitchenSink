@@ -14,8 +14,8 @@ import type {
     StatusResult,
 } from '@kitchensink/food-service-client';
 
-import { CallerToken } from '../../auth/caller-token.js';
-import type { FoodServiceClients } from '../food-service-clients.factory.js';
+import { CallerToken } from '../../auth/CallerToken.js';
+import type { FoodServiceClients } from '../FoodServiceClients.factory.js';
 
 /**
  * The caller credential the ingredient tests forward to the food service (issue #120). A real request

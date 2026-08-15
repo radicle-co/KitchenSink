@@ -13,7 +13,7 @@ on:
             # computed from their own paths-filter groups: a filter can only classify a run that STARTED, so
             # while these were absent a food-only or recipe-only merge never fired this workflow at all, and
             # those legs deployed only when a change happened to ride along with an identity/global one.
-            # Keep in step with the `food`/`recipe` filters — prod-deploy-reachability.test.ts asserts it.
+            # Keep in step with the `food`/`recipe` filters — prodDeployReachability.test.ts asserts it.
             - 'packages/services/food-service/**'
             - 'packages/services/recipe-service/**'
             - 'packages/services/recipe-workers/**'
@@ -506,7 +506,7 @@ jobs:
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: |
                   set -euo pipefail
-                  food_url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
+                  food_url=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts \
                     "${STAGE}" "${DOMAIN_NAME}")
                   echo "url=${food_url}" >> "$GITHUB_OUTPUT"
                   echo "recipe will call food at ${food_url}"
@@ -524,7 +524,7 @@ jobs:
                   # Regenerate prod.package.json from the dev manifest before the image is built — the same
                   # step food and identity already had. Recipe was the ONE service without it, which is how its
                   # manifest came to omit eight declared runtime dependencies and to name `./dist/main.js`, an
-                  # entry point the build does not emit. prod-manifest-parity.test.ts checks the CONTENTS; this
+                  # entry point the build does not emit. prodManifestParity.test.ts checks the CONTENTS; this
                   # is what stops them going stale in the first place.
                   npm run docker:prepare --workspace=packages/services/recipe-service
                   npm run infra:build --workspace=packages/services/recipe-service
@@ -649,10 +649,10 @@ jobs:
             #
             # ⚠️ NO `--web-origin`, and that is DERIVED, not an oversight. The food service has no
             # `app.enableCors(…)` in `main.ts` because nothing outside the cluster calls it — its only
-            # consumer is the recipe service, server-to-server (`food-catalog.gateway.ts`), which is also why
+            # consumer is the recipe service, server-to-server (`foodCatalog.gateway.ts`), which is also why
             # `/api/v1/foods/search` needing a Clerk token is the recipe smoke's PASS condition. Sending food
             # a CORS preflight would assert a browser path that does not exist, and the smoke would red for a
-            # reason unrelated to the deploy. `prod-deploy-smoke-depth.test.ts` reads each service's `main.ts`
+            # reason unrelated to the deploy. `prodDeploySmokeDepth.test.ts` reads each service's `main.ts`
             # and requires `--web-origin` exactly when CORS is enabled, so if food ever becomes
             # browser-facing this step owes the flag and the build says so.
             - name: Smoke test — food service CURRENT (prod)
@@ -735,9 +735,9 @@ jobs:
             # Setting PROD_WEB_SMOKE_ORIGIN is the ENTIRE gate: the suite is `describe.runIf`-gated on it so
             # that a production outage (or an offline laptop) cannot red every local and per-PR `npm run
             # test`. Until this step existed the suite passed by never executing — the same silent success as
-            # a `|| true`, minus the grep-ability. `prod-deploy-smoke-depth.test.ts` now asserts this pairing.
+            # a `|| true`, minus the grep-ability. `prodDeploySmokeDepth.test.ts` now asserts this pairing.
             - name: Smoke test — production web surface (stage coherence + termination)
               working-directory: packages/infra/global
               env:
                   PROD_WEB_SMOKE_ORIGIN: https://${{ vars.DOMAIN_NAME }}
-              run: npx vitest run __tests__/prod-web-surface.integration.test.ts
+              run: npx vitest run __tests__/prodWebSurface.integration.test.ts

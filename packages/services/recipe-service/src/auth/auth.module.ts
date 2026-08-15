@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 
 import { AuthMiddleware } from './auth.middleware.js';
-import { ClerkAuthService } from './clerk-auth.service.js';
-import { ServiceErasureAuthService } from './service-erasure-auth.service.js';
-import { ServiceErasureGuard } from './service-erasure.guard.js';
+import { ClerkAuthService } from './clerkAuth.service.js';
+import { ServiceErasureAuthService } from './serviceErasureAuth.service.js';
+import { ServiceErasureGuard } from './serviceErasure.guard.js';
 
 /**
  * `AuthModule` — provides the two verification stacks the recipe service authenticates with:

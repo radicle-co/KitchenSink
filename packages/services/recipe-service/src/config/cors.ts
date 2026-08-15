@@ -9,7 +9,7 @@
  * maintaining a second, drift-prone allowlist. One trust boundary, two consumers.
  *
  * ⚠️ WHAT WAS WRONG BEFORE, AND IT WAS THE DIRECTION OF FAILURE, NOT THE SANDBOX BEHAVIOUR. This was
- * `origin: parties.length > 0 ? parties : true`. `infra/lib/recipe-service-stack.ts` sets
+ * `origin: parties.length > 0 ? parties : true`. `infra/lib/RecipeServiceStack.ts` sets
  * `CLERK_AUTHORIZED_PARTIES` only on the prod stage; every deployed non-prod stage gets `CLERK_AZP_PATTERN`
  * instead, and `config.types.ts`'s `superRefine` enforces exactly one of the two — so on sandbox and on every
  * `pr-{N}` the list was NECESSARILY empty and the branch taken was `true`: reflect any origin, with
@@ -40,7 +40,7 @@
  * entirely, and the denial becomes an accident of absence rather than this policy's decision (no
  * `Vary: Origin` for caches, the preflight answered by Express's default `OPTIONS` handler instead of by
  * CORS). An empty list keeps the middleware in the path and denies by FAILING THE MATCH. That difference is
- * invisible in the option value, so `__tests__/cors-headers.test.ts` asserts it at the header level: the
+ * invisible in the option value, so `__tests__/corsHeaders.test.ts` asserts it at the header level: the
  * `Vary: Origin` + `204` pair is what turns red if `[]` is ever "simplified" to `false`.
  *
  * ⛔ PRECONDITION — THIS SERVICE IS BEARER-ONLY, AND THAT IS WHAT MAKES A PERMISSIVE ORIGIN SURVIVABLE.
@@ -53,7 +53,7 @@
  * Clerk dev instance reflects any `Origin` regardless of what we send). **If any route ever reads a cookie or
  * a session credential, or accepts a WebSocket upgrade, this precondition is broken and the loopback and
  * preview-pattern branches must be re-derived in that same change.**
- * `__tests__/bearer-only-precondition.test.ts` parses `src/` (AST, not grep — this very comment names
+ * `__tests__/bearerOnlyPrecondition.test.ts` parses `src/` (AST, not grep — this very comment names
  * `req.cookies`) and fails the build if the premise stops holding.
  *
  * NOTE ON SHARING: identity's `src/config/cors.ts` implements the same policy. The two are deliberately
@@ -82,7 +82,7 @@ const ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'sentry-trace', 'bagga
 
 /**
  * The one `NODE_ENV` value that means "this process is on a developer's machine". Deployed tasks run
- * `staging` or `production` (`infra/lib/recipe-service-stack.ts`), and `config.types.ts` requires `NODE_ENV`
+ * `staging` or `production` (`infra/lib/RecipeServiceStack.ts`), and `config.types.ts` requires `NODE_ENV`
  * to be one of the three — so anything unrecognized reaching {@link isDeployedEnvironment} is treated as
  * DEPLOYED, which is the fail-closed direction.
  */
@@ -91,7 +91,7 @@ const LOCAL_NODE_ENV = 'development';
 /**
  * Whether `nodeEnv` names a DEPLOYED environment (`staging` / `production`) rather than a developer machine.
  * Recipe keys its environment on `NODE_ENV` — unlike identity and food, which key on `STAGE` (see the note in
- * `infra/lib/recipe-service-stack.ts`) — and `NODE_ENV` is the discriminator this service's config schema
+ * `infra/lib/RecipeServiceStack.ts`) — and `NODE_ENV` is the discriminator this service's config schema
  * actually validates, so a security decision derived from it cannot be steered by an unvalidated variable.
  * Unknown or absent values count as deployed. Pure.
  *

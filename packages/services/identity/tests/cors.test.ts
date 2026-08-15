@@ -4,7 +4,7 @@
  * ⚠️ WHAT THIS FILE USED TO ASSERT, AND WHY THAT WAS WORSE THAN NO TEST. The old suite fed
  * `buildCorsOptions(['https://sandbox.commise.app'])` and concluded "deployed stages are origin-pinned".
  * That list is one a deployed non-prod stage NEVER HAS: infra sets `CLERK_AUTHORIZED_PARTIES` only when
- * `stage === 'prod'` (`infra/lib/identity-service-stack.ts`), non-prod gets `CLERK_AZP_PATTERN`, and
+ * `stage === 'prod'` (`infra/lib/IdentityServiceStack.ts`), non-prod gets `CLERK_AZP_PATTERN`, and
  * `env.schema.ts` enforces exactly one of the two on every deployed stage. So the branch actually taken on
  * sandbox and on every `pr-{N}` was the empty-list one — `origin: true`, reflect ANY origin — and the suite
  * proved a posture the service never ran.
@@ -121,7 +121,7 @@ describe('buildCorsPolicy', () => {
         // before `cors()` ever runs. `false` therefore emits NO header — it is a silent middleware BYPASS, not
         // a wildcard. An empty list keeps the middleware in the path and denies by failing the match, which is
         // why the representation still matters. See `src/config/cors.ts` for the measured table, and
-        // `tests/cors-headers.test.ts`, which anchors the guard on the observable difference over real HTTP
+        // `tests/corsHeaders.test.ts`, which anchors the guard on the observable difference over real HTTP
         // (`Vary: Origin` + a `204` preflight) rather than on the header absence both values share.
         it('expresses "closed" as an EMPTY LIST, keeping the middleware in the request path', () => {
             expect(buildCorsPolicy(brokenInput).options.origin).toEqual([]);

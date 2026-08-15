@@ -22,7 +22,7 @@ import pg from 'pg';
 
 import { BASE_RECIPE_DATABASE_NAME } from '@kitchensink/recipe-core/database-name';
 
-import { RECIPE_DB_USERNAME, recipePoolConfig } from '../../database/pool-config.js';
+import { RECIPE_DB_USERNAME, recipePoolConfig } from '../../database/poolConfig.js';
 import * as schema from '../../database/schema/index.js';
 
 const { Pool } = pg;

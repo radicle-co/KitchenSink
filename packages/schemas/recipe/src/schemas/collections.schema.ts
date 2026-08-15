@@ -81,7 +81,7 @@ const collectionDescriptionSchema = z.string().min(1).max(MAX_COLLECTION_DESCRIP
  *
  * `ownerId` is deliberately absent and unaccepted: ownership comes from the verified principal, so the STRICT
  * object refuses a hostile `ownerId` with a `400` before the service sees it — asserted in
- * `dto/__tests__/collection-dtos.test.ts`.
+ * `dto/__tests__/collectionDtos.test.ts`.
  */
 export const createCollectionRequestSchema = z.strictObject({
     name: collectionNameSchema,

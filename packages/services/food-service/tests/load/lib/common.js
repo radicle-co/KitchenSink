@@ -26,7 +26,7 @@ export const BASE_URL = (__ENV['FOOD_API_BASE_URL'] || 'http://localhost:3000').
 //
 // SC-003 is NOT measurable by k6 (it spans the Fargate fan-out worker and a source HTTP call, which this
 // suite must not make). Its DB-side component — the drain claim that the FR-046 ceiling stresses — is
-// measured by `../drain-demotion.perf.ts`, which owns that budget and its derivation.
+// measured by `../drainDemotion.perf.ts`, which owns that budget and its derivation.
 
 // SC-001 verbatim: "Food reads for locally-RESOLVED items MUST return within 50ms at p95 latency."
 // Measured on `GET /api/v1/foods/{id}` for a RESOLVED food ONLY — a 202/404 read is a different, cheaper
@@ -202,14 +202,14 @@ export const SUMMARY_TREND_STATS = ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99
 //
 // Both files are GENERATED and GITIGNORED, so they are NEVER present from a fresh checkout: the loaders
 // below fail with an actionable message naming the prepare step rather than letting k6 report a bare
-// `open() failed`. They are functions, not top-level constants, because `service-erasure.load.js` also
+// `open() failed`. They are functions, not top-level constants, because `serviceErasure.load.js` also
 // imports this module and must not require a Clerk pool it never uses.
 
 const TOKENS_FILE = __ENV['FOOD_TOKENS_FILE'] || './clerk-tokens.json';
 const FIXTURE_FILE = __ENV['FOOD_PERF_FIXTURE_FILE'] || './perf-fixture.json';
 
 /**
- * Load the Clerk session-token pool minted by `prepare-clerk-tokens.ts`.
+ * Load the Clerk session-token pool minted by `prepareClerkTokens.ts`.
  *
  * Must be called from the INIT context (k6 forbids `open()` elsewhere).
  *
@@ -239,7 +239,7 @@ export function loadTokens() {
 }
 
 /**
- * Load the store fixture emitted by `prepare-perf-fixture.ts`.
+ * Load the store fixture emitted by `preparePerfFixture.ts`.
  *
  * Must be called from the INIT context. Validates every list the scripts index into is non-empty, so a
  * truncated or half-written fixture fails HERE instead of producing `undefined` in a URL — which the

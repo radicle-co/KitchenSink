@@ -21,7 +21,7 @@
  * catches both and stays stage-agnostic, so this guard does not need to know which stage it is running
  * in. That matters because the build does not reliably know either.
  *
- * KNOWN DUPLICATION, stated rather than hidden: `packages/infra/global/__tests__/prod-web-surface.ts`
+ * KNOWN DUPLICATION, stated rather than hidden: `packages/infra/global/__tests__/prodWebSurface.ts`
  * implements the same classification for the RUNTIME probe against live production. The rule
  * ("production endpoints require a production Clerk instance") is one piece of knowledge in two places
  * — a build-time check in this package and a post-deploy check in another. Extracting it to a shared

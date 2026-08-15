@@ -9,7 +9,7 @@
  *
  * These are still LITERALS, i.e. this file's own belief about the server, which is the limitation §15.1 names. The
  * body the SERVICE actually produces is driven through this client for real in
- * `packages/services/food-service/src/common/__tests__/error-contract-lockstep.test.ts` — that is the tier that
+ * `packages/services/food-service/src/common/__tests__/errorContractLockstep.test.ts` — that is the tier that
  * fails when only one side of the contract moves. Cases here cover what that tier cannot: an unknown code, and a
  * non-envelope body.
  */

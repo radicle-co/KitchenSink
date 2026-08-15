@@ -135,7 +135,7 @@ describe('provisionCompleteUser', () => {
     /**
      * The per-identity serialization, at unit speed.
      *
-     * `provisioning-race.integration.test.ts` proves the runtime behaviour against a real Postgres (provisioning
+     * `provisioningRace.integration.test.ts` proves the runtime behaviour against a real Postgres (provisioning
      * blocks behind the lock). These two assert the STRUCTURE that produces it, so the guard runs on every
      * `npm test` without a database:
      *

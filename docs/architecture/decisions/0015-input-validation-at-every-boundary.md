@@ -43,7 +43,7 @@ none. Four concrete failures follow from that state, and each one is a different
 
 Injection was measured at the same time and is, unusually, **not currently a live defect**: only three
 `sql.raw()` sites take a non-literal argument (recipe's search DAL, and recipe-workers'
-`erasure-sweeper.ts` / `erasure-orphan-sweeper.ts`) and all three receive a config value or a module
+`erasureSweeper.ts` / `erasureOrphanSweeper.ts`) and all three receive a config value or a module
 constant. `sql.raw` bypasses parameterisation **by design**, so that is a state to hold deliberately rather
 than a box already ticked.
 
@@ -63,7 +63,7 @@ than a box already ticked.
    order.
 4. **Nothing reaches a database or another service unvalidated.** On a service-to-service edge — recipe →
    food, and identity's erasure fan-out
-   (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`) →
+   (`packages/services/identity-webhooks/src/common/erasureFanout.ts`) →
    `POST /api/v1/internal/account/erasure` on recipe and food — the **outbound body is validated against the
    callee's schema-package zod before the call**, and the **inbound response is validated on receipt**.
 5. **The database schema is the FLOOR.** Every input field writing a bounded column is validated at least as
@@ -178,7 +178,7 @@ proof of what they sent.
   editing this code the day this ADR was written.
     - ⚠️ **Correction to the "19 files" figure used above and in `docs/CODING_STANDARDS.md` §15.4.** Re-measured
       2026-08-12 with `grep -rl "from 'class-validator'"` over service sources (excluding `dist`): **exactly ONE
-      file imports it** — `packages/services/recipe-service/src/search/dto/search-recipes.query.dto.ts`. The 19
+      file imports it** — `packages/services/recipe-service/src/search/dto/searchRecipes.query.dto.ts`. The 19
       is a **mention** count, and 18 of those mentions are JSDoc _about migrating away from it_. Recipe is one
       file from a single mechanism, not nineteen — a difference that changes whether this is a task or a project.
       **Count importers, not mentions.** The rest of this ADR's reasoning is unaffected; only the size of the

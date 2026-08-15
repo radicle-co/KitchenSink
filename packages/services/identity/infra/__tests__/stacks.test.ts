@@ -9,7 +9,7 @@ import {
     ephemeralBandsForSlot,
 } from '@kitchensink/infra-alb';
 
-import { IdentityServiceStack } from '../lib/identity-service-stack.js';
+import { IdentityServiceStack } from '../lib/IdentityServiceStack.js';
 
 // NetworkStack/DataStack assertions live with the deployed (global) definitions in
 // packages/infra/global/__tests__. This suite covers only the service stack, which

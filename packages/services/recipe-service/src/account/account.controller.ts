@@ -26,13 +26,13 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UsePipes } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 
-import { OwnerId } from '../auth/current-principal.decorator.js';
+import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { ErasureService } from './erasure.service.js';
 import { AccountExportService } from './export.service.js';
 import { ErasureRequestDto, type ErasureRequestAcceptedResponse } from './dto/erasure.dto.js';
 import type { AccountExport } from './dto/export.dto.js';
 import { ExportRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
-import { SkipErasureLock } from './skip-erasure-lock.decorator.js';
+import { SkipErasureLock } from './skipErasureLock.decorator.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard

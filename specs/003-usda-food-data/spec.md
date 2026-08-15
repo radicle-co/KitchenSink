@@ -616,8 +616,8 @@ consequences of finishing the service. ✅ Measured 2026-08-12 the guard exists:
    only compiles what is on disk. What is needed is **cache invalidation** when an authored schema changes.
 2. **Correctness (CI):** regenerate and fail on any diff against the committed artifacts — the strong gate, and
    the only one that catches a hand-edited generated file.
-3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion** (`src/main.ts` + `src/contract/contract-skew.ts`,
-   ordered by `src/contract/__tests__/main-boot-order.test.ts`). This is load-bearing for 003 specifically
+3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion** (`src/main.ts` + `src/contract/contractSkew.ts`,
+   ordered by `src/contract/__tests__/mainBootOrder.test.ts`). This is load-bearing for 003 specifically
    because the food service is consumed by a **separately deployed** recipe service — the one skew case neither
    the turbo layer nor CI can see.
 
@@ -672,13 +672,13 @@ The section above decides **who authors** the contract; this one is where it **r
   tree / untracked" framing is CORRECTED.** It landed in **`49a1df7f`** ("feat(security): bind food's validation
   pipe, escape LIKE wildcards, gate future services"). `AppModule` binds **`nestjs-zod`'s** `ZodValidationPipe`
   through the **`APP_PIPE`** token; **`src/foods/dto/foods.dto.ts` is TRACKED** — `git ls-files` lists it with its
-  own `__tests__/foods.dto.test.ts` and `service-erasure.schema.ts` beside it — and declares **4 `createZodDto`
+  own `__tests__/foods.dto.test.ts` and `serviceErasure.schema.ts` beside it — and declares **4 `createZodDto`
   DTOs** (`AddFoodBodyDto`, `BatchAddFoodBodyDto`, `ResolveFoodBodyDto`, `SearchFoodQueryDto`) over **4
   `z.strictObject` schemas** in `foods.schema.ts`; all three `@Body() body: unknown` parameters are gone; and the
   controllers' `safeParse` count is **0**. ⛔ **Do not read the bullet above as the current state, and do not
   re-schedule this work** — the "committed state is still the violation" sentence it used to end on is no longer
   true. The invariant is now held by a gate rather than by prose: **G5** in
-  `packages/infra/global/__tests__/service-security-invariants.test.ts` requires a `ZodValidationPipe` over every
+  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts` requires a `ZodValidationPipe` over every
   HTTP controller in every discovered deployable, with **no exception list**.
 - **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates, resolve,
   search, **batch**, refetch, plus the admin surface — is parsed by the service's own `*.schema.ts` zod via
@@ -710,8 +710,8 @@ The section above decides **who authors** the contract; this one is where it **r
       from `@kitchensink/usda-client`** — GR-015 §15-a.5 is unchanged by this rule. The two artifacts agree in
       **one direction only**: the wire bound is at least as tight as the column. Enforcement is the per-service
       parity test GR-017 §17-d requires, and it **exists**:
-      `packages/services/food-service/src/db/schema/__tests__/storage-capacity.test.ts`, over shared machinery in
-      `@kitchensink/contract-gen` (`src/storage-capacity.ts`). It **may** import both artifacts because a test is
+      `packages/services/food-service/src/db/schema/__tests__/storageCapacity.test.ts`, over shared machinery in
+      `@kitchensink/contract-gen` (`src/storageCapacity.ts`). It **may** import both artifacts because a test is
       not a wire schema; it **derives** the bounded-column set from the drizzle tables via
       `collectBoundedColumns`, so a `varchar(n)` / `smallint` / `numeric(p,s)` column added tomorrow fails the
       test until it is either bound to the wire field that writes it or **exempted with a stated `why`**.
@@ -726,9 +726,9 @@ The section above decides **who authors** the contract; this one is where it **r
 - **Non-HTTP ingress this feature owns, enumerated** (a Nest pipe reaches none of them):
     - the **Postgres-as-queue demand path** — a `fetch_queue` row plus `pg_notify('fetch_queued')` (FR-011 /
       FR-014 / FR-017), drained by the Fargate consumer (`src/worker/**`);
-    - the **change-refresh** consumer (`src/worker/change-refresh/change-refresh.consumer.ts`, FR-032);
+    - the **change-refresh** consumer (`src/worker/change-refresh/changeRefresh.consumer.ts`, FR-032);
     - **EventBridge events** — `IngestionScheduled`, `FoodFetchCompleted`, `FetchFailed`
-      (`src/events/food-event-emitter.ts`, FR-034); a **scheduled** producer parses its event too, because "ours"
+      (`src/events/FoodEventEmitter.ts`, FR-034); a **scheduled** producer parses its event too, because "ours"
       is an assumption about a deploy;
     - the **API-Gateway WebSocket `$connect` REQUEST authorizer** (FR-049, US-9 — **deferred P3 and retired as
       specified**, so this binds when it is built, not today).
@@ -741,8 +741,8 @@ The section above decides **who authors** the contract; this one is where it **r
 
 - **003 is CALLED by another service and by identity's Lambdas.** `@kitchensink/recipe-service` resolves
   ingredients here, and identity's fan-out posts `POST /api/v1/internal/account/erasure`
-  (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`) into
-  `src/foods/service-erasure.controller.ts`. Both inbound bodies are validated like any other — **"internal" is
+  (`packages/services/identity-webhooks/src/common/erasureFanout.ts`) into
+  `src/foods/serviceErasure.controller.ts`. Both inbound bodies are validated like any other — **"internal" is
   not a synonym for "trusted"**, and because these are **our own** callers an invalid body gets the `400`/`403`
   GR-016 §16-a.3 requires, **not** the `2xx` GR-018 §18-c reserves for signature-verifying third-party webhook
   senders.
@@ -772,7 +772,7 @@ The section above decides **who authors** the contract; this one is where it **r
 - **SC-001**: Food reads for locally-`RESOLVED` items MUST return within 50ms at p95 latency.
 - **SC-002**: The system MUST make ≤1,000 USDA API calls in ANY rolling 60-minute window (and ≤ each additional source's limit, per source). Per-source rolling-window compliance MUST be verifiable via CloudWatch metrics — no rolling-hour window ever exceeds a source's cap and zero `429` responses occur under normal operation.
 - **SC-003**: Background food resolutions (from `202 Accepted` to `RESOLVED` available) MUST complete within 60 seconds at p95 when the `fetch_queue` pending-row depth is under 100 rows (excluding `UNRESOLVED` foods awaiting a human pick).
-    - **Variance allowance (owner ruling 2026-08-12), and its cost to this criterion, stated rather than buried.** The ruling — _"I think we have to account for and allow variations with plus/minus 15% on perf metrics"_ — is the **general form** of the SC-007 ruling of 2026-08-10 below, and it applies to **every** perf metric, at **every** depth, including the depth-100 point where SC-003 actually binds. The consequence is concrete: the drain-claim gate derived from this criterion (`tests/load/drain-demotion.perf.ts`, 60ms p95 = 10% of the 600ms-per-item slot) now enforces **69ms**, i.e. the claim is allowed **11.5% of the per-item drain slot rather than 10%**. That is a small but genuine loosening of a contract gate and is recorded here, next to the criterion it loosens, so it is visible to whoever reads SC-003 next.
+    - **Variance allowance (owner ruling 2026-08-12), and its cost to this criterion, stated rather than buried.** The ruling — _"I think we have to account for and allow variations with plus/minus 15% on perf metrics"_ — is the **general form** of the SC-007 ruling of 2026-08-10 below, and it applies to **every** perf metric, at **every** depth, including the depth-100 point where SC-003 actually binds. The consequence is concrete: the drain-claim gate derived from this criterion (`tests/load/drainDemotion.perf.ts`, 60ms p95 = 10% of the 600ms-per-item slot) now enforces **69ms**, i.e. the claim is allowed **11.5% of the per-item drain slot rather than 10%**. That is a small but genuine loosening of a contract gate and is recorded here, next to the criterion it loosens, so it is visible to whoever reads SC-003 next.
     - **The alternative reading, flagged for the owner rather than assumed away:** hold depth 100 at a hard 60ms and apply the ±15% only ABOVE it (where a breach is an FR-046/DSN-11 scaling finding, not an SC-003 one). That is a different decision, and it is a defensible one — depth 100 is the only depth where a product promise is at stake. The uniform reading is what is implemented, because "perf metrics" was stated generally; **changing to the split reading needs one more owner call and no code beyond a depth predicate.**
     - **What the allowance does NOT do, so nobody mistakes it for the fix.** It would not have prevented the red that prompted it: run 31608073724 measured 90.23ms against this gate — 50% over the 60ms budget, not 15% — and what removed that false red was correcting the probe's p95 estimator (30 → 300 samples; the worst contaminated p95 at n=300 measured 32.28ms). The allowance is a stated margin on top of an honest estimator, never a substitute for one. Full evidence in `packages/services/food-service/tests/load/README.md` "Finding 2" and tasks.md T-203.
 - **SC-004**: The **local-store serve rate** (reads served from the local store without any source call) MUST exceed 80% once the local store contains 5,000+ unique `RESOLVED` foods (measured over a rolling 24-hour window).

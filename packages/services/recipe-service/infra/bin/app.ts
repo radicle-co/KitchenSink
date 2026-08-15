@@ -8,7 +8,7 @@ import { attachSecurityChecks } from '@kitchensink/infra-security';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
 
-import { RecipeServiceStack } from '../lib/recipe-service-stack.js';
+import { RecipeServiceStack } from '../lib/RecipeServiceStack.js';
 
 const app = new App();
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
@@ -58,11 +58,11 @@ if (!vpcId) {
 // never fired and every deployed recipe task ran with no food origin — falling back to `http://localhost:3002`
 // inside its own container, where nothing listens. The service's config now requires the value, and the deploy
 // refuses to synth without it: the CI step derives it from the food stack's own DNS-label helper
-// (`packages/services/food-service/infra/bin/print-food-host.ts`), so the host shape has ONE definition.
+// (`packages/services/food-service/infra/bin/printFoodHost.ts`), so the host shape has ONE definition.
 if (!foodServiceUrl) {
     throw new Error(
         'RECIPE_FOOD_SERVICE_URL env var is required — the recipe service cannot boot without a food origin. ' +
-            'Derive it with `npx tsx packages/services/food-service/infra/bin/print-food-host.ts $STAGE $DOMAIN_NAME`.',
+            'Derive it with `npx tsx packages/services/food-service/infra/bin/printFoodHost.ts $STAGE $DOMAIN_NAME`.',
     );
 }
 

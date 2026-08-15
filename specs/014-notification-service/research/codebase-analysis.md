@@ -83,7 +83,7 @@ These are the constraints implied by the consuming features as currently specced
   convention exists yet, and this feature is the first to need one.
 - **[2026-08-10] A service-to-service auth pattern DOES exist.** `packages/shared/recipe-core/src/serviceErasureToken.ts`
   mints and verifies an **Ed25519** service-principal JWT, verified networklessly against an SPKI public key
-  injected as `FOOD_SERVICE_PRINCIPAL_JWT_KEY` (see `packages/services/food-service/infra/lib/food-service-stack.ts`
+  injected as `FOOD_SERVICE_PRINCIPAL_JWT_KEY` (see `packages/services/food-service/infra/lib/FoodServiceStack.ts`
   and its erasure-auth tests). FR-032 adopts exactly this scheme. The earlier note below — that the repo had
   no service-to-service pattern to copy — was true of the _identity_ service only, which verifies Clerk
   **user** session tokens, and it caused Q-004 to be recorded as unanswerable for three months.

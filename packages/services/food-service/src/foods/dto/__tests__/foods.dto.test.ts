@@ -26,7 +26,7 @@
  *
  * The `400` BODY these produce is deliberately not asserted here — `ZodValidationException`'s shape is
  * `nestjs-zod`'s, and what reaches the wire is the ARCH-PS-2 envelope the exception filter renders from it.
- * That translation is pinned in `common/filters/__tests__/api-exception.filter.test.ts`.
+ * That translation is pinned in `common/filters/__tests__/apiException.filter.test.ts`.
  */
 import { BadRequestException, type ArgumentMetadata } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
@@ -139,7 +139,7 @@ describe('SearchFoodQueryDto (GET /api/v1/foods/search)', () => {
     it('keeps a legitimate % in the term — escaping belongs where the ILIKE pattern is BUILT', () => {
         // If escaping were hoisted into validation, this would arrive as `50\% cream` and the full-text and
         // trigram branches (which receive the same string as a VALUE) would find nothing. See
-        // `dao/food-search.dao.ts` → `toIlikePattern`.
+        // `dao/foodSearch.dao.ts` → `toIlikePattern`.
         expect(through<{ query: string }>(SearchFoodQueryDto, { query: '50% cream' }, 'query')).toEqual({
             query: '50% cream',
         });
@@ -163,7 +163,7 @@ describe('SearchFoodQueryDto (GET /api/v1/foods/search)', () => {
 
 /*
  * The `class-validator`-metadata trap used to be asserted here for `AddFoodBodyDto` alone. It moved to
- * `../../__tests__/route-validation.test.ts`, which asserts it for EVERY DTO alongside the closed inventory of
+ * `../../__tests__/routeValidation.test.ts`, which asserts it for EVERY DTO alongside the closed inventory of
  * which route inputs are pipe-validated at all — the question this file cannot answer, because every case above
  * constructs `ZodValidationPipe` explicitly and so would still pass if `AppModule` stopped binding it.
  */

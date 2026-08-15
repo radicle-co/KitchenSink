@@ -12,7 +12,7 @@
  *    written.
  *
  * **Why the row is written BEFORE the message is sent, and why a failed send is not a failed request.**
- * The sibling version-archive path deliberately does not enqueue at all (`archive-sweeper.ts`): its row
+ * The sibling version-archive path deliberately does not enqueue at all (`archiveSweeper.ts`): its row
  * is the source of truth and the message is a derived artifact, because a save that enqueues is a save
  * that fails when SQS is down. Erasure keeps that inversion — the `account_erasure_jobs` row is the
  * durable record and the cron sweeper (T136b) re-drains anything left `queued`/`running` — and merely
@@ -37,13 +37,13 @@ import {
     type ErasureTriggerSource,
 } from '@kitchensink/recipe-core';
 
-import { ErasureJobsDal } from './dal/erasure-jobs.dal.js';
+import { ErasureJobsDal } from './dal/erasureJobs.dal.js';
 import { ERASURE_QUEUE, type ErasureQueuePort } from './erasure.queue.js';
-import { ServicePrincipalErasureMetrics } from './erasure-metrics.js';
+import { ServicePrincipalErasureMetrics } from './erasureMetrics.js';
 import { matchesAccountErasureConfirmation, type ErasureRequest } from './account.schema.js';
 import type { ActiveErasureJobStatus, ErasureRequestAcceptedResponse } from './account.schema.js';
-import type { ServiceErasureAcceptedResponse } from './dto/service-erasure.dto.js';
-import type { ServicePrincipal } from '../auth/service-principal.js';
+import type { ServiceErasureAcceptedResponse } from './dto/serviceErasure.dto.js';
+import type { ServicePrincipal } from '../auth/servicePrincipal.js';
 
 /**
  * How many times a single request re-evaluates the C-007 outcome before giving up.

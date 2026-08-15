@@ -173,7 +173,7 @@ _Consequences_, not a defect to work around.
 **`@kitchensink/recipe-service` MUST** author every nutrition-plan, target, link, compliance-report and
 trainer-client request/response shape as **zod in the service** at `src/nutrition-plans/*.schema.ts` beside its
 controller; **validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto`; extend the
-committed `@kitchensink/schema-recipe`, which exports the zod, `z.infer` types, `contract-hash.ts`, a barrel
+committed `@kitchensink/schema-recipe`, which exports the zod, `z.infer` types, `contractHash.ts`, a barrel
 and a **derived** `openapi.yaml` (outbound only — never a codegen input); and keep every `*.schema.ts`
 importing **only `zod` and other `*.schema.ts` files**.
 
@@ -229,7 +229,7 @@ every obligation below binds a package that exists.
   **(2)** ✅ It also said "009's own `tasks.md` currently specifies `class-validator` DTOs, which this plan forbids …
   that file needs repointing"; **`tasks.md` has since been repointed** (see its T-0xx "⛔ NOT `class-validator`"
   note), so there is no divergence left to fix. Enforcement is no longer prose either: repo-wide gate **G5** in
-  `packages/infra/global/__tests__/service-security-invariants.test.ts` requires a `ZodValidationPipe` over every
+  `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts` requires a `ZodValidationPipe` over every
   controller in every deployable, with **no exception list**.
 - **⛔ THE FLOOR, and on this feature it doubles as a safety bound.** Every input field writing a bounded
   column is validated at least as strictly as the column can store. Naming 009's actual columns from §2:

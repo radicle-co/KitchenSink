@@ -26,11 +26,11 @@ const DatabaseConfigSchema = z.union([
         DB_PORT: z.string().transform(Number).pipe(z.number().int().positive()),
         DB_NAME: z.string(),
         // Defaults to the least-privilege `food_app` role, mirroring `FOOD_DB_USERNAME` in
-        // src/database/pool-config.ts (the runtime default at the pool seam) — so the schema and the pool
+        // src/database/poolConfig.ts (the runtime default at the pool seam) — so the schema and the pool
         // agree on the default rather than the schema requiring what the pool already defaults.
         DB_USERNAME: z.string().default('food_app'),
         // Optional: deployed stages authenticate `food_app` via an RDS IAM token (no password); only
-        // local docker Postgres supplies a static `DB_PASSWORD`. See src/database/pool-config.ts.
+        // local docker Postgres supplies a static `DB_PASSWORD`. See src/database/poolConfig.ts.
         DB_PASSWORD: z.string().optional(),
     }),
 ]);
@@ -126,7 +126,7 @@ const AppConfigSchema = z.object({
  * the boot check and a runtime read are incapable of disagreeing.
  *
  * The database block is deliberately absent: it is an either/or union (`DATABASE_URL` OR the discrete
- * `DB_*` parts), which is not a per-variable rule — `database/pool-config.ts` owns that contract.
+ * `DB_*` parts), which is not a per-variable rule — `database/poolConfig.ts` owns that contract.
  */
 export const FOOD_SETTING_SCHEMAS = {
     ...AppConfigSchema.shape,

@@ -16,9 +16,9 @@ import { Body, Controller, Delete, HttpCode, HttpStatus, Param, ParseUUIDPipe, P
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { RatingsService } from './ratings.service.js';
-import { SetRatingDto } from './dto/set-rating.dto.js';
-import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
-import { OwnerId } from '../auth/current-principal.decorator.js';
+import { SetRatingDto } from './dto/setRating.dto.js';
+import type { RecipeResponse } from '../recipes/dto/recipeResponse.dto.js';
+import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:

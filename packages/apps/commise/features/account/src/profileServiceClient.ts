@@ -93,7 +93,7 @@ export const PROFILE_ME_PATH = '/api/v1/users/me';
  * `POST /api/v1/users/me/avatar/presign` — where the viewer's avatar upload is authorized.
  *
  * Under {@link PROFILE_ME_PATH} because it is served by the same `me` resource
- * (`packages/services/identity/src/users/avatar-upload.controller.ts`), and derived from that constant so the two
+ * (`packages/services/identity/src/users/avatarUpload.controller.ts`), and derived from that constant so the two
  * cannot drift apart.
  */
 export const AVATAR_PRESIGN_PATH = `${PROFILE_ME_PATH}/avatar/presign`;

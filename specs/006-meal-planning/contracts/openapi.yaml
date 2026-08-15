@@ -26,7 +26,7 @@ info:
         ## Error envelope
 
         Every non-2xx response from every endpoint is the single envelope `{ code, message, details? }`, emitted
-        by one `api-exception.filter.ts` (ARCH-017 / MOD-017). Status semantics, all inherited rather than
+        by one `apiException.filter.ts` (ARCH-017 / MOD-017). Status semantics, all inherited rather than
         invented:
 
         | Status | Meaning                                                                                       |
@@ -635,7 +635,7 @@ components:
             type: object
             description: |
                 The single error envelope for every non-2xx response in this service, emitted by one
-                `api-exception.filter.ts`.
+                `apiException.filter.ts`.
             required: [code, message]
             additionalProperties: false
             properties:

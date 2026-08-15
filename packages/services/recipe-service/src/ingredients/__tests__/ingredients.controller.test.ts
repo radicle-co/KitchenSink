@@ -3,9 +3,9 @@
  *
  * The controller is thin (house convention): the `@OwnerId()` decorator resolves the verified caller and
  * fails closed with `401` when absent — that path lives on the decorator and is tested in
- * `auth/__tests__/current-principal.decorator.test.ts`, NOT here (a direct method call does not run
+ * `auth/__tests__/currentPrincipal.decorator.test.ts`, NOT here (a direct method call does not run
  * param decorators). Body validation lives on the class-validator DTOs under the controller-scoped
- * `ValidationPipe`; its outcomes are pinned in `dto/__tests__/ingredient-dtos.test.ts` (run through the
+ * `ValidationPipe`; its outcomes are pinned in `dto/__tests__/ingredientDtos.test.ts` (run through the
  * SAME pipe) and end-to-end in the assembled-app e2e spec. What remains for the controller itself is the
  * query-param logic it still owns (search `q` required + `limit` parsing) and that each route forwards the
  * validated inputs to the right service method verbatim.
@@ -17,9 +17,9 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { IngredientsController } from '../ingredients.controller.js';
 import type { IngredientsService } from '../ingredients.service.js';
-import type { AddIngredientByFoodDto } from '../dto/add-ingredient-by-food.dto.js';
-import type { CreateIngredientDto } from '../dto/create-ingredient.dto.js';
-import type { ResolveIngredientDto } from '../dto/resolve-ingredient.dto.js';
+import type { AddIngredientByFoodDto } from '../dto/addIngredientByFood.dto.js';
+import type { CreateIngredientDto } from '../dto/createIngredient.dto.js';
+import type { ResolveIngredientDto } from '../dto/resolveIngredient.dto.js';
 import { CALLER_TOKEN as TOKEN, makeCandidateView, makeIngredient } from '../__fixtures__/ingredients.fixtures.js';
 
 /** The verified caller ULID the `@OwnerId()` decorator would inject (an auth assertion; unused downstream). */

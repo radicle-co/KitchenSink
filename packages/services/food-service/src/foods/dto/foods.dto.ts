@@ -12,7 +12,7 @@
  * `nestjs-zod`'s `ZodValidationPipe`, which `AppModule` binds globally through the `APP_PIPE` token. Under
  * Nest's own `ValidationPipe` — or under `ZodValidationPipe` bound to the bare class token — every one of these
  * DTOs would validate NOTHING while looking correctly wired, which is a strictly worse failure than having no
- * pipe at all because it presents as done. `packages/infra/global/__tests__/service-security-invariants.test.ts`
+ * pipe at all because it presents as done. `packages/infra/global/__tests__/serviceSecurityInvariants.test.ts`
  * asserts the binding for every service, including services that do not exist yet.
  */
 import { createZodDto } from 'nestjs-zod';

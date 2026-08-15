@@ -636,7 +636,7 @@ invalid payload is never retried** — it cannot become valid by being sent agai
 
 The block above is a **description**; the **artifact** is zod authored in the notification service at
 `src/**/*.schema.ts`, copied into the committed `@kitchensink/schema-notifications`
-(`packages/schemas/notifications`) alongside `z.infer` types, a `contract-hash.ts`, a barrel, and a **derived**
+(`packages/schemas/notifications`) alongside `z.infer` types, a `contractHash.ts`, a barrel, and a **derived**
 `openapi.yaml`. Full bindings and the client obligation:
 [`spec.md` → _Wire Contract Ownership (GR-015)_](./spec.md#wire-contract-ownership-gr-015).
 

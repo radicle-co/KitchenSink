@@ -130,7 +130,7 @@ All paths under `/api/v1/`. Package names follow `@kitchensink/{group}-{name}` c
 - **Service half.** `cooking-school-service` **authors** every shape above as zod at `src/**/*.schema.ts` beside
   its controller, **validates its own requests with that same zod** (`nestjs-zod` `createZodDto`), and generates
   the committed **`@kitchensink/schema-cooking-school`** at `packages/schemas/cooking-school` — zod + `z.infer`
-  types + `contract-hash.ts` + barrel + a **derived**, outbound-only `openapi.yaml`.
+  types + `contractHash.ts` + barrel + a **derived**, outbound-only `openapi.yaml`.
 - **Client half — separately mandatory.** `packages/clients/cooking-school`, `@commise/web`, `@commise/mobile`
   and `cooking-school-workers` import wire types **and zod** from that package and **declare none of their own**.
   A divergent consumer shape (the player's lesson view model, the educator dashboard series) is **DERIVED** with

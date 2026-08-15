@@ -5,7 +5,7 @@ import type { NextFunction, Response } from 'express';
 import type { VerifiedClerkClaims } from '@kitchensink/clerk-verify';
 
 import { AuthMiddleware } from '../auth.middleware.js';
-import { ClerkAuthService } from '../clerk-auth.service.js';
+import { ClerkAuthService } from '../clerkAuth.service.js';
 import type { AuthenticatedRequest } from '../principal.js';
 
 /**

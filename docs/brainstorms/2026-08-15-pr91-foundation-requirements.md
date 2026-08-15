@@ -186,3 +186,32 @@ All five are closed. Recorded with the reasoning so ce-plan does not re-open the
 - **Q4** Handwriting on Android: ML Kit cannot read handwriting from photographs. Does the mobile path
   fall back to Textract for handwriting, or is handwriting web-only until 011?
 - **Q5** Is the 3-day expiry a hard boundary (needs explicit deletion) or a target (TTL is fine)?
+
+## Amendment — card calories (owner, 2026-08-15)
+
+**Supersedes D10 ("drop `lead_calories_per_serving`").** The column **stays**, and becomes correct
+rather than being removed.
+
+Context that forced this: food _details_ are a detail-page concern, but **every recipe card renders a
+calorie number** (`RecipeCard.tsx:205`, `RecipeCard.native.tsx:146`, selected by `search.dal.ts`). So
+three settled decisions collided — drop the stored column, adopt Reading B, and keep showing calories
+on cards. Any two are compatible; all three are not.
+
+**Resolution — a deliberate narrow exception, not a reversal of Reading B:**
+
+- The recipe keeps **one** derived value, calories per serving, owned by the recipe service.
+- That value is **refreshed via the substrate** when a referenced food changes. This is Reading A
+  applied to a single field.
+- **Detail-page nutrition stays fully live** per Reading B — no stored copy, streamed from food.
+- **Lists and search touch zero food rows**, exactly as today. The fan-out concern recorded earlier
+  against list rendering does not apply and is withdrawn.
+
+**Consequences to carry into planning:**
+
+- This gives the message substrate its **first real consumer**: a recipe-side handler that updates the
+  stored calorie total when a food it references changes. The substrate stops being speculative.
+- `nutrition.ts:66-69`'s "can never disagree" claim becomes _eventually_ true rather than false — there
+  is a refresh window. The assertion and its test must be rewritten to say that honestly, not deleted.
+- ⚠️ **The refresh path needs an alarm.** A silently-stopped refresher reproduces exactly the staleness
+  this decision exists to fix, and this codebase already has three live examples of a monitor that
+  cannot fire. Whatever updates this column must be observable.

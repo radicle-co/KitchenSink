@@ -103,7 +103,7 @@ below. Kebab-case is not an alternative convention here; it is a violation.
 | E2E (Playwright)                    | `<feature>.spec.ts` in `tests/e2e/`             | `signIn.spec.ts`                                                       |
 
 The dot-separated role suffix (`.service`, `.controller`, `.filter`, `.dao`, …) is **retained** for
-NestJS providers — it is a _dot_, never a hyphen. `clerk-auth.service.ts` is wrong;
+NestJS providers — it is a _dot_, never a hyphen. `clerkAuth.service.ts` is wrong;
 `clerkAuth.service.ts` is right.
 
 > **⛔ Why this section is emphatic.** A prior revision of this document split §1 into a "backend
@@ -126,6 +126,14 @@ NestJS providers — it is a _dot_, never a hyphen. `clerk-auth.service.ts` is w
 Both classes are exempted explicitly in the lint config. Nothing else is exempt.
 
 ## One file, one thing
+
+> **Enforced, not advisory.** The class/component half is checked in CI by
+> `packages/infra/global/__tests__/oneFileOneThing.test.ts`, which parses every tracked source with the
+> TypeScript AST and fails a file exporting more than one class or more than one React component. The 25
+> files that predate the gate are recorded there with their **exact** export counts and a written reason,
+> so a new violation fails and an existing one may not grow. Core ESLint's `max-classes-per-file` is
+> deliberately not what runs: it counts private classes too, says nothing about components, and cannot
+> express the ratchet without writing 25 suppressions into the files it is meant to hold.
 
 **A file does exactly ONE thing.** One class, or one component, or one cohesive piece of
 functionality — never a mix, never several.
@@ -700,7 +708,7 @@ This rule applies to all testing layers: unit tests (Testing Library), E2E tests
   (the leading `*` is read as the target). Also never write the literal opener sequence in prose — the check
   parses comments, so an opener in your own explanation is reported as a dead link. Enforced across `.ts`,
   `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` by
-  `packages/infra/global/__tests__/doc-link-resolution.test.ts`, which resolves every target through the
+  `packages/infra/global/__tests__/docLinkResolution.test.ts`, which resolves every target through the
   compiler rather than by pattern-matching.
 - Non-trivial functions: `@param`, `@returns`, `@throws` tags required.
 - Impure functions: `@sideEffect` tag required.
@@ -811,7 +819,7 @@ emit must be narrower, that belongs in `tsconfig.build.json`, not in the check p
 The two halves are coupled: widening the lint glob without widening the tsconfig makes every newly-matched file
 a **fatal parse error**, which is worse than not linting it — ESLint opens the file, runs no rule on it, and the
 file still appears in a passing run. Directory-level exclusions (build output, workspace-root `*.config.*`) live
-once, in `packages/tools/eslint`. `packages/infra/global/__tests__/static-analysis-coverage.test.ts` enforces
+once, in `packages/tools/eslint`. `packages/infra/global/__tests__/staticAnalysisCoverage.test.ts` enforces
 all of this by asking TypeScript's config parser and ESLint's own API for actual project membership, never by
 comparing glob text.
 
@@ -1092,7 +1100,7 @@ packages/services/<service>/src/**/*.schema.ts   ← zod authored HERE, beside t
 packages/schemas/<service>/        @kitchensink/schema-<service>  — GENERATED, committed
 ├── src/schemas.ts                 the zod, assembled from the service's *.schema.ts
 ├── src/types.ts                   `z.infer` types
-├── src/contract-hash.ts           hash of the service's schema sources
+├── src/contractHash.ts           hash of the service's schema sources
 ├── src/index.ts                   barrel — named exports only
 └── openapi.yaml                   DERIVED from the zod, for oasdiff / docs / integrators
                         │
@@ -1226,7 +1234,7 @@ service has none:
 >
 > 1. **"19 files still on `class-validator`" is a MENTION count, not an importer count.** `grep -rl "from
 'class-validator'"` over service sources (excluding `dist`) returns **one** file:
->    `packages/services/recipe-service/src/search/dto/search-recipes.query.dto.ts`. The other 18 mention the
+>    `packages/services/recipe-service/src/search/dto/searchRecipes.query.dto.ts`. The other 18 mention the
 >    string in JSDoc **about migrating away from it**. Recipe is **one file** from one mechanism, not nineteen —
 >    a difference that changes whether this is a task or a project. **Count importers, not mentions.**
 > 2. **Identity is now 6 / 6**, and **food's fix is in the working tree but uncommitted** (5 / 3). Committed
@@ -1268,7 +1276,7 @@ a **wrong-typed field**, a **missing field** and an **unknown key** all come bac
       other.
 7. **Nothing reaches a database or another service unvalidated.** A DAL is not where input first meets a
    constraint. On a service-to-service call — recipe → food, and identity's erasure fan-out
-   (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`) →
+   (`packages/services/identity-webhooks/src/common/erasureFanout.ts`) →
    `POST /api/v1/internal/account/erasure` on recipe and food — the **outbound body is validated against the
    callee's schema-package zod before the call**, and the **inbound response is validated on receipt**.
    "Internal" is not a synonym for "trusted".
@@ -1296,7 +1304,7 @@ a **wrong-typed field**, a **missing field** and an **unknown key** all come bac
    Measured 2026-08-11, only three sites pass it a non-literal, and all three take a config value or a module
    constant, so **none is currently reachable from user input**:
    `packages/services/recipe-service/src/search/dal/search.dal.ts`, and recipe-workers'
-   `erasure-sweeper.ts` / `erasure-orphan-sweeper.ts`. Preserve that. Where a request legitimately selects an
+   `erasureSweeper.ts` / `erasureOrphanSweeper.ts`. Preserve that. Where a request legitimately selects an
    identifier (a sort column, a partition), the **validated enum maps to a closed allowlist of literals in
    code** — the request supplies the key, never the SQL fragment.
 10. ⛔ **Response validation is DEFERRED, deliberately — do NOT "complete" it.** No service validates its own
@@ -1332,7 +1340,7 @@ and a contract-skew guard (`packages/clients/{food-service,recipe-service}/src/c
 is a thing to forget, and the package created next week will not be on it. Every gate discovers its subjects
 from `packages/services/*/package.json`, `packages/clients/*/package.json`, `packages/schemas/*/package.json`
 or `git ls-files` — the pattern already used by
-`packages/infra/global/__tests__/app-service-dependency.test.ts` (discovers services, scans `git ls-files`,
+`packages/infra/global/__tests__/appServiceDependency.test.ts` (discovers services, scans `git ls-files`,
 counts type-only imports as violations) and by `scripts/contractOwners.mjs` `discoverContractOwners`.
 
 ⚠️ **`*.schema.ts` is an overloaded suffix — a globbing gate must not treat every match as a wire contract.**
@@ -1358,7 +1366,7 @@ partial write**, so the caller is told it succeeded and the stored data is not w
 §15.4(8)'s floor is enforced by a test, not a review checklist — a checklist cannot survive a migration six
 months from now. ✅ **The mechanism exists**: `@kitchensink/contract-gen`'s `auditStorageCapacity` /
 `collectBoundedColumns` / `formatStorageCapacityFindings`
-(`packages/tools/contract-gen/src/storage-capacity.ts`), wired by a `storage-capacity.test.ts` in **all three**
+(`packages/tools/contract-gen/src/storageCapacity.ts`), wired by a `storageCapacity.test.ts` in **all three**
 services (`recipe-service/src/database/__tests__/`, `food-service/src/db/schema/__tests__/`,
 `identity/src/types/schema/__tests__/`). **A new service copies that pattern; it does not invent one.** Four
 properties are load-bearing:
@@ -1399,7 +1407,7 @@ real sender and **our** signing secret is stale — a **transient, operator-fixa
 retry window is exactly the recovery mechanism. Answering `2xx` there says "delivered" and discards every queued
 real event permanently, behind a green check. **That incident is on record in this repository** (a dropped
 `user.created` left Clerk holding a user the database did not), and an earlier revision of
-`packages/services/identity-webhooks/src/common/handler-pipeline.ts` caused it by returning `2xx` for both.
+`packages/services/identity-webhooks/src/common/handlerPipeline.ts` caused it by returning `2xx` for both.
 
 So the rule is **one path, one shape, one `reason`, one counter** — with the **status derived from the `reason`
 by a single complete lookup**, so adding a reason fails to compile until its retry disposition is decided.
@@ -1542,5 +1550,5 @@ is itself the defect, because the next feature arrives unguarded.
 **Exemptions carry a mandatory, substantive `why`** and pin the **exact** owner set, per the precedent of
 `contract-gen`'s `AllowedPackageImport.why` and `ColumnAccount.why`. A blank or one-word reason fails, and a third
 declarer joining an exempted pair fails. Gates:
-`packages/infra/global/__tests__/spec-task-ids.test.ts` and `.../spec-table-collisions.test.ts`, over the shared
-parser `.../spec-declarations.ts`.
+`packages/infra/global/__tests__/specTaskIds.test.ts` and `.../specTableCollisions.test.ts`, over the shared
+parser `.../specDeclarations.ts`.

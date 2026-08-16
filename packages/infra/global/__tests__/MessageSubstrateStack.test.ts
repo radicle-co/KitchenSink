@@ -104,6 +104,7 @@ describe('MessageSubstrateStack — alarms reach somewhere', () => {
         }>;
 
         expect(alarms.length).toBeGreaterThan(0);
+
         for (const alarm of alarms) {
             expect(alarm.Properties.AlarmActions ?? []).not.toHaveLength(0);
         }

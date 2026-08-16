@@ -13,6 +13,7 @@
  * | an unknown id is reported, not an error for the whole batch | `unknownIds`, alongside the ids that did resolve |
  * | input over the cap is rejected with a STRUCTURED error | the published `BATCH_TOO_LARGE` envelope, and the 100-id boundary |
  * | two callers requesting the same id set produce byte-identical URLs | canonicalization is proved through the URL, and by three unrelated principals receiving byte-identical bodies |
+ * | the batched read answers what the per-id reads answered | a food's entry is identical asked alone and asked inside a 50-food batch |
  * | the response parses against the generated schema; `CONTRACT_HASH` matches | validated against `@kitchensink/schema-food` — the copy a CLIENT imports, not the in-service authored one |
  *
  * ## Why this tier
@@ -329,6 +330,103 @@ describe.skipIf(!DATABASE_URL)(
                 expect(theirs!.text).toBe(mine!.text);
                 expect(admin!.text).toBe(mine!.text);
                 expect(machine!.text).toBe(mine!.text);
+            });
+
+            it('⛔ is BYTE-IDENTICAL for two callers across a MANY-food batch whose portions collide on unit', async () => {
+                // The one-food case above cannot see the failure this guards: batching the reads changes the
+                // shape of the portion scan, and `normalizePortions` de-duplicates by unit FIRST-WINS — so a
+                // reordered scan silently reports a different gram weight for `cup`, identically to both
+                // callers, and the edge caches it. Asserting the VALUE as well as the byte equality is what
+                // makes that visible rather than merely consistent.
+                for (const [index, name] of ['batch alpha', 'batch beta', 'batch gamma'].entries()) {
+                    stub.programResolve(name, {
+                        nutrients: [
+                            {
+                                code: null,
+                                name: 'Energy',
+                                unit: 'kcal',
+                                amount: String(100 + index),
+                                basis: 'per_100g',
+                            },
+                        ],
+                        portions: [
+                            { label: `${index + 1} cups sliced`, gramWeight: String((index + 1) * 120) },
+                            { label: '1/2 cup diced', gramWeight: '60' },
+                            { label: '1 tablespoon', gramWeight: '15' },
+                        ],
+                    });
+                }
+
+                const ids = [
+                    await seedResolved('batch alpha'),
+                    await seedResolved('batch beta'),
+                    await seedResolved('batch gamma'),
+                ].sort();
+                const path = `/api/v1/foods/nutrition?ids=${ids.join(',')}`;
+
+                const [mine, theirs] = await Promise.all([call(path, userToken), call(path, otherUserToken)]);
+
+                expect(mine!.status).toBe(200);
+                expect(theirs!.text).toBe(mine!.text);
+                // Every food's `cup` comes from its FIRST portion row (120/1, 240/2, 360/3), never the
+                // later `1/2 cup diced` @ 60 g.
+                expect((mine!.body as { foods: NutritionEntry[] }).foods.map((food) => food.portions)).toStrictEqual([
+                    [
+                        { unit: 'cup', gramsPerUnit: 120 },
+                        { unit: 'tablespoon', gramsPerUnit: 15 },
+                    ],
+                    [
+                        { unit: 'cup', gramsPerUnit: 120 },
+                        { unit: 'tablespoon', gramsPerUnit: 15 },
+                    ],
+                    [
+                        { unit: 'cup', gramsPerUnit: 120 },
+                        { unit: 'tablespoon', gramsPerUnit: 15 },
+                    ],
+                ]);
+            });
+
+            it('⛔ answers a food IDENTICALLY whether asked alone or inside a 50-food batch', async () => {
+                // The batched read must be an ACCESS-PATH change and nothing else. This is the wire-level
+                // statement of that: same food, same bytes, whatever else is in the request.
+                stub.programResolve('batch subject', {
+                    nutrients: [
+                        { code: null, name: 'Energy', unit: 'kJ', amount: '1000', basis: 'per_100g' },
+                        { code: null, name: 'Energy', unit: 'kcal', amount: '239', basis: 'per_100g' },
+                        { code: null, name: 'Protein', unit: 'g', amount: '27', basis: 'per_100g' },
+                        { code: null, name: 'Fatty acids, total trans', unit: 'g', amount: '0.5', basis: 'per_100g' },
+                    ],
+                    portions: [{ label: '1 cup chopped', gramWeight: '125' }],
+                });
+                const subject = await seedResolved('batch subject');
+
+                for (let index = 0; index < 49; index += 1) {
+                    stub.programResolve(`crowd ${index}`, {
+                        nutrients: [
+                            { code: null, name: 'Energy', unit: 'kcal', amount: String(index), basis: 'per_100g' },
+                        ],
+                        portions: [{ label: '1 slice', gramWeight: String(index + 1) }],
+                    });
+                }
+
+                const crowd: string[] = [];
+
+                for (let index = 0; index < 49; index += 1) {
+                    crowd.push(await seedResolved(`crowd ${index}`));
+                }
+
+                const alone = await nutritionOf([subject]);
+                const crowded = await nutritionOf([subject, ...crowd].sort());
+
+                expect(crowded.foods).toHaveLength(50);
+                expect(crowded.foods.find((food) => food.id === subject)).toStrictEqual(alone.foods[0]);
+                expect(alone.foods[0]).toStrictEqual({
+                    id: subject,
+                    status: 'RESOLVED',
+                    caloriesPer100g: 239,
+                    proteinGPer100g: 27,
+                    portions: [{ unit: 'cup', gramsPerUnit: 125 }],
+                });
             });
 
             it('validates against the PUBLISHED schema package, whose CONTRACT_HASH matches the in-service copy', async () => {

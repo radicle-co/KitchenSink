@@ -128,15 +128,20 @@ export class FoodsService {
      * @returns One entry per known id, in the given order, plus the ids that matched nothing.
      */
     public async getNutritionBatch(ids: readonly string[]): Promise<FoodNutritionBatchResponse> {
-        const records = await Promise.all(
-            ids.map(async (id) => ({ id, record: await this.foodDao.readGoldenRecord(id) })),
-        );
+        // ONE batched read (3 statements), not `ids.map(readGoldenRecord)` — which was 1+4 statements PER
+        // ID, i.e. ~500 round trips for the 100-id request a recipe list issues on every render.
+        const records = await this.foodDao.readNutritionBatch(ids);
+        const byId = new Map(records.map((record) => [record.id, record]));
 
         const foods: FoodNutrition[] = [];
         const unknownIds: string[] = [];
 
-        for (const { id, record } of records) {
-            if (record === null) {
+        // Driven by `ids`, not by the rows: a batched `WHERE food_id = ANY(...)` promises no row order, and
+        // the response order is part of what the edge caches under the canonical URL (ADR-0020).
+        for (const id of ids) {
+            const record = byId.get(id);
+
+            if (record === undefined) {
                 unknownIds.push(id);
                 continue;
             }
@@ -152,7 +157,7 @@ export class FoodsService {
                 // numbers because the wire contract does, and this is the one place that conversion happens.
                 ...projectNutrition(
                     record.nutrients.map((nutrient) => ({
-                        nutrient: nutrient.name,
+                        nutrient: nutrient.nutrient,
                         amount: Number(nutrient.amount),
                         unit: nutrient.unit,
                         basis: nutrient.basis,

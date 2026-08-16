@@ -1,8 +1,8 @@
 /**
  * Named barrel for the source-agnostic `kitchensink_food` schema (feature 003). Re-exports the 6
- * controlled enums, the 13 tables, and their `Row`/`NewRow` types across the three domain modules
- * (`food.ts` canonical core, `operational.ts` queue/limiter, `foodCandidates.ts`). Named-only
- * (no `export *`) per the project's barrel convention.
+ * controlled enums, the 13 tables, the one read-only view, and their `Row`/`NewRow` types across the four
+ * domain modules (`food.ts` canonical core, `operational.ts` queue/limiter, `foodCandidates.ts`,
+ * `foodNutrientView.ts`). Named-only (no `export *`) per the project's barrel convention.
  */
 
 // Controlled enums (DB-7).
@@ -32,6 +32,10 @@ export { fetchQueue, fetchRequesters, sourceCallLog, sourceSyncMetadata } from '
 
 // Disambiguation candidate set (D-CANDIDATES — the 13th table).
 export { foodCandidates } from './foodCandidates.js';
+
+// Read-only access path over `food_nutrients JOIN nutrient` (migration 0006). A VIEW, not a table:
+// it carries `basis` through and makes no selection decision — see the module for why that matters.
+export { foodNutrientView } from './foodNutrientView.js';
 
 // Row types — canonical core.
 export type {

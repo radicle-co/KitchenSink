@@ -14,6 +14,7 @@ import type { FoodDrizzle } from '../../database/database.module.js';
 import {
     food,
     foodFieldProvenance,
+    foodNutrientView,
     foodNutrients,
     foodOriginEnum,
     foodPortions,
@@ -103,6 +104,48 @@ export interface GoldenFoodRecord {
     nutrients: GoldenNutrient[];
     portions: GoldenPortion[];
     fieldProvenance: GoldenFieldProvenance[];
+}
+
+/**
+ * One stored nutrient value in the batch-read shape — the view's columns, unchanged.
+ *
+ * Structurally the `NutrientRow` that `nutrition/nutrientSelection.ts` selects over, minus the `number`
+ * conversion: `amount` is `numeric`, which node-postgres returns as a STRING (full precision, no float
+ * drift — SC-008). Converting it is the caller's job, at the one seam that already does it.
+ */
+export interface StoredNutrientAmount {
+    /** Nutrient display name, from the dictionary. */
+    readonly nutrient: string;
+    /** Unit the amount is expressed in — part of the nutrient's IDENTITY, not decoration. */
+    readonly unit: string;
+    /** `per_100g` | `per_serving`, carried through unfiltered. */
+    readonly basis: string;
+    /** Arbitrary-precision amount as a string. */
+    readonly amount: string;
+}
+
+/** One stored portion in the batch-read shape (`gram_weight` is `numeric` → string, as above). */
+export interface StoredPortionWeight {
+    /** Human label (e.g. `1 cup chopped`). */
+    readonly label: string;
+    /** Gram weight of the whole label amount, as a string. */
+    readonly gramWeight: string;
+}
+
+/**
+ * One food's nutrition-relevant rows, as returned by {@link FoodDao.readNutritionBatch}. A subset of
+ * {@link GoldenFoodRecord} — no crosswalk, no scalar provenance, no per-value `source_id` — because the
+ * batch-nutrition projection reads none of them and fetching them would put the N+1 back in a new shape.
+ */
+export interface NutritionRecord {
+    /** The internal food id. */
+    readonly id: string;
+    /** The food's lifecycle status, reported whatever it is (a PENDING food still rides the wire). */
+    readonly status: FoodStatus;
+    /** Every stored nutrient value for the food, in no guaranteed order. */
+    readonly nutrients: readonly StoredNutrientAmount[];
+    /** The food's portions, in insertion order. */
+    readonly portions: readonly StoredPortionWeight[];
 }
 
 /** Input for {@link FoodDao.createByName}. */
@@ -491,5 +534,91 @@ export class FoodDao {
             portions,
             fieldProvenance,
         };
+    }
+
+    /**
+     * Read the nutrition-relevant rows for MANY foods in **three** statements (KTD-3, plan U8): statuses
+     * from `food`, nutrient values through `food_nutrient_view` (migration 0006), portions from
+     * `food_portions` — each a single `food_id = ANY($1)`.
+     *
+     * This exists because the batch endpoint used to call {@link FoodDao.readGoldenRecord} once per id, and
+     * that runs 1 + 4 statements EACH: a 100-id request — one per recipe-list render — cost ~500 round
+     * trips. No index is added; `food_nutrients_food_id_idx` and `food_portions_food_id_idx` already serve
+     * the predicate.
+     *
+     * ⛔ An **access-path change only**. Nothing here decides which row is a calorie, a protein or a fat —
+     * `basis` and the dictionary name/unit are carried through verbatim for `selectPer100g` to judge
+     * (`nutrition/nutrientSelection.ts`), which is the ONE place that rule lives. Amounts stay STRINGS.
+     *
+     * An id that names no `food` row is simply absent from the result; reporting it is the caller's job,
+     * because "unknown" versus "known but empty" is a wire-contract distinction, not a storage one.
+     *
+     * @param ids - The internal food ids (already canonicalized by the controller).
+     * @returns One record per id that exists, in no guaranteed order.
+     * @sideEffect Reads `food`, `food_nutrient_view` (`food_nutrients` + `nutrient`), `food_portions`.
+     */
+    public async readNutritionBatch(ids: readonly string[]): Promise<NutritionRecord[]> {
+        const [statuses, nutrients, portions] = await Promise.all([
+            this.db
+                .select({ id: food.id, status: food.status })
+                .from(food)
+                .where(sql`${food.id} = ANY(${sql.param(ids)})`),
+            this.db
+                .select({
+                    foodId: foodNutrientView.foodId,
+                    nutrient: foodNutrientView.nutrient,
+                    unit: foodNutrientView.unit,
+                    basis: foodNutrientView.basis,
+                    amount: foodNutrientView.amount,
+                })
+                .from(foodNutrientView)
+                .where(sql`${foodNutrientView.foodId} = ANY(${sql.param(ids)})`),
+            this.db
+                .select({
+                    foodId: foodPortions.foodId,
+                    label: foodPortions.label,
+                    gramWeight: foodPortions.gramWeight,
+                })
+                .from(foodPortions)
+                .where(sql`${foodPortions.foodId} = ANY(${sql.param(ids)})`)
+                // Portion order is NOT cosmetic: `normalizePortions` de-duplicates by unit FIRST-WINS, so
+                // it decides what a `cup` of this food weighs. `food_portions.id` is a ULID, so ordering by
+                // it is insertion order — what the per-food read returned before batching, now guaranteed
+                // rather than inherited from whichever plan the batched scan happens to get.
+                .orderBy(foodPortions.id),
+        ]);
+
+        const nutrientsByFood = new Map<string, StoredNutrientAmount[]>();
+
+        for (const row of nutrients) {
+            const bucket = nutrientsByFood.get(row.foodId);
+            const value = { nutrient: row.nutrient, unit: row.unit, basis: row.basis, amount: row.amount };
+
+            if (bucket === undefined) {
+                nutrientsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        const portionsByFood = new Map<string, StoredPortionWeight[]>();
+
+        for (const row of portions) {
+            const bucket = portionsByFood.get(row.foodId);
+            const value = { label: row.label, gramWeight: row.gramWeight };
+
+            if (bucket === undefined) {
+                portionsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        return statuses.map((row) => ({
+            id: row.id,
+            status: row.status,
+            nutrients: nutrientsByFood.get(row.id) ?? [],
+            portions: portionsByFood.get(row.id) ?? [],
+        }));
     }
 }

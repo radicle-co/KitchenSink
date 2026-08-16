@@ -20,6 +20,9 @@ import type { RecipeResponse } from '../dto/recipeResponse.dto.js';
 import type { CloneRecipeDto } from '../dto/cloneRecipe.dto.js';
 import type { SetVisibilityDto } from '../dto/setVisibility.dto.js';
 
+/** The caller's opaque bearer, forwarded to the food service for the nutrition read (U10). */
+const CALLER = { kind: 'caller-token' } as never;
+
 const OWNER = '01J000000000000000000FREE0';
 const PRINCIPAL = { userId: OWNER, sub: 'clerk_sub', scopes: [], permissions: ['premium'] } as Principal;
 
@@ -46,9 +49,11 @@ describe('RecipesController', () => {
 
         // Create needs the whole principal (not just the owner key) so the service can derive premium
         // for the C-004 visibility gate — assert the verified principal is forwarded verbatim.
-        const result = await controller.create(PRINCIPAL, body);
+        const result = await controller.create(PRINCIPAL, CALLER, body);
 
-        expect(create).toHaveBeenCalledWith(PRINCIPAL, body);
+        // The caller's bearer is forwarded too (U10): the food service authorizes the nutrition read AS
+        // this user, and a dropped credential degrades every recipe to nutrition-absent.
+        expect(create).toHaveBeenCalledWith(PRINCIPAL, body, CALLER);
         expect(result).toBe(RESPONSE);
     });
 
@@ -66,9 +71,9 @@ describe('RecipesController', () => {
         const getById = vi.fn().mockResolvedValue(RESPONSE);
         const controller = new RecipesController(fakeService({ getById }));
 
-        const result = await controller.getById(OWNER, 'r-1');
+        const result = await controller.getById(OWNER, 'r-1', CALLER);
 
-        expect(getById).toHaveBeenCalledWith(OWNER, 'r-1');
+        expect(getById).toHaveBeenCalledWith(OWNER, 'r-1', CALLER);
         expect(result).toBe(RESPONSE);
     });
 

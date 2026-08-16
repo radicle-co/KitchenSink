@@ -23,6 +23,16 @@ import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../..
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { Principal } from '../../auth/principal.js';
 
+/**
+ * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
+ *
+ * It answers `absent` — the honest degrade shape — rather than fabricating numbers, so a suite that starts
+ * depending on nutrition fails loudly here instead of quietly asserting invented values.
+ */
+const nutritionGatewayDouble = {
+    lookup: async () => ({ byFoodId: new Map(), freshness: 'absent' as const }),
+} as never;
+
 const SOURCE_OWNER = '01J0000000000000000000PRO0';
 const CLONER = '01J000000000000000000FREE0';
 const SOURCE_OWNER_PRINCIPAL: Principal = { userId: SOURCE_OWNER, sub: 'clerk_pro', scopes: [], permissions: [] };
@@ -107,6 +117,7 @@ function service(dal: RecipesDal): RecipesService {
         fakePhotosDal(),
         RECIPE_PHOTOS_CDN,
         fakeRatingsDal(),
+        nutritionGatewayDouble,
     );
 }
 
@@ -221,6 +232,7 @@ describe('RecipesService.clone', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         // The CLONER (not the source author) is the editor of the clone's first version.

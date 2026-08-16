@@ -111,11 +111,16 @@ describe.skipIf(!hasDatabaseUrl)(
             ]);
         }
 
-        /** Re-read a persisted row's nutrition + portions STRAIGHT from Postgres (not the service's return value). */
+        /**
+         * Re-read a persisted row STRAIGHT from Postgres (not the service's return value).
+         *
+         * ⚠️ It selects the REFERENCE columns only. Plan U10 dropped every nutrition column from this table,
+         * so a query naming them would not merely fail an assertion — it would error on a missing column,
+         * which is precisely the failure this integration tier exists to surface.
+         */
         async function readNutrition(foodId: string): Promise<Record<string, unknown> | undefined> {
             const { rows } = await pool.query<Record<string, unknown>>(
-                `SELECT name, food_resolution_status, calories_per_100g, protein_g_per_100g, carbs_g_per_100g,
-                    fat_g_per_100g, portions, is_user_entered
+                `SELECT name, food_id, food_resolution_status, is_user_entered
              FROM ingredients WHERE food_id = $1`,
                 [foodId],
             );
@@ -223,8 +228,8 @@ describe.skipIf(!hasDatabaseUrl)(
             });
         });
 
-        describe('F1 — the pick backfills nutrition into POSTGRES, never NULL calories', () => {
-            it('admits a catalog hit and persists its golden-record nutrition + portions', async () => {
+        describe('F1 — the pick persists the food REFERENCE into POSTGRES, never a copy of the food data', () => {
+            it('admits a catalog hit and persists the food id + RESOLVED status', async () => {
                 vi.mocked(food.getStatus).mockResolvedValue(
                     seededGoldenRecord(SEEDED_FOOD_ID, `${STEM} chicken breast`),
                 );
@@ -232,8 +237,11 @@ describe.skipIf(!hasDatabaseUrl)(
                 const ingredient = await service.addByFoodId(CALLER, SEEDED_FOOD_ID);
 
                 // The returned object is nourished…
-                expect(ingredient.caloriesPer100g).toBe(165);
-                expect(ingredient.portions).toEqual([{ unit: 'cup', gramsPerUnit: 140 }]);
+                // ⛔ NO nutrition on the returned ingredient (U10). The numbers are food's and are read
+                // live; a copy here is the snapshot-with-no-invalidation KTD-3 deletes.
+                expect(ingredient).not.toHaveProperty('caloriesPer100g');
+                expect(ingredient).not.toHaveProperty('portions');
+                expect(ingredient.foodResolutionStatus).toBe('RESOLVED');
 
                 // …and so is the ROW, re-read from the database. A dropped backfill fails right here.
                 const row = await readNutrition(SEEDED_FOOD_ID);
@@ -241,11 +249,8 @@ describe.skipIf(!hasDatabaseUrl)(
                 expect(row?.['name']).toBe(`${STEM} chicken breast`);
                 expect(row?.['food_resolution_status']).toBe('RESOLVED');
                 expect(row?.['is_user_entered']).toBe(false);
-                expect(Number(row?.['calories_per_100g'])).toBe(165);
-                expect(Number(row?.['protein_g_per_100g'])).toBeCloseTo(31.02, 2);
-                expect(Number(row?.['carbs_g_per_100g'])).toBe(0);
-                expect(Number(row?.['fat_g_per_100g'])).toBeCloseTo(3.57, 2);
-                expect(row?.['portions']).toEqual([{ unit: 'cup', gramsPerUnit: 140 }]);
+                expect(row?.['food_id']).toBeTruthy();
+                expect(row?.['food_resolution_status']).toBe('RESOLVED');
             });
 
             it('takes the persisted name from food-service, ignoring anything a caller might have sent', async () => {
@@ -290,10 +295,9 @@ describe.skipIf(!hasDatabaseUrl)(
                 expect(ingredient.id).toBe(stale.id);
                 const row = await readNutrition(SEEDED_FOOD_ID);
                 expect(row?.['food_resolution_status']).toBe('RESOLVED');
-                expect(Number(row?.['calories_per_100g'])).toBe(165);
             });
 
-            it('a picked-then-suggested food comes back as a `local` suggestion that ALREADY has nutrition', async () => {
+            it('a picked-then-suggested food comes back as a `local` suggestion carrying its food reference', async () => {
                 // The end-to-end Stage-2 loop: pick a catalog hit, then type the same query again.
                 vi.mocked(food.getStatus).mockResolvedValue(
                     seededGoldenRecord(SEEDED_FOOD_ID, `${STEM} chicken breast`),
@@ -309,7 +313,14 @@ describe.skipIf(!hasDatabaseUrl)(
                 expect(result.suggestions).toHaveLength(1);
                 const [only] = result.suggestions;
                 expect(only?.provenance).toBe('local');
-                expect(only?.provenance === 'local' ? only.ingredient.caloriesPer100g : undefined).toBe(165);
+                // ⛔ The suggestion carries the food REFERENCE, not a copy of its nutrition (U10). A local
+                // suggestion that shipped calories would be re-introducing the snapshot this unit deleted —
+                // and it would go stale the moment food corrected the food.
+                expect(only?.provenance).toBe('local');
+                expect(only?.provenance === 'local' ? only.ingredient.foodId : undefined).toBe(SEEDED_FOOD_ID);
+                expect(only?.provenance === 'local' ? only.ingredient : undefined).not.toHaveProperty(
+                    'caloriesPer100g',
+                );
             });
 
             it('writes NOTHING when the food cannot back an ingredient (no half-admitted row)', async () => {

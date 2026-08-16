@@ -56,8 +56,9 @@ export function mapRecipe(row: RecipeExportRow): RecipeExport {
         cuisine: row.cuisine,
         dietaryFlags: row.dietaryFlags,
         tags: row.tags,
-        hasPartialNutrition: row.hasPartialNutrition,
-        leadCaloriesPerServing: row.leadCaloriesPerServing,
+        // ⛔ `hasPartialNutrition` and `leadCaloriesPerServing` are GONE from the export (plan U10). Both
+        // were derived from food's data and stored here, so exporting them shipped the user a value frozen
+        // at its last pre-migration write — a stale number presented as their record.
         authorHandle: row.authorHandle,
         currentVersion: row.currentVersion,
         deletedAt: toIsoStringOrNull(row.deletedAt),

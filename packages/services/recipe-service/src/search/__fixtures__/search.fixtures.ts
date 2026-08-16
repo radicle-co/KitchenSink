@@ -31,7 +31,6 @@ export function makeRawRecipeSearchRow(overrides: Partial<Record<string, unknown
         cuisine: 'italian',
         dietary_flags: ['vegetarian'],
         tags: ['dinner', 'quick'],
-        has_partial_nutrition: false,
         current_version: 1,
         ingredient_names_text: 'pasta tomato garlic',
         deleted_at: null,

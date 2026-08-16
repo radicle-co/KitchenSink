@@ -225,13 +225,12 @@ describe('IngredientsService.addByFoodId', () => {
                     { nutrient: 'Energy', amount: 165, unit: 'kcal', basis: 'per_100g', source: 'usda' },
                     { nutrient: 'Protein', amount: 31, unit: 'g', basis: 'per_100g', source: 'usda' },
                 ],
-                portions: [{ label: '1 cup chopped', gramWeight: 140, source: 'usda' }],
             }),
         });
     }
 
-    describe('F1 — the pick MUST land with nutrition, never NULL calories', () => {
-        it('creates the food-backed row and BACKFILLS nutrition + portions in one round-trip', async () => {
+    describe('F1 — the pick MUST land RESOLVED in one round-trip', () => {
+        it('creates the food-backed row and backfills its STATUS in one round-trip (U10: no nutrition)', async () => {
             getStatus.mockResolvedValue(resolvedStatus());
             const created = makeIngredient({
                 id: 'ing-new',
@@ -239,28 +238,23 @@ describe('IngredientsService.addByFoodId', () => {
                 foodId: FOOD_ID,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             });
-            const backfilled = { ...created, caloriesPer100g: 165, proteinGPer100g: 31 };
             mocks['createFoodBacked']!.mockResolvedValue(created);
-            mocks['updateResolution']!.mockResolvedValue(backfilled);
+            mocks['updateResolution']!.mockResolvedValue(created);
 
             const ingredient = await service.addByFoodId(CALLER, FOOD_ID);
 
             // Exactly ONE cross-service read for the whole pick.
             expect(getStatus).toHaveBeenCalledTimes(1);
             expect(getStatus).toHaveBeenCalledWith(FOOD_ID);
-            // The nutrition write actually happened, with the golden record's values.
+            // ⛔ STATUS ONLY (U10). This suite used to assert the golden record's nutrition was COPIED into
+            // the ingredient row — the snapshot-with-no-invalidation KTD-3 deletes. What must still hold is
+            // that the pick lands RESOLVED in one cross-service read; the numbers come from food at read
+            // time, and `FoodNutritionGateway`'s suite covers them.
             expect(mocks['updateResolution']).toHaveBeenCalledWith('ing-new', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
-                nutrition: {
-                    caloriesPer100g: 165,
-                    proteinGPer100g: 31,
-                    carbsGPer100g: undefined,
-                    fatGPer100g: undefined,
-                },
-                portions: [{ unit: 'cup', gramsPerUnit: 140 }],
             });
-            // And the value handed back is the BACKFILLED row, not the nutrition-less one just created.
-            expect(ingredient.caloriesPer100g).toBe(165);
+            expect(ingredient.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+            expect(ingredient).not.toHaveProperty('caloriesPer100g');
         });
 
         it('takes the display name from FOOD-SERVICE, never from the caller (shared catalog integrity)', async () => {
@@ -318,22 +312,30 @@ describe('IngredientsService.addByFoodId', () => {
             expect(mocks['updateResolution']).not.toHaveBeenCalled();
         });
 
-        it('does NOT short-circuit a RESOLVED row that is still missing nutrition', async () => {
+        it('DOES short-circuit a RESOLVED row — resolution status is the signal now (U10)', async () => {
+            // ⛔ REWRITTEN, not deleted. This asserted the opposite: that a RESOLVED row still missing
+            // NUTRITION must be re-polled, so the golden record could be backfilled into the row. U10
+            // deleted that column, so "missing nutrition" is no longer a state a row can be in — every row
+            // is missing it, always, because the numbers are fetched live on read.
+            //
+            // The replacement rule: a row that reached RESOLVED has nothing further to learn from food about
+            // its identity, so a repeat pick costs NO cross-service read. Dropping the old clause without
+            // replacing the condition made this short-circuit unreachable and doubled the food traffic on
+            // every repeat pick — caught by `blendedSuggest.integration.test.ts`, not by any unit test.
             mocks['findByFoodId']!.mockResolvedValue(
                 makeIngredient({ id: 'ing-1', foodId: FOOD_ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
             );
-            getStatus.mockResolvedValue(resolvedStatus());
-            mocks['updateResolution']!.mockResolvedValue(makeIngredient({ id: 'ing-1', caloriesPer100g: 165 }));
 
-            expect((await service.addByFoodId(CALLER, FOOD_ID)).caloriesPer100g).toBe(165);
-            expect(getStatus).toHaveBeenCalledTimes(1);
+            const result = await service.addByFoodId(CALLER, FOOD_ID);
+
+            expect(result.id).toBe('ing-1');
+            expect(getStatus).not.toHaveBeenCalled();
         });
 
         it('trims the incoming food id', async () => {
             const settled = makeIngredient({
                 foodId: FOOD_ID,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
-                caloriesPer100g: 1,
             });
             mocks['findByFoodId']!.mockResolvedValue(settled);
 

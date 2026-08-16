@@ -101,7 +101,6 @@ describe('the published account-export document is TRUE of what AccountExportSer
                 difficulty: null,
                 averageRating: null,
                 cuisine: null,
-                leadCaloriesPerServing: null,
                 authorHandle: null,
                 sourceUrl: null,
                 sourceAttribution: null,

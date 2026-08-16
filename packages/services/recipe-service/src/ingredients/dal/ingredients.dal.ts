@@ -23,7 +23,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/database.module.js';
 
@@ -33,21 +33,15 @@ export const DEFAULT_SEARCH_LIMIT = 10;
 /** Hard ceiling on search hits (mirrors the OpenAPI `limit` maximum). */
 export const MAX_SEARCH_LIMIT = 50;
 
-/** The explicit column projection returned by every DAL read/write (never the `search_vector`). */
-const RETURNING = sql`id, name, food_id, food_resolution_status, is_user_entered,
-    calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, portions, created_at`;
-
-/** Nutrition-per-100g overrides applied when a food resolves to its golden record. */
-export interface IngredientNutrition {
-    /** Calories per 100g. */
-    readonly caloriesPer100g?: number;
-    /** Protein grams per 100g. */
-    readonly proteinGPer100g?: number;
-    /** Carbohydrate grams per 100g. */
-    readonly carbsGPer100g?: number;
-    /** Fat grams per 100g. */
-    readonly fatGPer100g?: number;
-}
+/**
+ * The explicit column projection returned by every DAL read/write (never the `search_vector`).
+ *
+ * ⛔ NO NUTRITION COLUMNS (KTD-3 / plan U10, migration 0019). They were copies of the food service's data
+ * taken at resolution time, with no invalidation — so the same recipe could report different calories from
+ * different rows. This table holds the REFERENCE (`food_id`) and nothing derived from it; nutrition is read
+ * live through `FoodNutritionGateway`. Adding one back re-creates the second source of truth U10 deleted.
+ */
+const RETURNING = sql`id, name, food_id, food_resolution_status, is_user_entered, created_at`;
 
 /** Input to {@link IngredientsDal.createFoodBacked}. */
 export interface CreateFoodBackedInput {
@@ -64,9 +58,6 @@ export interface UpdateResolutionInput {
     /** The new resolution status. */
     readonly foodResolutionStatus: FoodResolutionStatus;
     /** Golden-record nutrition to persist (only when `RESOLVED`); omitted values are left untouched. */
-    readonly nutrition?: IngredientNutrition;
-    /** Household-measure portions to persist (only when `RESOLVED`); omitted leaves the column untouched. */
-    readonly portions?: IngredientPortion[];
 }
 
 /**
@@ -81,18 +72,8 @@ interface RawIngredientRow {
     food_id: string | null;
     food_resolution_status: string | null;
     is_user_entered: boolean;
-    calories_per_100g: string | null;
-    protein_g_per_100g: string | null;
-    carbs_g_per_100g: string | null;
-    fat_g_per_100g: string | null;
-    // `jsonb` — the pg driver already parses it into JS (an array of portions), or null.
-    portions: IngredientPortion[] | null;
-    created_at: Date | string;
-}
 
-/** Convert a nullable numeric column (pg returns `numeric` as a string) to a number or `undefined`. */
-function numberOrUndefined(value: string | null): number | undefined {
-    return value === null ? undefined : Number(value);
+    created_at: Date | string;
 }
 
 /** Normalize a `timestamptz` (a `Date` from pg, or an ISO string in tests) to an ISO-8601 string. */
@@ -109,12 +90,6 @@ export function rowToIngredient(row: RawIngredientRow): Ingredient {
         foodResolutionStatus:
             row.food_resolution_status === null ? undefined : (row.food_resolution_status as FoodResolutionStatus),
         isUserEntered: row.is_user_entered,
-        caloriesPer100g: numberOrUndefined(row.calories_per_100g),
-        proteinGPer100g: numberOrUndefined(row.protein_g_per_100g),
-        carbsGPer100g: numberOrUndefined(row.carbs_g_per_100g),
-        fatGPer100g: numberOrUndefined(row.fat_g_per_100g),
-        // Only surface portions when present + non-empty (a resolved food with usable household measures).
-        ...(Array.isArray(row.portions) && row.portions.length > 0 ? { portions: row.portions } : {}),
         createdAt: toIsoString(row.created_at),
     };
 }
@@ -352,31 +327,21 @@ export class IngredientsDal {
     }
 
     /**
-     * Update a food-backed ingredient's resolution status, and (when the food resolved) its per-100g
-     * nutrition. Nutrition values that are omitted are left untouched via `COALESCE`.
+     * Update a food-backed ingredient's resolution STATUS.
+     *
+     * ⛔ It no longer persists nutrition (plan U10). It used to copy the golden record's per-100g values and
+     * portions into this table at resolution time, which is precisely the duplicate KTD-3 removes: a copy
+     * with no invalidation, so a food corrected upstream left every recipe quoting the old number forever.
+     * The status still lives here because it is about THIS ingredient's link to a food, not about the food.
      *
      * @param id - The `ingredients.id`.
-     * @param input - The new status and optional golden-record nutrition.
+     * @param input - The new resolution status.
      * @returns The updated ingredient, or `undefined` when no row exists.
      * @sideEffect Updates `ingredients`.
      */
     public async updateResolution(id: string, input: UpdateResolutionInput): Promise<Ingredient | undefined> {
-        const n = input.nutrition ?? {};
-        const calories = n.caloriesPer100g ?? null;
-        const protein = n.proteinGPer100g ?? null;
-        const carbs = n.carbsGPer100g ?? null;
-        const fat = n.fatGPer100g ?? null;
-        // Serialize portions to a jsonb string; null → COALESCE leaves the existing column untouched.
-        const portions = input.portions !== undefined ? JSON.stringify(input.portions) : null;
-
         const result = await this.db.execute<RawIngredientRow>(sql`
-            UPDATE ingredients SET
-                food_resolution_status = ${input.foodResolutionStatus},
-                calories_per_100g  = COALESCE(${calories}, calories_per_100g),
-                protein_g_per_100g = COALESCE(${protein}, protein_g_per_100g),
-                carbs_g_per_100g   = COALESCE(${carbs}, carbs_g_per_100g),
-                fat_g_per_100g     = COALESCE(${fat}, fat_g_per_100g),
-                portions           = COALESCE(${portions}::jsonb, portions)
+            UPDATE ingredients SET food_resolution_status = ${input.foodResolutionStatus}
             WHERE id = ${id}
             RETURNING ${RETURNING}
         `);

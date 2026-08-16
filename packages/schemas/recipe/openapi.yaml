@@ -5373,11 +5373,6 @@ components:
                 type: array
                 items:
                   type: string
-              hasPartialNutrition:
-                type: boolean
-              leadCaloriesPerServing:
-                nullable: true
-                type: string
               authorHandle:
                 nullable: true
                 type: string
@@ -5415,8 +5410,6 @@ components:
               - cuisine
               - dietaryFlags
               - tags
-              - hasPartialNutrition
-              - leadCaloriesPerServing
               - authorHandle
               - currentVersion
               - deletedAt

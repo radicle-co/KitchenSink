@@ -128,7 +128,12 @@ export class CollectionsService {
         // checkbox, C3) — the canonical `Recipe` Data Mapper (S-R4) plus the DAL row's `addedVia`, nothing
         // more. `coverPhotoUrl` is deliberately NOT resolved here — no cover LATERAL runs on this embed —
         // so it stays absent; the collection card owns its no-image visual until a cover path is added.
-        const recipes = recipeRows.map((row) => ({ ...recipeRowToDomain(row), addedVia: row.addedVia }));
+        // Nutrition is UNKNOWN on this embed, not complete — see `rowToRecipe` in search.dal.ts. Fetching it
+        // per member would be an N+1 on a collection page; the detail read is where the numbers come from.
+        const recipes = recipeRows.map((row) => ({
+            ...recipeRowToDomain(row, { hasPartialNutrition: true }),
+            addedVia: row.addedVia,
+        }));
 
         return { ...toCollectionResponse(collection, recipes.length), recipes };
     }

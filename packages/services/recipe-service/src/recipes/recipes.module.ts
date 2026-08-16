@@ -16,6 +16,7 @@ import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
 import { VersionsModule } from '../versions/versions.module.js';
+import { IngredientsModule } from '../ingredients/ingredients.module.js';
 
 /**
  * Recipes module (US1). Owns recipe CRUD and ownership (`owner_id` = app-user ULID). Wires the
@@ -27,7 +28,7 @@ import { VersionsModule } from '../versions/versions.module.js';
 @Module({
     // forwardRef: RecipesService records versions on every write; VersionsService drives a recipe write
     // on restore. The two modules depend on each other by design (see VersionsModule's matching ref).
-    imports: [forwardRef(() => VersionsModule)],
+    imports: [forwardRef(() => VersionsModule), IngredientsModule],
     controllers: [RecipesController],
     providers: [
         {

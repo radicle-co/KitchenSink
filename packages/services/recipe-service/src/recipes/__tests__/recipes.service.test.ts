@@ -31,6 +31,16 @@ import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 
+/**
+ * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
+ *
+ * It answers `absent` — the honest degrade shape — rather than fabricating numbers, so a suite that starts
+ * depending on nutrition fails loudly here instead of quietly asserting invented values.
+ */
+const nutritionGatewayDouble = {
+    lookup: async () => ({ byFoodId: new Map(), freshness: 'absent' as const }),
+} as never;
+
 const OWNER = '01J000000000000000000FREE0';
 const OTHER = '01J00000000000000000OTHER0';
 
@@ -99,6 +109,7 @@ function newService(dal: RecipesDal, ratingsDal: RatingsDal = fakeRatingsDal()):
         fakePhotosDal(),
         RECIPE_PHOTOS_CDN,
         ratingsDal,
+        nutritionGatewayDouble,
     );
 }
 
@@ -169,6 +180,7 @@ describe('RecipesService.create', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         await service.create(principal(), CREATE_DTO);
@@ -196,6 +208,7 @@ describe('RecipesService.create', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         await service.create(principal(), { ...CREATE_DTO, deviceLabel: 'Pixel 8' });
@@ -213,6 +226,7 @@ describe('RecipesService.create', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         // A principal carrying first/last-name claims → deriveDisplayName → "Ada Lovelace".
@@ -242,6 +256,7 @@ describe('RecipesService.create', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         await service.create(principal(), CREATE_DTO);
@@ -288,6 +303,7 @@ describe('RecipesService.create', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         ).create(principal(), CREATE_DTO);
 
         // Exact snapshot: every mapped field is pinned (numeric coercion, the `?? ''`/`?? 1` fallbacks,
@@ -336,6 +352,7 @@ describe('RecipesService.create', () => {
                 fakePhotosDal(),
                 RECIPE_PHOTOS_CDN,
                 fakeRatingsDal(),
+                nutritionGatewayDouble,
             ).create(principal(), CREATE_DTO),
         ).resolves.toMatchObject({ id: 'r-1' });
         expect(consoleError).toHaveBeenCalled();
@@ -446,6 +463,7 @@ describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () =
             photosDal,
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
     }
 
@@ -500,10 +518,12 @@ describe('RecipesService.list', () => {
 });
 
 describe('RecipesService — difficulty passthrough (FR-001b)', () => {
-    /** The recorded arg the service handed the DAL for a create/update call. */
+    /** Read the object a DAL spy was called with, for a given call index. */
     function dalCallArg(fn: unknown, index: number): Record<string, unknown> {
-        return (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0][index] as Record<string, unknown>;
+        return (fn as { mock: { calls: unknown[][] } }).mock.calls[0]![index] as Record<string, unknown>;
     }
+
+    /** The recorded arg the service handed the DAL for a create/update call. */
 
     it('forwards a stated difficulty to the DAL on create', async () => {
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ difficulty: 'medium' })) });
@@ -549,102 +569,13 @@ describe('RecipesService — difficulty passthrough (FR-001b)', () => {
     });
 });
 
-describe('RecipesService — lead calories denormalization (W8-a.1)', () => {
-    /** The recorded arg the service handed the DAL for a create/update call. */
-    function dalCallArg(fn: unknown, index: number): Record<string, unknown> {
-        return (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0][index] as Record<string, unknown>;
-    }
-
-    /** A create DTO with one user-override line (200 cal), so nutrition is accountable without a catalog. */
-    const CREATE_WITH_CALORIES: CreateRecipeDto = {
-        ...CREATE_DTO,
-        servings: 2,
-        ingredients: [
-            { ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1, userCalories: 200 },
-        ],
-    };
-
-    it('recomputes lead calories at write time and forwards it to the DAL create (200 cal / 2 servings = 100)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: '100' })) });
-
-        await newService(dal).create(principal(), CREATE_WITH_CALORIES);
-
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ leadCaloriesPerServing: 100 }));
-    });
-
-    it('OMITS the lead-calories key on create when the recipe has no accounted nutrition (column stays NULL)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
-
-        // CREATE_DTO's single line has no userCalories and the catalog resolves no per-100g → nothing accounted.
-        await newService(dal).create(principal(), CREATE_DTO);
-
-        expect(dalCallArg(dal.create, 0)).not.toHaveProperty('leadCaloriesPerServing');
-    });
-
-    it('maps a persisted lead-calories value into the wire response (numeric string → number)', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: '150' })) });
-
-        const response = await newService(dal).create(principal(), CREATE_WITH_CALORIES);
-
-        expect(response.leadCaloriesPerServing).toBe(150);
-    });
-
-    it('OMITS lead calories from the response (never 0) when the column is NULL', async () => {
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ leadCaloriesPerServing: null })) });
-
-        const response = await newService(dal).create(principal(), CREATE_DTO);
-
-        expect(response.leadCaloriesPerServing).toBeUndefined();
-    });
-
-    it('recomputes lead calories on a servings-ONLY update (rescaling the existing lines)', async () => {
-        // Existing recipe: one 200-cal user-override line. A servings-only edit (no ingredients in the patch)
-        // must recompute the per-serving figure from the EXISTING lines against the new servings: 200/4 = 50.
-        const existing: RecipeAggregate = {
-            ...aggregate({ currentVersion: 1, servings: 2 }),
-            ingredients: [makeRecipeIngredientRow({ userCalories: '200' })],
-        };
-        const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(existing),
-            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
-        });
-
-        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, servings: 4 });
-
-        expect(dalCallArg(dal.update, 1)['leadCaloriesPerServing']).toBe(50);
-    });
-
-    it('does NOT touch the lead-calories column on an update that changes neither lines nor servings', async () => {
-        const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })),
-            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
-        });
-
-        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, title: 'Renamed' });
-
-        expect(dalCallArg(dal.update, 1)).not.toHaveProperty('leadCaloriesPerServing');
-    });
-
-    it('CLEARS lead calories (null) when an update removes the last accounted nutrition', async () => {
-        // Existing recipe has an accounted line; the patch replaces ingredients with a no-nutrition line →
-        // the recompute yields nothing accountable and must write `null` to clear the stale stored value.
-        const existing: RecipeAggregate = {
-            ...aggregate({ currentVersion: 1 }),
-            ingredients: [makeRecipeIngredientRow({ userCalories: '200' })],
-        };
-        const dal = fakeDal({
-            findById: vi.fn().mockResolvedValue(existing),
-            update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
-        });
-
-        await newService(dal).update(principal(), 'r-1', {
-            expectedVersion: 1,
-            ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1 }],
-        });
-
-        expect(dalCallArg(dal.update, 1)['leadCaloriesPerServing']).toBeNull();
-    });
-});
+/*
+ * ⛔ The "lead calories denormalization (W8-a.1)" suite was REMOVED by plan U10. It asserted that create and
+ * update recomputed a DENORMALIZED column and forwarded it to the DAL — behaviour that no longer exists,
+ * because the column is dropped and the figure is derived on every detail read from food's live data.
+ * Keeping the tests would have pinned the design the unit deleted. The derivation is covered by
+ * `recipeRowToDomain.test.ts` and by the characterization suite in `@kitchensink/recipe-core`.
+ */
 
 describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDOR)', () => {
     /** A public DRAFT owned by `owner` — the leak class the status term closes (public, but owner-only). */
@@ -912,6 +843,7 @@ describe('RecipesService.update', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         await service.update(principal(), 'r-1', patch);
@@ -934,6 +866,7 @@ describe('RecipesService.update', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         await service.update(principal(), 'r-1', patch, { recordSnapshot: false });
@@ -954,6 +887,7 @@ describe('RecipesService.update', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         // An editor whose token claims derive to "Clara Oswald" — the same ONE rule create uses.
@@ -975,6 +909,7 @@ describe('RecipesService.update', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         // The default principal carries no first/last name → deriveDisplayName returns '' → the key is omitted
@@ -1126,6 +1061,7 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         ).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
@@ -1174,6 +1110,7 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         ).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
@@ -1498,6 +1435,7 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
     }
 
@@ -1536,6 +1474,7 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         await service.create(principal(), {
@@ -1564,3 +1503,10 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
         expect(createArg.ingredients.filter((line) => line.ingredientId === ID_A)).toHaveLength(2);
     });
 });
+
+/*
+ * ⛔ The write-time lead-calorie suite was U10 REMOVED. It asserted that create/update recomputed a
+ * DENORMALIZED column and forwarded it to the DAL — behaviour that no longer exists, because the column is
+ * gone and the figure is derived on every detail read from food's live data instead. Keeping the tests
+ * would have pinned a design the unit deleted.
+ */

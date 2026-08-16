@@ -34,13 +34,13 @@
  * @implements FR-007 FR-007a FR-047
  */
 import { Injectable } from '@nestjs/common';
-import { FoodResolutionStatus, normalizeUnit } from '@kitchensink/recipe-core';
-import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
 import { isNotFoundError } from '@kitchensink/food-service-client';
-import type { CandidateView, FoodStatus, FoodView, StatusResult } from '@kitchensink/food-service-client';
+import type { CandidateView, FoodStatus, StatusResult } from '@kitchensink/food-service-client';
 
 import type { CallerToken } from '../auth/CallerToken.js';
-import { clampLimit, IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
+import { clampLimit, IngredientsDal } from './dal/ingredients.dal.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
 import { blendIngredientSuggestions } from './ingredientSuggestion.js';
@@ -57,83 +57,19 @@ function toResolutionStatus(status: FoodStatus): FoodResolutionStatus {
     return status as FoodResolutionStatus;
 }
 
-/** Case-insensitively find the per-100g amount for the first matching nutrient name. Pure. */
-function nutrientPer100g(
-    nutrients: readonly FoodView['nutrients'][number][],
-    matches: (name: string) => boolean,
-): number | undefined {
-    const hit = nutrients.find((n) => n.basis === 'per_100g' && matches(n.nutrient.toLowerCase()));
-
-    return hit?.amount;
-}
-
-/** Parse a portion label's leading amount (integer, decimal, or `a/b` fraction), or `null`. Pure. */
-function parsePortionAmount(raw: string): number | null {
-    const fraction = /^(\d+)\/(\d+)$/.exec(raw);
-
-    if (fraction !== null) {
-        const denominator = Number(fraction[2]);
-
-        return denominator !== 0 ? Number(fraction[1]) / denominator : null;
-    }
-
-    const value = Number(raw);
-
-    return Number.isFinite(value) ? value : null;
-}
-
-/**
- * Parse a food-service portion label + gram weight into a normalized grams-PER-UNIT portion, or `null`
- * when the label has no leading amount + unit (e.g. `"1 cup chopped"` → `{ unit: 'cup', gramsPerUnit: g }`;
- * `"1 tablespoon"` → tablespoon). Trailing modifiers ("chopped", "sliced") are ignored. Pure.
+/*
+ * ⛔ DELETED HERE (KTD-3 / plan U10): `nutrientPer100g`, `extractNutrition`, `parsePortionAmount`,
+ * `parsePortion` and `extractPortions`.
+ *
+ * They were the recipe service INTERPRETING food's data — a substring selector that matched `energy` and
+ * so picked the `kJ` row as readily as the `kcal` one (a 4.184× error rendered as a calorie count), and a
+ * portion parser that re-derived what a cup of a food weighs. Two services parsing the same rows can
+ * disagree about one food, and only one of them owns it.
+ *
+ * Their replacements live in the FOOD service, which owns the data: `foods/nutrition/nutrientSelection.ts`
+ * (basis + canonical name + unit — all three) and `foods/nutrition/portionNormalization.ts`. Recipe now
+ * consumes the already-projected result through `FoodNutritionGateway` and keeps no heuristic of its own.
  */
-export function parsePortion(label: string, gramWeight: number): IngredientPortion | null {
-    const tokens = label.trim().split(/\s+/);
-
-    if (tokens.length < 2 || gramWeight <= 0) {
-        return null;
-    }
-
-    const amount = parsePortionAmount(tokens[0]!);
-
-    if (amount === null || amount <= 0) {
-        return null;
-    }
-
-    const unit = normalizeUnit(tokens[1]!);
-
-    return unit.length > 0 ? { unit, gramsPerUnit: gramWeight / amount } : null;
-}
-
-/**
- * Extract a resolved food's household-measure portions as normalized grams-per-unit, de-duplicated by unit
- * (the first parseable portion for a unit wins). Labels with no parseable amount+unit are skipped. Pure.
- */
-export function extractPortions(food: FoodView): IngredientPortion[] {
-    const byUnit = new Map<string, IngredientPortion>();
-
-    for (const portion of food.portions) {
-        const parsed = parsePortion(portion.label, portion.gramWeight);
-
-        if (parsed !== null && !byUnit.has(parsed.unit)) {
-            byUnit.set(parsed.unit, parsed);
-        }
-    }
-
-    return [...byUnit.values()];
-}
-
-/** Project a `RESOLVED` golden record's nutrients into the ingredient's per-100g nutrition columns. Pure. */
-export function extractNutrition(food: FoodView): IngredientNutrition {
-    const n = food.nutrients;
-
-    return {
-        caloriesPer100g: nutrientPer100g(n, (name) => name.includes('energy') || name.includes('calorie')),
-        proteinGPer100g: nutrientPer100g(n, (name) => name.includes('protein')),
-        carbsGPer100g: nutrientPer100g(n, (name) => name.includes('carbohydrate')),
-        fatGPer100g: nutrientPer100g(n, (name) => name.includes('lipid') || name.includes('fat')),
-    };
-}
 
 /**
  * Map the food service's `CandidateView` onto the RECIPE API's own candidate shape.
@@ -266,7 +202,7 @@ export class IngredientsService {
      *
      * @param caller - The requesting user's credential, forwarded to food-service.
      * @param foodId - The opaque food-service id from a `catalog` suggestion (trimmed here).
-     * @returns The food-backed ingredient, `RESOLVED` and carrying its per-100g nutrition + portions.
+     * @returns The food-backed ingredient, `RESOLVED`. Nutrition is NOT carried (U10) — it is read live.
      * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when the food cannot back an ingredient — unknown,
      *   terminal, still mid-resolution, or nameless — and no row already exists to advance.
      * @sideEffect One food-service read, then inserts/updates `ingredients`.
@@ -275,12 +211,15 @@ export class IngredientsService {
         const id = foodId.trim();
         const existing = await this.dal.findByFoodId(id);
 
-        // Already settled AND already nourished: nothing to admit and nothing to backfill — no round-trip.
-        if (
-            existing !== undefined &&
-            existing.foodResolutionStatus === FoodResolutionStatus.RESOLVED &&
-            existing.caloriesPer100g !== undefined
-        ) {
+        // Already settled: nothing to admit and nothing to advance — no round-trip.
+        //
+        // ⚠️ This used to also require `existing.caloriesPer100g !== undefined` ("already nourished"). U10
+        // dropped that column, and simply deleting the clause made the short-circuit unreachable — every
+        // repeat pick issued a second cross-service read. The RESOLUTION STATUS is the same signal and is
+        // data this service still owns: a row that reached `RESOLVED` has nothing left to learn from food
+        // about its identity, and its NUTRITION is fetched live on read rather than backfilled here.
+        // `blendedSuggest.integration.test.ts` is what caught the extra call; no unit test could.
+        if (existing !== undefined && existing.foodResolutionStatus === FoodResolutionStatus.RESOLVED) {
             return existing;
         }
 
@@ -313,10 +252,9 @@ export class IngredientsService {
                 foodId: id,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             }));
+        // Status only — nutrition is no longer copied into this table (U10).
         const backfilled = await this.dal.updateResolution(row.id, {
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
-            nutrition: extractNutrition(resolved),
-            portions: extractPortions(resolved),
         });
 
         return backfilled ?? row;
@@ -402,12 +340,10 @@ export class IngredientsService {
 
         try {
             const status = await this.foodClients.standard(caller).getStatus(ingredient.foodId);
-            const resolved = status.status === 'RESOLVED' && status.food !== undefined ? status.food : undefined;
+            // Status only (U10): whether the food resolved is a fact about THIS ingredient's link. What the
+            // food CONTAINS is food's, read live rather than copied here.
             const updated = await this.dal.updateResolution(id, {
                 foodResolutionStatus: toResolutionStatus(status.status),
-                ...(resolved !== undefined
-                    ? { nutrition: extractNutrition(resolved), portions: extractPortions(resolved) }
-                    : {}),
             });
 
             return updated ?? ingredient;

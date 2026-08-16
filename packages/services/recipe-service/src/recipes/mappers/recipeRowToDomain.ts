@@ -64,8 +64,6 @@ export interface RecipeRowInput {
     cuisine: string | null;
     dietaryFlags: string[];
     tags: string[];
-    hasPartialNutrition: boolean;
-    leadCaloriesPerServing: string | null;
     authorHandle: string | null;
     currentVersion: number;
     averageRating: string | null;
@@ -94,8 +92,23 @@ function toIsoString(value: Date | string): string {
  *
  * @param row - The normalized row (a Drizzle `RecipeRow`, or an adapted raw row satisfying the same
  *   structural shape).
+ * @param derived - The two nutrition figures that are no longer STORED (plan U10). They stay on the wire —
+ *   a recipe that read "partial estimate" still does — but they are computed from food's live data rather
+ *   than read from a column that froze at its last write. REQUIRED rather than defaulted on purpose: a
+ *   default `hasPartialNutrition: false` would claim a recipe's nutrition is complete on every path that
+ *   forgot to compute it, which is a factual claim made by an omission.
  */
-export function recipeRowToDomain(row: RecipeRowInput): Recipe {
+/**
+ * The nutrition figures U10 stopped storing. Supplied by the caller, which knows the recipe's lines.
+ */
+export interface DerivedNutritionFields {
+    /** Whether some line's nutrition could not be accounted for (unresolved food, unconvertible unit). */
+    readonly hasPartialNutrition: boolean;
+    /** Headline per-serving calories; ABSENT (never `0`) when the recipe has no accounted nutrition. */
+    readonly leadCaloriesPerServing?: number;
+}
+
+export function recipeRowToDomain(row: RecipeRowInput, derived: DerivedNutritionFields): Recipe {
     const visibility = row.visibility as RecipeVisibility;
     const sourceType = row.sourceType as RecipeSourceType;
 
@@ -114,7 +127,10 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
         hasSubstantiveEdit: row.hasSubstantiveEdit,
         dietaryFlags: row.dietaryFlags,
         tags: row.tags,
-        hasPartialNutrition: row.hasPartialNutrition,
+        hasPartialNutrition: derived.hasPartialNutrition,
+        ...(derived.leadCaloriesPerServing !== undefined
+            ? { leadCaloriesPerServing: derived.leadCaloriesPerServing }
+            : {}),
         currentVersion: row.currentVersion,
         ratingCount: row.ratingCount,
         usesPremiumCapability: usesPremiumCapability({ visibility, sourceType }),
@@ -128,7 +144,6 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
         // Trigger-maintained aggregate: numeric average is a string|null from pg; OMITTED (not 0) when unrated.
         ...(row.averageRating !== null ? { averageRating: Number(row.averageRating) } : {}),
         // Denormalized headline per-serving calories — OMITTED when NULL (no accounted nutrition), never 0.
-        ...(row.leadCaloriesPerServing !== null ? { leadCaloriesPerServing: Number(row.leadCaloriesPerServing) } : {}),
         ...(row.authorHandle !== null ? { authorHandle: row.authorHandle } : {}),
         ...(row.sourceUrl !== null ? { sourceUrl: row.sourceUrl } : {}),
         ...(row.sourceAttribution !== null ? { sourceAttribution: row.sourceAttribution } : {}),

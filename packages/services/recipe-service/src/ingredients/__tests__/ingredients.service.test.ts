@@ -5,7 +5,7 @@ import { NotFoundError } from '@kitchensink/food-service-client';
 import type { FoodCatalogGateway } from '../foodCatalog.gateway.js';
 import type { FoodServiceClients } from '../FoodServiceClients.factory.js';
 import type { IngredientsDal } from '../dal/ingredients.dal.js';
-import { IngredientsService, extractNutrition, extractPortions, parsePortion } from '../ingredients.service.js';
+import { IngredientsService } from '../ingredients.service.js';
 import {
     CALLER_TOKEN as CALLER,
     makeAddResult,
@@ -35,71 +35,6 @@ function makeDal(): { dal: IngredientsDal; mocks: Record<string, ReturnType<type
 function makeCatalogGateway(): FoodCatalogGateway {
     return { search: vi.fn().mockResolvedValue({ hits: [], availability: 'ok' }) } as unknown as FoodCatalogGateway;
 }
-
-describe('extractNutrition', () => {
-    it('projects per-100g energy / protein / carbs / fat from a golden record', () => {
-        const nutrition = extractNutrition(makeFoodView());
-
-        expect(nutrition).toEqual({
-            caloriesPer100g: 364,
-            proteinGPer100g: 10.3,
-            carbsGPer100g: 76.3,
-            fatGPer100g: 0.98,
-        });
-    });
-
-    it('leaves a missing nutrient undefined and ignores non-per_100g bases', () => {
-        const nutrition = extractNutrition(
-            makeFoodView({
-                nutrients: [
-                    { nutrient: 'Protein', amount: 5, unit: 'g', basis: 'per_serving', source: 'usda' },
-                    { nutrient: 'Energy', amount: 200, unit: 'kcal', basis: 'per_100g', source: 'usda' },
-                ],
-            }),
-        );
-
-        expect(nutrition.caloriesPer100g).toBe(200);
-        expect(nutrition.proteinGPer100g).toBeUndefined();
-    });
-});
-
-describe('parsePortion', () => {
-    it('parses a label into a normalized grams-per-unit portion', () => {
-        expect(parsePortion('1 cup chopped', 125)).toEqual({ unit: 'cup', gramsPerUnit: 125 });
-        expect(parsePortion('1 tablespoon', 8)).toEqual({ unit: 'tablespoon', gramsPerUnit: 8 });
-    });
-
-    it('divides the gram weight by a multi-unit or fractional amount to get grams-per-unit', () => {
-        expect(parsePortion('2 tbsp', 16)).toEqual({ unit: 'tablespoon', gramsPerUnit: 8 });
-        expect(parsePortion('1/2 cup', 60)).toEqual({ unit: 'cup', gramsPerUnit: 120 });
-    });
-
-    it('returns null for a label with no leading amount, no unit, or a non-positive gram weight', () => {
-        expect(parsePortion('cup', 100)).toBeNull(); // no amount
-        expect(parsePortion('1', 100)).toBeNull(); // no unit
-        expect(parsePortion('1 cup', 0)).toBeNull(); // non-positive weight
-    });
-});
-
-describe('extractPortions', () => {
-    it('normalizes a food record’s portions and de-duplicates by unit (first wins)', () => {
-        const portions = extractPortions(
-            makeFoodView({
-                portions: [
-                    { label: '1 cup', gramWeight: 125, source: 'usda' },
-                    { label: '2 tbsp', gramWeight: 16, source: 'usda' },
-                    { label: '1 cup packed', gramWeight: 200, source: 'usda' }, // dup unit → ignored
-                    { label: 'a handful', gramWeight: 30, source: 'usda' }, // unparseable → skipped
-                ],
-            }),
-        );
-
-        expect(portions).toEqual([
-            { unit: 'cup', gramsPerUnit: 125 },
-            { unit: 'tablespoon', gramsPerUnit: 8 },
-        ]);
-    });
-});
 
 describe('IngredientsService', () => {
     let service: IngredientsService;
@@ -205,7 +140,7 @@ describe('IngredientsService', () => {
     });
 
     describe('refreshStatus (poll)', () => {
-        it('persists RESOLVED status + golden-record nutrition', async () => {
+        it('persists the RESOLVED status ONLY — nutrition is food`s, read live (U10)', async () => {
             dalMocks['findById']!.mockResolvedValue(
                 makeIngredient({ id: 'i1', foodId: 'F1', foodResolutionStatus: FoodResolutionStatus.PENDING }),
             );
@@ -216,16 +151,16 @@ describe('IngredientsService', () => {
                 id: 'i1',
                 foodId: 'F1',
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
-                caloriesPer100g: 364,
             });
             dalMocks['updateResolution']!.mockResolvedValue(resolved);
 
             const result = await service.refreshStatus(CALLER, 'i1');
 
+            // ⛔ STATUS ONLY. Copying the golden record's nutrition into this table is exactly what U10
+            // deleted: a snapshot with no invalidation, so a food corrected upstream left every recipe
+            // quoting the old number. The numbers are read live from food now.
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
-                nutrition: { caloriesPer100g: 364, proteinGPer100g: 10.3, carbsGPer100g: 76.3, fatGPer100g: 0.98 },
-                portions: [], // makeFoodView supplies no portions → empty (extractPortions still runs)
             });
             expect(result).toBe(resolved);
         });
@@ -243,7 +178,6 @@ describe('IngredientsService', () => {
 
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
-                nutrition: undefined,
             });
         });
 
@@ -358,3 +292,10 @@ describe('IngredientsService', () => {
         });
     });
 });
+
+/*
+ * ⛔ The `extractNutrition` / `extractPortions` / `parsePortion` suites were REMOVED, not deleted-and-lost:
+ * those functions moved into the FOOD service with plan U10, because they were the recipe service
+ * interpreting food's data. Their coverage now lives — expanded, and with the kcal/kJ and per-serving traps
+ * pinned — in `packages/services/food-service/src/foods/nutrition/__tests__/`.
+ */

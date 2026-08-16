@@ -234,9 +234,7 @@ export const recipeExportSchema = z
         cuisine: z.string().nullable(),
         dietaryFlags: z.array(z.string()).readonly(),
         tags: z.array(z.string()).readonly(),
-        hasPartialNutrition: z.boolean(),
         /** Denormalized headline per-serving calories (`numeric` → string), `null` when unaccounted. */
-        leadCaloriesPerServing: z.string().nullable(),
         authorHandle: z.string().nullable(),
         currentVersion: z.number().int(),
         /** Soft-delete tombstone, or `null` when active. Present so an export is a faithful mirror. */

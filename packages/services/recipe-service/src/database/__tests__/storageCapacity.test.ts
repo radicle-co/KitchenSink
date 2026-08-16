@@ -114,11 +114,6 @@ const accounts: readonly ColumnAccount[] = [
         column: 'rating_count',
         why: 'Maintained ONLY by the ratings aggregate trigger; never written by application code.',
     },
-    {
-        table: 'recipes',
-        column: 'lead_calories_per_serving',
-        why: 'numeric(8,1), recomputed server-side from the ingredient lines (recipe-core leadCaloriesPerServing); no wire field sets it. Its inputs are the numeric(8,2)-bounded per-line overrides plus catalog nutrition.',
-    },
 
     // ── recipe_steps ──────────────────────────────────────────────────────────────────────────────
     {
@@ -165,13 +160,6 @@ const accounts: readonly ColumnAccount[] = [
     },
 
     // ── ingredients (the local catalog) ───────────────────────────────────────────────────────────
-    ...(['calories_per_100g', 'protein_g_per_100g', 'carbs_g_per_100g', 'fat_g_per_100g'] as const).map(
-        (column): ColumnAccount => ({
-            table: 'ingredients',
-            column,
-            why: 'numeric(8,2) per-100 g nutrition, written ONLY from a food-service resolution (the gateway maps a CandidateView); no wire field on this service sets it.',
-        }),
-    ),
 
     // ── recipe_photos ─────────────────────────────────────────────────────────────────────────────
     {

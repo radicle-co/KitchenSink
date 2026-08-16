@@ -20,7 +20,7 @@ function makeDb(): { db: RecipeDrizzle; execute: ReturnType<typeof vi.fn> } {
 }
 
 describe('rowToIngredient', () => {
-    it('maps a raw snake_case row to the domain shape, coercing numerics and nulls', () => {
+    it('maps a raw snake_case row to the domain shape — REFERENCE fields only (U10)', () => {
         const ingredient = rowToIngredient(
             makeRawIngredientRow({
                 id: 'id-1',
@@ -28,10 +28,6 @@ describe('rowToIngredient', () => {
                 food_id: '01J0FOOD',
                 food_resolution_status: 'RESOLVED',
                 is_user_entered: false,
-                calories_per_100g: '717.00',
-                protein_g_per_100g: '0.85',
-                carbs_g_per_100g: '0.06',
-                fat_g_per_100g: '81.11',
                 created_at: '2026-07-01T00:00:00.000Z',
             }) as never,
         );
@@ -42,10 +38,9 @@ describe('rowToIngredient', () => {
             foodId: '01J0FOOD',
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             isUserEntered: false,
-            caloriesPer100g: 717,
-            proteinGPer100g: 0.85,
-            carbsGPer100g: 0.06,
-            fatGPer100g: 81.11,
+            // ⛔ No nutrition. The row carries the food REFERENCE; the numbers live in the food service and
+            // are read at request time (U10) — a projection that returned them here would be reading columns
+            // migration 0019 dropped.
             createdAt: '2026-07-01T00:00:00.000Z',
         });
     });
@@ -274,18 +269,17 @@ describe('IngredientsDal', () => {
                         id: 'u',
                         food_id: 'F1',
                         food_resolution_status: 'RESOLVED',
-                        calories_per_100g: '364.00',
                     }),
                 ],
             });
 
+            // U10: `updateResolution` persists the STATUS only. Nutrition is food's, read live.
             const result = await dal.updateResolution('u', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
-                nutrition: { caloriesPer100g: 364 },
             });
 
             expect(result?.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-            expect(result?.caloriesPer100g).toBe(364);
+            expect(result).not.toHaveProperty('caloriesPer100g');
         });
 
         it('returns undefined when the id does not exist', async () => {

@@ -33,6 +33,16 @@ import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 
+/**
+ * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
+ *
+ * It answers `absent` — the honest degrade shape — rather than fabricating numbers, so a suite that starts
+ * depending on nutrition fails loudly here instead of quietly asserting invented values.
+ */
+const nutritionGatewayDouble = {
+    lookup: async () => ({ byFoodId: new Map(), freshness: 'absent' as const }),
+} as never;
+
 const OWNER = '01J000000000000000000FREE0';
 const ONION_ID = '00000000-0000-4000-8000-0000000000ff';
 
@@ -110,6 +120,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         const response = await service.create(OWNER_PRINCIPAL, CREATE_DTO);
@@ -153,6 +164,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         const poisoned: CreateRecipeDto = {
@@ -174,6 +186,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         const error = await catchError(service.create(OWNER_PRINCIPAL, CREATE_DTO));
@@ -193,6 +206,7 @@ describe('RecipesService.getById — ingredient composition (T043b)', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         const response = await service.getById(OWNER, 'r-1');
@@ -217,6 +231,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         const patch: UpdateRecipeDto = {
@@ -246,6 +261,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         );
 
         await service.update(OWNER_PRINCIPAL, 'r-1', { expectedVersion: 1, title: 'Renamed' });

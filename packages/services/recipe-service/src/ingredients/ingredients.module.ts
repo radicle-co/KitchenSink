@@ -48,6 +48,7 @@ import { IngredientsController } from './ingredients.controller.js';
 import { IngredientsService } from './ingredients.service.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
+import { FoodNutritionGateway } from './foodNutrition.gateway.js';
 import { IngredientsDal } from './dal/ingredients.dal.js';
 
 /**
@@ -88,8 +89,17 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
                     enabled: config.get<boolean>('FOOD_CATALOG_BLEND_ENABLED') !== false,
                 }),
         },
+        {
+            // The recipe read path's nutrition source (U10). Provided HERE, beside the food client factory
+            // it depends on, and exported so `RecipesModule` consumes it rather than building a second
+            // instance — a second instance would mean a second cache, halving the hit rate and letting the
+            // two disagree about what food last said.
+            provide: FoodNutritionGateway,
+            inject: [FoodServiceClients],
+            useFactory: (clients: FoodServiceClients): FoodNutritionGateway => new FoodNutritionGateway(clients),
+        },
         IngredientsService,
     ],
-    exports: [IngredientsService],
+    exports: [IngredientsService, FoodNutritionGateway],
 })
 export class IngredientsModule {}

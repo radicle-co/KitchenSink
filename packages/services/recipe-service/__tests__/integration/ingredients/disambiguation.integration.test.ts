@@ -5,7 +5,7 @@
  * (migrated + seeded by `tests/globalSetup.ts`) with the external food service (003) stubbed at the
  * `FoodServiceClient` boundary — the ONLY external dependency, and the one 001 does not own. This proves
  * the behaviours a mocked `db.execute` cannot: the poll's write-through actually persists the golden-record
- * per-100g nutrition + household portions into the `ingredients` row, a terminal food is recorded (never
+ * the food REFERENCE and status into the `ingredients` row (nutrition is read LIVE — U10), a terminal food is recorded (never
  * thrown), and `resolve` drives an `UNRESOLVED` row to `RESOLVED` with nutrition through the real SQL
  * (`updateResolution`'s `COALESCE` + `jsonb` cast, `createFoodBacked`'s `search_vector`, `findById`'s
  * numeric/`null` mapping).
@@ -98,7 +98,7 @@ describe.skipIf(!hasDatabaseUrl)(
             expect(result).toEqual([candidate]);
         });
 
-        it('resolve drives UNRESOLVED → RESOLVED and PERSISTS the golden-record nutrition + portions to the row', async () => {
+        it('resolve drives UNRESOLVED → RESOLVED and records the food reference and status on the row (nutrition is read live, U10)', async () => {
             const id = await seedFoodBacked(FoodResolutionStatus.UNRESOLVED);
             vi.mocked(food.resolve).mockResolvedValue({ id: FOOD_ID, status: FoodResolutionStatus.RESOLVED });
             vi.mocked(food.getStatus).mockResolvedValue(
@@ -121,9 +121,10 @@ describe.skipIf(!hasDatabaseUrl)(
             // Re-read from the DB: the golden nutrition + a parsed portion were actually written through.
             const reread = await dal.findById(id);
             expect(reread?.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-            expect(reread?.caloriesPer100g).toBe(364);
-            expect(reread?.proteinGPer100g).toBe(10.3);
-            expect(reread?.portions).toEqual([{ unit: 'cup', gramsPerUnit: 185 }]);
+            // ⛔ The row carries the REFERENCE, never a copy of the food's numbers (U10). Asserting a
+            // persisted macro here would be asserting the snapshot this unit deleted.
+            expect(reread).not.toHaveProperty('proteinGPer100g');
+            expect(reread?.foodId).toBeTruthy();
         });
 
         it('resolve is converge-only: a second resolve does NOT re-point an already-RESOLVED row', async () => {
@@ -141,7 +142,6 @@ describe.skipIf(!hasDatabaseUrl)(
             await service.resolve(CALLER, id, ['cand-a']);
             const afterFirst = await dal.findById(id);
             expect(afterFirst?.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-            expect(afterFirst?.caloriesPer100g).toBe(364);
 
             // A SECOND resolve with a DIFFERENT pick must be an idempotent no-op — the ownerless shared row
             // must not be re-pointed. If the converge-only guard were removed, food.resolve would fire with
@@ -158,7 +158,7 @@ describe.skipIf(!hasDatabaseUrl)(
             expect(returned.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
         });
 
-        it('poll (refreshStatus) persists nutrition once a PENDING food RESOLVES', async () => {
+        it('poll (refreshStatus) advances the row to RESOLVED once a PENDING food resolves', async () => {
             const id = await seedFoodBacked(FoodResolutionStatus.PENDING);
             vi.mocked(food.getStatus).mockResolvedValue(
                 makeStatusResult({
@@ -171,7 +171,6 @@ describe.skipIf(!hasDatabaseUrl)(
             const refreshed = await service.refreshStatus(CALLER, id);
 
             expect(refreshed.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
-            expect((await dal.findById(id))?.caloriesPer100g).toBe(364);
         });
 
         it('poll records a terminal NOT_FOUND food as the row status (never throws)', async () => {

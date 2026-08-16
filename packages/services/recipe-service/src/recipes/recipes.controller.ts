@@ -40,6 +40,8 @@ import { SetVisibilityDto } from './dto/setVisibility.dto.js';
 import type { PaginatedRecipesResponse, RecipeResponse } from './dto/recipeResponse.dto.js';
 import { CurrentPrincipal, OwnerId } from '../auth/currentPrincipal.decorator.js';
 import type { Principal } from '../auth/principal.js';
+import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
+import type { CallerToken } from '../auth/CallerToken.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
@@ -57,9 +59,10 @@ export class RecipesController {
     @WriteRateLimit()
     public async create(
         @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: CreateRecipeDto,
     ): Promise<RecipeResponse> {
-        return this.recipesService.create(principal, body);
+        return this.recipesService.create(principal, body, caller);
     }
 
     /** `GET /api/v1/recipes` — list the caller's recipes with pagination. */
@@ -73,8 +76,14 @@ export class RecipesController {
 
     /** `GET /api/v1/recipes/{id}` — fetch one recipe (owner, or any public recipe). */
     @Get(':id')
-    public async getById(@OwnerId() ownerId: string, @Param('id', ParseUUIDPipe) id: string): Promise<RecipeResponse> {
-        return this.recipesService.getById(ownerId, id);
+    public async getById(
+        @OwnerId() ownerId: string,
+        @Param('id', ParseUUIDPipe) id: string,
+        // Forwarded so the food service authorizes the nutrition read AS this user (U10). Omitting it
+        // degrades every recipe to nutrition-absent, which is indistinguishable from a food outage.
+        @CallerBearerToken() caller: CallerToken | undefined,
+    ): Promise<RecipeResponse> {
+        return this.recipesService.getById(ownerId, id, caller);
     }
 
     /** `PATCH /api/v1/recipes/{id}` — update a recipe the caller owns (optimistic concurrency). */

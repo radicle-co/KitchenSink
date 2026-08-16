@@ -19,6 +19,16 @@ import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtu
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 
+/**
+ * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
+ *
+ * It answers `absent` — the honest degrade shape — rather than fabricating numbers, so a suite that starts
+ * depending on nutrition fails loudly here instead of quietly asserting invented values.
+ */
+const nutritionGatewayDouble = {
+    lookup: async () => ({ byFoodId: new Map(), freshness: 'absent' as const }),
+} as never;
+
 const OWNER = '01J0000000000000000000PRO0';
 const OWNER_PRINCIPAL: Principal = { userId: OWNER, sub: 'user_clerk', scopes: [], permissions: [] };
 const INGREDIENT_ID = '00000000-0000-4000-8000-0000000000ff';
@@ -73,6 +83,7 @@ function service(existing: RecipeAggregate): { svc: RecipesService; update: Retu
             fakePhotosDal(),
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
+            nutritionGatewayDouble,
         ),
         update,
     };

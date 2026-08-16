@@ -40,8 +40,6 @@ export function makeRecipeRow(overrides: Partial<RecipeExportRow> = {}): RecipeE
         cuisine: 'Italian',
         dietaryFlags: ['vegetarian'],
         tags: ['dinner'],
-        hasPartialNutrition: false,
-        leadCaloriesPerServing: '540.0',
         authorHandle: 'chef-anna',
         currentVersion: 1,
         deletedAt: null,

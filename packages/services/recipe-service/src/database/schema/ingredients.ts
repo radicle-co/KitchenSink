@@ -12,7 +12,6 @@ import {
     check,
     index,
     integer,
-    jsonb,
     numeric,
     pgTable,
     text,
@@ -20,7 +19,7 @@ import {
     uniqueIndex,
     uuid,
 } from 'drizzle-orm/pg-core';
-import type { FoodResolutionStatus, IngredientPortion } from '@kitchensink/recipe-core';
+import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { recipes, tsvector } from './recipes.js';
 
@@ -55,14 +54,14 @@ export const ingredients = pgTable(
         foodId: text('food_id'),
         foodResolutionStatus: text('food_resolution_status'),
         isUserEntered: boolean('is_user_entered').notNull().default(false),
-        // Per-100g nutrition — populated from the food golden record once RESOLVED; NULL while pending.
-        caloriesPer100g: numeric('calories_per_100g', { precision: 8, scale: 2 }),
-        proteinGPer100g: numeric('protein_g_per_100g', { precision: 8, scale: 2 }),
-        carbsGPer100g: numeric('carbs_g_per_100g', { precision: 8, scale: 2 }),
-        fatGPer100g: numeric('fat_g_per_100g', { precision: 8, scale: 2 }),
-        // Household-measure portions (`[{ unit, gramsPerUnit }]`), normalized from the food golden record's
-        // portions once RESOLVED; used to convert a recipe line's volumetric/count unit to grams (#11).
-        portions: jsonb('portions').$type<IngredientPortion[]>(),
+        // ⛔ NO NUTRITION COLUMNS, and none may be added (KTD-3 / plan U10, migration 0019).
+        //
+        // `calories_per_100g`, `protein_g_per_100g`, `carbs_g_per_100g`, `fat_g_per_100g` and `portions`
+        // were DROPPED. They were copies of the food service's data taken at resolution time, with no
+        // invalidation — so a food corrected upstream left every recipe quoting the old number forever, and
+        // the same recipe could report different calories from different rows. The food service is the
+        // single writer for a food; this table holds the REFERENCE (`food_id`) and nothing derived from it.
+        // Nutrition is read live through `FoodNutritionGateway` (KTD-3b: stale, then absent, never wrong).
         searchVector: tsvector('search_vector'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },

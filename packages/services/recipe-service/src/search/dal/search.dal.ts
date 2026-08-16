@@ -78,8 +78,11 @@ const RECIPE_COLUMNS = sql`
     recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty,
     recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.source_type,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
-    recipes.cuisine, recipes.dietary_flags, recipes.tags, recipes.has_partial_nutrition,
-    recipes.lead_calories_per_serving, recipes.author_handle, recipes.current_version, recipes.ingredient_names_text,
+    recipes.cuisine, recipes.dietary_flags, recipes.tags,
+    -- ⛔ NO has_partial_nutrition / lead_calories_per_serving (U10, migration 0019). Selecting a dropped
+    -- column does not fail a type-check or a mocked unit test — it 500s every search and list request at
+    -- runtime, which is exactly how this was found (searchContract.integration.test.ts).
+    recipes.author_handle, recipes.current_version, recipes.ingredient_names_text,
     recipes.deleted_at, recipes.created_at, recipes.updated_at`;
 
 /** Everything the DAL needs to build one ranked, filtered, paginated search. */
@@ -145,8 +148,6 @@ interface RawRecipeSearchRow {
     cuisine: string | null;
     dietary_flags: string[];
     tags: string[];
-    has_partial_nutrition: boolean;
-    lead_calories_per_serving: string | null;
     author_handle: string | null;
     current_version: number;
     ingredient_names_text: string;
@@ -197,8 +198,6 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         cuisine: row.cuisine,
         dietaryFlags: row.dietary_flags,
         tags: row.tags,
-        hasPartialNutrition: row.has_partial_nutrition,
-        leadCaloriesPerServing: row.lead_calories_per_serving,
         authorHandle: row.author_handle,
         currentVersion: row.current_version,
         averageRating: row.average_rating,
@@ -225,7 +224,18 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
  *   `coverPhotoUrl` is omitted.
  */
 export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Recipe {
-    const recipe = recipeRowToDomain(toRecipeRowInput(row));
+    // ⛔ SEARCH AND LIST REPORT NUTRITION AS UNKNOWN, NOT AS COMPLETE (plan U10).
+    //
+    // These figures used to come from denormalized columns written at recipe-save time, which is exactly
+    // the duplicate KTD-3 deletes — a value frozen at its last write while food's own data moved on. They
+    // are now derived from food's live data, and this projection deliberately does NOT fetch it: a search
+    // page would issue one food lookup per hit, which is the N+1 the columns existed to avoid.
+    //
+    // So the honest answer here is `hasPartialNutrition: true` — "we have not accounted for this recipe's
+    // nutrition on this path" — and an ABSENT calorie figure. Reporting `false` would assert completeness
+    // this projection never established, and a `0` would read as a genuine zero-calorie recipe. A caller
+    // that needs the numbers reads the DETAIL, which fetches them in one batched call.
+    const recipe = recipeRowToDomain(toRecipeRowInput(row), { hasPartialNutrition: true });
 
     return {
         ...recipe,

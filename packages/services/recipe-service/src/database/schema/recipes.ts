@@ -114,14 +114,11 @@ export const recipes = pgTable(
             .notNull()
             .default(sql`'{}'`),
 
-        hasPartialNutrition: boolean('has_partial_nutrition').notNull().default(false),
-
         // Denormalized headline per-serving calories (W8-a.1, 0012 migration) — recomputed on every write
         // from the ingredient lines (@kitchensink/recipe-core leadCaloriesPerServing) so the LIST /
         // SEARCH / collection-embed base projections avoid an N+1. NULL exactly when the recipe has no
         // accounted nutrition (the projection then omits the field — never a misleading 0, as with
         // average_rating). numeric(8,1) matches the aggregator's one-decimal wire precision.
-        leadCaloriesPerServing: numeric('lead_calories_per_serving', { precision: 8, scale: 1 }),
 
         // Denormalized author display-name (W8-a.2 / decision 6 / 0015 migration) — profiles.displayName
         // written at create/clone time so cards render "by @handle" without a cross-service call. NULLABLE:

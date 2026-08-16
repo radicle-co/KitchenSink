@@ -915,6 +915,31 @@ group :443 ingress to the `com.amazonaws.global.cloudfront.origin-facing` manage
 ⚠️ **Prod only** — the ALB is per stage, and sandbox plus every per-PR preview have no distribution and
 must keep reaching their own ALB directly.
 
+⛔ **Three corrections to the paragraph above, all found during implementation. Read them before deploying.**
+
+1. **The prefix list is not a boundary.** It authorizes _CloudFront_, not _ours_ — the origin hostnames are
+   published in the public zone, so anyone can point their own distribution at one and reach the ALB with
+   the edge verifier out of the path. It is **not** an authentication bypass (every origin re-verifies the
+   caller's token independently, and `x-edge-principal` has no consumers in service code), so this is
+   Medium, not P0. The real boundary is a **secret origin header** sent by CloudFront and required as an
+   additional condition on each prod listener rule. Full reasoning in ADR-0020's U17 correction.
+2. **The lockdown was one line from being decoration.** `SharedAlbStack` passed `open: true` to both
+   listeners, which opens `:443` on `NetworkStack`'s OWN security-group construct. It was invisible only
+   because both added the identical rule and CDK deduped them; narrowing NetworkStack's rule makes
+   `open: true` re-emit `0.0.0.0/0:443` **in SharedAlbStack's template**, leaving the ALB open while
+   NetworkStack's template, its tests and a scoped `cdk diff` all look correct. Both listeners are now
+   `open: false` and NetworkStack owns every ALB ingress rule.
+3. **Exactly ONE prefix-list rule fits.** It costs its **weight** (55) against the 60-rules-per-security-group
+   quota, not its current entry count (46). `:80` must stay a plain CIDR rule, the IPv6 list can never be
+   added, and the ALB must stay IPv4-only. ⚠️ **Raise `L-0EA8095F` to 120 BEFORE the cutover** — four rules
+   of headroom on the security group that every prod `NetworkStack` deploy touches is not headroom, and
+   AWS has raised this weight before. The failure lands on the NEXT modification, as an `UPDATE_FAILED`
+   blocking every prod infra deploy, months later, looking nothing like the change that caused it.
+
+**No certificate is needed.** `DomainStack`'s existing `KitchenSinkCertificate` already carries
+`*.commise.app` and already lives in us-east-1, which is where CloudFront requires it. Import it; do not
+mint a second one.
+
 **Service-principal URLs.** Everything goes through CloudFront, so the erasure SSM base URLs and the
 recipe task's `RECIPE_FOOD_SERVICE_URL` keep naming the **public** hostnames — but the edge exemption in
 U16 is what makes that work, so the erasure fan-out must be exercised after each cutover, not assumed.
@@ -932,10 +957,28 @@ so removing one belonging to a live certificate silently breaks auto-renewal mon
 - The prod smoke suite passes against the public name for all three services
 - **An account-erasure fan-out completes end-to-end after each cutover**
 - Sign-in succeeds end-to-end on web and mobile after identity's cutover
-- A request to prod's ALB from outside CloudFront's prefix list is refused
+- ~~A request to prod's ALB from outside CloudFront's prefix list is refused~~ — ⛔ **not testable.** You
+  cannot source-spoof a CloudFront address from a laptop. Replaced by the three checks below.
 - A sandbox and a `pr-{N}` host still answer directly, unaffected by the prod lockdown
-  **Verification** All three services serve production traffic through CloudFront; the existing prod
-  smoke checks pass against the public hostnames; a real erasure completes.
+
+⚠️ **U15's verification INVERTS here.** Its proof was `curl https://{service}.internal.commise.app/health`
+→ `200`. That curl **is** the bypass. Once the origin header is required the same request returns
+ADR-0003's default `404`, and the `404` is the PASS:
+
+- `curl https://{service}.internal.commise.app/health` → **404** (ALB default action)
+- `curl -H 'x-commise-edge: wrong' https://{service}.internal.commise.app/health` → **404** — the only one
+  of the three that actually tests the boundary
+- `curl https://{service}.commise.app/health` → **200**, carrying a CloudFront response header
+
+⛔ **Deploy ordering that must not be "simplified":** the distribution must SEND the origin header before
+the ALB REQUIRES it. Adding the listener condition first 403s all production traffic. Likewise, per
+service, the service stack releases the public A-record BEFORE `EdgeStack` claims it — Route 53 refuses a
+duplicate, so the reverse order simply fails. The gap between those two deploys is an NXDOMAIN window, not
+a 5xx one, and Route 53's default SOA minimum means resolvers can keep answering NXDOMAIN for up to 15
+minutes AFTER the second deploy completes. On food that degrades recipe silently rather than loudly
+(`catalogAvailability: 'unavailable'`), so verify rather than assume.
+**Verification** All three services serve production traffic through CloudFront; the existing prod
+smoke checks pass against the public hostnames; a real erasure completes.
 
 ---
 

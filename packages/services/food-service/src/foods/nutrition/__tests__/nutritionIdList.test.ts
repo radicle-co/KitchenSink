@@ -12,7 +12,7 @@ import {
     canonicalNutritionQuery,
     canonicalizeNutritionIds,
     isNutritionIdListError,
-} from '../nutritionIdList.js';
+} from '../../foods.schema.js';
 
 describe('canonicalizeNutritionIds', () => {
     it('⛔ produces the SAME list regardless of the order the caller asked in', () => {

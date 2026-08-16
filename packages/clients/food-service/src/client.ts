@@ -28,6 +28,8 @@ import {
     resolveFoodRequestSchema,
     resolveResponseSchema,
     searchFoodQuerySchema,
+    canonicalNutritionQuery,
+    foodNutritionBatchResponseSchema,
     searchResponseSchema,
     statusResponseSchema,
 } from '@kitchensink/schema-food';
@@ -54,6 +56,7 @@ import type {
     ResolveResult,
     SearchResult,
     StatusResult,
+    FoodNutritionBatchResult,
 } from './types.js';
 
 /**
@@ -257,6 +260,25 @@ export class FoodServiceClient {
         const res = await this.send('GET', `/api/v1/foods/search?query=${encodeURIComponent(validated ?? '')}`);
 
         return this.expect<SearchResult>(res, 200, searchResponseSchema);
+    }
+
+    /**
+     * `GET /api/v1/foods/nutrition?ids=…` — batch per-100g nutrition + normalized portions (plan U8).
+     *
+     * The id list is CANONICALIZED by the service's own rule (sorted, de-duplicated) before the URL is
+     * built, because the URL is the cache key at the edge (ADR-0020): two callers asking for the same foods
+     * must produce byte-identical URLs or the CDN never hits. Building the query here rather than letting
+     * each caller concatenate is what makes that true for every caller at once.
+     *
+     * @param ids - The food ids to look up. Order and duplicates are irrelevant — both are normalized away.
+     * @returns One entry per known id plus the ids that matched nothing.
+     * @throws {BadRequestError} when the list is empty or exceeds the service's per-request cap.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getNutrition(ids: readonly string[]): Promise<FoodNutritionBatchResult> {
+        const res = await this.send('GET', `/api/v1/foods/nutrition?${canonicalNutritionQuery(ids)}`);
+
+        return this.expect<FoodNutritionBatchResult>(res, 200, foodNutritionBatchResponseSchema);
     }
 
     /**

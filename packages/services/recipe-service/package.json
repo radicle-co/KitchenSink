@@ -47,6 +47,7 @@
         "drizzle-orm": "^0.45.2",
         "file-type": "^19.6.0",
         "jose": "^6.2.3",
+        "lru-cache": "^11.5.2",
         "nestjs-zod": "^5.5.0",
         "pg": "^8.21.0",
         "reflect-metadata": "^0.2.0",

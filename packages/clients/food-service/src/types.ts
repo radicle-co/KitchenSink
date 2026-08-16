@@ -52,6 +52,7 @@ export type {
 } from '@kitchensink/schema-food';
 
 import type {
+    FoodNutritionBatchResponse,
     AddResponse,
     BatchResponse,
     CandidatesResponse,
@@ -102,6 +103,9 @@ export type CandidatesResult = CandidatesResponse;
  * @deprecated Use `SearchResponse`, the name the service publishes. Identical type.
  */
 export type SearchResult = SearchResponse;
+
+/** `GET /api/v1/foods/nutrition` — batch per-100g nutrition + normalized portions (plan U8). */
+export type FoodNutritionBatchResult = FoodNutritionBatchResponse;
 
 /**
  * The result of `resolve` (PATCH from a candidate pick).

@@ -86,6 +86,21 @@ export class FoodServiceClients {
     }
 
     /**
+     * A client for the batch NUTRITION read (plan U10), authenticated as `caller`.
+     *
+     * Takes the STANDARD deadline, not the typeahead one: this call is on the recipe detail/list read path,
+     * not the per-keystroke path, and it is the only source of a recipe's calories now that the duplicated
+     * columns are gone. Cutting it to a sub-second budget would turn an ordinarily slow food response into
+     * "this recipe has no nutrition" — a wrong answer where a slightly slower right one was available.
+     *
+     * @param caller - The caller's credential, forwarded so food's own auth decides what they may read.
+     * @returns A client bound to this caller, the configured food origin, and the standard deadline.
+     */
+    public nutrition(caller: CallerToken | undefined): FoodServiceClient {
+        return this.forCaller(caller, undefined);
+    }
+
+    /**
      * Build the client. The ONE place the caller's bytes are read, and they are attached to the configured
      * origin only. The token is supplied as a callback rather than a literal so it is read at request time
      * (matching the client's `getToken` contract) and never sits in a captured string.

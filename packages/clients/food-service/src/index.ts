@@ -62,6 +62,7 @@ export type {
     CandidatesResult,
     FoodView,
     ResolveResult,
+    FoodNutritionBatchResult,
     SearchResult,
     StatusResult,
 } from './types.js';

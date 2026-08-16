@@ -55,8 +55,7 @@ import {
     type AuthenticatedRequest,
 } from '../auth/authenticatedPrincipal.js';
 import { apiError } from '../common/apiError.js';
-import { canonicalizeNutritionIds, isNutritionIdListError } from './nutrition/nutritionIdList.js';
-import type { FoodNutritionBatchResponse } from './foods.schema.js';
+import { canonicalizeNutritionIds, isNutritionIdListError, type FoodNutritionBatchResponse } from './foods.schema.js';
 import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
 import { isFoodPendingError } from './foods.errors.js';

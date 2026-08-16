@@ -714,12 +714,23 @@ on the export-in-use failure ADR-0002 already documents. Add a **second, additiv
 for `*.internal.commise.app` with a new logical id and export, and attach it to the shared HTTPS
 listener via `addCertificates`. Purely additive: no resource replacement, no in-use export change.
 
+**Verified against live AWS, 2026-08-15** (account `040663841500`), so the premise is measured rather
+than inferred: `DomainStack` is **per stage** and there are **two** certificates, both carrying exactly
+`commise.app`, `*.sandbox.commise.app`, `*.commise.app` — **single-label wildcards only, no
+`*.internal.*`**. `09d3e5fe-…` serves the prod ALB (`kitche-Share-43TqIsoNsnVc`); `306a9780-…` serves
+the sandbox ALB (`kitche-Share-lnWb6XEu65X7`) and the legacy ADR-0001 CloudFront router.
+
+**Scope this unit to prod only** (resolves Q-F). Only prod gets distributions, so only prod's
+`DomainStack` needs the additive certificate and only prod's services need internal host conditions.
+Sandbox and per-PR keep reaching their own ALB on the existing public names, untouched.
+
 This is the gate for everything else in R6. Then add the internal hostname as an **additional** host
 condition on each service's existing listener rule, and publish the matching Route 53 records — so both
 the current public name and the new internal name resolve, and nothing has cut over yet.
 **Test scenarios**
 
-- Synth asserts a second certificate exists covering `*.internal.commise.app`
+- Synth asserts a second certificate exists covering `*.internal.commise.app` for the prod stage
+- Synth asserts a non-prod stage creates no second certificate and no internal host condition
 - Synth asserts the original certificate's SAN list is unchanged
 - The HTTPS listener carries both certificates
 - Each listener rule matches both its current public host and its new internal host
@@ -805,10 +816,13 @@ must keep reaching their own ALB directly.
 recipe task's `RECIPE_FOOD_SERVICE_URL` keep naming the **public** hostnames — but the edge exemption in
 U16 is what makes that work, so the erasure fan-out must be exercised after each cutover, not assumed.
 
-**Cleanup, surfaced while verifying live DNS:** `food-pr-92.commise.app` and
-`recipe-pr-92.commise.app` records exist — if PR 92 is closed, teardown leaked them and
-`teardown-sandbox-pr.sh` needs examining, not just the records deleting. A stale ACM validation CNAME
-for a `identity.dev.commise.app` that no longer exists should also go.
+**Cleanup, verified against live AWS 2026-08-15.** The `food-pr-92` / `recipe-pr-92` records flagged
+earlier are **legitimate** — PR 92 is open (feature 008, Cooking Mode). Every `pr-{N}` record in the
+zone maps to PR 91 or 92, both open, and merged PRs 90 and 83 left none behind: **teardown is working,
+and there is nothing to fix here.** One genuine orphan remains — the ACM validation CNAME
+`_1718a95309b5c1f31d160ddd7bdd645c.registration.identity.dev.commise.app`, whose certificate no longer
+exists in ACM. ⚠️ Confirm that before deleting any validation record: ACM reuses them for **renewal**,
+so removing one belonging to a live certificate silently breaks auto-renewal months later.
 **Test scenarios**
 
 - After cutover, each public name resolves to a CloudFront domain
@@ -884,12 +898,17 @@ Consequence accepted: the 004, 005, 006 and 011 worktrees stay un-rebasable unti
 - **Q-C** Is the 12-month tombstone→erasure sweep scheduled? `tombstoneSweep` exists but its schedule is
   unverified. **U9 depends on the answer for food's own reaper** — if food's sweep is likewise
   unscheduled, scheduling it is in U9's scope.
-- **Q-D** Is PR 92 open? If closed, the live `food-pr-92` / `recipe-pr-92` DNS records mean teardown
-  leaked, which is a defect in `teardown-sandbox-pr.sh`, not just stale records to delete (U17).
+- **Q-D** ~~Is PR 92 open, and did teardown leak its DNS records?~~ **Resolved 2026-08-15** — PR 92 is
+  open (feature 008). The records are legitimate, no leak, teardown is working. Only the orphaned
+  `identity.dev` ACM validation CNAME remains for cleanup (U17).
 - **Q-E** Do recipes already written public under the `visibility` default get a remediation pass, or is
   the fix forward-only? A user-facing decision, not an implementation detail (U12).
-- **Q-F** Does the `*.internal.commise.app` wildcard need scoping away from sandbox and per-PR? It is
-  added to the shared ALB certificate, which fronts every stage, but only prod has origins that use it.
+- **Q-F** ~~Does the `*.internal.commise.app` wildcard need scoping away from sandbox and per-PR?~~
+  **Resolved 2026-08-15** — `DomainStack` is **per stage** and there are two certificates, not one:
+  `09d3e5fe` serves the prod ALB and `306a9780` serves the sandbox ALB. The additive internal
+  certificate and the internal listener conditions therefore land on **prod only**, matching the
+  prod-only distributions. _(Noted in passing: `306a9780` is shared with the legacy CloudFront router
+  `E16KE2M2O5UD4J`, so retiring that router per ADR-0001 must account for the shared certificate.)_
 
 ---
 

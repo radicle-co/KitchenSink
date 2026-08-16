@@ -146,6 +146,16 @@ the 1 MB viewer-request limit. Lambda@Edge deploys in `us-east-1` (which this ac
 Node runtime is pinned explicitly because `@kitchensink/clerk-verify` declares `engines: node 24.x` while
 Lambda@Edge offers no `nodejs24.x`.
 
+**As built (2026-08-16, plan U16).** The key enters in exactly one place, `esbuild.mjs`'s `define`, and
+`EdgeStack` refuses to synthesize unless (a) `CLERK_JWT_KEY` is set AND (b) a bundle exists AND (c) that
+bundle contains the key it was handed. (c) is what makes the rotation runbook safe: a `dist-edge/` left over
+from an earlier build carries the OLD key while synth reports success, which ships a verifier that rejects
+every request in production. There is deliberately **no placeholder** — unlike `SandboxSchedulerStack`'s
+throwing stub — because both stub directions are unacceptable at the edge: a throwing one is a total outage
+of every fronted service, and a pass-through one leaves the cache-partition header unset, collapsing every
+caller onto one cache entry (trap 1). Measured unminified at ~70 kB / ~19 kB zipped, and the bundle is not
+minified on purpose so check (c) matches a plain string literal.
+
 ## Clerk key rotation is now an edge operation — the runbook step
 
 A Clerk signing-key rotation used to be a redeploy of the origins, which read the key from an environment
@@ -160,11 +170,33 @@ is every authenticated request failing at the edge.
 
 ## Identity is fronted but NOT cached — kept by owner ruling, against three reviewers
 
-Identity's distribution caches nothing and forwards the viewer `Host`. Its **origin request policy must
-explicitly forward `Authorization` and `Origin`** in addition to `Host`: `AuthMiddleware` verifies the Bearer
-token itself and the `azp`/CORS enforcement reads `Origin`. `CachingDisabled` controls **caching**, not
-header forwarding, so an unconfigured policy silently strips them and breaks sign-in in exactly the ADR-0001
-failure class.
+Identity's distribution caches nothing. Its **origin request policy must explicitly forward `Authorization`
+and `Origin`**: `AuthMiddleware` verifies the Bearer token itself and the `azp`/CORS enforcement reads
+`Origin`. `CachingDisabled` controls **caching**, not header forwarding, so an unconfigured policy silently
+strips them and breaks sign-in in exactly the ADR-0001 failure class.
+
+### ⛔ Correction (2026-08-16, plan U16) — the viewer `Host` must NOT be forwarded
+
+This section originally said identity's distribution "forwards the viewer `Host`". **That is wrong and was
+not implemented**, because forwarding it breaks the ADR-0003 host-based listener rule at BOTH ends of the
+cutover:
+
+- **Before U17**, the viewer `Host` is the `d….cloudfront.net` domain. It matches no listener rule, so every
+  request receives the shared listener's default `404` — which is precisely the pre-cutover verification
+  this unit exists to make possible.
+- **After U17 step 4**, the public host condition is REMOVED from the rule, so a forwarded
+  `{service}.commise.app` matches nothing either. The two requirements are mutually exclusive.
+
+What the original wording was protecting is the ADR-0001 failure class — an origin terminating on the wrong
+host. That is real for a Next.js app (Clerk's handshake `redirect_url`, Next 15's Server-Action origin check)
+and absent for these Nest APIs, which generate no absolute URL from `Host` and enforce CORS and `azp` from
+`Origin` and the signed token.
+
+**As built:** all three distributions use the managed `AllViewerExceptHostHeader` origin request policy,
+which forwards every viewer header EXCEPT `Host` — so `Authorization` and `Origin` (this section's actual
+requirement) are forwarded, and CloudFront sends the ORIGIN's own name as `Host`, which is what the listener
+rule matches. A hand-rolled allowlist naming only those two headers would have been worse: it would also drop
+`Content-Type`, breaking every request body. Pinned by `EdgeStack.test.ts`.
 
 **Three reviewers objected to fronting identity at all**, and the objection is recorded here rather than
 implied, because it is sound: identity's three stated benefits are respectively deferred (a WAF attachment

@@ -87,6 +87,7 @@ blob-report/
 
 # esbuild lambda bundles (recipe-service migrate lambda, etc.)
 dist-lambda/
+dist-edge/
 
 # CDK context cache (account-specific VPC/AZ lookups — not source)
 cdk.context.json

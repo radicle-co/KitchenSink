@@ -186,6 +186,9 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                 // Compiler / bundler / framework output.
                 '**/dist/**',
                 '**/dist-lambda/**',
+                // The Lambda@Edge verifier bundle (ADR-0020) — a separate output root from `dist-lambda`
+                // because CDK packages the directory it is given, and the viewer-request code limit is 1 MB.
+                '**/dist-edge/**',
                 '**/.next/**',
                 '**/.expo/**',
                 '**/build/**',

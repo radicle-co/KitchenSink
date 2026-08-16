@@ -197,16 +197,6 @@ jobs:
               # webhooks build step above and ADR-0013.
               run: npx turbo run build --filter=@kitchensink/infra-global
 
-            # `build` is tsc only — it does NOT bundle the DataStack's custom-resource handlers. Without this
-            # step `dist-lambda/` is absent at synth, and the DataStack ships an inline placeholder instead of
-            # the real food/recipe bootstrap. That is not theoretical: prod ran for four weeks with a 101-byte
-            # stub that created NO `food_app`/`recipe_app` role while CloudFormation reported CREATE_COMPLETE.
-            # The package's own `npm run deploy` bundles first; this workflow calls `cdk deploy` directly, so
-            # it has to do it here. Guarded by prod-deploy-bootstrap-bundle.test.ts.
-            - name: Bundle global infra custom-resource handlers
-              if: steps.flags.outputs.deploy_global == 'true'
-              run: npm run bundle:lambda --workspace=packages/infra/global
-
             - name: Build identity service infra
               if: steps.flags.outputs.deploy_service == 'true'
               run: npm run infra:build --workspace=packages/services/identity
@@ -232,13 +222,6 @@ jobs:
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: npx turbo run build --filter=@kitchensink/recipe-service --filter=@kitchensink/recipe-workers
 
-            - name: Prune dev dependencies
-              run: npm prune --omit=dev
-
-            - name: Verify runtime dependencies
-              run: |
-                  node -e "require('aws-cdk-lib')" || (echo 'FATAL: aws-cdk-lib missing after prune' && exit 1)
-
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
@@ -250,6 +233,58 @@ jobs:
               id: account
               run: |
                   echo "id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_OUTPUT"
+
+            # ADR-0020 trap 6 — the Lambda@Edge verifier's Clerk key is a BUILD-TIME input.
+            #
+            # Lambda@Edge cannot read environment variables, and this repository's
+            # `ssm.StringParameter.valueForStringParameter` pattern resolves at DEPLOY time — too late for an
+            # asset that esbuild bundles and CDK hashes at synth. So the key is read here, from the SAME SSM
+            # parameter the identity/food/recipe task definitions resolve (one source of truth for a value
+            # that rotates), and exported for the bundle and synth steps below.
+            #
+            # It is a PUBLIC key — it verifies signatures, it does not make them — which is why it may live
+            # in `GITHUB_ENV` at all; `acceptedNagFindings.ts` records the same reasoning for the task
+            # definitions that carry it in plain `Environment`.
+            #
+            # ⚠️ Ordering is load-bearing in BOTH directions and is guarded by `edgeVerifier.test.ts`: it
+            # must come AFTER the credentials step (the SSM read authenticates) and BEFORE the bundle (which
+            # inlines it, and silently skips the edge verifier when it is unset — after which the synth fails
+            # on a missing bundle rather than shipping a keyless verifier).
+            - name: Export the Clerk edge verification key
+              if: steps.flags.outputs.deploy_global == 'true'
+              run: |
+                  key="$(aws ssm get-parameter --name "/kitchensink/${STAGE}/clerk/jwt-public-key" --query 'Parameter.Value' --output text)"
+                  if [ -z "${key}" ] || [ "${key}" = "None" ]; then
+                      echo "::error::/kitchensink/${STAGE}/clerk/jwt-public-key is empty — the edge verifier would reject every request"
+                      exit 1
+                  fi
+                  {
+                      echo "CLERK_JWT_KEY<<KITCHENSINK_CLERK_JWT_KEY_EOF"
+                      echo "${key}"
+                      echo "KITCHENSINK_CLERK_JWT_KEY_EOF"
+                  } >> "${GITHUB_ENV}"
+
+            # `build` is tsc only — it does NOT bundle the DataStack's custom-resource handlers, nor the
+            # Lambda@Edge verifier. Without this step `dist-lambda/` is absent at synth and the DataStack
+            # ships an inline placeholder instead of the real food/recipe bootstrap. That is not theoretical:
+            # prod ran for four weeks with a 101-byte stub that created NO `food_app`/`recipe_app` role while
+            # CloudFormation reported CREATE_COMPLETE. `EdgeStack` has NO placeholder for the same lesson
+            # applied harder — it fails the synth instead. The package's own `npm run deploy` bundles first;
+            # this workflow calls `cdk deploy` directly, so it has to do it here. Guarded by
+            # globalBootstrapBundle.test.ts.
+            #
+            # ⚠️ MUST stay ABOVE "Prune dev dependencies": `esbuild` is a devDependency, so a bundle on the
+            # far side of the prune exits 127 — the same one-way door `nest build` is guarded against.
+            - name: Bundle global infra custom-resource handlers
+              if: steps.flags.outputs.deploy_global == 'true'
+              run: npm run bundle:lambda --workspace=packages/infra/global
+
+            - name: Prune dev dependencies
+              run: npm prune --omit=dev
+
+            - name: Verify runtime dependencies
+              run: |
+                  node -e "require('aws-cdk-lib')" || (echo 'FATAL: aws-cdk-lib missing after prune' && exit 1)
 
             # Gated on ANY image-pushing deploy, not just identity: a food- or recipe-only change still
             # needs the registry, and without this the push step would receive an empty

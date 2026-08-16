@@ -235,15 +235,70 @@ Some choices look like bugs to "fix" but are intentional. Before reverting one, 
 
 - **The service OWNS its wire types: zod authored in-service, copied to `packages/schemas/*`, and clients NEVER redeclare a wire shape.** Every HTTP service's contract is authored as zod at `packages/services/<svc>/src/**/*.schema.ts`, beside the controller it serves and used for that controller's validation; a committed COPY lives at `packages/schemas/<svc>` (`@kitchensink/schema-<svc>`), exporting the zod, `z.infer` types, a `CONTRACT_HASH`, and a DERIVED `openapi.yaml`. Clients import from the schema package and declare no wire types; a consumer whose shape genuinely differs DERIVES it (`Pick`/`Omit`/`Partial`) rather than declaring it independently. Three things here look wrong and are not: **(1)** the schema package is a literal file COPY, not a transformation — zod schemas are runtime values so they cannot be derived from themselves, and every package exports raw `./src/*.ts` so there is no bundle-into-`dist` path; **(2)** turbo uses `$TURBO_ROOT$` **`inputs`**, NOT `dependsOn` — that edge closes the cycle `client -> schema -> service -> client` because `recipe-service` devDepends on its own client, and ordering was never the requirement since the generated files are committed; **(3)** `openapi.yaml` is DERIVED output for `oasdiff`/docs/integrators and is **never a codegen input** — deriving types through JSON Schema loses `readonly`, branded and template-literal types and flattens discriminated unions. ⛔ And the INVERSE case is deliberate: a third-party API we do NOT serve (`packages/clients/usda`, Clerk, Vercel) has no service of ours to own its type and cannot be trusted, so those clients validate the raw upstream shape at the boundary with zod and MAY declare their own types — do not "converge" them or write an OpenAPI document for an API we do not serve. Before changing any of this read **`docs/architecture/decisions/0014-service-owned-api-contracts.md`**, `docs/CODING_STANDARDS.md` §15, and `specs/governance-rules.md` GR-015.
 
-## Testing policy — ABSOLUTE, NON-NEGOTIABLE (all phases, all features, no exceptions)
+## ⛔⛔ TEST-FIRST IS LAW — TDD from the SPEC and the PLAN, before any code exists
 
-**This is a HARD requirement, not a guideline, and it outranks every other instruction about pace, scope, or convenience.** Write tests **BEFORE** the code they cover (TDD red → green), with **ZERO EXCEPTIONS**. Code that lacks the tests its category requires is **INCOMPLETE**: it **MUST NOT** be merged, marked "done", or called shippable — regardless of deadline or author (human **or** AI agent). "Add tests later", "the happy path is enough", "it's a small change", and "the tests can't run here" are all **VIOLATIONS**. Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
+**This binds EVERY actor equally: the main thread, every subagent, every worktree, every "quick fix".** An
+agent dispatched to implement something inherits this rule with the task; a task prompt that does not repeat
+it has not waived it.
 
-- **UI code**: **EVERY** UI path/state — loading, empty, populated, error, gated, disabled, every branch, **NOT just the happy path** — MUST have a **vitest component test** (React Testing Library). **EVERY** happy-path / user story MUST have a **Playwright** test (web) **AND** a **Maestro** flow (mobile). Playwright IS the UI's integration test.
-- **Non-UI code** (services, DALs, domain logic, controllers, workers, libraries): **unit tests AND integration tests — BOTH, always.** Unit-only is a violation.
+### The order is not negotiable
+
+1. **Read the spec and the plan for the unit you are about to build.** The tests are written FROM those —
+   the acceptance criteria, the test scenarios, the verification line — not from the implementation you are
+   imagining.
+2. **Write the tests. Run them. WATCH THEM FAIL.** A test that has never failed has proved nothing: it may
+   be asserting something already true, or asserting nothing at all. The red run is the evidence that the
+   test can detect the absence of the thing.
+3. **Then write the minimum code that makes them pass.**
+
+**"I wrote the code, then wrote tests for it" is a VIOLATION**, even when the tests are thorough and even
+when they pass. Tests written after the fact are shaped by the implementation and inherit its blind spots:
+they check what the code does, not what the spec required.
+
+### ⛔ Unit tests are the FLOOR of test-first, never the whole of it
+
+The most common way this rule is broken is not skipping tests — it is writing a unit test first, going
+green, and calling that TDD while every other required tier is never written at all. **The tier matrix below
+is part of the red step.** Before writing code, write the failing test in EVERY tier the change touches:
+
+- **UI code**: **EVERY** path/state — loading, empty, populated, error, gated, disabled, every branch, **NOT
+  just the happy path** — MUST have a **vitest component test** (React Testing Library). **EVERY**
+  happy-path / user story MUST have a **Playwright** test (web) **AND** a **Maestro** flow (mobile).
+  Playwright IS the UI's integration test.
+- **Non-UI code** (services, DALs, domain logic, controllers, workers, libraries): **unit tests AND
+  integration tests — BOTH, always. Unit-only is a violation.**
 - **Services** (deployable HTTP APIs): additionally **e2e tests AND k6** load/performance tests.
+- **Schema/migration changes**: an integration test that asserts the migrated schema, against a real
+  database. A unit test cannot observe a migration that did not apply.
 
-A feature is **NOT DONE** until every category it touches has **passing** tests of every required kind. If a test cannot run locally (e.g. no Docker), it is still **written** and run in **CI** — never skipped. This overrides schedule, convenience, and any impulse to defer. **NO EXCEPTIONS.**
+### What a mocked test structurally CANNOT prove — and why the integration tier is not optional
+
+A unit test that mocks the boundary proves your code calls the mock correctly. It cannot tell you that the
+column still exists, that the migration ran, that the URL the other service receives is the one it accepts,
+that the wire shape round-trips, or that the query returns rows in the order you assumed. **Every one of
+those has shipped broken from a fully-green unit suite.** If the risk you are worried about lives at a
+boundary, the test must cross that boundary.
+
+### Deleting or weakening a test is a decision that must be argued
+
+When a change makes an existing test wrong, you may not quietly edit it until it passes. Either:
+
+- **rewrite it to prove the NEW behaviour** (and say so in the test's doc comment), or
+- **delete it and say where the coverage went**, in the commit message.
+
+⛔ **Editing a test just enough to COMPILE is the worst outcome available** — it leaves a test that is
+counted, runs green, and proves nothing. If you find yourself deleting assertions to make a suite build,
+stop: that suite is telling you the behaviour changed, and you owe it a decision.
+
+### A feature is NOT DONE until every required tier is written AND passing
+
+"Add tests later", "the happy path is enough", "it's a small change", "the tests can't run here", and "unit
+tests cover it" are all **VIOLATIONS**. If a tier genuinely cannot run locally (no Docker, no emulator), it
+is still **WRITTEN** and run in **CI** — never skipped, never deferred. Report honestly which tiers ran and
+which did not; a green unit suite reported as "verified" when the integration tier was never written is a
+false status, and false status is worse than a known gap.
+
+Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 
 ## Key conventions
 

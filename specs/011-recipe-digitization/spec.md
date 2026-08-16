@@ -33,13 +33,13 @@ Decades of family recipes exist only on paper — fragile, unsearchable, and loc
 
 ### Session 2026-05-10 (`/speckit.clarify`)
 
-| ID    | Topic                        | Decision                                                                                                                                                                                      | Encoded Into                                |
-| ----- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| C-001 | Invitation token lifecycle   | **Reusable link per Circle, no expiry, owner-revocable.** One owner-issued URL per Circle; any authenticated user with the link can join until the owner revokes the link (which rotates it). | FR-031, FR-032; US-003 AC; Risks            |
-| C-002 | Circle deletion semantics    | **Revert to Private.** Deleting a Circle rewrites every recipe with `audience: { scope: 'circle', ref_id: <id> }` to `audience: { scope: 'private' }` and emits an audit event.               | FR-033; Consumer Contract Fallback; NFR-003 |
-| C-003 | Member / Circle caps at v1   | **No hard caps at v1.** Soft monitoring only — alert on outlier Circles (≥ 100 members) or outlier users (≥ 25 Circles). Caps revisited if abuse signals appear.                              | FR-034; NFR-007; Risks                      |
-| C-004 | Owner account deletion       | **Promote oldest non-owner member to owner; if no members, soft-delete the Circle.** Soft-deleted Circles follow C-002.                                                                       | FR-035; cross-ref 002 account-deletion flow |
-| C-005 | `raw_ocr_json` PII retention | **Purge `raw_ocr_json` after 90 days; retain `parsed_json` for the lifetime of the job.** Independent of Q-005 (S3 photo retention).                                                          | FR-036; NFR-008                             |
+| ID    | Topic                        | Decision                                                                                                                                                                                                                                                                                                                                                                                                                         | Encoded Into                                |
+| ----- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| C-001 | Invitation token lifecycle   | **Reusable link per Circle, no expiry, owner-revocable.** One owner-issued URL per Circle; any authenticated user with the link can join until the owner revokes the link (which rotates it).                                                                                                                                                                                                                                    | FR-031, FR-032; US-003 AC; Risks            |
+| C-002 | Circle deletion semantics    | **Revert to Private.** Deleting a Circle rewrites every recipe with `audience: { scope: 'circle', ref_id: <id> }` to `audience: { scope: 'private' }` and emits an audit event.                                                                                                                                                                                                                                                  | FR-033; Consumer Contract Fallback; NFR-003 |
+| C-003 | Member / Circle caps at v1   | **No hard caps at v1.** Soft monitoring only — alert on outlier Circles (≥ 100 members) or outlier users (≥ 25 Circles). Caps revisited if abuse signals appear.                                                                                                                                                                                                                                                                 | FR-034; NFR-007; Risks                      |
+| C-004 | Owner account deletion       | **Promote oldest non-owner member to owner; if no members, soft-delete the Circle.** Soft-deleted Circles follow C-002.                                                                                                                                                                                                                                                                                                          | FR-035; cross-ref 002 account-deletion flow |
+| C-005 | `raw_ocr_json` PII retention | ⚠️ **Restated 2026-08-16 (amendment §A-3):** every in-flight artifact — image, `raw_ocr_json` and `parsed_json` alike — is reaped at **72 hours**, on ADR-0016's window. The original ruling ("purge `raw_ocr_json` after 90 days; retain `parsed_json` for the lifetime of the job") assumed a `digitization_jobs` row that no longer exists; the reaper is strictly stronger, so the data-minimisation intent is met a priori. | FR-036; NFR-008                             |
 
 ---
 
@@ -88,10 +88,15 @@ artifacts on draft expiry (`004-FR-018`), and the OCR vendor's classification as
 boundary whose output is parsed with zod at the boundary (ADR-0015, `CODING_STANDARDS` §15-d).
 
 **Status reporting is not optional.** 011's image branch is a producer on the import spine: it MUST emit the
-same **superseding, monotonically-sequenced** per-recipe status messages as every other channel
-(`004-FR-048`), and MUST honour the placeholder/shell-status model (`004-FR-050`) so a client that connects
-mid-batch renders correct state from a read. A 20-photo batch is exactly the case that motivated a bounded
-live view.
+same per-recipe status messages as every other channel (`004-FR-048`), and MUST honour the
+placeholder/shell-status model (`004-FR-050`) so a client that connects mid-batch renders correct state from a
+read. A 20-photo batch is exactly the case that motivated a bounded live view.
+
+⛔ **Corrected 2026-08-16 — this sentence said "superseding, monotonically-sequenced", and the sequence half
+cannot be built.** [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §4 was amended:
+selection per group is **consumer-side, most-recent-by-timestamp**, and the envelope carries **no sequence**.
+See the [2026-08-16 amendment](#amendment-2026-08-16--on-device-first-ocr-the-escape-hatch-the-reaper-and-the-single-writer-invariant)
+§A-4 for the single-writer-per-group invariant this makes 011 responsible for stating.
 
 > ⚠️ **The "no database" rule governs the image-processing service only.** 011 also specifies **Family
 > Circles**, an unrelated sharing primitive that genuinely requires persistence (circles, members, invite
@@ -567,17 +572,17 @@ Primary KPI: **OCR parse quality** — Target: ≥ 70 % of submissions produce t
 
 ## Risks
 
-| Risk                                                                | Impact                                                       | Mitigation                                                                                                                                                                 |
-| ------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Handwriting OCR accuracy on aged paper falls below SC-001 threshold | High — kills heritage-archivist value prop                   | Q-003 sets ship threshold at test-plan time; provider trade-off (Q-001) explored before FR-006 implementation; correction UX absorbs marginal cases.                       |
-| Textract cost per job exceeds budget at scale                       | Medium — financial                                           | Per-user job cap (Q-002) routed through 010 entitlement once available; cost dashboard + per-user budget alarm.                                                            |
-| `Circle` schema regret blocks 001 / 006 / 007                       | High — cross-feature blast radius                            | `@kitchensink/audience` versioned independently; Consumer Contract above pins the public surface; integration test from 001 in CI.                                         |
-| SQS DLQ build-up during incident                                    | Medium — silent failure                                      | NFR-006 alarms at any DLQ message; runbook owned by ops (Q-009 deferred).                                                                                                  |
-| Accessibility regressions on the correction screen                  | High — NFR-004 hard requirement                              | axe-core in CI; manual VoiceOver/TalkBack pass before each release (Q-007 protocol).                                                                                       |
-| Photo retention policy disputes                                     | Medium — legal/storage cost                                  | FR-022 default 30 d for discarded jobs; Q-005 (saved-job retention) resolved by Operations + Legal at implementation.                                                      |
-| Reusable invitation link leaks (C-001 / FR-031)                     | Medium — unauthorised join                                   | Token must be ≥ 128 bits of entropy, opaque, served over HTTPS only; rotation invalidates leaked token; rate-limit `POST /api/v1/circles/join/:token` per IP and per user. |
-| Unbounded Circle / member growth (C-003 / FR-034)                   | Medium — cost + UX degradation                               | NFR-007 outlier alarm; ops review on alarm; introduce hard caps in a follow-up if abuse signals appear.                                                                    |
-| Owner-deletion ownership transfer race (C-004 / FR-035)             | Low — wrong owner promoted under concurrent membership churn | Promotion runs in the same DB transaction as account-deletion finalisation in 002; idempotent on retry.                                                                    |
+| Risk                                                                | Impact                                                       | Mitigation                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Handwriting OCR accuracy on aged paper falls below SC-001 threshold | High — kills heritage-archivist value prop                   | Q-003 sets ship threshold at test-plan time; provider trade-off (Q-001) explored before FR-006 implementation; correction UX absorbs marginal cases.                                                                            |
+| Textract cost per job exceeds budget at scale                       | Medium — financial                                           | Per-user job cap (Q-002) routed through 010 entitlement once available; cost dashboard + per-user budget alarm.                                                                                                                 |
+| `Circle` schema regret blocks 001 / 006 / 007                       | High — cross-feature blast radius                            | `@kitchensink/audience` versioned independently; Consumer Contract above pins the public surface; integration test from 001 in CI.                                                                                              |
+| SQS DLQ build-up during incident                                    | Medium — silent failure                                      | NFR-006 alarms at any DLQ message; runbook owned by ops (Q-009 deferred).                                                                                                                                                       |
+| Accessibility regressions on the correction screen                  | High — NFR-004 hard requirement                              | axe-core in CI; manual VoiceOver/TalkBack pass before each release (Q-007 protocol).                                                                                                                                            |
+| Photo retention policy disputes                                     | Medium — legal/storage cost                                  | ⚠️ **Superseded 2026-08-16 (amendment §A-3):** every in-flight artifact is reaped at 72 h regardless of job state, so neither the 30-day discard default nor a separate saved-job retention question survives. Q-005 is closed. |
+| Reusable invitation link leaks (C-001 / FR-031)                     | Medium — unauthorised join                                   | Token must be ≥ 128 bits of entropy, opaque, served over HTTPS only; rotation invalidates leaked token; rate-limit `POST /api/v1/circles/join/:token` per IP and per user.                                                      |
+| Unbounded Circle / member growth (C-003 / FR-034)                   | Medium — cost + UX degradation                               | NFR-007 outlier alarm; ops review on alarm; introduce hard caps in a follow-up if abuse signals appear.                                                                                                                         |
+| Owner-deletion ownership transfer race (C-004 / FR-035)             | Low — wrong owner promoted under concurrent membership churn | Promotion runs in the same DB transaction as account-deletion finalisation in 002; idempotent on retry.                                                                                                                         |
 
 ---
 
@@ -601,14 +606,131 @@ A wireframes pass is recommended as part of `pre-impl-review` if visual fidelity
 
 All nine product-spec open questions were **deferred to implementation** by user directive (see [review.md](./review.md)). Implementation phases (`plan`, `tasks`, `pre-impl-review`) own the resolution:
 
-| #     | Question (abridged)                                  | Owner phase                            |
-| ----- | ---------------------------------------------------- | -------------------------------------- |
-| Q-001 | OCR provider — Textract vs. Google Vision vs. hybrid | `plan` (defaults to Textract)          |
-| Q-002 | Subscription gating vs. monthly cap                  | `plan` (defaults to ungated until 010) |
-| Q-003 | Handwriting accuracy ship threshold                  | `test-plan` / V-Model acceptance       |
-| Q-004 | Launch language matrix                               | `plan` (Latin-script default)          |
-| Q-005 | Retention policy for S3 + `raw_ocr_json`             | `pre-impl-review` (Operations + Legal) |
-| Q-006 | 011 ↔ 012 Circle handoff timing                      | `plan` (cross-feature contract)        |
-| Q-007 | A11y certification protocol (axe vs. manual)         | `test-plan`                            |
-| Q-008 | Mobile vs. web feature parity at launch              | `plan`                                 |
-| Q-009 | SQS visibility timeout / DLQ / alarm config          | `pre-impl-review` (Operations)         |
+| #     | Question (abridged)                                  | Owner phase                                                                                                                                 |
+| ----- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q-001 | OCR provider — Textract vs. Google Vision vs. hybrid | `plan` (defaults to Textract)                                                                                                               |
+| Q-002 | Subscription gating vs. monthly cap                  | `plan` (defaults to ungated until 010)                                                                                                      |
+| Q-003 | Handwriting accuracy ship threshold                  | `test-plan` / V-Model acceptance                                                                                                            |
+| Q-004 | Launch language matrix                               | `plan` (Latin-script default)                                                                                                               |
+| Q-005 | Retention policy for S3 + `raw_ocr_json`             | ✅ **CLOSED 2026-08-16** — amendment §A-3: a 3-day reaper over every in-flight artifact, on ADR-0016's window. The 90-day purge is subsumed |
+| Q-006 | 011 ↔ 012 Circle handoff timing                      | `plan` (cross-feature contract)                                                                                                             |
+| Q-007 | A11y certification protocol (axe vs. manual)         | `test-plan`                                                                                                                                 |
+| Q-008 | Mobile vs. web feature parity at launch              | `plan`                                                                                                                                      |
+| Q-009 | SQS visibility timeout / DLQ / alarm config          | `pre-impl-review` (Operations)                                                                                                              |
+
+---
+
+## Amendment (2026-08-16) — on-device-first OCR, the escape hatch, the reaper, and the single-writer invariant
+
+Four changes. Two come from decisions recorded elsewhere that name 011 explicitly (ADR-0019 §4, ADR-0016's
+window); two are 011's own design, and they are here rather than in `plan.md` because they change what the
+feature promises a user, not merely how it is built.
+
+### A-1. OCR runs ON THE DEVICE FIRST; the cloud is the fallback
+
+011's OCR was specified cloud-only: upload to S3, enqueue, Textract, poll. That is now the **second** tier.
+The first is the platform's own text recognizer — Vision on iOS, ML Kit on Android — run on the captured
+image **before any upload**. When it produces a usable parse, the photograph **never leaves the device**, and
+no OCR is billed.
+
+**Escalation to the cloud is by CAPABILITY, not by score**: no recognizer available, an unsupported script, a
+device-side failure, or the user asking for it (§A-2). A confidence threshold MAY route a low-confidence
+result to the cloud as well, but MUST NOT be the only path there — §A-2 explains why that would be a blind
+spot rather than a policy.
+
+⛔ **A device result is still untrusted input.** It is validated with zod at the service boundary exactly as a
+cloud result is (GR-016). Our code produced it, but on hardware the user controls; a client that can post
+arbitrary "OCR output" can post arbitrary recipe content. And an **absent confidence MUST be rejected, never
+defaulted to `0`** — a sentinel confidence passes the quality gate silently. Both rules are inherited from the
+OCR channel 011 took over from 004, not re-derived here.
+
+### A-2. ⛔ The manual "re-run in the cloud" escape hatch is REQUIRED, because the heuristic has a blind spot
+
+**The failure mode, named so it is not optimised away: a confidence heuristic cannot catch a result that is
+WRONG BUT CONFIDENT.**
+
+Confidence measures how certain the recognizer is that it read the **glyphs** correctly. It says nothing about
+whether it read the **right** glyphs. A recognizer that confidently reads `1 tsp salt` as `1 tbsp salt`, or
+that never sees a line and therefore never reports low confidence in it, returns a **high** score for a wrong
+answer. Every automatic quality path in this feature — the low-quality state, the low-confidence highlighting,
+the escalation threshold — keys off that score. So every automatic path is blind to this class by
+construction, and no amount of tuning the threshold reaches it.
+
+The user is the only detector. Therefore:
+
+- The correction screen MUST carry an **always-available** control that re-runs OCR on the cloud tier.
+- ⛔ It **MUST NOT be gated on a low-confidence condition.** That gate is exactly the blind spot: the results
+  that need it most are the ones the system scored highest.
+- It is **not** an error affordance. It is offered on a job the system considers a complete success.
+- A re-run replaces the parse in place, preserves corrections the user has already made, is idempotent per
+  attempt, and is rate-limited. It creates no second job and no second recipe.
+
+Accepted consequence, stated rather than hidden: a user who does not notice the error does not press the
+button, and a wrong-but-confident parse can be confirmed. Nothing in this design detects that. What the
+escape hatch guarantees is that a user who **does** notice has a remedy other than retyping the recipe.
+
+### A-3. A 3-day reaper over in-flight jobs and artifacts, on ADR-0016's window
+
+Moving 011's state out of a database (`plan.md` §Data Model item 4 — the image-processing service owns none)
+gives every artifact a lifetime it did not previously have. A scheduled sweep MUST delete every object under
+`digitization/{user_id}/{job_id}/` older than **72 hours**, in whatever state its job is in, with an S3
+lifecycle rule as the backstop.
+
+**Why three days, and why it is not a new number.** It is
+[ADR-0016](../../docs/architecture/decisions/0016-notification-retention-payload-dedup-and-valkey.md)'s
+window — its title, its §2 (`expiresAt = publishedAt + 72h`), and its **2026-08-16 amendment**, whose store
+table gives the **message substrate** a "3-day TTL, reaped". 011's per-job status messages live in that
+substrate and expire with it. An artifact that outlived the messages describing it would be unreachable
+state: the photograph is still there, and nothing is left to tell any consumer it exists. One window, not two.
+
+⛔ **Nothing refreshes the clock.** Not a retry, not a poll, not the user reopening the correction screen. The
+72 hours are a promise about how long an artifact **lives**, not a budget inactivity can top up — ADR-0016 §2
+states the identical rule for a notification, for the identical reason: a refreshable expiry has no bound.
+
+⚠️ **Reaping is a user-visible outcome, not a silent cleanup.** A job still awaiting correction at 72 hours
+loses its photo and its parse. The UI MUST say so in localized copy, before and after; a job that simply
+vanishes reads as data loss. A **submitted** job is unaffected — its recipe belongs to the recipe service and
+no reaper of 011's touches it.
+
+**What this replaces.** FR-036's 90-day `raw_ocr_json` purge had a table to null out and no longer does. The
+reaper is **strictly stronger** — nothing survives three days to reach ninety — so FR-036's data-minimisation
+intent is satisfied a priori and only its mechanism is withdrawn. Q-005 (retention policy for S3 +
+`raw_ocr_json`) is **closed by this section**.
+
+### A-4. ⛔ SINGLE WRITER PER GROUP — the invariant that makes timestamp selection safe
+
+ADR-0019 §4 as amended assigns this statement to 011 by name. Selection of "the current message for an entity"
+is **consumer-side: most-recent-by-timestamp wins**, and the envelope carries **no sequence** — a
+fire-and-forget producer cannot issue one, and with producers running concurrently in more than one task there
+is no single writer of "the last sequence I used".
+
+That rule is correct **only while one writer produces a group's messages.** Two concurrent writers for one
+entity can stamp out of order relative to their true sequence, and most-recent-wins would then pick the loser.
+
+**011 satisfies it, and here is the argument rather than the assertion.** A digitization job is created by one
+request, carries one job id, is processed by one worker invocation, and publishes under the group key
+`('import', jobId)`. No other producer writes that group: 004's URL and text channels own their own entities,
+and food's resolution pipeline is the single writer for a food. The one thing that could have broken it is
+§A-2's re-run — so re-runs are **sequential and idempotent per attempt**, never concurrent. That is not a
+convenience; it is what keeps this invariant true, and it is why the test that proves it is a **concurrency**
+test rather than an assertion about a comment.
+
+**A future producer that shares a group with another writer MUST NOT rely on this rule.** It needs its own
+ordering discipline, and adding one is a decision, not an implementation detail.
+
+### A-5. Submission classifies `imported_paid`, never `imported_physical`
+
+Recorded here because it is the one place the premium gate could quietly lose its enforcement point.
+
+011 does not create recipes. It submits corrected candidates to **004's bulk import contract**
+(`004-FR-047`), and 004's convergence point creates them. The `sourceType` 011 declares is **`imported_paid`**.
+
+**Why not `imported_physical`, which is what a photograph of a cookbook literally is.** A client-declared
+`imported_physical` is **not representable** in 004's DTO (`004-FR-025`, HAZ-057): a caller that could declare
+it would grant itself a private recipe the C-004 policy reserves for premium. `imported_paid` is therefore the
+only non-public class a client is permitted to declare at all.
+
+**The gate is not weakened by the substitution.** Under the shipped `evaluateVisibility`, `imported_physical`
+and `imported_paid` are behaviourally identical: both are **private-only**, and `imported_paid` may _never_ be
+made public. The premium gate keeps its enforcement point — 004's convergence point, where provenance and
+quota are enforced once for every channel — rather than moving into 011 where it would have to be re-derived.

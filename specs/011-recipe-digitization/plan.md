@@ -9,7 +9,7 @@
 
 Feature 011 delivers a photo-to-recipe digitization pipeline and a private Circle sharing primitive, with OCR async processing, side-by-side correction UX, and reusable audience contracts for features 001/006/007.
 
-Planned implementation introduces four new packages (`@kitchensink/digitization-workers`, `@kitchensink/digitization-service`, `@kitchensink/circles-service`, `@kitchensink/audience`), adds Drizzle schema for circles and digitization jobs, extends recipe audience/versioning persistence, and deploys AWS infrastructure (Lambda + SQS/DLQ + S3 + CloudFront + RDS-backed APIs) aligned to 001/002 patterns.
+Planned implementation introduces four new packages (`@kitchensink/digitization-workers`, `@kitchensink/digitization-service`, `@kitchensink/circles-service`, `@kitchensink/audience`), adds Drizzle schema for circles (⛔ **not** for digitization jobs — the image-processing service owns no database, ADR-0019 §3; corrected 2026-08-16), extends recipe audience/versioning persistence, and deploys AWS infrastructure (Lambda + SQS/DLQ + S3 + CloudFront + RDS-backed APIs) aligned to 001/002 patterns.
 
 **Must Have stories addressed**: US-001, US-002, US-003, US-004, US-005, US-006.
 
@@ -91,7 +91,7 @@ Two paths require strict isolation:
 
 **Language/Version**: TypeScript 5.x, Node.js 24.x
 **Primary Dependencies**: NestJS 11, Drizzle ORM, `pg`, `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs`, AWS Textract SDK client, `@aws-lambda-powertools/logger`, `@sentry/aws-serverless`, Clerk networkless session-token verification stack from 002 (`@clerk/backend` `verifyToken` with `CLERK_JWT_KEY` + `CLERK_AUTHORIZED_PARTIES`)
-**Storage**: RDS PostgreSQL 16, S3 objects (`digitization/...`), SQS + DLQ, CloudFront edge delivery of archived originals
+**Storage**: S3 objects (`digitization/...`) hold every in-flight digitization artifact, SQS + DLQ, CloudFront edge delivery of archived originals, and RDS PostgreSQL 16 **for Circles only** — ⛔ the image-processing service owns **no** database (ADR-0019 §3; corrected 2026-08-16)
 **Testing**: Vitest (unit/integration/contract), Playwright + accessibility checks for web/mobile flows
 **Target Platform**: AWS Lambda + NestJS APIs, web + mobile clients consuming API
 **Project Type**: Monorepo, multi-package backend/shared + app clients
@@ -151,8 +151,12 @@ packages/
 1. Client requests job creation (`digitization-api`) → pre-signed S3 PUT URL returned (FR-001, FR-027, NFR-002).
 2. Client uploads directly to S3 (`digitization/{user_id}/{job_id}/original.ext`).
 3. Job enqueued to SQS (`digitization-ocr` queue), Lambda worker processes OCR (FR-006, FR-013, NFR-006).
-4. Worker stores `raw_ocr_json`, `parsed_json`, confidence data, and status transitions.
-5. User opens correction screen, submits corrections, then saves recipe to 001-owned recipe entity (`recipe_id` link).
+4. Worker writes `raw_ocr_json`, `parsed_json` and the confidence map **into object storage beside the image**
+   (`digitization/{user_id}/{job_id}/`), and publishes each status transition to the message substrate. ⛔ **Not
+   into a `digitization_jobs` table** — see §Data Model item 4.
+5. User opens the correction screen and submits corrections. **Confirming SUBMITS the corrected candidates to
+   004's bulk import contract** (`004-FR-047`) with `sourceType = imported_paid`; **004's convergence point
+   creates the recipe**. 011 has no save path and writes no recipe row.
 6. Circle lifecycle and audience resolution handled by `circles-api` + `shared-audience`.
 
 ### Story Coverage by Architectural Slice
@@ -168,8 +172,20 @@ packages/
     - composite PK (`circle_id`, `user_id`), `role`, `joined_at`, `removed_at`
 3. `circle_invites` (rotation/audit history, including revoked links)
     - `id`, `circle_id`, `token_hash`, `created_by`, `revoked_at`, `last_redeemed_at`
-4. `digitization_jobs`
-    - `id`, `user_id`, `batch_id`, `s3_key`, `state`, `low_quality`, `language_code`, `raw_ocr_json`, `parsed_json`, `recipe_id`, `created_at`, `updated_at`, `deleted_at`
+4. ⛔ ~~`digitization_jobs`~~ — **WITHDRAWN 2026-08-16. The image-processing service owns no database.**
+    - It previously carried `id`, `user_id`, `batch_id`, `s3_key`, `state`, `low_quality`, `language_code`,
+      `raw_ocr_json`, `parsed_json`, `recipe_id`, `created_at`, `updated_at`, `deleted_at` — a durable record of
+      an import whose authoritative record already lives in the recipe service. Two places to reconcile, for no
+      gain: precisely the alternative
+      [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §3 rejected. `spec.md`
+      §"Ownership of the photo channel" has said so since 2026-08-14; this file was never re-synced.
+    - **Where the state goes instead.** A job is **in flight**, not durable. Its inputs and intermediate
+      artifacts (`original.ext`, `raw_ocr_json`, `parsed_json`, the confidence map) live in **object storage**
+      under `digitization/{user_id}/{job_id}/`, and its status is **published to the message substrate**, where
+      any consumer reads it. The durable record of the import is the **recipe**, created by 004's convergence
+      point. This is what lets the service be redeployed or scaled to zero without owning data.
+    - **Consequence, stated rather than discovered later:** in-flight state now has a lifetime, so 011 needs a
+      reaper it did not previously need. See the 2026-08-16 amendment in [`spec.md`](./spec.md).
 5. Recipe extension (feature 001 entity — **owned by `@kitchensink/recipe-service`, migrated there**)
     - `recipes.audience` JSONB contract: `{"scope":"private|circle|public","ref_id":string|null}` (no `price_cents` — GR-014 v3.0.0)
     - ⛔ 011 does **not** migrate this table from `digitization-service`. `recipes` has one writer; see the ruling below.
@@ -188,19 +204,22 @@ packages/
       depends on which service they asked. The recipe service is already the **single writer** of that history.
     - **What 011 does instead.** A digitization correction is a version **created through the recipe service**
       (`@kitchensink/recipe-service-client`), exactly as any other edit is. 011 stores its OCR-specific state in its
-      own `digitization_jobs` table and references the recipe by id. This is also what this feature's own
+      **in-flight object-storage artifacts** and references the recipe by id _(corrected 2026-08-16: this read
+      "in its own `digitization_jobs` table", which item 4 withdraws — the argument against a second
+      `recipe_versions` applies verbatim to a second durable import record)_. This is also what this feature's own
       `pre-impl-review.md` already assumed when it filed `recipe_versions` under _"Feature 001 recipe persistence —
       ✅ Covered"_; the plan and the task list were the outliers.
     - Enforced by `packages/infra/global/__tests__/specTableCollisions.test.ts`
       ([GR-021](../governance-rules.md#gr-021-one-declarer-per-table-name-and-one-definition-per-task-id)).
 7. Raw OCR retention
-    - daily purge process updates `digitization_jobs.raw_ocr_json = NULL` for rows older than 90 days (FR-036, NFR-008)
+    - ⚠️ **Restated 2026-08-16.** With `digitization_jobs` withdrawn there is no row to null out. The 90-day
+      `raw_ocr_json` purge (FR-036, NFR-008) is **subsumed by** the 3-day reaper over in-flight artifacts —
+      strictly stronger, since nothing survives three days to reach ninety. FR-036's data-minimisation intent
+      is satisfied a priori; its **mechanism** is withdrawn. See the amendment in [`spec.md`](./spec.md).
 
 ### Migration Notes
 
 - Include indexes:
-    - `digitization_jobs(user_id, created_at DESC)`
-    - `digitization_jobs(state, created_at)`
     - `circle_members(user_id, circle_id)`
     - partial index for `circles(deleted_at IS NULL)`
 - Circle deletion rewrite (FR-033) and owner-deletion promotion (FR-035) must execute in DB transaction boundaries.
@@ -213,14 +232,14 @@ Auth model for all endpoints: **Clerk session token required** (feature 002), ve
 
 ### `@kitchensink/digitization-service` (NestJS)
 
-| Method | Path                                           | Auth           | Purpose                                     | FR             |
-| ------ | ---------------------------------------------- | -------------- | ------------------------------------------- | -------------- |
-| POST   | `/api/v1/recipes/digitize/jobs`                | Bearer (Clerk) | Create job + pre-signed PUT URL             | FR-001, FR-027 |
-| GET    | `/api/v1/recipes/digitize/jobs`                | Bearer         | List jobs (cursor pagination, page size 20) | FR-028         |
-| GET    | `/api/v1/recipes/digitize/jobs/:id`            | Bearer         | Job status/result retrieval                 | FR-013, FR-029 |
-| PATCH  | `/api/v1/recipes/digitize/jobs/:id/correction` | Bearer         | Submit inline corrections                   | FR-015         |
-| POST   | `/api/v1/recipes/digitize/jobs/:id/save`       | Bearer         | Persist recipe + link `recipe_id`           | FR-021         |
-| DELETE | `/api/v1/recipes/digitize/jobs/:id`            | Bearer         | Soft-delete/discard job                     | FR-022         |
+| Method   | Path                                           | Auth           | Purpose                                                                                                                                                                                                                                                                                                                          | FR             |
+| -------- | ---------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| POST     | `/api/v1/recipes/digitize/jobs`                | Bearer (Clerk) | Create job + pre-signed PUT URL                                                                                                                                                                                                                                                                                                  | FR-001, FR-027 |
+| GET      | `/api/v1/recipes/digitize/jobs`                | Bearer         | List jobs (cursor pagination, page size 20)                                                                                                                                                                                                                                                                                      | FR-028         |
+| GET      | `/api/v1/recipes/digitize/jobs/:id`            | Bearer         | Job status/result retrieval                                                                                                                                                                                                                                                                                                      | FR-013, FR-029 |
+| PATCH    | `/api/v1/recipes/digitize/jobs/:id/correction` | Bearer         | Submit inline corrections                                                                                                                                                                                                                                                                                                        | FR-015         |
+| ~~POST~~ | ~~`/api/v1/recipes/digitize/jobs/:id/save`~~   | —              | ⛔ **WITHDRAWN 2026-08-16 — 011 has no save path.** Confirming a corrected job **submits to 004's bulk import contract** (`004-FR-047`) with `sourceType = imported_paid`; 004's convergence point creates the recipe. An endpoint whose stated purpose was "Persist recipe" is the second write path ADR-0019 exists to prevent | ~~FR-021~~     |
+| DELETE   | `/api/v1/recipes/digitize/jobs/:id`            | Bearer         | Soft-delete/discard job                                                                                                                                                                                                                                                                                                          | FR-022         |
 
 ### `@kitchensink/circles-service` (NestJS)
 
@@ -385,13 +404,15 @@ circles.
 ### `@kitchensink/digitization-workers` Lambda
 
 - SQS-triggered worker, batched receive with partial failure reporting.
-- Calls Textract adapter with timeout budget and fallback states (`awaiting-correction + low_quality`).
-- Writes parsed artifacts and confidence map to DB via internal API/DB client.
+- Calls the cloud OCR adapter with a timeout budget and fallback states (`awaiting-correction + low_quality`) —
+  for images the **device could not process, or that the user escalated**; see the amendment's on-device-first tier.
+- Writes parsed artifacts and the confidence map to **object storage**, and publishes status to the message
+  substrate. _(Corrected 2026-08-16: this read "to DB via internal API/DB client".)_
 - Emits metrics and structured logs per job.
 
 ### `@kitchensink/digitization-service`
 
-- Job orchestration, pre-signed URL minting, correction persistence, save/discard.
+- Job orchestration, pre-signed URL minting, correction handling, **submission to 004's bulk import contract**, and discard. _(Corrected 2026-08-16: this read "correction persistence, save/discard" — there is no save here.)_
 - Enforces file constraints before issuing upload URLs.
 - Owns pagination/status/rfc7807 contracts.
 
@@ -410,7 +431,7 @@ circles.
 
 ## Migrations / Schema Changes
 
-1. Create `circles`, `circle_members`, `circle_invites`, `digitization_jobs`. ⛔ **Not `recipe_versions`** — it
+1. Create `circles`, `circle_members`, `circle_invites`. ⛔ **Not `digitization_jobs`** (withdrawn 2026-08-16 — the image-processing service owns no database) and ⛔ **not `recipe_versions`** — it
    already ships and `@kitchensink/recipe-service` owns it (see §Data Model item 6).
 2. Alter `recipes` to include/normalize `audience` JSONB with circle scope support — ⚠️ **as a `recipe-service`
    migration**, not a `digitization-service` one. `recipes` has a single writer; a second service issuing DDL against
@@ -480,8 +501,10 @@ circles.
 4. **CirclesApiStack**
     - NestJS service deployment for `/api/v1/circles/*`
 5. **SharedDataStack extension**
-    - RDS Postgres schema migration orchestration resources
-    - scheduled jobs (EventBridge Scheduler) for outlier alarm scans + OCR purge
+    - RDS Postgres schema migration orchestration resources **for Circles only** — the image-processing service
+      owns no database (2026-08-16)
+    - scheduled jobs (EventBridge Scheduler) for outlier alarm scans and the **3-day reaper** over in-flight
+      digitization artifacts (which subsumes the 90-day OCR purge)
 
 **Retention policy note**: if any S3 cleanup behavior differs by environment, non-prod may allow auto-destroy while production retains data by policy.
 
@@ -514,16 +537,16 @@ circles.
 
 ## FR Coverage Matrix
 
-| Requirement Group   | IDs            | Planned In                                                 |
-| ------------------- | -------------- | ---------------------------------------------------------- |
-| Capture             | FR-001..FR-005 | Digitization API + upload client surfaces                  |
-| OCR & Parsing       | FR-006..FR-013 | OCR Lambda + job state machine + polling APIs              |
-| Review & Correction | FR-014..FR-018 | Correction UI + correction/save endpoints                  |
-| Storage & Archive   | FR-019..FR-022 | S3/CloudFront + digitization_jobs + save/discard semantics |
-| Accessibility       | FR-023..FR-026 | UI component accessibility + CI gates                      |
-| API Contract        | FR-027..FR-030 | Versioned routes, pagination, job status, RFC7807 envelope |
-| Circle Lifecycle    | FR-031..FR-035 | circles-api + transactional audience/member semantics      |
-| Data Retention      | FR-036         | Scheduled purge + metric emission                          |
+| Requirement Group   | IDs            | Planned In                                                                                                      |
+| ------------------- | -------------- | --------------------------------------------------------------------------------------------------------------- |
+| Capture             | FR-001..FR-005 | Digitization API + upload client surfaces                                                                       |
+| OCR & Parsing       | FR-006..FR-013 | OCR Lambda + job state machine + polling APIs                                                                   |
+| Review & Correction | FR-014..FR-018 | Correction UI + the correction endpoint and a confirm that **submits to 004** _(no save endpoint — 2026-08-16)_ |
+| Storage & Archive   | FR-019..FR-022 | S3/CloudFront in-flight artifacts + the 3-day reaper + submit/discard semantics _(restated 2026-08-16)_         |
+| Accessibility       | FR-023..FR-026 | UI component accessibility + CI gates                                                                           |
+| API Contract        | FR-027..FR-030 | Versioned routes, pagination, job status, RFC7807 envelope                                                      |
+| Circle Lifecycle    | FR-031..FR-035 | circles-api + transactional audience/member semantics                                                           |
+| Data Retention      | FR-036         | Scheduled purge + metric emission                                                                               |
 
 ---
 

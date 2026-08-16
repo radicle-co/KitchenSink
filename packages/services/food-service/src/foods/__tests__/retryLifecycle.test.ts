@@ -66,6 +66,7 @@ describe('the retry budget', () => {
         const delays = [1, 2, 3, 4, 5].map(backoffSeconds);
 
         expect(delays).toEqual([2, 4, 8, 16, 32]);
+
         for (let i = 1; i < delays.length; i += 1) {
             expect(delays[i]!).toBeGreaterThan(delays[i - 1]!);
         }

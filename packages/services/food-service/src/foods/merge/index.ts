@@ -5,7 +5,7 @@
  * project's barrel convention. NOT wired into a NestJS module here (that is the API/worker slice).
  */
 
-export { GoldenRecordMergeEngine, blendCandidates, mergeCandidates, normalizeName } from './mergeEngine.js';
+export { GoldenRecordMergeEngine, blendCandidates, mergeCandidates } from './mergeEngine.js';
 export type {
     GoldenRecordDraft,
     MergeCandidate,

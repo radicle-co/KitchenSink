@@ -55,6 +55,7 @@ import {
     type AuthenticatedRequest,
 } from '../auth/authenticatedPrincipal.js';
 import { apiError } from '../common/apiError.js';
+import { sanitizeFoodName } from './foodName.js';
 import { canonicalizeNutritionIds, isNutritionIdListError, type FoodNutritionBatchResponse } from './foods.schema.js';
 import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
@@ -111,7 +112,7 @@ export class FoodsController {
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<AddResponse> {
-        const result = await this.foodsService.addByName(body.name, this.requireRequesterId(req));
+        const result = await this.foodsService.addByName(this.visibleName(body.name), this.requireRequesterId(req));
         res.status(HttpStatus.ACCEPTED);
 
         return result;
@@ -325,7 +326,7 @@ export class FoodsController {
      * @throws (→ 400 `BATCH_TOO_LARGE`) when more names remain than the configured maximum.
      */
     private boundedNames(names: readonly string[]): string[] {
-        const cleaned = names.filter((name) => name.length > 0);
+        const cleaned = names.map((name) => sanitizeFoodName(name)).filter((name) => name.length > 0);
         const maxNames = this.config.get('FOOD_MAX_BATCH_NAMES', { infer: true });
 
         if (cleaned.length > maxNames) {
@@ -333,5 +334,28 @@ export class FoodsController {
         }
 
         return cleaned;
+    }
+
+    /**
+     * Reduce a caller's name to the canonical form the catalog stores, rejecting one that carries no visible
+     * content at all.
+     *
+     * Here rather than in the published contract, for the reason {@link boundedNames} records: this is
+     * server-side NORMALIZATION, and a `.transform()` cannot be represented in the derived JSON Schema. The
+     * `400` is the same `VALIDATION_FAILED` the pipe raises for `""`, because `"\u200B"` is the same condition
+     * written in characters a caller cannot see — see `../foodName.ts` for why it is the catalog's business.
+     *
+     * @param raw - The name the pipe accepted (length-bounded, JS-trimmed, non-empty).
+     * @returns The canonical name, guaranteed to carry visible content.
+     * @throws (→ 400 `VALIDATION_FAILED`) when nothing visible survives canonicalization.
+     */
+    private visibleName(raw: string): string {
+        const name = sanitizeFoodName(raw);
+
+        if (name.length === 0) {
+            throw apiError('VALIDATION_FAILED', 'A food name must contain at least one visible character');
+        }
+
+        return name;
     }
 }

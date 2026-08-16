@@ -321,6 +321,38 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
             expect(completed[0]!.payload!['status']).toBe('RESOLVED');
         });
 
+        /**
+         * The catalog is ownerless and globally unique-named, so the name a caller PUTS ON THE WIRE becomes
+         * the label every other user sees and the key every other add dedups against. Over real HTTP, with
+         * the real pipe and the real DAO: a name carrying a bidi override, a fullwidth capital and a
+         * zero-width space must be stored canonically, and its invisible variant must NOT mint a second row
+         * (findings 16.A-6 / 23.S-11).
+         */
+        it('stores the canonical name and refuses an invisible-character dedup bypass', async () => {
+            stub.programResolve('Kale');
+            const first = await call('POST', '/api/v1/foods', {
+                token: userToken,
+                body: { name: '\u202E\uFF2Bal\u200Be\u202C' },
+            });
+            expect(first.status).toBe(202);
+
+            const stored = await pool.query('SELECT name, normalized_name FROM food WHERE id = $1', [
+                (first.body as { id: string }).id,
+            ]);
+            expect(stored.rows[0].name).toBe('Kale');
+            expect(stored.rows[0].normalized_name).toBe('kale');
+
+            const second = await call('POST', '/api/v1/foods', { token: userToken, body: { name: 'Ka\u200Ble' } });
+            expect((second.body as { id: string }).id).toBe((first.body as { id: string }).id);
+            expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(1);
+        });
+
+        it('refuses a name made only of invisible characters, writing nothing', async () => {
+            const res = await call('POST', '/api/v1/foods', { token: userToken, body: { name: '\u200B\uFEFF' } });
+            expect(res.status).toBe(400);
+            expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(0);
+        });
+
         it('dedups a same-normalized-name re-add to one id/row', async () => {
             stub.programResolve('Spinach');
             const first = await call('POST', '/api/v1/foods', { token: userToken, body: { name: 'Spinach' } });

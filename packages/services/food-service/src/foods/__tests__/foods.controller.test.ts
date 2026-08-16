@@ -230,6 +230,45 @@ describe('FoodsController.addByName / batch', () => {
     // runs against the REAL `ZodValidationPipe`. The controller's parameter is typed as the DTO now, so the only
     // whitespace-only name a test could pass here is one the pipe would already have rejected.
 
+    // The catalog is ownerless and globally unique-named, so the name a caller sends becomes shared state.
+    // These four pin the boundary rule: what reaches the service is the CANONICAL form, and a name that is
+    // invisible-only never reaches it at all. See `../foodName.ts` (findings 16.A-6 / 23.S-11).
+    it('hands the service the canonical name, not the caller`s bytes', async () => {
+        ctx.service.addByName.mockResolvedValue({ id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 30 });
+        const { res } = makeRes();
+
+        await ctx.controller.addByName({ name: 'Bro\u200Bccoli,\u00A0 raw' }, makeReq(), res);
+
+        expect(ctx.service.addByName).toHaveBeenCalledWith('Broccoli, raw', USER_ULID);
+    });
+
+    it('rejects an invisible-only name with 400 VALIDATION_FAILED, without calling the service', async () => {
+        const { res } = makeRes();
+
+        expectApiError(
+            await thrownBy(() => ctx.controller.addByName({ name: '\u200B\u200B\uFEFF' }, makeReq(), res)),
+            'VALIDATION_FAILED',
+        );
+        expect(ctx.service.addByName).not.toHaveBeenCalled();
+    });
+
+    it('canonicalizes every batch name and drops the invisible-only entries', async () => {
+        ctx.service.batchAdd.mockResolvedValue({ items: [] });
+
+        await ctx.controller.batch({ names: ['Bro\u200Bccoli', '\u200B', '\uFF2Bale'] }, makeReq());
+
+        expect(ctx.service.batchAdd).toHaveBeenCalledWith(['Broccoli', 'Kale'], USER_ULID);
+    });
+
+    it('counts a batch against the cap AFTER dropping the invisible-only entries', async () => {
+        ctx.service.batchAdd.mockResolvedValue({ items: [] });
+        const names = [...Array.from({ length: 100 }, (_, i) => `food ${i}`), '\u200B'];
+
+        await ctx.controller.batch({ names }, makeReq());
+
+        expect(ctx.service.batchAdd).toHaveBeenCalledWith(expect.arrayContaining(['food 0']), USER_ULID);
+    });
+
     it('lets a FetchUnavailableError propagate, and sets NO Retry-After itself (FR-046)', async () => {
         const domainError = new FetchUnavailableError(30);
         ctx.service.addByName.mockRejectedValue(domainError);

@@ -26,6 +26,7 @@ import type {
     FoodSourceId,
 } from '../../sources/foodSourceAdapter.js';
 import { SourceAdapterRegistry } from '../../sources/SourceAdapterRegistry.js';
+import { normalizeName } from '../foodName.js';
 
 /**
  * A merge input candidate, generic over the source-id type. Structurally a {@link CanonicalCandidate}
@@ -118,17 +119,6 @@ export interface MergeResult<S extends string = FoodSourceId> {
     readonly goldenRecord: GoldenRecordDraft<S> | null;
     /** The surviving candidate set surfaced for human disambiguation (UNRESOLVED), else `[]`. */
     readonly candidateSet: readonly MergeCandidate<S>[];
-}
-
-/**
- * Normalize a name to the dedup grain (lowercased, trimmed, internal whitespace collapsed). This is the
- * grain the survivor count groups on (FR-005/FR-MRG-5).
- *
- * @param name - The raw display name.
- * @returns The normalized dedup key.
- */
-export function normalizeName(name: string): string {
-    return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 /** A non-empty string is "present" for the presence-beats-absence rule. */

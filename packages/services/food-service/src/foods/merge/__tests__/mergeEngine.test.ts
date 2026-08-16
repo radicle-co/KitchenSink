@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { mergeChanged, mergeCandidates, normalizeName } from '../mergeEngine.js';
+import { mergeChanged, mergeCandidates } from '../mergeEngine.js';
 import { sanitizeCandidates } from '../mergeSanitize.js';
 import { makeMergeCandidate } from '../__fixtures__/merge.fixtures.js';
 
@@ -21,12 +21,6 @@ const priorityOf = (source: TestSource): number => (source === 'usda' ? 2 : 1);
 
 /** All-equal priority resolver for single-source blends (two `usda` items of the same food). */
 const flatPriority = (): number => 1;
-
-describe('normalizeName', () => {
-    it('lowercases, trims, and collapses internal whitespace (the dedup grain)', () => {
-        expect(normalizeName('  Broccoli,   RAW ')).toBe('broccoli, raw');
-    });
-});
 
 describe('mergeCandidates — survivor-count auto-resolve boundary (FR-MRG-5)', () => {
     it('0 candidates → NOT_FOUND with no golden record', () => {

@@ -48,7 +48,7 @@ import type {
     ResolveFromPicksInput,
 } from '../merge/mergeAndPersist.service.js';
 import type { PersistResult } from '../merge/mergeAndPersist.service.js';
-import { normalizeName } from '../merge/mergeEngine.js';
+import { normalizeName } from '../foodName.js';
 import { ConsoleWorkerLogger } from '../../worker/ConsoleWorkerLogger.js';
 import { type WorkerLogger } from '../../worker/workerLogger.js';
 import { BulkSeedAbortedError } from './bulkSeed.errors.js';

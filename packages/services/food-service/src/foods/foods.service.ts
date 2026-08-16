@@ -25,7 +25,7 @@ import {
     FoodPendingError,
     NotResolvableError,
 } from './foods.errors.js';
-import { normalizeName } from './merge/mergeEngine.js';
+import { normalizeName, sanitizeFoodName } from './foodName.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { normalizePortions } from './nutrition/portionNormalization.js';
 import { projectNutrition } from './nutrition/nutrientSelection.js';
@@ -269,7 +269,11 @@ export class FoodsService {
      * @throws {FetchUnavailableError} (→ 503) when a fresh enqueue is shed by backpressure.
      */
     public async addByName(name: string, requesterId: string): Promise<AddResponse> {
-        const result = await this.foodDao.createByName({ normalizedName: normalizeName(name), displayName: name });
+        // The catalog's display name and its identity key are derived from ONE sanitized string, so they can
+        // never disagree about which characters count. Idempotent — the controller has already canonicalized a
+        // request-borne name, but a future in-process caller has not, and the write point is what must hold.
+        const displayName = sanitizeFoodName(name);
+        const result = await this.foodDao.createByName({ normalizedName: normalizeName(displayName), displayName });
 
         if (result.created || result.reactivated) {
             await this.admission.admit(requesterId);
@@ -314,10 +318,11 @@ export class FoodsService {
         const unique = new Map<string, string>();
 
         for (const name of names) {
-            const key = normalizeName(name);
+            const displayName = sanitizeFoodName(name);
+            const key = normalizeName(displayName);
 
-            if (!unique.has(key)) {
-                unique.set(key, name);
+            if (key.length > 0 && !unique.has(key)) {
+                unique.set(key, displayName);
             }
         }
 

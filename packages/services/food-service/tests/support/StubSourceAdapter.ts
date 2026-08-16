@@ -20,7 +20,7 @@ import {
     type FoodSourceId,
     type SourceCandidate,
 } from '../../src/sources/foodSourceAdapter.js';
-import { normalizeName } from '../../src/foods/merge/mergeEngine.js';
+import { normalizeName } from '../../src/foods/foodName.js';
 
 /** Overridable canonical-record fields a test can set on a programmed candidate. */
 export interface StubCandidateParts {

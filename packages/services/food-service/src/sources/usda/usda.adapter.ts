@@ -38,6 +38,7 @@ import {
 } from '@kitchensink/usda-client';
 import { z } from 'zod';
 
+import { lookupLabelNutrient } from '../../foods/nutrition/labelNutrientMap.js';
 import { AdapterValidationError, SourceApiError } from '../foodSource.errors.js';
 import {
     type CanonicalCandidate,
@@ -97,23 +98,6 @@ const RawUsdaLabelNutrientsSchema = z.record(z.string(), z.object({ value: z.num
  * fixed per key (grams for macros, mg for the listed minerals, kcal for calories), so the panel carries
  * no per-entry unit. Keys absent from this map are skipped — without a known unit they cannot be stored.
  */
-const LABEL_NUTRIENT_MAP: Readonly<Record<string, { readonly name: string; readonly unit: string }>> = {
-    fat: { name: 'Total lipid (fat)', unit: 'g' },
-    saturatedFat: { name: 'Fatty acids, total saturated', unit: 'g' },
-    transFat: { name: 'Fatty acids, total trans', unit: 'g' },
-    cholesterol: { name: 'Cholesterol', unit: 'mg' },
-    sodium: { name: 'Sodium, Na', unit: 'mg' },
-    carbohydrates: { name: 'Carbohydrate, by difference', unit: 'g' },
-    fiber: { name: 'Fiber, total dietary', unit: 'g' },
-    sugars: { name: 'Sugars, total including NLEA', unit: 'g' },
-    addedSugar: { name: 'Sugars, added', unit: 'g' },
-    protein: { name: 'Protein', unit: 'g' },
-    calcium: { name: 'Calcium, Ca', unit: 'mg' },
-    iron: { name: 'Iron, Fe', unit: 'mg' },
-    potassium: { name: 'Potassium, K', unit: 'mg' },
-    calories: { name: 'Energy', unit: 'kcal' },
-    vitaminD: { name: 'Vitamin D (D2 + D3)', unit: 'µg' },
-};
 
 /** Decimal places kept when converting a per-serving label value to per-100g (strips float drift). */
 const CONVERSION_PRECISION = 6;
@@ -371,7 +355,7 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
             servingSize > 0;
 
         for (const [labelKey, entry] of Object.entries(parsed.data)) {
-            const mapping = LABEL_NUTRIENT_MAP[labelKey];
+            const mapping = lookupLabelNutrient(labelKey);
 
             if (mapping === undefined || entry.value === undefined) {
                 continue; // Unmapped label key (unknown unit) or absent value — skip.

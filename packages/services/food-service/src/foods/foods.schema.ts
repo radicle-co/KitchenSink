@@ -78,6 +78,83 @@ export const nutrientViewSchema = z.object({
 
 export type NutrientView = z.infer<typeof nutrientViewSchema>;
 
+/**
+ * A NORMALIZED portion in the batch-nutrition response — grams per ONE unit (KTD-3 / plan U8).
+ *
+ * Distinct from {@link portionViewSchema}, which is the RAW stored `{ label, gramWeight }`. Returning the
+ * raw shape was what forced the recipe service to keep a heuristic interpreting food's data — the second
+ * source of truth KTD-3 exists to delete. Food normalizes; consumers do not parse.
+ */
+export const normalizedPortionSchema = z.object({
+    /** The measure unit, lower-cased and singularized (`cup`, `tablespoon`, `clove`). */
+    unit: z.string(),
+    /** Grams in ONE of that unit; strictly positive. */
+    gramsPerUnit: z.number().positive(),
+});
+
+export type NormalizedPortion = z.infer<typeof normalizedPortionSchema>;
+
+/**
+ * One food's entry in the batch-nutrition response (plan U8).
+ *
+ * ⚠️ Every macro is OPTIONAL, and absence is meaningful: it means no nutrient row satisfied all three of
+ * `basis === 'per_100g'`, the canonical name, and the canonical unit. It does NOT mean zero. A food whose
+ * energy is published only `per_serving`, or only in `kJ`, reports absent rather than a coerced number —
+ * see `nutrition/nutrientSelection.ts` for why coercing is how the 4.184× error class returns.
+ */
+export const foodNutritionSchema = z.object({
+    /** The requested food id. */
+    id: z.string(),
+    /** The food's lifecycle status, so an unresolved id is REPORTED rather than silently omitted. */
+    status: foodStatusSchema,
+    /** Energy, kcal per 100 g. Absent when no qualifying row exists. */
+    caloriesPer100g: z.number().optional(),
+    /** Protein, g per 100 g. */
+    proteinGPer100g: z.number().optional(),
+    /** Carbohydrate, g per 100 g. */
+    carbsGPer100g: z.number().optional(),
+    /** Fat, g per 100 g. */
+    fatGPer100g: z.number().optional(),
+    /** Normalized household portions, de-duplicated by unit. Empty when none could be interpreted. */
+    portions: z.array(normalizedPortionSchema),
+});
+
+export type FoodNutrition = z.infer<typeof foodNutritionSchema>;
+
+/**
+ * Query for `GET /api/v1/foods/nutrition` (plan U8).
+ *
+ * The list arrives as ONE comma-separated string rather than a repeated parameter, because the URL is the
+ * cache key (ADR-0020) and a repeated parameter has no canonical serialization — `?ids=a&ids=b` and
+ * `?ids=b&ids=a` are the same request through two cache entries. Ordering, de-duplication and the cap are
+ * applied after this parse, in `nutrition/nutritionIdList.ts`; this schema's job is only to guarantee the
+ * parameter is present and is a string, which is what §15.4(3) requires of every query.
+ */
+export const foodNutritionQuerySchema = z
+    .object({
+        /** Comma-separated food ids. Canonicalized (sorted, de-duplicated, capped) before use. */
+        ids: z.string().min(1),
+    })
+    .strict();
+
+export type FoodNutritionQuery = z.infer<typeof foodNutritionQuerySchema>;
+
+/**
+ * `GET /api/v1/foods/nutrition?ids=…` (plan U8).
+ *
+ * ⛔ **This response MUST NOT vary by caller.** ADR-0020 keys food's CloudFront distribution on the URL
+ * alone, which is sound only while that holds. It is a standing invariant of this endpoint, not a one-time
+ * test: adding anything caller-derived here would serve one user's response to another.
+ */
+export const foodNutritionBatchResponseSchema = z.object({
+    /** One entry per requested id, in the canonical (sorted, de-duplicated) id order. */
+    foods: z.array(foodNutritionSchema),
+    /** Ids that name no food at all — reported, never silently dropped. */
+    unknownIds: z.array(z.string()),
+});
+
+export type FoodNutritionBatchResponse = z.infer<typeof foodNutritionBatchResponseSchema>;
+
 /** A household-measure portion in the read shape (source-tagged). */
 export const portionViewSchema = z.object({
     /** Human label (e.g. `1 cup chopped`). */

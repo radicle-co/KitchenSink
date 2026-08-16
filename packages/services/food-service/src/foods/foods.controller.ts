@@ -55,6 +55,8 @@ import {
     type AuthenticatedRequest,
 } from '../auth/authenticatedPrincipal.js';
 import { apiError } from '../common/apiError.js';
+import { canonicalizeNutritionIds, isNutritionIdListError } from './nutrition/nutritionIdList.js';
+import type { FoodNutritionBatchResponse } from './foods.schema.js';
 import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
 import { isFoodPendingError } from './foods.errors.js';
@@ -62,7 +64,13 @@ import { FoodsService } from './foods.service.js';
 // The AUTHORED wire contract (CODING_STANDARDS §15.2): the request schemas below are the validators this
 // controller runs AND the definitions `@kitchensink/schema-food` publishes to every client, so there is one
 // representation of each shape instead of a server-side check and a client-side belief about it.
-import { AddFoodBodyDto, BatchAddFoodBodyDto, ResolveFoodBodyDto, SearchFoodQueryDto } from './dto/foods.dto.js';
+import {
+    AddFoodBodyDto,
+    BatchAddFoodBodyDto,
+    FoodNutritionQueryDto,
+    ResolveFoodBodyDto,
+    SearchFoodQueryDto,
+} from './dto/foods.dto.js';
 import type {
     AddResponse,
     BatchResponse,
@@ -116,6 +124,26 @@ export class FoodsController {
         const names = this.boundedNames(body.names);
 
         return this.foodsService.batchAdd(names, this.requireRequesterId(req));
+    }
+
+    /**
+     * `GET /api/v1/foods/nutrition?ids=a,b,c` — batch per-100g nutrition + normalized portions (plan U8).
+     *
+     * ⚠️ **Declared BEFORE `:id/status` and every other `:id` route.** Nest matches in declaration order, so
+     * a route registered after a `:id` pattern would be swallowed by it — `nutrition` would bind as an id and
+     * this endpoint would 404 with no clue why.
+     *
+     * ⛔ **GET, deliberately against this controller's own `POST /batch` precedent.** CloudFront does not
+     * cache POST responses AT ALL, so following the local precedent would have silently voided the entire
+     * reason food has a distribution (ADR-0020). The `ids` list is canonicalized — sorted, de-duplicated,
+     * capped — so two callers asking for the same foods produce byte-identical URLs and therefore share a
+     * cache entry.
+     *
+     * The response must not vary by caller; the edge keys it on the URL alone.
+     */
+    @Get('nutrition')
+    public async getNutritionBatch(@Query() query: FoodNutritionQueryDto): Promise<FoodNutritionBatchResponse> {
+        return this.foodsService.getNutritionBatch(this.requireNutritionIds(query.ids));
     }
 
     /** `GET /api/v1/foods/{id}/status` — lifecycle poll (FR-007). */
@@ -249,6 +277,36 @@ export class FoodsController {
     private requireId(id: string): void {
         if (!isFoodId(id)) {
             throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
+        }
+    }
+
+    /**
+     * Canonicalize the `?ids=` list, translating its typed failure into this API's structured error.
+     *
+     * The canonicalization is NOT validation-for-its-own-sake: the URL is the cache key (ADR-0020), so an
+     * unsorted or duplicated list is a second cache entry for the same data, and an uncapped list is an
+     * unbounded database read from a single request.
+     *
+     * @param ids - The raw `ids` query value.
+     * @returns The canonical id list.
+     * @throws A structured `INVALID_IDS` error when the list is empty or over the cap.
+     */
+    private requireNutritionIds(ids: string): string[] {
+        try {
+            return canonicalizeNutritionIds(ids);
+        } catch (error) {
+            if (isNutritionIdListError(error)) {
+                // Mapped onto the EXISTING published codes rather than minting a new one: the error
+                // taxonomy is part of the wire contract, and a new member is a schema-package change every
+                // client must absorb. Over-cap is the same condition `BATCH_TOO_LARGE` already names for
+                // `POST /batch`; an empty list is an ordinary validation failure.
+                throw apiError(
+                    error.message.includes('exceeds') ? 'BATCH_TOO_LARGE' : 'VALIDATION_FAILED',
+                    error.message,
+                );
+            }
+
+            throw error;
         }
     }
 

@@ -27,11 +27,15 @@ import {
 } from './foods.errors.js';
 import { normalizeName } from './merge/mergeEngine.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
+import { normalizePortions } from './nutrition/portionNormalization.js';
+import { projectNutrition } from './nutrition/nutrientSelection.js';
 import type {
     AddResponse,
     BatchItemView,
     BatchResponse,
     CandidatesResponse,
+    FoodNutrition,
+    FoodNutritionBatchResponse,
     FoodResponse,
     ResolveResponse,
     SearchResponse,
@@ -101,6 +105,67 @@ export class FoodsService {
 
         // NOT_FOUND / FAILED — status still retrievable (FR-004).
         throw new FoodNotFoundError(id, record.status);
+    }
+
+    /**
+     * `GET /api/v1/foods/nutrition?ids=…` — the batch projection (KTD-3, plan U8).
+     *
+     * ⛔ **Caller-independent, and that is a standing invariant.** ADR-0020 keys food's CloudFront
+     * distribution on the URL ALONE, which is only sound while this response depends on nothing about the
+     * caller. Nothing derived from the requester may enter it.
+     *
+     * Reads only. It never enqueues and never fetches from a source: this is the path a recipe list hits
+     * once per render, and making it capable of triggering resolution would turn a read into an unbounded
+     * fan-out of source calls.
+     *
+     * An id that names no row at all is reported in `unknownIds` rather than omitted, because a silently
+     * shorter array is indistinguishable from a food with no nutrition — and the caller cannot tell whether
+     * to show "unknown" or "none".
+     *
+     * @param ids - The canonical (sorted, de-duplicated, capped) id list.
+     * @returns One entry per known id, in the given order, plus the ids that matched nothing.
+     */
+    public async getNutritionBatch(ids: readonly string[]): Promise<FoodNutritionBatchResponse> {
+        const records = await Promise.all(
+            ids.map(async (id) => ({ id, record: await this.foodDao.readGoldenRecord(id) })),
+        );
+
+        const foods: FoodNutrition[] = [];
+        const unknownIds: string[] = [];
+
+        for (const { id, record } of records) {
+            if (record === null) {
+                unknownIds.push(id);
+                continue;
+            }
+
+            // The projection runs regardless of status: a food that is PENDING or FAILED still reports its
+            // status here, with whatever nutrients it has (usually none). The caller decides what to render
+            // — this endpoint does not decide on their behalf by withholding the row.
+            foods.push({
+                id,
+                status: record.status,
+                // Mapped at the seam rather than widening the projection's input type. Stored amounts are
+                // STRINGS on purpose (arbitrary precision, no float drift — SC-008); the projection works in
+                // numbers because the wire contract does, and this is the one place that conversion happens.
+                ...projectNutrition(
+                    record.nutrients.map((nutrient) => ({
+                        nutrient: nutrient.name,
+                        amount: Number(nutrient.amount),
+                        unit: nutrient.unit,
+                        basis: nutrient.basis,
+                    })),
+                ),
+                portions: normalizePortions(
+                    record.portions.map((portion) => ({
+                        label: portion.label,
+                        gramWeight: Number(portion.gramWeight),
+                    })),
+                ),
+            });
+        }
+
+        return { foods, unknownIds };
     }
 
     /**

@@ -20,6 +20,7 @@ import { createZodDto } from 'nestjs-zod';
 import {
     addFoodRequestSchema,
     batchAddFoodRequestSchema,
+    foodNutritionQuerySchema,
     resolveFoodRequestSchema,
     searchFoodQuerySchema,
 } from '../foods.schema.js';
@@ -42,3 +43,6 @@ export class ResolveFoodBodyDto extends createZodDto(resolveFoodRequestSchema) {
 
 /** Query of `GET /api/v1/foods/search` (FR-008) — trimmed, required, and length-bounded. */
 export class SearchFoodQueryDto extends createZodDto(searchFoodQuerySchema) {}
+
+/** Query for `GET /api/v1/foods/nutrition` — the id list, validated by the pipe like every other query. */
+export class FoodNutritionQueryDto extends createZodDto(foodNutritionQuerySchema) {}

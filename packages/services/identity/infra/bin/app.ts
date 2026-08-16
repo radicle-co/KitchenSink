@@ -34,6 +34,8 @@ if (!vpcId) {
 const env = account ? { account, region } : { region };
 
 new IdentityServiceStack(app, `IdentityService-${stage}`, {
+    // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.
+    alertEmail: process.env['COST_ALERT_EMAIL'],
     env,
     stackName: `kitchensink-identity-service-${stage}`,
     stage,

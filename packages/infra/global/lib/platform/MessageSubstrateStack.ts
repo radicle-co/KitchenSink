@@ -17,11 +17,17 @@ import {
     messageTableNameForStage,
     messageTableNameParameter,
 } from '@kitchensink/infra-messaging';
+import { subscribeAlarmEmail } from '@kitchensink/infra-security';
 
 /** Props for {@link MessageSubstrateStack}. */
 export interface MessageSubstrateStackProps extends StackProps {
     /** The BASE deploy stage this substrate serves (`prod` or `sandbox`). */
     readonly stage: string;
+    /**
+     * Email that receives this stack's alarms (R3.2 / plan U11). Per-stage configuration, never a literal —
+     * this repository is public. Absent = topic with no subscription, never a synth failure.
+     */
+    readonly alertEmail?: string;
 }
 
 /**
@@ -99,6 +105,9 @@ export class MessageSubstrateStack extends Stack {
             enforceSSL: true,
             displayName: `Message substrate alarms (${stage})`,
         });
+
+        // R3.2 / U11 — an alarm that publishes to a topic nobody listens to is not an alarm.
+        subscribeAlarmEmail(this.alarmTopic, props.alertEmail);
 
         const alarmAction = new cloudwatchActions.SnsAction(this.alarmTopic);
 

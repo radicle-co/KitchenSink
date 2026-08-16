@@ -24,9 +24,17 @@ import {
 import type { Construct } from 'constructs';
 
 import { BASE_LISTENER_PRIORITY, internalOriginForStage } from '@kitchensink/infra-alb';
-import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
+import { AcceptedNagFindings, acceptNagFindings, subscribeAlarmEmail } from '@kitchensink/infra-security';
 
 export interface IdentityServiceStackProps extends StackProps {
+    /**
+     * Email that receives this stack's alarms (R3.2 / plan U11). Supplied per-stage from
+     * `COST_ALERT_EMAIL` / the `costAlertEmail` context in `infra/bin/app.ts`; when omitted the topic is
+     * created with NO subscription, so no address is ever baked into a committed template (this repo is
+     * public).
+     */
+    readonly alertEmail?: string;
+
     readonly stage: string;
     readonly domainName: string;
     readonly imageTag: string;
@@ -429,6 +437,9 @@ export class IdentityServiceStack extends Stack {
             enforceSSL: true,
             displayName: `Identity service alarms (${stage})`,
         });
+        // R3.2 / U11 — every alarm must reach a human. Absent address = no subscription, never a
+        // synth failure: an account that has not configured a recipient must still deploy.
+        subscribeAlarmEmail(alarmTopic, props.alertEmail);
         const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
 
         // Per-service 5xx on the shared ALB. The ALB-level metric would now aggregate every service's

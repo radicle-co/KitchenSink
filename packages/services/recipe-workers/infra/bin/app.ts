@@ -49,6 +49,8 @@ const requireEnv = (key: string): string => {
 const env = account ? { account, region } : { region };
 
 new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
+    // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.
+    alertEmail: process.env['COST_ALERT_EMAIL'],
     env,
     stackName: `kitchensink-recipe-workers-${stage}`,
     stage,

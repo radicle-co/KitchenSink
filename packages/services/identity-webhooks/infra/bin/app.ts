@@ -37,6 +37,8 @@ if (!vpcId) {
 }
 
 new WebhooksStack(app, `IdentityWebhooks-${stage}`, {
+    // R3.2 / U11 — the alarm recipient, per-stage config and never a committed literal.
+    alertEmail: process.env['COST_ALERT_EMAIL'],
     env,
     stackName: `kitchensink-identity-webhooks-${stage}`,
     stage,

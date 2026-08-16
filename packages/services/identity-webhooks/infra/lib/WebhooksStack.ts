@@ -30,11 +30,24 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
+import {
+    AcceptedNagFindings,
+    NODE_LAMBDA_RUNTIME,
+    acceptNagFindings,
+    subscribeAlarmEmail,
+} from '@kitchensink/infra-security';
 
 import { erasureSsmPath, getAuthSecretName, getErasureSigningSecretName, ssmParamPath } from './config.js';
 
 export interface WebhooksStackProps extends StackProps {
+    /**
+     * Email that receives this stack's alarms (R3.2 / plan U11). Supplied per-stage from
+     * `COST_ALERT_EMAIL` / the `costAlertEmail` context in `infra/bin/app.ts`; when omitted the topic is
+     * created with NO subscription, so no address is ever baked into a committed template (this repo is
+     * public).
+     */
+    readonly alertEmail?: string;
+
     readonly stage: string;
     readonly domainName: string;
     readonly vpcId: string;
@@ -430,6 +443,9 @@ export class WebhooksStack extends Stack {
             enforceSSL: true,
             displayName: `Identity webhooks alarms (${deployStage})`,
         });
+        // R3.2 / U11 — every alarm must reach a human. Absent address = no subscription, never a
+        // synth failure: an account that has not configured a recipient must still deploy.
+        subscribeAlarmEmail(alarmTopic, props.alertEmail);
         const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
 
         /**

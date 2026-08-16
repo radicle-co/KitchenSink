@@ -11,6 +11,8 @@ import { SharedAlbStack } from './SharedAlbStack.js';
 export interface GlobalStackProps extends StackProps {
     readonly stage: string;
     readonly domainName: string;
+    /** Email that receives platform alarms (R3.2 / plan U11); per-stage config, never a committed literal. */
+    readonly alertEmail?: string;
 }
 
 /**
@@ -74,6 +76,7 @@ export class GlobalStack extends Stack {
             env: props.env,
             stackName: `kitchensink-messaging-${stage}`,
             stage,
+            alertEmail: props.alertEmail,
         });
 
         // ADR-0007: the nightly stop/start scheduler exists ONLY for the sandbox stage. Guarding the

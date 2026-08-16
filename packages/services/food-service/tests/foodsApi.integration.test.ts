@@ -226,7 +226,11 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Pos
         process.env['NODE_ENV'] = 'test';
 
         const { AppModule } = await import('../src/app.module.js');
-        app = await NestFactory.create(AppModule, { logger: false });
+        // ⚠️ `abortOnError: false` is LOAD-BEARING, not tidiness. Nest's default handler answers a DI
+        // failure with `process.abort()`, which vitest can only report as "Worker exited unexpectedly" —
+        // so a module that cannot boot AT ALL looks exactly like flake. It hid a missing `FetchQueueDao`
+        // provider (U9) through a whole review round. With this flag the boot error is the test failure.
+        app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
         await app.listen(0);
         const address = app.getHttpServer().address() as AddressInfo;
         baseUrl = `http://127.0.0.1:${address.port}`;
@@ -267,6 +271,32 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Pos
             expect(rows.rows[0].n).toBe(0);
             const queue = await pool.query('SELECT count(*)::int AS n FROM fetch_queue');
             expect(queue.rows[0].n).toBe(0);
+        });
+
+        /**
+         * The load shedder buckets by the leftmost `X-Forwarded-For` hop, which the ALB APPENDS to rather
+         * than replaces — so the key is caller-chosen and an unauthenticated attacker rotates it every
+         * request (finding 02.F-F1). Across the real guard and the real app this asserts what must survive
+         * that rotation: every request fails CLOSED with 401 rather than degrading, and a legitimate caller
+         * behind the flood is still served AND still writes its row. The bucket-cardinality bound itself is
+         * asserted in `src/auth/__tests__/AuthLoadShedder.test.ts` — it is not observable over HTTP.
+         */
+        it('fails closed and keeps serving under a flood that rotates its source key every request', async () => {
+            for (let i = 0; i < 250; i += 1) {
+                const res = await call('GET', `/api/v1/foods/${ulid()}`, {
+                    token: 'garbage',
+                    headers: { 'x-forwarded-for': `192.0.2.${i % 256}-${i}` },
+                });
+                expect(res.status).toBe(401);
+            }
+
+            const served = await call('POST', '/api/v1/foods', {
+                token: 'user',
+                body: { name: 'after the flood' },
+                headers: { 'x-forwarded-for': '198.51.100.4' },
+            });
+            expect(served.status).toBe(202);
+            expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(1);
         });
 
         it('ignores a forged x-debug-sub / x-authorizer-context and keys provenance on the app-user ULID', async () => {
@@ -630,6 +660,38 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Pos
 
             const foods = await pool.query('SELECT count(*)::int AS n FROM food');
             expect(foods.rows[0].n).toBe(1);
+        });
+
+        it('stores the CANONICAL name, not the caller`s bytes, as the shared catalog`s global label', async () => {
+            const res = await call('POST', '/api/v1/foods', {
+                token: 'user',
+                // A bidi override, a fullwidth capital and a zero-width space — invisible or misleading in a
+                // picker, and permanent on an ownerless row every user sees (finding 16.A-6 / 23.S-11).
+                body: { name: '\u202E\uFF22ro\u200Bccoli,  raw\u202C' },
+            });
+            expect(res.status).toBe(202);
+
+            const row = await pool.query('SELECT name, normalized_name FROM food WHERE id = $1', [
+                (res.body as { id: string }).id,
+            ]);
+            expect(row.rows[0].name).toBe('Broccoli, raw');
+            expect(row.rows[0].normalized_name).toBe('broccoli, raw');
+        });
+
+        it('collapses an invisible-character variant onto the SAME row — the dedup key cannot be bypassed', async () => {
+            const first = await call('POST', '/api/v1/foods', { token: 'user', body: { name: 'Kale' } });
+            const second = await call('POST', '/api/v1/foods', { token: 'user', body: { name: 'Ka\u200Ble' } });
+
+            expect((second.body as { id: string }).id).toBe((first.body as { id: string }).id);
+            const foods = await pool.query('SELECT count(*)::int AS n FROM food');
+            expect(foods.rows[0].n).toBe(1);
+        });
+
+        it('rejects an invisible-only name with 400, nothing written', async () => {
+            const res = await call('POST', '/api/v1/foods', { token: 'user', body: { name: '\u200B\u200B\uFEFF' } });
+            expect(res.status).toBe(400);
+            const foods = await pool.query('SELECT count(*)::int AS n FROM food');
+            expect(foods.rows[0].n).toBe(0);
         });
 
         it('rejects an empty/whitespace name with 400, nothing enqueued', async () => {

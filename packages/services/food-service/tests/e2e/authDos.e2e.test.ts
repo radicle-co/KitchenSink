@@ -77,4 +77,21 @@ describe.skipIf(!DATABASE_URL)('auth-layer DoS load-shed (e2e, FR-052/SC-011)', 
         // Per-source isolation: an innocent source's VALID token still succeeds (200) under the flood.
         expect(await get('/api/v1/foods/search?query=x', validToken, innocent)).toBe(200);
     });
+
+    /**
+     * The bucket key is the leftmost `X-Forwarded-For` hop and the ALB APPENDS to that header, so the key is
+     * CALLER-CHOSEN: an attacker rotates it every request and never trips the per-source cap. That is the
+     * shape that turned the shedder's own bookkeeping into an unauthenticated memory-exhaustion vector
+     * (finding 02.F-F1 / 08.F-SEC1). Over real HTTP this asserts the two properties that survive key
+     * rotation: every request still FAILS CLOSED with 401 rather than degrading to a 5xx, and a legitimate
+     * caller behind it is still served. The cardinality bound itself is not observable from outside the
+     * process and is asserted in `src/auth/__tests__/AuthLoadShedder.test.ts`.
+     */
+    it('stays correct and responsive under a flood that rotates its source key every request', async () => {
+        for (let i = 0; i < 200; i += 1) {
+            expect(await get('/api/v1/foods/search?query=x', 'not-a-valid-jwt', `192.0.2.${i % 256}-${i}`)).toBe(401);
+        }
+
+        expect(await get('/api/v1/foods/search?query=x', validToken, '198.51.100.9')).toBe(200);
+    });
 });

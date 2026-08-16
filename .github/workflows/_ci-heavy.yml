@@ -802,6 +802,15 @@ jobs:
               env:
                   FOOD_API_BASE_URL: http://localhost:3000
               run: k6 run --summary-export=k6-search-summary.json tests/load/search.load.js
+            # FR-052/SC-011 under the flood shape the per-source cap CANNOT see: the bucket key is the
+            # leftmost X-Forwarded-For hop, which the shared ALB appends to, so an attacker rotates it every
+            # request. Asserts the rejection stays cheap and fails closed, and that a legitimate caller is
+            # not starved, while the shedder's bucket map is under real concurrency (finding 02.F-F1).
+            - name: Run k6 auth-flood load script (FR-052/SC-011 rotating source key)
+              working-directory: packages/services/food-service
+              env:
+                  FOOD_API_BASE_URL: http://localhost:3000
+              run: k6 run --summary-export=k6-auth-flood-summary.json tests/load/authFlood.load.js
             # The drain claim needs no HTTP service — it calls FetchQueueDao.leaseNext() against Postgres
             # directly (k6 cannot speak SQL). Split into TWO steps because they answer two different questions
             # and must be attributable separately in the run log.

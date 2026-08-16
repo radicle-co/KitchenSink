@@ -87,3 +87,77 @@ describe('AuthLoadShedder — source key extraction', () => {
         expect(shedder.sourceKey({ xForwardedFor: undefined, ip: undefined })).toBe('unknown');
     });
 });
+
+describe('AuthLoadShedder — bounded source tracking (finding 02.F-F1 / 08.F-SEC1)', () => {
+    let now: number;
+    const clock = (): number => now;
+
+    beforeEach(() => {
+        now = 1_000_000;
+    });
+
+    /**
+     * The bucket key is the leftmost `X-Forwarded-For` hop, and the ALB APPENDS to that header rather than
+     * replacing it — so an unauthenticated client picks its own key, and picks a fresh one every request.
+     * Without a bound the defence against a DoS is itself the DoS: one Map entry per request, forever,
+     * until the task is OOM-killed.
+     */
+    it('never tracks more sources than the cap, however many distinct keys a flood invents', () => {
+        const shedder = new AuthLoadShedder({
+            shedThreshold: 5,
+            shedWindowMs: 10_000,
+            maxTrackedSources: 100,
+            now: clock,
+        });
+
+        for (let i = 0; i < 10_000; i += 1) {
+            shedder.recordFailure(`10.0.0.${i}`);
+        }
+
+        expect(shedder.trackedSources()).toBeLessThanOrEqual(100);
+    });
+
+    it('keeps a genuinely flooding source tracked while one-shot spoofed keys are evicted', () => {
+        const shedder = new AuthLoadShedder({
+            shedThreshold: 3,
+            shedWindowMs: 10_000,
+            maxTrackedSources: 10,
+            now: clock,
+        });
+
+        // The attacker's real source keeps failing; each spoofed key is used once and never again.
+        for (let i = 0; i < 500; i += 1) {
+            shedder.recordFailure('attacker');
+            shedder.recordFailure(`spoof-${i}`);
+        }
+
+        expect(shedder.trackedSources()).toBeLessThanOrEqual(10);
+        expect(shedder.shouldShed('attacker')).toBe(true);
+    });
+
+    it('bounds one source`s ring to the rolling window rather than to the request count', () => {
+        const shedder = new AuthLoadShedder({ shedThreshold: 1_000_000, shedWindowMs: 1_000, now: clock });
+
+        for (let i = 0; i < 5_000; i += 1) {
+            now += 1; // 5,000 failures spread over 5 seconds — only the last second is live.
+            shedder.recordFailure('one-source');
+        }
+
+        expect(shedder.trackedFailures('one-source')).toBeLessThanOrEqual(1_001);
+    });
+
+    it('evicts a source whose failures have all aged out, without waiting to be asked about it', () => {
+        const shedder = new AuthLoadShedder({
+            shedThreshold: 5,
+            shedWindowMs: 1_000,
+            maxTrackedSources: 10,
+            now: clock,
+        });
+        shedder.recordFailure('quiet');
+
+        now += 5_000;
+        shedder.recordFailure('noisy');
+
+        expect(shedder.trackedFailures('quiet')).toBe(0);
+    });
+});

@@ -165,7 +165,10 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
         expect(screen.getByText('Showing 3 recipes for “pasta”')).toBeTruthy();
     });
 
-    it('composes the compound card fields — author handle, cuisine, calories (S1)', () => {
+    // Same move as the web leaf: calories are a DEFERRED lookup delivered through the card's `nutrition`
+    // slot, so a discovery row renders no calorie line until this surface passes one. The states are covered
+    // by `nutrition/__tests__/RecipeCalorieChip.native.test.tsx`; asserted here is the consequence.
+    it('composes the compound card fields — author handle, cuisine (S1), and no calorie line', () => {
         renderDiscovery({
             status: 'ready',
             results: [
@@ -181,7 +184,8 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
 
         expect(screen.getByText('by @tuscan_cook')).toBeTruthy();
         expect(screen.getByText('Tuscan')).toBeTruthy();
-        expect(screen.getByText('320 cal')).toBeTruthy();
+        expect(screen.queryByText('320 cal')).toBeNull();
+        expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByRole('button', { name: 'Ribollita' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Clone Ribollita' })).toBeTruthy();
     });

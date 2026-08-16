@@ -336,7 +336,12 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         expect(screen.queryByText(/From undefined/)).toBeNull();
     });
 
-    it('composes the compound card fields — author handle, cuisine, calories, visibility (S1)', () => {
+    // The "calories" half of this assertion MOVED rather than being dropped. A per-serving figure is now a
+    // DEFERRED lookup delivered through the card's `nutrition` slot, so a discovery row renders no calorie
+    // line until this surface passes one (its own wiring task). The states themselves are covered by
+    // `nutrition/__tests__/RecipeCalorieChip.test.tsx`; what is asserted HERE is the honest consequence —
+    // nothing is rendered, and above all no stale figure and no fabricated 0.
+    it('composes the compound card fields — author handle, cuisine, visibility (S1), and no calorie line', () => {
         renderDiscovery({
             status: 'ready',
             results: [
@@ -354,7 +359,8 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
 
         expect(screen.getByText('by @tuscan_cook')).toBeTruthy();
         expect(screen.getByText('Tuscan')).toBeTruthy();
-        expect(screen.getByText('320 cal')).toBeTruthy();
+        expect(screen.queryByText('320 cal')).toBeNull();
+        expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByText('Public')).toBeTruthy();
         // Still selectable by title and cloneable — the compound composition keeps the row contract.
         expect(screen.getByRole('button', { name: 'Ribollita' })).toBeTruthy();

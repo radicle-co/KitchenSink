@@ -5,7 +5,8 @@
  * carries the view-model in context and renders the shell (a Pressable button when `onSelect` is given, else
  * a plain View); the parts — `RecipeCard.Cover / .Title / .Meta / .Badges / .Rating / .Tags` — read that
  * context so each surface composes its own arrangement. Passing no children renders the default merged card.
- * ABSENT difficulty/cuisine/calories/tags render nothing; PRO is the materialized flag; a draft shows a
+ * ABSENT difficulty/cuisine/tags render nothing, and nutrition is a SLOT (a deferred lookup the composing
+ * surface decides, never a card field — see the web leaf); PRO is the materialized flag; a draft shows a
  * "Draft" badge that REPLACES visibility; the version badge shows only past v1; unrated shows an honest
  * "not yet rated"; the cover is the full-size original (FOLLOW-UP-CR-001-A).
  */
@@ -25,7 +26,6 @@ import {
     STAR_COUNT,
     difficultyTone,
     formatAverageRating,
-    formatCalories,
     formatRatingCount,
     formatRelativeTime,
     toStarFills,
@@ -38,11 +38,20 @@ export interface RecipeCardProps {
     readonly recipe: RecipeCardModel;
     /** When provided, the card is a Pressable that reports the recipe id (the list card). */
     readonly onSelect?: (id: string) => void;
+    /**
+     * The recipe's per-serving nutrition, as an already-decided NODE rendered in the meta row. A SLOT rather
+     * than a field, because the figure is a DEFERRED lookup that lands after the card does; an ABSENT slot
+     * renders no line at all. Identical public API to the web leaf (§14). See `RecipeCard.tsx`.
+     */
+    readonly nutrition?: ReactNode;
     /** Custom arrangement of `RecipeCard.*` parts. Omit for the default merged card (list/widget). */
     readonly children?: ReactNode;
 }
 
 const RecipeCardContext = createContext<RecipeCardModel | null>(null);
+
+/** The nutrition slot's content, carried to `RecipeCard.Meta` — see the web leaf for why it is its own context. */
+const RecipeCardNutritionContext = createContext<ReactNode>(null);
 
 /**
  * The card tier's native glass projection — computed once at module scope (it is a constant, not per-render
@@ -121,11 +130,11 @@ const CardTitle: FC = () => {
     return <Text style={styles.title}>{recipe.title}</Text>;
 };
 
-/** The meta row: total time · servings · calories · difficulty · cuisine (each rendered only when present). */
+/** The meta row: total time · servings · nutrition slot · difficulty · cuisine (each only when present). */
 const CardMeta: FC = () => {
     const { list, card } = useMessages(recipeMessages);
-    const locale = useLocale();
     const recipe = useCardModel();
+    const nutrition = useContext(RecipeCardNutritionContext);
     const duration = formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes);
     const difficultyLabel: Record<RecipeDifficulty, string> = {
         [RecipeDifficulty.EASY]: card.difficultyEasy,
@@ -143,11 +152,7 @@ const CardMeta: FC = () => {
             >
                 {recipe.servings}
             </Text>
-            {recipe.leadCaloriesPerServing !== undefined && (
-                <Text style={styles.metaText}>
-                    {card.caloriesLabel.replace('{calories}', formatCalories(recipe.leadCaloriesPerServing, locale))}
-                </Text>
-            )}
+            {nutrition}
             {recipe.difficulty !== undefined && tone !== undefined && (
                 <Text style={[styles.difficulty, { backgroundColor: tone.bg, color: tone.fg }]}>
                     {difficultyLabel[recipe.difficulty]}
@@ -306,8 +311,12 @@ const CardSurface: FC<{ readonly children: ReactNode }> = ({ children }) => (
  * U8: the actionable form delegates its press to {@link PressScale} (which OWNS the `Pressable`, its button
  * role/label, and the reduce-motion-safe scale), keeping the visual card style on the inner {@link CardSurface}.
  */
-const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => {
-    const content = children ?? <DefaultCardContent />;
+const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, nutrition = null, children }) => {
+    const content = (
+        <RecipeCardNutritionContext.Provider value={nutrition}>
+            {children ?? <DefaultCardContent />}
+        </RecipeCardNutritionContext.Provider>
+    );
 
     return (
         <RecipeCardContext.Provider value={recipe}>

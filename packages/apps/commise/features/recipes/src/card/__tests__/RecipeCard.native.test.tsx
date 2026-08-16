@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { computedContrast } from '@commise/test-utils';
@@ -249,13 +250,21 @@ describe('RecipeCard (native) — merged fields (CR-002 / L2·L3)', () => {
         expect(screen.queryByText('Mediterranean')).toBeNull();
     });
 
-    it('renders the localized calorie line when present, and none when absent', () => {
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: 420 })} />);
-        expect(screen.getByText('420 cal')).toBeTruthy();
+    // REPLACES "renders the localized calorie line when present, and none when absent" — same reasoning as the
+    // web leaf: calories left the card model with the deferred lookup, and the card now owns only the SLOT.
+    // The figure's own states are covered in `nutrition/__tests__/RecipeCalorieChip.native.test.tsx`.
+    it('renders whatever the nutrition slot supplies, inside the meta row', () => {
+        renderCard(<RecipeCard recipe={model({ totalTimeMinutes: 45 })} nutrition={<Text>420 cal</Text>} />);
 
-        cleanup();
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: undefined, title: 'No Cal' })} />);
+        expect(screen.getByText('420 cal')).toBeTruthy();
+        expect(screen.getByText('45 min')).toBeTruthy();
+    });
+
+    it('renders NO nutrition line at all when the slot is absent — never a placeholder, never a zero', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'No Cal' })} />);
+
         expect(screen.queryByText(/cal$/)).toBeNull();
+        expect(screen.queryByText('0 cal')).toBeNull();
     });
 
     it('renders each tag as a chip', () => {

@@ -237,13 +237,26 @@ describe('RecipeCard (web) — merged fields (CR-002 / L2·L3)', () => {
         expect(screen.queryByText('Mediterranean')).toBeNull();
     });
 
-    it('renders the localized calorie line when present, and none when absent', () => {
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: 420 })} />);
-        expect(screen.getByText('420 cal')).toBeTruthy();
+    // REPLACES "renders the localized calorie line when present, and none when absent". The card no longer
+    // KNOWS about calories: `leadCaloriesPerServing` left the card model with the deferred lookup, because a
+    // figure that arrives after the card does cannot be a field on the card's own view-model. The card now
+    // owns only the SLOT; what goes in it (chip, skeleton, or nothing) is the nutrition layer's decision and
+    // is covered by `nutrition/__tests__/RecipeCalorieChip.test.tsx` and `RecipeNutritionBoundary.test.tsx`.
+    it('renders whatever the nutrition slot supplies, inside the meta row', () => {
+        renderCard(<RecipeCard recipe={model({ totalTimeMinutes: 45 })} nutrition={<span>420 cal</span>} />);
 
-        cleanup();
-        renderCard(<RecipeCard recipe={model({ leadCaloriesPerServing: undefined, title: 'No Cal' })} />);
+        const slotted = screen.getByText('420 cal');
+        expect(slotted).toBeTruthy();
+        // In the META row, beside the time — not appended somewhere else in the card.
+        expect(slotted.closest('div')?.textContent).toContain('45 min');
+    });
+
+    it('renders NO nutrition line at all when the slot is absent — never a placeholder, never a zero', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'No Cal' })} />);
+
         expect(screen.queryByText(/cal$/)).toBeNull();
+        expect(screen.queryByText('0 cal')).toBeNull();
+        expect(screen.queryByRole('status')).toBeNull();
     });
 
     it('renders each tag as a chip', () => {

@@ -20,6 +20,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, Vie
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
 import { toRecipeCardModel } from '../card/model.js';
+import { RecipeCardGridSkeleton } from '../card/RecipeCardGridSkeleton.native.js';
 import { RecipeSourceTabs } from '../list/RecipeSourceTabs.native.js';
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
@@ -87,16 +88,11 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     // the DEFAULT state of Discover, so testing it first made the loading, error and empty branches below
     // unreachable on the surface's own default, taking the only retry down with them.
     if (status === 'loading') {
-        // Skeleton cards (NOT a blank view — the previous bug): inert, motion-free placeholders in the same
-        // 2-col grid the results use, so the surface has shape while the first page loads. Being motion-free,
-        // they need no reduce-motion gate (there is no non-essential animation to suppress).
-        body = (
-            <View accessibilityLabel={discovery.loadingLabel} style={styles.grid}>
-                {[0, 1, 2, 3].map((card) => (
-                    <View key={card} aria-hidden style={[styles.gridCell, styles.skeletonCard]} />
-                ))}
-            </View>
-        );
+        // The ONE authoritative NATIVE recipe-grid skeleton, now the counterpart of the web leaf both web
+        // surfaces share. This was a hand-rolled 2-col grid in this file's own `StyleSheet` — inert,
+        // motion-free placeholders (so no reduce-motion gate is needed), which the shared leaf preserves —
+        // painting FOUR cards where every web surface paints six.
+        body = <RecipeCardGridSkeleton label={discovery.loadingLabel} />;
     } else if (status === 'error') {
         body = (
             <View accessibilityRole="alert">
@@ -364,10 +360,8 @@ const styles = StyleSheet.create({
     // A FlashList grid cell (U4): `flex: 1` fills its `numColumns={2}` column; the horizontal padding is the
     // inter-column gutter, the bottom padding the inter-row rhythm.
     flashCell: { flex: 1, paddingHorizontal: nativeTokens.spacing[1], paddingBottom: nativeTokens.spacing[3] },
-    // 2-col skeleton grid (U7 — preserved): a wrapping row of half-width cells, each an inert placeholder card.
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
-    gridCell: { width: '48%' },
-    skeletonCard: { height: 220, borderRadius: nativeTokens.radius.lg, backgroundColor: nativeTokens.borderSubtle },
+    // (The 2-col skeleton grid that lived here moved to `card/RecipeCardGridSkeleton.native.tsx`, the native
+    // counterpart of the leaf both web surfaces already share.)
     // Recent searches (U7): a card of 44pt-tall rows under the keyword field.
     recentPanel: {
         backgroundColor: palette.white,

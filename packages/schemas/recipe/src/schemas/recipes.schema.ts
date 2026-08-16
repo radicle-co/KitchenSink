@@ -308,6 +308,130 @@ export type ListRecipesQuery = z.infer<typeof listRecipesQuerySchema>;
  * GR-007 axis is untouched — every non-wire consumer keeps importing these from `recipe-core`.
  */
 
+// ── Deferred nutrition (`POST /api/v1/recipes/nutrition-batch`) ───────────────────────────────────
+
+/**
+ * The most recipes one deferred-nutrition request may name.
+ *
+ * A cap is REQUIRED, not defensive, and it takes food's `MAX_NUTRITION_IDS` posture for the same reason: an
+ * uncapped list turns ONE request into an unbounded `IN (…)` read plus an unbounded fan-out to the food
+ * service. It is a payload / fan-out guard, not a product limit.
+ *
+ * ⚠️ THE NUMBER IS 500 BECAUSE 006 RULED IT, and the reason is load-bearing rather than round: REQ-IF-008
+ * fixes the cap at 500 because a 90-day × 4-slot meal plan holds at most 360 entries, which is precisely
+ * what makes its "exactly one request" reachable. A tighter cap here (food's 100, say) would silently make
+ * that requirement unsatisfiable in a service 006 does not own.
+ *
+ * Exported because the CLIENT needs it: a caller with more ids than this must chunk, and it should read the
+ * rule rather than reimplement it.
+ */
+export const MAX_NUTRITION_RECIPE_IDS = 500;
+
+/**
+ * Body of `POST /api/v1/recipes/nutrition-batch` — the recipes whose nutrition the caller wants.
+ *
+ * ⚠️ The CAP LIVES IN THE SCHEMA, so the rejection is the boundary parser's `VALIDATION_FAILED` `400`
+ * carrying `details.fields` — the shape `recipeApiErrorSchema` publishes for it. Enforcing the cap in the
+ * controller with a hand-thrown message instead would produce a `400` whose body a client validating against
+ * the published contract cannot parse: the service's own error would be unreadable by the service's own
+ * published schema. Food publishes `details.maxNames`/`details.fields` for exactly this reason.
+ *
+ * `.min(1)`: an empty list is a caller bug, and answering it with `{}` would be indistinguishable from
+ * "none of the recipes you named have nutrition" — a different fact, silently substituted.
+ *
+ * `z.uuid()` rather than a loose string: `recipes.id` is a `uuid` column, and an unbounded string reaching
+ * the `IN (…)` predicate is a `22P02` (an INSERT/SELECT-time fault surfacing as a `500`) rather than the
+ * `400` it should be. It matches `addRecipeToCollectionRequestSchema.recipeId`, this API's other recipe-id
+ * request field.
+ *
+ * ⛔ There is no `ownerId` field and the object is STRICT: the reader is the verified principal, and a
+ * recipe that principal may not read is OMITTED from the response — see {@link recipeNutritionResponseSchema}.
+ */
+export const recipeNutritionRequestSchema = z.strictObject({
+    recipeIds: z.array(z.uuid()).min(1).max(MAX_NUTRITION_RECIPE_IDS).readonly(),
+});
+
+/** Request body for the deferred nutrition lookup. */
+export type RecipeNutritionRequest = z.infer<typeof recipeNutritionRequestSchema>;
+
+/**
+ * A recipe's per-serving nutrition as the wire carries it — a THREE-state fact of which exactly TWO
+ * states may cross the boundary (plan: deferred calorie lookup).
+ *
+ * ## Why `pending` is deliberately absent
+ *
+ * A card is in one of three conditions: pending (the request is in flight), known, or unaccounted (we
+ * asked and there is no answer). `pending` lives ONLY on the client, as the Suspense fallback while the
+ * promise is unsettled, and its absence here is the enforcement: the moment a server can emit `pending`,
+ * a skeleton can become permanent — a spinner rendering forever because an origin said so, with nothing
+ * to retry and nothing to time out. `unaccounted` is terminal by contrast; it is the answer, not the
+ * absence of one, so it can never render a spinner.
+ *
+ * ## Why a discriminated union replaces `hasPartialNutrition`
+ *
+ * That boolean was a two-valued encoding of a three-valued fact, and three call sites pinned it `true` to
+ * mean "not looked up" — a meaning its own docstring does not carry ("some line could not be accounted
+ * for"). One field, two meanings, no discriminant, so a reader could not tell genuinely-partial nutrition
+ * from nobody-asked, and the UI could not choose between a figure, a caveat, and nothing.
+ *
+ * ## The KTD-3b invariant, made structural
+ *
+ * `calories: 0` is a factual claim that a dish contains no energy, and an outage is not evidence for it.
+ * So `known` REQUIRES a number — a zero there is a real measured zero, which water and black coffee
+ * genuinely have — and every failure path lands in `unaccounted`, which carries no figure for a client to
+ * render by accident.
+ *
+ * `freshness` reaches the wire here for the first time. `FoodNutritionGateway` has computed it since plan
+ * U10 and nothing ever read it, so a reader served a cached number during a food outage was never told —
+ * KTD-3b says "serve stale, MARKED", and only the first half was implemented.
+ */
+export const recipeNutritionStateSchema = z.discriminatedUnion('state', [
+    z
+        .object({
+            state: z.literal('known'),
+            /** Per serving. A real measured zero is legal; an outage never reaches this member. */
+            caloriesPerServing: z.number().nonnegative(),
+            proteinG: z.number().nonnegative(),
+            carbsG: z.number().nonnegative(),
+            fatG: z.number().nonnegative(),
+            /** `false` when some LINE could not be accounted for — the original, narrow meaning. */
+            isComplete: z.boolean(),
+            /** Whether the underlying food data is current, or served from cache during an outage. */
+            freshness: z.enum(['fresh', 'stale']),
+        })
+        .strict(),
+    z
+        .object({
+            state: z.literal('unaccounted'),
+            /**
+             * Why there is no figure. `no_resolved_ingredients` — nothing in the recipe maps to a food yet;
+             * `no_nutrient_data` — foods resolved but carry no qualifying per-100g rows; `food_unavailable`
+             * — the lookup itself failed and nothing was cached.
+             */
+            reason: z.enum(['no_resolved_ingredients', 'no_nutrient_data', 'food_unavailable']),
+        })
+        .strict(),
+]);
+
+/** One recipe's nutrition state. */
+export type RecipeNutritionState = z.infer<typeof recipeNutritionStateSchema>;
+
+/**
+ * The deferred-nutrition response: recipe id → state.
+ *
+ * ⛔ A recipe the caller may not read is OMITTED, never given a state. Emitting `unaccounted` for another
+ * owner's recipe would confirm the id exists, and emitting `known` would leak the figure — so absence is
+ * the authorization signal, and clients must treat a missing key as "not for you", not as an error.
+ */
+export const recipeNutritionResponseSchema = z
+    .object({
+        nutrition: z.record(z.string(), recipeNutritionStateSchema),
+    })
+    .strict();
+
+/** The deferred-nutrition response body. */
+export type RecipeNutritionResponse = z.infer<typeof recipeNutritionResponseSchema>;
+
 export {
     /** `GET /api/v1/recipes` item + `Recipe` component — the recipe list/summary body. */
     recipeSchema,

@@ -23,6 +23,28 @@ export {
 } from './card/index.js';
 export type { DifficultyTone, RatingCountLabels, RecipeCardModel, RecipeCardProps } from './card/index.js';
 export {
+    NUTRITION_FOOD_UNAVAILABLE,
+    RecipeCalorieChip,
+    RecipeCalorieSkeleton,
+    RecipeNutritionBoundary,
+    recipeNutritionMessages,
+    toCalorieChipModel,
+    unaccountedReasonText,
+} from './nutrition/index.js';
+export type {
+    RecipeCalorieChipModel,
+    RecipeCalorieChipProps,
+    RecipeCaloriePending,
+    RecipeCalorieReading,
+    RecipeCalorieSkeletonProps,
+    RecipeCalorieState,
+    RecipeCalorieUnaccounted,
+    RecipeCalorieUnaccountedReason,
+    RecipeNutritionBoundaryProps,
+    RecipeNutritionMessages,
+    RecipeNutritionViewState,
+} from './nutrition/index.js';
+export {
     MAX_RECENT_RECIPES,
     RecentRecipeGrid,
     RecentRecipeItem,

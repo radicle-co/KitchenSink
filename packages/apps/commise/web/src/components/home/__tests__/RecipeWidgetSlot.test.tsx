@@ -70,7 +70,6 @@ const makeRecipe = (overrides: Partial<Recipe> = {}): Recipe => ({
     hasSubstantiveEdit: false,
     dietaryFlags: [],
     tags: ['dinner'],
-    hasPartialNutrition: false,
     currentVersion: 1,
     averageRating: 4.5,
     ratingCount: 12,

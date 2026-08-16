@@ -70,7 +70,10 @@ describe('CollectionMemberRow (web) — by @handle', () => {
 });
 
 describe('CollectionMemberRow (web) — composes RecipeCard (not a hand-rolled duplicate)', () => {
-    it('renders the title, version badge past v1, visibility, and calories via the shared RecipeCard', () => {
+    // The calorie assertion MOVED with the deferred lookup: the figure is no longer a card-model field, so a
+    // member row renders none until this surface passes a `nutrition` slot (its own wiring task). Coverage of
+    // the figure's states lives in `nutrition/__tests__/RecipeCalorieChip.test.tsx`.
+    it('renders the title, version badge past v1, and visibility via the shared RecipeCard', () => {
         renderRow({
             member: makeCollectionMemberRecipe({
                 title: 'Chicken Alfredo',
@@ -84,17 +87,17 @@ describe('CollectionMemberRow (web) — composes RecipeCard (not a hand-rolled d
         expect(screen.getByText('Chicken Alfredo')).toBeTruthy();
         expect(screen.getByLabelText('Version 3').textContent).toBe('v3');
         expect(screen.getByText('Private')).toBeTruthy();
-        expect(screen.getByText('520 cal')).toBeTruthy();
+        expect(screen.queryByText('520 cal')).toBeNull();
     });
 
-    it('hides the version badge at v1 and renders no calorie line when calories are absent (never 0)', () => {
-        renderRow({
-            member: makeCollectionMemberRecipe({ currentVersion: 1, leadCaloriesPerServing: undefined }),
-        });
+    // NARROWED from "…and renders no calorie line when calories are absent (never 0)". With the figure gone
+    // from the card model entirely, the calorie half could no longer fail for ANY implementation — coverage
+    // theatre under a title that still advertised it. The test above keeps `leadCaloriesPerServing: 520` in
+    // its fixture and asserts nothing renders, which is the assertion that still has teeth.
+    it('hides the version badge at v1', () => {
+        renderRow({ member: makeCollectionMemberRecipe({ currentVersion: 1 }) });
 
         expect(screen.queryByLabelText(/Version/)).toBeNull();
-        expect(screen.queryByText(/cal$/)).toBeNull();
-        expect(screen.queryByText('0 cal')).toBeNull();
     });
 });
 

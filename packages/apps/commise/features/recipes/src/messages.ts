@@ -150,8 +150,12 @@ export interface RecipeCardMessages {
     readonly unrated: string;
     /** Accessible label for the cover-image placeholder shown when a recipe has no photo. */
     readonly noPhotoLabel: string;
-    /** Calorie-line template (contains `{calories}`), e.g. "420 cal" (CR-002). */
-    readonly caloriesLabel: string;
+    /*
+     * ⛔ NO `caloriesLabel` here any more (deferred calorie lookup). The card no longer renders a calorie
+     * line of its own — the figure arrives after the card through the `nutrition` SLOT — so this key had no
+     * consumer and duplicated `nutrition/messages.ts`'s `calories` verbatim. Two authoritative spellings of
+     * one string, one of them unreachable. The nutrition module owns the calorie copy.
+     */
     /** Visible version-badge text, shown only past v1 (contains `{version}`). */
     readonly versionBadge: string;
     /** Accessible name for the version badge (contains `{version}`). */
@@ -258,7 +262,6 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             ratingCountOther: '{count} ratings',
             unrated: 'Not yet rated',
             noPhotoLabel: 'No photo yet',
-            caloriesLabel: '{calories} cal',
             versionBadge: 'v{version}',
             versionLabel: 'Version {version}',
             visibilityPublic: 'Public',

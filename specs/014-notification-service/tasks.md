@@ -664,3 +664,76 @@ needed to actually ship it. A notification service with a synthetic producer and
         - **not retried** — a shape-invalid envelope on the bus is **not redriven** to the consumer (AC-018-b): it is recorded and completed, or dead-lettered **once**, with its `reason`;
         - **not a row** — **no** store write occurs for a rejected envelope, and nothing anywhere invents an identifier for one. ⚠️ An invalid payload has **no trustworthy identifier**, and a store whose identity field is required would force the writer to fabricate one — the exact sentinel FR-043 / GR-019 forbid. The precedent is live in this repo: identity's `webhook_events.identity_id` is `text NOT NULL`, so "just record the rejected event" there means writing `'unknown'` into a column other code joins on. **The log line, the counter and the DLQ entry ARE the record**;
         - **same shape, different `reason`** — a malformed envelope and a credential/signature failure produce the **same** rejection shape differing **only** in `reason`, and the per-`reason` counters both move (AC-018-a).
+
+## Substrate consumer — the doorbell contract (added 2026-08-16 — `spec.md` amendment C-1…C-10)
+
+> **Why this section exists, and what it replaces.** PR 91 built the **producer** half of the DynamoDB message
+> substrate (plan U4–U6): `PK = <groupType>#<groupId>`, `SK = <ISO-8601 ms>#<ULID>`, a 3-day TTL, and a
+> `KEYS_ONLY` stream that is **enabled and deliberately unattached**. 014 owns the consumer, and until now
+> this file had **no task for it at all** — every task here plans the SQS-FIFO ingress, which is a different
+> transport that also survives.
+>
+> ⛔ **`supersedes` / FR-045 coverage accounting, stated because the rule is that a scenario is never silently
+> dropped.** FR-045 and the `supersedes` field were withdrawn on 2026-08-16 (`spec.md` §C-8). They never
+> propagated past `spec.md`: **no task in this file and no row in `v-model/` ever referenced them**, so there
+> was no scenario here to rewrite and none was deleted. The behaviour FR-045 was buying — "a redelivered
+> `processing` must not revert a terminal `succeeded`" — **still needs proving**, and it is proven by
+> **T-077** below, which asserts it against the re-query contract instead of against a producer sequence.
+> The scenario moved tiers; it did not vanish.
+>
+> Every behaviour in C-1…C-10 becomes a test scenario. Each task below names the one it discharges.
+
+- [ ] **T-077** [P] [US-001, US-012] **C-1 — the stream record is a DOORBELL.** On trigger, re-`Query` the message's group and act on what the query returns; never treat the record as the data. — `packages/services/notification-service/src/substrate/doorbell.consumer.ts`
+    - **Depends on**: T-053
+    - **Implements**: `spec.md` C-1, C-8; GR-017
+    - **Why re-query and not read the record**: AWS orders stream records **per item (`PK` _and_ `SK`)**, not per partition key, so "a group arrives in order for free" is false. A group's `Query` **is** ordered, because `SK` leads with an ISO-8601 instant that sorts lexicographically in chronological order.
+    - **Acceptance**: ordering is correct **by construction** — duplicate deliveries are harmless, `parallelizationFactor` is safe to raise, and `KEYS_ONLY` is sufficient because the record only has to say _which group changed_.
+    - **⛔ This task carries the withdrawn FR-045's hazard.** **Acceptance**: given a group holding `processing@T1` then `succeeded@T2`, redelivering the `T1` stream record **does not** revert the consumer's view to `processing` — because the consumer re-queries and selects most-recent-by-timestamp, never reading `T1` alone.
+    - **Tests**: **unit** (the consumer's selection function over an ordered group: two messages, out-of-order arrival, a redelivered older record, an empty group) **AND** **integration** against a real DynamoDB (LocalStack) asserting the redelivery scenario end to end — a mocked table cannot prove the query returns in sort-key order, which is the whole premise.
+
+- [ ] **T-078** [P] [US-001] **C-2 — every read carries a TTL filter expression.** — `packages/services/notification-service/src/substrate/query.ts`
+    - **Depends on**: T-077
+    - **Implements**: `spec.md` C-2
+    - **Why**: expired-but-unreaped items **still return from `Query`**. DynamoDB's TTL deletion is asynchronous and best-effort — typically within 48 hours of expiry, never guaranteed. A consumer that trusts the TTL as a read boundary delivers messages it believes cannot exist, and the bug is invisible until a reap runs late, i.e. under exactly the load where it matters.
+    - **Acceptance**: a hand-written item whose TTL is in the past is **not** returned to the caller, and the filter is present on every read path without exception.
+    - **Tests**: **unit** (the filter expression is built for every query shape) **AND** **integration** writing an already-expired item and asserting it is filtered — the only tier that can observe the unreaped-but-expired state at all.
+
+- [ ] **T-079** [P] [US-001] **C-3 — paginate on `LastEvaluatedKey`, never on an empty page.** — `packages/services/notification-service/src/substrate/query.ts`
+    - **Depends on**: T-078
+    - **Implements**: `spec.md` C-3
+    - **Why**: with a filter expression in play, DynamoDB filters **after** reading, so a page can legitimately return **zero items and still carry a `LastEvaluatedKey`**. Stopping on an empty page silently truncates a group.
+    - **Acceptance**: a group whose first page filters to empty but carries a continuation token is read **to completion**.
+    - **Tests**: **unit** (a faked pager emitting empty-page-then-items; ⚠️ mutation lens — reverting to "stop on empty" must turn this red) **AND** **integration** over a group large enough to page for real.
+
+- [ ] **T-080** [P] [US-006] **C-4 — set `retryAttempts` and `maxRecordAge` EXPLICITLY**, plus `bisectBatchOnError` and `reportBatchItemFailures`. — `packages/infra/global/lib/messaging/*` (event-source mapping)
+    - **Depends on**: T-077
+    - **Implements**: `spec.md` C-4
+    - **Why**: both default to `-1` (infinite). Left at the defaults, **one poison record blocks its shard for the full 24-hour stream retention**, and every group hashing to that shard goes dark with no alarm and no DLQ entry.
+    - **Acceptance**: a synth assertion that all four properties are set on the mapping — and that one bad record fails **alone** rather than condemning its batch.
+    - **Tests**: **unit** (CDK template assertion on the four properties — a synth test is the tier that can see an infrastructure default) **AND** **integration** driving a poison record and asserting the batch's other records still succeed.
+
+- [ ] **T-081** [P] [US-006] **C-5 — the on-failure destination MUST be S3.** — `packages/infra/global/lib/messaging/*`
+    - **Depends on**: T-080
+    - **Implements**: `spec.md` C-5
+    - **Why**: SQS and SNS on-failure destinations carry **metadata only** — record identifiers, not the payload. For a substrate whose items expire in **three days**, a metadata-only failure record points at data that is **gone before anyone reads the alarm**.
+    - **Acceptance**: a synth assertion that the destination is an S3 bucket, and an assertion that a failed batch's captured object contains enough to diagnose after the item has expired.
+
+- [ ] **T-082** [P] [US-008] **C-6 — parse every substrate record with zod at the boundary (GR-017).** — `packages/services/notification-service/src/substrate/record.schema.ts`
+    - **Depends on**: T-077
+    - **Implements**: `spec.md` C-6; GR-016, GR-017
+    - **Why**: the consumer reads a store **other services write to**. Trusting its shape is the same class of mistake as trusting an HTTP body.
+    - **Acceptance**: a renamed, missing, wrong-typed or null-valued field is rejected at the boundary, and rejection follows the existing shape (T-076) — recorded and completed or dead-lettered **once**, never redriven, never written as a row with a fabricated identifier.
+
+- [ ] **T-083** [P] [US-001] **C-7 — ⛔ NEVER put a group id or an entity id in an EMF dimension.** — `packages/services/notification-service/src/substrate/metrics.ts`
+    - **Depends on**: T-077
+    - **Implements**: `spec.md` C-7
+    - **Why**: the repo's cardinality gate rejects it, and moving the id to a metric **property** fixes only the **cost** half of the problem. Emit a scrubbed structured log line instead and keep metrics dimensionless, or dimensioned only on `service` / `metric`, matching the existing emitters.
+    - **Acceptance**: the repo's existing `emfIdentifierDimensionRepoGate` passes over the new emitter, and the group id appears in a **log line**, never a dimension.
+
+- [ ] **T-084** [P] [US-001, US-012] **C-9 + C-10 — 014 starts from an EMPTY pending set, and the two stores stay two.** — `packages/services/notification-service/tests/substrate-not-a-backfill.integration.test.ts`
+    - **Depends on**: T-077
+    - **Implements**: `spec.md` C-9, C-10
+    - **Why C-9**: anything published before this consumer exists is **gone** before it could be read — the substrate's 3-day reaper outruns 014's delivery window, and PR 91 ships the producer half with **no consumer at all**. 014 MUST NOT be specified, planned or tested as though it can replay history.
+    - **Why C-10**: the substrate is a **log a consumer reads**; 014's pending set is **state a consumer mutates** (ack deletes it, dedup compares against what is pending). Merging them would put ack-and-dedup semantics onto a table whose producers must stay ignorant of consumers — the property R1.1 exists to protect.
+    - **Acceptance**: no code path acks, deletes or mutates a substrate item; no code path reads the pending set to answer "what happened before I existed"; a consumer started against a substrate holding pre-existing items delivers **nothing** from them beyond what its own trigger woke it for.
+    - **⚠️ Mutation lens**: pointing the pending-set reader at the substrate table must turn this test **red**. If it stays green, the test is asserting nothing.

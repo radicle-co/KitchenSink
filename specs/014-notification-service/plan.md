@@ -178,6 +178,36 @@ and can detect a gap and re-pull.
 standard queue and are best-effort ordered (FR-009), live-only (Q-009), and carry no
 `sequence`.
 
+### ⚠️ This `sequence` SURVIVES. It is not the one withdrawn on 2026-08-16 _(added 2026-08-16)_
+
+Two different things were called `sequence` and only one of them is dead. Stated here because a reader who
+meets `spec.md`'s amendment first will reasonably assume this whole section went with it.
+
+|             | **`supersedes.sequence`** — WITHDRAWN              | **This section's `sequence`** — KEPT              |
+| ----------- | -------------------------------------------------- | ------------------------------------------------- |
+| Assigned by | the **producer**, before publish                   | the **routing consumer**, at dequeue              |
+| Scoped to   | `(recipient, entity key)`                          | the **recipient user**'s pending set              |
+| Answered    | "is this still the current truth for this ENTITY?" | "in what order does this user read their stream?" |
+| Status      | ⛔ withdrawn — `spec.md` amendment §C-8            | ✅ unaffected                                     |
+
+**Why the withdrawal does not touch this one.** §C-8's argument is that a **producer** cannot issue a
+monotonic value: it is fire-and-forget, it may run concurrently in several tasks, and there is no single
+writer of "the last value I used". None of that applies here — this counter has exactly one writer, the
+routing consumer, incrementing inside the same Lua script that inserts the entry. The property §C-8 denies is
+precisely the property this design has.
+
+**What DOES change here.** Nothing in the mechanism; one thing in the reasoning. This section's claim that the
+store "records SQS's verdict" is still true for the **queue** path. But 014's consumer of the **message
+substrate** does not order by anything it is handed: per §C-1 the stream record is a **doorbell** and the
+consumer **re-queries the group**, which is ordered by a sort key leading with an ISO-8601 instant. So the
+substrate path has its own ordering authority — the group query — and this section's `sequence` is assigned
+downstream of it, when the resulting notification enters a user's pending set. Two authorities, disjoint
+inputs, one output order per user.
+
+⛔ **The substrate and the pending set are TWO STORES** (§C-10), and the substrate is **NOT a backfill
+source** (§C-9): 014 starts from an empty pending set and MUST NOT be planned or tested as though it can
+replay history. The substrate's 3-day reaper outruns 014's delivery window.
+
 ### Consequences of choosing SQS FIFO — accept these deliberately
 
 1. **Throughput ceiling.** SQS FIFO is limited per `MessageGroupId`, and the

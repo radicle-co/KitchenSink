@@ -89,7 +89,7 @@ A backend producer feature (e.g., 003) needs to tell **P4 Sam** that an asynchro
 **Acceptance Scenarios**:
 
 1. **Given** an authenticated producer and an authenticated subscriber for user U, **When** the producer publishes `{ recipient: { kind: "user", id: U }, messageType: "x.test", payload: {...}, occurredAt: T }`, **Then** the publish call returns success and U's connected client receives the matching delivery envelope.
-2. **Given** the producer publishes two messages addressed to U in sequence (T1 then T2), **When** U's client receives them, **Then** the client observes them in T1-before-T2 order.
+2. **Given** the producer publishes two messages addressed to U in sequence (T1 then T2), **When** U's client receives them, **Then** the client observes them in T1-before-T2 order. _(Unchanged as a promise; its **mechanism** changed 2026-08-16. It was to be satisfied by a producer-assigned monotonic sequence in the envelope; it is now satisfied by the amendment's **C-1** — the consumer re-queries the group, whose `Query` is ordered by a sort key leading with an ISO-8601 instant — together with 014's own per-recipient-user delivery `sequence`, which is unaffected. The scenario is still the test; what it exercises underneath is different.)_
 3. **Given** a second authenticated subscriber for user V, **When** a message addressed to U is published, **Then** V's client does **not** receive it.
 
 ---
@@ -390,12 +390,12 @@ The paths differ only in how a request arrives.
   field MUST be rejected — never partially routed, never defaulted, never defaulted to a sentinel (FR-043).
   `idempotencyKey` remains REQUIRED on the EventBridge path (delivery there is at-least-once, and the claim is
   what survives an acknowledgement — FR-018, FR-038) and optional on HTTP.
-    - **`supersedes` is OPTIONAL and, when present, MUST be `{ key, sequence }`** _(added 2026-08-14, owner
-      ruling — [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §4)_. `key`
-      identifies the **entity** whose state the message reports (a recipe, a food item); `sequence` is a
-      **monotonically increasing integer assigned by the producer** for that key. Semantics are defined by
-      FR-045. An envelope carrying `supersedes` MUST still satisfy every other field rule in this FR —
-      supersession changes retention and delivery, never validity.
+    - ⛔ ~~**`supersedes` is OPTIONAL and, when present, MUST be `{ key, sequence }`**~~ — **WITHDRAWN
+      2026-08-16.** The envelope carries **no `supersedes` field and no sequence**. It was added 2026-08-14
+      citing ADR-0019 §4, and **that section was itself amended on 2026-08-16**: selection is CONSUMER-SIDE,
+      most-recent-by-timestamp. See the [amendment](#amendment-2026-08-16--the-message-substrate-exists-014-consumes-it-as-a-doorbell-and-supersedes-is-withdrawn)
+      §C-8. Producers MUST NOT send the field and validation MUST NOT accept it; an envelope that carried it
+      would be asserting an ordering authority no producer can issue.
     - **`producer` is REQUIRED on BOTH paths**, which is the amendment. It was previously required only on
       EventBridge, justified as "that path has no bearer token to derive identity from" — a rationale FR-027
       contradicted, since `source` does derive identity without a bearer token. The ruling (FR-041) is that
@@ -634,11 +634,21 @@ idempotencyKey)` claim (FR-018) already exists MUST be treated as a **duplicate*
     - The bucket MUST be **shared state, not per-task memory**: N API tasks each holding a local bucket grant
       N× the quota. It lives in the same store as FR-040's pending set.
 
-- **FR-045** _(supersession — added 2026-08-14, owner ruling; normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §4)_:
-  When an envelope carries `supersedes = { key, sequence }` (FR-026), the service MUST retain **only the
-  highest-`sequence` message per `(recipient, key)`** among those still pending, and MUST deliver that one.
-  A message whose `sequence` is **lower than or equal to** the highest already observed for its
-  `(recipient, key)` MUST be **discarded** — not delivered, not stored.
+- ⛔ **FR-045 — WITHDRAWN IN FULL, 2026-08-16. Superseded by the
+  [amendment](#amendment-2026-08-16--the-message-substrate-exists-014-consumes-it-as-a-doorbell-and-supersedes-is-withdrawn)
+  §C-8.** It is retained here, struck through, because the sub-bullets below contain analysis that **still
+  stands** and would be lost with a deletion — specifically "Why this is not `idempotencyKey`", which the
+  amendment explicitly preserves. **Do not implement any MUST in this requirement.**
+    - ~~When an envelope carries `supersedes = { key, sequence }` (FR-026), the service MUST retain **only the
+      highest-`sequence` message per `(recipient, key)`** among those still pending, and MUST deliver that
+      one. A message whose `sequence` is **lower than or equal to** the highest already observed for its
+      `(recipient, key)` MUST be **discarded** — not delivered, not stored.~~
+    - **What replaces it.** Nothing in the producer. The **consumer** decides which message for a group is
+      current, by **timestamp**, and it does so by re-querying an ordered group rather than judging a message
+      in isolation (§C-1). The hazard this requirement existed for — a redelivered `processing` reverting a
+      terminal `succeeded` — becomes **unobservable by construction**, because a consumer that re-queries
+      never reads one message alone. ⛔ Timestamp selection is safe only under **SINGLE WRITER PER GROUP**;
+      §C-8 states that precondition, and it must be checked rather than assumed.
     - **Why the producer's `sequence` decides and arrival order MUST NOT.** Both ingress paths are
       at-least-once and neither guarantees order (FR-018; the EventBridge path is explicitly unordered).
       Last-write-wins on **arrival** therefore lets a redelivered or delayed `processing` message overwrite a
@@ -674,7 +684,7 @@ idempotencyKey)` claim (FR-018) already exists MUST be treated as a **duplicate*
 
 ### Key Entities
 
-- **PublishEnvelope**: Producer-supplied input. Fields: `schemaVersion`, `recipient`, `messageType`, `payload`, `occurredAt`, `producer` — all REQUIRED on both paths — plus `idempotencyKey`, REQUIRED on the EventBridge path and optional on HTTP, plus **`supersedes` (`{ key, sequence }`, OPTIONAL — FR-026/FR-045, added 2026-08-14)**. `payload` is opaque as to meaning (FR-023). **FR-026 is the normative field set**; this entry previously listed the pre-amendment fields, omitted `schemaVersion` and `producer` entirely, and then described `producer` as EventBridge-only — corrected 2026-08-12 when OPEN-014-A closed. FR-001's inline shape carries the same omission and is superseded by FR-026 on both paths.
+- **PublishEnvelope**: Producer-supplied input. Fields: `schemaVersion`, `recipient`, `messageType`, `payload`, `occurredAt`, `producer` — all REQUIRED on both paths — plus `idempotencyKey`, REQUIRED on the EventBridge path and optional on HTTP, ⛔ and **NO `supersedes` field** — the `{ key, sequence }` entry added 2026-08-14 was **withdrawn 2026-08-16** with FR-045; see the amendment §C-8. `payload` is opaque as to meaning (FR-023). **FR-026 is the normative field set**; this entry previously listed the pre-amendment fields, omitted `schemaVersion` and `producer` entirely, and then described `producer` as EventBridge-only — corrected 2026-08-12 when OPEN-014-A closed. FR-001's inline shape carries the same omission and is superseded by FR-026 on both paths.
 - **PendingNotification**: The retained, not-yet-consumed record for **one recipient user**. Fields: notification `id` (ULID), the stored envelope, `sequence`, `publishedAt`, `expiresAt` (`publishedAt + 72h`, never refreshed — FR-036), `attempts` (delivery-attempt count, FR-039). One stored envelope may be referenced by many `PendingNotification`s (a group's members). Held in the FR-040 store, not in a relational table.
     - ⚠️ **`sequence` is monotonic per DELIVERING USER, not per `recipient.id`** — a distinction FR-035 forces and which the pre-2026-08-12 wording ("per-recipient monotonic") did not capture. Because an ack settles a group notification **per member**, the pending set and therefore the sequence counter are per **user**; a user who belongs to two groups and also receives direct notifications has **one** ordered pending set, not three. FR-008's per-recipient FIFO is still delivered by the SQS FIFO queue keyed on `MessageGroupId = recipient.id` — the queue is the **ordering authority** and the store **records its verdict** (see `plan.md` → _Ordering & Partitioning_). What changes is only where the counter lives, and it changes so that a client can order and de-duplicate **the one stream it actually receives**.
 - **PayloadIdentityClaim**: The pending-scoped dedup index — a canonical-payload hash (FR-037) per recipient, released on ack or expiry. Not a user-visible entity; named here because FR-038's "the same payload after an ack is a NEW notification" is a property of its **lifetime**, not of the payload.

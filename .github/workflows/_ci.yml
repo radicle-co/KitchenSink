@@ -400,7 +400,7 @@ jobs:
               run: npm run test:integration --workspace=@kitchensink/identity-webhooks
 
     integration-food:
-        name: Integration (food — Postgres)
+        name: Integration (food — Postgres + LocalStack DynamoDB)
         runs-on: ubuntu-latest
         needs: [install]
         services:
@@ -417,6 +417,18 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
+            localstack:
+                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                env:
+                    # DynamoDB backs the message substrate (plan U5/U6). Community tier — no auth token.
+                    SERVICES: dynamodb
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -435,12 +447,31 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ Required by `tests/support/messageTable.ts`, which SYNTHESIZES `FoodServiceStack` so the
+            # substrate suite runs against the key schema CloudFormation would really create. These three
+            # packages ship BUILT JS rather than `./src` (ADR-0013), their `dist/` is gitignored, and the
+            # dependency cache above holds only `node_modules` — so without this step the synth dies with
+            # ERR_MODULE_NOT_FOUND. Naming them explicitly keeps the step to a few seconds; if the stack
+            # ever imports a fourth built package, that same error names it.
+            - name: Build the infra packages the substrate synth imports
+              run: |
+                  npm run build --workspace=packages/infra/alb \
+                                --workspace=packages/infra/security \
+                                --workspace=packages/infra/messaging
             # Self-contained: the integration suite bootstraps the kitchensink_food schema from the
             # ordered migration SQL against the Postgres service and validates the FR-028 CHECK,
-            # fetch_queue dedup, the singleton seed, indexes, and pg_trgm. No AWS/Clerk secrets.
+            # fetch_queue dedup, the singleton seed, indexes, and pg_trgm. No Clerk secrets.
+            #
+            # The AWS_* values are LocalStack's fixed constants, not secrets: `test`/`test` is the pair it
+            # accepts, and AWS_ENDPOINT_URL is what points the adapter's OWN client (the production code
+            # path, which builds its client from ambient config) at the local stack instead of real AWS.
             - name: Run food integration tests
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_test
+                  AWS_ENDPOINT_URL: http://localhost:4566
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_REGION: us-east-1
               run: npm run test:integration --workspace=packages/services/food-service
 
     integration-recipe:

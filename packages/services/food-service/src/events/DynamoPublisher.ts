@@ -9,8 +9,17 @@
  * The TTL attribute **must** be a NUMBER. DynamoDB silently IGNORES a string-typed TTL — nothing expires,
  * nothing errors, and the table grows forever while every test that checks "TTL is enabled" keeps passing.
  * The DocumentClient marshals a JS `number` to `N` without the caller hand-writing `{ N: '…' }`, which is
- * exactly the hand-marshalling step where that bug gets introduced. `removeUndefinedValues` is on because a
- * message's `payload` is optional and the raw client rejects an explicit `undefined`.
+ * exactly the hand-marshalling step where that bug gets introduced.
+ *
+ * ## Why `removeUndefinedValues` is set explicitly
+ *
+ * `payload` is `Record<string, unknown>`, and `z.unknown()` ACCEPTS `undefined` — so
+ * `{ lastError: undefined }` is a message the boundary passes. `@aws-sdk/util-dynamodb` THROWS on an
+ * `undefined` inside a map, `publish` swallows the throw into `onError`, and the message is gone with
+ * nobody told. `lib-dynamodb` skips a TOP-LEVEL `undefined` (so a payload-less doorbell survives without
+ * this option), which is exactly what makes the nested case easy to miss — and why it WAS missed: this
+ * comment asserted the option while the constructor below never passed it. Only the integration tier
+ * catches that, because a `DynamoDBDocumentClient` test double never marshals anything.
  *
  * ## Why the ULID suffix is not optional
  *
@@ -90,7 +99,11 @@ export class DynamoPublisher implements MessagePublisher {
         client?: DynamoDBDocumentClient,
         private readonly clock: DynamoPublisherClock = {},
     ) {
-        this.doc = client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+        this.doc =
+            client ??
+            DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+                marshallOptions: { removeUndefinedValues: true },
+            });
     }
 
     /**

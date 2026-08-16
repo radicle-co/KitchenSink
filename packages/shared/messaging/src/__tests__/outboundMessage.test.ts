@@ -56,6 +56,25 @@ describe('parseOutboundMessage', () => {
         expect(() => parseOutboundMessage({ ...valid, timestamp: 1_755_302_400_000 })).toThrow();
     });
 
+    it('rejects a timestamp with no millisecond component, which would sort out of order', () => {
+        // Proven against a real table in food-service's `messageSubstrate.integration.test.ts`:
+        // `2026-08-16T12:00:00Z` and `2026-08-16T12:00:00.500Z` are half a second apart, but `.` (0x2E)
+        // sorts before `Z` (0x5A), so DynamoDB returns the LATER instant FIRST. Lexical order matches
+        // chronological order only while the timestamp is FIXED-WIDTH — the schema is what keeps it so.
+        expect(() => parseOutboundMessage({ ...valid, timestamp: '2026-08-16T12:00:00Z' })).toThrow();
+    });
+
+    it('rejects sub-millisecond precision, which is the same variable-width defect', () => {
+        expect(() => parseOutboundMessage({ ...valid, timestamp: '2026-08-16T12:00:00.123456Z' })).toThrow();
+    });
+
+    it('rejects a groupId too large to fit a DynamoDB partition key', () => {
+        // A partition key value is capped at 2048 BYTES. An id above the cap is a message that validates,
+        // is published fire-and-forget, is rejected by the store with a ValidationException, and is
+        // swallowed into the port's error sink — lost, with nothing at the call site to notice.
+        expect(() => parseOutboundMessage({ ...valid, groupId: 'x'.repeat(3000) })).toThrow();
+    });
+
     it('accepts a message with no payload — a doorbell need not carry data', () => {
         const { payload: _payload, ...withoutPayload } = valid;
 

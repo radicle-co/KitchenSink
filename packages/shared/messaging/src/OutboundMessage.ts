@@ -49,8 +49,30 @@ export type GroupType = (typeof GROUP_TYPES)[number];
  *
  * `z.iso.datetime` is used rather than a hand-rolled regex (library-first): it is the same validator the
  * rest of the repo's wire schemas use for instants, so "what counts as a timestamp" has one definition.
+ *
+ * ⚠️ **`precision: 3` is load-bearing, not cosmetic.** Bare `z.iso.datetime()` accepts ANY fractional
+ * precision — `…T12:00:00Z`, `…T12:00:00.5Z` and `…T12:00:00.123456Z` all pass. Mixed widths destroy the
+ * one property the sort key exists for: `.` is 0x2E and `Z` is 0x5A, so `…12:00:00.500Z` sorts BEFORE
+ * `…12:00:00Z` while being half a second LATER. Confirmed against a real table — see
+ * `packages/services/food-service/tests/messageSubstrate.integration.test.ts`. Lexical order equals
+ * chronological order only while every timestamp is the same width, so the boundary pins the width.
+ * `Date.prototype.toISOString` already emits exactly this form, so no correct producer is affected.
  */
-const isoTimestamp = z.iso.datetime();
+const isoTimestamp = z.iso.datetime({ precision: 3 });
+
+/**
+ * The longest `groupId` that can safely occupy half a partition key.
+ *
+ * DynamoDB caps a partition key value at **2048 bytes** of UTF-8. The adapter writes
+ * `<groupType>#<groupId>`, and the longest registered `groupType` (`recipe-import`) plus the separator
+ * costs 14 bytes — leaving 2034. A JS string length counts UTF-16 code units, each of which can encode up
+ * to 3 UTF-8 bytes, so 512 units can never exceed 1536 bytes and stays comfortably inside the budget.
+ *
+ * Without a bound, an oversized id is a message that VALIDATES, is published fire-and-forget, is rejected
+ * by the store with a `ValidationException`, and is swallowed by `publish` into `onError` — lost, with
+ * nothing at the call site to notice. The boundary, not the store, is where that is caught.
+ */
+export const MAX_GROUP_ID_LENGTH = 512;
 
 /**
  * The published message contract.
@@ -64,7 +86,7 @@ export const outboundMessageSchema = z
         /** Which producer wrote this — the first half of the partition key. */
         groupType: z.enum(GROUP_TYPES),
         /** The entity this message is about — the second half of the partition key. */
-        groupId: z.string().min(1),
+        groupId: z.string().min(1).max(MAX_GROUP_ID_LENGTH),
         /** When the producer emitted it — the sort key's leading component. */
         timestamp: isoTimestamp,
         /** What happened, in the producer's own vocabulary (e.g. `FoodFetchCompleted`). */

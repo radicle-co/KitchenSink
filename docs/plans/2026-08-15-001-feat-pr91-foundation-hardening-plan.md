@@ -931,10 +931,9 @@ must keep reaching their own ALB directly.
    `open: false` and NetworkStack owns every ALB ingress rule.
 3. **Exactly ONE prefix-list rule fits.** It costs its **weight** (55) against the 60-rules-per-security-group
    quota, not its current entry count (46). `:80` must stay a plain CIDR rule, the IPv6 list can never be
-   added, and the ALB must stay IPv4-only. ⚠️ **Raise `L-0EA8095F` to 120 BEFORE the cutover** — four rules
-   of headroom on the security group that every prod `NetworkStack` deploy touches is not headroom, and
-   AWS has raised this weight before. The failure lands on the NEXT modification, as an `UPDATE_FAILED`
-   blocking every prod infra deploy, months later, looking nothing like the change that caused it.
+   added, and the ALB must stay IPv4-only. **It fits as-is: 55 + the one `:80` rule = 56 against the default
+   60, so NO quota increase is needed and none is a prerequisite.** What matters is the shape, not a bigger
+   number: keep `:80` a plain CIDR rule and do not add the IPv6 list, or the deploy fails on rule count.
 
 **No certificate is needed.** `DomainStack`'s existing `KitchenSinkCertificate` already carries
 `*.commise.app` and already lives in us-east-1, which is where CloudFront requires it. Import it; do not

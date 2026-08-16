@@ -207,15 +207,12 @@ ALB ingress rule and both listeners pass `open: false`; the assertions in `Share
 
 **⚠️ The security-group quota admits exactly ONE such rule.** A managed prefix list counts against
 `L-0EA8095F` (default **60** inbound rules per security group) by its **weight**, not its current entry
-count — 55 for CloudFront's, which held 46 entries when this was written. One rule fits with four to
-spare; a second costs 110 and fails the deploy with `RulesPerSecurityGroupLimitExceeded`. So `:80` stays a
-plain CIDR rule (it only redirects to `:443`, and protects nothing), the IPv6 list
-`com.amazonaws.global.ipv6.cloudfront.origin-facing` can never be added at the default quota, and the ALB
-must stay IPv4-only. AWS has raised this weight before (30 → 55) and does not retroactively invalidate
-existing rules — the failure lands on the **next** modification of the group, and because `NetworkStack` is
-the root of the prod dependency chain it presents as an `UPDATE_FAILED` blocking every prod infra deploy,
-months later, looking nothing like the change that caused it. **Raise L-0EA8095F to 120 before relying on
-this.**
+count — 55 for CloudFront's, which held 46 entries when this was written. **It fits: 55 + the single `:80`
+rule = 56, so no quota increase is required.** The constraint is on SHAPE, not headroom — `:80` must stay a
+plain CIDR rule and the IPv6 list `com.amazonaws.global.ipv6.cloudfront.origin-facing` (also weight 55)
+can never be added, because either takes the group past 60 and the deploy fails with
+`RulesPerSecurityGroupLimitExceeded`. Keep the ALB IPv4-only for the same reason.
+this.\*\*
 
 **Verification inverts.** U15's proof was `curl https://food.internal.commise.app/health` → `200`. That
 curl **is** the bypass. Once the header condition lands the same request returns ADR-0003's default `404`,

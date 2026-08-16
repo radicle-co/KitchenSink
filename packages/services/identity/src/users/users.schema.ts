@@ -146,3 +146,23 @@ export const deleteUserMeResponseSchema = z.object({
 
 /** Body for `DELETE /api/v1/users/me`. */
 export type DeleteUserMeResponse = z.infer<typeof deleteUserMeResponseSchema>;
+
+/**
+ * Response body for `POST /api/v1/users/me/erasure` (`202 Accepted`) — plan U2.
+ *
+ * Deliberately its OWN shape rather than a reuse of {@link deleteUserMeResponseSchema}: the two actions
+ * differ in the one way a client must not confuse, and the field name is where that shows. A closure
+ * reports `deletedAt` (recoverable); an erasure reports `erasedAt` (irreversible). Sharing the schema
+ * would let a UI render "closed" copy for an erasure by simply not noticing.
+ */
+export const eraseUserMeResponseSchema = z.object({
+    /** The erased account's app-user ULID. Named `sub` to match the closure response's field. */
+    sub: z.string(),
+    /** ISO-8601 timestamp at which the identity row was scrubbed. */
+    erasedAt: z.string(),
+    /** Human-readable acknowledgement. */
+    message: z.string(),
+});
+
+/** Body for `POST /api/v1/users/me/erasure`. */
+export type EraseUserMeResponse = z.infer<typeof eraseUserMeResponseSchema>;

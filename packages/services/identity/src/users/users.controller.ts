@@ -1,8 +1,8 @@
-import { Controller, Get, Patch, Delete, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Delete, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { CurrentAuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
 import type { AuthorizerContext } from '../auth/decorators/currentUser.decorator.js';
-import { PatchUserMeBodyDto, DeleteUserMeResponseDto } from './dto/user.dto.js';
+import { PatchUserMeBodyDto, DeleteUserMeResponseDto, EraseUserMeResponseDto } from './dto/user.dto.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
@@ -31,5 +31,24 @@ export class UsersController {
     @HttpCode(HttpStatus.ACCEPTED)
     async deleteUserMe(@CurrentAuthorizerContext() ctx: AuthorizerContext): Promise<DeleteUserMeResponseDto> {
         return this.usersService.deleteUserMe(ctx);
+    }
+
+    /**
+     * `POST /api/v1/users/me/erasure` — IRREVERSIBLE account erasure of the CALLER'S OWN account
+     * (plan U2). Distinct from `DELETE me`, which is the recoverable closure.
+     *
+     * `202`, not `201`: the work is asynchronous (identity scrubs synchronously, then the deletion-worker
+     * deletes the Clerk account and fans out to recipe and food) and no resource is created at this URL.
+     * A `POST` rather than a `DELETE` because the two lifecycle actions are different operations on the
+     * same resource and must be separately addressable — overloading `DELETE me` with a flag would put the
+     * irreversible action one boolean away from the recoverable one.
+     *
+     * The owner comes from the verified token and never from a body, so there is no body to smuggle an
+     * `ownerId` through: a caller can only ever erase themselves.
+     */
+    @Post('me/erasure')
+    @HttpCode(HttpStatus.ACCEPTED)
+    async eraseUserMe(@CurrentAuthorizerContext() ctx: AuthorizerContext): Promise<EraseUserMeResponseDto> {
+        return this.usersService.eraseUserMe(ctx);
     }
 }

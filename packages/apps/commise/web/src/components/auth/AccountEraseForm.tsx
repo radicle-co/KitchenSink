@@ -44,6 +44,7 @@ import { authMessages } from '@/components/auth/messages';
 import { errorText } from '@/components/auth/authChrome';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
+import { useEraseAccount } from '@/components/auth/useEraseAccount';
 
 /**
  * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. Mounted only
@@ -62,6 +63,14 @@ function AccountEraseFlow({
     const { signOutAndLeave } = useSignOutAndLeave();
     const recipes = useAllOwnerRecipes();
     const erasure = useRequestAccountErasure();
+
+    /**
+     * The ACCOUNT-level erasure — the second half of the flow, and the half that was missing. The recipe
+     * mutation above erases RECIPES and reaches no other service; this is what erases the identity row,
+     * deletes the Clerk account and fans the erasure out to food. See `useEraseAccount`.
+     */
+    const accountErasure = useEraseAccount();
+
     const [phrase, setPhrase] = useState('');
     const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
 
@@ -94,7 +103,14 @@ function AccountEraseFlow({
     const handleConfirm = () => {
         erasure.mutate(
             { confirmationPhrase: phrase, publishRecipeIds: selectedRecipeIds },
-            { onSuccess: () => void leaveSignedOut() },
+            {
+                onSuccess: () => {
+                    // Only leave once the ACCOUNT erasure is accepted too. Signing out after the recipe leg
+                    // alone is what made the old flow look successful while the account still existed — the
+                    // viewer was returned to a sign-in page they could sign straight back in through.
+                    accountErasure.mutate(undefined, { onSuccess: () => void leaveSignedOut() });
+                },
+            },
         );
     };
 
@@ -108,8 +124,8 @@ function AccountEraseFlow({
             onToggleRecipe={toggleRecipe}
             phrase={phrase}
             onPhraseChange={setPhrase}
-            submitting={erasure.isPending}
-            submitError={erasure.isError}
+            submitting={erasure.isPending || accountErasure.isPending}
+            submitError={erasure.isError || accountErasure.isError}
             onConfirm={handleConfirm}
             onCancel={onClose}
         />

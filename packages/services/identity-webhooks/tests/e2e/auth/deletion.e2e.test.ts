@@ -37,7 +37,11 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     banUser: vi.fn(),
     unbanUser: vi.fn(),
 }));
-vi.mock('../../../src/common/eraseIdentity.js', () => ({ eraseIdentityRow: mockEraseIdentityRow }));
+// Partial mock — see deletionWorker.test.ts: identity-db also exports the schema the handlers import.
+vi.mock('@kitchensink/identity-db', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@kitchensink/identity-db')>()),
+    eraseIdentityRow: mockEraseIdentityRow,
+}));
 vi.mock('../../../src/common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
 vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn(function () {

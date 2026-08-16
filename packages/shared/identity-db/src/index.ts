@@ -23,5 +23,7 @@ export type {
 
 export { UserDAO, AccountDAO, hasProcessedWebhookEvent, recordOnce } from './dao/index.js';
 
+export { eraseIdentityRow, type EraseIdentityInput } from './eraseIdentityRow.js';
+
 export { newUserId, isUserId } from './ulid.js';
 export type { UserId } from './ulid.js';

@@ -40,6 +40,7 @@ import {
     avatarPresignQuerySchema,
     avatarPresignResponseSchema,
     deleteUserMeResponseSchema,
+    eraseUserMeResponseSchema,
     patchUserMeRequestSchema,
     userProfileSchema,
 } from '@kitchensink/schema-identity';
@@ -48,6 +49,7 @@ import type {
     AvatarPresignQuery,
     AvatarPresignResponse,
     DeleteUserMeResponse,
+    EraseUserMeResponse,
     UserProfile,
     UserUpdateInput,
 } from '@kitchensink/schema-identity';
@@ -89,6 +91,9 @@ function withoutTrailingSlashes(url: string): string {
  */
 export const PROFILE_ME_PATH = '/api/v1/users/me';
 
+/** The identity service's account-ERASURE path (irreversible; distinct from `DELETE` on {@link PROFILE_ME_PATH}). */
+export const PROFILE_ERASURE_PATH = '/api/v1/users/me/erasure';
+
 /**
  * `POST /api/v1/users/me/avatar/presign` — where the viewer's avatar upload is authorized.
  *
@@ -114,6 +119,9 @@ export type TokenSource = string | ((options?: { readonly forceRefresh?: boolean
  * forbids. The name is kept because it is this package's published surface.
  */
 export type DeleteAccountResult = DeleteUserMeResponse;
+
+/** The result of an accepted account ERASURE (`202`) — irreversible, unlike {@link DeleteAccountResult}. */
+export type EraseAccountResult = EraseUserMeResponse;
 
 /** Per-call options accepted by every {@link ProfileServiceClient} method. */
 export interface ProfileRequestOptions {
@@ -215,6 +223,28 @@ export class ProfileServiceClient {
      */
     public async deleteMe(options?: ProfileRequestOptions): Promise<DeleteAccountResult> {
         return this.send('DELETE', PROFILE_ME_PATH, deleteUserMeResponseSchema, undefined, options);
+    }
+
+    /**
+     * `POST /api/v1/users/me/erasure` — request IRREVERSIBLE erasure of the signed-in viewer's account
+     * (`202 Accepted`), plan U2.
+     *
+     * ⛔ Not the same call as {@link deleteMe}, and the difference is not cosmetic: `deleteMe` CLOSES the
+     * account (a recoverable tombstone), while this destroys it. They are separate endpoints precisely so
+     * the irreversible one cannot be reached by flipping a flag on the recoverable one.
+     *
+     * This is the call that makes the erasure reach anything beyond the recipe service. The app used to ask
+     * ONLY recipe to erase, which left the identity row, the Clerk account, the avatar object and food's
+     * requester rows intact — an "erased" user who could sign back in. Identity owns the user, so identity
+     * is what starts the account-level erasure and fans it out.
+     *
+     * @param options - Per-call token/refresh options.
+     * @returns The accepted-erasure acknowledgement.
+     * @throws {UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request that irreversibly destroys the account.
+     */
+    public async eraseMe(options?: ProfileRequestOptions): Promise<EraseAccountResult> {
+        return this.send('POST', PROFILE_ERASURE_PATH, eraseUserMeResponseSchema, undefined, options);
     }
 
     /**

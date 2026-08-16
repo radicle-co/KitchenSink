@@ -3,6 +3,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { buildHandleSyncMessage, computeProfileScrub, deriveDisplayName } from '@kitchensink/identity-core';
+import { eraseIdentityRow } from '@kitchensink/identity-db';
 
 import { HANDLE_SYNC_PUBLISHER, type HandleSyncPublisher } from './handleSync.publisher.js';
 import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatarObjectStore.js';
@@ -330,5 +331,85 @@ export class UsersService {
             deletedAt: now.toISOString(),
             message: 'Account closure initiated',
         };
+    }
+
+    /**
+     * Account ERASURE (plan U2) — the IRREVERSIBLE sibling of {@link deleteUserMe}'s recoverable closure.
+     *
+     * ⛔ **Why this exists.** The app's "erase my data" control called the RECIPE service and nothing else,
+     * so an erasure destroyed the user's recipes and left the identity row, the Clerk account, the avatar
+     * object and food's requester rows all intact — the user could sign straight back in to an account they
+     * had been told was destroyed. Recipe cannot close that gap from its side: it does not own the user and
+     * holds no Clerk secret. Identity owns the user, so the account-level erasure is initiated here.
+     *
+     * **What this method does NOT do, and must not.** It does not call Clerk. This service sits behind a
+     * public ALB and holds no Clerk secret — the same reason closure hands its BAN to the deletion-worker —
+     * so the Clerk `deleteUser` is the worker's job, driven by the message enqueued below. Every downstream
+     * effect of an erasure (Clerk account deleted, recipe erased, food's requester rows dropped) hangs off
+     * that one message, which is why a failure to enqueue PAGES rather than warns.
+     *
+     * **Ordering, and the window it leaves.** The scrub commits before the Clerk identity is deleted, so
+     * between the two a token minted earlier still verifies. That window is closed by the scrub itself:
+     * `status='erased'` brings the row under the R10 anti-resurrection guard, so the token resolves to an
+     * erased user rather than read-through-creating a fresh one. The inverse order is not available to us —
+     * it would require the Clerk secret this service deliberately does not have.
+     *
+     * Idempotent: an already-erased user is a no-op that writes no second audit row (R9, append-only) and
+     * re-enqueues nothing.
+     *
+     * @param ctx - The verified caller. The owner is taken from the token, never from a body.
+     * @returns The erasure acknowledgement (`202`-shaped; the work is asynchronous).
+     * @throws NotFoundException when no such user exists.
+     * @sideEffect Erases the identity row, deletes the avatar object, and enqueues the erasure event.
+     */
+    async eraseUserMe(ctx: AuthorizerContext) {
+        const userId = ctx.userId;
+        const clerkUserId = ctx.clerkUserId;
+
+        const [existing] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+        if (!existing) {
+            throw new NotFoundException('User not found');
+        }
+
+        const now = new Date();
+
+        if (existing.status === 'erased') {
+            // R9: the audit log is append-only, so a retry, a double-tap, or the reconciliation sweep
+            // re-driving this must not manufacture a second erasure event for one erasure. Nothing is
+            // re-enqueued either — the original message is already in flight or already processed.
+            this.logger.log('erasure: already-erased user, no-op', { userId });
+
+            return { sub: userId, erasedAt: now.toISOString(), message: 'Account erasure already completed' };
+        }
+
+        // ONE definition of "erased" for all three callers (this, the tombstone-sweep, the user.deleted
+        // webhook) — the field-scrub, the companion-row purge and the R8 audit row, in one transaction.
+        await eraseIdentityRow(this.db, { userId, triggerSource: 'user', actor: userId }, now);
+
+        // The row is already scrubbed and S3 is not transactional, so a failed object delete cannot roll the
+        // erasure back — but it leaves a real photograph of a user who asked to be erased, with no DB row
+        // pointing at it and therefore nothing to find it by later. That is an ERROR, not the `warn` closure
+        // uses for its recoverable tombstone.
+        try {
+            await this.avatarStore.deleteAllForUser(userId);
+        } catch (err) {
+            this.logger.error('erasure: avatar S3 delete FAILED — orphaned object for an erased user', {
+                userId,
+                error: String(err),
+            });
+        }
+
+        // ⛔ NOT BEST-EFFORT. Identity has scrubbed its own row, so the database says "erased" — but the
+        // Clerk account still exists and both downstream services still hold the user's data. All of that is
+        // destroyed by the worker this message wakes. Swallowing a failure here produces a user who was told
+        // their data was erased while their account still signs in, with nothing recorded anywhere.
+        try {
+            await this.sqs.enqueueDeletion({ identityId: clerkUserId, userId, event: 'erasure' });
+        } catch (err) {
+            reportDeletionEnqueueFailure({ event: 'erasure', userId, identityId: clerkUserId, error: err });
+        }
+
+        return { sub: userId, erasedAt: now.toISOString(), message: 'Account erasure initiated' };
     }
 }

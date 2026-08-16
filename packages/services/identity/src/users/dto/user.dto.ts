@@ -14,10 +14,13 @@
  */
 import { createZodDto } from 'nestjs-zod';
 
-import { deleteUserMeResponseSchema, patchUserMeRequestSchema } from '../users.schema.js';
+import { deleteUserMeResponseSchema, eraseUserMeResponseSchema, patchUserMeRequestSchema } from '../users.schema.js';
 
 /** Request body for `PATCH /api/v1/users/me`. Strict: an unknown field is a `400`. */
 export class PatchUserMeBodyDto extends createZodDto(patchUserMeRequestSchema) {}
 
 /** Response body for `DELETE /api/v1/users/me` (`202 Accepted`). */
 export class DeleteUserMeResponseDto extends createZodDto(deleteUserMeResponseSchema) {}
+
+/** Response body for `POST /api/v1/users/me/erasure` (`202 Accepted`) — the IRREVERSIBLE action. */
+export class EraseUserMeResponseDto extends createZodDto(eraseUserMeResponseSchema) {}

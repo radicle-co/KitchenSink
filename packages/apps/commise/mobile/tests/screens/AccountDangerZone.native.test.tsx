@@ -25,7 +25,7 @@ import { accountDangerMessages } from '@commise/features-account/danger';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
 import { mobileMessages } from '../../src/i18n/messages.js';
-import { useDeleteAccount } from '../../src/hooks/useUserProfile.js';
+import { useDeleteAccount, useEraseAccount } from '../../src/hooks/useUserProfile.js';
 
 const { signOut, signOutAndVerify } = vi.hoisted(() => ({ signOut: vi.fn(), signOutAndVerify: vi.fn() }));
 vi.mock('@clerk/expo', () => ({
@@ -41,11 +41,16 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRequestAccountErasure: vi.fn(),
 }));
 
-vi.mock('../../src/hooks/useUserProfile.js', () => ({ useDeleteAccount: vi.fn() }));
+// `useEraseAccount` is the ACCOUNT-level erasure (plan U2) — a different call from the recipe-side
+// `useRequestAccountErasure` above, and the one that makes an erasure reach identity, Clerk and food.
+// Its default double ACCEPTS, so the tests below exercise the exit path they are about.
+vi.mock('../../src/hooks/useUserProfile.js', () => ({ useDeleteAccount: vi.fn(), useEraseAccount: vi.fn() }));
 
 const useRecipesMock = vi.mocked(useAllOwnerRecipes);
 const useRequestAccountErasureMock = vi.mocked(useRequestAccountErasure);
 const useDeleteAccountMock = vi.mocked(useDeleteAccount);
+const useEraseAccountMock = vi.mocked(useEraseAccount);
+const accountEraseMutate = vi.fn();
 
 const deleteMutate = vi.fn();
 const erasureMutate = vi.fn();
@@ -85,7 +90,21 @@ function setDeleteAccount(state: { isPending?: boolean; isError?: boolean } = {}
     } as unknown as ReturnType<typeof useDeleteAccount>);
 }
 
+/**
+ * The account-erasure double. Defaults to ACCEPTING (invoking `onSuccess`) so the suites below exercise the
+ * exit path they are about; a suite that cares about this leg failing overrides `mutate`.
+ */
+function setEraseAccount(state: { isPending?: boolean; isError?: boolean } = {}): void {
+    useEraseAccountMock.mockReturnValue({
+        mutate: accountEraseMutate,
+        isPending: state.isPending ?? false,
+        isError: state.isError ?? false,
+    } as unknown as ReturnType<typeof useEraseAccount>);
+}
+
 beforeEach(() => {
+    accountEraseMutate.mockReset().mockImplementation((_input, options) => options?.onSuccess?.());
+    setEraseAccount();
     signOut.mockReset().mockResolvedValue(undefined);
     signOutAndVerify.mockReset().mockResolvedValue(undefined);
     deleteMutate.mockReset();
@@ -222,6 +241,34 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         const eraseButtons = screen.getAllByRole('button', { name: 'Erase my data' });
         fireEvent.click(eraseButtons[eraseButtons.length - 1] as HTMLElement);
     }
+
+    /**
+     * ⛔ THE REGRESSION (plan U2), pinned on mobile as well as web — the cross-platform rule exists because
+     * a fix applied to one platform is exactly the kind that silently misses the other.
+     *
+     * "Erase my data" used to call the RECIPE service and nothing else, then sign the viewer out. That looks
+     * like success while the identity row, the Clerk account, the avatar and food's rows all survive.
+     */
+    it('ALSO erases the account itself, not only the recipes', () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        confirmErasure();
+
+        expect(erasureMutate).toHaveBeenCalledTimes(1);
+        expect(accountEraseMutate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT sign the viewer out when the account erasure fails — the account still exists', () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        accountEraseMutate.mockImplementation(() => undefined);
+        confirmErasure();
+
+        expect(accountEraseMutate).toHaveBeenCalledTimes(1);
+        expect(signOutAndVerify).not.toHaveBeenCalled();
+    });
 
     it('erases with the typed phrase + donate election, then signs out on success', async () => {
         erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>

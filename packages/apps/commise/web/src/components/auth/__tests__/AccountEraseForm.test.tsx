@@ -44,6 +44,15 @@ const recipesState = vi.hoisted(() => ({
 }));
 const { erasureMutate } = vi.hoisted(() => ({ erasureMutate: vi.fn() }));
 const erasureState = vi.hoisted(() => ({ current: { isPending: false, isError: false } }));
+const { accountEraseMutate } = vi.hoisted(() => ({ accountEraseMutate: vi.fn() }));
+const accountEraseState = vi.hoisted(() => ({ current: { isPending: false, isError: false } }));
+
+// The ACCOUNT-level erasure (plan U2) — doubled at the same seam as its recipe-side sibling above. The two
+// calls are separate on purpose: recipe erases recipes, identity erases the account and fans out to every
+// other service, and the flow is only complete when BOTH are accepted.
+vi.mock('@/components/auth/useEraseAccount', () => ({
+    useEraseAccount: () => ({ mutate: accountEraseMutate, ...accountEraseState.current }),
+}));
 
 // The election consumes the FULL owner list (paged to completion) — see useAllOwnerRecipes. A capped
 // single-page hook would silently omit (and then erasure would destroy) owner-only recipes past the cap.
@@ -66,6 +75,10 @@ beforeEach(() => {
     });
     navigateTo.mockReset();
     erasureMutate.mockReset();
+    // Default: the account erasure is ACCEPTED, so the tests below exercise the exit path they are about.
+    // The suites that care about this call failing set their own implementation.
+    accountEraseMutate.mockReset().mockImplementation((_input, options) => options?.onSuccess?.());
+    accountEraseState.current = { isPending: false, isError: false };
     recipesState.current = { recipes: [], isLoading: false, isError: false };
     erasureState.current = { isPending: false, isError: false };
     clerkState.loaded = true;
@@ -145,6 +158,48 @@ describe('AccountEraseForm (web) — donate election wiring', () => {
 });
 
 describe('AccountEraseForm (web) — confirm', () => {
+    /**
+     * ⛔ THE REGRESSION THIS SUITE EXISTS TO PREVENT (plan U2).
+     *
+     * "Erase my data" used to call the RECIPE service and nothing else, then sign the viewer out. That
+     * looked exactly like success — dialog closes, viewer leaves — while the identity row, the Clerk
+     * account, the avatar object and food's requester rows were all untouched. The user could sign straight
+     * back in to the account they had just been told was destroyed.
+     *
+     * These two tests pin both halves of the fix: the account-level call is MADE, and the viewer is NOT
+     * signed out when it fails. The second is the one that matters — signing out on a failed erasure is
+     * precisely what made the old bug invisible, because the viewer never saw the account survive.
+     */
+    it('ALSO erases the account itself, not only the recipes', async () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        const user = await openFlow();
+
+        await user.type(screen.getByLabelText('Confirmation phrase'), 'ERASE MY DATA');
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Erase my data' }));
+
+        expect(erasureMutate).toHaveBeenCalledTimes(1);
+        expect(accountEraseMutate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT sign the viewer out when the account erasure fails — the account still exists', async () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        // The recipe leg succeeded, the account leg did not: the account is still there, so ending the
+        // session here would strand the user with no signal that their erasure did not happen.
+        accountEraseMutate.mockImplementation(() => undefined);
+        const user = await openFlow();
+
+        await user.type(screen.getByLabelText('Confirmation phrase'), 'ERASE MY DATA');
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Erase my data' }));
+
+        expect(accountEraseMutate).toHaveBeenCalledTimes(1);
+        expect(signOut).not.toHaveBeenCalled();
+        expect(navigateTo).not.toHaveBeenCalled();
+    });
+
     it('sends the typed phrase and the donate election, then signs out on success', async () => {
         erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
             options?.onSuccess?.(),

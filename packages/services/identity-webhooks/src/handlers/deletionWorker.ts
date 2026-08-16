@@ -2,9 +2,10 @@ import type { Context, SQSEvent, SQSRecord } from 'aws-lambda';
 
 import { idpDeletionMessageSchema, type IdpDeletionMessage } from '../common/deletionQueue.schema.js';
 import { withDb, type DbContext } from '../common/handlerPipeline.js';
-import { eraseIdentityRow } from '../common/eraseIdentity.js';
+
+import { eraseIdentityRow } from '@kitchensink/identity-db';
 import { runErasureFanout, type ErasureFanoutResult, type ErasureFanoutTarget } from '../common/erasureFanout.js';
-import { banUser, unbanUser } from '../common/identityClient.js';
+import { banUser, deleteUser, isAlreadyDeleted, unbanUser } from '../common/identityClient.js';
 import { getErasureFanoutConfig } from '../config/env.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
 
@@ -159,8 +160,9 @@ const processRecord = async (record: SQSRecord, dbCtx: DbContext): Promise<void>
         }
 
         case 'erasure': {
-            // The identity scrub + Clerk deleteUser were done by the enqueuer (the tombstone-sweep) BEFORE
-            // this message; this branch drives the cross-service legs (recipe FIRST for R9, then food/R11).
+            // The identity ROW scrub was done by the enqueuer (the tombstone-sweep, or the identity service
+            // acting on the user's own request); this branch owns the Clerk delete and the cross-service
+            // legs (recipe FIRST for R9, then food/R11).
             if (message.userId === undefined || message.userId === '') {
                 logger.warn('deletion-worker: erasure message missing userId; cannot fan out', {
                     identityId: message.identityId,
@@ -169,10 +171,42 @@ const processRecord = async (record: SQSRecord, dbCtx: DbContext): Promise<void>
                 return;
             }
 
+            // ⛔ CLERK FIRST, THEN THE DATA — and never the other way round.
+            //
+            // This branch used to assume the enqueuer had already deleted the Clerk account, which was true
+            // of its only enqueuer (the tombstone-sweep). Plan U2 adds a second one: the identity service,
+            // acting on the user's own erasure request. That service holds no Clerk secret BY DESIGN (it is
+            // behind a public ALB), so if this branch does not delete the account, nothing does — and the
+            // user keeps signing in to an account they were told was destroyed.
+            //
+            // The ordering is the safety property. Fanning out first would destroy the user's recipes and
+            // food rows while their account still exists and still authenticates: a partial state no retry
+            // can undo. Deleting Clerk first means the worst case is an account that is gone with its data
+            // still queued for deletion, which the SQS retry and the reconciliation sweep both converge.
+            // A 404 means someone already deleted it (the sweep's own path) — convergence, not failure.
+            try {
+                await deleteUser(message.identityId);
+            } catch (err) {
+                if (!isAlreadyDeleted(err)) {
+                    logger.error('deletion-worker: Clerk deleteUser failed; NOT fanning out, forcing retry', {
+                        identityId: message.identityId,
+                        userId: message.userId,
+                        error: err instanceof Error ? err.message : String(err),
+                    });
+
+                    throw err;
+                }
+
+                logger.info('deletion-worker: Clerk identity already deleted (converged)', {
+                    identityId: message.identityId,
+                    userId: message.userId,
+                });
+            }
+
             await fanOutOrThrow({
                 userId: message.userId,
                 eventId: message.enqueuedAt ?? `erasure:${message.userId}`,
-                actor: 'identity-tombstone-sweep',
+                actor: 'identity-erasure',
             });
 
             return;

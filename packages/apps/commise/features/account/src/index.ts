@@ -16,6 +16,7 @@
 export { AVATAR_PRESIGN_PATH, PROFILE_ME_PATH, ProfileServiceClient } from './profileServiceClient.js';
 export type {
     DeleteAccountResult,
+    EraseAccountResult,
     ProfileRequestOptions,
     ProfileServiceClientOptions,
     TokenSource,

@@ -2,12 +2,12 @@ import type { Context, ScheduledEvent } from 'aws-lambda';
 import { and, eq, lte } from 'drizzle-orm';
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 
-import { users } from '@kitchensink/identity-db';
+import { eraseIdentityRow, users } from '@kitchensink/identity-db';
 
 import { getConfig } from '../config/env.js';
 import { withDb, type DbContext } from '../common/handlerPipeline.js';
-import { eraseIdentityRow } from '../common/eraseIdentity.js';
-import { deleteUser } from '../common/identityClient.js';
+
+import { deleteUser, isAlreadyDeleted } from '../common/identityClient.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
 
 /**
@@ -27,11 +27,6 @@ export function erasureCutoff(now: Date): Date {
     cutoff.setMonth(cutoff.getMonth() - TOMBSTONE_ERASURE_MONTHS);
 
     return cutoff;
-}
-
-/** True when a Clerk delete failed only because the user was already deleted (idempotent-safe to proceed). */
-function isAlreadyDeleted(err: unknown): boolean {
-    return typeof err === 'object' && err !== null && (err as { status?: number }).status === 404;
 }
 
 const sqsClient = new SQSClient({});

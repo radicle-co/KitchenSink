@@ -10,7 +10,12 @@ const { sqsSend } = vi.hoisted(() => ({ sqsSend: vi.fn() }));
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 
-vi.mock('../../common/identityClient.js', () => ({ deleteUser: vi.fn().mockResolvedValue(undefined) }));
+// Partial mock: `isAlreadyDeleted` stays REAL (a pure 404 predicate — doubling it would let this suite
+// pass while the actual "already gone means converged" rule was wrong). Only the network call is doubled.
+vi.mock('../../common/identityClient.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../common/identityClient.js')>()),
+    deleteUser: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('@aws-sdk/client-sqs', () => ({
     SQSClient: vi.fn(function (this: { send: typeof sqsSend }) {

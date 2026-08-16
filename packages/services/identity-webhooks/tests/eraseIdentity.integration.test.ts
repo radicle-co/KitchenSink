@@ -8,7 +8,7 @@
  *
  * WHY THIS TIER EXISTS. `eraseIdentityRow` is the ONE authoritative "erase this identity" transaction,
  * consumed by both the 12-month tombstone sweep and the `user.deleted` webhook. Its unit spec
- * (`src/common/__tests__/eraseIdentity.test.ts`) drives a drizzle-shaped mock that discards `.where(...)`
+ * (`packages/shared/identity-db/src/__tests__/eraseIdentityRow.test.ts`) drives a drizzle-shaped mock that discards `.where(...)`
  * entirely and records deletes as an untyped `'table'` string, so it cannot observe the three properties
  * that actually make an erasure safe. All three of the following mutations were VERIFIED to pass the unit
  * spec before these specs were written:
@@ -28,9 +28,8 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { accounts, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
+import { accounts, eraseIdentityRow, lifecycleEvents, profiles, users } from '@kitchensink/identity-db';
 
-import { eraseIdentityRow } from '../src/common/eraseIdentity.js';
 import { hasDatabaseUrl, openIntegrationDb, resetIdentityRows } from './integrationDb.js';
 import { makeIdentityAccount, makeIdentityProfile, makeIdentityUser } from './__fixtures__/makeIdentityUser.js';
 

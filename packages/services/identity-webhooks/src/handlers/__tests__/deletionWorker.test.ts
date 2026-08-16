@@ -17,20 +17,26 @@ const { mockFindByIdentityId, mockEraseIdentityRow, mockRunErasureFanout } = vi.
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 
+// ONE mock for the whole package: it now supplies both the DAO this handler constructs and the shared
+// erasure transaction it calls (`eraseIdentityRow` moved here from this service's `common/` so the identity
+// service could reuse it — plan U2). Two separate `vi.mock` calls for one module would silently keep only
+// the last, dropping whichever double the earlier one declared.
 vi.mock('@kitchensink/identity-db', () => {
     const UserDAO = vi.fn().mockImplementation(function () {
         return { findByIdentityId: mockFindByIdentityId };
     });
 
-    return { UserDAO };
+    return { UserDAO, eraseIdentityRow: mockEraseIdentityRow };
 });
 
-vi.mock('../../common/identityClient.js', () => ({
+vi.mock('../../common/identityClient.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../common/identityClient.js')>()),
     banUser: vi.fn().mockResolvedValue(undefined),
     unbanUser: vi.fn().mockResolvedValue(undefined),
+    deleteUser: vi.fn().mockResolvedValue(undefined),
+    // `isAlreadyDeleted` is left REAL: it is a pure 404 predicate, and doubling it would let a test pass
+    // while the actual convergence rule was wrong.
 }));
-
-vi.mock('../../common/eraseIdentity.js', () => ({ eraseIdentityRow: mockEraseIdentityRow }));
 
 vi.mock('../../common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
 
@@ -42,7 +48,7 @@ vi.mock('../../common/observability.js', () => ({
 
 import { handler as rawHandler } from '../deletionWorker.js';
 import { getDb } from '../../common/db.js';
-import { banUser, unbanUser } from '../../common/identityClient.js';
+import { banUser, deleteUser, unbanUser } from '../../common/identityClient.js';
 import { resetConfigCacheForTests } from '../../config/env.js';
 
 type TestHandler = (event: SQSEvent, ctx: Context) => Promise<void>;
@@ -51,6 +57,7 @@ const handler = rawHandler as unknown as TestHandler;
 const mockGetDb = vi.mocked(getDb);
 const mockBanUser = vi.mocked(banUser);
 const mockUnbanUser = vi.mocked(unbanUser);
+const mockDeleteUserFn = vi.mocked(deleteUser);
 
 const bothLegsOk = {
     recipe: { service: 'recipe', ok: true, jobStatus: 'queued' },
@@ -167,8 +174,8 @@ describe('deletion-worker handler', () => {
         });
     });
 
-    describe('erasure event (tombstone-sweep) — fan out only (identity already scrubbed by the sweep)', () => {
-        it('fans out to recipe + food keyed by the app ULID, actor = the sweep', async () => {
+    describe('erasure event — delete the Clerk account, then fan out (row already scrubbed by the enqueuer)', () => {
+        it('fans out to recipe + food keyed by the app ULID, under the erasure actor', async () => {
             await handler(
                 makeSqsEvent({
                     identityId: 'user_abc',
@@ -184,11 +191,60 @@ describe('deletion-worker handler', () => {
             expect(target).toMatchObject({
                 userId: 'usr_01',
                 eventId: '2026-07-26T00:00:00Z',
-                actor: 'identity-tombstone-sweep',
+                // Enqueuer-neutral on purpose: this branch now serves BOTH the 12-month tombstone-sweep
+                // and the user's own erasure request, so a label naming the sweep would be false for half
+                // its traffic — and this actor is written into a downstream audit row (R8).
+                actor: 'identity-erasure',
             });
-            // The sweep already scrubbed the identity + deleted Clerk; the worker must NOT re-do those.
+            // The sweep already scrubbed the identity row, and the worker must NOT re-do that (a second
+            // scrub would append a second R8 audit row for one erasure). A BAN is never right on this
+            // path either — the account is being destroyed, not suspended.
             expect(mockEraseIdentityRow).not.toHaveBeenCalled();
             expect(mockBanUser).not.toHaveBeenCalled();
+        });
+
+        /**
+         * ⛔ The Clerk delete MUST happen on this branch, and it did not used to.
+         *
+         * The branch was written for exactly one enqueuer — the tombstone-sweep, which deletes the Clerk
+         * user itself before enqueuing — so it assumed the account was already gone. Plan U2 adds a second
+         * enqueuer: the identity service, acting on the user's own "erase my data" request. That service
+         * sits behind a public ALB and holds no Clerk secret **by design**, so it cannot delete the account;
+         * if this branch does not, nothing does, and the user keeps signing in to an account they were told
+         * was destroyed.
+         *
+         * Doing it here makes the branch self-sufficient rather than dependent on which enqueuer sent the
+         * message — and costs the sweep nothing, because deleting an already-deleted Clerk user is a 404
+         * this tolerates.
+         */
+        it('DELETES the Clerk identity, so a user-initiated erasure actually destroys the account', async () => {
+            await handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure' }), makeContext());
+
+            expect(mockDeleteUserFn).toHaveBeenCalledWith('user_abc');
+            expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
+        });
+
+        it('tolerates an already-deleted Clerk identity (404) and still fans out', async () => {
+            // The tombstone-sweep path: Clerk was deleted before this message was enqueued. A 404 is
+            // convergence, not failure — treating it as an error would strand every swept erasure.
+            mockDeleteUserFn.mockRejectedValueOnce(Object.assign(new Error('not found'), { status: 404 }));
+
+            await handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure' }), makeContext());
+
+            expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
+        });
+
+        it('THROWS on any other Clerk failure and does NOT fan out — Clerk first, or not at all', async () => {
+            // Ordering is the point: fanning out first would destroy the user's recipes and food rows while
+            // their account still exists and still signs in — the worst possible partial state, and one no
+            // retry can undo. SQS redelivers instead; every leg is idempotent.
+            mockDeleteUserFn.mockRejectedValueOnce(Object.assign(new Error('clerk 503'), { status: 503 }));
+
+            await expect(
+                handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure' }), makeContext()),
+            ).rejects.toThrow(/clerk/i);
+
+            expect(mockRunErasureFanout).not.toHaveBeenCalled();
         });
 
         it('a failed leg THROWS so SQS redelivers (R7 — no silent half-erasure)', async () => {

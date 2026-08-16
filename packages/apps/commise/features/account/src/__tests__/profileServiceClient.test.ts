@@ -87,6 +87,25 @@ describe('ProfileServiceClient — request shape', () => {
         expect(result).toEqual(accepted);
     });
 
+    /**
+     * Plan U2. `eraseMe` is the call that makes an erasure reach anything beyond the recipe service, so what
+     * matters here is that it is a genuinely DIFFERENT request from `deleteMe` — different verb, different
+     * path. If it ever collapsed onto `DELETE /api/v1/users/me`, the app's irreversible control would
+     * silently perform the RECOVERABLE closure instead, and every test above would still pass.
+     */
+    it('eraseMe() POSTs /api/v1/users/me/erasure — not the closure endpoint — and returns the accepted body', async () => {
+        const accepted = { sub: 'usr_1', erasedAt: '2026-08-16T00:00:00.000Z', message: 'Account erasure initiated' };
+        const fetchMock = stubFetch({ status: 202, body: accepted });
+        const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
+
+        const result = await client.eraseMe();
+
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(init.method).toBe('POST');
+        expect(String(url)).toContain('/api/v1/users/me/erasure');
+        expect(result).toEqual(accepted);
+    });
+
     it('resolves undefined for a genuinely empty response body (e.g. a 204)', async () => {
         const fetchMock = stubFetch({ status: 204, text: '' });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });

@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { eraseIdentityRow } from '../eraseIdentity.js';
+import { eraseIdentityRow } from '../eraseIdentityRow.js';
 
 /** A drizzle-shaped mock tx recording the update set, deleted tables, and audit rows. */
 function buildMockDb() {

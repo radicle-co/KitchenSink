@@ -39,7 +39,6 @@ const UNCACHED_FOOD_ID = '01JFOODNUTRITIONUNCACHED01';
 
 interface RecipeBody {
     id: string;
-    hasPartialNutrition: boolean;
     leadCaloriesPerServing?: number;
     nutrition: { calories: number; proteinG: number; carbsG: number; fatG: number; isComplete: boolean };
 }
@@ -234,8 +233,14 @@ describe.skipIf(!hasDatabaseUrl)('per-serving nutrition from the food service (i
         const body = (await res.json()) as RecipeBody;
 
         expect(body.nutrition.isComplete).toBe(false);
-        expect(body.hasPartialNutrition).toBe(true);
         // ⛔ The distinction that matters: unaccounted, not "contains zero calories".
         expect(body.leadCaloriesPerServing).toBeUndefined();
+        // REWRITTEN, not deleted. This line used to assert `hasPartialNutrition === true`. That field has
+        // left the wire: it was a two-valued encoding of a three-valued fact, pinned `true` at three call
+        // sites to mean "not looked up" — which is not what it meant. The invariant it carried here is
+        // unchanged and still asserted, by `nutrition.isComplete === false` above and the absent calorie
+        // figure; what moved is the ACCOUNTED-NESS signal for a CARD, which is now the discriminated state
+        // from `POST /api/v1/recipes/nutrition-batch` (covered by `nutritionBatch.integration.test.ts`).
+        expect(body).not.toHaveProperty('hasPartialNutrition');
     });
 });

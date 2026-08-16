@@ -16,6 +16,7 @@ import { deriveDisplayName } from '@kitchensink/identity-core';
 import {
     computeRecipeNutrition,
     toNutritionLine,
+    type LineCatalogNutrition,
     type LineMeasure,
     type NutritionLine,
     type RecipeNutrition,
@@ -29,6 +30,8 @@ import { VersionsService } from '../versions/versions.service.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { resolveCoverUrl, resolvePhotoView } from '../photos/photoView.js';
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
+import { toRecipeNutritionState } from './domain/nutritionState.js';
+import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipeIngredients.dal.js';
 import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
@@ -45,7 +48,7 @@ import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/r
 import type { RecipeIngredientRow, RecipePhotoRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { Principal } from '../auth/principal.js';
 import type { CallerToken } from '../auth/CallerToken.js';
-import { FoodNutritionGateway } from '../ingredients/foodNutrition.gateway.js';
+import { FoodNutritionGateway, type NutritionFreshness } from '../ingredients/foodNutrition.gateway.js';
 
 /** DI token for the recipe DAL — provided by `RecipesModule` via `useFactory` over the Drizzle client. */
 export const RECIPES_DAL = 'RECIPES_DAL';
@@ -123,11 +126,11 @@ interface RecipeResponseExtras {
      */
     viewerRating?: number;
     /**
-     * The two nutrition figures U10 stopped storing (plan U10). Supplied only by the DETAIL read, which is
-     * the one path that actually fetches food's live data; list/search report nutrition as unknown rather
-     * than paying an N+1 to claim otherwise.
+     * The nutrition figure U10 stopped storing (plan U10). Supplied only by the DETAIL read, which is the
+     * one path that actually fetches food's live data; list/search emit no nutrition at all rather than
+     * paying an N+1 — the deferred batch endpoint is where a card gets its number.
      */
-    derivedNutrition?: { hasPartialNutrition: boolean; leadCaloriesPerServing?: number };
+    derivedNutrition?: { leadCaloriesPerServing?: number };
 }
 
 /**
@@ -152,12 +155,10 @@ function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtr
     const { recipe, steps, ingredients } = aggregate;
     // `description` is excluded from the canonical base (see the doc comment above) and re-applied below
     // under RecipeResponse's own omit-when-null rule.
-    // Nutrition is UNKNOWN unless the caller computed it — never assumed complete. See
-    // `DerivedNutritionFields`: a default of `false` would assert completeness by omission.
-    const { description: _canonicalDescription, ...base } = recipeRowToDomain(
-        recipe,
-        extras.derivedNutrition ?? { hasPartialNutrition: true },
-    );
+    // Nutrition is emitted ONLY when the caller computed it. An absent `derivedNutrition` yields a recipe
+    // with no nutrition fields, which is what "we did not look it up" honestly looks like — the pinned
+    // `hasPartialNutrition: true` that used to stand here claimed "partial", a different fact.
+    const { description: _canonicalDescription, ...base } = recipeRowToDomain(recipe, extras.derivedNutrition ?? {});
 
     return {
         ...base,
@@ -217,6 +218,34 @@ function rowToMeasureInput(row: RecipeIngredientRow): LineMeasure & { ingredient
         ...(row.userCarbsG !== null ? { userCarbsG: Number(row.userCarbsG) } : {}),
         ...(row.userFatG !== null ? { userFatG: Number(row.userFatG) } : {}),
     };
+}
+
+/**
+ * One batched catalog load: everything the line assembler and the nutrition classifier need, resolved once
+ * for however many recipes the request named. Produced by `RecipesService.loadLineCatalog`.
+ */
+interface LineCatalog {
+    /** Resolved per-100g nutrition + portions by INGREDIENT id; `undefined` when the food yielded none. */
+    readonly byIngredientId: ReadonlyMap<string, LineCatalogNutrition | undefined>;
+    /** The food each ingredient references — absent for a freeform ingredient that maps to no food. */
+    readonly foodIdByIngredientId: ReadonlyMap<string, string>;
+    /** The foods the lookup actually produced an entry for (live OR from cache). */
+    readonly resolvedFoodIds: ReadonlySet<string>;
+    /** How the SHARED lookup fared (`fresh` | `stale` | `absent`). */
+    readonly freshness: NutritionFreshness;
+}
+
+/**
+ * Merge a set of line measures with a loaded catalog through the single {@link toNutritionLine}
+ * line-assembler. Pure — the functional core the batched I/O feeds.
+ */
+function assembleLines(
+    catalog: LineCatalog,
+    measures: readonly (LineMeasure & { ingredientId: string })[],
+): NutritionLine[] {
+    return measures.map(({ ingredientId, ...measure }) =>
+        toNutritionLine(measure, catalog.byIngredientId.get(ingredientId)),
+    );
 }
 
 /** Map a persisted step row to the DAL's step input shape (for cloning). Pure. */
@@ -374,36 +403,138 @@ export class RecipesService {
     }
 
     /**
-     * Batch-load the catalog per-100g nutrition for a set of recipe lines (ONE query by ingredient id) and
-     * assemble each into a {@link NutritionLine} via the single {@link toNutritionLine} line-assembler. Shared
-     * by the detail read ({@link computeDetailNutrition}) and the write-time lead-calorie denormalization
-     * (the write-time `leadCaloriesFor`, deleted by U10), so both are built from identical catalog inputs.
+     * Batch-load the catalog per-100g nutrition for a set of INGREDIENT ids — ONE catalog query and ONE
+     * batched food lookup, however many recipes those ids came from.
+     *
+     * ⛔ THE SEAM U10 EXISTS FOR. The ingredient row carries `food_id` and NOTHING food-derived, so the
+     * numbers come from the food service — ONE batched call for every line in the recipe (or the whole
+     * list), never one per ingredient. An earlier revision of this method dropped the columns and simply
+     * stopped looking anything up, which made every recipe report `calories: 0, isComplete: false` while
+     * 1654 unit tests stayed green: they mock the food client, so none of them exercised this wiring.
+     * `nutrition.integration.test.ts` is what catches it, and it is why that tier is not optional.
+     *
+     * ⚠️ THE I/O IS SEPARATED FROM THE ASSEMBLY ON PURPOSE (functional core / imperative shell). This method
+     * is the only place either read happens, so "exactly one food call per request" is a property of the
+     * CALL GRAPH — one call site per request — rather than of remembering to hoist a loop. The deferred
+     * batch endpoint fans one of these out across up to `MAX_NUTRITION_RECIPE_IDS` recipes; the earlier
+     * shape, which assembled and looked up together, would have issued one lookup per recipe with every
+     * answer still correct.
+     *
+     * @param caller - The requesting user's credential, forwarded to food (never substituted).
+     * @param ingredientIds - Every ingredient id referenced by the lines about to be assembled.
+     * @returns The catalog nutrition by ingredient id, the food each references, which foods resolved, and
+     *   how the shared lookup fared.
+     * @sideEffect One `ingredients` read; one batched {@link FoodNutritionGateway.lookup}.
      */
-    private async assembleNutritionLines(
+    private async loadLineCatalog(
         caller: CallerToken | undefined,
-        lines: readonly (LineMeasure & { ingredientId: string })[],
-    ): Promise<NutritionLine[]> {
-        const ids = [...new Set(lines.map((line) => line.ingredientId))];
-        const rows = await this.ingredientsDal.findByIds(ids);
-
-        // ⛔ THE SEAM U10 EXISTS FOR. The ingredient row carries `food_id` and NOTHING food-derived, so the
-        // numbers come from the food service — ONE batched call for every line in the recipe (or the whole
-        // list), never one per ingredient. An earlier revision of this method dropped the columns and simply
-        // stopped looking anything up, which made every recipe report `calories: 0, isComplete: false` while
-        // 1654 unit tests stayed green: they mock the food client, so none of them exercised this wiring.
-        // `nutrition.integration.test.ts` is what catches it, and it is why that tier is not optional.
+        ingredientIds: readonly string[],
+    ): Promise<LineCatalog> {
+        const rows = await this.ingredientsDal.findByIds([...new Set(ingredientIds)]);
         const foodIds = rows.map((row) => row.foodId).filter((id): id is string => id !== undefined);
         const lookup = await this.foodNutrition.lookup(caller, foodIds);
 
-        const catalog = new Map(
+        const byIngredientId = new Map(
             rows.map((row) => {
                 const nutrition = row.foodId === undefined ? undefined : lookup.byFoodId.get(row.foodId);
 
                 return [row.id, nutrition] as const;
             }),
         );
+        const foodIdByIngredientId = new Map(
+            rows
+                .filter((row): row is typeof row & { foodId: string } => row.foodId !== undefined)
+                .map((row) => [row.id, row.foodId] as const),
+        );
 
-        return lines.map(({ ingredientId, ...measure }) => toNutritionLine(measure, catalog.get(ingredientId)));
+        return {
+            byIngredientId,
+            foodIdByIngredientId,
+            resolvedFoodIds: new Set(lookup.byFoodId.keys()),
+            freshness: lookup.freshness,
+        };
+    }
+
+    /**
+     * Assemble one recipe's lines into {@link NutritionLine}s via the single {@link toNutritionLine}
+     * line-assembler, over its own catalog load. The single-recipe shell over {@link loadLineCatalog};
+     * the detail read ({@link computeDetailNutrition}) is its caller.
+     */
+    private async assembleNutritionLines(
+        caller: CallerToken | undefined,
+        lines: readonly (LineMeasure & { ingredientId: string })[],
+    ): Promise<NutritionLine[]> {
+        const catalog = await this.loadLineCatalog(
+            caller,
+            lines.map((line) => line.ingredientId),
+        );
+
+        return assembleLines(catalog, lines);
+    }
+
+    /**
+     * The DEFERRED calorie lookup (`POST /api/v1/recipes/nutrition-batch`): each named recipe's per-serving
+     * nutrition state, in ONE database read and ONE batched food lookup.
+     *
+     * ⛔ **AUTHORIZATION IS BY ABSENCE.** The read is visibility-scoped in SQL, and this method answers for
+     * exactly the recipes it returned — a recipe the caller may not read is OMITTED from the map, never
+     * given a state. Emitting `unaccounted` for another owner's recipe would confirm the id exists, and
+     * emitting `known` would leak the figure. Do NOT "helpfully" fill absent ids in.
+     *
+     * ⛔ **ONE food call for the whole batch**, whatever the page size — the reason this endpoint exists at
+     * all. The alternative (per-recipe assembly) is silently correct and quadratically expensive against a
+     * service the recipe read now depends on at runtime.
+     *
+     * @param viewerId - The requesting principal's app-user ULID.
+     * @param recipeIds - The recipes to report on (already capped by `recipeNutritionRequestSchema`).
+     * @param caller - The requesting user's credential, forwarded to food. Absent ⇒ the gateway degrades.
+     * @returns The nutrition state per READABLE recipe; unreadable and unknown ids are simply absent.
+     * @sideEffect One `recipes` + `recipe_ingredients` read, one `ingredients` read, one food lookup.
+     */
+    public async getNutritionForRecipes(
+        viewerId: string,
+        recipeIds: readonly string[],
+        caller?: CallerToken,
+    ): Promise<RecipeNutritionResponse> {
+        const inputs = await this.dal.findNutritionInputs([...new Set(recipeIds)], viewerId);
+
+        if (inputs.length === 0) {
+            // Nothing readable — and therefore nothing to ask food about. A lookup here would forward this
+            // caller's credential and this batch's food ids for recipes they may not see.
+            return { nutrition: {} };
+        }
+
+        const measuresByRecipe = new Map(inputs.map((input) => [input.recipeId, input.lines.map(rowToMeasureInput)]));
+        const catalog = await this.loadLineCatalog(
+            caller,
+            [...measuresByRecipe.values()].flat().map((measure) => measure.ingredientId),
+        );
+
+        const nutrition: Record<string, RecipeNutritionState> = {};
+
+        for (const input of inputs) {
+            const measures = measuresByRecipe.get(input.recipeId) ?? [];
+            // The food counts are PER RECIPE, not per batch: under a partially-warm cache one recipe's foods
+            // are recovered and another's are not, and a batch-wide verdict would report the second recipe's
+            // outage as the first's (or hide it as `no_nutrient_data`).
+            const referenced = new Set(
+                measures
+                    .map((measure) => catalog.foodIdByIngredientId.get(measure.ingredientId))
+                    .filter((foodId): foodId is string => foodId !== undefined),
+            );
+
+            nutrition[input.recipeId] = toRecipeNutritionState(
+                {
+                    lines: assembleLines(catalog, measures),
+                    referencedFoodCount: referenced.size,
+                    resolvedFoodCount: [...referenced].filter((foodId) => catalog.resolvedFoodIds.has(foodId)).length,
+                },
+                input.servings,
+                catalog.freshness,
+            );
+        }
+
+        return { nutrition };
     }
 
     /*
@@ -447,12 +578,10 @@ export class RecipesService {
             // Derived from the SAME computation the detail body reports, so the card figure and the detail
             // total cannot disagree — the claim `nutrition.ts` used to make and could not keep while a
             // second, frozen copy lived in a column.
-            derivedNutrition: {
-                // The inverse of the computation's own completeness verdict — one source, so the card flag
-                // and the detail body can no longer disagree.
-                hasPartialNutrition: !nutrition.isComplete,
-                ...(nutrition.calories > 0 ? { leadCaloriesPerServing: nutrition.calories } : {}),
-            },
+            // Derived from the SAME computation the detail body reports, so the card figure and the detail
+            // total cannot disagree. Completeness itself is no longer duplicated up here: the detail body's
+            // own `nutrition.isComplete` is the single place it is reported.
+            derivedNutrition: nutrition.calories > 0 ? { leadCaloriesPerServing: nutrition.calories } : {},
             ...(coverRow !== undefined ? { coverPhotoUrl: resolveCoverUrl(coverRow, this.photosCdnUrl) } : {}),
             ...(options.viewerRating !== undefined ? { viewerRating: options.viewerRating } : {}),
         });

@@ -13,6 +13,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import {
+    recipeIngredients,
     recipeSteps,
     recipeVersions,
     recipes,
@@ -24,7 +25,7 @@ import {
 import { type Writer } from '../../database/unitOfWork.js';
 import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
-import { activeRecipe } from './recipePredicates.js';
+import { activeRecipe, readableBy } from './recipePredicates.js';
 import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipeIngredients.dal.js';
 
 /** A single instruction line to persist (the DAL assigns 1-based `stepNumber` from array order). */
@@ -151,6 +152,20 @@ export interface RecipeAggregate {
  */
 export interface ListRecipeAggregate extends RecipeAggregate {
     coverPhotoKey?: string;
+}
+
+/**
+ * One recipe's nutrition inputs, as {@link RecipesDal.findNutritionInputs} returns them: the serving count
+ * the per-serving figure is divided by, plus the recipe's ingredient link rows in author order.
+ *
+ * Deliberately NOT a {@link RecipeAggregate} — the deferred read needs neither steps nor the recipe row's
+ * ~30 other columns, and selecting them would widen a batch read that runs over up to
+ * `MAX_NUTRITION_RECIPE_IDS` recipes at once.
+ */
+export interface RecipeNutritionInput {
+    recipeId: string;
+    servings: number;
+    lines: RecipeIngredientRow[];
 }
 
 /** Pagination + sort inputs for {@link RecipesDal.findAll}. */
@@ -315,6 +330,59 @@ export class RecipesDal {
                 ...(serverVersion !== undefined ? { serverVersion } : {}),
             };
         });
+    }
+
+    /**
+     * Load the nutrition inputs for MANY recipes in ONE query, scoped to what `viewerId` may read.
+     *
+     * ⛔ **AUTHORIZATION IS THE `WHERE` CLAUSE.** The filter is the shared {@link readableBy} predicate, so a
+     * recipe the caller may not read is never loaded, and therefore cannot be answered for — which is the
+     * deferred-nutrition contract's authorization signal (a recipe absent from the response map means "not
+     * yours", never "no data"). Composing the predicate rather than re-listing its three terms is what keeps
+     * the W8-a.3 draft boundary in force here: a free-tier draft is `visibility='public'`, so a visibility
+     * term alone would leak it.
+     *
+     * ⛔ **LEFT join, not inner.** A recipe with no ingredient lines is a real state the endpoint reports as
+     * `unaccounted{no_resolved_ingredients}`. An inner join would drop it from the result set, where absence
+     * means "not visible to you" — turning a data fact into an authorization answer.
+     *
+     * ONE round trip for the whole batch is the point of the endpoint: the surface asking is a card grid, and
+     * a per-recipe read would reintroduce exactly the N+1 the deferred lookup exists to remove.
+     *
+     * @param recipeIds - The recipes to load (already capped by the request schema).
+     * @param viewerId - The requesting principal's app-user ULID.
+     * @returns One entry per READABLE recipe, in no guaranteed order; unreadable and unknown ids are absent.
+     * @sideEffect Reads `recipes` and `recipe_ingredients`.
+     */
+    public async findNutritionInputs(recipeIds: readonly string[], viewerId: string): Promise<RecipeNutritionInput[]> {
+        if (recipeIds.length === 0) {
+            return [];
+        }
+
+        const rows = await this.db
+            .select({ recipe: recipes, line: recipeIngredients })
+            .from(recipes)
+            .leftJoin(recipeIngredients, eq(recipeIngredients.recipeId, recipes.id))
+            .where(and(inArray(recipes.id, [...recipeIds]), readableBy(viewerId)))
+            .orderBy(asc(recipes.id), asc(recipeIngredients.sortOrder));
+
+        const byRecipe = new Map<string, RecipeNutritionInput>();
+
+        for (const row of rows) {
+            const existing = byRecipe.get(row.recipe.id);
+            const input = existing ?? { recipeId: row.recipe.id, servings: row.recipe.servings, lines: [] };
+
+            if (existing === undefined) {
+                byRecipe.set(row.recipe.id, input);
+            }
+
+            // `null` is the LEFT JOIN's "this recipe has no lines" row, not a line to account for.
+            if (row.line !== null) {
+                input.lines.push(row.line);
+            }
+        }
+
+        return [...byRecipe.values()];
     }
 
     /**

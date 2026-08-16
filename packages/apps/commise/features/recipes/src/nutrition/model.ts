@@ -25,7 +25,7 @@
  * added on top and removable again by `Exclude`.
  */
 import type { Locale } from '@commise/i18n';
-import type { RecipeNutritionState } from '@kitchensink/schema-recipe';
+import type { RecipeNutritionResponse, RecipeNutritionState } from '@kitchensink/schema-recipe';
 
 import { formatCalories } from '../card/model.js';
 import { fillTemplate } from '../list/model.js';
@@ -86,13 +86,47 @@ export type RecipeNutritionViewState = RecipeCaloriePending | RecipeCalorieState
  *
  * Reaching for this constant instead would be invisible today (both render nothing on a card) and become a
  * LIE the moment the detail disclosure ships: "Nutrition is unavailable right now. Try again shortly." about
- * a recipe the viewer is simply not permitted to read. ⚠️ OPEN — awaiting an owner ruling before the wiring
- * phase; do not settle it by picking whichever constant is nearest.
+ * a recipe the viewer is simply not permitted to read.
+ *
+ * ✅ SETTLED (owner ruling, 2026-08-16): an omitted recipe shows the skeleton while the lookup is in flight
+ * and then renders NOTHING. That answer is implemented by {@link selectRecipeCalorieState}, which returns
+ * `null` for it — a value a host must branch on rather than a hole that flows onward. Use that; do not reach
+ * for this constant, and do not encode omission as a member of the state space.
  */
 export const NUTRITION_FOOD_UNAVAILABLE: RecipeCalorieUnaccounted = {
     state: 'unaccounted',
     reason: 'food_unavailable',
 };
+
+/**
+ * Select ONE recipe's settled calorie state out of the batch response, or `null` when the response OMITTED
+ * that recipe. Pure, and TOTAL over every id a caller can ask about.
+ *
+ * ⛔ THE `null` IS THE POINT, and it settles the question flagged at {@link NUTRITION_FOOD_UNAVAILABLE}.
+ * OWNER RULING (2026-08-16): an omitted recipe renders NOTHING where the figure would be — it is neither
+ * `known` nor `unaccounted`, because the response says nothing about it and food was never the reason. So the
+ * absence is returned as a value a host must BRANCH on, and `null` is deliberately not assignable to
+ * `RecipeNutritionBoundary`'s promise: a host that ignores it does not compile.
+ *
+ * Without this, a host indexes `response.nutrition[id]` directly and gets `undefined` with NO compile error —
+ * this repo does not enable `noUncheckedIndexedAccess`, so the index types as a `RecipeNutritionState` that
+ * simply is not there. From there the three ways to be wrong all look reasonable in review: pass `undefined`
+ * into the chip's exhaustive switch, mount the boundary with no promise to settle (**a skeleton that renders
+ * forever** — the exact failure this design exists to make unrepresentable), or substitute
+ * `NUTRITION_FOOD_UNAVAILABLE` and tell the viewer about an outage that did not happen.
+ *
+ * `Object.hasOwn`, not a truthiness check or a bare index: a `Record` index reaches the prototype chain, so a
+ * recipe id colliding with an `Object.prototype` member would otherwise yield a FUNCTION where a state
+ * belongs.
+ *
+ * @param response - The batch response for the recipes this surface asked about.
+ * @param recipeId - The recipe whose figure this slot renders.
+ * @returns The settled state, or `null` when the response omitted this recipe (render no figure at all).
+ */
+export const selectRecipeCalorieState = (
+    response: RecipeNutritionResponse,
+    recipeId: string,
+): RecipeCalorieState | null => response.nutrition[recipeId] ?? null;
 
 /** What a leaf needs to paint one calorie chip: the two strings, plus the two flags that style it. */
 export interface RecipeCalorieChipModel {

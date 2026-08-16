@@ -48,7 +48,7 @@ interface CookTimeSeededRecipe {
 }
 
 interface SearchHit {
-    recipe: { id: string; title: string; leadCaloriesPerServing?: number; hasPartialNutrition: boolean };
+    recipe: { id: string; title: string; leadCaloriesPerServing?: number };
 }
 
 interface FacetBucket {
@@ -185,22 +185,29 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
         expect(body.results.map((h) => h.recipe.title)).toEqual([`${TOKEN} quick italian`, `${TOKEN} slow thai`]);
     });
 
-    it('⛔ reports every hit`s nutrition as UNACCOUNTED, never as zero (W8-a.1, post-U10)', async () => {
+    it('⛔ emits NO nutrition on a search hit — neither a figure nor a claim about one', async () => {
         // U10 deleted `recipes.lead_calories_per_serving`; nutrition is now computed from the food service
         // on a recipe READ, and the search projection deliberately does not make that call — one lookup per
         // hit would turn a results page into N cross-service round trips.
         //
-        // The distinction this pins is the whole point of KTD-3b: a search hit reports that its nutrition
-        // has NOT been accounted for. It does not report `calories: 0`, which is a factual claim that the
-        // dish contains no energy, and it does not silently omit the flag — which would let a client render
-        // "complete" nutrition it never received.
+        // REWRITTEN, not deleted. This used to assert `hasPartialNutrition === true` on every hit, on the
+        // reasoning that omitting the flag "would let a client render complete nutrition it never
+        // received". That field has since left the wire, because the reasoning had a hole: `true` means
+        // "some line could not be accounted for", and this projection was using it to mean "nobody looked" —
+        // one field, two meanings, no discriminant. So the honest projection now carries NEITHER, and a
+        // client that wants the figures asks `POST /api/v1/recipes/nutrition-batch`, which answers with a
+        // discriminated state per recipe.
+        //
+        // The invariant that survives, and is asserted below: a search hit never reports `calories: 0`,
+        // which is a factual claim that the dish contains no energy, and never fabricates a completeness
+        // verdict it did not compute.
         const body = await search({ sortBy: 'quickest' });
 
         expect(body.results.length).toBeGreaterThan(0);
 
         for (const hit of body.results) {
-            expect(hit.recipe.hasPartialNutrition, hit.recipe.title).toBe(true);
             expect(hit.recipe.leadCaloriesPerServing, hit.recipe.title).toBeUndefined();
+            expect(hit.recipe, hit.recipe.title).not.toHaveProperty('hasPartialNutrition');
         }
     });
 

@@ -114,7 +114,6 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         ownerId: '01J000000000000000000FREE0',
         title: 'Test Recipe',
         // Derived, not stored (U10). The fixture states the honest default: not accounted for.
-        hasPartialNutrition: true,
         description: 'A recipe used in tests.',
         prepTimeMinutes: 10,
         cookTimeMinutes: 20,

@@ -70,7 +70,6 @@ export function makeSearchRecipe(overrides: Partial<Recipe> = {}): Recipe {
         cuisine: 'italian',
         dietaryFlags: ['vegetarian'],
         tags: ['dinner', 'quick'],
-        hasPartialNutrition: false,
         currentVersion: 1,
         ratingCount: 0,
         usesPremiumCapability: false,

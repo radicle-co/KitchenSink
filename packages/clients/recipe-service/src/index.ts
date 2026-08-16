@@ -22,7 +22,13 @@ export type { RecipeServiceClientOptions, TokenSource } from './client.js';
 // package, so this does not add a new dependency, only widens which entry point pulls in one that already
 // existed. `hooks.ts` (the `./hooks` subpath) is what actually calls `useQuery`/`useInfiniteQuery` on top
 // of the values these factories build.
-export { collectionQueries, ingredientQueries, recipeProjections, recipeQueries } from './queries.js';
+export {
+    collectionQueries,
+    ingredientQueries,
+    recipeProjections,
+    recipeQueries,
+    NUTRITION_BATCH_DEADLINE_MS,
+} from './queries.js';
 
 export {
     BadRequestError,
@@ -88,4 +94,15 @@ export type {
 
 // Wire shapes owned by the GENERATED contract package (authored as zod in the recipe service). Re-exported
 // under their existing names so this barrel's public surface is unchanged for its ~121 consumer files.
-export type { RecipeSearchFacets, RecipeSearchResponse, RestoreVersionResponse } from '@kitchensink/schema-recipe';
+export type {
+    RecipeNutritionResponse,
+    RecipeNutritionState,
+    RecipeSearchFacets,
+    RecipeSearchResponse,
+    RestoreVersionResponse,
+} from '@kitchensink/schema-recipe';
+
+// The published per-request cap for the deferred nutrition read. Re-exported because a consumer with more
+// recipes on screen than this MUST chunk, and it should read the service's own number rather than guess or
+// hard-code one that can drift from the contract.
+export { MAX_NUTRITION_RECIPE_IDS } from '@kitchensink/schema-recipe';

@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/nutrition — web calorie skeleton (pure render component).
  *
  * **Pattern: Null Object for the pending phase.** The Suspense fallback that stands in for
- * {@link RecipeCalorieChip} while the deferred lookup is in flight — and the ONLY component in this feature
+ * `RecipeCalorieChip` while the deferred lookup is in flight — and the ONLY component in this feature
  * that renders the client-only `pending` state. Keeping it separate from the chip is what makes a permanent
  * skeleton unrepresentable: a settled answer is rendered by a component that has no spinner to fall back to.
  *

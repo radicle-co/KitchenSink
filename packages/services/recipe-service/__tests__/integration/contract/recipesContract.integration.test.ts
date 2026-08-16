@@ -4,7 +4,7 @@
  * Drives the REAL `@kitchensink/recipe-service-client` against the REAL booted app so the recipe body the
  * server returns is proven to conform to `recipe-core`'s canonical `Recipe`. Historically the server's
  * `RecipeResponse` diverged — `version` vs `currentVersion`, nullable prep/cook/total times, and it OMITTED
- * `sourceType`/`hasSubstantiveEdit`/`hasPartialNutrition` — so `recipeSchema.safeParse` failed on every
+ * `sourceType`/`hasSubstantiveEdit` — so `recipeSchema.safeParse` failed on every
  * recipe body and a consumer reading `recipe.currentVersion` got `undefined`. This suite parses the GET
  * body against the canonical `recipeSchema` (the check that was missing), which now passes.
  *
@@ -76,7 +76,6 @@ describe.skipIf(!hasDatabaseUrl)('recipe read shape — client ↔ server contra
         expect(recipe.totalTimeMinutes).toBe(45);
         expect(recipe.sourceType).toBe('user_created'); // was omitted
         expect(recipe.hasSubstantiveEdit).toBe(false); // was omitted
-        expect(typeof recipe.hasPartialNutrition).toBe('boolean'); // was omitted
     });
 
     it('returns the cookable content (ingredients + steps) as a typed RecipeDetail (#6b)', async () => {

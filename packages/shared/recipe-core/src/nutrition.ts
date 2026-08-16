@@ -42,6 +42,18 @@ interface Macros {
     readonly fatG: number;
 }
 
+/**
+ * Which of the two accounting routes produced a line's macros: the per-line user override (FR-007a), or the
+ * catalog per-100g figure scaled by mass.
+ *
+ * It is a fact ABOUT a number, and two consumers need it. A reading assembled entirely from `user` lines drew
+ * on no food data, so a food outage cannot have made it stale; a reading with any `catalog` line can have.
+ */
+export type LineNutritionSource = 'user' | 'catalog';
+
+/** One line's macro contribution together with the route that produced it. */
+type SourcedMacros = Macros & { readonly source: LineNutritionSource };
+
 /** One recipe line's measure + per-line user override — its non-catalog nutrition inputs (already normalized). */
 export interface LineMeasure {
     readonly quantity: number;
@@ -88,9 +100,10 @@ export function toNutritionLine(measure: LineMeasure, catalog: LineCatalogNutrit
 }
 
 /** The macro contribution of a single line (user override first, else scaled per-100g), or `null`. Pure. */
-function lineMacros(line: NutritionLine): Macros | null {
+function lineMacros(line: NutritionLine): SourcedMacros | null {
     if (line.userCalories !== undefined) {
         return {
+            source: 'user',
             calories: line.userCalories,
             proteinG: line.userProteinG ?? 0,
             carbsG: line.userCarbsG ?? 0,
@@ -108,6 +121,7 @@ function lineMacros(line: NutritionLine): Macros | null {
         const factor = grams / 100;
 
         return {
+            source: 'catalog',
             calories: line.caloriesPer100g * factor,
             proteinG: (line.proteinGPer100g ?? 0) * factor,
             carbsG: (line.carbsGPer100g ?? 0) * factor,
@@ -116,6 +130,23 @@ function lineMacros(line: NutritionLine): Macros | null {
     }
 
     return null; // no user override and no resolved catalog nutrition
+}
+
+/**
+ * Which source accounted for a line, or `null` when the line could not be accounted for at all — the SAME
+ * decision {@link computeRecipeNutrition} makes when it excludes a line and flips `isComplete`, exposed so a
+ * caller can ask it per line instead of re-deriving it. Pure.
+ *
+ * Two answers the aggregate totals structurally cannot give: whether ANY line contributed (a recipe that
+ * genuinely sums to `0` and one where nothing could be accounted for both report `calories: 0`), and whether
+ * the figure drew on FOOD data (a reading built only from user overrides cannot have gone stale in a food
+ * outage). Both are load-bearing for the deferred-nutrition contract's `known` / `unaccounted` split.
+ *
+ * @param line - The assembled line.
+ * @returns `'user'` | `'catalog'` when the line contributes, `null` when it is unaccounted for.
+ */
+export function lineNutritionSource(line: NutritionLine): LineNutritionSource | null {
+    return lineMacros(line)?.source ?? null;
 }
 
 /** Round to one decimal place (nutrition wire precision). Pure. */

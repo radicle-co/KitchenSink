@@ -8,7 +8,7 @@
  * state, no effects.
  *
  * ⛔ THERE IS NO `pending` CASE, and that is the point. The in-flight condition is rendered by a DIFFERENT
- * component ({@link RecipeCalorieSkeleton}) as a Suspense fallback, so this component cannot be asked to
+ * component (`RecipeCalorieSkeleton`) as a Suspense fallback, so this component cannot be asked to
  * render a spinner — which is what makes a permanent skeleton unrepresentable rather than merely unlikely.
  *
  * Two rules this file encodes, neither of which may be "simplified":
@@ -44,7 +44,7 @@ export interface RecipeCalorieChipProps {
 const STALE_CLASS = 'italic';
 
 /**
- * The chip is a `role="img"` named by {@link RecipeCalorieChipModel.label} — deliberately, and not a bare
+ * The chip is a `role="img"` named by `RecipeCalorieChipModel.label` — deliberately, and not a bare
  * `<span aria-label>`.
  *
  * A `<span>` with no role maps to `role="generic"`, and ARIA PROHIBITS naming a generic element: the

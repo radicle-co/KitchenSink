@@ -617,6 +617,12 @@ jobs:
             # and `foodTokenForwarding.integration.test.ts`. Do NOT set FOOD_CATALOG_BLEND_ENABLED=false here —
             # that reports 'disabled' and skips the cross-service call entirely, silently retiring the behavior
             # under test.
+            #
+            # `nutrition-batch` runs under the SAME unreachable-food condition, and for it that is the point
+            # rather than a limitation: the deferred calorie lookup must still answer `200` with a terminal
+            # `unaccounted` state per recipe when food is down, because its wire union deliberately has no
+            # `pending` member and a card grid has to be able to stop waiting. Its `http_req_failed` threshold
+            # is therefore the assertion that a food outage degrades the endpoint instead of failing it.
             - name: Run k6 load scripts
               working-directory: packages/services/recipe-service
               env:
@@ -624,6 +630,7 @@ jobs:
               run: |
                   k6 run --summary-export=k6-sc009-summary.json tests/load/sc009ReadWrite.load.js
                   k6 run --summary-export=k6-search-summary.json tests/load/searchLatency.load.js
+                  k6 run --summary-export=k6-nutrition-batch-summary.json tests/load/nutritionBatch.load.js
                   k6 run --summary-export=k6-suggest-summary.json tests/load/ingredientSuggestLatency.load.js
                   k6 run --summary-export=k6-save-summary.json tests/load/saveUnderArchive.load.js
                   k6 run --summary-export=k6-pull-summary.json tests/load/pullFromSource.load.js

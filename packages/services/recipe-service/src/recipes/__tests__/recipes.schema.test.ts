@@ -69,9 +69,11 @@ import {
     createRecipeRequestSchema,
     listRecipesQuerySchema,
     recipeIngredientInputSchema,
+    recipeNutritionRequestSchema,
     recipeStepInputSchema,
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
+    MAX_NUTRITION_RECIPE_IDS,
 } from '../recipes.schema.js';
 import type {
     CreateRecipeRequest,
@@ -431,6 +433,59 @@ describe('setRecipeVisibilityRequestSchema — newly published', () => {
     });
 });
 
+describe('recipeNutritionRequestSchema — the deferred lookup’s id list', () => {
+    /** `count` distinct, well-formed recipe ids. */
+    function ids(count: number): string[] {
+        return Array.from(
+            { length: count },
+            (_value, index) => `00000000-0000-4000-8000-${`${index}`.padStart(12, '0')}`,
+        );
+    }
+
+    it('accepts a list of recipe ids', () => {
+        expect(recipeNutritionRequestSchema.parse({ recipeIds: ids(3) })).toEqual({ recipeIds: ids(3) });
+    });
+
+    it('⛔ REFUSES an empty list — a request that asks for nothing is a caller bug, not an empty answer', () => {
+        // Answering `{}` would look like "none of your recipes have nutrition", which is a different fact.
+        expect(recipeNutritionRequestSchema.safeParse({ recipeIds: [] }).success).toBe(false);
+    });
+
+    it('⛔ CAPS the list, so one request cannot fan out into an unbounded read', () => {
+        // Mirrors food's own `MAX_NUTRITION_IDS` posture: a batch endpoint with no cap turns a single request
+        // into an unbounded database read plus an unbounded downstream fan-out.
+        expect(recipeNutritionRequestSchema.safeParse({ recipeIds: ids(MAX_NUTRITION_RECIPE_IDS) }).success).toBe(true);
+        expect(recipeNutritionRequestSchema.safeParse({ recipeIds: ids(MAX_NUTRITION_RECIPE_IDS + 1) }).success).toBe(
+            false,
+        );
+    });
+
+    it('⛔ names the offending FIELD on the over-cap rejection, so the 400 is parseable', () => {
+        // The published `VALIDATION_FAILED` arm promises `details.fields`, which the envelope builds from these
+        // issue paths. A cap enforced anywhere else (a hand-thrown message) produces a 400 a client validating
+        // against the published schema cannot parse — the defect this mirrors.
+        const failure = recipeNutritionRequestSchema.safeParse({ recipeIds: ids(MAX_NUTRITION_RECIPE_IDS + 1) });
+
+        expect(failure.success).toBe(false);
+        expect(failure.error?.issues.map((issue) => issue.path.join('.'))).toContain('recipeIds');
+    });
+
+    it('⛔ REFUSES an id that is not a recipe id, rather than passing it to the query', () => {
+        expect(recipeNutritionRequestSchema.safeParse({ recipeIds: ['not-a-uuid'] }).success).toBe(false);
+        expect(recipeNutritionRequestSchema.safeParse({ recipeIds: [''] }).success).toBe(false);
+    });
+
+    it('⛔ is STRICT — a smuggled `ownerId` is a 400, never a silently ignored key', () => {
+        expect(recipeNutritionRequestSchema.safeParse({ recipeIds: ids(1), ownerId: '01JHOSTILE' }).success).toBe(
+            false,
+        );
+    });
+
+    it('REQUIRES the field — an absent body is a 400, not an empty map', () => {
+        expect(recipeNutritionRequestSchema.safeParse({}).success).toBe(false);
+    });
+});
+
 describe('cloneRecipeRequestSchema — a bodyless POST is legal, a body with fields is not', () => {
     // The `.default({})` and the strict catchall judge DIFFERENT things, and both properties matter: the default
     // applies to an ABSENT body (which is what makes `POST` with no payload legal), while the catchall judges the
@@ -534,7 +589,6 @@ function makeRecipeResponse(): Record<string, unknown> {
         hasSubstantiveEdit: false,
         dietaryFlags: [],
         tags: [],
-        hasPartialNutrition: false,
         currentVersion: 1,
         ratingCount: 0,
         usesPremiumCapability: false,

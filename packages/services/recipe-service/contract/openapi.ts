@@ -107,8 +107,12 @@ import { setRatingRequestSchema } from '../src/ratings/ratings.schema.js';
 import {
     createRecipeRequestSchema,
     listRecipesQuerySchema,
+    recipeNutritionRequestSchema,
+    recipeNutritionResponseSchema,
+    recipeNutritionStateSchema,
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
+    MAX_NUTRITION_RECIPE_IDS,
 } from '../src/recipes/recipes.schema.js';
 import { RECIPE_SEARCH_SORT_BY, recipeSearchResponseSchema } from '../src/search/search.schema.js';
 import { restoreVersionResponseSchema } from '../src/versions/versions.schema.js';
@@ -152,6 +156,11 @@ export const openApiComponents = {
     // been removed for that reason; see `src/recipes/recipes.schema.ts`.
     CreateRecipeRequest: createRecipeRequestSchema,
     UpdateRecipeRequest: updateRecipeRequestSchema,
+    RecipeNutritionRequest: recipeNutritionRequestSchema,
+    // Published as its OWN component rather than inlined in the response, so an integrator's generated
+    // client gets one named type for the three-state union and `oasdiff` reports a change to it once.
+    RecipeNutritionState: recipeNutritionStateSchema,
+    RecipeNutritionResponse: recipeNutritionResponseSchema,
     SetRecipeVisibilityRequest: setRecipeVisibilityRequestSchema,
     SetRatingRequest: setRatingRequestSchema,
     RecipePhoto: recipePhotoSchema,
@@ -355,6 +364,40 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             ],
             responses: {
                 '200': { description: 'A page of the caller’s recipes.', schema: 'PaginatedRecipes' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/recipes/nutrition-batch': {
+        post: {
+            operationId: 'getRecipeNutritionBatch',
+            summary: 'Per-serving nutrition for many recipes at once (the deferred calorie lookup).',
+            description: [
+                `Answers up to ${MAX_NUTRITION_RECIPE_IDS} recipes in one call so a card grid renders immediately`,
+                'and fills its figures in afterwards. ⛔ A recipe the caller may NOT read is OMITTED from the map —',
+                'absence is the authorization signal, so a missing key means “not for you”, never an error and never',
+                '“no data”. Each present entry is a two-member discriminated union: `known` ALWAYS carries a number',
+                '(a `0` there is a real measured zero, which water genuinely has) plus a `freshness` saying whether',
+                'the underlying food data is current or was served from cache during an outage; `unaccounted`',
+                'carries a `reason` and NO figure at all, so an outage can never be rendered as zero calories.',
+                'There is deliberately no `pending` member — a state a server can emit is a spinner a server can pin',
+                'forever.',
+                '',
+                '⚠️ POST for a READ, unlike the food service’s cacheable `GET /api/v1/foods/nutrition`: this response',
+                'varies by caller by construction, so it must never be cached at a URL-keyed edge — and at the id cap',
+                'the query string would exceed CloudFront’s URL limit anyway.',
+            ].join(' '),
+            requestBody: {
+                description: 'The recipes to report on.',
+                required: true,
+                schema: 'RecipeNutritionRequest',
+            },
+            responses: {
+                '200': {
+                    description:
+                        'The nutrition state per READABLE recipe. Unreadable and unknown ids are absent from `nutrition`.',
+                    schema: 'RecipeNutritionResponse',
+                },
                 ...sharedErrorResponses(),
             },
         },

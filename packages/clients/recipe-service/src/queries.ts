@@ -75,6 +75,19 @@ export const recipeServiceKeys = {
     collections: ['recipe-service', 'collections'] as const,
     collectionList: (params: ListCollectionsParams = {}) => ['recipe-service', 'collections', 'list', params] as const,
     collection: (id: string) => ['recipe-service', 'collections', 'detail', id] as const,
+    /**
+     * One deferred nutrition batch (`POST /api/v1/recipes/nutrition-batch`), keyed by the recipes asked about.
+     *
+     * ⚠️ THE IDS ARE SORTED INTO THE KEY, and that is the point rather than tidiness: a list page and a
+     * search page showing the same recipes in different orders are ONE logical read, and an order-sensitive
+     * key would fetch twice, cache twice, and let the two views disagree about the same recipe's calories.
+     * It is the client-side twin of the canonicalization food applies to its own nutrition URL.
+     *
+     * Its own `nutrition` segment under the `recipes` prefix, so `recipeLists`/`recipe(id)` invalidation does
+     * NOT stale these figures: they are derived from FOOD's data, which a recipe write does not change.
+     */
+    recipeNutrition: (recipeIds: readonly string[]) =>
+        ['recipe-service', 'recipes', 'nutrition', [...recipeIds].sort()] as const,
     /** Prefix over every `recipeSearch(params)` — the address for "every cached recipe search, whatever the terms". */
     recipeSearches: ['recipe-service', 'search', 'recipes'] as const,
     recipeSearch: (params: RecipeSearchQuery = {}) => ['recipe-service', 'search', 'recipes', params] as const,
@@ -111,6 +124,62 @@ const INGREDIENT_SEARCH_STALE_TIME_MS = 15_000;
 
 /** Default poll cadence (ms) for {@link ingredientQueries}`.status` — spaced so a `PENDING` food does not hammer. */
 export const DEFAULT_INGREDIENT_POLL_INTERVAL_MS = 2500;
+
+/**
+ * ⛔ THE OVERALL DEADLINE for one deferred-nutrition read, and the reason the client's own timeout is not
+ * enough.
+ *
+ * `RecipeServiceClient` bounds each ATTEMPT (ky's `timeout`, 10s). It does NOT bound the CALL: `send()` may
+ * replay a request up to four times — three identity-sync retries with backoff, plus one expired-token
+ * retry — so the worst-case wait is several multiples of the per-attempt bound. Every one of those attempts
+ * is individually reasonable, and the sum is not.
+ *
+ * That matters HERE more than anywhere else in this client, because this is the read a card grid renders a
+ * skeleton for. The wire union deliberately has no `pending` member so that no server can pin a spinner
+ * forever — but that guarantee is only as good as the promise the spinner waits on settling. This is what
+ * makes it settle: 12s, comfortably past one healthy attempt plus a retry, and far inside any human's
+ * patience for a figure that is decoration on an already-rendered card.
+ *
+ * A rejection is the CORRECT outcome, not a regression: the caller falls back to rendering the recipes with
+ * their nutrition unaccounted, which is exactly the state the contract already has a name for.
+ */
+export const NUTRITION_BATCH_DEADLINE_MS = 12_000;
+
+/**
+ * Compose a caller's cancellation with a FINITE deadline, returning a signal that is guaranteed to abort.
+ *
+ * Extracted as its own function rather than inlined for one reason: inlined, its removal is undetectable.
+ * A test can only observe that SOME `AbortSignal` reached the transport, which the query's own signal
+ * satisfies — so deleting the deadline (the thing that makes the promise settle at all) passes every
+ * assertion. As a named function with the deadline as a parameter, the behaviour is directly testable at a
+ * millisecond scale, and the factory's use of it is observable by identity.
+ *
+ * @param signal - TanStack's per-query signal (aborts on unmount / key change), when there is one.
+ * @param deadlineMs - The overall bound, after which the request is abandoned regardless.
+ * @returns A signal that aborts when EITHER fires. Pure — allocates, performs no I/O.
+ */
+export function withDeadline(signal: AbortSignal | undefined, deadlineMs: number): AbortSignal {
+    const deadline = AbortSignal.timeout(deadlineMs);
+
+    return signal === undefined ? deadline : AbortSignal.any([signal, deadline]);
+}
+
+/**
+ * Retries for the deferred nutrition read. ONE, deliberately.
+ *
+ * The library default (3, with exponential backoff) would stack on top of the transport's own retries and
+ * push the worst case past {@link NUTRITION_BATCH_DEADLINE_MS} — at which point the deadline, not the retry
+ * policy, decides the outcome, and the retries are pure latency. One retry covers the single dropped
+ * connection this is actually worth defending against.
+ */
+const NUTRITION_BATCH_RETRIES = 1;
+
+/**
+ * Cache policy for the nutrition batch. Longer than the recipe list's 30s because the underlying data is
+ * FOOD's, not the viewer's: it changes on food's ingest schedule, not on any write this client makes, and
+ * the service already serves it through a 5-minute in-process cache of its own.
+ */
+const NUTRITION_BATCH_STALE_TIME_MS = 120_000;
 
 // ─── Recipe queries ───────────────────────────────────────────────────────────────────────────────
 
@@ -168,6 +237,33 @@ export function recipeQueries(client: RecipeServiceClient) {
                 queryKey: recipeServiceKeys.recipePhotos(id),
                 queryFn: () => client.listRecipePhotos(id),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
+            }),
+        /**
+         * `POST /api/v1/recipes/nutrition-batch` — per-serving nutrition for a page of recipes.
+         *
+         * ⚠️ A POST IN A QUERY FACTORY IS NOT A MISTAKE. This is a READ that has to be a POST: its response
+         * varies by caller (a recipe the viewer may not read is omitted, which is how authorization is
+         * expressed), and at the published id cap the equivalent query string would exceed the CDN's URL
+         * limit. It has no side effect, so it belongs in the cache, not in `useMutation`.
+         *
+         * ⛔ THE DEADLINE IS THE LOAD-BEARING PART. `signal` composes TanStack's own cancellation (unmount,
+         * key change) with a finite {@link NUTRITION_BATCH_DEADLINE_MS} timeout, so this promise ALWAYS
+         * settles — which is what makes the `pending` skeleton a card renders temporary. Without it the
+         * transport's per-attempt timeout still permits four attempts plus backoff, and the union's
+         * deliberate lack of a `pending` wire state would be undone on the client instead of by a server.
+         */
+        nutritionBatch: (recipeIds: readonly string[]) =>
+            queryOptions({
+                queryKey: recipeServiceKeys.recipeNutrition(recipeIds),
+                queryFn: ({ signal }) =>
+                    client.getRecipeNutrition(recipeIds, {
+                        signal: withDeadline(signal, NUTRITION_BATCH_DEADLINE_MS),
+                    }),
+                staleTime: NUTRITION_BATCH_STALE_TIME_MS,
+                retry: NUTRITION_BATCH_RETRIES,
+                // The service REJECTS an empty list (asking about nothing is a caller bug, not an empty
+                // answer), so firing this would be a guaranteed 400 — gate it here instead.
+                enabled: recipeIds.length > 0,
             }),
         /** `GET /api/v1/search/recipes` — full-text recipe search with facets (flat page). */
         search: (params: RecipeSearchQuery = {}) =>

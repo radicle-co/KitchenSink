@@ -231,11 +231,12 @@ export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Re
     // are now derived from food's live data, and this projection deliberately does NOT fetch it: a search
     // page would issue one food lookup per hit, which is the N+1 the columns existed to avoid.
     //
-    // So the honest answer here is `hasPartialNutrition: true` — "we have not accounted for this recipe's
-    // nutrition on this path" — and an ABSENT calorie figure. Reporting `false` would assert completeness
-    // this projection never established, and a `0` would read as a genuine zero-calorie recipe. A caller
-    // that needs the numbers reads the DETAIL, which fetches them in one batched call.
-    const recipe = recipeRowToDomain(toRecipeRowInput(row), { hasPartialNutrition: true });
+    // So this projection emits NO nutrition at all — no figure, and no flag ABOUT the figure. It used to
+    // pin `hasPartialNutrition: true` to mean "we have not accounted for this recipe's nutrition on this
+    // path", which is not what that field meant ("some line could not be accounted for"): one field, two
+    // meanings, no discriminant. A caller that needs the numbers asks
+    // `POST /api/v1/recipes/nutrition-batch`, which answers with a discriminated state per recipe.
+    const recipe = recipeRowToDomain(toRecipeRowInput(row));
 
     return {
         ...recipe,

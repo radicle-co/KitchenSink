@@ -32,6 +32,24 @@ export const VERSION_ARCHIVE_READ_P95_MS = Number(__ENV['RECIPE_VERSION_ARCHIVE_
 // search's 2s — a per-keystroke path cannot be given a full-text query's budget.
 export const SUGGEST_P95_MS = Number(__ENV['RECIPE_SUGGEST_P95_MS'] || 1500);
 
+// The deferred nutrition batch (POST /api/v1/recipes/nutrition-batch). Budgeted as a FAN-OUT bound rather
+// than a query cost: the endpoint is one indexed read plus one batched food call, and the food half splits
+// at food's 100-id per-request cap into SEQUENTIAL sub-requests — so the tail grows with the number of
+// DISTINCT foods a batch names, not with the number of recipes. 1.5s is deliberately tighter than search's
+// 2s (this is a card-grid enrichment, not a full-text query) and looser than the 500ms single-recipe read
+// (it legitimately crosses a service boundary). It is the number that decides whether the published
+// MAX_NUTRITION_RECIPE_IDS cap is a promise the service can keep.
+export const NUTRITION_BATCH_P95_MS = Number(__ENV['RECIPE_NUTRITION_BATCH_P95_MS'] || 1500);
+
+// The published per-request recipe-id cap (mirrors MAX_NUTRITION_RECIPE_IDS in the authored contract,
+// `src/recipes/recipes.schema.ts`). k6 scripts cannot import TypeScript, so this is a restatement — the
+// cap scenario asserts the service ACCEPTS exactly this many ids, which is what makes the restatement
+// self-checking rather than a second source of truth that can drift silently.
+export const MAX_NUTRITION_RECIPE_IDS = Number(__ENV['RECIPE_MAX_NUTRITION_IDS'] || 500);
+
+// A realistic card-grid page — what a list/search surface actually asks about in one call.
+export const NUTRITION_PAGE_SIZE = Number(__ENV['RECIPE_NUTRITION_PAGE_SIZE'] || 20);
+
 // --- Load shape ---------------------------------------------------------------------------------
 // SC-009's headline target is p95 <= 500ms at 10k concurrent. A single k6 runner cannot honestly
 // generate 10k VUs, so the peak is env-driven: CI runs a safe smoke value and the true SC-009

@@ -92,23 +92,26 @@ function toIsoString(value: Date | string): string {
  *
  * @param row - The normalized row (a Drizzle `RecipeRow`, or an adapted raw row satisfying the same
  *   structural shape).
- * @param derived - The two nutrition figures that are no longer STORED (plan U10). They stay on the wire —
- *   a recipe that read "partial estimate" still does — but they are computed from food's live data rather
- *   than read from a column that froze at its last write. REQUIRED rather than defaulted on purpose: a
- *   default `hasPartialNutrition: false` would claim a recipe's nutrition is complete on every path that
- *   forgot to compute it, which is a factual claim made by an omission.
+ * @param derived - The nutrition figure that is no longer STORED (plan U10): computed from food's live data
+ *   rather than read from a column that froze at its last write. An EMPTY object is the honest input from a
+ *   path that did not look nutrition up at all (list, search, the collection embed) — it produces a recipe
+ *   with no nutrition fields, which is exactly what "we have not accounted for this" looks like on a
+ *   projection. The figures themselves come from `POST /api/v1/recipes/nutrition-batch`.
  */
 /**
- * The nutrition figures U10 stopped storing. Supplied by the caller, which knows the recipe's lines.
+ * The nutrition figure U10 stopped storing. Supplied by the caller, which knows the recipe's lines.
+ *
+ * ⛔ `hasPartialNutrition` USED TO LIVE HERE and is deliberately gone. It was a two-valued encoding of a
+ * three-valued fact, and three call sites pinned it `true` to mean "not looked up" — a meaning its own
+ * docstring did not carry. The discriminated `recipeNutritionStateSchema` union carries that fact now, with
+ * a discriminant, so there is nothing left for this mapper to assert or to fabricate.
  */
 export interface DerivedNutritionFields {
-    /** Whether some line's nutrition could not be accounted for (unresolved food, unconvertible unit). */
-    readonly hasPartialNutrition: boolean;
     /** Headline per-serving calories; ABSENT (never `0`) when the recipe has no accounted nutrition. */
     readonly leadCaloriesPerServing?: number;
 }
 
-export function recipeRowToDomain(row: RecipeRowInput, derived: DerivedNutritionFields): Recipe {
+export function recipeRowToDomain(row: RecipeRowInput, derived: DerivedNutritionFields = {}): Recipe {
     const visibility = row.visibility as RecipeVisibility;
     const sourceType = row.sourceType as RecipeSourceType;
 
@@ -127,7 +130,6 @@ export function recipeRowToDomain(row: RecipeRowInput, derived: DerivedNutrition
         hasSubstantiveEdit: row.hasSubstantiveEdit,
         dietaryFlags: row.dietaryFlags,
         tags: row.tags,
-        hasPartialNutrition: derived.hasPartialNutrition,
         ...(derived.leadCaloriesPerServing !== undefined
             ? { leadCaloriesPerServing: derived.leadCaloriesPerServing }
             : {}),

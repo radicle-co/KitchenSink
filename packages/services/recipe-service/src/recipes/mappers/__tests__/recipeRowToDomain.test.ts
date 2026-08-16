@@ -10,10 +10,12 @@ import { recipeRowToDomain, type RecipeRowInput } from '../recipeRowToDomain.js'
 import { makeRecipeRow } from '../../../__fixtures__/index.js';
 
 /**
- * The nutrition figures the mapper no longer reads from the row (plan U10). This suite covers the ROW
- * mapping, so it passes the honest "not accounted on this path" value that list/search use.
+ * The nutrition figure the mapper no longer reads from the row (plan U10) — now the ONLY member of
+ * `DerivedNutritionFields`, since `hasPartialNutrition` left the wire entirely (the deferred-nutrition
+ * union replaced it). An empty object is the honest "nothing accounted on this path" input that list,
+ * search and the collection embed all pass.
  */
-const DERIVED = { hasPartialNutrition: true } as const;
+const DERIVED = {} as const;
 
 /** A fully-populated {@link RecipeRowInput} (via the Drizzle `RecipeRow` fixture) with overrides. */
 function row(overrides: Partial<RecipeRowInput> = {}): RecipeRowInput {
@@ -83,10 +85,7 @@ describe('recipeRowToDomain', () => {
     });
 
     it('takes leadCaloriesPerServing from the DERIVED figure, not from a stored column (U10)', () => {
-        expect(
-            recipeRowToDomain(row(), { hasPartialNutrition: false, leadCaloriesPerServing: 350.5 })
-                .leadCaloriesPerServing,
-        ).toBe(350.5);
+        expect(recipeRowToDomain(row(), { leadCaloriesPerServing: 350.5 }).leadCaloriesPerServing).toBe(350.5);
     });
 
     it('OMITS leadCaloriesPerServing (never 0) when the caller computed none', () => {
@@ -94,9 +93,14 @@ describe('recipeRowToDomain', () => {
         expect(recipeRowToDomain(row(), DERIVED)).not.toHaveProperty('leadCaloriesPerServing');
     });
 
-    it('reports hasPartialNutrition from the DERIVED verdict, so no path can assert completeness by omission', () => {
-        expect(recipeRowToDomain(row(), { hasPartialNutrition: false }).hasPartialNutrition).toBe(false);
-        expect(recipeRowToDomain(row(), DERIVED).hasPartialNutrition).toBe(true);
+    it('⛔ emits NO `hasPartialNutrition` — a two-valued encoding of a three-valued fact left the wire', () => {
+        // REWRITTEN, not deleted. The old assertion pinned the field's value coming from a DERIVED verdict
+        // so that no path could assert completeness by omission. The field itself is now gone: three call
+        // sites pinned it `true` to mean "not looked up", which is not what its own docstring said, and the
+        // deferred-nutrition union (`recipes.schema.ts`) carries the fact with a discriminant instead. The
+        // invariant that survives is that this mapper never fabricates one, which is asserted as absence.
+        expect(recipeRowToDomain(row(), DERIVED)).not.toHaveProperty('hasPartialNutrition');
+        expect(recipeRowToDomain(row(), { leadCaloriesPerServing: 1 })).not.toHaveProperty('hasPartialNutrition');
     });
 
     it('maps authorHandle when present and OMITS it when NULL', () => {
@@ -186,7 +190,7 @@ describe('recipeRowToDomain', () => {
         expect(recipe.tags).toEqual(['dinner', 'quick']);
     });
 
-    it('passes hasSubstantiveEdit / hasPartialNutrition / status / sourceType / visibility straight through', () => {
+    it('passes hasSubstantiveEdit / status / sourceType / visibility straight through', () => {
         const recipe = recipeRowToDomain(
             row({
                 hasSubstantiveEdit: true,
@@ -198,7 +202,6 @@ describe('recipeRowToDomain', () => {
         );
 
         expect(recipe.hasSubstantiveEdit).toBe(true);
-        expect(recipe.hasPartialNutrition).toBe(true);
         expect(recipe.status).toBe('draft');
         expect(recipe.sourceType).toBe('imported_paid');
         expect(recipe.visibility).toBe('private');

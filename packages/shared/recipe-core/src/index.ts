@@ -162,6 +162,7 @@ export {
     computeRecipeNutrition,
     hasUserEnteredIngredients,
     leadCaloriesPerServing,
+    lineNutritionSource,
     toNutritionLine,
 } from './nutrition.js';
-export type { LineCatalogNutrition, LineMeasure, NutritionLine } from './nutrition.js';
+export type { LineCatalogNutrition, LineMeasure, LineNutritionSource, NutritionLine } from './nutrition.js';

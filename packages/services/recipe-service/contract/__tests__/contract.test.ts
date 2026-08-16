@@ -399,17 +399,46 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
     });
 
     /**
+     * The RESPONSE components that deliberately claim rejection, each with the reason it earns the exemption.
+     *
+     * ⚠️ THIS LIST IS AN ARGUMENT, NOT A HOLE. The default for a response is `z.object`/`.loose()`, because a
+     * client must tolerate a field a newer server added; a strict response makes adding one a BREAKING change
+     * for every already-released binary. These two are the exception, and the exception is what makes the
+     * contract safe rather than what weakens it:
+     *
+     * `RecipeNutritionResponse` is the deferred-nutrition envelope, over a union whose whole point is that
+     * `unaccounted` carries NO figure — so an outage can never reach a client as `calories: 0`, a factual claim
+     * about a dish. Under a loose object,
+     * `{ state: 'unaccounted', reason: 'food_unavailable', caloriesPerServing: 0 }` PARSES, and the invariant
+     * becomes a convention. `src/recipes/__tests__/recipeNutritionState.test.ts` asserts that exact body is
+     * refused; strictness is the mechanism, not decoration.
+     *
+     * ⚠️ `RecipeNutritionState` itself is deliberately ABSENT from this list even though it is equally strict:
+     * it is a discriminated union, so it publishes as `oneOf` and each member carries its own inline
+     * `additionalProperties: false`. The assertion below reads the TOP LEVEL of each component, where a union
+     * has no such keyword to claim. Adding it here would fail, and reading that failure as "the union is not
+     * strict" would be wrong.
+     *
+     * ⛔ The accepted consequence, stated rather than discovered: adding a field to either shape is a BREAKING
+     * change. A new fact about a recipe's nutrition belongs in a NEW union member (which an older client's
+     * discriminated parse rejects loudly at the one recipe rather than silently everywhere), never as an extra
+     * key on an existing one.
+     */
+    const strictResponseComponents: readonly string[] = ['RecipeNutritionResponse'];
+
+    /**
      * NON-VACUITY for the assertion above, in the other direction, AND the record of which shapes are exempt.
      *
      * That assertion compares against `=== false`, so a generator rule that stripped the keyword WHOLESALE would
      * satisfy it trivially. So the set of components claiming rejection is pinned, and it must be exactly the
-     * mutating request bodies — nothing more (a response body claiming rejection would break a forward-compatible
-     * deploy) and nothing less (a mutating body not claiming it is the §17-c violation).
+     * mutating request bodies PLUS the argued-for {@link strictResponseComponents} — nothing more (an unargued
+     * response body claiming rejection would break a forward-compatible deploy) and nothing less (a mutating body
+     * not claiming it is the §17-c violation).
      *
      * `z.object` ⇄ `z.strictObject` is a BREAKING wire change in one direction and a silently-permissive one in
      * the other, and neither should be possible to make by accident.
      */
-    it('claims rejection on EXACTLY the mutating request bodies — no response body, no read query', () => {
+    it('claims rejection on EXACTLY the mutating request bodies + the argued-for strict responses', () => {
         const published = (built.document['components'] as { schemas: Record<string, Record<string, unknown>> })
             .schemas;
 
@@ -418,7 +447,7 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
             .map(([name]) => name)
             .sort();
 
-        expect(claimingRejection).toStrictEqual(mutatingBodyComponents);
+        expect(claimingRejection).toStrictEqual([...mutatingBodyComponents, ...strictResponseComponents].sort());
     });
 
     /**
@@ -614,6 +643,9 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         PaginatedRecipes: 'paginatedResponseSchema',
         CreateRecipeRequest: 'createRecipeRequestSchema',
         UpdateRecipeRequest: 'updateRecipeRequestSchema',
+        RecipeNutritionRequest: 'recipeNutritionRequestSchema',
+        RecipeNutritionState: 'recipeNutritionStateSchema',
+        RecipeNutritionResponse: 'recipeNutritionResponseSchema',
         SetRecipeVisibilityRequest: 'setRecipeVisibilityRequestSchema',
         SetRatingRequest: 'setRatingRequestSchema',
         RecipePhoto: 'recipePhotoSchema',

@@ -5,7 +5,7 @@
  * (`*.tsx`) or native (`*.native.tsx`) leaf at bundle time; the model and the copy are platform-agnostic, so
  * a consumer imports the SAME names on both platforms and the two can never drift on what they say.
  *
- * A consumer normally needs only {@link RecipeNutritionBoundary} — it selects the other two. The chip and
+ * A consumer normally needs only `RecipeNutritionBoundary` — it selects the other two. The chip and
  * skeleton are exported for the surfaces that already hold a settled reading (no promise to suspend on) and
  * for the tests that must reach each state directly.
  */
@@ -18,7 +18,12 @@ export type { RecipeCalorieSkeletonProps } from './RecipeCalorieSkeleton.js';
 export { RecipeNutritionBoundary } from './RecipeNutritionBoundary.js';
 export type { RecipeNutritionBoundaryProps } from './RecipeNutritionBoundary.js';
 
-export { NUTRITION_FOOD_UNAVAILABLE, toCalorieChipModel, unaccountedReasonText } from './model.js';
+export {
+    NUTRITION_FOOD_UNAVAILABLE,
+    selectRecipeCalorieState,
+    toCalorieChipModel,
+    unaccountedReasonText,
+} from './model.js';
 export type {
     RecipeCalorieChipModel,
     RecipeCaloriePending,

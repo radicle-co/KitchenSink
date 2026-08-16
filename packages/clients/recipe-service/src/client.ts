@@ -106,6 +106,8 @@ import {
     pullDiffSchema,
     pullFromSourceRequestSchema,
     recipeApiErrorSchema,
+    recipeNutritionRequestSchema,
+    recipeNutritionResponseSchema,
     pullFromSourceResponseSchema,
     recipeSearchResponseSchema,
     reorderPhotosRequestSchema,
@@ -120,6 +122,7 @@ import type {
     ApiErrorBody,
     CreateRecipeRequest,
     RecipeApiError,
+    RecipeNutritionResponse,
     RecipeSearchQuery,
     RestoreVersionResponse,
     SetRatingRequest,
@@ -1033,6 +1036,47 @@ export class RecipeServiceClient {
     }
 
     /**
+     * `POST /api/v1/recipes/nutrition-batch` — per-serving nutrition for many recipes in one call (the
+     * deferred calorie lookup).
+     *
+     * ⛔ A recipe the caller may not read is OMITTED from the returned map. A missing key means "not for
+     * you", NEVER an error and never "no data" — do not treat absence as a failure, and do not fill it in.
+     *
+     * Each present entry is a discriminated union: `known` always carries a number (a `0` is a real
+     * measured zero), `unaccounted` carries a reason and no figure at all. Narrow on `state` exhaustively;
+     * there is deliberately no `pending` member, because a state a server can emit is a spinner a server
+     * can pin forever.
+     *
+     * ⚠️ POST for a read. The response varies by caller by construction (the omission above IS the
+     * authorization signal), so unlike food's `GET /api/v1/foods/nutrition` this can never be edge-cached.
+     * It is idempotent in effect and safe for this transport to replay on a `401`.
+     *
+     * @param recipeIds - The recipes to report on. Bounded by `MAX_NUTRITION_RECIPE_IDS`; a longer list is
+     *   refused HERE, before the round trip, by the published request schema.
+     * @param options.signal - Cancels the request. The read seam (`recipeQueries().nutritionBatch`) composes
+     *   the query's own signal with a finite deadline and passes the result here — which is what makes the
+     *   promise a UI skeleton waits on always settle.
+     * @returns Recipe id → nutrition state, for every READABLE recipe named.
+     * @throws {InvalidRequestError} when the id list violates the published contract (empty, over-cap, or a
+     *   malformed id); {@link UnauthorizedError} on auth failure; a `ZodError` if the response has drifted.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getRecipeNutrition(
+        recipeIds: readonly string[],
+        options: { readonly signal?: AbortSignal } = {},
+    ): Promise<RecipeNutritionResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/recipes/nutrition-batch',
+            this.request('getRecipeNutrition', recipeNutritionRequestSchema, { recipeIds }),
+            undefined,
+            options.signal,
+        );
+
+        return this.expect(res, 200, recipeNutritionResponseSchema);
+    }
+
+    /**
      * `POST /api/v1/account/erasure` — request IRREVERSIBLE GDPR account erasure (`202`, idempotent).
      *
      * The `request` argument is REQUIRED, and that is a deliberate tightening: `confirmationPhrase` is the
@@ -1077,23 +1121,33 @@ export class RecipeServiceClient {
      * @param path - Path beginning with `/`.
      * @param body - Optional JSON body.
      * @param query - Optional query-parameter bag (serialized by ky's `searchParams`).
+     * @param signal - Optional caller cancellation. ⚠️ It bounds the WHOLE call, including the retries
+     *   below — which the per-attempt `timeoutMs` deliberately does not: four attempts plus backoff can
+     *   legitimately outlast any single one of them. A read whose consumer renders a skeleton needs the
+     *   call-level bound, not the attempt-level one.
      * @returns The normalized response.
      * @sideEffect Performs a network request via the injected `fetch`.
      */
-    private async send(method: string, path: string, body?: unknown, query?: QueryParams): Promise<RawResponse> {
-        let res = await this.sendOnce(method, path, body, query, false);
+    private async send(
+        method: string,
+        path: string,
+        body?: unknown,
+        query?: QueryParams,
+        signal?: AbortSignal,
+    ): Promise<RawResponse> {
+        let res = await this.sendOnce(method, path, body, query, false, signal);
 
         for (let attempt = 1; attempt <= this.maxIdentitySyncRetries && isIdentitySyncPending(res); attempt += 1) {
             const backoff = this.identitySyncBackoffMs[Math.min(attempt, this.identitySyncBackoffMs.length) - 1] ?? 0;
             await this.sleep(backoff);
-            res = await this.sendOnce(method, path, body, query, true);
+            res = await this.sendOnce(method, path, body, query, true, signal);
         }
 
         // Ordinary expired-token 401 (NOT the identity-sync-pending case, which is handled — and possibly
         // exhausted — by the loop above): force a fresh token and retry exactly once. Bounded — the result
         // of this single retry (success OR another 401) is returned as-is, never looped.
         if (res.status === 401 && !isIdentitySyncPending(res)) {
-            res = await this.sendOnce(method, path, body, query, true);
+            res = await this.sendOnce(method, path, body, query, true, signal);
         }
 
         // DRIFT LAYER 3 (Skew), consumer half — CODING_STANDARDS §15.2.5, owner ruling 2026-08-11: a mismatch
@@ -1122,8 +1176,15 @@ export class RecipeServiceClient {
         body: unknown,
         query: QueryParams | undefined,
         forceRefresh: boolean,
+        signal?: AbortSignal,
     ): Promise<RawResponse> {
         const options: Options = { method, context: { forceRefresh } };
+
+        if (signal !== undefined) {
+            // ky composes this with its own timeout signal, so the request is bounded by whichever fires
+            // first — the caller's deadline or the per-attempt one.
+            options.signal = signal;
+        }
 
         if (body !== undefined) {
             options.json = body;
@@ -1153,6 +1214,20 @@ export class RecipeServiceClient {
                     `Recipe service did not respond within ${this.timeoutMs}ms (${method} ${path})`,
                     error,
                 );
+            }
+
+            // A caller's abort is the same KIND of outcome as a timeout — the service did not answer — and
+            // it must stay a TYPED error rather than leaking a bare `DOMException`, so this transport's
+            // contract ("a typed result or a typed error") holds for a cancelled read too. Thrown, never
+            // returned, so the `401` retry paths above cannot replay a request the caller has abandoned.
+            //
+            // ⚠️ BOTH NAMES, and the second one is not hypothetical: a signal from `AbortSignal.timeout()`
+            // — which is exactly how the deferred-nutrition read imposes its overall deadline — aborts with
+            // `TimeoutError`, NOT `AbortError`. Matching only `AbortError` left the one case this mapping
+            // exists for leaking a bare `DOMException`; the integration tier caught it, the mocked unit tier
+            // could not.
+            if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
+                throw new FetchUnavailableError(`Recipe service request was aborted (${method} ${path})`, error);
             }
 
             throw error;

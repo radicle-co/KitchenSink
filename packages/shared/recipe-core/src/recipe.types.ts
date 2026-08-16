@@ -204,7 +204,6 @@ export interface Recipe {
     cuisine?: string;
     dietaryFlags: string[];
     tags: string[];
-    hasPartialNutrition: boolean;
     /**
      * Headline per-serving calories for card display (FR-007 / W8-a.1) — a DENORMALIZED value recomputed at
      * write time from the recipe's ingredient lines (single source: the service's `leadCaloriesPerServing`),
@@ -314,7 +313,6 @@ export const recipeSchema = z.object({
     cuisine: z.string().min(1).optional(),
     dietaryFlags: z.array(z.string().min(1)),
     tags: z.array(z.string().min(1)),
-    hasPartialNutrition: z.boolean(),
     // Denormalized headline per-serving calories (W8-a.1); absent (not 0) when no accounted nutrition.
     leadCaloriesPerServing: nonNegativeNumberSchema.optional(),
     authorHandle: z.string().min(1).optional(),

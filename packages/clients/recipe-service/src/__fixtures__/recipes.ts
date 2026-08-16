@@ -113,7 +113,6 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
         hasSubstantiveEdit: false,
         dietaryFlags: ['vegan'],
         tags: ['soup'],
-        hasPartialNutrition: false,
         currentVersion: 1,
         // CR-001 aggregate: an unrated recipe (ratingCount 0, no averageRating). Both are now REQUIRED on
         // the `Recipe` contract (FR-013a); a rating fixture overrides them.

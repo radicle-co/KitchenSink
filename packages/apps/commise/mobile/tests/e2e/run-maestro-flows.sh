@@ -68,6 +68,13 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #   - `account-danger-zone` late but BEFORE `delete`: it walks Profile → Account settings and CANCELS both
 #     destructive actions (it deliberately never confirms), so it must not run against a state a later flow
 #     assumes, and it must not be stranded after the delete flow's mutations.
+#   - `account-erasure` immediately AFTER it, because it is the same surface's story with the cancel removed:
+#     it CONFIRMS the erasure and ends the Clerk session. Both of its effects are contained — the recipe
+#     erasure only reaches the database this loop truncates and re-seeds before every flow, the identity
+#     erasure is answered by `profile-stub-server.mjs` (the real call would delete the SHARED fixture user at
+#     Clerk), and the signed-out state it leaves is absorbed by `auth/signin-home.yaml`, which is idempotent
+#     and which every later flow composes. Ordering it before `delete` keeps the pair adjacent and keeps the
+#     "run me last" flow last.
 #   - `recipes/delete` last (its own "run me last" note).
 #   - `recipes/empty-library` sits next to `list-detail` (its populated sibling). It is the ONE flow that
 #     runs against an EMPTY library — see EMPTY_LIBRARY_FLOWS below — and it mutates nothing, so the next
@@ -108,6 +115,7 @@ recipes:recipes/ingredient-catalog-blend
 recipes:recipes/photos
 recipes:recipes/accessibility
 auth:account-danger-zone
+auth:account-erasure
 recipes:recipes/delete"
 
 # The vertical tokens a selector may name. `spine` is deliberately NOT among them: it is unconditional, so

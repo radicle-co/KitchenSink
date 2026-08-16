@@ -569,7 +569,11 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
             'recipes=false',
         );
 
-        expect(selection.flows).toEqual(['auth/login-flow', 'account-danger-zone']);
+        // `account-erasure` joined the auth vertical with plan U2's mobile erasure story — the flow that
+        // CONFIRMS the erasure, where `account-danger-zone` deliberately cancels. Both must select together:
+        // they are the same surface, and an auth-attributed change that ran only the cancelling half would
+        // leave the destructive path unproven behind a green job.
+        expect(selection.flows).toEqual(['auth/login-flow', 'account-danger-zone', 'account-erasure']);
         // What did NOT run is reported, in full, so a narrowed run can never be mistaken for a complete one.
         expect(selection.skipped.length).toBe(ALL_FLOWS.length - selection.flows.length);
         expect(selection.skipped).toContain('recipes/collections-pagination');

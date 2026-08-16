@@ -280,7 +280,7 @@ jobs:
                       # two verticals is expressed — the script unions them.
                       #
                       # Flow FILES are attributed only where the filename is unambiguous (`collections*.yaml`,
-                      # `discover*.yaml`, `home.yaml`, `auth/login-flow.yaml`, `account-danger-zone.yaml`).
+                      # `discover*.yaml`, `home.yaml`, `auth/login-flow.yaml`, `account-{danger-zone,erasure}.yaml`).
                       # Editing any OTHER flow file widens to the full suite; that asymmetry is accepted
                       # (safe direction) rather than papered over with a 15-filename list that rots.
                       flows_auth:
@@ -292,6 +292,7 @@ jobs:
                           - 'packages/apps/commise/mobile/src/screens/AccountSettings.tsx'
                           - 'packages/apps/commise/mobile/.maestro/auth/login-flow.yaml'
                           - 'packages/apps/commise/mobile/.maestro/account-danger-zone.yaml'
+                          - 'packages/apps/commise/mobile/.maestro/account-erasure.yaml'
                           - 'packages/services/recipe-service/src/account/**'
                       # `features/core` is NOT uniformly Home-scoped, so it is attributed PER MODULE rather
                       # than as `src/**` — measured by its importers, not assumed from its name. The four

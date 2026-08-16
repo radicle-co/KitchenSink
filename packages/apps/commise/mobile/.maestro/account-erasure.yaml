@@ -31,13 +31,20 @@
 # ## Selector notes
 #
 # Text/accessibility-label only, per this suite's convention (no testIDs exist anywhere in `.maestro`).
+#
 # ⚠️ `erase.title`, `erase.trigger` and `erase.confirm` are all the literal string 'Erase my data', so with
-# the dialog open there are three matches. The confirm is disambiguated by POSITION — it is the only one
+# the dialog open the bare text is ambiguous. The confirm is disambiguated by POSITION — it is the only one
 # sitting to the right of the dialog's 'Cancel' in the actions row (`AccountEraseDialog.native.tsx`'s
-# `styles.actions`: `flexDirection: 'row', justifyContent: 'flex-end'`). Do not "simplify" that back to a
-# bare `tapOn: 'Erase my data'`: the bare form may resolve to the title or to the trigger behind the modal,
-# and on this flow that means either doing nothing or reopening the dialog, both of which then fail late and
-# opaquely at the landing assertion.
+# `styles.actions`: `flexDirection: 'row', justifyContent: 'flex-end'`), and the close dialog is shut by
+# then, so there is exactly one 'Cancel' to anchor on. Do not "simplify" that back to a bare
+# `tapOn: 'Erase my data'`: the bare form may resolve to the title or to the trigger behind the modal, which
+# means either doing nothing or reopening the dialog — both of which then fail late and opaquely at the
+# landing assertion rather than where the mistake is.
+#
+# Both non-bare selector forms used below are already exercised green by this suite, so neither is a new bet:
+# `enabled: false` on `assertVisible` by `recipes/collections-visibility.yaml` (a disabled 'Save changes')
+# and `recipes/conflict-merge.yaml`, and relative-position anchoring by `recipes/rating.yaml`'s
+# `above: 'New'`.
 
 appId: io.commise.mobile
 ---

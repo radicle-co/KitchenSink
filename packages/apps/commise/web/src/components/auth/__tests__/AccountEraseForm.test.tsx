@@ -315,3 +315,49 @@ describe('AccountEraseForm (web) — mutation state', () => {
         );
     });
 });
+
+/**
+ * ⛔ THE SECOND LEG'S OWN STATES (plan U2). The erasure is TWO calls — recipes, then the account — and the
+ * dialog's `submitting`/`submitError` are the OR of both. Every case above drives only the RECIPE leg, so
+ * narrowing `submitting={erasure.isPending || accountErasure.isPending}` to `submitting={erasure.isPending}`
+ * (and the same for `submitError`) left the whole suite green — verified by mutation. That is not cosmetic:
+ *
+ * - Without the busy arm, the confirm control is re-enabled the instant the recipe leg resolves, while the
+ *   ACCOUNT erasure is still in flight. A viewer clicking again fires a second irreversible request.
+ * - Without the error arm, an account-erasure FAILURE is completely silent. The dialog just sits there: the
+ *   recipes are already gone, the account is not, and nothing on screen says so — which is exactly the
+ *   "looks like it worked" shape U2 exists to eliminate.
+ */
+describe('AccountEraseForm (web) — the ACCOUNT-erasure leg has its own busy and error states', () => {
+    it('stays busy while the ACCOUNT erasure is in flight, even once the recipe leg has resolved', async () => {
+        erasureState.current = { isPending: false, isError: false };
+        accountEraseState.current = { isPending: true, isError: false };
+        await openFlow();
+
+        await user_typePhrase();
+
+        expect(screen.getByText('Erasing…')).toBeTruthy();
+        // …and the destructive control cannot be fired a second time while it is.
+        const confirm = within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', {
+            name: 'Erase my data',
+        });
+        expect(confirm.disabled).toBe(true);
+        expect(confirm.getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('surfaces a FAILED account erasure, not just a failed recipe erasure (B17)', async () => {
+        erasureState.current = { isPending: false, isError: false };
+        accountEraseState.current = { isPending: false, isError: true };
+        await openFlow();
+
+        expect(screen.getByRole('alert')).toHaveProperty(
+            'textContent',
+            'We couldn’t start erasing your data. Please try again.',
+        );
+    });
+});
+
+/** Type the exact confirmation phrase into the open dialog, satisfying the gate. */
+async function user_typePhrase(): Promise<void> {
+    await userEvent.setup().type(screen.getByLabelText('Confirmation phrase'), 'ERASE MY DATA');
+}

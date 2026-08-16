@@ -334,6 +334,47 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
     });
 });
 
+/**
+ * ⛔ THE SECOND LEG'S OWN STATES (plan U2), pinned on mobile as well as web.
+ *
+ * The erasure is TWO calls — recipes, then the account — and the dialog's `submitting`/`submitError` are the
+ * OR of both. Every case above drives only the RECIPE leg, so narrowing
+ * `submitting={erasure.isPending || accountErasure.isPending}` to `submitting={erasure.isPending}` (and the
+ * same for `submitError`) left this whole suite green — verified by mutation, on both platforms. Not cosmetic:
+ *
+ * - Without the busy arm, the destructive confirm is re-enabled the instant the recipe leg resolves, while
+ *   the ACCOUNT erasure is still in flight. A second tap fires a second irreversible request.
+ * - Without the error arm, an account-erasure FAILURE is completely silent: the recipes are gone, the account
+ *   is not, and the dialog says nothing — the "looks like it worked" shape U2 exists to eliminate.
+ */
+describe('AccountDangerZone (native) — the ACCOUNT-erasure leg has its own busy and error states', () => {
+    it('stays busy while the ACCOUNT erasure is in flight, even once the recipe leg has resolved', () => {
+        setErasure({ isPending: false, isError: false });
+        setEraseAccount({ isPending: true });
+        render(<AccountDangerZone />);
+
+        fireEvent.click(screen.getByRole('button', { name: erase.trigger }));
+        // The phrase is typed so the gate itself is SATISFIED — otherwise a disabled confirm would prove
+        // nothing about the busy arm, only that the phrase was missing.
+        fireEvent.change(screen.getByLabelText('Confirmation phrase'), { target: { value: 'ERASE MY DATA' } });
+
+        expect(screen.getByText(erase.busyLabel)).toBeTruthy();
+        const confirms = screen.getAllByRole('button', { name: erase.confirm });
+        const confirm = confirms[confirms.length - 1] as HTMLElement;
+        expect(confirm.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('surfaces a FAILED account erasure, not just a failed recipe erasure (B17)', () => {
+        setErasure({ isPending: false, isError: false });
+        setEraseAccount({ isError: true });
+        render(<AccountDangerZone />);
+
+        fireEvent.click(screen.getByRole('button', { name: erase.trigger }));
+
+        expect(screen.getByText(erase.error)).toBeTruthy();
+    });
+});
+
 /** A design-token hex (`#RRGGBB`) as the `rgb(r, g, b)` string a resolved computed style reports. */
 function rgb(hex: string): string {
     const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));

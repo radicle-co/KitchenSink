@@ -71,6 +71,18 @@ const server = createServer((req, res) => {
     if (path === '/api/v1/users/me' && req.method === 'DELETE') {
         return send(res, 204);
     }
+    // The ACCOUNT-level ERASURE (plan U2) — the irreversible action, and a DIFFERENT endpoint from the
+    // `DELETE` closure above. The app's erase flow only signs the viewer out once BOTH this call and the
+    // recipe-service's own erasure are accepted, so without this route the stub 404s, the mutation errors,
+    // and the flow correctly refuses to leave — which is a mobile erasure story that cannot complete.
+    //
+    // Stubbed rather than proxied on purpose: the real call deletes the SHARED Maestro fixture user at Clerk
+    // (`commise-e2e-signin+clerk_test@example.com`), which every later flow signs in as. The body is the real
+    // `eraseUserMeResponseSchema` shape because `ProfileServiceClient.eraseMe` PARSES it — a stand-in body
+    // would reject at the boundary and look exactly like a failed erasure.
+    if (path === '/api/v1/users/me/erasure' && req.method === 'POST') {
+        return send(res, 202, { sub: VIEWER_ID, erasedAt: NOW, message: 'Account erasure initiated.' });
+    }
     if (path === '/api/v1/accounts/me' && req.method === 'GET') {
         return send(res, 200, profile.account);
     }

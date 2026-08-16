@@ -223,7 +223,12 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     'sandbox-identity-deploy.yml:artipacked': 1,
     // Deferred: pinning `services:` images by digest needs an owner for the bumps — dependabot.yml
     // declares no `docker` ecosystem, and `postgres:16` deliberately tracks the prod RDS engine minor.
-    '_ci.yml:unpinned-images': 11,
+    //
+    // 11 → 12 (PR 91, plan U5/U6): `integration-food` gained a LocalStack service so the message
+    // substrate's integration tier can exercise a real DynamoDB — the tier that caught a marshaller
+    // option the unit tier structurally cannot see. Same `localstack/localstack:4.4.0` tag and the same
+    // deferral as the five already declared here; this record is the ratchet, so it moves deliberately.
+    '_ci.yml:unpinned-images': 12,
     '_ci-heavy.yml:unpinned-images': 5,
 };
 

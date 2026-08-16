@@ -974,9 +974,18 @@ ADR-0003's default `404`, and the `404` is the PASS:
 the ALB REQUIRES it. Adding the listener condition first 403s all production traffic. Likewise, per
 service, the service stack releases the public A-record BEFORE `EdgeStack` claims it — Route 53 refuses a
 duplicate, so the reverse order simply fails. The gap between those two deploys is an NXDOMAIN window, not
-a 5xx one, and Route 53's default SOA minimum means resolvers can keep answering NXDOMAIN for up to 15
-minutes AFTER the second deploy completes. On food that degrades recipe silently rather than loudly
-(`catalogAvailability: 'unavailable'`), so verify rather than assume.
+a 5xx one, and resolvers that query during it keep answering NXDOMAIN **after** the second deploy
+completes. On food that degrades recipe silently rather than loudly (`catalogAvailability: 'unavailable'`),
+so verify rather than assume.
+
+⚠️ **Measured, because the usual shorthand for this is wrong.** `commise.app`'s SOA is
+`… 1 7200 900 1209600 86400` served with a record TTL of **900**. Negative caching is
+`min(SOA.MINIMUM, SOA record TTL)` (RFC 2308 §5), so the window is **15 minutes — held down entirely by
+the 900-second record TTL, not by the MINIMUM field, which is 86400 (24 hours).** Raising that SOA TTL
+looks like a harmless optimization and would push the NXDOMAIN window toward a full day. If the gap ever
+needs to be zero rather than short, the shape is `RemovalPolicy.RETAIN` on the service stack's record in
+its own deploy, then `deleteExisting: true` on `EdgeStack`'s — CDK's purpose-built ownership handoff —
+then removing the construct. That costs two extra deploys per service (15 across the three, not 9).
 **Verification** All three services serve production traffic through CloudFront; the existing prod
 smoke checks pass against the public hostnames; a real erasure completes.
 

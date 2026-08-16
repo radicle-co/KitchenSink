@@ -9,7 +9,7 @@
  * ALB listener-rule host condition, publishes it as a Route 53 record, and (U16) `EdgeStack` names it as a
  * CloudFront origin. Nothing checks that those agree: a mismatch synthesizes clean and surfaces in
  * production as a TLS handshake failure or the shared listener's default `404`. That is the same hazard
- * {@link ./listenerPriority.ts} was extracted for, one namespace over — and there the copy-per-service
+ * `listenerPriority.ts` was extracted for, one namespace over — and there the copy-per-service
  * had already drifted before anyone noticed.
  *
  * ## The shape, and the two ways to get it wrong

@@ -753,6 +753,32 @@ the current public name and the new internal name resolve, and nothing has cut o
   **Verification** `curl https://food.internal.commise.app/health` succeeds with a valid certificate, for
   all three services, while the public names still serve from the ALB.
 
+**✅ DONE — verified against live prod, 2026-08-15** (account `040663841500`). Deployed manually by owner
+ruling, because `prod-deploy.yml` fires only on push to `main` and this branch is unmerged.
+
+- `*.internal.commise.app` = `d0b2de77-83b0-4858-84f4-b521ddb68ad7`, **`ISSUED`** (DNS validation
+  completed in 162s). The original `09d3e5fe-…` still carries exactly
+  `commise.app`, `*.sandbox.commise.app`, `*.commise.app` — its ARN did not change, so nothing imported it
+  anew and no export deadlocked.
+- The prod ALB presents that cert for a 3-label SNI host (`openssl s_client -servername
+food.internal.commise.app`), which is the specific handshake failure this unit exists to prevent.
+- **The gate:** `food`/`recipe`/`identity``.internal.commise.app/health` each answer **`200`,
+  `ssl_verify_result 0`**, and each returns its OWN service in the body (`{"status":"ok","service":"…"}`),
+  so the rule routes the internal host to the right target group rather than merely terminating TLS.
+  All three PUBLIC names still answer `200`. An unmatched `nope.internal.commise.app` still gets the
+  shared listener's default `404 Not Found` (ADR-0003) — the addition is not a catch-all.
+- `cdk diff` against deployed prod before each deploy: the listener rules updated their `Conditions`
+  **in place** (no replacement, priorities 100/200/300 unchanged) and each record was purely additive.
+
+⚠️ Deploying the three service stacks from this branch also applied unmerged PR-91 drift to prod, which is
+recorded here so it is not rediscovered as a mystery: identity gained an SNS topic policy and had its task
+role's SQS grant corrected from `grantConsumeMessages` to `grantSendMessages` (a live prod bug — the
+service only ever sends, so every deletion enqueue had been failing `AccessDenied`); food and recipe had
+their migration Lambdas moved `nodejs22.x` → `nodejs24.x` with new code assets (both are invoked
+explicitly by CI, never by a deploy-time trigger, so no migration ran); food also gained a dashboard
+widget and two outputs. Nothing stateful was replaced, and task definitions did not replace because the
+currently-deployed image tags were passed explicitly.
+
 ### U16. The edge verifier and the distributions
 
 **Goal** Three CloudFront distributions in production, with Clerk verification at the edge that

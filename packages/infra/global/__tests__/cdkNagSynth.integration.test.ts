@@ -84,10 +84,20 @@ interface SynthResult {
     readonly templates: Record<string, string>;
 }
 
+/**
+ * The Clerk verification key the edge bundle is built with, and synthesized against, in this suite.
+ *
+ * ⚠️ Obviously a fixture, on purpose. `EdgeStack` refuses any bundle whose inlined key differs from the one
+ * synth was handed, so a `dist-edge/` left behind by a test run makes a later manual prod deploy fail LOUDLY
+ * rather than ship a verifier that rejects every request. The name is part of that signal.
+ */
+const EDGE_TEST_KEY = '-----BEGIN PUBLIC KEY-----\nINTEGRATION-TEST-KEY-NOT-A-REAL-CLERK-KEY\n-----END PUBLIC KEY-----';
+
 /** Runs the real CDK CLI against the given `--app` command for one stage and reads back what it emitted. */
-function synthWith(app: string, stage: string): SynthResult {
+function synthWith(app: string, stage: string, options: { readonly edgeKey?: string | null } = {}): SynthResult {
     const { account, region, domainName } = contextCoordinates();
     const outdir = mkdtempSync(path.join(tmpdir(), `cdk-nag-synth-${stage}-`));
+    const edgeKey = options.edgeKey === undefined ? EDGE_TEST_KEY : options.edgeKey;
 
     const result = spawnSync('npx', ['cdk', 'synth', '--app', app, '--output', outdir, '--lookups', 'false'], {
         cwd: packageDir,
@@ -99,6 +109,9 @@ function synthWith(app: string, stage: string): SynthResult {
             CDK_DEFAULT_ACCOUNT: account,
             CDK_DEFAULT_REGION: region,
             COST_ALERT_EMAIL: 'alerts@example.com',
+            // ADR-0020 trap 6: Lambda@Edge cannot read environment variables, so the key is a BUILD-TIME
+            // input CI exports from SSM before synth. `null` removes it, to exercise the fail-loud path.
+            ...(edgeKey === null ? { CLERK_JWT_KEY: undefined } : { CLERK_JWT_KEY: edgeKey }),
         },
     });
 
@@ -113,6 +126,26 @@ function synthWith(app: string, stage: string): SynthResult {
 
 /** The `--app` the deploy workflows use for local/source runs. */
 const synth = (stage: string): SynthResult => synthWith('npx tsx bin/app.ts', stage);
+
+/**
+ * Bundles the package's Lambda handlers, exactly as every deploying workflow does before `cdk deploy`.
+ *
+ * REQUIRED here for a reason the other synths do not have: `EdgeStack` has NO placeholder. A throwing stub
+ * at the edge is a total outage of every fronted service and a pass-through stub collapses every caller onto
+ * one cache entry (ADR-0020 trap 1), so it refuses to synthesize without a real bundle built from the key it
+ * was handed. That makes this suite the only tier that proves the bundle → synth handshake at all.
+ *
+ * @sideEffect writes `dist-lambda/` and `dist-edge/`.
+ */
+function bundleHandlers(): { status: number | null; tail: string } {
+    const result = spawnSync('npm', ['run', 'bundle:lambda'], {
+        cwd: packageDir,
+        encoding: 'utf8',
+        env: { ...process.env, CLERK_JWT_KEY: EDGE_TEST_KEY },
+    });
+
+    return { status: result.status, tail: `${result.stdout ?? ''}${result.stderr ?? ''}`.slice(-1500) };
+}
 
 /**
  * Builds this package and its workspace dependencies, exactly as the deploy workflows do.
@@ -134,13 +167,15 @@ function buildWorkspace(): { status: number | null; tail: string } {
 }
 
 let build: { status: number | null; tail: string };
+let bundle: { status: number | null; tail: string };
 let prod: SynthResult;
 let sandbox: SynthResult;
 
-// A real build plus two real CLI synths of the whole platform app; each synth spawns `npx tsx` and walks
-// every construct twice (tags, then nag), so give them room on a loaded CI runner.
+// A real build, a real bundle, plus two real CLI synths of the whole platform app; each synth spawns
+// `npx tsx` and walks every construct twice (tags, then nag), so give them room on a loaded CI runner.
 beforeAll(() => {
     build = buildWorkspace();
+    bundle = bundleHandlers();
     prod = synth('prod');
     sandbox = synth('sandbox');
 }, 600_000);
@@ -148,6 +183,11 @@ beforeAll(() => {
 describe('cdk synth with cdk-nag attached (advisory mode)', () => {
     it('builds the workspace, so every synth below runs the CURRENT security package', () => {
         expect(build).toMatchObject({ status: 0 });
+    });
+
+    it('bundles the Lambda handlers, including the edge verifier, before any synth', () => {
+        expect(bundle).toMatchObject({ status: 0 });
+        expect(bundle.tail).toContain('Lambda@Edge verifier');
     });
 
     it('synthesizes the prod platform app successfully', () => {
@@ -232,5 +272,63 @@ describe('cdk synth with cdk-nag attached (advisory mode)', () => {
         // …and the Aspect is genuinely attached on that path, not merely loadable.
         expect(compiled.output).toMatch(/^WARNING AwsSolutions-/m);
         expect(compiled.output).not.toMatch(/^ERROR AwsSolutions-/m);
+    }, 600_000);
+});
+
+/**
+ * The CloudFront edge (plan U16 / ADR-0020), through the real CLI.
+ *
+ * The unit tier synthesizes `EdgeStack` in-process with a fixture bundle; only this tier can see that
+ * `bin/app.ts` really creates it at prod and really does not at sandbox, and that the build-time key
+ * requirement fails the CLI — which is what a deploy would actually hit.
+ */
+describe('the production CloudFront edge, through the real CLI', () => {
+    // CDK names the emitted artifact after the CONSTRUCT id (`Edge`), not the `stackName` — the same reason
+    // the platform stacks appear as `GlobalprodDataprod….template.json` above.
+    const EDGE_TEMPLATE = 'Edge.template.json';
+
+    it('appears in the prod app', () => {
+        expect(Object.keys(prod.templates)).toContain(EDGE_TEMPLATE);
+    });
+
+    it('appears in NO non-prod app — a distribution cannot be reclaimed inside a PR lifetime', () => {
+        // ADR-0005 teardown and ADR-0010's ensure-exists gate both assume a preview's infrastructure can be
+        // created and deleted inside a PR's life; a distribution takes 5–15 minutes to deploy and cannot be
+        // deleted without first disabling it and waiting for propagation.
+        expect(Object.keys(sandbox.templates).filter((name) => /edge/iu.test(name))).toEqual([]);
+    });
+
+    it('fronts each service from its own internal origin, with the verifier attached', () => {
+        interface DistributionResource {
+            readonly Type: string;
+            readonly Properties?: {
+                readonly DistributionConfig?: { readonly Origins?: readonly { readonly DomainName: string }[] };
+            };
+        }
+
+        const template = JSON.parse(prod.templates[EDGE_TEMPLATE] as string) as {
+            Resources: Record<string, DistributionResource>;
+        };
+        const origins = Object.values(template.Resources)
+            .filter((resource) => resource.Type === 'AWS::CloudFront::Distribution')
+            .flatMap((resource) =>
+                (resource.Properties?.DistributionConfig?.Origins ?? []).map((origin) => origin.DomainName),
+            );
+
+        expect(origins.sort()).toEqual([
+            'food.internal.commise.app',
+            'identity.internal.commise.app',
+            'recipe.internal.commise.app',
+        ]);
+        expect(prod.templates[EDGE_TEMPLATE]).toContain('viewer-request');
+    });
+
+    it('FAILS the synth when the build-time key is absent, instead of shipping a keyless verifier', () => {
+        // A stage that silently shipped a verifier with no key would reject every request. This is the only
+        // tier that can prove the failure reaches the CLI as a non-zero exit — which is what stops a deploy.
+        const keyless = synthWith('npx tsx bin/app.ts', 'prod', { edgeKey: null });
+
+        expect(keyless.status).not.toBe(0);
+        expect(keyless.output).toContain('CLERK_JWT_KEY');
     }, 600_000);
 });

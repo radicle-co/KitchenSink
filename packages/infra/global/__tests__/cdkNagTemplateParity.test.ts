@@ -45,7 +45,9 @@ import { describe, it, expect } from 'vitest';
 import type { IConstruct } from 'constructs';
 
 import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
+import { EdgeStack } from '../lib/platform/EdgeStack.js';
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
+import { TEST_EDGE_JWT_KEY, stubEdgeBundleDir } from './edgeBundleFixture.js';
 
 const env = { account: '123456789012', region: 'us-east-1' };
 const domainName = 'commise.app';
@@ -77,6 +79,18 @@ function synthesizePlatform(stage: string, options: { readonly aspect?: IAspect 
             stackName: 'kitchensink-cost-guardrails',
             alertEmail: 'alerts@example.com',
         });
+
+        // ADR-0020 / plan U16: likewise prod-guarded in bin/app.ts. It is the newest place an Aspect could
+        // mutate a prod template, and it carries the only Lambda whose ASSET HASH is part of the template —
+        // so it is exactly the stack a parity proof must cover rather than skip because it is awkward to
+        // construct. The bundle fixture is memoized per key, so both synths stage identical asset content.
+        new EdgeStack(app, 'Edge', {
+            env,
+            stackName: 'kitchensink-edge-prod',
+            stage,
+            domainName,
+            verifierBundleDir: stubEdgeBundleDir(),
+        });
     }
 
     return Object.fromEntries(
@@ -102,6 +116,10 @@ function annotationsUnder(root: IConstruct): { errors: string[]; warnings: strin
     return { errors, warnings };
 }
 
+// ADR-0020 trap 6: `EdgeStack` reads the build-time verification key from the environment and fails loudly
+// without it, exactly as a prod synth does. Set before the module-level synths below.
+process.env['CLERK_JWT_KEY'] = TEST_EDGE_JWT_KEY;
+
 const prodPlain = synthesizePlatform('prod');
 const prodNagged = synthesizePlatform('prod', { aspect: 'security' });
 const sandboxPlain = synthesizePlatform('sandbox');
@@ -118,6 +136,7 @@ describe('cdk-nag leaves synthesized templates byte-identical (ADR-0002 / ADR-00
         'kitchensink-data-prod',
         'kitchensink-domain-prod',
         'kitchensink-alb-prod',
+        'kitchensink-edge-prod',
     ])('leaves %s byte-identical', (stackName) => {
         // Per-stack so a failure names the stack that moved instead of dumping the whole app.
         expect(prodPlain[stackName]).toBeDefined();
@@ -133,15 +152,17 @@ describe('cdk-nag leaves synthesized templates byte-identical (ADR-0002 / ADR-00
         expect(sandboxNagged).toEqual(sandboxPlain);
     });
 
-    it('covers the stacks it claims to (prod: six platform stacks plus cost guardrails)', () => {
-        // `kitchensink-messaging-prod` joined the platform with plan U5 (the message substrate). The list
-        // is exhaustive on purpose: a new platform stack that skipped the parity proof would be the one
-        // place cdk-nag could silently change a prod template.
+    it('covers the stacks it claims to (prod: seven platform stacks plus cost guardrails)', () => {
+        // `kitchensink-messaging-prod` joined the platform with plan U5 (the message substrate) and
+        // `kitchensink-edge-prod` with U16 (the CloudFront edge). The list is exhaustive on purpose: a new
+        // platform stack that skipped the parity proof would be the one place cdk-nag could silently change
+        // a prod template.
         expect(Object.keys(prodPlain).sort()).toEqual([
             'kitchensink-alb-prod',
             'kitchensink-cost-guardrails',
             'kitchensink-data-prod',
             'kitchensink-domain-prod',
+            'kitchensink-edge-prod',
             'kitchensink-global-prod',
             'kitchensink-messaging-prod',
             'kitchensink-network-prod',

@@ -6,6 +6,7 @@ import { App, Tags } from 'aws-cdk-lib';
 import { attachSecurityChecks } from '@kitchensink/infra-security';
 
 import { CostGuardrailsStack } from '../lib/platform/CostGuardrailsStack.js';
+import { EdgeStack } from '../lib/platform/EdgeStack.js';
 import { GlobalStack } from '../lib/platform/GlobalStack.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,6 +54,28 @@ if (stage === 'prod') {
         env,
         stackName: 'kitchensink-cost-guardrails',
         alertEmail,
+    });
+
+    // ADR-0020 / plan U16: the three CloudFront distributions and the viewer-request Clerk verifier.
+    //
+    // PROD ONLY, guarded here the same way the cost guardrails are — and enforced a second time inside the
+    // stack, which refuses any stage without an internal origin. A distribution takes 5–15 minutes to deploy
+    // and cannot be deleted without first disabling it and waiting for propagation, which would wreck the
+    // ADR-0005 per-PR teardown and the ADR-0010 ensure-exists deploy gate; both assume a preview's
+    // infrastructure can be created and reclaimed inside a PR's lifetime.
+    //
+    // It is ADDITIVE: no existing stack is touched, so the prod synth diff is exactly "one new stack
+    // appears". DNS is NOT cut over here — the distributions claim no alias, and U17 moves the public names
+    // one service at a time, identity last.
+    //
+    // ⚠️ Requires `CLERK_JWT_KEY` in the environment at SYNTH time (CI exports it from SSM before the
+    // bundle step) and a bundle built from that same key. Both absences fail loudly rather than shipping a
+    // verifier that cannot work — see `EdgeStack`'s docstring for why there is no placeholder.
+    new EdgeStack(app, 'Edge', {
+        env,
+        stackName: `kitchensink-edge-${stage}`,
+        stage,
+        domainName,
     });
 }
 

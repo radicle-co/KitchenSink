@@ -232,6 +232,13 @@ meal_plans (1 per user per date range)
 
 ### Proposed PostgreSQL Schema for 006
 
+⛔ **SUPERSEDED — this is the May draft, kept as the record R-6 corrects. Do NOT copy this DDL.** Every
+`REFERENCES users(id)`, `REFERENCES recipes(id)` and `REFERENCES nutrition_plans(id)` below crosses a database
+boundary and is unenforceable; the recipe FK additionally contradicts the orphan requirement. The authoritative
+DDL is [`plan.md` §Data Model](./plan.md#data-model), which stores `owner_id` as a `varchar(255)` ULID and
+`recipe_id` as a bare `uuid`, per **C-006-002** / **REQ-CN-003**. See **R-6** below for the full account.
+_(Banner added 2026-08-16 — the prose correction existed, but nothing marked the block a reader would copy.)_
+
 ```sql
 -- Level 1: The plan container
 CREATE TABLE meal_plans (

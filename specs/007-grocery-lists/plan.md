@@ -41,12 +41,22 @@
 
 ### Core Tables
 
+⛔ **No foreign key leaves `kitchensink_recipes`.** 007 lives in `@kitchensink/recipe-service` (ADR-0017), so a
+reference to `recipes` or `recipe_ingredients` is a real, enforceable FK. `users` lives in the identity
+database, `foods` in `kitchensink_food`, and `meal_plans` in `kitchensink_meal_plans` since 006 was extracted
+on 2026-08-14 — Postgres cannot enforce a constraint against any of them, and declaring one produces a
+migration that fails at deploy. This mirrors 006's **C-006-002** and **REQ-CN-003** verbatim in intent: the
+owner identifier is the app-user **ULID** carried in the verified token claim, stored as `VARCHAR(255)` with
+no FK and no local `users` table, exactly as `recipes.owner_id` does; every other out-of-database reference is
+a bare id resolved over HTTP. _(Corrected 2026-08-16 — these tables previously declared four such FKs, and
+`user_id UUID` was additionally the wrong TYPE for a ULID.)_
+
 ```sql
 -- Grocery list (user's shopping list)
 grocery_lists (
   id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  meal_plan_id UUID REFERENCES meal_plans(id),  -- nullable, can be standalone
+  owner_id VARCHAR(255) NOT NULL,  -- app-user ULID from the token claim; NO FK, no local users table
+  meal_plan_id UUID,               -- nullable, can be standalone; 006 owns it in ANOTHER database — no FK
   name TEXT,
   status TEXT,                    -- 'draft' | 'ready' | 'ordered'
   store TEXT,                     -- 'walmart' | 'instacart' | null
@@ -57,8 +67,8 @@ grocery_lists (
 -- Individual line items
 grocery_list_items (
   id UUID PRIMARY KEY,
-  grocery_list_id UUID REFERENCES grocery_lists(id) ON DELETE CASCADE,
-  usda_fdc_id INT REFERENCES foods(fdc_id),  -- nullable for unmapped items
+  grocery_list_id UUID REFERENCES grocery_lists(id) ON DELETE CASCADE,  -- local: same database
+  usda_fdc_id INT,                -- nullable for unmapped items; foods live in kitchensink_food — no FK
   display_name TEXT,              -- "Yellow onion, raw"
   quantity_g DECIMAL,             -- normalized to grams (or mL for liquids)
   unit_display TEXT,               -- original unit for display ("2 cups")
@@ -71,11 +81,11 @@ grocery_list_items (
 
 -- User pantry (persisted "already have" items, expires after 7 days)
 user_pantry_items (
-  user_id UUID,
-  usda_fdc_id INT,
+  owner_id VARCHAR(255) NOT NULL,  -- app-user ULID; NO FK
+  usda_fdc_id INT,                 -- kitchensink_food — no FK
   quantity_g DECIMAL,
   expires_at TIMESTAMP,  -- 7 days from last update
-  PRIMARY KEY (user_id, usda_fdc_id)
+  PRIMARY KEY (owner_id, usda_fdc_id)
 )
 ```
 

@@ -38,12 +38,21 @@ Nutrition data is **special category health data** under GDPR Article 9. Require
 
 ### Core Tables
 
+⛔ **No foreign key leaves `kitchensink_recipes`.** 009 lives in `@kitchensink/recipe-service` (ADR-0017), so a
+reference to a 001 or 009 table is a real, enforceable FK. `users` lives in the identity database and
+`meal_plans` in `kitchensink_meal_plans` since 006 was extracted on 2026-08-14 — Postgres cannot enforce a
+constraint against either, and declaring one produces a migration that fails at deploy. Same rule as 006's
+**C-006-002** / **REQ-CN-003**: the app-user identifier is a **ULID** from the verified token claim, stored as
+`VARCHAR(255)` with no FK and no local `users` table, exactly as `recipes.owner_id` does. _(Corrected
+2026-08-16 — these tables previously declared five cross-database FKs, and `UUID` was additionally the wrong
+type for a ULID. A trainer/client identifier is an app-user id like any other, so it takes the same shape.)_
+
 ```sql
 -- Nutrition plan (user's macro targets)
 nutrition_plans (
   id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  trainer_id UUID REFERENCES users(id),  -- nullable, set if created by trainer
+  owner_id VARCHAR(255) NOT NULL,  -- app-user ULID from the token claim; NO FK, no local users table
+  trainer_id VARCHAR(255),         -- nullable app-user ULID, set if created by a trainer; NO FK
   name TEXT,
   is_public BOOLEAN DEFAULT false,       -- Client sees plan if shared
   -- Daily targets
@@ -64,10 +73,14 @@ nutrition_plans (
 
 -- Meal plan → nutrition plan linkage
 meal_plan_nutrition_link (
-  meal_plan_id UUID REFERENCES meal_plans(id),
-  nutrition_plan_id UUID REFERENCES nutrition_plans(id),
+  meal_plan_id UUID,                                       -- 006 owns it in kitchensink_meal_plans — NO FK
+  nutrition_plan_id UUID REFERENCES nutrition_plans(id),   -- local: same database
   PRIMARY KEY (meal_plan_id, nutrition_plan_id)
 )
+-- The link row can outlive the plan it names: 006 cannot cascade across a database boundary. A meal plan id
+-- that no longer resolves is treated exactly as 006 treats an unreadable recipe (C-006-006) — resolved at
+-- READ time, rendered as unavailable, excluded from compliance, never stored as a flag and never swept.
+
 
 -- Actual vs planned tracking (per day)
 nutrition_compliance (
@@ -88,8 +101,8 @@ nutrition_compliance (
 
 -- Trainer-client relationship
 trainer_clients (
-  trainer_id UUID REFERENCES users(id),
-  client_id UUID REFERENCES users(id),
+  trainer_id VARCHAR(255) NOT NULL,  -- app-user ULID; NO FK (identity database)
+  client_id VARCHAR(255) NOT NULL,   -- app-user ULID; NO FK (identity database)
   status TEXT,              -- 'pending' | 'active' | 'revoked'
   created_at TIMESTAMP
 )

@@ -126,7 +126,8 @@ export const NUTRITION_FOOD_UNAVAILABLE: RecipeCalorieUnaccounted = {
 export const selectRecipeCalorieState = (
     response: RecipeNutritionResponse,
     recipeId: string,
-): RecipeCalorieState | null => response.nutrition[recipeId] ?? null;
+): RecipeCalorieState | null =>
+    Object.hasOwn(response.nutrition, recipeId) ? (response.nutrition[recipeId] ?? null) : null;
 
 /** What a leaf needs to paint one calorie chip: the two strings, plus the two flags that style it. */
 export interface RecipeCalorieChipModel {

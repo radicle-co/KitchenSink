@@ -4,14 +4,24 @@ import { fileURLToPath } from 'node:url';
 
 import {
     Duration,
+    Fn,
     Stack,
     type StackProps,
+    aws_certificatemanager as acm,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
     aws_iam as iam,
     aws_lambda as lambda,
+    aws_route53 as route53,
+    aws_route53_targets as route53_targets,
 } from 'aws-cdk-lib';
-import { EPHEMERAL_SLOT_ORDER, internalOriginForStage, type SharedListenerService } from '@kitchensink/infra-alb';
+import {
+    EPHEMERAL_SLOT_ORDER,
+    cutOverServicesFromEnv,
+    internalOriginForStage,
+    publicRecordOwnerFor,
+    type SharedListenerService,
+} from '@kitchensink/infra-alb';
 import type { Construct } from 'constructs';
 
 import { EDGE_PRINCIPAL_HEADER, PASSTHROUGH_PATH_PATTERNS } from '../edge-verifier/edgeRoutes.js';
@@ -276,6 +286,29 @@ export class EdgeStack extends Stack {
             }),
         ) as Record<SharedListenerService, string>;
 
+        // U17's cutover, read through the SAME resolver each service stack uses. When a service is named
+        // here it has released `{service}.{apex}`, and this stack must claim it — as a distribution alias
+        // AND as the record resolving to it. Claiming one without the other is not a partial success:
+        // CloudFront matches a viewer request to a distribution by Host against its alias list, so a record
+        // pointing at a distribution that does not list the name answers 403 for every request.
+        const cutOverServices = cutOverServicesFromEnv(process.env);
+
+        // Imports, not resources. Referenced only on the cut-over path, so a stack with nothing cut over
+        // synthesizes exactly as it did in U16 — no cross-stack import, no template diff.
+        const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
+            hostedZoneId: Fn.importValue(`kitchensink-domain-${stage}:HostedZoneId`),
+            zoneName: domainName,
+        });
+
+        // The apex `KitchenSinkCertificate` already carries `*.{apex}` and lives in us-east-1, which is
+        // where CloudFront requires it — so the cutover needs NO new certificate, only this import. A
+        // second certificate for the same names would be a second thing to renew for no benefit.
+        const certificate = acm.Certificate.fromCertificateArn(
+            this,
+            'ImportedCertificate',
+            Fn.importValue(`kitchensink-domain-${stage}:CertificateArn`),
+        );
+
         const verifierVersion = this.createVerifier(props.verifierBundleDir, jwtKey);
         const ownerScopedCachePolicy = this.createOwnerScopedCachePolicy();
         const sharedCachePolicy = this.createSharedCachePolicy();
@@ -302,42 +335,54 @@ export class EdgeStack extends Stack {
                     ],
                 });
 
-                return [
-                    service,
-                    new cloudfront.Distribution(this, `${pascalCase(service)}Distribution`, {
-                        comment: `${service} edge — origin ${originHosts[service]} (ADR-0020)`,
-                        // Cost lever, in step with ADR-0008's posture: NA + EU edge locations only. Viewers
-                        // elsewhere are still served, from a further edge; the alternative is roughly a
-                        // doubling of per-request price for an audience that does not exist yet.
-                        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
-                        httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
-                        defaultBehavior: verified(
-                            policy.ownerScopedDefault
-                                ? ownerScopedCachePolicy
-                                : cloudfront.CachePolicy.CACHING_DISABLED,
+                const claimsPublicName = publicRecordOwnerFor({ service, stage, cutOverServices }) === 'edge';
+                const publicHost = `${service}.${domainName}`;
+
+                const distribution = new cloudfront.Distribution(this, `${pascalCase(service)}Distribution`, {
+                    comment: `${service} edge — origin ${originHosts[service]} (ADR-0020)`,
+                    // Cost lever, in step with ADR-0008's posture: NA + EU edge locations only. Viewers
+                    // elsewhere are still served, from a further edge; the alternative is roughly a
+                    // doubling of per-request price for an audience that does not exist yet.
+                    priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+                    httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
+                    defaultBehavior: verified(
+                        policy.ownerScopedDefault ? ownerScopedCachePolicy : cloudfront.CachePolicy.CACHING_DISABLED,
+                    ),
+                    additionalBehaviors: {
+                        // No `edgeLambdas`: the edge is NOT in these paths at all (see the class doc).
+                        ...Object.fromEntries(
+                            PASSTHROUGH_PATH_PATTERNS.map((pattern) => [
+                                pattern,
+                                {
+                                    origin,
+                                    cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+                                    originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+                                    viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                                    allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+                                    compress: true,
+                                } satisfies cloudfront.BehaviorOptions,
+                            ]),
                         ),
-                        additionalBehaviors: {
-                            // No `edgeLambdas`: the edge is NOT in these paths at all (see the class doc).
-                            ...Object.fromEntries(
-                                PASSTHROUGH_PATH_PATTERNS.map((pattern) => [
-                                    pattern,
-                                    {
-                                        origin,
-                                        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-                                        originRequestPolicy:
-                                            cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-                                        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-                                        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-                                        compress: true,
-                                    } satisfies cloudfront.BehaviorOptions,
-                                ]),
-                            ),
-                            ...Object.fromEntries(
-                                policy.sharedCachePathPatterns.map((pattern) => [pattern, verified(sharedCachePolicy)]),
-                            ),
-                        },
-                    }),
-                ];
+                        ...Object.fromEntries(
+                            policy.sharedCachePathPatterns.map((pattern) => [pattern, verified(sharedCachePolicy)]),
+                        ),
+                    },
+                    ...(claimsPublicName ? { domainNames: [publicHost], certificate } : {}),
+                });
+
+                if (claimsPublicName) {
+                    // ⛔ Aliased at the DISTRIBUTION, never back at the ALB. An A-record still pointing at
+                    // the shared ALB would leave the edge deployed, paid for and completely out of the
+                    // request path — with every caching, token-verification and lockdown property in this
+                    // stack describing something no viewer ever reaches.
+                    new route53.ARecord(this, `${pascalCase(service)}AliasRecord`, {
+                        zone: hostedZone,
+                        recordName: service,
+                        target: route53.RecordTarget.fromAlias(new route53_targets.CloudFrontTarget(distribution)),
+                    });
+                }
+
+                return [service, distribution];
             }),
         ) as Record<SharedListenerService, cloudfront.Distribution>;
     }

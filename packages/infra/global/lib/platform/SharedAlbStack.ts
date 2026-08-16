@@ -49,7 +49,14 @@ export class SharedAlbStack extends Stack {
             // design (no distributions there), so absence is normal and must not throw — CDK keeps the
             // first cert inline on the listener and emits the rest as ListenerCertificate resources.
             certificates: [domain.certificate, ...(domain.internalCertificate ? [domain.internalCertificate] : [])],
-            open: true,
+            // ⛔ `false`, and it must stay false. `open: true` is not a listener setting — it calls
+            // `allowDefaultPortFrom(Peer.anyIpv4())` on `network.albSecurityGroup`, the SAME construct
+            // NetworkStack created. While both added the identical rule, CDK deduped them and this was
+            // invisible. Once U17 narrowed NetworkStack's `:443` to the CloudFront prefix list, `true`
+            // here would re-emit `0.0.0.0/0:443` as a standalone ingress resource in THIS stack's
+            // template — leaving the ALB open to the internet while NetworkStack's template, its tests
+            // and a scoped `cdk diff` all showed a correct lockdown. NetworkStack owns ALB ingress.
+            open: false,
             defaultAction: elbv2.ListenerAction.fixedResponse(404, {
                 contentType: 'text/plain',
                 messageBody: 'Not Found',
@@ -58,7 +65,9 @@ export class SharedAlbStack extends Stack {
 
         const httpListener = this.loadBalancer.addListener('SharedHttpListener', {
             port: 80,
-            open: true,
+            // Same reasoning as the HTTPS listener above: NetworkStack owns every ALB ingress rule, so
+            // this listener adds none. `:80` remains open to the internet there, on every stage.
+            open: false,
         });
         httpListener.addAction('HttpRedirect', {
             action: elbv2.ListenerAction.redirect({

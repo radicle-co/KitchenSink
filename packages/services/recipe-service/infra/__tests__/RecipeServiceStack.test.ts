@@ -2,7 +2,12 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { BASE_LISTENER_PRIORITY, EPHEMERAL_SLOT_ORDER, ephemeralBandsForSlot } from '@kitchensink/infra-alb';
+import {
+    BASE_LISTENER_PRIORITY,
+    EDGE_CUTOVER_SERVICES_ENV,
+    EPHEMERAL_SLOT_ORDER,
+    ephemeralBandsForSlot,
+} from '@kitchensink/infra-alb';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 import { recipeSubdomainForStage, RecipeServiceStack } from '../lib/RecipeServiceStack.js';
@@ -418,6 +423,133 @@ describe('the internal-origin host (prod only, ADR-0020 / U15)', () => {
 
             template.resourceCountIs('AWS::Route53::RecordSet', 1);
             expect(JSON.stringify(template.toJSON())).not.toContain('recipe.internal.');
+        }
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for recipe's half of the U17 DNS cutover — the SECOND service to cut over,
+ * after food and before identity.
+ *
+ * U15 gave prod's listener rule a second host while the public name kept serving. U17 closes the old door:
+ * `recipe.example.com` stops being this stack's Route 53 record (EdgeStack publishes it, aliased to the
+ * distribution) and stops being a host this rule answers on. Both halves must move together — keeping the
+ * record without the condition leaves the public name resolving to an ALB that 404s it (ADR-0003's default
+ * action); keeping the condition without the record leaves a rule matching a name nothing resolves to.
+ */
+describe('the U17 DNS cutover (prod only, ADR-0020)', () => {
+    const internalHost = 'recipe.internal.example.com';
+    const publicHost = 'recipe.example.com';
+
+    /**
+     * Synthesize prod with a given cut-over set, restoring the environment afterwards.
+     *
+     * @param cutOver - The `EDGE_CUTOVER_SERVICES` value, or `undefined` to leave it unset.
+     * @returns The synthesized prod template.
+     * @sideEffect Temporarily mutates `process.env`.
+     */
+    function synthProdWithCutover(cutOver: string | undefined): Template {
+        const previous = process.env[EDGE_CUTOVER_SERVICES_ENV];
+
+        if (cutOver === undefined) {
+            delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+        } else {
+            process.env[EDGE_CUTOVER_SERVICES_ENV] = cutOver;
+        }
+
+        try {
+            return synthTemplate('prod', 'prod');
+        } finally {
+            if (previous === undefined) {
+                delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+            } else {
+                process.env[EDGE_CUTOVER_SERVICES_ENV] = previous;
+            }
+        }
+    }
+
+    /**
+     * Every host this template's listener rules answer on.
+     *
+     * @param template - The synthesized template.
+     * @returns The flattened host-header values.
+     */
+    function ruleHosts(template: Template): readonly string[] {
+        return Object.values(template.findResources('AWS::ElasticLoadBalancingV2::ListenerRule')).flatMap(
+            (rule) =>
+                (
+                    rule as {
+                        Properties: { Conditions?: readonly { HostHeaderConfig?: { Values?: string[] } }[] };
+                    }
+                ).Properties.Conditions?.flatMap((condition) => condition.HostHeaderConfig?.Values ?? []) ?? [],
+        );
+    }
+
+    it('changes NOTHING when the cutover has not been declared — an unset variable is not a cutover', () => {
+        const template = synthProdWithCutover(undefined);
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        template.hasResourceProperties('AWS::Route53::RecordSet', { Type: 'A', Name: `${publicHost}.` });
+        expect(ruleHosts(template)).toEqual([publicHost, internalHost]);
+    });
+
+    it('⛔ releases the public A-record once recipe has cut over, so EdgeStack can claim it', () => {
+        const template = synthProdWithCutover('recipe');
+        const names = Object.values(template.findResources('AWS::Route53::RecordSet')).map(
+            (record) => (record as { Properties: { Name: string } }).Properties.Name,
+        );
+
+        expect(names).not.toContain(`${publicHost}.`);
+        // The internal record STAYS — it is what the distribution origins at, and it is this stack's.
+        expect(names).toContain(`${internalHost}.`);
+        template.resourceCountIs('AWS::Route53::RecordSet', 1);
+    });
+
+    it('⛔ stops answering on the public host once recipe has cut over, leaving only the origin host', () => {
+        // Asserted on the RULE, not the whole template: `recipe.example.com` legitimately survives as this
+        // service's own published origin, which is the point of the cutover — callers keep addressing the
+        // public name, which now resolves to CloudFront. What must go is the ALB answering it directly.
+        expect(ruleHosts(synthProdWithCutover('recipe'))).toEqual([internalHost]);
+    });
+
+    it('keeps its OWN priority through the cutover — the rule is edited, never replaced', () => {
+        // A rule that changed priority would collide with whatever holds the old one (ADR-0003).
+        synthProdWithCutover('recipe').hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: BASE_LISTENER_PRIORITY.recipe,
+        });
+    });
+
+    it('is unmoved by food cutting over FIRST — U17 cuts one at a time', () => {
+        // The sequencing guarantee: food going first must leave recipe exactly as it was, or the
+        // "verify between each" step is verifying a system that already moved underneath it.
+        const template = synthProdWithCutover('food');
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        expect(ruleHosts(template)).toEqual([publicHost, internalHost]);
+    });
+
+    it('⛔ ignores the cut-over set entirely outside prod, where there is no distribution to cut over TO', () => {
+        // The worst available outcome: a stray variable in a sandbox or per-PR deploy deleting the only
+        // record that preview has.
+        const previous = process.env[EDGE_CUTOVER_SERVICES_ENV];
+        process.env[EDGE_CUTOVER_SERVICES_ENV] = 'food,recipe,identity';
+
+        try {
+            for (const [stage, baseStage] of [
+                ['sandbox', 'sandbox'],
+                ['pr-91', 'sandbox'],
+            ]) {
+                const template = synthTemplate(stage as string, baseStage as string);
+
+                template.resourceCountIs('AWS::Route53::RecordSet', 1);
+                expect(ruleHosts(template)).toEqual([`recipe-${stage}.example.com`]);
+            }
+        } finally {
+            if (previous === undefined) {
+                delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+            } else {
+                process.env[EDGE_CUTOVER_SERVICES_ENV] = previous;
+            }
         }
     });
 });

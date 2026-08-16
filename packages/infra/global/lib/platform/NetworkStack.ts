@@ -1,6 +1,7 @@
 import { CfnOutput, Stack, type StackProps, Tags, aws_ec2 as ec2 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+import { albHttpsIngressPrefixListFor } from '@kitchensink/infra-alb';
 import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
 
 export interface NetworkStackProps extends StackProps {
@@ -114,8 +115,31 @@ export class NetworkStack extends Stack {
             allowAllOutbound: true,
         });
 
+        // ⛔ ALL ALB ingress is owned HERE, and nowhere else. `SharedAlbStack` passes `open: false` to its
+        // listeners for exactly this reason: `open: true` calls `allowDefaultPortFrom(anyIpv4())` on THIS
+        // security-group construct, which is invisible while the rules happen to be identical and silently
+        // re-opens `:443` in a DIFFERENT stack's template the moment this one narrows. See the U17 lockdown
+        // block in `SharedAlbStack.test.ts` for the assertion that catches it.
+        //
+        // `:80` stays open to the internet on every stage. It only redirects to `:443`, so it protects
+        // nothing — and a second managed-prefix-list rule would cost another 55 against the 60-rule quota
+        // and fail the deploy outright (see CLOUDFRONT_PREFIX_LIST_RULE_WEIGHT).
         this.albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Public HTTP ingress');
-        this.albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Public HTTPS ingress');
+
+        // Prod's ALB answers only to CloudFront (ADR-0020 / U17). Every other stage has no distribution and
+        // must keep reaching its own ALB directly, so `undefined` — the absence of a prefix list — is the
+        // prod gate rather than a second stage comparison written out here.
+        const httpsIngressPrefixList = albHttpsIngressPrefixListFor(props.stage);
+
+        if (httpsIngressPrefixList === undefined) {
+            this.albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Public HTTPS ingress');
+        } else {
+            this.albSecurityGroup.addIngressRule(
+                ec2.Peer.prefixList(httpsIngressPrefixList),
+                ec2.Port.tcp(443),
+                'CloudFront origin-facing only (ADR-0020 / U17)',
+            );
+        }
 
         // AwsSolutions-EC23 accepted: this SG fronts the shared INTERNET-FACING ALB (ADR-0003), so public
         // ingress here is the resource doing its job. Justification in @kitchensink/infra-security.

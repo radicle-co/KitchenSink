@@ -1,0 +1,92 @@
+# Account ERASURE happy path (plan U2) — the mobile half of the erasure user story.
+#
+# ## What this flow owns, and why it is separate from `account-danger-zone.yaml`
+#
+# `account-danger-zone.yaml` asserts the UX CONTRACT and deliberately cancels both destructive actions. That
+# leaves the story itself — a viewer confirms an erasure and is put out of the app — proven nowhere on
+# mobile. This flow owns exactly that, and it is the mobile mirror of the web
+# `tests/e2e/accountDangerZone.spec.ts`: the cross-platform rule exists because a fix applied to one platform
+# is precisely the kind that silently misses the other, and U2 was such a fix.
+#
+# ## ⛔ The regression it exists for
+#
+# "Erase my data" used to call the RECIPE service and nothing else, then sign the viewer out. That looks
+# exactly like success — the dialog closes, the viewer lands on the sign-in form — while the identity row,
+# the Clerk account, the avatar object and food's requester rows all survive. The viewer could sign straight
+# back in to the account they had just been told was destroyed. The flow now calls identity too
+# (`POST /api/v1/users/me/erasure`) and leaves ONLY once both legs are accepted, so the sign-out landing
+# asserted at the end is now evidence that BOTH calls succeeded — a failed account leg keeps the viewer
+# inside the dialog, which is what the final assertions detect.
+#
+# ## Why confirming here is safe, where it would not be against a live backend
+#
+#   - The RECIPE erasure hits the job's own dockerized recipe-service, whose database
+#     `run-maestro-flows.sh` truncates and re-seeds before EVERY flow. Nothing this flow destroys outlives it.
+#   - The IDENTITY erasure hits `tests/e2e/profile-stub-server.mjs`, which answers `202` and destroys
+#     nothing. The real call would delete the SHARED fixture user at Clerk, which every later flow signs in
+#     as — so it is stubbed, exactly as the web spec mocks the same endpoint for the same reason.
+#   - The Clerk SESSION really does end. That is recoverable: `auth/signin-home.yaml` is idempotent and every
+#     later flow composes it, so the next flow signs in again from the form this one lands on.
+#
+# ## Selector notes
+#
+# Text/accessibility-label only, per this suite's convention (no testIDs exist anywhere in `.maestro`).
+# ⚠️ `erase.title`, `erase.trigger` and `erase.confirm` are all the literal string 'Erase my data', so with
+# the dialog open there are three matches. The confirm is disambiguated by POSITION — it is the only one
+# sitting to the right of the dialog's 'Cancel' in the actions row (`AccountEraseDialog.native.tsx`'s
+# `styles.actions`: `flexDirection: 'row', justifyContent: 'flex-end'`). Do not "simplify" that back to a
+# bare `tapOn: 'Erase my data'`: the bare form may resolve to the title or to the trigger behind the modal,
+# and on this flow that means either doing nothing or reopening the dialog, both of which then fail late and
+# opaquely at the landing assertion.
+
+appId: io.commise.mobile
+---
+# Sign in (idempotent) and land on the Home widget surface.
+- runFlow: auth/signin-home.yaml
+
+# Cross into the profile surface, then into the account hub that owns the danger zone.
+- tapOn: 'Profile'
+- scrollUntilVisible:
+      element: 'Account settings'
+      direction: DOWN
+- tapOn: 'Account settings'
+
+- assertVisible: 'Erase my data'
+- tapOn: 'Erase my data'
+
+# The dialog states the action is irreversible and offers the donate election. The election's CONTENTS are
+# deliberately not asserted here (`account-danger-zone.yaml` and the component tier own that, and the seed
+# fixture may hold no owner-only recipes) — what matters to this story is that the section is presented
+# before anything is destroyed.
+- assertVisible: '.*cannot be undone.*'
+- assertVisible: 'Choose recipes to keep public'
+
+# The gate is CLOSED until the exact phrase is typed. Asserted as state, not by tapping a control that must
+# not fire: a tap that wrongly succeeded here would erase the account and then be indistinguishable from the
+# intended confirmation below.
+- assertVisible:
+      text: 'Erase my data'
+      enabled: false
+
+- tapOn: 'Confirmation phrase'
+- inputText: 'ERASE MY DATA'
+
+# Confirm — the irreversible action. See the selector note above for why this is position-qualified.
+- tapOn:
+      text: 'Erase my data'
+      rightOf:
+          text: 'Cancel'
+
+# ⛔ THE ASSERTION THE WHOLE FLOW EXISTS FOR. Both erasure legs were accepted, the session was ended AND
+# VERIFIED (ADR-0009 — a sign-out that resolves without revoking is the defect that command exists for), and
+# the auth gate has put the viewer back on the sign-in form. If the ACCOUNT leg had failed, the flow would
+# still be sitting in the dialog with its error copy, and this would (correctly) time out.
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 40000
+- assertVisible: 'Password'
+- assertVisible: 'Sign in'
+
+# Nothing authenticated survives: the danger zone the viewer was just standing in is gone, not merely covered.
+- assertNotVisible: 'Erase my data'
+- assertNotVisible: 'Account settings'

@@ -28,7 +28,7 @@ import { Template } from 'aws-cdk-lib/assertions';
 import { ArtifactMetadataEntryType } from 'aws-cdk-lib/cloud-assembly-schema';
 import { CachePolicy, OriginRequestPolicy } from 'aws-cdk-lib/aws-cloudfront';
 import { attachSecurityChecks } from '@kitchensink/infra-security';
-import { EPHEMERAL_SLOT_ORDER, internalOriginForStage } from '@kitchensink/infra-alb';
+import { EDGE_CUTOVER_SERVICES_ENV, EPHEMERAL_SLOT_ORDER, internalOriginForStage } from '@kitchensink/infra-alb';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -54,6 +54,7 @@ interface CacheBehavior {
 interface DistributionConfig {
     readonly Comment?: string;
     readonly Aliases?: readonly string[];
+    readonly ViewerCertificate?: Record<string, unknown>;
     readonly Origins: readonly {
         readonly DomainName: unknown;
         readonly CustomOriginConfig?: Record<string, unknown>;
@@ -63,16 +64,33 @@ interface DistributionConfig {
 }
 
 /** Synthesize the stack under test with everything the production path supplies. */
-function synthesize(overrides: { readonly stage?: string; readonly bundleDir?: string } = {}): Stack {
+function synthesize(
+    overrides: { readonly stage?: string; readonly bundleDir?: string; readonly cutOver?: string } = {},
+): Stack {
     const app = new App();
+    const previous = process.env[EDGE_CUTOVER_SERVICES_ENV];
 
-    return new EdgeStack(app, 'Edge', {
-        env,
-        stackName: 'kitchensink-edge-prod',
-        stage: overrides.stage ?? 'prod',
-        domainName,
-        verifierBundleDir: overrides.bundleDir ?? stubEdgeBundleDir(),
-    });
+    if (overrides.cutOver === undefined) {
+        delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+    } else {
+        process.env[EDGE_CUTOVER_SERVICES_ENV] = overrides.cutOver;
+    }
+
+    try {
+        return new EdgeStack(app, 'Edge', {
+            env,
+            stackName: 'kitchensink-edge-prod',
+            stage: overrides.stage ?? 'prod',
+            domainName,
+            verifierBundleDir: overrides.bundleDir ?? stubEdgeBundleDir(),
+        });
+    } finally {
+        if (previous === undefined) {
+            delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+        } else {
+            process.env[EDGE_CUTOVER_SERVICES_ENV] = previous;
+        }
+    }
 }
 
 /** Every distribution in the template, indexed by the service its origin names. */
@@ -214,13 +232,129 @@ describe('one distribution per service, originating from the internal ALB name',
         }
     });
 
-    it('claims no alias yet — U17 owns the DNS cutover', () => {
+    it('claims no alias until a service is DECLARED cut over — U17 cuts one at a time', () => {
         // Attaching `{service}.commise.app` here while the A-record still points at the ALB would move the
-        // public name's ownership a unit early, and U17 cuts one service at a time with a verification
-        // between each.
+        // public name's ownership without being asked, and U17 cuts one service at a time with a
+        // verification between each.
         for (const config of Object.values(distributionsByService(Template.fromStack(synthesize())))) {
             expect(config.Aliases ?? []).toEqual([]);
         }
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for the edge's half of the U17 DNS cutover.
+ *
+ * The service stacks release `{service}.commise.app` when `EDGE_CUTOVER_SERVICES` names them
+ * (`publicRecordOwnerFor` in `@kitchensink/infra-alb`). This is the other side of that handoff: for exactly
+ * the same set of services, THIS stack must claim the name — as a distribution alias AND as the Route 53
+ * record that resolves to it.
+ *
+ * Both stacks read the same variable through the same resolver, which is what makes the handoff atomic in
+ * intent. It is emphatically NOT atomic in execution — they are two `cdk deploy`s, and the public name does
+ * not resolve in between. That window is the owner-accepted downtime, and the order is fixed: the service
+ * stack releases FIRST, because Route 53 refuses a duplicate record and the reverse order simply fails.
+ */
+describe('the U17 DNS cutover (ADR-0020)', () => {
+    /** The domain names, per service, that the cutover is supposed to move. */
+    const publicHostFor = (service: string): string => `${service}.${domainName}`;
+
+    /**
+     * Every Route 53 record name in the template, in CDK's trailing-dot FQDN form.
+     *
+     * @param template - The synthesized template.
+     * @returns The record names.
+     */
+    function recordNames(template: Template): readonly string[] {
+        return Object.values(template.findResources('AWS::Route53::RecordSet')).map(
+            (record) => (record as { Properties: { Name: string } }).Properties.Name,
+        );
+    }
+
+    it('publishes NOTHING in DNS while no service has cut over', () => {
+        // The default an unset variable produces, and the state U16 shipped in. A record here would collide
+        // with the one the service stack still owns.
+        const template = Template.fromStack(synthesize());
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 0);
+    });
+
+    it('⛔ claims the alias AND the record for a cut-over service, and only for that one', () => {
+        // The handoff. Claiming the alias without the record leaves a distribution nobody can reach by
+        // name; claiming the record without the alias makes CloudFront answer 403 `SSL_ERROR` /
+        // `The distribution does not have an alias for this domain`, because it matches viewer requests
+        // to a distribution BY the Host header against its alias list.
+        const template = Template.fromStack(synthesize({ cutOver: 'food' }));
+        const distributions = distributionsByService(template);
+
+        expect(distributions['food']?.Aliases).toEqual([publicHostFor('food')]);
+        expect(distributions['recipe']?.Aliases ?? []).toEqual([]);
+        expect(distributions['identity']?.Aliases ?? []).toEqual([]);
+
+        expect(recordNames(template)).toEqual([`${publicHostFor('food')}.`]);
+    });
+
+    it('⛔ aliases the record to the DISTRIBUTION, never back to the ALB', () => {
+        // The whole point of the cutover. An A-record aliased at the shared ALB would leave the edge
+        // deployed, paid for, and entirely out of the request path — and every assertion about caching,
+        // token verification and origin lockdown in this file would describe something no viewer reaches.
+        const template = Template.fromStack(synthesize({ cutOver: 'food' }));
+        const record = Object.values(template.findResources('AWS::Route53::RecordSet'))[0] as {
+            Properties: { AliasTarget?: { DNSName?: unknown; HostedZoneId?: unknown } };
+        };
+
+        // CDK emits CloudFront's alias hosted-zone id through a partition MAPPING rather than the literal
+        // `Z2FDTNDATAQYW2`, so the assertion is on the mapping's identity. It still separates the two
+        // targets this test exists to tell apart: a `LoadBalancerTarget` would emit an `Fn::ImportValue`
+        // of the shared ALB's canonical hosted-zone id, which contains neither.
+        expect(JSON.stringify(record.Properties.AliasTarget?.HostedZoneId)).toContain('CloudFront');
+        expect(JSON.stringify(record.Properties.AliasTarget?.DNSName)).toContain('DomainName');
+        expect(JSON.stringify(record.Properties.AliasTarget)).not.toContain('SharedAlb');
+    });
+
+    it('attaches the ACM certificate that actually covers the name it is claiming', () => {
+        // CloudFront requires a us-east-1 certificate, and the apex `KitchenSinkCertificate` already
+        // carries `*.commise.app` — so U17 needs no new certificate, only the import. A distribution with
+        // an alias and no certificate is refused at deploy time.
+        const template = Template.fromStack(synthesize({ cutOver: 'food' }));
+        const config = distributionsByService(template)['food'];
+
+        expect(JSON.stringify(config?.ViewerCertificate)).toContain('CertificateArn');
+    });
+
+    it('claims all three once the cutover is complete — the steady state', () => {
+        const template = Template.fromStack(synthesize({ cutOver: 'food,recipe,identity' }));
+        const distributions = distributionsByService(template);
+
+        for (const service of EPHEMERAL_SLOT_ORDER) {
+            expect(distributions[service]?.Aliases).toEqual([publicHostFor(service)]);
+        }
+
+        expect([...recordNames(template)].sort()).toEqual(
+            [...EPHEMERAL_SLOT_ORDER].map((service) => `${publicHostFor(service)}.`).sort(),
+        );
+    });
+
+    it('⛔ leaves the ORIGIN untouched by the cutover — the alias is a viewer-side name only', () => {
+        // A tempting and fatal simplification is to point the origin at the public name once it resolves to
+        // CloudFront. That is a distribution whose origin is itself: an infinite loop that bills per
+        // request. The origin must remain the internal ALB name in every cut-over state.
+        for (const cutOver of [undefined, 'food', 'food,recipe,identity']) {
+            const distributions = distributionsByService(Template.fromStack(synthesize({ cutOver })));
+
+            for (const service of EPHEMERAL_SLOT_ORDER) {
+                const origin = internalOriginForStage({ service, stage: 'prod', domainName });
+
+                expect(String(distributions[service]?.Origins[0]?.DomainName)).toBe(origin?.host);
+            }
+        }
+    });
+
+    it('⛔ refuses to synthesize when the cut-over set names a service that does not exist', () => {
+        // Delegated to the shared resolver, asserted here because THIS is the stack where a typo would
+        // otherwise mean "claim nothing" — the silent half of the failure, with the service stack having
+        // already released the record.
+        expect(() => synthesize({ cutOver: 'fod' })).toThrow(/fod/);
     });
 });
 

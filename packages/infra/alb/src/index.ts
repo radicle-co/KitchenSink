@@ -26,3 +26,17 @@ export {
     type InternalOrigin,
     type InternalOriginRequest,
 } from './internalOriginHost.js';
+
+export {
+    EDGE_CUTOVER_SERVICES_ENV,
+    cutOverServicesFromEnv,
+    publicRecordOwnerFor,
+    type PublicRecordOwner,
+    type PublicRecordOwnerRequest,
+} from './publicRecordOwner.js';
+
+export {
+    CLOUDFRONT_ORIGIN_FACING_PREFIX_LIST,
+    CLOUDFRONT_PREFIX_LIST_RULE_WEIGHT,
+    albHttpsIngressPrefixListFor,
+} from './originLockdown.js';

@@ -29,7 +29,12 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { internalOriginForStage, listenerPriorityForStage } from '@kitchensink/infra-alb';
+import {
+    cutOverServicesFromEnv,
+    internalOriginForStage,
+    listenerPriorityForStage,
+    publicRecordOwnerFor,
+} from '@kitchensink/infra-alb';
 import {
     messageTableArnParameter,
     messageTableNameForStage,
@@ -756,15 +761,29 @@ export class FoodServiceStack extends Stack {
         // shared across independently-deployed stacks, so a second rule would have to claim one and the
         // deploy would fail with `Priority 'N' is currently in use` (ADR-0003). Public host stays FIRST and
         // keeps serving — U15 adds a door, U17 is what closes the old one.
+        //
+        // U17 closes it. Once food is named in `EDGE_CUTOVER_SERVICES`, EdgeStack owns the public record
+        // (aliased to the distribution) and this rule stops answering on the public host, so the ALB is
+        // reachable only at the origin name CloudFront dials. Both halves move together — see the resolver
+        // for why keeping one without the other is the actual failure.
+        const publicRecordOwner = publicRecordOwnerFor({
+            service: 'food',
+            stage,
+            cutOverServices: cutOverServicesFromEnv(process.env),
+        });
+
+        // `publicRecordOwnerFor` returns `edge` only on prod, which is exactly where `internalOrigin` is
+        // defined — but that agreement lives in two modules, so the fallback is real rather than a cast: an
+        // empty host list is a synth-time CDK error, which is the right way to find out they disagreed.
+        const ruleHosts =
+            publicRecordOwner === 'edge' && internalOrigin !== undefined
+                ? [internalOrigin.host]
+                : [serviceDomain, ...(internalOrigin === undefined ? [] : [internalOrigin.host])];
+
         new elbv2.ApplicationListenerRule(this, 'FoodServiceListenerRule', {
             listener: sharedHttpsListener,
             priority: listenerPriorityForStage({ service: 'food', stage, baseStage }),
-            conditions: [
-                elbv2.ListenerCondition.hostHeaders([
-                    serviceDomain,
-                    ...(internalOrigin === undefined ? [] : [internalOrigin.host]),
-                ]),
-            ],
+            conditions: [elbv2.ListenerCondition.hostHeaders(ruleHosts)],
             targetGroups: [targetGroup],
         });
 
@@ -777,11 +796,15 @@ export class FoodServiceStack extends Stack {
             ),
         });
 
-        new route53.ARecord(this, 'FoodServiceAliasRecord', {
-            zone: hostedZone,
-            recordName: subdomain,
-            target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
-        });
+        // Released to EdgeStack at cutover (U17), never deleted outright: Route 53 refuses a duplicate, so
+        // the two stacks cannot both hold it, and whichever holds it is the one that must publish it.
+        if (publicRecordOwner === 'service') {
+            new route53.ARecord(this, 'FoodServiceAliasRecord', {
+                zone: hostedZone,
+                recordName: subdomain,
+                target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
+            });
+        }
 
         // Prod only (ADR-0020 / U15). Same ALB, second name: the distribution origins at this record, and
         // the listener rule above already matches the host it resolves to.

@@ -5,6 +5,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import {
     BASE_LISTENER_PRIORITY,
     BASE_SPAN_CEILING,
+    EDGE_CUTOVER_SERVICES_ENV,
     EPHEMERAL_SERVICE_SLOTS,
     ephemeralBandsForSlot,
 } from '@kitchensink/infra-alb';
@@ -556,5 +557,125 @@ describe('the internal-origin host (prod only, ADR-0020 / U15)', () => {
             template.resourceCountIs('AWS::Route53::RecordSet', 1);
             expect(JSON.stringify(template.toJSON())).not.toContain('identity.internal.');
         }
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for identity's half of the U17 DNS cutover — the LAST service to cut over.
+ *
+ * Identity moves last on purpose: it carries the auth path and ADR-0001's `azp` hazard, so it goes only
+ * after food and recipe have been proven through the edge. The mechanics are the two other services':
+ * `identity.example.com` stops being this stack's Route 53 record (EdgeStack publishes it, aliased to the
+ * distribution) and stops being a host this rule answers on.
+ *
+ * ⚠️ Note what does NOT change here. The `/api/v1/internal/*` erasure route stays reachable — U16 exempts
+ * it from the edge verifier rather than from the distribution — so the fan-out keeps working through the
+ * public name. That exemption is what makes the SSM base URLs safe to leave pointing at public hostnames,
+ * and it is asserted in `EdgeStack.test.ts`, not here.
+ */
+describe('the U17 DNS cutover (prod only, ADR-0020)', () => {
+    const internalHost = 'identity.internal.example.com';
+    const publicHost = 'identity.example.com';
+
+    /**
+     * Synthesize a prod identity stack with a given cut-over set, restoring the environment afterwards.
+     *
+     * A fresh `App` per call is required: synth freezes the whole construct tree, so the shared
+     * `beforeAll` templates at the top of this file cannot vary by environment.
+     *
+     * @param cutOver - The `EDGE_CUTOVER_SERVICES` value, or `undefined` to leave it unset.
+     * @returns The synthesized prod template.
+     * @sideEffect Temporarily mutates `process.env`.
+     */
+    function synthProdWithCutover(cutOver: string | undefined): Template {
+        const previous = process.env[EDGE_CUTOVER_SERVICES_ENV];
+
+        if (cutOver === undefined) {
+            delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+        } else {
+            process.env[EDGE_CUTOVER_SERVICES_ENV] = cutOver;
+        }
+
+        try {
+            const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
+
+            return Template.fromStack(
+                new IdentityServiceStack(app, 'CutoverService', {
+                    env,
+                    stage: 'prod',
+                    domainName: 'example.com',
+                    imageTag: 'test',
+                    desiredCount: 1,
+                    vpcId: 'vpc-12345678',
+                }),
+            );
+        } finally {
+            if (previous === undefined) {
+                delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+            } else {
+                process.env[EDGE_CUTOVER_SERVICES_ENV] = previous;
+            }
+        }
+    }
+
+    /**
+     * Every host this template's listener rules answer on.
+     *
+     * @param template - The synthesized template.
+     * @returns The flattened host-header values.
+     */
+    function ruleHosts(template: Template): readonly string[] {
+        return Object.values(template.findResources('AWS::ElasticLoadBalancingV2::ListenerRule')).flatMap(
+            (rule) =>
+                (
+                    rule as {
+                        Properties: { Conditions?: readonly { HostHeaderConfig?: { Values?: string[] } }[] };
+                    }
+                ).Properties.Conditions?.flatMap((condition) => condition.HostHeaderConfig?.Values ?? []) ?? [],
+        );
+    }
+
+    it('changes NOTHING when the cutover has not been declared — an unset variable is not a cutover', () => {
+        const template = synthProdWithCutover(undefined);
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        template.hasResourceProperties('AWS::Route53::RecordSet', { Type: 'A', Name: `${publicHost}.` });
+        expect(ruleHosts(template)).toEqual([publicHost, internalHost]);
+    });
+
+    it('⛔ stays put while food and recipe cut over — identity is LAST, and that is the whole sequencing', () => {
+        // If identity moved with the others, the riskiest cutover would happen before either of the safe
+        // ones had been verified — which is precisely the ordering U17 exists to impose.
+        const template = synthProdWithCutover('food,recipe');
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        template.hasResourceProperties('AWS::Route53::RecordSet', { Type: 'A', Name: `${publicHost}.` });
+        expect(ruleHosts(template)).toEqual([publicHost, internalHost]);
+    });
+
+    it('⛔ releases the public A-record once identity has cut over, so EdgeStack can claim it', () => {
+        const template = synthProdWithCutover('food,recipe,identity');
+        const names = Object.values(template.findResources('AWS::Route53::RecordSet')).map(
+            (record) => (record as { Properties: { Name: string } }).Properties.Name,
+        );
+
+        expect(names).not.toContain(`${publicHost}.`);
+        // The internal record STAYS — it is what the distribution origins at, and it is this stack's.
+        expect(names).toContain(`${internalHost}.`);
+        template.resourceCountIs('AWS::Route53::RecordSet', 1);
+    });
+
+    it('⛔ stops answering on the public host once identity has cut over, leaving only the origin host', () => {
+        // Asserted on the RULE, not the whole template: `identity.example.com` legitimately survives as
+        // this service's own published origin and in the `azp` allow-list, which is the point of the
+        // cutover — callers keep addressing the public name, which now resolves to CloudFront.
+        expect(ruleHosts(synthProdWithCutover('food,recipe,identity'))).toEqual([internalHost]);
+    });
+
+    it('keeps its OWN fixed priority through the cutover — the rule is edited, never replaced', () => {
+        synthProdWithCutover('food,recipe,identity').hasResourceProperties(
+            'AWS::ElasticLoadBalancingV2::ListenerRule',
+            { Priority: BASE_LISTENER_PRIORITY.identity },
+        );
     });
 });

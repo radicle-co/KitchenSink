@@ -18,6 +18,7 @@ import {
 import {
     EPHEMERAL_SLOT_ORDER,
     cutOverServicesFromEnv,
+    edgeOriginHeaderFor,
     internalOriginForStage,
     publicRecordOwnerFor,
     type SharedListenerService,
@@ -309,6 +310,18 @@ export class EdgeStack extends Stack {
             Fn.importValue(`kitchensink-domain-${stage}:CertificateArn`),
         );
 
+        // ADR-0020 trap 5 — the secret that makes this edge the ONLY way to the origin. The prefix-list
+        // restriction on prod's ALB authorizes CloudFront, not ours; the origin hostnames are in the public
+        // zone, so without this header anyone may point their own distribution at one.
+        //
+        // ⛔ ORDERING, and it does not commute: this half must be DEPLOYED FIRST. The listener rules that
+        // require the header answer ADR-0003's default 404 to everything until the distribution is sending
+        // it, and `DomainStack` must have minted the secret before either resolves the reference.
+        //
+        // Resolved from the same module the ALB conditions read, so the two cannot be spelled apart — and
+        // `undefined` outside prod, where `originHosts` above has already refused to synthesize anyway.
+        const originHeader = edgeOriginHeaderFor(stage);
+
         const verifierVersion = this.createVerifier(props.verifierBundleDir, jwtKey);
         const ownerScopedCachePolicy = this.createOwnerScopedCachePolicy();
         const sharedCachePolicy = this.createSharedCachePolicy();
@@ -316,9 +329,17 @@ export class EdgeStack extends Stack {
         this.distributions = Object.fromEntries(
             EPHEMERAL_SLOT_ORDER.map((service) => {
                 const policy = EDGE_POLICY[service];
+                // ⛔ ONE `HttpOrigin` instance per service, shared by `verified()` AND every passthrough
+                // behavior below. That sharing is what carries the secret header onto `/health*` and
+                // `/api/v1/internal/*`, which have no function association and so have no other way to get
+                // it — it is what makes the GDPR erasure fan-out work through the locked-down ALB with no
+                // special case. Do not give a behavior its own origin instance.
                 const origin = new origins.HttpOrigin(originHosts[service], {
                     protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
                     originSslProtocols: [cloudfront.OriginSslPolicy.TLS_V1_2],
+                    ...(originHeader === undefined
+                        ? {}
+                        : { customHeaders: { [originHeader.headerName]: originHeader.value } }),
                 });
                 const verified = (cachePolicy: cloudfront.ICachePolicy): cloudfront.BehaviorOptions => ({
                     origin,

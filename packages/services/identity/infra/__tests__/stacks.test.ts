@@ -6,7 +6,9 @@ import {
     BASE_LISTENER_PRIORITY,
     BASE_SPAN_CEILING,
     EDGE_CUTOVER_SERVICES_ENV,
+    EDGE_ORIGIN_HEADER_NAME,
     EPHEMERAL_SERVICE_SLOTS,
+    edgeOriginHeaderFor,
     ephemeralBandsForSlot,
 } from '@kitchensink/infra-alb';
 
@@ -677,5 +679,117 @@ describe('the U17 DNS cutover (prod only, ADR-0020)', () => {
             'AWS::ElasticLoadBalancingV2::ListenerRule',
             { Priority: BASE_LISTENER_PRIORITY.identity },
         );
+    });
+});
+
+/**
+ * Every value the listener rules demand for the secret origin header (ADR-0020 / U17).
+ *
+ * Collected across ALL rules and conditions rather than asserted positionally, so a header condition added
+ * to the wrong rule, or a second rule carrying it, is visible rather than matched by luck.
+ *
+ * @param template - A synthesized template.
+ * @returns The condition values, in template order.
+ */
+function ruleHeaderConditionValues(template: Template): readonly string[] {
+    return Object.values(template.findResources('AWS::ElasticLoadBalancingV2::ListenerRule')).flatMap(
+        (rule) =>
+            (
+                rule as {
+                    Properties: {
+                        Conditions?: readonly {
+                            HttpHeaderConfig?: { HttpHeaderName?: string; Values?: readonly string[] };
+                        }[];
+                    };
+                }
+            ).Properties.Conditions?.filter(
+                (condition) => condition.HttpHeaderConfig?.HttpHeaderName === EDGE_ORIGIN_HEADER_NAME,
+            ).flatMap((condition) => condition.HttpHeaderConfig?.Values ?? []) ?? [],
+    );
+}
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for the secret origin header, identity's ALB side (plan U17, ADR-0020 trap 5).
+ *
+ * The prefix-list restriction on prod's ALB authorizes **CloudFront**, not **our** CloudFront:
+ * `identity.internal.example.com` is published in the PUBLIC zone, so anyone may point their own
+ * distribution at it and reach this target group with the edge verifier out of the path. The header is the
+ * boundary — and it matters most here, because this is the service every preview signs in against.
+ *
+ * Three properties are pinned because each fails in a way a green synth cannot show:
+ *
+ *   - **an additional condition on the EXISTING rule, never a second rule** — priority is one namespace
+ *     shared across independently-deployed stacks, so a second rule must claim one and the deploy dies with
+ *     `Priority 'N' is currently in use` (ADR-0003);
+ *   - **prod only** — sandbox has no distribution to send the header, and identity's sandbox stack is the
+ *     ONE shared service every per-PR preview authenticates against, so a header condition there takes
+ *     every open preview offline at once; and
+ *   - **≤ 5 conditions** — ALB's per-rule limit, which a third or fourth condition would silently approach.
+ */
+describe('the secret origin header condition (prod only, ADR-0020 / U17)', () => {
+    it('⛔ requires the header on the SAME rule as the host condition, never a second rule', () => {
+        const header = edgeOriginHeaderFor('prod');
+        const template = identityTemplate('prod');
+
+        expect(header).toBeDefined();
+        template.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'http-header',
+                    HttpHeaderConfig: Match.objectLike({ HttpHeaderName: header!.headerName }),
+                }),
+            ]),
+        });
+    });
+
+    it('⛔ matches a dynamic REFERENCE, never a literal — this repository is public', () => {
+        const values = ruleHeaderConditionValues(identityTemplate('prod'));
+
+        expect(values).toHaveLength(1);
+        expect(values[0]).toMatch(/^\{\{resolve:secretsmanager:/u);
+    });
+
+    it('⛔ adds NO header condition on any other stage — nothing there sends it', () => {
+        for (const stage of ['sandbox', 'test', 'dev']) {
+            const template = identityTemplate(stage);
+
+            expect(ruleHeaderConditionValues(template), `stage ${stage}`).toEqual([]);
+            expect(JSON.stringify(template.toJSON()), `stage ${stage}`).not.toContain(EDGE_ORIGIN_HEADER_NAME);
+        }
+    });
+
+    it('keeps its live prod priority — an in-place condition update, never a rule replacement', () => {
+        identityTemplate('prod').hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: BASE_LISTENER_PRIORITY.identity,
+        });
+    });
+
+    it('stays within ALB\u2019s five-condition ceiling', () => {
+        const rules = Object.values(
+            identityTemplate('prod').findResources('AWS::ElasticLoadBalancingV2::ListenerRule'),
+        ) as Array<{ Properties: { Conditions?: readonly unknown[] } }>;
+
+        for (const rule of rules) {
+            expect(rule.Properties.Conditions ?? []).toHaveLength(2);
+            expect((rule.Properties.Conditions ?? []).length).toBeLessThanOrEqual(5);
+        }
+    });
+
+    it('survives the cutover — the header is the boundary AFTER the public host is dropped', () => {
+        // Identity cuts over LAST, and after it does the public host is gone from this rule. If the header
+        // condition went with it, the auth path would be reachable by anyone who resolves the origin name.
+        const previous = process.env[EDGE_CUTOVER_SERVICES_ENV];
+        process.env[EDGE_CUTOVER_SERVICES_ENV] = 'food,recipe,identity';
+
+        try {
+            expect(ruleHeaderConditionValues(identityTemplate('prod'))).toHaveLength(1);
+        } finally {
+            if (previous === undefined) {
+                delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+            } else {
+                process.env[EDGE_CUTOVER_SERVICES_ENV] = previous;
+            }
+        }
     });
 });

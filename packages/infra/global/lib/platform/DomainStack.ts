@@ -1,4 +1,12 @@
-import { CfnOutput, Stack, type StackProps, aws_certificatemanager as acm, aws_route53 as route53 } from 'aws-cdk-lib';
+import {
+    CfnOutput,
+    Stack,
+    type StackProps,
+    aws_certificatemanager as acm,
+    aws_route53 as route53,
+    aws_secretsmanager as secretsmanager,
+} from 'aws-cdk-lib';
+import { EDGE_ORIGIN_HEADER_VALUE_LENGTH, edgeOriginHeaderFor } from '@kitchensink/infra-alb';
 import type { Construct } from 'constructs';
 
 export interface DomainStackProps extends StackProps {
@@ -58,6 +66,43 @@ export class DomainStack extends Stack {
             new CfnOutput(this, 'InternalCertificateArn', {
                 value: this.internalCertificate.certificateArn,
                 exportName: `${this.stackName}:InternalCertificateArn`,
+            });
+        }
+
+        // ADR-0020 trap 5 / plan U17 — the shared secret that proves an origin request came from OUR
+        // CloudFront. The prefix-list restriction on prod's ALB authorizes CloudFront, not ours: the origin
+        // hostnames are published in the PUBLIC zone, so anyone may point their own distribution at one.
+        //
+        // ⛔ No `exportName`, deliberately. The three service stacks and EdgeStack read this back by NAME,
+        // through a `{{resolve:secretsmanager:…}}` dynamic reference resolved at deploy time — not by a
+        // CloudFormation export. An export would put this stack in ADR-0002's export-in-use position with
+        // four importers, for a value that never appears in a template.
+        //
+        // ⛔ `excludePunctuation` is load-bearing, not hygiene: ALB reads `*` and `?` in a listener-rule
+        // condition value as WILDCARDS, so a generated value containing either turns the exact-match
+        // condition into a pattern admitting values nobody generated — with nothing about the deploy
+        // looking wrong. What remains is 62 alphanumeric characters, and 64 of them is ~381 bits, inside
+        // ALB's 128-character cap on a condition value.
+        const originHeader = edgeOriginHeaderFor(props.stage);
+
+        if (originHeader !== undefined) {
+            // ⚠️ An EXPLICIT name is required (the reference is keyed on it) and that makes this secret
+            // effectively permanent: Secrets Manager schedules a deletion with a recovery window rather than
+            // deleting immediately, and re-creating the same name inside that window fails with "a secret
+            // with this name is already scheduled for deletion". Rotating the VALUE is the supported
+            // operation; see ADR-0020's rotation runbook for the four-step, two-VALUE sequence (two values on
+            // one condition, because ALB ANDs separate conditions and ORs values within one).
+            new secretsmanager.Secret(this, 'EdgeOriginHeaderSecret', {
+                secretName: originHeader.secretName,
+                description: `Shared secret proving an origin request came from the ${props.stage} CloudFront edge (ADR-0020)`,
+                generateSecretString: {
+                    // JSON, so the dynamic reference can name a field — and so a rotation can add a second
+                    // field to this same secret rather than needing a second one.
+                    secretStringTemplate: JSON.stringify({}),
+                    generateStringKey: 'value',
+                    passwordLength: EDGE_ORIGIN_HEADER_VALUE_LENGTH,
+                    excludePunctuation: true,
+                },
             });
         }
 

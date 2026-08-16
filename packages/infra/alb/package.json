@@ -26,12 +26,23 @@
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
+    "//peerDependencies": [
+        "aws-cdk-lib is a PEER, matching @kitchensink/infra-security: every consumer of this package is a CDK",
+        "app that already owns a copy, and a second one would give SecretValue tokens from a different",
+        "aws-cdk-lib instance than the stack resolving them. It is needed for exactly one thing -",
+        "edgeOriginHeader.ts's `{{resolve:secretsmanager:...}}` dynamic reference (ADR-0020 / U17). Everything",
+        "else here is a pure string resolver with no imports at all, and should stay that way."
+    ],
+    "peerDependencies": {
+        "aws-cdk-lib": "^2.176.0"
+    },
     "devDependencies": {
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@types/node": "^24.0.0",
+        "aws-cdk-lib": "*",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "typescript": "^5.9.3",

@@ -7,6 +7,7 @@
  */
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
+import { EDGE_ORIGIN_HEADER_VALUE_LENGTH, edgeOriginHeaderFor } from '@kitchensink/infra-alb';
 import { describe, it, expect } from 'vitest';
 
 import { DomainStack } from '../lib/platform/DomainStack.js';
@@ -108,6 +109,69 @@ describe('DomainStack internal-origin certificate (prod only)', () => {
         expect(
             Object.values(sandbox.findOutputs('*')).map((o: { Export?: { Name?: string } }) => o.Export?.Name),
         ).not.toContain('kitchensink-domain-sandbox:InternalCertificateArn');
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for the secret origin header's SOURCE (plan U17, ADR-0020 trap 5).
+ *
+ * The prefix-list restriction that shipped first authorizes CloudFront, not OUR CloudFront — the origin
+ * hostnames are in the public zone, so anyone may point their own distribution at one. The boundary is a
+ * shared secret header, and this is the end of it that generates the value.
+ *
+ * CloudFormation generates it, so no human ever sees it and nothing secret enters this PUBLIC repository.
+ * Two properties are load-bearing rather than stylistic, and both are asserted:
+ *
+ *   - **`ExcludePunctuation`** — ALB treats `*` and `?` in a listener-rule condition value as WILDCARDS. A
+ *     generated value containing either would quietly become a PATTERN admitting values nobody generated,
+ *     and nothing about the deploy would look wrong.
+ *   - **the exact `Name`** — three other stacks read the value back by a `{{resolve:secretsmanager:…}}`
+ *     dynamic reference keyed on this name. A rename does not fail synth; it fails the deploy of a stack
+ *     nobody edited, or resolves a different secret.
+ */
+describe('DomainStack secret origin header (prod only, ADR-0020 / U17)', () => {
+    it('generates the value in CloudFormation, under the name every other stack resolves', () => {
+        const header = edgeOriginHeaderFor('prod');
+
+        expect(header).toBeDefined();
+        domainTemplate('prod').hasResourceProperties('AWS::SecretsManager::Secret', {
+            Name: header!.secretName,
+            GenerateSecretString: Match.objectLike({
+                GenerateStringKey: 'value',
+                PasswordLength: EDGE_ORIGIN_HEADER_VALUE_LENGTH,
+            }),
+        });
+    });
+
+    it('⛔ excludes punctuation — ALB reads `*` and `?` in a condition value as WILDCARDS', () => {
+        // Without this the generated secret can contain a wildcard, and the listener rule that is supposed
+        // to demand one exact value instead admits a whole family of them. Nothing observable fails.
+        domainTemplate('prod').hasResourceProperties('AWS::SecretsManager::Secret', {
+            GenerateSecretString: Match.objectLike({ ExcludePunctuation: true }),
+        });
+    });
+
+    it('⛔ writes NO value into the template — this repository is public', () => {
+        // `GenerateSecretString` is a generation INSTRUCTION; `SecretString` would be the value itself.
+        // Committing one would put the origin boundary in git history permanently.
+        const secrets = Object.values(domainTemplate('prod').findResources('AWS::SecretsManager::Secret')) as Array<{
+            Properties: Record<string, unknown>;
+        }>;
+
+        expect(secrets).toHaveLength(1);
+
+        for (const secret of secrets) {
+            expect(secret.Properties['SecretString']).toBeUndefined();
+            expect(secret.Properties['SecretObjectValue']).toBeUndefined();
+        }
+    });
+
+    it('creates NO secret outside prod — no other stage has a distribution to send the header', () => {
+        // A sandbox or per-PR secret would be an unused, unrotated, chargeable resource, and worse: its
+        // existence would invite a listener rule requiring a header nothing sends, taking the stage offline.
+        for (const stage of ['sandbox', 'pr-91']) {
+            domainTemplate(stage).resourceCountIs('AWS::SecretsManager::Secret', 0);
+        }
     });
 });
 

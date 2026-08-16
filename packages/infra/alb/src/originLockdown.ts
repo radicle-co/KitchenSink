@@ -4,8 +4,7 @@
  * @implements ADR-0020
  */
 
-/** The stage fronted by a CloudFront distribution, and so the only stage that can be locked down. */
-const EDGE_STAGE = 'prod';
+import { EDGE_STAGE } from './edgeStage.js';
 
 /**
  * The AWS-managed prefix list for CloudFront's origin-facing address ranges, in the commercial partition.

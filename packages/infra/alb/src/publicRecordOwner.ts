@@ -14,10 +14,8 @@
  *
  * @implements ADR-0020
  */
+import { EDGE_STAGE } from './edgeStage.js';
 import { EPHEMERAL_SLOT_ORDER, type SharedListenerService } from './listenerPriority.js';
-
-/** The one stage with a CloudFront edge, and so the only stage where ownership can move (ADR-0020). */
-const EDGE_STAGE = 'prod';
 
 /** The deploy-time variable naming the services whose cutover has already happened. */
 export const EDGE_CUTOVER_SERVICES_ENV = 'EDGE_CUTOVER_SERVICES';

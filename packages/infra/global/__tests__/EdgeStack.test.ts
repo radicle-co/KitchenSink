@@ -28,7 +28,13 @@ import { Template } from 'aws-cdk-lib/assertions';
 import { ArtifactMetadataEntryType } from 'aws-cdk-lib/cloud-assembly-schema';
 import { CachePolicy, OriginRequestPolicy } from 'aws-cdk-lib/aws-cloudfront';
 import { attachSecurityChecks } from '@kitchensink/infra-security';
-import { EDGE_CUTOVER_SERVICES_ENV, EPHEMERAL_SLOT_ORDER, internalOriginForStage } from '@kitchensink/infra-alb';
+import {
+    EDGE_CUTOVER_SERVICES_ENV,
+    EDGE_ORIGIN_HEADER_NAME,
+    EPHEMERAL_SLOT_ORDER,
+    edgeOriginHeaderFor,
+    internalOriginForStage,
+} from '@kitchensink/infra-alb';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -51,14 +57,18 @@ interface CacheBehavior {
     readonly LambdaFunctionAssociations?: readonly { readonly EventType: string }[];
 }
 
+interface DistributionOrigin {
+    readonly Id: string;
+    readonly DomainName: unknown;
+    readonly CustomOriginConfig?: Record<string, unknown>;
+    readonly OriginCustomHeaders?: readonly { readonly HeaderName: string; readonly HeaderValue: string }[];
+}
+
 interface DistributionConfig {
     readonly Comment?: string;
     readonly Aliases?: readonly string[];
     readonly ViewerCertificate?: Record<string, unknown>;
-    readonly Origins: readonly {
-        readonly DomainName: unknown;
-        readonly CustomOriginConfig?: Record<string, unknown>;
-    }[];
+    readonly Origins: readonly DistributionOrigin[];
     readonly DefaultCacheBehavior: CacheBehavior;
     readonly CacheBehaviors?: readonly CacheBehavior[];
 }
@@ -511,6 +521,102 @@ describe('header forwarding — the ADR-0001 failure class, and the one place th
         const managed = OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER.originRequestPolicyId;
 
         expect(managed).not.toBe(OriginRequestPolicy.ALL_VIEWER.originRequestPolicyId);
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for the secret origin header, edge side (plan U17, ADR-0020 trap 5).
+ *
+ * The prefix-list restriction on prod's ALB authorizes **CloudFront**, not **our** CloudFront: the origin
+ * hostnames are published in the public zone, so anyone may point their own distribution at
+ * `food.internal.commise.app` and reach the ALB with this verifier out of the path. The boundary is the
+ * shared secret header, and this is the half that SENDS it.
+ *
+ * The ordering is not symmetric and cannot be simplified: the distribution must send the header BEFORE the
+ * ALB requires it. A listener rule that demands a header no distribution sends yet answers ADR-0003's
+ * default `404` to all production traffic.
+ */
+describe('the secret origin header (ADR-0020 trap 5 — the boundary the prefix list is NOT)', () => {
+    it('sends the header from every distribution, so no service is reachable around the edge', () => {
+        const header = edgeOriginHeaderFor('prod');
+        const distributions = distributionsByService(Template.fromStack(synthesize()));
+
+        expect(header).toBeDefined();
+
+        for (const service of EPHEMERAL_SLOT_ORDER) {
+            const custom = distributions[service]?.Origins[0]?.OriginCustomHeaders ?? [];
+
+            expect(
+                custom.map((entry) => entry.HeaderName),
+                `${service} custom headers`,
+            ).toContain(header!.headerName);
+        }
+    });
+
+    it('⛔ sends a dynamic REFERENCE, never the secret — this repository is public', () => {
+        const distributions = distributionsByService(Template.fromStack(synthesize()));
+
+        for (const service of EPHEMERAL_SLOT_ORDER) {
+            const entry = (distributions[service]?.Origins[0]?.OriginCustomHeaders ?? []).find(
+                (candidate) => candidate.HeaderName === EDGE_ORIGIN_HEADER_NAME,
+            );
+
+            expect(entry?.HeaderValue, `${service} header value`).toMatch(/^\{\{resolve:secretsmanager:/u);
+        }
+    });
+
+    it('⛔ commits no opaque 64-character literal anywhere in the template', () => {
+        // The scan that proves the assertion above was not defeated by some OTHER path putting the value in.
+        // CDK legitimately emits 64-character runs — an asset hash, and substrings of long logical ids — so
+        // the discriminator is the ALPHABET rather than the length: an asset hash is lower-case hex, while a
+        // value generated from `excludePunctuation`'s 62-character alphabet is mixed-case alphanumeric with
+        // overwhelming probability. Paste a real secret in and this reds.
+        const json = JSON.stringify(Template.fromStack(synthesize()).toJSON());
+        const exactlySixtyFour = json.match(/(?<![A-Za-z0-9])[A-Za-z0-9]{64}(?![A-Za-z0-9])/gu) ?? [];
+
+        for (const run of exactlySixtyFour) {
+            expect(run, `64-character literal ${run}`).toMatch(/^[0-9a-f]{64}$/u);
+        }
+    });
+
+    it('⛔ carries the header on the PASSTHROUGH behaviors too, via the one shared origin', () => {
+        // `/health*` and `/api/v1/internal/*` have no function association, so nothing in the handler could
+        // add the header for them. They inherit it because every behavior points at the SAME origin — which
+        // is what makes the GDPR erasure fan-out work through a locked-down ALB with no special case.
+        // Restructuring the origin per behavior would silently strand exactly those paths.
+        for (const config of Object.values(distributionsByService(Template.fromStack(synthesize())))) {
+            expect(config.Origins).toHaveLength(1);
+
+            const originId = config.Origins[0]!.Id;
+
+            for (const behavior of behaviorsOf(config)) {
+                expect(behavior.TargetOriginId, `${behavior.PathPattern ?? '(default)'} origin`).toBe(originId);
+            }
+        }
+    });
+
+    it('keeps sending the header through every cut-over state', () => {
+        // The cutover moves the public NAME; it must not move the boundary. A state that stopped sending the
+        // header would 404 the whole service the moment the ALB condition is in place.
+        for (const cutOver of [undefined, 'food', 'food,recipe,identity']) {
+            const distributions = distributionsByService(Template.fromStack(synthesize({ cutOver })));
+
+            for (const service of EPHEMERAL_SLOT_ORDER) {
+                expect(
+                    (distributions[service]?.Origins[0]?.OriginCustomHeaders ?? []).map((e) => e.HeaderName),
+                    `${service} @ cutOver=${String(cutOver)}`,
+                ).toContain(EDGE_ORIGIN_HEADER_NAME);
+            }
+        }
+    });
+
+    it('talks to the origin over HTTPS, which is what keeps the header secret in flight', () => {
+        // A `http-only` or `match-viewer` origin policy would put a 64-character bearer of the origin
+        // boundary on the wire in clear text. Asserted here, next to the header, rather than only in the
+        // protocol test above — this is the reason the protocol choice is not merely a preference.
+        for (const config of Object.values(distributionsByService(Template.fromStack(synthesize())))) {
+            expect(config.Origins[0]?.CustomOriginConfig?.['OriginProtocolPolicy']).toBe('https-only');
+        }
     });
 });
 

@@ -5,7 +5,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
     BASE_LISTENER_PRIORITY,
     EDGE_CUTOVER_SERVICES_ENV,
+    EDGE_ORIGIN_HEADER_NAME,
     EPHEMERAL_SLOT_ORDER,
+    edgeOriginHeaderFor,
     ephemeralBandsForSlot,
 } from '@kitchensink/infra-alb';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
@@ -14,6 +16,32 @@ import { recipeSubdomainForStage, RecipeServiceStack } from '../lib/RecipeServic
 
 /** Recipe's own per-PR band, read from the allocation authority rather than restated as a literal. */
 const RECIPE_PER_PR_BAND = ephemeralBandsForSlot(EPHEMERAL_SLOT_ORDER.indexOf('recipe')).perPr;
+
+/**
+ * Every value the listener rules demand for the secret origin header (ADR-0020 / U17).
+ *
+ * Collected across ALL rules and conditions rather than asserted positionally, so a header condition added
+ * to the wrong rule, or a second rule carrying it, is visible rather than matched by luck.
+ *
+ * @param template - A synthesized template.
+ * @returns The condition values, in template order.
+ */
+function ruleHeaderConditionValues(template: Template): readonly string[] {
+    return Object.values(template.findResources('AWS::ElasticLoadBalancingV2::ListenerRule')).flatMap(
+        (rule) =>
+            (
+                rule as {
+                    Properties: {
+                        Conditions?: readonly {
+                            HttpHeaderConfig?: { HttpHeaderName?: string; Values?: readonly string[] };
+                        }[];
+                    };
+                }
+            ).Properties.Conditions?.filter(
+                (condition) => condition.HttpHeaderConfig?.HttpHeaderName === EDGE_ORIGIN_HEADER_NAME,
+            ).flatMap((condition) => condition.HttpHeaderConfig?.Values ?? []) ?? [],
+    );
+}
 
 // Pre-seed the VPC lookup so `Vpc.fromLookup` resolves to a dummy VPC during synth instead of an AWS call.
 const VPC_LOOKUP_CONTEXT = {
@@ -544,6 +572,94 @@ describe('the U17 DNS cutover (prod only, ADR-0020)', () => {
                 template.resourceCountIs('AWS::Route53::RecordSet', 1);
                 expect(ruleHosts(template)).toEqual([`recipe-${stage}.example.com`]);
             }
+        } finally {
+            if (previous === undefined) {
+                delete process.env[EDGE_CUTOVER_SERVICES_ENV];
+            } else {
+                process.env[EDGE_CUTOVER_SERVICES_ENV] = previous;
+            }
+        }
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for the secret origin header, recipe's ALB side (plan U17, ADR-0020 trap 5).
+ *
+ * The prefix-list restriction on prod's ALB authorizes **CloudFront**, not **our** CloudFront:
+ * `recipe.internal.example.com` is published in the PUBLIC zone, so anyone may point their own distribution
+ * at it and reach this target group with the edge verifier out of the path. The header is the boundary.
+ *
+ * Three properties are pinned because each fails in a way a green synth cannot show:
+ *
+ *   - **an additional condition on the EXISTING rule, never a second rule** — priority is one namespace
+ *     shared across independently-deployed stacks, so a second rule must claim one and the deploy dies with
+ *     `Priority 'N' is currently in use` (ADR-0003);
+ *   - **prod only** — sandbox and every per-PR preview have no distribution to send the header, and a rule
+ *     demanding it there matches nothing and answers ADR-0003's default 404 to the entire preview; and
+ *   - **≤ 5 conditions** — ALB's per-rule limit, which a third or fourth condition would silently approach.
+ */
+describe('the secret origin header condition (prod only, ADR-0020 / U17)', () => {
+    it('⛔ requires the header on the SAME rule as the host condition, never a second rule', () => {
+        const header = edgeOriginHeaderFor('prod');
+        const template = synthTemplate('prod', 'prod');
+
+        expect(header).toBeDefined();
+        template.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'http-header',
+                    HttpHeaderConfig: Match.objectLike({ HttpHeaderName: header!.headerName }),
+                }),
+            ]),
+        });
+    });
+
+    it('⛔ matches a dynamic REFERENCE, never a literal — this repository is public', () => {
+        const values = ruleHeaderConditionValues(synthTemplate('prod', 'prod'));
+
+        expect(values).toHaveLength(1);
+        expect(values[0]).toMatch(/^\{\{resolve:secretsmanager:/u);
+    });
+
+    it('⛔ adds NO header condition on any other stage — nothing there sends it', () => {
+        for (const [stage, baseStage] of [
+            ['sandbox', 'sandbox'],
+            ['pr-91', 'sandbox'],
+            ['test', 'sandbox'],
+        ]) {
+            const template = synthTemplate(stage as string, baseStage as string);
+
+            expect(ruleHeaderConditionValues(template), `stage ${stage}`).toEqual([]);
+            expect(JSON.stringify(template.toJSON()), `stage ${stage}`).not.toContain(EDGE_ORIGIN_HEADER_NAME);
+        }
+    });
+
+    it('keeps its live prod priority — an in-place condition update, never a rule replacement', () => {
+        synthTemplate('prod', 'prod').hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: BASE_LISTENER_PRIORITY.recipe,
+        });
+    });
+
+    it('stays within ALB\u2019s five-condition ceiling', () => {
+        const rules = Object.values(
+            synthTemplate('prod', 'prod').findResources('AWS::ElasticLoadBalancingV2::ListenerRule'),
+        ) as Array<{ Properties: { Conditions?: readonly unknown[] } }>;
+
+        for (const rule of rules) {
+            expect(rule.Properties.Conditions ?? []).toHaveLength(2);
+            expect((rule.Properties.Conditions ?? []).length).toBeLessThanOrEqual(5);
+        }
+    });
+
+    it('survives the cutover — the header is the boundary AFTER the public host is dropped', () => {
+        // The cutover removes the public host from the rule, leaving the origin host as the only match. If
+        // the header condition went with it, the origin would be reachable by anyone who resolves the name.
+        const previous = process.env[EDGE_CUTOVER_SERVICES_ENV];
+        process.env[EDGE_CUTOVER_SERVICES_ENV] = 'recipe';
+
+        try {
+            expect(ruleHeaderConditionValues(synthTemplate('prod', 'prod'))).toHaveLength(1);
         } finally {
             if (previous === undefined) {
                 delete process.env[EDGE_CUTOVER_SERVICES_ENV];

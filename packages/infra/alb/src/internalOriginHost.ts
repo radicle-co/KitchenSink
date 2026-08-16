@@ -33,6 +33,7 @@
  * @module
  */
 
+import { EDGE_STAGE } from './edgeStage.js';
 import { type SharedListenerService } from './listenerPriority.js';
 
 export { type SharedListenerService };
@@ -44,9 +45,6 @@ export { type SharedListenerService };
  * Exported so `DomainStack`'s certificate and the hosts that must match it cannot be spelled apart.
  */
 export const INTERNAL_ORIGIN_LABEL = 'internal';
-
-/** The stage that owns the CloudFront edge, and therefore the only stage with internal origins (KTD-7). */
-const EDGE_STAGE = 'prod';
 
 /** Everything needed to resolve one service's internal origin. An object, so the strings cannot be swapped. */
 export interface InternalOriginRequest {

@@ -31,6 +31,7 @@ import type { Construct } from 'constructs';
 
 import {
     cutOverServicesFromEnv,
+    edgeOriginHeaderFor,
     internalOriginForStage,
     listenerPriorityForStage,
     publicRecordOwnerFor,
@@ -780,10 +781,28 @@ export class FoodServiceStack extends Stack {
                 ? [internalOrigin.host]
                 : [serviceDomain, ...(internalOrigin === undefined ? [] : [internalOrigin.host])];
 
+        // ADR-0020 trap 5 — the secret origin header, which is the boundary the prefix-list restriction is
+        // NOT. That restriction admits CloudFront, not OURS: `food.internal.{apex}` is published in the
+        // public zone, so anyone may point their own distribution at it and reach this target group with
+        // the edge verifier out of the path. Prod only, and `undefined` everywhere else — a preview whose
+        // rule demanded a header nothing sends would answer ADR-0003's default 404 to every request.
+        //
+        // ⛔ DEPLOY ORDER, and it does not commute: `EdgeStack` must be sending the header BEFORE this
+        // condition exists, or production traffic 404s. See ADR-0020's U17 correction.
+        const originHeader = edgeOriginHeaderFor(stage);
+
         new elbv2.ApplicationListenerRule(this, 'FoodServiceListenerRule', {
             listener: sharedHttpsListener,
             priority: listenerPriorityForStage({ service: 'food', stage, baseStage }),
-            conditions: [elbv2.ListenerCondition.hostHeaders(ruleHosts)],
+            // ⛔ An additional condition on THIS rule, never a second rule. Conditions are ANDed, whereas a
+            // second rule would have to claim its own priority on a namespace shared across independently
+            // deployed stacks and fail with `Priority 'N' is currently in use` (ADR-0003). ALB allows five.
+            conditions: [
+                elbv2.ListenerCondition.hostHeaders(ruleHosts),
+                ...(originHeader === undefined
+                    ? []
+                    : [elbv2.ListenerCondition.httpHeader(originHeader.headerName, [originHeader.value])]),
+            ],
             targetGroups: [targetGroup],
         });
 

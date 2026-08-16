@@ -1,3 +1,5 @@
+export { EDGE_STAGE } from './edgeStage.js';
+
 export {
     ALB_MAX_LISTENER_PRIORITY,
     ALB_MIN_LISTENER_PRIORITY,
@@ -40,3 +42,11 @@ export {
     CLOUDFRONT_PREFIX_LIST_RULE_WEIGHT,
     albHttpsIngressPrefixListFor,
 } from './originLockdown.js';
+
+export {
+    ALB_CONDITION_VALUE_MAX_LENGTH,
+    EDGE_ORIGIN_HEADER_NAME,
+    EDGE_ORIGIN_HEADER_VALUE_LENGTH,
+    edgeOriginHeaderFor,
+    type EdgeOriginHeader,
+} from './edgeOriginHeader.js';

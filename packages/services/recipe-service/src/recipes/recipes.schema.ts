@@ -297,6 +297,84 @@ export type ListRecipesQuery = z.infer<typeof listRecipesQuerySchema>;
  * GR-007 axis is untouched — every non-wire consumer keeps importing these from `recipe-core`.
  */
 
+/**
+ * A recipe's per-serving nutrition as the wire carries it — a THREE-state fact of which exactly TWO
+ * states may cross the boundary (plan: deferred calorie lookup).
+ *
+ * ## Why `pending` is deliberately absent
+ *
+ * A card is in one of three conditions: pending (the request is in flight), known, or unaccounted (we
+ * asked and there is no answer). `pending` lives ONLY on the client, as the Suspense fallback while the
+ * promise is unsettled, and its absence here is the enforcement: the moment a server can emit `pending`,
+ * a skeleton can become permanent — a spinner rendering forever because an origin said so, with nothing
+ * to retry and nothing to time out. `unaccounted` is terminal by contrast; it is the answer, not the
+ * absence of one, so it can never render a spinner.
+ *
+ * ## Why a discriminated union replaces `hasPartialNutrition`
+ *
+ * That boolean was a two-valued encoding of a three-valued fact, and three call sites pinned it `true` to
+ * mean "not looked up" — a meaning its own docstring does not carry ("some line could not be accounted
+ * for"). One field, two meanings, no discriminant, so a reader could not tell genuinely-partial nutrition
+ * from nobody-asked, and the UI could not choose between a figure, a caveat, and nothing.
+ *
+ * ## The KTD-3b invariant, made structural
+ *
+ * `calories: 0` is a factual claim that a dish contains no energy, and an outage is not evidence for it.
+ * So `known` REQUIRES a number — a zero there is a real measured zero, which water and black coffee
+ * genuinely have — and every failure path lands in `unaccounted`, which carries no figure for a client to
+ * render by accident.
+ *
+ * `freshness` reaches the wire here for the first time. `FoodNutritionGateway` has computed it since plan
+ * U10 and nothing ever read it, so a reader served a cached number during a food outage was never told —
+ * KTD-3b says "serve stale, MARKED", and only the first half was implemented.
+ */
+export const recipeNutritionStateSchema = z.discriminatedUnion('state', [
+    z
+        .object({
+            state: z.literal('known'),
+            /** Per serving. A real measured zero is legal; an outage never reaches this member. */
+            caloriesPerServing: z.number().nonnegative(),
+            proteinG: z.number().nonnegative(),
+            carbsG: z.number().nonnegative(),
+            fatG: z.number().nonnegative(),
+            /** `false` when some LINE could not be accounted for — the original, narrow meaning. */
+            isComplete: z.boolean(),
+            /** Whether the underlying food data is current, or served from cache during an outage. */
+            freshness: z.enum(['fresh', 'stale']),
+        })
+        .strict(),
+    z
+        .object({
+            state: z.literal('unaccounted'),
+            /**
+             * Why there is no figure. `no_resolved_ingredients` — nothing in the recipe maps to a food yet;
+             * `no_nutrient_data` — foods resolved but carry no qualifying per-100g rows; `food_unavailable`
+             * — the lookup itself failed and nothing was cached.
+             */
+            reason: z.enum(['no_resolved_ingredients', 'no_nutrient_data', 'food_unavailable']),
+        })
+        .strict(),
+]);
+
+/** One recipe's nutrition state. */
+export type RecipeNutritionState = z.infer<typeof recipeNutritionStateSchema>;
+
+/**
+ * The deferred-nutrition response: recipe id → state.
+ *
+ * ⛔ A recipe the caller may not read is OMITTED, never given a state. Emitting `unaccounted` for another
+ * owner's recipe would confirm the id exists, and emitting `known` would leak the figure — so absence is
+ * the authorization signal, and clients must treat a missing key as "not for you", not as an error.
+ */
+export const recipeNutritionResponseSchema = z
+    .object({
+        nutrition: z.record(z.string(), recipeNutritionStateSchema),
+    })
+    .strict();
+
+/** The deferred-nutrition response body. */
+export type RecipeNutritionResponse = z.infer<typeof recipeNutritionResponseSchema>;
+
 export {
     /** `GET /api/v1/recipes` item + `Recipe` component — the recipe list/summary body. */
     recipeSchema,

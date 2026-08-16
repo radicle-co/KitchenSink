@@ -1,7 +1,7 @@
 /**
  * `@kitchensink/messaging` — the durable per-group message substrate's PRODUCER half (R1, plan U4–U6).
  *
- * Producers depend on {@link publish} and never on a storage SDK. The contract is shared here; the adapters
+ * Producers depend on `publish` and never on a storage SDK. The contract is shared here; the adapters
  * stay local to each runtime (the `cdnInvalidation.ts` precedent), with the DynamoDB one in plan U6.
  *
  * @module

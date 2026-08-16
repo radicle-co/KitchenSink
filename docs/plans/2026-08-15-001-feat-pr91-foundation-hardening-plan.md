@@ -36,6 +36,44 @@ below.
 
 ---
 
+## Status ledger (updated 2026-08-16)
+
+Five units are DONE and verified; twelve remain. Each unit's own section carries its evidence.
+
+| Unit             | State          | Commit     | Evidence                                                                     |
+| ---------------- | -------------- | ---------- | ---------------------------------------------------------------------------- |
+| **U15**          | ✅ DONE        | `1e7cd082` | Live `curl`: three internal hosts `200` / `ssl_verify 0`, publics unaffected |
+| **U1**           | ✅ DONE        | `7775e228` | `docs/reviews/2026-08-16-u1-erasure-diagnosis.md`                            |
+| **U2**           | ✅ DONE        | `67fea871` | identity 409, webhooks 193, web 1072, mobile 58 + 388 native                 |
+| **U3**           | ✅ DONE        | `e9d0c639` | ADR-0020 written; 0016/0017/0019 amended; doc-link gate green                |
+| **U4**           | ✅ DONE        | `e728c289` | messaging 20, food-service 775; nine hand-rolled doubles retired             |
+| U5–U14, U16, U17 | ⬜ NOT STARTED | —          | See _Implementation units_; dependency order below                           |
+
+**Next in dependency order.** U5 (substrate table) → U6 (Dynamo adapter; needs U4 ✅ + U5) → U7 (docs,
+needs U5). U8 (food nutrition endpoint) has **no dependencies** and gates U9 and U10 — it is the other
+sensible starting point. U11 needs U1 ✅ + U5. U12 needs U1–U11. U13 needs U3 ✅, then U14. U16 needs
+U15 ✅ + U8, then U17.
+
+**Two units carry irreversible production actions and should not be started casually:** U10 runs a
+column-dropping migration against production with no down-migration, and U17 cuts production DNS and locks
+the prod ALB security group. Both are gated on earlier units being genuinely finished, not merely green.
+
+### Carried-forward findings from the completed units
+
+- **The erasure alarm cannot currently report a failure in either stage** (U1). Prod's alarm is
+  dimensionless with no action (stale deploy — redeploy `kitchensink-identity-webhooks-prod` fixes it);
+  sandbox's emitter dies before emitting. Any erasure work verified _by that alarm_ is unverified.
+- **Sandbox's erasure-reconciliation fails 3×/day** because `cron(0 5 * * ? *)` = 01:00 ET fires inside
+  ADR-0007's 00:00–09:00 ET RDS shutdown. Fix the schedule, not the handler.
+- **Sandbox's erasure fan-out targets services that do not exist there** — no recipe/food service is
+  deployed to sandbox, so the SSM base URLs collect the shared ALB's default `404`.
+- **`KitchenSink/IdentityWebhooks` has no metrics at all**, cause unresolved. The emitter is proven
+  correct; the prime suspect and the one-parameter experiment that settles it are in the U1 finding.
+- **Prod carries unmerged PR-91 infra drift** applied during U15's manual deploy (identity's SQS grant
+  fix, SNS topic policies, food/recipe migration Lambdas on `nodejs24.x`). Recorded in U15's section.
+
+---
+
 ## Problem frame
 
 Three shipped features carry verified defects, including a GDPR erasure path where all three layers of

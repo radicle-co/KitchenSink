@@ -65,7 +65,6 @@ blast radius is legible in one place rather than scattered across units.
 | Nutrition falls back to a stale cached value, marked stale, when food is unreachable — and to absent when uncached | U10      |
 | The account-erasure confirmation copy narrows to claim only what the flow actually performs                        | U2       |
 | A placeholder ingredient now shows an explicit retrying state, and a terminal failed state after five attempts     | U9       |
-| Recipe `visibility` stops defaulting to public, so free-tier users can make a recipe private                       | U12      |
 | All three production services take planned downtime during the migration and the DNS cutover                       | U10, U17 |
 
 ---
@@ -552,8 +551,16 @@ tombstone DSN-9 silences**, and an **operator-invokable requeue** clears the cou
 mark. Without both, a transient USDA outage or a bad API key would blackhole that food permanently for
 every user, invisibly.
 
-**Verify before building** that food's existing reaper is actually scheduled — Q-C found one sweep whose
-schedule is unverified. If it is not scheduled, scheduling it is part of this unit, not an assumption.
+**Where the retry sweep runs — verified 2026-08-15, and it needs no new infrastructure.** Food's reaper
+is **not** a scheduled EventBridge rule: it lives in the always-on `WorkerRuntime` on a 60s
+`setInterval`, plus once at start, plus reaper-on-claim (FR-018). **Hang the retry sweep on that same
+timer.** No scheduled Lambda, no new rule.
+
+⚠️ **`reapExpiredLeases` deliberately does NOT touch `attempts` (DSN-5)** — reclaiming a lapsed
+`in_flight` row must not burn retry budget, or a worker crash would consume a food's attempts without a
+single real fetch. U9's retry path is the **only** thing that increments the counter; leave the lease
+reaper's no-increment behaviour exactly as it is. This is easy to break by accident while adding the
+retry logic beside it.
 **Test scenarios**
 
 - A shed request leaves a placeholder marked awaiting retry, never a silently stranded row
@@ -661,10 +668,17 @@ superseded by KTD-3; the kcal/kJ finding is closed by U8 rather than separately.
 it is deliberately **not** built now and is recorded under deferred work.
 
 **Priority fixes** `addByName` writing a caller's raw string as a shared global name; the
-unauthenticated memory-exhaustion vector; zero `reservedConcurrency`; free-tier users unable to make a
-recipe private with `visibility` defaulting to public. ⚠️ Fixing that default does **not** change rows
-already written public against their author's intent — decide and record whether those get a
-remediation pass (Q-E).
+unauthenticated memory-exhaustion vector; zero `reservedConcurrency`.
+
+⛔ **Withdrawn — "free-tier users cannot make a recipe private" is NOT a defect.** It was carried into
+this list from a review report without being checked, and verification shows the behaviour is the
+specified product rule, correctly implemented in a pure policy module: `visibilityPolicy.ts`'s C-004
+evaluator allows private for `user_created` **only if premium**, for `imported_public` only if premium
+**and** substantively edited, and makes `imported_physical`/`imported_paid` private-only (paid may
+**never** be public). It also gates the _transition_ rather than existing state, so a lapsed premium
+user's private recipes are never force-flipped. `visibility` defaulting to `'public'` is the correct
+default under that matrix. Anyone re-encountering this finding should reject it with this reason rather
+than re-deriving it.
 **Test scenarios** Each fix carries the tiers §7.1 requires for its category; each rejection names a
 reason a reviewer can check without reading code.
 **Verification** No row in the index reads `open`.
@@ -892,17 +906,27 @@ Consequence accepted: the 004, 005, 006 and 011 worktrees stay un-rebasable unti
 ## Open questions
 
 - **Q-A** ~~Group key when a recipe references many foods?~~ **Resolved** — KTD-2, `type` + `id`.
-- **Q-B** Does the DynamoDB gateway endpoint cover the separate `streams.dynamodb` endpoint? Flagged
-  unresolved by research. Lower-stakes now that PR 91 attaches no consumer, but it must be resolved
-  before 014 builds one.
-- **Q-C** Is the 12-month tombstone→erasure sweep scheduled? `tombstoneSweep` exists but its schedule is
-  unverified. **U9 depends on the answer for food's own reaper** — if food's sweep is likewise
-  unscheduled, scheduling it is in U9's scope.
+- **Q-B** ~~Does the DynamoDB gateway endpoint cover `streams.dynamodb`?~~ **Resolved 2026-08-15** — the
+  question dissolves. A stream event source mapping is polled by the **Lambda service**, not by the
+  function's ENI, so a consumer needs no network reach to Streams in order to receive; and the doorbell
+  design re-`Query`s the **table**, which the gateway endpoint does cover. More decisively, 014's
+  consumer touches DynamoDB only and never RDS, so it need not be VPC-attached at all. The gateway
+  endpoint's real justification is the **producers** — recipe-workers' Lambdas are already VPC-attached
+  for RDS and their `PutItem` goes through it.
+- **Q-C** ~~Is the 12-month tombstone→erasure sweep scheduled?~~ **Resolved 2026-08-15 against live
+  AWS** — `TombstoneSweepSchedule` is deployed and **ENABLED** in both stages (cron 03:00 UTC), so plan
+  002's time-boxed risk is discharged. Food's reaper is separately fine and is **not** a scheduled rule:
+  it runs inside the always-on `WorkerRuntime` on a 60s `setInterval`, plus once at start, plus
+  reaper-on-claim. **U9 therefore hangs its retry sweep on that existing timer** rather than adding a
+  scheduled Lambda.
 - **Q-D** ~~Is PR 92 open, and did teardown leak its DNS records?~~ **Resolved 2026-08-15** — PR 92 is
   open (feature 008). The records are legitimate, no leak, teardown is working. Only the orphaned
   `identity.dev` ACM validation CNAME remains for cleanup (U17).
-- **Q-E** Do recipes already written public under the `visibility` default get a remediation pass, or is
-  the fix forward-only? A user-facing decision, not an implementation detail (U12).
+- **Q-E** ~~Do recipes already written public under the `visibility` default get a remediation pass?~~
+  **Dissolved 2026-08-15** — the question presupposed a defect that does not exist. Private requires a
+  subscription **and** a source that permits it (owner), which is exactly what `visibilityPolicy.ts`
+  already implements. Existing public rows are correct; there is nothing to remediate. See U12's
+  withdrawn priority fix.
 - **Q-F** ~~Does the `*.internal.commise.app` wildcard need scoping away from sandbox and per-PR?~~
   **Resolved 2026-08-15** — `DomainStack` is **per stage** and there are two certificates, not one:
   `09d3e5fe` serves the prod ALB and `306a9780` serves the sandbox ALB. The additive internal

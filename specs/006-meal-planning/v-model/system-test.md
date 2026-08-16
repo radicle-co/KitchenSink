@@ -145,16 +145,17 @@ STS-008-A5 turns "we removed Redis and SQS" from a claim in a document into a ch
 
 ### STP-008-B — Infrastructure Synthesis Assertion
 
-| Scenario   | Then                                                                                                                                         |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| STS-008-B1 | CDK synth for a base stage yields listener priority **400**                                                                                  |
-| STS-008-B2 | Synth for `pr-73` yields **50073**, inside 006's band and colliding with no other service's band (HAZ-042)                                   |
-| STS-008-B3 | Synth for a named ephemeral stage lands in 60000–69999                                                                                       |
-| STS-008-B4 | A PR number ≥ 10000 raises the documented error rather than silently colliding                                                               |
-| STS-008-B5 | Synth for a `pr-{N}` stage tags every taggable resource `Environment=pr-{N}`; base stages tag `Environment=global`                           |
-| STS-008-B6 | **Cross-stack database-name parity**: every construct that resolves the logical DB name resolves it identically for the same stage (HAZ-041) |
-| STS-008-B7 | Synth creates **no** ALB, cache cluster, queue or bucket                                                                                     |
-| STS-008-B8 | Non-prod synth uses `FARGATE_SPOT`; prod uses on-demand `FARGATE` (ADR-0008)                                                                 |
+| Scenario    | Then                                                                                                                                                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| STS-008-B1  | CDK synth for a base stage yields listener priority **400**, resolved through `listenerPriorityForStage` — the stack declares no priority constant of its own                                                        |
+| STS-008-B2  | Synth for `pr-73` yields **20073**, inside slot 3's per-PR band (20000–25999) and colliding with no other slot's band (HAZ-042)                                                                                      |
+| STS-008-B3  | Synth for a registered named ephemeral stage lands in slot 3's named band, **1375–1499**                                                                                                                             |
+| STS-008-B4  | A PR number ≥ **6000** raises the allocator's documented error rather than wrapping into another PR's priority                                                                                                       |
+| STS-008-B5a | Every priority the allocator returns for `meal-plan`, across every stage kind, is **≤ 50000** — the ceiling `aws-cdk-lib` does NOT validate, which is why an out-of-range band synthesizes clean and dies mid-deploy |
+| STS-008-B5  | Synth for a `pr-{N}` stage tags every taggable resource `Environment=pr-{N}`; base stages tag `Environment=global`                                                                                                   |
+| STS-008-B6  | **Cross-stack database-name parity**: every construct that resolves the logical DB name resolves it identically for the same stage (HAZ-041)                                                                         |
+| STS-008-B7  | Synth creates **no** ALB, cache cluster, queue or bucket                                                                                                                                                             |
+| STS-008-B8  | Non-prod synth uses `FARGATE_SPOT`; prod uses on-demand `FARGATE` (ADR-0008)                                                                                                                                         |
 
 ---
 

@@ -53,7 +53,7 @@ cannot impersonate anyone. Do not merge these two packages.
           │ Clerk session token      │ Clerk OAuth access token (DCR)
           ▼                          ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  @kitchensink/ai-service            (ALB priority 400)       │
+│  @kitchensink/ai-service            (ALB priority 500)       │
 │                                                              │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌──────────────┐  │
 │  │ByokModule │ │McpModule  │ │GrantPolicy│ │ IntakeModule │  │
@@ -521,15 +521,44 @@ disclosure is the worst possible place for a hard-coded literal.
 
 ## 6. Infrastructure
 
-| Resource     | Name                                                                                            |
-| ------------ | ----------------------------------------------------------------------------------------------- |
-| ALB priority | **400** (identity 100, food 200, recipe 300)                                                    |
-| Per-PR band  | Must be **disjoint** from food (10000) and recipe (30000)                                       |
-| SQS + DLQ    | `ai-generation-queue`, `ai-generation-dlq` (maxReceive 3)                                       |
-| Secrets      | `byok/{userId}/{provider}`; the Clerk mint key is scoped to the `ai-service` task role **only** |
-| Database     | `kitchensink_ai`                                                                                |
+| Resource     | Name                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| ALB priority | **500**, allocated by `packages/infra/alb` — see §6.1. 005 declares no constant of its own        |
+| Per-PR band  | Slot **4** → **26000–31999**, cut by the allocator from the slot index; PR numbers must be < 6000 |
+| SQS + DLQ    | `ai-generation-queue`, `ai-generation-dlq` (maxReceive 3)                                         |
+| Secrets      | `byok/{userId}/{provider}`; the Clerk mint key is scoped to the `ai-service` task role **only**   |
+| Database     | `kitchensink_ai`                                                                                  |
 
 Per-PR previews tag `Environment=pr-{N}` (ADR-0005).
+
+### 6.1 Listener priority — allocated, never declared _(corrected 2026-08-16)_
+
+⛔ **`ai-service` writes no priority constant.** Shared-ALB listener priorities come from ONE allocator,
+`packages/infra/alb/src/listenerPriority.ts` ([ADR-0003](../../docs/architecture/decisions/0003-shared-alb-per-stage.md)),
+because priority is a namespace shared across independently-deployed stacks that nothing in AWS or CDK
+arbitrates: a collision surfaces only at deploy, as `Priority 'N' is currently in use`, and it does not name
+the other claimant. Per-service resolvers were deleted for drifting into each other's bands.
+
+005 **appends** `ai` to `EPHEMERAL_SLOT_ORDER` and adds `'ai': 500` to `BASE_LISTENER_PRIORITY`, then resolves
+every rule through `listenerPriorityForStage({ service: 'ai', stage, baseStage })`. `BASE_LISTENER_PRIORITY` is
+a `Record` over the slot-order union, so registering in one and not the other is a **compile** error.
+
+| Stage kind              | Priority                                   |
+| ----------------------- | ------------------------------------------ |
+| Base (`prod`/`sandbox`) | **500**                                    |
+| `pr-{N}`                | slot **4** → **26000–31999** (`26000 + N`) |
+| Registered named stage  | slot **4** → **1500–1624**                 |
+
+**Why 500 and not 400.** This plan previously claimed base **400**, and so did
+[006](../006-meal-planning/plan.md) — a straight collision, and the reason both were rewritten. 006 takes the
+lower slot because §7 below sequences `ai-service` **after 006 and 007**, so 006 registers first, and
+`EPHEMERAL_SLOT_ORDER` is append-only: reordering would re-cut every ephemeral band for no gain.
+
+**The stale per-PR bands are gone too.** "Disjoint from food (10000) and recipe (30000)" described the deleted
+per-service resolvers. Bands are now cut from the slot index — identity 2000–7999, food 8000–13999, recipe
+14000–19999, meal-plan 20000–25999, ai 26000–31999 — and the geometry reserves **8** slots in total, three of
+which remain after 005. A ninth service needs the spans re-cut; before that, AWS's default **100 rules per
+ALB** binds first.
 
 ---
 

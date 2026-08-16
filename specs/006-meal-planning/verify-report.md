@@ -51,21 +51,21 @@ owner ruling; the two remaining warnings are during-implementation bookkeeping a
 
 Each item was checked by reading `main`.
 
-| Check                                                                 | Result | Evidence                                                                                                    |
-| --------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
-| Every target package path falls inside a real workspace glob          | ✅     | Root `package.json` workspaces; `packages/api/` no longer referenced anywhere                               |
-| `RecipeNutrition` matches what the rollup consumes                    | ✅     | `packages/shared/recipe-core/src/recipe.types.ts` — calories/protein/carbs/fat + `isComplete`; **no fibre** |
-| Per-100g values are persisted, so no live food-service call is needed | ✅     | `packages/services/recipe-service/src/database/schema/ingredients.ts:59-62`                                 |
-| The owner-id pattern matches the shipped one                          | ✅     | `recipes.owner_id varchar(255)`, no FK; "D2" documented in the schema header                                |
-| `subscriptionTier` is **not** a token claim                           | ✅     | `packages/shared/identity-db/src/dao/account.dao.ts` vs. `clerk-verify` tests                               |
-| The Home widget contract exists as described                          | ✅     | `features/core/src/{capabilities,homeNavigation,roadmapWidgets}.ts`                                         |
-| `@commise/features-meal-plan` is the anticipated package name         | ✅     | Named in `roadmapWidgets.ts`'s own header comment                                                           |
-| The gateway pattern exists and is the right model                     | ✅     | `recipe-service/src/ingredients/foodCatalog.gateway.ts`                                                     |
-| ALB priorities 100/200/300 taken; per-PR bands 10000/30000 in use     | ✅     | `recipe-service/infra/lib/RecipeServiceStack.ts`                                                            |
-| **No Redis or ElastiCache exists anywhere in the platform**           | ✅     | Search across all infra and service packages: zero hits                                                     |
-| Backend test-file conventions match                                   | ✅     | `__tests__/integration/**/*.integration.test.ts`, `tests/e2e/*.e2e.test.ts`                                 |
-| The k6 harness exists where the plan says                             | ✅     | `packages/tools/loadtest/`                                                                                  |
-| The i18n path exists where the plan says                              | ✅     | `packages/apps/commise/i18n/src/dictionary.ts`                                                              |
+| Check                                                                  | Result | Evidence                                                                                                                                          |
+| ---------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every target package path falls inside a real workspace glob           | ✅     | Root `package.json` workspaces; `packages/api/` no longer referenced anywhere                                                                     |
+| `RecipeNutrition` matches what the rollup consumes                     | ✅     | `packages/shared/recipe-core/src/recipe.types.ts` — calories/protein/carbs/fat + `isComplete`; **no fibre**                                       |
+| Per-100g values are persisted, so no live food-service call is needed  | ✅     | `packages/services/recipe-service/src/database/schema/ingredients.ts:59-62`                                                                       |
+| The owner-id pattern matches the shipped one                           | ✅     | `recipes.owner_id varchar(255)`, no FK; "D2" documented in the schema header                                                                      |
+| `subscriptionTier` is **not** a token claim                            | ✅     | `packages/shared/identity-db/src/dao/account.dao.ts` vs. `clerk-verify` tests                                                                     |
+| The Home widget contract exists as described                           | ✅     | `features/core/src/{capabilities,homeNavigation,roadmapWidgets}.ts`                                                                               |
+| `@commise/features-meal-plan` is the anticipated package name          | ✅     | Named in `roadmapWidgets.ts`'s own header comment                                                                                                 |
+| The gateway pattern exists and is the right model                      | ✅     | `recipe-service/src/ingredients/foodCatalog.gateway.ts`                                                                                           |
+| ALB priorities 100/200/300 taken; per-PR bands allocated by slot index | ✅     | `packages/infra/alb/src/listenerPriority.ts` _(re-verified 2026-08-16 — the per-service resolvers this row cited were replaced by one allocator)_ |
+| **No Redis or ElastiCache exists anywhere in the platform**            | ✅     | Search across all infra and service packages: zero hits                                                                                           |
+| Backend test-file conventions match                                    | ✅     | `__tests__/integration/**/*.integration.test.ts`, `tests/e2e/*.e2e.test.ts`                                                                       |
+| The k6 harness exists where the plan says                              | ✅     | `packages/tools/loadtest/`                                                                                                                        |
+| The i18n path exists where the plan says                               | ✅     | `packages/apps/commise/i18n/src/dictionary.ts`                                                                                                    |
 
 **No document now asserts anything about the platform that the platform contradicts.**
 

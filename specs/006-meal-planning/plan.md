@@ -381,59 +381,70 @@ disclose existence), `409` genuine conflict, `422` semantically invalid, `503` w
 [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states the
 bindings for this feature; the rule lives there and wins on any detail.
 
-✅ **RESOLVED (2026-08-12) — `/api/v1/meal-plans/*` is owned by `@kitchensink/recipe-service`**, per
-[ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md).
-**No new deployable service is created for 006.**
+✅ **RESOLVED (2026-08-14, reasoning corrected 2026-08-16) — `/api/v1/meal-plans/*` is owned by
+`@kitchensink/meal-plan-service`**, per
+[ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md)'s
+2026-08-14 amendment and the 2026-08-16 amendment that restates what it rests on. **006 IS its own
+deployable**, with its own logical database `kitchensink_meal_plans` (§Structure Decision).
 
-| Role                                  | Binding for 006                                                                               |
-| ------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Owning service (**authors** the zod)  | `@kitchensink/recipe-service` — `packages/services/recipe-service/src/meal-plans/*.schema.ts` |
-| Schema package (generated, committed) | `@kitchensink/schema-recipe` — `packages/schemas/recipe`, **extended, never forked**          |
-| Consuming client                      | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                      |
-| Consuming apps                        | `@commise/web`, `@commise/mobile`, and a `packages/apps/commise/features/*` package           |
-| NestJS module (internal boundary)     | `MealPlansModule`, a sibling of the shipped `RecipesModule` / `SearchModule`                  |
+| Role                                  | Binding for 006                                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)  | `@kitchensink/meal-plan-service` — `packages/services/meal-plan-service/src/meal-plans/*.schema.ts` |
+| Schema package (generated, committed) | `@kitchensink/schema-meal-plan` — `packages/schemas/meal-plan`, per SERVICE, not per feature        |
+| Consuming client                      | `@kitchensink/meal-plan-service-client` — `packages/clients/meal-plan-service`                      |
+| Consuming apps                        | `@commise/web`, `@commise/mobile`, and a `packages/apps/commise/features/*` package                 |
+| NestJS module (internal boundary)     | `MealPlansModule`, the service's own root feature module                                            |
 
-**The one-line reason, specific to 006**: every join this feature has is against `recipes`
-(`meal_plan_entries.recipe_id`, §2), and in **one** database `ON DELETE CASCADE` deletes 006's
-recipe-deletion orphan handler and its `is_orphaned` column outright — so this decision **removes** a task, a
-column and a background job rather than adding them. 006 ↔ 009 are additionally **two halves of one
-calculation**: 009's `meal_plan_nutrition_link` joins a 006 table to a 009 table.
+⛔ **This block previously read `@kitchensink/recipe-service` / `@kitchensink/schema-recipe` / "no new
+deployable service is created for 006", and that was stale from 2026-08-12.** It contradicted this same
+file's Structure Decision, its Complexity Tracking row and its Implementation Order, all of which describe a
+separate service. A reader following the stale text would have authored 006's zod inside the recipe service.
 
-**A schema package is per SERVICE, not per feature.** 006 adds `*.schema.ts` files under
-`packages/services/recipe-service/src/meal-plans/`, beside the controller they serve, and the **existing**
-generator copies them into the **existing** `@kitchensink/schema-recipe` (⚠️ **re-measured 2026-08-12: 10**
-authored schema files and a **5,700**-line derived `openapi.yaml`, correcting the "8 authored / 4,945-line" figures
-this line carried from 2026-08-11 — the `versions` and `api-error` copies have since landed, and the derived
-document is **generated**, so `ls` the directory and `wc -l` the file rather than quoting).
-There is **no** `@kitchensink/schema-meal-planning`, and 006 does not get
-one. 004 already set this precedent for the recipe service — add to `packages/schemas/recipe`, never fork it.
+**What the extraction costs, stated because ADR-0017's 2026-08-16 amendment says it was never priced.** In
+**one** database, `ON DELETE CASCADE` would have deleted 006's recipe-deletion orphan handling outright.
+Across two databases it cannot, so **006 re-declares that handling** — read-time orphan resolution per
+C-006-006 / FR-033, with **no** `is_orphaned` column and **no** foreign key into `kitchensink_recipes`. See
+the [2026-08-16 amendment](#amendment-2026-08-16--listener-priorities-come-from-the-allocator) for the full
+statement. 006 ↔ 009 remain **two halves of one calculation**, and 009's `meal_plan_nutrition_link` therefore
+joins across a service boundary by value, never by foreign key.
 
-**The NestJS module is the internal boundary, and it is mandatory now even though the service boundary is
-not.** `MealPlansModule` sits beside `RecipesModule` with its own DAL and its own `*.schema.ts` beside its
-controller. A future extraction cuts at **that module edge**, and its cost is a new schema package plus a
-client base-URL change — which is exactly why the module edge cannot be skipped today.
+**A schema package is per SERVICE, not per feature — and that rule is what NAMES this one.** 006 authors
+`*.schema.ts` files under `packages/services/meal-plan-service/src/meal-plans/`, beside the controllers they
+serve, and the **existing** generator copies them into `packages/schemas/meal-plan`
+(`@kitchensink/schema-meal-plan`) using the same runner every other service uses — a new service is a new
+entry in that runner's configuration, never a new generator. There is still **no**
+`@kitchensink/schema-meal-planning`: the package is named for the **service**, not the feature, which is why
+one letter of difference matters. 006 **extends nothing in `packages/schemas/recipe`** and must not; it is a
+consumer of that package (§below), never a co-author of it.
 
-**Flip condition (ADR-0017)**: extract 006 into its own service when meal planning grows a **write volume or
-a scaling profile that competes with recipe search** — i.e. when the planner becomes the hot path rather than
-a premium side feature.
+**The NestJS module is still the internal boundary.** `MealPlansModule` is the service's root feature module,
+with its own DAL and its own `*.schema.ts` beside its controller — the same discipline that made the
+extraction a one-edge cut rather than a rewrite.
 
-**`@kitchensink/recipe-service` MUST**:
+**The flip condition is spent.** ADR-0017's original trigger — "extract when meal planning grows a write
+volume or a scaling profile that competes with recipe search" — **did not fire**; the owner ruled the
+extraction on their own authority with the trigger unmet, which ADR-0017's 2026-08-16 amendment records
+verbatim. There is no remaining condition to watch, and no path back into `recipe-service` short of a new
+ruling.
+
+**`@kitchensink/meal-plan-service` MUST**:
 
 - Author every meal-plan, entry, nutrition-summary and suggestion request/response shape as **zod in the
   service** at `src/meal-plans/*.schema.ts`, beside the controller it serves.
 - **Validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto` — not a separate
   `class-validator` DTO that agrees with the schema by convention. ⚠️ 006 adds **no** `class-validator` DTO to
   the 19 files already being removed from that service (re-measured 2026-08-12).
-- Extend the committed `@kitchensink/schema-recipe`, which exports the zod, `z.infer` types,
+- Publish the committed `@kitchensink/schema-meal-plan`, which exports the zod, `z.infer` types,
   `contractHash.ts`, a barrel, and a **derived** `openapi.yaml` (outbound only — for `oasdiff`, docs and
-  integrators, **never a codegen input**).
+  integrators, **never a codegen input**). It is a **per-SERVICE** package, and 006 is now a service — which
+  is the only reason it exists; a per-FEATURE schema package would still be a violation.
 - Keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
 
 **Every client MUST** — separately mandatory, because mandating only the service half is exactly how the
 client half got skipped portfolio-wide (276 + 144 lines of redeclared wire types survived behind green
 builds):
 
-- Import its wire **types and zod** from `@kitchensink/schema-recipe`.
+- Import its wire **types and zod** from `@kitchensink/schema-meal-plan`.
 - **Declare no meal-plan request or response body type of its own** — not in `packages/clients/*`, and not in
   `@commise/web` / `@commise/mobile` / a feature package either (GR-015 §15-b.4).
 - **Derive** any divergent consumer shape with `Pick` / `Omit` / `Partial` over the wire type. The calendar
@@ -645,9 +656,15 @@ retirement fails `typecheck`.
 
 - **Compute**: one Fargate service behind the **shared** per-stage ALB (`SharedAlbStack`, ADR-0003). 006 imports the
   HTTPS listener and adds a host-based rule. It does **not** create an ALB.
-- **Listener priority**: base stages **400** (identity 100, food 200, recipe 300). Per-PR band **50000–59999**, named
-  ephemeral band **60000–69999** — disjoint from food (10000/20000) and recipe (30000/40000), mirroring
-  `recipeListenerPriorityForStage`. Reusing an occupied band is the documented "Priority already in use" failure.
+- **Listener priority**: ⛔ **006 declares no priority constant of its own.** Priorities come from the single
+  allocator `packages/infra/alb` (`listenerPriority.ts`, ADR-0003) and from nowhere else. 006 registers
+  `meal-plan` by **appending** it to `EPHEMERAL_SLOT_ORDER` and adding its base value to
+  `BASE_LISTENER_PRIORITY`; the stack then calls `listenerPriorityForStage({ service, stage, baseStage })`.
+  Registering it in one and not the other is a **compile** error, which is the point.
+  That registration yields: base stages **400** (identity 100, food 200, recipe 300), slot **3** →
+  per-PR band **20000–25999**, named-ephemeral band **1375–1499**. A PR number must be **< 6000**.
+  See the [2026-08-16 amendment](#amendment-2026-08-16--listener-priorities-come-from-the-allocator) for why
+  the earlier 50000/60000 bands were not merely different but invalid.
 - **Subnets**: public with `assignPublicIp`, inbound locked to the ALB SG, egress via IGW — **not** the NAT (ADR-0004).
   This service has no VPC-attached Lambdas, so it adds no NAT consumers.
 - **Database**: logical DB on the shared instance via ADR-0006 derivation; per-PR DB derived from the base stage.
@@ -740,8 +757,103 @@ Each step is test-first and, where user-facing, lands web and mobile together.
 10. **Home widget + roadmap retirement** — register the live descriptor, delete the `meal-plan` roadmap spec entry and
     both app skeletons in the same change (FR-035).
 11. **App wiring** — web `/[locale]/meal-plan` route, mobile screen + nav item, Playwright and Maestro flows.
-12. **Infra + CI** — CDK stack, listener rule at priority 400, DB bootstrap, `deploy-meal-plan` job with the
+12. **Infra + CI** — CDK stack, **registration of `meal-plan` in `packages/infra/alb`** (append to
+    `EPHEMERAL_SLOT_ORDER`, add `meal-plan: 400` to `BASE_LISTENER_PRIORITY`) and a listener rule whose
+    priority comes from `listenerPriorityForStage`, DB bootstrap, `deploy-meal-plan` job with the
     ensure-exists gate and ecosystem smoke, k6 profiles.
 
 **Phase 2 (not scheduled)** — FR-025/026/027, unblocked only when 005 provides the AI surface and 010 provides an
 enforceable entitlement.
+
+---
+
+## Amendment (2026-08-16) — listener priorities come from the allocator
+
+Three corrections, all of them contradictions this plan carried against decisions made after it was written.
+
+### A-1. ⛔ 006 declares NO listener-priority constant. `packages/infra/alb` allocates, and nothing else does
+
+This plan previously wrote its own bands: base **400**, per-PR **50000–59999**, named-ephemeral
+**60000–69999**, "disjoint from food (10000/20000) and recipe (30000/40000), mirroring
+`recipeListenerPriorityForStage`". Every part of that is now wrong, and two parts were never right.
+
+- **`recipeListenerPriorityForStage` does not exist.** Per-service resolvers were deleted precisely because
+  they drifted: recipe's docstring described food's bands, which put `recipe-pr-{N}` on `food-pr-{N}`'s
+  priority and produced `Priority '10073' is currently in use` at deploy. The single allocator
+  `packages/infra/alb/src/listenerPriority.ts` replaced them ([ADR-0003](../../docs/architecture/decisions/0003-shared-alb-per-stage.md)).
+  Mirroring a deleted module is not a design; it is the defect the module was deleted for.
+- **The 50000/60000 bands exceed what AWS accepts.** The listener-priority range is **1–50000**, and the
+  allocator's per-PR span stops at **49999** so that 50000 itself stays unused and unambiguous. A band at
+  60000 is not "a different band" — it is out of range. It would also have synthesized **clean**:
+  `aws-cdk-lib`'s `ApplicationListenerRule` validates only `priority >= 1` and says nothing about the
+  ceiling, so the failure surfaces mid-`cdk deploy`, halfway through a stack update. The allocator
+  range-checks its own output (`assertWithinAlbRange`) for exactly this reason.
+- **The food/recipe bands quoted here are stale.** Bands are cut from a service's **slot index**, not
+  hand-picked: identity (slot 0) 2000–7999, food (slot 1) 8000–13999, recipe (slot 2) 14000–19999.
+
+**What 006 does instead.** It **appends** `meal-plan` to `EPHEMERAL_SLOT_ORDER` and adds
+`'meal-plan': 400` to `BASE_LISTENER_PRIORITY`, then resolves every rule through
+`listenerPriorityForStage({ service: 'meal-plan', stage, baseStage })`. `BASE_LISTENER_PRIORITY` is a
+`Record` keyed by the slot-order union, so registering in one and not the other is a **compile** error rather
+than a deploy-time surprise. Appending — never reordering — is what keeps every already-deployed rule where
+it is.
+
+**What that registration yields**, so the numbers are readable in review and decodable from a failed deploy:
+
+| Stage kind              | Priority                                        |
+| ----------------------- | ----------------------------------------------- |
+| Base (`prod`/`sandbox`) | **400**                                         |
+| `pr-{N}`                | slot **3** → **20000–25999** (i.e. `20000 + N`) |
+| Registered named stage  | slot **3** → **1375–1499**                      |
+
+A PR number must be **< 6000** (the per-PR band width); past that the allocator **throws** rather than
+wrapping, because a wrapped priority is a silent collision with another PR.
+
+**Why 400 and not 500.** 005 also claimed base **400** — the collision U13 exists to resolve. 006 takes the
+lower slot because 005's own plan sequences `ai-service` **after 006 and 007**, so 006 registers first and
+`EPHEMERAL_SLOT_ORDER` is append-only. 005 is now base **500**, slot **4**. See
+`specs/005-ai-integration/plan.md` §6.
+
+**Capacity, stated rather than discovered later.** The geometry reserves **8** slots. Identity, food and
+recipe hold 0–2; 006 takes 3 and 005 takes 4, leaving **three** for every remaining feature that ever wants a
+shared-listener rule (009, 011, 012, 013 have each sketched a service without claiming one). A ninth service
+needs the spans re-cut, which is a decision, not an edit. The binding limit before that is AWS's default
+**100 rules per ALB**, which with several services and concurrent open PRs arrives first and is an ops task.
+
+### A-2. 006 is its own deployable, and the API-contract block said otherwise
+
+The API Contract Ownership section above carried the **pre-extraction** 2026-08-12 text — recipe-service as
+owner, `@kitchensink/schema-recipe` as the schema package, "no new deployable service is created for 006" —
+while the Structure Decision, Complexity Tracking and Implementation Order in the same file all describe
+`@kitchensink/meal-plan-service` with its own `kitchensink_meal_plans` database. That block is now repointed.
+The flip condition it quoted is **spent**: it never fired, and
+[ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md)'s
+2026-08-16 amendment records that the extraction rests on an owner ruling, not on the two "engineering facts"
+the 2026-08-14 amendment claimed (both refuted).
+
+### A-3. 006 re-declares the orphan handling co-location would have deleted, and holds NO cross-database FK
+
+ADR-0017's 2026-08-16 amendment names this as the cost the extraction never priced, and directs it here.
+
+Inside one database, `meal_plan_entries.recipe_id REFERENCES recipes(id) ON DELETE CASCADE` would have
+deleted orphan handling outright — no handler, no column, no job. Across two databases that cascade cannot
+exist, so the handling is **required, not optional**, and it is re-declared here in the form it already
+takes elsewhere in this plan:
+
+- **No foreign key into `kitchensink_recipes`, ever.** `recipe_id` is a bare `uuid`
+  (C-006-002, REQ-CN-003, [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md)).
+  A cross-database FK is unenforceable by Postgres and would additionally contradict FR-033.
+- **No `is_orphaned` / `orphaned_at` column, and no background sweeper.** Orphan state is **derived at read
+  time** from the recipe read's own outcome (C-006-006): an entry whose recipe is not readable by this caller
+  renders `orphaned`, contributes nothing to nutrition, and marks its day partial (FR-033). A stored flag
+  would need a deletion notification that deliberately does not exist.
+- **The entry survives.** Orphaning is a render state, not a delete — which is the requirement the discarded
+  `ON DELETE CASCADE` would itself have violated. Hard removal happens only through the user's own action or
+  a plan delete.
+- **`nutrition: null` from the recipe gateway is the signal**, not an error to retry. It means "not readable
+  by this caller", which covers deletion, unshare and privacy change identically, so 006 needs no taxonomy of
+  reasons.
+
+The accepted consequence: an entry pointing at a recipe id that no longer exists stays in the table
+indefinitely, costing one row and one failed lookup per read. That is the price of the extraction, it is
+bounded, and it is now on the ledger.

@@ -533,23 +533,32 @@ contradict. **This section applies existing portfolio rules and mints NO new FR*
 
 ### Contract ownership (GR-015)
 
-| Role                                        | Binding for 006                                                                               |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Owning service (**authors** the zod)        | `@kitchensink/recipe-service` — `packages/services/recipe-service/src/meal-plans/*.schema.ts` |
-| Schema package (**generated**, committed)   | `@kitchensink/schema-recipe` — `packages/schemas/recipe`, extended, **never hand-edited**     |
-| Consuming client                            | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                      |
-| Consuming apps / feature packages           | `@commise/web`, `@commise/mobile`, and a `packages/apps/commise/features/*` package           |
-| Domain types (a **different** axis, GR-007) | `@kitchensink/recipe-core` — reused `import type`, never re-declared in the schema package    |
+| Role                                        | Binding for 006                                                                                     |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)        | `@kitchensink/meal-plan-service` — `packages/services/meal-plan-service/src/meal-plans/*.schema.ts` |
+| Schema package (**generated**, committed)   | `@kitchensink/schema-meal-plan` — `packages/schemas/meal-plan`, generated, **never hand-edited**    |
+| Consuming client                            | `@kitchensink/meal-plan-service-client` — `packages/clients/meal-plan-service`                      |
+| Consuming apps / feature packages           | `@commise/web`, `@commise/mobile`, and a `packages/apps/commise/features/*` package                 |
+| Domain types (a **different** axis, GR-007) | `@kitchensink/meal-plan-core` — reused `import type`, never re-declared in the schema package       |
 
-✅ **Ownership is decided, not TBD** (ADR-0017, 2026-08-12): 006's paths are **`/api/v1/meal-plans/*`** and they
-land in the existing recipe service. **No new deployable is created**, and a **schema package is per SERVICE,
-not per feature** — so there is no `@kitchensink/schema-meal-planning`. Adopting the recipe service also means
-adopting its prefix, which closes 006's bare-`/v1/*` GR-002 holdout.
+✅ **Ownership is decided** (ADR-0017's 2026-08-14 amendment; reasoning restated 2026-08-16): 006's paths are
+**`/api/v1/meal-plans/*`** and they land in **`@kitchensink/meal-plan-service`**, its **own** deployable with
+its own logical database `kitchensink_meal_plans`. A **schema package is per SERVICE, not per feature** — which
+is precisely why `@kitchensink/schema-meal-plan` exists and `@kitchensink/schema-meal-planning` does not. 006
+adopts the `/api/v1/*` prefix regardless of service, which closes its bare-`/v1/*` GR-002 holdout.
+
+⛔ **This table previously bound 006 to `@kitchensink/recipe-service` / `@kitchensink/schema-recipe` and said
+"no new deployable is created" — stale text from 2026-08-12, superseded by the extraction two days later.**
+It is recorded rather than silently swapped because a reader who acted on it would have authored 006's zod
+inside another service's contract package, which GR-015 makes very hard to unwind. ADR-0017's **2026-08-16**
+amendment additionally records that the extraction rests on an owner ruling — its two claimed "engineering
+facts" were refuted — and that its unpriced cost lands here: see `plan.md`'s 2026-08-16 amendment §A-3, where
+006 **re-declares** the read-time orphan handling that co-location's `ON DELETE CASCADE` would have deleted.
 
 **The service MUST** author every meal-plan, entry, nutrition-summary and suggestion request/response shape as
 **zod in the service** at `src/meal-plans/*.schema.ts`, **beside the controller it serves**; validate its own
 requests with **that same zod**; and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts`
-files**. `@kitchensink/schema-recipe` exports the **zod**, the **`z.infer` types**, a **`CONTRACT_HASH`**, a
+files**. `@kitchensink/schema-meal-plan` exports the **zod**, the **`z.infer` types**, a **`CONTRACT_HASH`**, a
 **barrel**, and a **DERIVED `openapi.yaml`**.
 
 ⛔ **Three properties of that package that look wrong and are not** — do not "correct" them:
@@ -570,7 +579,7 @@ nothing, survived behind green builds).
 
 - **No meal-plan wire shape is declared anywhere outside the schema package** — including **type-only**
   declarations, and including `packages/apps/**` feature packages (GR-015 §15-b.4).
-- Both the **type and the runtime zod** are imported from `@kitchensink/schema-recipe`.
+- Both the **type and the runtime zod** are imported from `@kitchensink/schema-meal-plan`.
 - A genuinely divergent consumer shape — the calendar grid's per-slot view model, a drag-payload model — is
   **DERIVED** with `Pick` / `Omit` / `Partial`, never independently declared. Reference:
   `packages/apps/commise/features/recipes/src/filters/model.ts`.

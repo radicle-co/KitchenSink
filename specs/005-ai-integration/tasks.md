@@ -595,7 +595,7 @@
 - [ ] **T085** CDK stack
       Paths: `packages/services/ai-service/infra/lib/ai-service-stack.ts, packages/services/ai-service/infra/bin/app.ts`
       Implements: FR-016, FR-018
-      Notes: SQS + DLQ (maxReceive 3, KMS, alarm on depth > 0); ALB priority **400**; per-PR band disjoint from food (10000) and recipe (30000); `Environment=pr-{N}` tagging (ADR-0005); Clerk mint key scoped to the `ai-service` task role only.
+      Notes: SQS + DLQ (maxReceive 3, KMS, alarm on depth > 0); register `ai` in `packages/infra/alb` (`listenerPriority.ts`: append to `EPHEMERAL_SLOT_ORDER`, add `ai: 500` to `BASE_LISTENER_PRIORITY`) and resolve every rule through `listenerPriorityForStage` — **no priority constant in this stack**; that registration yields base **500**, slot 4 → per-PR **26000–31999**; `Environment=pr-{N}` tagging (ADR-0005); Clerk mint key scoped to the `ai-service` task role only.
       Size: L
 
 - [ ] **T086** CI wiring

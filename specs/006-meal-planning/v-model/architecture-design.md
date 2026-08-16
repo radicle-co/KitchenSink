@@ -255,9 +255,13 @@ Stages 3 and 4 are explicitly **outside** 006.
 
 ## Physical View — Deployment
 
-One Fargate service per stage behind the **shared** ALB (ADR-0003) at base listener priority **400**; per-PR band
-**50000–59999** and named-ephemeral band **60000–69999**, disjoint from food (10000/20000) and recipe (30000/40000).
-Public subnets with `assignPublicIp`, egress via IGW — **not** the NAT (ADR-0004); this service adds no NAT consumers
+One Fargate service per stage behind the **shared** ALB (ADR-0003). ⛔ **006 allocates no priority itself**: it
+registers `meal-plan` in `packages/infra/alb` (`listenerPriority.ts`) — appended to `EPHEMERAL_SLOT_ORDER`, base value
+added to `BASE_LISTENER_PRIORITY` — and every rule resolves through `listenerPriorityForStage`. That registration
+yields base **400** and slot **3**: per-PR **20000–25999**, named-ephemeral **1375–1499**, with a PR number ceiling of
+**6000**. The earlier text here named per-PR **50000–59999** and named **60000–69999**; both are **outside the
+1–50000 range AWS accepts**, and `aws-cdk-lib` does not check the ceiling, so they would have synthesized clean and
+failed mid-deploy. Public subnets with `assignPublicIp`, egress via IGW — **not** the NAT (ADR-0004); this service adds no NAT consumers
 because it has no VPC-attached Lambdas. Storage is one logical database on the shared RDS instance (ADR-0006).
 Non-prod runs `FARGATE_SPOT` + `gp3`, prod on-demand + `gp2` (ADR-0008). Tagging `Environment=global` for base stages,
 `Environment=pr-{N}` for previews (ADR-0005). Deploy is ensure-exists gated with an ecosystem smoke (ADR-0010).

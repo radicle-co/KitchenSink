@@ -21,12 +21,12 @@
  *     the author has not resolved their ingredients, food has no qualifying rows for these foods, or food
  *     is unreachable and nothing was cached. A single "no data" would tell the reader nothing actionable.
  *
- * ⚠️ The gateway's third freshness value, `absent`, is NOT a wire freshness. It means the lookup failed
+ * ⚠️ The gateway no longer HAS an `absent` freshness — an id nothing recovered is simply not in its map.
+ * What that used to mean
  * with an empty cache, and it lands on `unaccounted{food_unavailable}` — see {@link toRecipeNutritionState}.
  */
 import { computeRecipeNutrition, lineNutritionSource, type NutritionLine } from '@kitchensink/recipe-core';
 
-import type { NutritionFreshness } from '../../ingredients/foodNutrition.gateway.js';
 import type { RecipeNutritionState } from '../recipes.schema.js';
 
 /**
@@ -44,6 +44,14 @@ export interface RecipeNutritionAccounting {
     readonly referencedFoodCount: number;
     /** How many of those foods the lookup actually produced an entry for (fresh OR from cache). */
     readonly resolvedFoodCount: number;
+    /**
+     * How many of THIS recipe's foods came back stale — served from cache after a failed refresh.
+     *
+     * ⛔ Per recipe, not per batch. Chunks run concurrently under `Promise.allSettled`, so one request can
+     * mix fresh and stale ids; caveating a recipe because some OTHER recipe's chunk failed would be a
+     * warning about data this reading does not contain.
+     */
+    readonly staleFoodCount: number;
 }
 
 /**
@@ -51,13 +59,15 @@ export interface RecipeNutritionAccounting {
  *
  * @param accounting - The recipe's assembled lines and its per-recipe food-resolution counts.
  * @param servings - The recipe's serving count (positive; the recipe contract guarantees it).
- * @param freshness - How the SHARED batch lookup fared (`fresh` | `stale` | `absent`).
+ * @param degraded - Whether ANY chunk of the shared lookup failed. Used only to tell "food was reachable
+ *   and had nothing" from "food could not be reached"; per-recipe staleness comes from
+ *   {@link RecipeNutritionAccounting.staleFoodCount}, never from this flag.
  * @returns `known` with a per-serving figure when at least one line contributed, else the reason there is none.
  */
 export function toRecipeNutritionState(
     accounting: RecipeNutritionAccounting,
     servings: number,
-    freshness: NutritionFreshness,
+    degraded: boolean,
 ): RecipeNutritionState {
     const sources = accounting.lines.map((line) => lineNutritionSource(line));
 
@@ -74,7 +84,7 @@ export function toRecipeNutritionState(
             // KTD-3b is "serve stale, MARKED" — and equally, do not mark what is not stale. A reading whose
             // accounted lines are all the user's own per-line overrides drew on NO food data, so a food
             // outage cannot have aged it; marking it would be a caveat about data it does not contain.
-            freshness: freshness !== 'fresh' && sources.includes('catalog') ? 'stale' : 'fresh',
+            freshness: accounting.staleFoodCount > 0 && sources.includes('catalog') ? 'stale' : 'fresh',
         };
     }
 
@@ -84,7 +94,7 @@ export function toRecipeNutritionState(
         return { state: 'unaccounted', reason: 'no_resolved_ingredients' };
     }
 
-    if (accounting.resolvedFoodCount === 0 && freshness !== 'fresh') {
+    if (accounting.resolvedFoodCount === 0 && degraded) {
         // The lookup degraded AND recovered nothing for this recipe — including from cache.
         return { state: 'unaccounted', reason: 'food_unavailable' };
     }

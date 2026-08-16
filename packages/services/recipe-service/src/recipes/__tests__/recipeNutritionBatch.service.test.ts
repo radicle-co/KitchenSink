@@ -21,7 +21,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { RecipesService } from '../recipes.service.js';
 import type { RecipesDal, RecipeNutritionInput } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
-import type { FoodNutritionEntry, NutritionFreshness } from '../../ingredients/foodNutrition.gateway.js';
+import type { FoodNutritionEntry } from '../../ingredients/foodNutrition.gateway.js';
 import { makeRecipeIngredientRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
@@ -34,7 +34,7 @@ const FLOUR_FOOD = '01JFOODFLOUR00000000000001';
 const FREEFORM_INGREDIENT = '00000000-0000-4000-8000-0000000000bb';
 
 /** Food's per-100g projection for the flour fixture: 350 kcal, 12 g protein, 70 g carbs, 2 g fat. */
-const FLOUR_NUTRITION: FoodNutritionEntry = {
+const FLOUR_NUTRITION: Omit<FoodNutritionEntry, 'freshness'> = {
     caloriesPer100g: 350,
     proteinGPer100g: 12,
     carbsGPer100g: 70,
@@ -97,8 +97,21 @@ function fakeIngredientsDal(): IngredientsDal {
 }
 
 /** A `FoodNutritionGateway` double answering a fixed lookup, with the spy so call COUNT is assertable. */
-function fakeGateway(byFoodId: Map<string, FoodNutritionEntry>, freshness: NutritionFreshness) {
-    return vi.fn().mockResolvedValue({ byFoodId, freshness });
+/**
+ * A gateway stub in the tests' vocabulary — `fresh` | `stale` | `absent` — over the gateway's real
+ * contract, where freshness rides on each ENTRY and `absent` is simply an id missing from the map.
+ * Keeping the sugar here means each test still reads as one sentence while the production type stays
+ * honest about partial failure.
+ */
+function fakeGateway(byFoodId: Map<string, Omit<FoodNutritionEntry, 'freshness'>>, mode: 'fresh' | 'stale' | 'absent') {
+    const stamped = new Map(
+        [...byFoodId].map(([id, data]) => [id, { ...data, freshness: mode === 'stale' ? 'stale' : 'fresh' }] as const),
+    );
+
+    return vi.fn().mockResolvedValue({
+        byFoodId: mode === 'absent' ? new Map() : stamped,
+        degraded: mode !== 'fresh',
+    });
 }
 
 /** The service under test, wired to the given DAL + gateway (the other collaborators are off-path here). */

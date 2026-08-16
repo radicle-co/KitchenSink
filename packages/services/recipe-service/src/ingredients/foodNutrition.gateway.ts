@@ -33,8 +33,17 @@ import { LRUCache } from 'lru-cache';
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { FoodServiceClients } from './FoodServiceClients.factory.js';
 
-/** One food's nutrition as recipe consumes it — food's projection, unchanged. */
+/** One food's nutrition as recipe consumes it — food's projection, plus how THIS read obtained it. */
 export interface FoodNutritionEntry {
+    /**
+     * Whether this value came from a live read or from cache after a failed refresh.
+     *
+     * ⛔ Per ENTRY, not per lookup. Chunks now run concurrently under `Promise.allSettled`, so one answer
+     * legitimately mixes ids fetched a moment ago with ids recovered from cache — and a single batch-level
+     * scalar cannot describe that without lying in one direction: calling the whole thing `stale` slanders
+     * data fetched a second earlier, and calling it `fresh` hides a real outage.
+     */
+    readonly freshness: NutritionFreshness;
     /** Energy, kcal per 100 g. Absent when food reports no qualifying row. */
     readonly caloriesPer100g?: number;
     /** Protein, g per 100 g. */
@@ -47,18 +56,28 @@ export interface FoodNutritionEntry {
     readonly portions: readonly { readonly unit: string; readonly gramsPerUnit: number }[];
 }
 
-/** How a lookup's data was obtained — carried to the wire so a reader can tell fresh from stale. */
-export type NutritionFreshness = 'fresh' | 'stale' | 'absent';
+/**
+ * How one entry was obtained — carried to the wire so a reader can tell fresh from stale.
+ *
+ * ⛔ There is no `absent` member any more. An id nothing recovered is simply NOT IN THE MAP, the same way
+ * an unreadable recipe is simply not in the wire response: absence is the signal, so there is no value a
+ * consumer could accidentally render as a reading.
+ */
+export type NutritionFreshness = 'fresh' | 'stale';
+
+/** The nutrition data itself, without the per-read provenance — what the cache retains. */
+type CachedNutrition = Omit<FoodNutritionEntry, 'freshness'>;
 
 /** The outcome of one batched lookup. Total: this never rejects. */
 export interface FoodNutritionLookup {
-    /** Nutrition by food id. Missing ids simply have no entry. */
+    /** Nutrition by food id, each entry carrying its own freshness. Missing ids simply have no entry. */
     readonly byFoodId: ReadonlyMap<string, FoodNutritionEntry>;
     /**
-     * `fresh` — food answered. `stale` — food failed and at least one value came from cache. `absent` —
-     * food failed and nothing was cached, so the recipe renders without numbers.
+     * Whether ANY chunk failed. For logging and metrics — ⛔ never for marking a recipe stale, which is
+     * what the per-entry `freshness` is for. A recipe whose own foods all came back fresh must not be
+     * caveated because a sibling recipe's chunk failed.
      */
-    readonly freshness: NutritionFreshness;
+    readonly degraded: boolean;
 }
 
 /** Options for {@link FoodNutritionGateway}. */
@@ -78,6 +97,21 @@ const DEFAULT_MAX_ENTRIES = 5_000;
 /** Food's per-request id cap (U8). Batches larger than this are split rather than rejected. */
 const MAX_IDS_PER_REQUEST = 100;
 
+/**
+ * How many chunks may be in flight at once.
+ *
+ * The loop used to be serial, so cost was `ceil(distinctFoods / 100) x foodLatency` in SERIES — at the
+ * 500-recipe cap with low ingredient overlap that is roughly 50 round trips, well past REQ-NF-006's 500ms
+ * budget. Six is a bound rather than a maximum: unbounded `Promise.all` would put ~50 simultaneous
+ * requests on food from ONE recipe read, multiplied by every concurrent caller, against a service with a
+ * finite connection pool and a load shedder in front of it.
+ *
+ * Waves are used rather than a work queue: a slow chunk holds its wave, which is slightly less optimal and
+ * much easier to reason about, and the tail here is dominated by the number of waves, not by variance
+ * within one.
+ */
+export const MAX_CONCURRENT_CHUNKS = 6;
+
 export class FoodNutritionGateway {
     private readonly logger = new Logger(FoodNutritionGateway.name);
 
@@ -87,13 +121,13 @@ export class FoodNutritionGateway {
      * `allowStale` is the whole point: an expired entry is retained and returned when the fetch that would
      * have refreshed it fails, which is exactly KTD-3b's "serve stale, marked".
      */
-    private readonly cache: LRUCache<string, FoodNutritionEntry>;
+    private readonly cache: LRUCache<string, CachedNutrition>;
 
     public constructor(
         private readonly clients: FoodServiceClients,
         options: FoodNutritionGatewayOptions = {},
     ) {
-        this.cache = new LRUCache<string, FoodNutritionEntry>({
+        this.cache = new LRUCache<string, CachedNutrition>({
             max: options.maxEntries ?? DEFAULT_MAX_ENTRIES,
             ttl: options.ttlMs ?? DEFAULT_TTL_MS,
             allowStale: true,
@@ -115,7 +149,7 @@ export class FoodNutritionGateway {
         const wanted = [...new Set(foodIds.filter((id) => id.length > 0))].sort();
 
         if (wanted.length === 0) {
-            return { byFoodId: new Map(), freshness: 'fresh' };
+            return { byFoodId: new Map(), degraded: false };
         }
 
         if (caller === undefined) {
@@ -123,17 +157,41 @@ export class FoodNutritionGateway {
             return this.fromCacheOnly(wanted, 'no caller credential to forward');
         }
 
+        // Chunk first, then run the chunks in bounded WAVES under `Promise.allSettled`, so one failing
+        // chunk degrades only its own ids instead of abandoning the answer. Split at food's published cap
+        // rather than letting it 400 the whole batch: a 60-recipe list can legitimately reference more
+        // than 100 distinct foods, and that is not a client error.
+        const chunks: string[][] = [];
+
+        for (let offset = 0; offset < wanted.length; offset += MAX_IDS_PER_REQUEST) {
+            chunks.push(wanted.slice(offset, offset + MAX_IDS_PER_REQUEST));
+        }
+
+        const client = this.clients.nutrition(caller);
         const byFoodId = new Map<string, FoodNutritionEntry>();
+        const failedIds: string[] = [];
+        let degraded = false;
 
-        try {
-            // Split at food's published cap rather than letting it 400 the whole batch: a 60-recipe list
-            // can legitimately reference more than 100 distinct foods, and that is not a client error.
-            for (let offset = 0; offset < wanted.length; offset += MAX_IDS_PER_REQUEST) {
-                const chunk = wanted.slice(offset, offset + MAX_IDS_PER_REQUEST);
-                const response = await this.clients.nutrition(caller).getNutrition(chunk);
+        for (let wave = 0; wave < chunks.length; wave += MAX_CONCURRENT_CHUNKS) {
+            const inFlight = chunks.slice(wave, wave + MAX_CONCURRENT_CHUNKS);
+            const settled = await Promise.allSettled(inFlight.map((chunk) => client.getNutrition(chunk)));
 
-                for (const food of response.foods) {
-                    const entry: FoodNutritionEntry = {
+            settled.forEach((outcome, index) => {
+                if (outcome.status === 'rejected') {
+                    // Remember the ids rather than the error: what this chunk owed is recoverable from
+                    // cache below, and one failed chunk says nothing about the others.
+                    degraded = true;
+                    failedIds.push(...(inFlight[index] ?? []));
+                    this.logger.warn('food nutrition chunk failed', {
+                        reason: outcome.reason instanceof Error ? outcome.reason.message : 'unknown error',
+                        ids: inFlight[index]?.length ?? 0,
+                    });
+
+                    return;
+                }
+
+                for (const food of outcome.value.foods) {
+                    const data: CachedNutrition = {
                         ...(food.caloriesPer100g !== undefined ? { caloriesPer100g: food.caloriesPer100g } : {}),
                         ...(food.proteinGPer100g !== undefined ? { proteinGPer100g: food.proteinGPer100g } : {}),
                         ...(food.carbsGPer100g !== undefined ? { carbsGPer100g: food.carbsGPer100g } : {}),
@@ -141,15 +199,26 @@ export class FoodNutritionGateway {
                         portions: food.portions,
                     };
 
-                    byFoodId.set(food.id, entry);
-                    this.cache.set(food.id, entry);
+                    // The cache holds the DATA; freshness describes this read of it, so it is added here
+                    // and never stored — otherwise a value cached while stale would be replayed as stale
+                    // forever.
+                    this.cache.set(food.id, data);
+                    byFoodId.set(food.id, { ...data, freshness: 'fresh' });
                 }
-            }
-
-            return { byFoodId, freshness: 'fresh' };
-        } catch (error) {
-            return this.fromCacheOnly(wanted, error instanceof Error ? error.message : 'unknown error');
+            });
         }
+
+        // KTD-3b for the ids whose chunk failed, and ONLY those: last known value, marked stale. An id
+        // with nothing cached is left out entirely — absent, never zero.
+        for (const id of failedIds) {
+            const cached = this.cache.get(id, { allowStale: true });
+
+            if (cached !== undefined) {
+                byFoodId.set(id, { ...cached, freshness: 'stale' });
+            }
+        }
+
+        return { byFoodId, degraded };
     }
 
     /**
@@ -157,7 +226,8 @@ export class FoodNutritionGateway {
      *
      * @param wanted - The ids that were requested.
      * @param reason - Why the live fetch did not happen or did not succeed.
-     * @returns `stale` when anything was recovered, `absent` when nothing was.
+     * @returns Whatever the cache still holds, every entry marked `stale`; ids with nothing cached are
+     *   simply absent from the map.
      * @sideEffect Logs the degradation.
      */
     private fromCacheOnly(wanted: readonly string[], reason: string): FoodNutritionLookup {
@@ -169,14 +239,12 @@ export class FoodNutritionGateway {
             const cached = this.cache.get(id, { allowStale: true });
 
             if (cached !== undefined) {
-                byFoodId.set(id, cached);
+                byFoodId.set(id, { ...cached, freshness: 'stale' });
             }
         }
 
-        const freshness: NutritionFreshness = byFoodId.size > 0 ? 'stale' : 'absent';
+        this.logger.warn('food nutrition degraded', { reason, recovered: byFoodId.size, requested: wanted.length });
 
-        this.logger.warn('food nutrition degraded', { reason, freshness, requested: wanted.length });
-
-        return { byFoodId, freshness };
+        return { byFoodId, degraded: true };
     }
 }

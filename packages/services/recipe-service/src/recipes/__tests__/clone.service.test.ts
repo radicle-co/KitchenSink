@@ -30,7 +30,7 @@ import type { Principal } from '../../auth/principal.js';
  * depending on nutrition fails loudly here instead of quietly asserting invented values.
  */
 const nutritionGatewayDouble = {
-    lookup: async () => ({ byFoodId: new Map(), freshness: 'absent' as const }),
+    lookup: async () => ({ byFoodId: new Map(), degraded: true }),
 } as never;
 
 const SOURCE_OWNER = '01J0000000000000000000PRO0';

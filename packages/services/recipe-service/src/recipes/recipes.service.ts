@@ -48,7 +48,7 @@ import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/r
 import type { RecipeIngredientRow, RecipePhotoRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
 import type { Principal } from '../auth/principal.js';
 import type { CallerToken } from '../auth/CallerToken.js';
-import { FoodNutritionGateway, type NutritionFreshness } from '../ingredients/foodNutrition.gateway.js';
+import { FoodNutritionGateway } from '../ingredients/foodNutrition.gateway.js';
 
 /** DI token for the recipe DAL — provided by `RecipesModule` via `useFactory` over the Drizzle client. */
 export const RECIPES_DAL = 'RECIPES_DAL';
@@ -232,7 +232,10 @@ interface LineCatalog {
     /** The foods the lookup actually produced an entry for (live OR from cache). */
     readonly resolvedFoodIds: ReadonlySet<string>;
     /** How the SHARED lookup fared (`fresh` | `stale` | `absent`). */
-    readonly freshness: NutritionFreshness;
+    /** Whether any chunk of the shared lookup failed — for the reachable-vs-unreachable distinction only. */
+    readonly degraded: boolean;
+    /** Food ids served from cache after a failed refresh, so each recipe can be caveated on its OWN data. */
+    readonly staleFoodIds: ReadonlySet<string>;
 }
 
 /**
@@ -451,7 +454,10 @@ export class RecipesService {
             byIngredientId,
             foodIdByIngredientId,
             resolvedFoodIds: new Set(lookup.byFoodId.keys()),
-            freshness: lookup.freshness,
+            degraded: lookup.degraded,
+            staleFoodIds: new Set(
+                [...lookup.byFoodId].filter(([, entry]) => entry.freshness === 'stale').map(([id]) => id),
+            ),
         };
     }
 
@@ -528,9 +534,10 @@ export class RecipesService {
                     lines: assembleLines(catalog, measures),
                     referencedFoodCount: referenced.size,
                     resolvedFoodCount: [...referenced].filter((foodId) => catalog.resolvedFoodIds.has(foodId)).length,
+                    staleFoodCount: [...referenced].filter((foodId) => catalog.staleFoodIds.has(foodId)).length,
                 },
                 input.servings,
-                catalog.freshness,
+                catalog.degraded,
             );
         }
 

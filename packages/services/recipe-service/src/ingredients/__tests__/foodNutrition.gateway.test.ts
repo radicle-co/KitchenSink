@@ -5,12 +5,17 @@
  * availability. Every test here is about what happens when that dependency fails, because the failure modes
  * are the whole reason the gateway exists rather than a bare client call.
  *
+ * ⚠️ Assertions here moved from a batch-level `result.freshness` onto the ENTRY, and `absent` stopped
+ * being a value — an id nothing recovered is simply not in the map. That is not a test edit to make things
+ * compile: chunks now run concurrently under `Promise.allSettled`, so one answer legitimately mixes fresh
+ * and stale ids, and a single scalar could only describe that by lying in one direction.
+ *
  * The rule is **stale, then absent, never wrong**. A fabricated or zeroed calorie count is a factual claim
  * about a food, and a food-service outage is not evidence for it.
  */
 import { describe, it, expect, vi } from 'vitest';
 
-import { FoodNutritionGateway } from '../foodNutrition.gateway.js';
+import { FoodNutritionGateway, MAX_CONCURRENT_CHUNKS } from '../foodNutrition.gateway.js';
 
 const CALLER = { kind: 'user', token: 't' } as never;
 
@@ -20,6 +25,11 @@ function makeClients(getNutrition: ReturnType<typeof vi.fn>) {
 
 const chicken = { id: 'f1', status: 'RESOLVED', caloriesPer100g: 165, proteinGPer100g: 31, portions: [] };
 
+/** A gateway whose food client runs `respond` per chunk — so a test can fail ONE chunk and not others. */
+function makeGateway(respond: (chunk: readonly string[]) => Promise<unknown>): FoodNutritionGateway {
+    return new FoodNutritionGateway(makeClients(vi.fn((chunk: readonly string[]) => respond(chunk))));
+}
+
 describe('the happy path', () => {
     it('returns food`s projection, marked fresh', async () => {
         const getNutrition = vi.fn().mockResolvedValue({ foods: [chicken], unknownIds: [] });
@@ -27,7 +37,8 @@ describe('the happy path', () => {
 
         const result = await gateway.lookup(CALLER, ['f1']);
 
-        expect(result.freshness).toBe('fresh');
+        expect(result.byFoodId.get('f1')?.freshness).toBe('fresh');
+        expect(result.degraded).toBe(false);
         expect(result.byFoodId.get('f1')).toMatchObject({ caloriesPer100g: 165, proteinGPer100g: 31 });
     });
 
@@ -76,7 +87,7 @@ describe('the happy path', () => {
         const result = await gateway.lookup(CALLER, []);
 
         expect(getNutrition).not.toHaveBeenCalled();
-        expect(result.freshness).toBe('fresh');
+        expect(result.degraded).toBe(false);
     });
 });
 
@@ -91,7 +102,7 @@ describe('⛔ KTD-3b — food is unreachable', () => {
         await gateway.lookup(CALLER, ['f1']);
         const degraded = await gateway.lookup(CALLER, ['f1']);
 
-        expect(degraded.freshness).toBe('stale');
+        expect(degraded.byFoodId.get('f1')?.freshness).toBe('stale');
         expect(degraded.byFoodId.get('f1')?.caloriesPer100g).toBe(165);
     });
 
@@ -103,7 +114,9 @@ describe('⛔ KTD-3b — food is unreachable', () => {
 
         const result = await gateway.lookup(CALLER, ['f1']);
 
-        expect(result.freshness).toBe('absent');
+        // 'absent' is no longer a VALUE: an id nothing recovered is simply not in the map.
+        expect(result.byFoodId.size).toBe(0);
+        expect(result.degraded).toBe(true);
         expect(result.byFoodId.size).toBe(0);
     });
 
@@ -128,7 +141,7 @@ describe('⛔ KTD-3b — food is unreachable', () => {
             vi.advanceTimersByTime(60_000);
             const degraded = await gateway.lookup(CALLER, ['f1']);
 
-            expect(degraded.freshness).toBe('stale');
+            expect(degraded.byFoodId.get('f1')?.freshness).toBe('stale');
             expect(degraded.byFoodId.get('f1')?.caloriesPer100g).toBe(165);
         } finally {
             vi.useRealTimers();
@@ -143,7 +156,8 @@ describe('⛔ KTD-3b — food is unreachable', () => {
         const result = await gateway.lookup(undefined, ['f1']);
 
         expect(getNutrition).not.toHaveBeenCalled();
-        expect(result.freshness).toBe('absent');
+        expect(result.byFoodId.size).toBe(0);
+        expect(result.degraded).toBe(true);
     });
 });
 
@@ -160,7 +174,7 @@ describe('the cache', () => {
             const second = await gateway.lookup(CALLER, ['f1']);
 
             expect(getNutrition).toHaveBeenCalledTimes(2);
-            expect(second.freshness).toBe('fresh');
+            expect(second.byFoodId.get('f1')?.freshness).toBe('fresh');
         } finally {
             vi.useRealTimers();
         }
@@ -180,5 +194,117 @@ describe('the cache', () => {
         const degraded = await gateway.lookup(CALLER, ['a', 'b', 'c']);
 
         expect(degraded.byFoodId.size).toBeLessThanOrEqual(2);
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for PARTIAL failure — the case a sequential loop could not represent.
+ *
+ * The chunk loop used to `await` each chunk in turn inside one `try`, so the FIRST failure abandoned the
+ * rest and `fromCacheOnly` rebuilt the whole answer from cache. Two consequences, both wrong:
+ *
+ *  1. Latency was `ceil(distinctFoods / 100) x foodLatency`, SERIAL. At the 500-recipe cap with low
+ *     ingredient overlap that is ~50 round trips in series, past REQ-NF-006's 500ms budget.
+ *  2. Chunks that had already SUCCEEDED were re-served from cache and marked `stale` — a lie about data
+ *     fetched a second earlier.
+ *
+ * Running the waves with `Promise.allSettled` fixes both, and in doing so makes a mixed answer real: some
+ * ids fresh from this call, others stale from cache, others absent entirely. A single batch-level
+ * `freshness` scalar cannot describe that without lying in one direction, which is why `freshness` moved
+ * ONTO THE ENTRY and `absent` stopped being a value — an id nothing recovered is simply not in the map,
+ * exactly as an unreadable recipe is simply not in the wire response.
+ */
+describe('⛔ partial failure across chunks', () => {
+    it('keeps a SUCCEEDED chunk fresh when a sibling chunk fails', async () => {
+        const ids = Array.from({ length: 150 }, (_, index) => `food-${String(index).padStart(3, '0')}`);
+        let call = 0;
+        const gateway = makeGateway(async (chunk: readonly string[]) => {
+            call += 1;
+
+            if (call === 2) {
+                throw new Error('food is down for this chunk');
+            }
+
+            return { foods: chunk.map((id) => ({ id, caloriesPer100g: 100, portions: [] })), unknownIds: [] };
+        });
+
+        const result = await gateway.lookup(CALLER, ids);
+
+        // The surviving chunk is FRESH — not re-labelled stale because a sibling failed.
+        expect(result.byFoodId.get('food-000')?.freshness).toBe('fresh');
+        expect(result.degraded).toBe(true);
+    });
+
+    it('⛔ leaves an id from a failed chunk ABSENT when nothing is cached, never zero', async () => {
+        const ids = Array.from({ length: 150 }, (_, index) => `cold-${String(index).padStart(3, '0')}`);
+        const gateway = makeGateway(async (chunk: readonly string[]) => {
+            if (chunk.includes('cold-149')) {
+                throw new Error('down');
+            }
+
+            return { foods: chunk.map((id) => ({ id, caloriesPer100g: 100, portions: [] })), unknownIds: [] };
+        });
+
+        const result = await gateway.lookup(CALLER, ids);
+
+        expect(result.byFoodId.has('cold-149')).toBe(false);
+        expect(result.byFoodId.get('cold-000')?.freshness).toBe('fresh');
+    });
+
+    it('marks ONLY the failed chunk`s ids stale when they are cached', async () => {
+        const ids = Array.from({ length: 150 }, (_, index) => `warm-${String(index).padStart(3, '0')}`);
+        let call = 0;
+        const gateway = makeGateway(async (chunk: readonly string[]) => {
+            call += 1;
+
+            if (call > 2 && chunk.includes('warm-100')) {
+                throw new Error('down');
+            }
+
+            return { foods: chunk.map((id) => ({ id, caloriesPer100g: 100, portions: [] })), unknownIds: [] };
+        });
+
+        await gateway.lookup(CALLER, ids);
+        const result = await gateway.lookup(CALLER, ids);
+
+        expect(result.byFoodId.get('warm-100')?.freshness).toBe('stale');
+        expect(result.byFoodId.get('warm-000')?.freshness).toBe('fresh');
+    });
+
+    it('⛔ runs chunks CONCURRENTLY, bounded — the whole point of the change', async () => {
+        const ids = Array.from({ length: 600 }, (_, index) => `p-${String(index).padStart(3, '0')}`);
+        let inFlight = 0;
+        let peak = 0;
+        const gateway = makeGateway(async (chunk: readonly string[]) => {
+            inFlight += 1;
+            peak = Math.max(peak, inFlight);
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            inFlight -= 1;
+
+            return { foods: chunk.map((id) => ({ id, caloriesPer100g: 1, portions: [] })), unknownIds: [] };
+        });
+
+        await gateway.lookup(CALLER, ids);
+
+        // ⛔ The bound is pinned as a LITERAL as well as against the constant. `peak <= MAX_CONCURRENT_CHUNKS`
+        // alone is tautological — raising the constant to 1000 satisfies it while putting ~50 simultaneous
+        // requests on food from ONE recipe read, which is precisely the failure the bound exists to prevent.
+        // A mutation run caught exactly that, so the literal stays.
+        expect(MAX_CONCURRENT_CHUNKS).toBeGreaterThan(1);
+        expect(MAX_CONCURRENT_CHUNKS).toBeLessThanOrEqual(8);
+        expect(peak).toBeGreaterThan(1);
+        expect(peak).toBeLessThanOrEqual(MAX_CONCURRENT_CHUNKS);
+    });
+
+    it('still NEVER rejects when every chunk fails', async () => {
+        const ids = Array.from({ length: 150 }, (_, index) => `x-${index}`);
+        const gateway = makeGateway(async () => {
+            throw new Error('all down');
+        });
+
+        const result = await gateway.lookup(CALLER, ids);
+
+        expect(result.degraded).toBe(true);
+        expect(result.byFoodId.size).toBe(0);
     });
 });

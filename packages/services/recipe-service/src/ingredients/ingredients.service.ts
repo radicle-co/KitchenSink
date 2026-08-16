@@ -49,12 +49,41 @@ import type { IngredientCandidate } from './ingredients.schema.js';
 import { foodNotAdmissible, ingredientNotFound } from '../recipes/recipe.error.js';
 
 /**
- * The food client's `FoodStatus` and recipe-core's `FoodResolutionStatus` are the SAME UPPER_SNAKE
- * union by design (they mirror each other); this identity conversion documents the crossing of the
- * package boundary without any runtime remap.
+ * Translate food's lifecycle status into recipe's persisted resolution status. Pure and total.
+ *
+ * ⛔ **This was a CAST, and the cast shipped a production `500`.** It read
+ * `return status as FoodResolutionStatus`, above a comment asserting the two unions "are the SAME
+ * UPPER_SNAKE union by design (they mirror each other)". True when written; falsified by plan U9, which
+ * added `AWAITING_RETRY` to FOOD's enum and left recipe's five-value CHECK constraint
+ * (`0001_initial.sql`) untouched. Because a cast asks the compiler to stop checking, `tsc` stayed silent
+ * and the failure surfaced only as a check-constraint violation on write, for any ingredient whose food
+ * was mid-retry.
+ *
+ * The `switch` is the point: it is exhaustive over food's union, so the next status food adds is a
+ * COMPILE error here rather than a runtime one in production. Do not replace it with a cast, a lookup
+ * with a default, or a `Record` that TypeScript cannot prove total.
+ *
+ * ⚠️ `AWAITING_RETRY` maps to `PENDING`, deliberately. Recipe's union is a UX vocabulary — "not ready
+ * yet, will transition" versus "terminal, offer the freeform fallback" — and a scheduled retry is the
+ * former: food's own transition table makes `AWAITING_RETRY` a legal prior for `RESOLVED`, and it becomes
+ * `FAILED` only once the retry budget is exhausted, which recipe then sees as the terminal state it
+ * already handles. Reporting failure here would strand the ingredient in the picker's terminal branch
+ * while food was still working on it.
+ *
+ * @param status - The status food published.
+ * @returns The status recipe persists and renders.
  */
-function toResolutionStatus(status: FoodStatus): FoodResolutionStatus {
-    return status as FoodResolutionStatus;
+export function toResolutionStatus(status: FoodStatus): FoodResolutionStatus {
+    switch (status) {
+        case 'PENDING':
+        case 'UNRESOLVED':
+        case 'RESOLVED':
+        case 'NOT_FOUND':
+        case 'FAILED':
+            return status;
+        case 'AWAITING_RETRY':
+            return 'PENDING';
+    }
 }
 
 /*

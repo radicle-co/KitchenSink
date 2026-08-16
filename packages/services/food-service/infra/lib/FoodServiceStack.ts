@@ -2,10 +2,12 @@ import {
     CfnOutput,
     Duration,
     Fn,
+    RemovalPolicy,
     Stack,
     type StackProps,
     aws_cloudwatch as cloudwatch,
     aws_cloudwatch_actions as cloudwatch_actions,
+    aws_dynamodb as dynamodb,
     aws_ec2 as ec2,
     aws_ecr as ecr,
     aws_ecs as ecs,
@@ -28,6 +30,11 @@ import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
 import { internalOriginForStage, listenerPriorityForStage } from '@kitchensink/infra-alb';
+import {
+    messageTableArnParameter,
+    messageTableNameForStage,
+    messageTableNameParameter,
+} from '@kitchensink/infra-messaging';
 import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 
 /**
@@ -273,6 +280,63 @@ export class FoodServiceStack extends Stack {
         const importedFoodDatabaseName = Fn.importValue(`kitchensink-data-${baseStage}:FoodDatabaseName`);
         const foodDatabaseName = foodDatabaseNameForStage(stage, baseStage, importedFoodDatabaseName);
 
+        // ── The message substrate (R1, plan U5/U6) ──────────────────────────────────────────────
+        //
+        // Ownership splits on stage, and the reason is mechanical rather than stylistic. A BASE stage's
+        // table is owned by `MessageSubstrateStack` in the global app; a `pr-{N}` preview's table is
+        // created HERE, because `packages/infra/global/bin/app.ts` tags that whole app
+        // `Environment=global` and sandbox-deploy never runs it with `stage=pr-{N}` — a per-PR table added
+        // there would never be created, and if it were it would carry the one tag ADR-0005's teardown uses
+        // to decide what NOT to delete, leaking a table per closed PR forever. This stack is already
+        // deployed per-PR and already tagged `Environment=pr-{N}`, so a table created here is torn down
+        // with the preview. Mirrors `foodDatabaseNameForStage`'s `stage === baseStage` branch.
+        const ownsPerPrSubstrate = stage !== baseStage;
+        const messageTable = ownsPerPrSubstrate
+            ? new dynamodb.Table(this, 'FoodMessageTable', {
+                  tableName: messageTableNameForStage(stage),
+                  partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+                  sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+                  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+                  // ⚠️ NUMBER-typed at write time (U6). A string TTL is SILENTLY ignored by DynamoDB —
+                  // nothing expires, nothing errors, and a per-PR table grows unbounded.
+                  timeToLiveAttribute: 'ttl',
+                  stream: dynamodb.StreamViewType.KEYS_ONLY,
+                  removalPolicy: RemovalPolicy.DESTROY,
+              })
+            : undefined;
+
+        // The table this stage's producers write to: the one just created, or the base stage's, resolved
+        // from SSM at DEPLOY time. ⛔ SSM, never `Fn.importValue`: a per-PR substrate export IS deleted on
+        // PR close, and `RecipeServiceStack` documents what that costs — PR-close deletes a PR's stacks in
+        // no fixed order, so an importing stack holds the export hostage and deadlocks the teardown,
+        // unattended, in CI (the ADR-0002 export-in-use failure).
+        const messageTableName =
+            messageTable?.tableName ??
+            ssm.StringParameter.valueForStringParameter(this, messageTableNameParameter(baseStage));
+        const messageTableArn =
+            messageTable?.tableArn ??
+            ssm.StringParameter.valueForStringParameter(this, messageTableArnParameter(baseStage));
+
+        // When this stack OWNS the per-PR table it must also publish its coordinates, because it is not the
+        // only producer in the preview: the recipe import processors write to the SAME table (there is one
+        // substrate per stage, not one per producer — a group split across two tables is a consumer that
+        // silently sees half its messages). Ordering is already guaranteed by ADR-0010: `deploy-food` gates
+        // `deploy-recipe`, and food is ensure-exists deployed on every non-closed pull-request event, so
+        // these parameters exist before any reader runs. They are stack-owned, so PR close removes them.
+        if (messageTable !== undefined) {
+            new ssm.StringParameter(this, 'FoodMessageTableNameParameter', {
+                parameterName: messageTableNameParameter(stage),
+                stringValue: messageTable.tableName,
+                description: 'The per-PR message-substrate table name every producer in this preview writes to',
+            });
+
+            new ssm.StringParameter(this, 'FoodMessageTableArnParameter', {
+                parameterName: messageTableArnParameter(stage),
+                stringValue: messageTable.tableArn,
+                description: 'The per-PR message-substrate table ARN producers are granted PutItem on',
+            });
+        }
+
         const foodDbEnvironment: Record<string, string> = {
             NODE_ENV: 'production',
             STAGE: stage,
@@ -282,6 +346,8 @@ export class FoodServiceStack extends Stack {
             // `food_app` authenticates via RDS IAM (no password) — see src/database/poolConfig.ts.
             DB_USERNAME: 'food_app',
             FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
+            // The substrate the worker's FoodEventEmitter publishes to (U6). Absent locally → ConsolePublisher.
+            MESSAGE_TABLE_NAME: messageTableName,
             // Clerk session-token verification (FoodAuthGuard → verifyClerkToken). The JWT *public* key
             // and the authorized-parties allowlist are non-secret, resolved from SSM at deploy — same
             // wiring as the identity service. Without these the guard fail-closes and every `/api/v1/foods/*`
@@ -446,6 +512,22 @@ export class FoodServiceStack extends Stack {
         // Environment). Justification -- including the invariant it depends on -- in
         // @kitchensink/infra-security.
         acceptNagFindings(workerTaskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
+
+        // ── Producer IAM for the substrate (R1.4, plan U6) ───────────────────────────────────────
+        //
+        // `PutItem` on ONE table ARN. Nothing else: no Query, no Scan, no GetItem, no DeleteItem. The
+        // producer half is fire-and-forget by design and never reads what it wrote — a read grant here
+        // would be a permission with no caller, i.e. exactly the surface an attacker inherits if the worker
+        // is compromised. It is also the practical guard on KTD-4: the substrate must not become a place
+        // the food worker can go looking for a user↔food linkage that lives outside food's erasure
+        // boundary.
+        workerTaskDefinition.addToTaskRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'FoodWorkerPublishesMessages',
+                actions: ['dynamodb:PutItem'],
+                resources: [messageTableArn],
+            }),
+        );
 
         const workerLogGroup = new logs.LogGroup(this, 'FoodWorkerLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,

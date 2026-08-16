@@ -13,7 +13,8 @@ import { availableParallelism } from 'node:os';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { ConsolePublisher } from '@kitchensink/messaging';
+import { ConsolePublisher, type MessagePublisher } from '@kitchensink/messaging';
+import { DynamoPublisher } from '../events/DynamoPublisher.js';
 import { FoodEventEmitter } from '../events/FoodEventEmitter.js';
 import { AdminMetricsDao } from '../foods/admin/adminMetrics.dao.js';
 import { FetchQueueDao } from '../foods/dao/fetchQueue.dao.js';
@@ -31,6 +32,27 @@ import { containerCpus, workerConcurrency } from './concurrency.js';
 import { FoodConsumerService } from './foodConsumer.service.js';
 import { ConsoleWorkerLogger } from './ConsoleWorkerLogger.js';
 import { WorkerRuntime } from './WorkerRuntime.js';
+
+/**
+ * Choose the substrate adapter for this process (plan U6).
+ *
+ * `MESSAGE_TABLE_NAME` is injected by the service stack, which resolves it from SSM at deploy time — from
+ * this stage's own per-PR table, or from the base stage's. When it is absent (a local run, a unit test,
+ * anything outside a deployed task) the worker falls back to `ConsolePublisher`, which is what keeps the
+ * worker runnable with NO AWS dependency at all.
+ *
+ * The fallback is deliberately a fallback rather than a throw: a worker that refused to start without a
+ * table would make the substrate a hard dependency of food resolution, and the substrate is a SIDE
+ * CHANNEL — losing it must never stop food from resolving.
+ *
+ * @returns The DynamoDB adapter in a deployed stage, else the console one.
+ * @sideEffect Reads `process.env`.
+ */
+function resolvePublisher(): MessagePublisher {
+    const tableName = process.env['MESSAGE_TABLE_NAME'];
+
+    return tableName === undefined || tableName === '' ? new ConsolePublisher() : new DynamoPublisher(tableName);
+}
 
 const { Pool } = pg;
 
@@ -62,7 +84,10 @@ async function bootstrap(): Promise<void> {
         // consults isPaused — cannot drift from the cap the API and the change-refresh task charge.
         limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),
         merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),
-        events: new FoodEventEmitter(new ConsolePublisher(), undefined, (error, kind) =>
+        events: new FoodEventEmitter(resolvePublisher(), undefined, (error, kind) =>
+            // ⛔ The ONLY signal a fire-and-forget publish ever produces. The producer does not await a
+            // consumer and never sees a failure, so a swallowed error here is a message that silently
+            // never existed — see the `publish` port's contract.
             logger.warn('message-publish-failed', { kind, error: String(error) }),
         ),
         logger,

@@ -913,3 +913,61 @@ describe('the internal-origin host (prod only, ADR-0020 / U15)', () => {
         }
     });
 });
+
+/**
+ * The message substrate's per-stage OWNERSHIP split (R1, plan U5).
+ *
+ * ⛔ The split is mechanical, not stylistic, and getting it backwards fails in two different silent ways.
+ * A per-PR table added to the GLOBAL app would never be created at all — `bin/app.ts` tags that app
+ * `Environment=global` and sandbox-deploy never runs it with `stage=pr-{N}` — and if it somehow were, it
+ * would carry the one tag ADR-0005's teardown uses to decide what NOT to delete, leaking a table per closed
+ * pull request forever. A base-stage table created HERE would be a second table competing for the name the
+ * global stack already owns.
+ */
+describe('the message substrate this stack owns (plan U5)', () => {
+    it('creates its OWN table for a per-PR stage, so teardown reclaims it with the preview', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+
+        template.resourceCountIs('AWS::DynamoDB::Table', 1);
+        template.hasResourceProperties('AWS::DynamoDB::Table', {
+            TableName: 'kitchensink-messages-pr-7',
+            KeySchema: [
+                { AttributeName: 'PK', KeyType: 'HASH' },
+                { AttributeName: 'SK', KeyType: 'RANGE' },
+            ],
+            TimeToLiveSpecification: { AttributeName: 'ttl', Enabled: true },
+            StreamSpecification: { StreamViewType: 'KEYS_ONLY' },
+            BillingMode: 'PAY_PER_REQUEST',
+        });
+    });
+
+    it('creates NO table for a base stage — the global MessageSubstrateStack owns that one', () => {
+        synthFoodTemplate('prod', 'prod').resourceCountIs('AWS::DynamoDB::Table', 0);
+    });
+
+    it('resolves a base stage`s table from SSM, never a CFN import and never a hardcoded name', () => {
+        // ⛔ SSM, not `Fn.importValue`: a per-PR substrate export IS deleted on PR close, and PR-close
+        // deletes a PR's stacks in NO fixed order — so an importing stack holds the export hostage and
+        // deadlocks the teardown, unattended, in CI (the ADR-0002 export-in-use failure that
+        // RecipeServiceStack:230 already documents).
+        const json = JSON.stringify(synthFoodTemplate('prod', 'prod').toJSON());
+
+        expect(json).toContain('/kitchensink/prod/messaging/table-name');
+        expect(json).not.toContain('kitchensink-messaging-prod:MessageTableName');
+    });
+
+    it('grants the worker PutItem and NOTHING else on the table', () => {
+        // The producer half never reads what it wrote. A Query/Scan grant would be a permission with no
+        // caller — and the surface an attacker inherits if the worker is compromised.
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+        const policies = Object.values(template.findResources('AWS::IAM::Policy')) as Array<{
+            Properties: { PolicyDocument: { Statement: Array<{ Sid?: string; Action?: unknown }> } };
+        }>;
+        const statements = policies
+            .flatMap((p) => p.Properties.PolicyDocument.Statement)
+            .filter((s) => s.Sid === 'FoodWorkerPublishesMessages');
+
+        expect(statements).toHaveLength(1);
+        expect(statements[0]?.Action).toEqual('dynamodb:PutItem');
+    });
+});

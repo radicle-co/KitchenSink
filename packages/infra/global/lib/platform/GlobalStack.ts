@@ -3,6 +3,7 @@ import type { Construct } from 'constructs';
 
 import { DataStack } from './DataStack.js';
 import { DomainStack } from './DomainStack.js';
+import { MessageSubstrateStack } from './MessageSubstrateStack.js';
 import { NetworkStack } from './NetworkStack.js';
 import { SandboxSchedulerStack } from './SandboxSchedulerStack.js';
 import { SharedAlbStack } from './SharedAlbStack.js';
@@ -24,6 +25,8 @@ export class GlobalStack extends Stack {
     public readonly data: DataStack;
     public readonly domain: DomainStack;
     public readonly alb: SharedAlbStack;
+    /** The message substrate — BASE stages only; a `pr-{N}` table lives in the producer's own stack (U5). */
+    public readonly messaging: MessageSubstrateStack;
     /** The sandbox nightly-shutdown scheduler — created ONLY for `stage === 'sandbox'` (ADR-0007). */
     public readonly sandboxScheduler?: SandboxSchedulerStack;
     public readonly stage: string;
@@ -60,6 +63,16 @@ export class GlobalStack extends Stack {
             stackName: `kitchensink-alb-${stage}`,
             network: this.network,
             domain: this.domain,
+            stage,
+        });
+
+        // The durable per-group message substrate (R1, plan U5). This app only ever deploys BASE stages
+        // (`prod`/`sandbox`) — `bin/app.ts` tags the whole app `Environment=global` and sandbox-deploy
+        // never runs it with `stage=pr-{N}` — so a per-PR table is created in the PRODUCER's stack instead,
+        // where it is already tagged `Environment=pr-{N}` and torn down with the preview.
+        this.messaging = new MessageSubstrateStack(this, `Messaging-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-messaging-${stage}`,
             stage,
         });
 

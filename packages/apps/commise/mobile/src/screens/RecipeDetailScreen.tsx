@@ -20,6 +20,9 @@
  * history, the visibility toggle, and the delete trigger are grouped behind a `MoreActionsMenu` (C4,
  * `[Edit] [More]`). The clone action is passed into `RecipeDetailView`'s `footerActions` slot so it renders
  * alongside the version + visibility badges in ONE grouped footer row (C3), instead of as a separate block.
+ *
+ * Feature 008 (T-012) adds the "Start cooking" entry point — the ONLY route into Cooking Mode on mobile, and
+ * ungated by ownership, since reading a recipe is the same permission as cooking it.
  */
 import {
     MoreActionsMenu,
@@ -71,6 +74,14 @@ export interface RecipeDetailScreenProps {
     readonly onCloned?: (recipeId: string) => void;
     /** Invoked with a tag when the viewer taps a tag chip to filter search (D6). */
     readonly onFilterByTag?: (tag: string) => void;
+    /**
+     * Invoked with the recipe id when the viewer enters Cooking Mode (feature 008, T-012); the affordance is
+     * hidden when omitted.
+     *
+     * Deliberately NOT owner-gated — anybody who can read a recipe can cook it, so this sits ABOVE the
+     * owner-only action block, alongside the read view every viewer sees.
+     */
+    readonly onStartCooking?: (recipeId: string) => void;
 }
 
 /**
@@ -87,6 +98,7 @@ export function RecipeDetailScreen({
     onDeleted,
     onCloned,
     onFilterByTag,
+    onStartCooking,
 }: RecipeDetailScreenProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
     const query = useRecipe(recipeId);
@@ -214,6 +226,27 @@ export function RecipeDetailScreen({
                 }
             />
 
+            {/* Feature 008 (T-012) — the entry point into Cooking Mode, and the ONLY one on mobile: without
+                it the cooking surface is unreachable. Placed here, directly under the read view and ABOVE
+                both the rating block and the owner-only actions, because it is the primary thing a viewer
+                does with a recipe they are looking at, and because it is NOT an owner capability.
+
+                Deliberately NOT gated on `recipe.steps.length`: the cooking surface ships its own empty
+                state ("This recipe has no steps yet" + what to do about it), which is a better answer than a
+                control that vanishes for a reason the viewer cannot see — and gating here would make that
+                state unreachable on this platform. */}
+            {onStartCooking !== undefined && (
+                <View style={styles.cookAction}>
+                    <Button
+                        variant="primary"
+                        icon={<Feather name="play" size={16} color={palette.white} />}
+                        onPress={() => onStartCooking(recipeId)}
+                    >
+                        {t.startCookingAction}
+                    </Button>
+                </View>
+            )}
+
             {/* Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
                 everyone else gets the interactive input. The own-recipe gate lives HERE, not in a mode prop. */}
             {ratingMode === 'own' ? (
@@ -303,6 +336,9 @@ const styles = StyleSheet.create({
     backButton: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 16 },
     // `ocean-dark`, not `seafoam`: this is text a reader reads (see the palette JSDoc in `@commise/ui`).
     backLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 15 },
+    // The Cooking Mode entry point (008 T-012). Left-aligned like the owner action row below it, so the
+    // primary CTA of the detail reads as part of the same control column rather than as a stray banner.
+    cookAction: { alignItems: 'flex-start', paddingHorizontal: 16, paddingBottom: 16 },
     ownerActions: { gap: 12, paddingHorizontal: 16, paddingBottom: 24 },
     // `[Edit] [More]` (C4 wireframe parity): Edit and the More trigger sit side by side as the header's
     // primary + overflow controls. The action surfaces themselves belong to the DS `Button` (U8) — this row

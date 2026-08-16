@@ -50,6 +50,13 @@
                 {
                     "appleSignIn": false
                 }
+            ],
+            [
+                "expo-speech-recognition",
+                {
+                    "microphonePermission": "Commise uses the microphone so you can control Cooking Mode hands-free — say \"next\", \"back\" or \"start timer\" while your hands are busy.",
+                    "speechRecognitionPermission": "Commise recognises a short list of cooking commands (\"next\", \"back\", \"repeat\", \"start timer\", \"pause timer\") so you can move through a recipe without touching your device."
+                }
             ]
         ],
         "experiments": {

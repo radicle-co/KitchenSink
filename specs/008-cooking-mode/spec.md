@@ -7,10 +7,10 @@
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                                     |
-| --------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Spec                                                        | Relationship                                                     |
+| ----------------------------------------------------------- | ---------------------------------------------------------------- |
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — cooking mode renders Recipe instructions from 001 |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — all features require authentication               |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all features require authentication               |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -29,6 +29,11 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 3. **Given** a step includes a time duration (e.g., "bake for 25 minutes"), **When** the user starts the timer, **Then** a countdown is displayed and an alert sounds when complete.
 4. **Given** a user is in Cooking Mode, **When** they want to go back to review a previous step, **Then** they can navigate backward without losing their place.
 5. **Given** a user is cooking, **When** the device screen would normally turn off, **Then** Cooking Mode keeps the screen active.
+6. **Given** a user is on any step, **When** they open the ingredient list and check off an ingredient, **Then** that ingredient
+   reads as checked, and it is still checked after navigating to another step and back (FR-032a).
+7. **Given** a user sets the yield to 2×, **When** they view the ingredient list, **Then** ingredient quantities are doubled, the
+   stored recipe is unchanged, every step's timer duration is unchanged, and an advisory states that cook times are not
+   scaled (FR-034a).
 
 ---
 
@@ -43,8 +48,15 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 **Cooking Mode**
 
 - **FR-032**: System MUST provide a Cooking Mode that displays recipe instructions one step at a time in large, readable formatting.
+- **FR-032a**: System MUST provide, within Cooking Mode, an ingredient list that can be opened and dismissed without leaving the
+  current step, in which each ingredient can be individually checked off. Checked state MUST persist for the lifetime of the
+  cooking session (including across step navigation and session recovery per FR-033) and MUST NOT mutate the stored recipe.
 - **FR-033**: System MUST allow users to navigate forward and backward through recipe steps in Cooking Mode.
 - **FR-034**: System MUST provide integrated countdown timers for recipe steps that include time durations.
+- **FR-034a**: System MUST allow the user to scale the recipe's serving yield from within Cooking Mode and MUST recalculate
+  displayed ingredient quantities for the scaled yield. Scaling MUST NOT alter any step's timer duration; where a scale factor
+  other than 1× is active, Cooking Mode MUST surface an advisory that cook times are not scaled and may need adjustment.
+  Scaling MUST NOT mutate the stored recipe.
 - **FR-035**: System MUST keep the device screen active while Cooking Mode is engaged.
 
 ### Non-Functional Requirements _(constitution-derived)_
@@ -56,7 +68,39 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 
 ### Key Entities
 
-None specific — Cooking Mode consumes the Recipe entity defined in [001-commise-recipe-app](../001-commise-recipe-app/spec.md).
+Cooking Mode defines **no** recipe-shaped entity of its own. Per **GR-007** it consumes the shipped types from
+`@kitchensink/recipe-core` — in particular `RecipeStep` (`stepNumber`, `instruction`, `timerSeconds`), which already carries the
+per-step inline duration FR-034 requires, and `Ingredient`, which FR-032a checks off and FR-034a scales for display. Defining a
+local `RecipeInstruction` (or any local copy of `Recipe`/`Step`/`Ingredient`) is prohibited by GR-007 AC-007-d.
+
+Cooking Mode owns only **session-scoped, non-persisted** state: `CookingSession` (current step index, completed steps, checked
+ingredients, active scale factor) and `CookingTimer`. None of it mutates the stored recipe.
+
+## Decisions
+
+- **D-001 (FR numbering, 2026-08-05)**: US-008 and US-009 were promoted into v1 scope and required backing FRs. 008 owns only
+  `FR-032`..`FR-035` (`FR-036`/`FR-037` belong to 009 — see `../spec-sweep-2026-08-02.md`), so the new requirements take the
+  letter-suffix form `FR-032a` / `FR-034a`, following the `004-FR-014a` precedent (004 D-017). No neighbor's range is disturbed.
+- **D-002 (scaling does not scale time, 2026-08-05)**: `tasks.md` T-016 previously specified "timer recalculation" while US-009
+  specified scaling _guidance_. Cook time does not scale linearly with yield — doubling a batch does not double bake time — so
+  auto-scaling timers would produce wrong, potentially unsafe cooking instructions. FR-034a therefore scales **quantities only**
+  and surfaces an advisory. The contradiction is resolved in favour of US-009.
+- **D-004 (voice control ships on BOTH platforms, 2026-08-09)**: US-006 was briefly recorded as an accepted web-only
+  divergence, because Expo ships no built-in speech recognition. The owner reversed that: voice control is required on web
+  **and** mobile, restoring compliance with the cross-platform rule. `expo-speech-recognition` provides the native capability
+  and exports a Web-Speech-compatible recognition class, so both adapters bind one shared restart/latch/dispose policy instead
+  of two implementations that could drift. Two consequences are recorded rather than hidden.
+  **(a) Consent — resolved by construction (2026-08-09).** `CookingModeScreen` renders an explicit **opt-in toggle** on both
+  platforms; recognition never starts on mount, so the press itself is the consent signal. `denied` / `unsupported` are settled
+  states that keep the control mounted and explained rather than inert, and the native adapter fails safe on denial. US-006
+  should still state the opt-in as a requirement rather than leaving it an implementation choice.
+  **(b) SDK generation — open, and NOT fixable by updating Expo.** `expo-speech-recognition`'s latest targets one SDK
+  generation behind this repo, but the app is _ahead_ of the library, not behind: `expo`'s own latest is 57.0.x with no stable 58. An attempted patch bump (`57.0.8 → 57.0.11`) was reverted because it re-hoisted `@expo/cli` to the repo root, where its
+  `chalk@4` picks up the ESM `ansi-styles@6` and — under Node 24, which now `require()`s ESM instead of throwing — loses its
+  styles and crashes `expo prebuild`, failing the Android APK build. On-device voice therefore remains unverified, and any SDK
+  move belongs in its own PR.
+- **D-003 (reuse `RecipeStep`, 2026-08-05)**: The prior plan defined a local `RecipeInstruction` type. `@kitchensink/recipe-core`
+  already exports `RecipeStep` with the needed shape including `timerSeconds`; 008 imports it rather than duplicating it (GR-007).
 
 ## Success Criteria _(mandatory)_
 

@@ -48,6 +48,7 @@ const mockedAuth = vi.mocked(auth);
 
 const { default: RecipesPage } = await import('../[locale]/recipes/page');
 const { default: RecipeDetailPage } = await import('../[locale]/recipes/[id]/page');
+const { default: RecipeCookingPage } = await import('../[locale]/recipes/[id]/cook/page');
 const { default: DiscoverPage } = await import('../[locale]/discover/page');
 const { default: CollectionsPage } = await import('../[locale]/collections/page');
 
@@ -149,6 +150,44 @@ describe('[locale]/recipes/[id]/page.tsx SSR prefetch', () => {
         const detailSpy = vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById');
 
         await expect(RecipeDetailPage({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) })).rejects.toThrow(
+            'NEXT_REDIRECT:/en/sign-in',
+        );
+        expect(detailSpy).not.toHaveBeenCalled();
+    });
+});
+
+describe('[locale]/recipes/[id]/cook/page.tsx SSR prefetch', () => {
+    // Feature 008 (T-011). Cooking Mode adds NO endpoint: it prefetches the SAME `recipeQueries(client)
+    // .detail(id)` key the recipe-detail page does, which is what lets a cook entering from the detail page
+    // start on step one with no second round trip. A key that drifted from the container's own
+    // `useRecipe(id)` would look identical on screen while silently double-fetching.
+    it('prefetches the recipe on recipeQueries(client).detail(id) — the SAME key the detail page uses', async () => {
+        mockAuthed();
+        const detail = makeRecipeDetail({ id: 'rec_1' });
+        vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById').mockResolvedValue(detail);
+
+        const element = await RecipeCookingPage({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) });
+        const queries = dehydratedQueries(element);
+
+        expect(queries).toHaveLength(1);
+        expect(queries[0]?.queryKey).toEqual(recipeServiceKeys.recipe('rec_1'));
+        expect(queries[0]?.state.data).toEqual(detail);
+    });
+
+    it('dehydrates to an empty state (no throw) when the SSR prefetch fails', async () => {
+        mockAuthed();
+        vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById').mockRejectedValue(new Error('not found'));
+
+        const element = await RecipeCookingPage({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) });
+
+        expect(dehydratedQueries(element)).toHaveLength(0);
+    });
+
+    it('redirects to sign-in and never prefetches when signed out', async () => {
+        mockSignedOut();
+        const detailSpy = vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById');
+
+        await expect(RecipeCookingPage({ params: Promise.resolve({ locale: 'en', id: 'rec_1' }) })).rejects.toThrow(
             'NEXT_REDIRECT:/en/sign-in',
         );
         expect(detailSpy).not.toHaveBeenCalled();

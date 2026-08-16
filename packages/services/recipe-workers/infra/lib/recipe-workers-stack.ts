@@ -39,9 +39,17 @@ const BACKLOG_ALARM_THRESHOLD = 100;
  *
  * FR-007b-i names TWO archive alarm conditions, not one: the backlog over 100 (above) AND "the oldest
  * pending row is older than 1 hour". This is the second — the same 3600s bound as the erasure path's age
- * alarm, and for the same reason: an archive row that has sat un-drained for an hour is stuck, not busy
- * (the sweep runs every minute), so it is a signal a human must see. Without it a single row can age past
- * the SLA while the count stays comfortably under 100 and nothing fires.
+ * alarm, and for the same reason: an archive row that has sat un-drained for an hour is stuck, not busy,
+ * so it is a signal a human must see. Without it a single row can age past the SLA while the count stays
+ * comfortably under 100 and nothing fires.
+ *
+ * ⚠️ THIS THRESHOLD IS COUPLED TO THE SWEEP CADENCE, which is currently ONE DAY (see
+ * `ArchiveSweepSchedule`, a temporary cost posture). "Un-drained for an hour ⇒ stuck" is only a valid
+ * inference while the sweep is faster than an hour. The bound is deliberately left at 3600s rather than
+ * relaxed to match the slow cadence, because it is an FR-007b-i MUST and moving it would weaken a spec
+ * guarantee to accommodate a temporary setting. It does not misfire today only because no pending rows
+ * exist and the alarm is `treatMissingData: NOT_BREACHING`. Whoever restores real traffic MUST restore
+ * the one-minute cadence in the same change, or this alarm becomes permanent noise.
  */
 const ARCHIVE_AGE_ALARM_THRESHOLD_SECONDS = 3600;
 
@@ -410,12 +418,25 @@ export class RecipeWorkersStack extends Stack {
             logGroup,
         });
 
-        // Every minute. The sweep is the archive's ONLY trigger, so the interval is the worst-case delay
-        // between a version going over-retention and its snapshot reaching S3. A drained outbox costs one
-        // indexed query returning zero rows (idx_pending_archives_status_next), so the tick is cheap.
+        // Once a day. The sweep is the archive's ONLY trigger, so this interval IS the worst-case delay
+        // between a version going over-retention and its snapshot reaching S3 — now a day, not a minute.
+        //
+        // ⚠️ DELIBERATE AND TEMPORARY — a cost posture, not a design (owner ruling, 2026-08-15). At one
+        // minute this fired ~43k times/month in EVERY stage (prod + one per open PR) against a system
+        // with no production traffic, where a drained outbox costs one indexed query returning zero rows
+        // (idx_pending_archives_status_next). Cheap per tick, but bought nothing 1440 times a day.
+        //
+        // ⛔ RESTORE TO ONE MINUTE BEFORE REAL TRAFFIC ARRIVES — and not only for archive latency.
+        // {@link ARCHIVE_AGE_ALARM_THRESHOLD_SECONDS} (3600s, an FR-007b-i MUST) encodes "un-drained for
+        // an hour ⇒ stuck, not busy", and that inference holds ONLY while the sweep is fast. Under a
+        // daily sweep WITH traffic, a pending row legitimately waits up to 24h, so that alarm would sit
+        // in permanent ALARM and mail a human on every ordinary archive. It stays quiet today purely
+        // because no pending rows exist and the alarm is `treatMissingData: NOT_BREACHING` — i.e. the
+        // same absence of traffic that makes a daily sweep safe is what is muting the alarm. Restoring
+        // traffic without restoring this cadence turns an FR-007b-i safety alarm into inbox noise.
         new events.Rule(this, 'ArchiveSweepSchedule', {
             ruleName: `kitchensink-recipe-archive-sweep-${props.stage}`,
-            schedule: events.Schedule.rate(Duration.minutes(1)),
+            schedule: events.Schedule.rate(Duration.days(1)),
             targets: [new events_targets.LambdaFunction(sweeperFn)],
         });
 

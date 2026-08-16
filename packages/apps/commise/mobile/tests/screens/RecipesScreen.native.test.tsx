@@ -6,7 +6,7 @@
  * covered by each screen's own test), so the hooks are mocked only enough to render each destination.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { compositeOver, computedContrast, contrastRatio } from '@commise/test-utils';
 import { palette } from '@commise/ui';
@@ -84,6 +84,20 @@ function query<T>(overrides: Record<string, unknown> = {}): T {
 /** The opaque colour a tab's own fill resolves to, read off the DOM and flattened onto the screen. */
 function fillOf(tab: Element): string {
     return compositeOver(window.getComputedStyle(tab).backgroundColor, palette.sand);
+}
+
+/**
+ * Flushes the async work a pushed surface schedules — Cooking Mode reads the device session store before it
+ * can render a step, so a synchronous assertion right after the push would race the restore.
+ *
+ * @sideEffect Drains microtasks inside `act`.
+ */
+async function settle(): Promise<void> {
+    await act(async () => {
+        for (let turn = 0; turn < 10; turn += 1) {
+            await Promise.resolve();
+        }
+    });
 }
 
 /** A mutation-result double; cast to the concrete hook's result type. */
@@ -176,6 +190,25 @@ describe('RecipesScreen — navigation', () => {
         // Guards the default: seeding unconditionally would send every recipes-tab entry to a detail.
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(screen.queryByText('Bright and zesty.')).toBeNull();
+    });
+
+    it('pushes Cooking Mode OVER the detail, and exiting lands back on the recipe (008 T-012)', async () => {
+        render(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Fish Tacos' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Start cooking' }));
+        await settle();
+
+        expect(screen.getByLabelText('Cooking mode')).toBeTruthy();
+        expect(screen.queryByText('Bright and zesty.')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+        await settle();
+
+        // Back on the DETAIL, not the list: cooking is pushed over the recipe the cook came from, so leaving
+        // it returns them to that recipe rather than dropping them a level.
+        expect(screen.getByText('Bright and zesty.')).toBeTruthy();
+        expect(screen.queryByLabelText('Cooking mode')).toBeNull();
     });
 
     it('opens the create screen from the list create action', () => {

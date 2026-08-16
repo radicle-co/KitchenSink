@@ -201,6 +201,14 @@ export interface MobileMessages {
         readonly deleteAction: string;
         /** Label of the owner action that opens the version-history screen. */
         readonly versionsAction: string;
+        /**
+         * Label of the action that enters Cooking Mode (feature 008, T-012).
+         *
+         * App copy, not feature copy: `@commise/features-cooking`'s dictionary owns everything INSIDE the
+         * cooking surface, but the affordance that reaches it belongs to the recipe-detail screen, which is
+         * this app's. Shown to every viewer who can read the recipe — cooking is not an owner capability.
+         */
+        readonly startCookingAction: string;
         /** Reason shown when the private-visibility option is gated behind a premium plan (C-004). */
         readonly visibilityUpgradeReason: string;
         /** Alert shown when creating a recipe fails. */
@@ -435,6 +443,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             editAction: 'Edit recipe',
             deleteAction: 'Delete recipe',
             versionsAction: 'Version history',
+            startCookingAction: 'Start cooking',
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
             saveError: 'We couldn’t save your changes. Please try again.',

@@ -1,0 +1,20 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "rootDir": "src",
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "jsx": "react-jsx",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        // `node` (unlike the sibling feature packages, which use `types: []`) because the wake-lock
+        // suite reads its OWN source with `node:fs` to assert structurally that no listener is
+        // registered at module scope. That defect crashes an SSR route on import, and a behavioural spy
+        // cannot catch it — the module is imported before any spy can be installed. Types only; nothing
+        // node-specific reaches the bundle.
+        "types": ["node"]
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx"],
+    "exclude": ["node_modules", "dist"]
+}

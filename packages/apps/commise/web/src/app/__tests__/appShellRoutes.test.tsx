@@ -92,6 +92,15 @@ const shellRoutes: readonly ShellRoute[] = [
         titleId: 'recipeEdit',
     },
     {
+        // Feature 008 — Cooking Mode is a recipe SURFACE, so it is shell-hosted like every other one: the
+        // cook keeps the app's navigation while a session is live, on top of the screen's own exit control.
+        path: '/[locale]/recipes/[id]/cook',
+        load: () => import('../[locale]/recipes/[id]/cook/page'),
+        props: idParams,
+        activeId: 'recipes',
+        titleId: 'recipeCooking',
+    },
+    {
         path: '/[locale]/recipes/[id]/versions',
         load: () => import('../[locale]/recipes/[id]/versions/page'),
         props: idParams,
@@ -212,9 +221,14 @@ describe('every authenticated route renders inside the app navigation shell', ()
             const shell = findElementByType(element, AppShell);
 
             expect(shell, `${route.path} renders no AppShell`).toBeDefined();
-            expect((shell?.props as { activeId?: string }).activeId).toBe(route.activeId);
+            // Read through the optional chain rather than off it: `(shell?.props as X).y` throws a
+            // TypeError when `shell` is undefined, so the assertion that was meant to report a missing
+            // AppShell would instead crash the test with an unrelated error.
+            const props = shell?.props as { activeId?: string; children?: ReactNode } | undefined;
+
+            expect(props?.activeId).toBe(route.activeId);
             // The shell wraps the surface — it is never rendered empty beside it.
-            expect((shell?.props as { children?: ReactNode }).children).toBeDefined();
+            expect(props?.children).toBeDefined();
         });
     }
 });
@@ -231,7 +245,9 @@ describe('every authenticated route names ITSELF in the top bar', () => {
             const element = await Page(route.props() as never);
             const shell = findElementByType(element, AppShell);
 
-            expect((shell?.props as { titleId?: string }).titleId).toBe(route.titleId);
+            const props = shell?.props as { titleId?: string } | undefined;
+
+            expect(props?.titleId).toBe(route.titleId);
         });
     }
 

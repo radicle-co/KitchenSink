@@ -1,0 +1,206 @@
+appId: io.commise.mobile
+---
+# Cooking Mode happy path (feature 008, T-020 — US-001…US-005). The mobile mirror of the web Playwright
+# `cookingMode.spec.ts`: signs in, opens a recipe, enters Cooking Mode from the recipe detail, advances and
+# reverses steps, starts a step timer, dwells while it counts down, and leaves — then proves that EXIT and
+# FINISH are different outcomes, which is the one thing only the app-side wiring (T-012) can get wrong.
+#
+# WHY THIS FLOW CREATES ITS OWN RECIPE instead of using the shared seed — read before "simplifying" it:
+#
+#   `recipe-service`'s seed inserts recipe rows directly via SQL (`database/seed.ts`) and gives them NO
+#   ingredients and NO steps (the same fact `versions.yaml` documents). Cooking Mode over a step-less recipe
+#   renders its empty state — correct behaviour, but it cannot advance, cannot reverse, and has no timer, so
+#   every assertion below would be untestable. This flow therefore builds a two-step recipe through the real
+#   create wizard exactly as `create.yaml` does (freeform ingredient included, because Publish validation
+#   requires at least one ingredient AND one step), with a 30-SECOND timer on step 1 — long enough that the
+#   dwell below is a real wait, short enough not to pad the suite.
+#
+# LIMITATION — the screen wake lock (FR-035) is NOT directly assertable here, and this flow does not pretend
+# otherwise. Maestro reads the app's view hierarchy; it has no window onto the OS keep-awake flag, and an
+# emulator's own display timeout is far longer than any flow, so a broken wake lock would not fail a test
+# that merely waited. What IS asserted is the closest OBSERVABLE thing: after ~20 uninterrupted seconds with
+# no input, Cooking Mode is still foreground and its countdown has advanced — the session survives the dwell.
+# The lock's acquire/release contract itself is pinned by `wakeLock.native.test.tsx` (against a recording
+# stub) and by `CookingModeScreen.native.test.tsx` (which asserts mounting the screen acquires it); that the
+# OS honours it on real hardware is a physical-device concern, tracked as the T-020 device-sweep residual
+# risk in tasks.md. This mirrors `photos.yaml`/`versions.yaml`, which likewise document an undrivable step
+# inline rather than silently skipping it.
+- runFlow: ../auth/signin.yaml
+
+# ── BUILD A COOKABLE RECIPE ──────────────────────────────────────────────────
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro Cooking Mode Bake'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# One ingredient, minted through the freeform create — the food service that backs nutrition lookup is not
+# run in this job, and Publish only requires that every line resolve to a catalog id.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+# The freeform create is async; scrolling to the resolved line's name field both waits for it and is the
+# falsifiable checkpoint — an unresolved form cannot Publish.
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+
+# TWO steps, because reversing needs somewhere to come back FROM, and the last-step boundary (where the
+# forward zone is replaced by "Finish cooking") is part of what this flow walks. Step 1 carries the timer.
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Preheat the oven and butter the tin.'
+- tapOn: 'Step 1 timer (seconds)'
+- inputText: '30'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- scrollUntilVisible:
+      element: 'Step 2 instruction'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Step 2 instruction'
+- inputText: 'Bake until the top is golden.'
+
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+# Landed on the new recipe's detail. The `.*` tail absorbs Maestro's occasional duplicated final character
+# on this emulator (an input artifact, not an app bug — see `create.yaml`).
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Cooking Mode Bake.*'
+      timeout: 40000
+
+# ── ENTER COOKING MODE ───────────────────────────────────────────────────────
+# The entry point sits below the recipe body on the detail, and it is the ONLY route into Cooking Mode on
+# mobile — copy from the app's i18n `recipes.startCookingAction`.
+- scrollUntilVisible:
+      element: 'Start cooking'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Start cooking'
+
+# The surface opens at the FIRST step. `Step 1 of 2` is the position readout `StepNavigation` renders as
+# visible text beside its progress dots (never colour alone), so it is both the checkpoint and the
+# accessibility guarantee.
+- extendedWaitUntil:
+      visible: 'Step 1 of 2'
+      timeout: 30000
+- assertVisible:
+      text: 'Preheat the oven and butter the tin\..*'
+- assertVisible: 'You are on the first step'
+
+# ── START A TIMER (FR-034) ───────────────────────────────────────────────────
+# Step 1 declares 30s, so its badge renders and offers the start control. Once running, the active-timers
+# list shows the countdown and the toggle flips to "Pause timer" — the state is carried by the control's own
+# TEXT, not by colour, which is what makes it assertable here at all.
+- tapOn: 'Start timer'
+- assertVisible: 'Pause timer'
+
+# ── ADVANCE AND REVERSE (FR-033) ─────────────────────────────────────────────
+- tapOn: 'Next step'
+- assertVisible: 'Step 2 of 2'
+- assertVisible:
+      text: 'Bake until the top is golden\..*'
+# The last step replaces the forward zone with the finish affordance; it is asserted, NOT tapped — the cook
+# is coming back.
+- assertVisible: 'Finish cooking'
+- assertVisible: 'You are on the last step'
+
+- tapOn: 'Previous step'
+- assertVisible: 'Step 1 of 2'
+- assertVisible:
+      text: 'Preheat the oven and butter the tin\..*'
+# The timer must survive step navigation — losing it on a step change is the classic regression here.
+- assertVisible: 'Pause timer'
+
+# ── THE SESSION SURVIVES AN UNINTERRUPTED DWELL ──────────────────────────────
+# No input for ~20s, then the countdown must read under ten seconds. `0:0[0-9]` cannot match the step badge
+# (a static `0:30`), so this passes ONLY if the running timer actually advanced while the screen sat idle.
+# See the wake-lock limitation in the header: this is the observable proxy, not a reading of the OS flag.
+- extendedWaitUntil:
+      visible:
+          text: '0:0[0-9]'
+      timeout: 60000
+
+# ── EXIT MID-COOK, THEN RESUME (FR-033 / REQ-013) ────────────────────────────
+# Leave from step 2, so "resumed" is distinguishable from "started fresh" — exiting on step 1 would prove
+# nothing, since a new session also opens there.
+- tapOn: 'Next step'
+- assertVisible: 'Step 2 of 2'
+- tapOn: 'Exit cooking mode'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Cooking Mode Bake.*'
+      timeout: 30000
+
+- scrollUntilVisible:
+      element: 'Start cooking'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Start cooking'
+# THE assertion this whole tail exists for: exit persisted a resumable session, so Cooking Mode reopens where
+# the cook left it. A build that collapsed exit into finish (clearing the session) reopens at `Step 1 of 2`
+# and fails here.
+- extendedWaitUntil:
+      visible: 'Step 2 of 2'
+      timeout: 30000
+
+# ── FINISH, WHICH CLEARS THE SESSION ─────────────────────────────────────────
+- tapOn: 'Finish cooking'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Cooking Mode Bake.*'
+      timeout: 30000
+
+- scrollUntilVisible:
+      element: 'Start cooking'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Start cooking'
+# The mirror image of the resume assertion: finishing CLEARED the stored session, so the next cook starts at
+# step 1. A build that persisted on finish reopens at `Step 2 of 2` and fails here.
+- extendedWaitUntil:
+      visible: 'Step 1 of 2'
+      timeout: 30000
+- tapOn: 'Exit cooking mode'
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Cooking Mode Bake.*'
+      timeout: 30000

@@ -56,6 +56,7 @@ const nextConfig: NextConfig = {
     // feature UI + its typed client, which in turn depend on the shared i18n and recipe-core packages.
     transpilePackages: [
         '@commise/features-account',
+        '@commise/features-cooking',
         '@commise/features-recipes',
         '@commise/features-core',
         // The design-system `Button` (and future @commise/ui components) ship as raw `./src` .tsx so the
@@ -64,6 +65,7 @@ const nextConfig: NextConfig = {
         '@commise/i18n',
         '@kitchensink/recipe-service-client',
         '@kitchensink/recipe-core',
+        '@kitchensink/cooking-core',
     ],
     // Those TS-source packages use NodeNext-style `.js` extensions on relative imports (e.g.
     // `export * from './profileClient.js'`), so webpack must resolve a `.js` specifier to its `.ts`/`.tsx`

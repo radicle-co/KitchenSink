@@ -1131,3 +1131,109 @@ to declare a value with no dimension, and the registry contract could not type i
 - **A-008**: All API paths owned by this feature live under `/api/v1/notifications/*`.
 - **A-009** _(added 2026-08-12)_: The retained-notification store is **infrastructure this feature provisions**, not a dependency to wait on: one ElastiCache Serverless for Valkey cache per stage, `pr-{N}:`-prefixed per preview (FR-040, ADR-0006's shared-data-plane pattern). It is **not** durable by default and that is an accepted, recorded risk with a named escalation — see FR-040 and ADR-0016 → _Durability_. Do not read the ≈ $6.13/month figure as the whole decision: the durable options cost more or change the data model.
 - **A-010** _(added 2026-08-12)_: A client is assumed to be able to **acknowledge** (FR-034). A consumer that cannot — a surface with no way to run a handler to completion and call back — is out of scope for this release, and its notifications would simply wait out the 72 hours. If such a consumer is ever required, it needs its own decision; it is **not** a reason to add a server-side "assume consumed on send" rule, which would restore the exact behaviour FR-012's amendment removed.
+
+---
+
+## Amendment (2026-08-16) — the message substrate exists; 014 consumes it as a DOORBELL, and `supersedes` is withdrawn
+
+PR 91 built the producer half of a durable per-group message substrate (plan U4–U6): a DynamoDB table with
+`PK = <groupType>#<groupId>`, `SK = <ISO-8601 ms>#<ULID>`, a 3-day TTL, and a `KEYS_ONLY` stream that is
+**enabled and deliberately unattached**. 014 owns the consumer. This section is the contract that consumer
+must implement, recorded here so the design work is not lost between releases, and it **supersedes FR-045
+and the `supersedes` field of FR-026**.
+
+### C-1. The stream record is a DOORBELL. Re-query the group; never read record contents
+
+On trigger, the consumer MUST re-`Query` the message's group and act on what the query returns. It MUST NOT
+treat the stream record itself as the data.
+
+**Why, precisely.** AWS orders stream records **per item (`PK` _and_ `SK`)**, not per partition key — so the
+premise "a group arrives in order for free" is false. A group's `Query`, on the other hand, **is** ordered,
+because `SK` leads with an ISO-8601 instant that sorts lexicographically in chronological order. Re-querying
+therefore makes ordering correct by construction, makes duplicate deliveries harmless, makes
+`parallelizationFactor` safe to raise, and is what makes `KEYS_ONLY` the right stream view — the record only
+has to say _which group changed_.
+
+### C-2. Every read MUST carry a TTL filter expression
+
+Expired-but-unreaped items **still return from `Query`**. DynamoDB's TTL deletion is asynchronous and
+best-effort, typically within 48 hours of expiry but not guaranteed. A consumer that trusts the TTL as a
+read boundary will deliver messages it believes cannot exist, and the bug is invisible until a reap runs
+late — i.e. under exactly the load where it matters.
+
+### C-3. Paginate on `LastEvaluatedKey`, never on an empty page
+
+An empty page is **not** the end of a result set when a filter expression is in play: DynamoDB applies the
+filter after reading, so a page can legitimately return zero items and still carry a `LastEvaluatedKey`.
+Stopping on an empty page silently truncates a group.
+
+### C-4. Set `retryAttempts` and `maxRecordAge` EXPLICITLY
+
+Both default to `-1` (infinite). Left at the defaults, one poison record blocks its shard for the full
+24-hour stream retention, and every group hashing to that shard goes dark with no alarm and no DLQ entry.
+Also set `bisectBatchOnError` and `reportBatchItemFailures`, so one bad record fails alone rather than
+condemning its batch.
+
+### C-5. The on-failure destination MUST be S3
+
+SQS and SNS on-failure destinations carry **metadata only** — the record identifiers, not the payload. For a
+substrate whose items expire in three days, a metadata-only failure record points at data that is gone
+before anyone reads the alarm. S3 is the only destination that captures enough to diagnose after the fact.
+
+### C-6. Parse every record with zod at the boundary (GR-017)
+
+The consumer is reading from a store that other services write to. Trusting its shape is the same class of
+mistake as trusting an HTTP body.
+
+### C-7. ⚠️ NEVER put a group id or an entity id in an EMF dimension
+
+The repo's cardinality gate rejects it, and moving the id to a metric **property** fixes only the cost half
+of the problem. Emit a scrubbed structured log line instead, and keep metrics dimensionless (or dimensioned
+only on `service`/`metric`, matching the existing emitters).
+
+### C-8. Selection per group is CONSUMER-SIDE: most-recent-by-timestamp wins
+
+**This withdraws FR-045 and the `supersedes` field of FR-026.** The producer assigns no sequence; the
+consumer decides which message for a group is current, by timestamp.
+
+**Why the sequence could not be built.** A monotonic sequence must be issued by the producer, which makes a
+**fire-and-forget** producer stateful for a value whose only reader is a consumer that did not yet exist —
+and the substrate's producers may run concurrently in more than one task, so there is no single writer of
+"the last sequence I used". More importantly the sequence was solving a problem the substrate already
+solves: FR-045's stated hazard is a redelivered `processing` overwriting a terminal `succeeded`, and a
+consumer that **re-queries an ordered group** (C-1) can never observe that, because it never reads one
+message in isolation.
+
+**⛔ The precondition, stated so it is checked rather than assumed: SINGLE WRITER PER GROUP.** Timestamp
+selection is correct only while one writer produces a group's messages. Two concurrent writers for one
+entity can stamp out of order relative to their true sequence, and most-recent-wins would then pick the
+loser. Every producer named today satisfies this — a bulk import job owns its entities, and food's
+resolution pipeline is the single writer for a food. **A future producer that shares a group with another
+writer MUST NOT rely on this rule**; it needs its own ordering discipline, and adding one is a decision, not
+an implementation detail.
+
+**What is unaffected.** `idempotencyKey` (FR-018/FR-038) and payload-identity dedup (FR-037) are untouched —
+they answer _"have I already seen THIS message?"_, which is a different question from _"is this still the
+current truth for this entity?"_ FR-045's own analysis of that distinction stands; only its mechanism is
+replaced.
+
+### C-9. ⛔ The substrate is NOT a backfill source
+
+Anything published before 014's consumer exists is **gone** before that consumer can read it: the substrate's
+3-day reaper outruns 014's delivery window, and PR 91 ships the producer half with no consumer at all. 014
+starts from an empty pending set. It MUST NOT be specified, planned, or tested as though it can replay
+history from the substrate.
+
+### C-10. The substrate and 014's pending set are TWO stores
+
+The substrate (DynamoDB, 3-day TTL, reaped) is a **log a consumer reads**. 014's pending set (Valkey, this
+spec) is **state a consumer mutates** — ack deletes it, and dedup compares against what is currently pending.
+Merging them would put ack-and-dedup semantics onto a table whose producers must stay ignorant of consumers,
+which is the property R1.1 exists to protect. See [ADR-0016](../../docs/architecture/decisions/0016-notification-retention-payload-dedup-and-valkey.md)'s
+2026-08-16 amendment, which also records that ADR's escalation clause firing for the substrate and **not**
+for this pending set.
+
+**Consequences for this spec's existing text.** FR-045 is superseded in full by C-8; the `supersedes` bullet
+in FR-026 and the `PublishEnvelope` entry's `supersedes` field are withdrawn with it. Scenario 92's
+T1-before-T2 ordering guarantee is now satisfied by C-1's ordered re-query rather than by a producer
+sequence. Every behaviour in C-1…C-10 becomes a test scenario when 014 is implemented.

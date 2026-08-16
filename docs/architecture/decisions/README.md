@@ -37,3 +37,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0018 — Webhook delivery dedup is one table per sender: Stripe gets `stripe_webhook_events`, Clerk keeps `webhook_events`](0018-per-sender-webhook-dedup-tables.md)
 - [0019 — The recipe import spine: one bulk processor, source-typed channels, and status-shell placeholders](0019-recipe-import-spine.md)
 - [0020 — Every production service sits behind CloudFront, and the ALB moves to an internal origin name](0020-cloudfront-edge-and-internal-alb-hostnames.md)
+- [0021 — Recipe calories are fetched after the card, and a skeleton can never be permanent](0021-deferred-recipe-nutrition.md)

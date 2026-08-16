@@ -122,6 +122,36 @@ export const SEARCH_P95_TARGET_MS = Number(__ENV['FOOD_SEARCH_P95_MS'] || 250);
 export const SEARCH_P95_TOLERANCE = Number(__ENV['FOOD_SEARCH_P95_TOLERANCE'] || 0.15);
 export const SEARCH_P95_MS = Math.round(SEARCH_P95_TARGET_MS * (1 + SEARCH_P95_TOLERANCE));
 
+// --- Batch nutrition (plan U8) -------------------------------------------------------------------
+//
+// ⚠️ PROVENANCE IS DIFFERENT HERE, AND SAYING SO IS THE POINT. Every budget above quotes a numbered
+// success criterion from `specs/003-usda-food-data/spec.md`. `GET /api/v1/foods/nutrition` has NO SC: it
+// is a plan-U8 endpoint, and U8's stated verification is behavioural ("the recipe service can render a
+// 20-recipe list with one call"), not a latency figure. So this budget is DERIVED rather than quoted, and
+// it is a CEILING that has not yet been measured on CI hardware — read the derivation before tightening
+// or widening it, and record the first CI numbers here the way SEARCH_P95_MS records its own history.
+
+// The batch size the budget is stated at — U8's own worked example, a 20-recipe list served by one call.
+export const NUTRITION_BATCH_IDS = Number(__ENV['FOOD_NUTRITION_BATCH_IDS'] || 20);
+
+// THE DERIVATION. `FoodsService.getNutritionBatch` issues `ids.length` CONCURRENT `readGoldenRecord`
+// calls through `Promise.all`, and each one of those is precisely the SC-001 read this file already
+// budgets at READ_P95_MS (a `food` row fanned out over `food_sources`, `food_nutrients ⋈ nutrient`,
+// `food_portions` and `food_field_provenance`). So `READ_P95_MS × NUTRITION_BATCH_IDS` is the line at
+// which ONE BATCHED ID COSTS AS MUCH AS A WHOLE STANDALONE READ — i.e. the point where the endpoint has
+// amortized nothing at all and a caller would be no worse off issuing the N separate requests it exists
+// to replace. That makes the threshold a statement about the endpoint's REASON TO EXIST rather than an
+// invented number, and it is why the script runs a single-read control scenario in the SAME contention
+// window: the control's SC-001 threshold is what makes this one interpretable.
+//
+// BREACHABLE BY: the fan-out losing its concurrency (an `await` in a loop), the 20-connection `pg` pool
+// saturating so the N reads serialize, `food_nutrients_food_id_idx` disappearing (each of the N reads
+// then scans the value table), or the per-id read growing a query.
+//
+// ⛔ It is deliberately LOOSE, and must not be cited as evidence the endpoint is fast — only as evidence
+// it is not a pessimization. Tightening it to a measured value is a follow-up, not a licence to widen.
+export const NUTRITION_BATCH_P95_MS = Number(__ENV['FOOD_NUTRITION_BATCH_P95_MS'] || READ_P95_MS * NUTRITION_BATCH_IDS);
+
 // p95 budget (ms) for the internal EdDSA-guarded erasure POST — a single indexed DELETE-by-requester with
 // no async hand-off (CR-002/U4b). Tighter than recipe's because there is no SQS enqueue.
 // BREACHABLE BY: `fetch_requesters` losing `idx_fetch_requesters_requester_id`, which turns the delete's

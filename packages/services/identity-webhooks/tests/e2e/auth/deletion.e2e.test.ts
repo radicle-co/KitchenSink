@@ -37,13 +37,20 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     banUser: vi.fn(),
     unbanUser: vi.fn(),
 }));
-// Partial mock — see deletionWorker.test.ts: identity-db also exports the schema the handlers import.
+vi.mock('../../../src/common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
+
+// ⛔ ONE `vi.mock` for this module, and it must stay one. This file briefly carried TWO — a partial mock
+// adding `eraseIdentityRow` (plan U2 moved that function into this package) and, thirty lines below, the
+// full replacement that has always been here. Vitest hoists every `vi.mock` for a path and the LAST one
+// registered wins, so the partial was silently discarded and the suite died on
+// `No "eraseIdentityRow" export is defined on the "@kitchensink/identity-db" mock`. Nothing about that is
+// visible at the first call site, and it reds only in CI's e2e tier — the unit tier mocks a different seam.
+//
+// `importOriginal` is spread first because this package also exports the Drizzle SCHEMA the handlers
+// import; a bare replacement would drop it. The doubles then override exactly the members under test.
 vi.mock('@kitchensink/identity-db', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@kitchensink/identity-db')>()),
     eraseIdentityRow: mockEraseIdentityRow,
-}));
-vi.mock('../../../src/common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
-vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn(function () {
         return {
             findByIdentityId: mockFindByIdentityId,

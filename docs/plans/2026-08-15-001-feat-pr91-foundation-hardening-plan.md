@@ -40,21 +40,25 @@ below.
 
 Eleven units are DONE; U10 is half done; five remain. Each unit's section carries its evidence.
 
-| Unit                    | State            | Commit     | Evidence                                                       |
-| ----------------------- | ---------------- | ---------- | -------------------------------------------------------------- |
-| **U15**                 | ✅ DONE          | `1e7cd082` | Live `curl`: three internal hosts `200` / `ssl_verify 0`       |
-| **U1**                  | ✅ DONE          | `7775e228` | `docs/reviews/2026-08-16-u1-erasure-diagnosis.md`              |
-| **U2**                  | ✅ DONE          | `67fea871` | identity 409, webhooks 193, web 1072, mobile 58 + 388          |
-| **U3**                  | ✅ DONE          | `e9d0c639` | ADR-0020 written; 0016/0017/0019 amended                       |
-| **U4**                  | ✅ DONE          | `e728c289` | messaging 20; nine hand-rolled doubles retired                 |
-| **U5**                  | ✅ DONE          | `1fb5f2e3` | MessageSubstrateStack + per-PR ownership split                 |
-| **U6**                  | ✅ DONE          | `1fb5f2e3` | DynamoPublisher; PutItem-only IAM                              |
-| **U7**                  | ✅ DONE          | `64ada10e` | 014 carries C-1…C-10; `supersedes` withdrawn                   |
-| **U8**                  | ✅ DONE          | `dd692c49` | food-service 837; kcal/kJ + per-serving traps pinned           |
-| **U9**                  | ✅ DONE          | `062bcb4b` | AWAITING_RETRY on the wire; exhaustion alarm; operator requeue |
-| **U11**                 | ✅ DONE          | `bcb1dfae` | five topics subscribed; repo-wide gate                         |
-| **U10**                 | 🟡 **HALF DONE** | `484ecc1e` | Read path built + migration WRITTEN AND GATED — see below      |
-| U12, U13, U14, U16, U17 | ⬜ NOT STARTED   | —          | See _Implementation units_                                     |
+| Unit        | State                          | Commit     | Evidence                                                            |
+| ----------- | ------------------------------ | ---------- | ------------------------------------------------------------------- |
+| **U15**     | ✅ DONE                        | `1e7cd082` | Live `curl`: three internal hosts `200` / `ssl_verify 0`            |
+| **U1**      | ✅ DONE                        | `7775e228` | `docs/reviews/2026-08-16-u1-erasure-diagnosis.md`                   |
+| **U2**      | ✅ DONE                        | `67fea871` | identity 409, webhooks 193, web 1072, mobile 58 + 388               |
+| **U3**      | ✅ DONE                        | `e9d0c639` | ADR-0020 written; 0016/0017/0019 amended                            |
+| **U4**      | ✅ DONE                        | `e728c289` | messaging 20; nine hand-rolled doubles retired                      |
+| **U5**      | ✅ DONE                        | `1fb5f2e3` | MessageSubstrateStack + per-PR ownership split                      |
+| **U6**      | ✅ DONE                        | `1fb5f2e3` | DynamoPublisher; PutItem-only IAM                                   |
+| **U7**      | ✅ DONE                        | `64ada10e` | 014 carries C-1…C-10; `supersedes` withdrawn                        |
+| **U8**      | ✅ DONE                        | `dd692c49` | food-service 837; kcal/kJ + per-serving traps pinned                |
+| **U9**      | ✅ DONE                        | `062bcb4b` | AWAITING_RETRY on the wire; exhaustion alarm; operator requeue      |
+| **U11**     | ✅ DONE                        | `bcb1dfae` | five topics subscribed; repo-wide gate                              |
+| **U10**     | ✅ DONE                        | `01346d5e` | Columns dropped; integration tier found 3 defects 1654 units missed |
+| **U12**     | ✅ DONE                        | `c075a2ba` | 203/203 dispositioned; found a shipped P0 (FoodsModule DI)          |
+| **U13/U14** | ✅ DONE                        | `2275b4b1` | 004–014 respecced                                                   |
+| **U15**     | ✅ DONE                        | `3b6971e0` | Internal cert ISSUED in 162s; three hosts verified live             |
+| **U16**     | ✅ DONE                        | `eb5d63ef` | Three distributions + edge verifier; ADR-0020 viewer-Host fixed     |
+| **U17**     | 🟡 **CODE DONE, NOT CUT OVER** | `b30af7f5` | Ownership resolver + origin lockdown; **live DNS move not run**     |
 
 ### ⛔ U10 is half done, and the unfinished half is a DESTRUCTIVE migration
 

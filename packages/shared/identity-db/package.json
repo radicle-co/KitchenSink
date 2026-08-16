@@ -13,6 +13,7 @@
         "dist"
     ],
     "dependencies": {
+        "@kitchensink/identity-core": "*",
         "drizzle-orm": "^0.45.2",
         "ulidx": "^2.4.1"
     },

@@ -802,6 +802,27 @@ jobs:
               env:
                   FOOD_API_BASE_URL: http://localhost:3000
               run: k6 run --summary-export=k6-search-summary.json tests/load/search.load.js
+            # ── Plan U8: the one route whose cost the CALLER chooses ────────────────────────────────────
+            # `GET /api/v1/foods/nutrition?ids=…` fans out over up to 100 six-round-trip golden-record reads
+            # per request, so this step asserts three things no correctness tier can see: that the batch
+            # AMORTIZES (its budget is `READ_P95_MS × NUTRITION_BATCH_IDS` — the line at which one batched id
+            # costs as much as a whole standalone read), that the single-read path is not STARVED while the
+            # fan-out runs (a control scenario in the same contention window, held to SC-001), and that the
+            # per-request id cap is enforced BEFORE any database work — an over-cap request must be cheaper
+            # than a served read, and its check pins the published `BATCH_TOO_LARGE` + `details.maxNames`
+            # envelope, so a lifted cap turns 101 golden-record reads into a red step rather than a silent
+            # unbounded read. Placed with the read-latency scripts and ahead of the flood on purpose.
+            #
+            # ⚠️ ITS BUDGET IS DERIVED, NOT MEASURED — U8's endpoint has no numbered success criterion, and
+            # no CI run has produced a number for it yet. Record the first observed p95s beside the
+            # derivation in `tests/load/lib/common.js` (as SEARCH_P95_MS records its own history) and tighten
+            # from there. If it breaches on its first run, read the CONTROL scenario before touching the
+            # budget: a green control beside a red batch is the fan-out, both red is the pool or the host.
+            - name: Run k6 batch-nutrition load script (U8 amortization, starvation guard, id-cap bound)
+              working-directory: packages/services/food-service
+              env:
+                  FOOD_API_BASE_URL: http://localhost:3000
+              run: k6 run --summary-export=k6-nutrition-batch-summary.json tests/load/nutritionBatch.load.js
             # FR-052/SC-011 under the flood shape the per-source cap CANNOT see: the bucket key is the
             # leftmost X-Forwarded-For hop, which the shared ALB appends to, so an attacker rotates it every
             # request. Asserts the rejection stays cheap and fails closed, and that a legitimate caller is

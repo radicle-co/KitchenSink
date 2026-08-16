@@ -7,8 +7,13 @@
  *     else is ABSENT from a viewer's results and from the facet sample — the leak the status predicate closes.
  *   - **Facet dimensions (W8-a.9):** the response carries `cuisine` counts and mutually-exclusive
  *     `totalTime` buckets over the (draft-excluded) match sample.
- *   - **Sorts (W8-a.9) + calories (W8-a.1):** `sortBy=quickest` orders by ascending total time, and each
- *     hit's `recipe.leadCaloriesPerServing` is surfaced from the denormalized column.
+ *   - **Sorts (W8-a.9):** `sortBy=quickest` orders by ascending total time.
+ *   - **Nutrition after U10 (W8-a.1):** every hit reports its nutrition as UNACCOUNTED. This assertion
+ *     replaced one that seeded `lead_calories_per_serving` and read it back — plan U10 dropped that column,
+ *     and the search projection deliberately does not call the food service (a results page would cost one
+ *     cross-service lookup per hit). ⚠️ That is a real, user-visible change: search results no longer carry
+ *     a calorie figure. It is asserted here rather than left implicit, so nobody restores the column
+ *     believing it is a regression, and nobody ships a `0` in its place.
  *
  * The booted app authenticates as VIEWER (dev bypass). Recipes are seeded via a direct pg pool (so drafts
  * and other owners' rows exist), each carrying a unique FTS token so `query=` scopes the sample to this
@@ -34,7 +39,6 @@ interface SeededRecipe {
     readonly status: 'draft' | 'published';
     readonly cuisine: string;
     readonly totalTime: number;
-    readonly calories: number | null;
     readonly title: string;
 }
 
@@ -44,7 +48,7 @@ interface CookTimeSeededRecipe {
 }
 
 interface SearchHit {
-    recipe: { id: string; title: string; leadCaloriesPerServing?: number };
+    recipe: { id: string; title: string; leadCaloriesPerServing?: number; hasPartialNutrition: boolean };
 }
 
 interface FacetBucket {
@@ -72,7 +76,6 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
                 status: 'published',
                 cuisine: 'italian',
                 totalTime: 20,
-                calories: 300,
                 title: `${TOKEN} quick italian`,
             },
             {
@@ -80,7 +83,6 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
                 status: 'published',
                 cuisine: 'thai',
                 totalTime: 75,
-                calories: null,
                 title: `${TOKEN} slow thai`,
             },
             // A PUBLIC DRAFT owned by someone else — must never surface to the viewer (W8-a.3).
@@ -89,7 +91,6 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
                 status: 'draft',
                 cuisine: 'italian',
                 totalTime: 10,
-                calories: 999,
                 title: `${TOKEN} secret draft`,
             },
         ];
@@ -98,9 +99,9 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
             await pool.query(
                 `INSERT INTO recipes
                    (owner_id, title, visibility, status, cuisine, servings,
-                    prep_time_minutes, cook_time_minutes, total_time_minutes, lead_calories_per_serving)
-                 VALUES ($1, $2, 'public', $3, $4, 2, 5, 10, $5, $6)`,
-                [r.ownerId, r.title, r.status, r.cuisine, r.totalTime, r.calories],
+                    prep_time_minutes, cook_time_minutes, total_time_minutes)
+                 VALUES ($1, $2, 'public', $3, $4, 2, 5, 10, $5)`,
+                [r.ownerId, r.title, r.status, r.cuisine, r.totalTime],
             );
         }
 
@@ -178,13 +179,29 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
         expect(body.facets.totalTime.find((b) => b.value === '0-15')).toBeUndefined();
     });
 
-    it('orders by ascending total time for sortBy=quickest and surfaces denormalized calories (W8-a.9/.1)', async () => {
+    it('orders by ascending total time for sortBy=quickest (W8-a.9)', async () => {
         const body = await search({ sortBy: 'quickest' });
 
         expect(body.results.map((h) => h.recipe.title)).toEqual([`${TOKEN} quick italian`, `${TOKEN} slow thai`]);
-        // The 20-min italian carries its denormalized headline calories; the thai row seeded NULL → omitted.
-        expect(body.results[0]!.recipe.leadCaloriesPerServing).toBe(300);
-        expect(body.results[1]!.recipe.leadCaloriesPerServing).toBeUndefined();
+    });
+
+    it('⛔ reports every hit`s nutrition as UNACCOUNTED, never as zero (W8-a.1, post-U10)', async () => {
+        // U10 deleted `recipes.lead_calories_per_serving`; nutrition is now computed from the food service
+        // on a recipe READ, and the search projection deliberately does not make that call — one lookup per
+        // hit would turn a results page into N cross-service round trips.
+        //
+        // The distinction this pins is the whole point of KTD-3b: a search hit reports that its nutrition
+        // has NOT been accounted for. It does not report `calories: 0`, which is a factual claim that the
+        // dish contains no energy, and it does not silently omit the flag — which would let a client render
+        // "complete" nutrition it never received.
+        const body = await search({ sortBy: 'quickest' });
+
+        expect(body.results.length).toBeGreaterThan(0);
+
+        for (const hit of body.results) {
+            expect(hit.recipe.hasPartialNutrition, hit.recipe.title).toBe(true);
+            expect(hit.recipe.leadCaloriesPerServing, hit.recipe.title).toBeUndefined();
+        }
     });
 
     it('filters by maxCookTime (REQ-030f): a 60-min cook time is excluded at max=30, a 30-min one is included', async () => {

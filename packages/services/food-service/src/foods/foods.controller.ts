@@ -56,7 +56,12 @@ import {
 } from '../auth/authenticatedPrincipal.js';
 import { apiError } from '../common/apiError.js';
 import { sanitizeFoodName } from './foodName.js';
-import { canonicalizeNutritionIds, isNutritionIdListError, type FoodNutritionBatchResponse } from './foods.schema.js';
+import {
+    canonicalizeNutritionIds,
+    isNutritionIdListError,
+    MAX_NUTRITION_IDS,
+    type FoodNutritionBatchResponse,
+} from './foods.schema.js';
 import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
 import { isFoodPendingError } from './foods.errors.js';
@@ -287,9 +292,16 @@ export class FoodsController {
      * unsorted or duplicated list is a second cache entry for the same data, and an uncapped list is an
      * unbounded database read from a single request.
      *
+     * ⚠️ **`details` is REQUIRED on both codes, not decoration.** `foodErrorSchema` publishes
+     * `BATCH_TOO_LARGE` as carrying `details.maxNames` ("so a caller can re-chunk without guessing it") and
+     * `VALIDATION_FAILED` as carrying `details.fields`. Raising either with a bare message emits a body the
+     * service's OWN published schema rejects — so a client following §15 and validating food's envelope
+     * cannot parse food's `400`, on the one endpoint where re-chunking is the whole recovery. `POST /batch`
+     * has always reported `maxNames`; this path shipped without it (caught by `tests/e2e/foodsNutrition.e2e.test.ts`).
+     *
      * @param ids - The raw `ids` query value.
      * @returns The canonical id list.
-     * @throws A structured `INVALID_IDS` error when the list is empty or over the cap.
+     * @throws (→ 400 `BATCH_TOO_LARGE` / `VALIDATION_FAILED`) when the list is over the cap or empty.
      */
     private requireNutritionIds(ids: string): string[] {
         try {
@@ -300,10 +312,15 @@ export class FoodsController {
                 // taxonomy is part of the wire contract, and a new member is a schema-package change every
                 // client must absorb. Over-cap is the same condition `BATCH_TOO_LARGE` already names for
                 // `POST /batch`; an empty list is an ordinary validation failure.
-                throw apiError(
-                    error.message.includes('exceeds') ? 'BATCH_TOO_LARGE' : 'VALIDATION_FAILED',
-                    error.message,
-                );
+                if (error.message.includes('exceeds')) {
+                    // The published key is `maxNames` because the code is shared with `POST /batch`; here it
+                    // caps ids rather than names, and the number is what a caller needs either way.
+                    throw apiError('BATCH_TOO_LARGE', error.message, { maxNames: MAX_NUTRITION_IDS });
+                }
+
+                // The message already leads with the field it rejects, so it IS the rendered entry —
+                // restating `'ids'` beside it would be a second copy of the same fact.
+                throw apiError('VALIDATION_FAILED', error.message, { fields: [error.message] });
             }
 
             throw error;

@@ -188,7 +188,29 @@ production incident.
 | ITS-010-C1 | Food service unreachable               | Confirmation succeeds; ingredients `PENDING`/`UNRESOLVED` (HAZ-050) |
 | ITS-010-C2 | Food service returns results later     | Status transitions to `RESOLVED` via the shipped lifecycle          |
 
-## ITP-011 — OCR pipeline against LocalStack (ARCH-014..ARCH-016)
+## ITP-013 — Raw-text channel (REQ-036, `FR-052`) _(added 2026-08-16)_
+
+#### Test Case: ITP-013-A (Paste → shared pipeline → draft, in one request)
+
+| ID         | Scenario                                                     | Expected                                                                                                        |
+| ---------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| ITS-013-A1 | Paste with `declaredSource = own`                            | `201` carrying the draft; `user_created`; **no** row in `import_jobs` — the channel is synchronous              |
+| ITS-013-A2 | Paste with `declaredSource = paid-source` **and** a citation | `201`; `imported_paid`; confirming yields a recipe the shipped `evaluateVisibility` refuses to make public      |
+| ITS-013-A3 | Paste with `declaredSource = paid-source`, citation omitted  | Rejected; **no** draft persisted (asserted by reading the table, not by trusting the response)                  |
+| ITS-013-A4 | Paste declaring `imported_public` or `imported_physical`     | Rejected at validation as not representable (REQ-032, HAZ-057)                                                  |
+| ITS-013-A5 | Paste of prose containing two parseable lines                | Draft created; unparseable lines stored **verbatim** with null quantity and a correction flag; request succeeds |
+| ITS-013-A6 | Paste one byte over the documented bound                     | Rejected before any parse work; the limit is named in the error                                                 |
+| ITS-013-A7 | Successful paste, log sink inspected                         | No fragment of the pasted body appears in any log line (REQ-NF-012)                                             |
+
+## ITP-011 — OCR pipeline against LocalStack (ARCH-014..ARCH-016) — ⛔ TRANSFERRED TO 011, 2026-08-16
+
+> **Where the coverage went.** ARCH-014…016 moved to 011 with the photo channel. ITP-011-A…D are **retained
+> and NOT deleted** — 011 inherits them. ⛔ **ITP-011-D is the one that must not be lost in the move**: it is
+> the contract test against the pinned Textract shape, and it is the tier that catches a vendor changing a
+> field name under us. Per GR-015 §15-d the OCR provider is the **opposite** case — boundary-validate its raw
+> shape with zod, never converge it — so deleting that test in a convergence cleanup is a **security
+> regression**, not tidying. 011 additionally owes an integration test for the **on-device** tier that
+> asserts the provider is never called at all.
 
 #### Test Case: ITP-011-A (Upload → store → fake provider → draft)
 

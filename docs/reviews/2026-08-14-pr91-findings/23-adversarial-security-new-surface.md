@@ -302,8 +302,8 @@ The validator is `addFoodRequestSchema.name = z.string().max(MAX_FOOD_NAME_LENGT
 zwsp only              "​​"                     ← accepted
 rtl override           "chicken ‮breast"             ← accepted
 newline+tab            "chick\nen\tbreast"                ← accepted
-null byte              "chicken  breast"             ← accepted
-ansi escape            "[31mchicken[0m"       ← accepted
+null byte              "chicken\u0000 breast"             ← accepted
+ansi escape            "\u001b[31mchicken\u001b[0m"       ← accepted
 cyrillic homograph     "сhicken breast"              ← accepted
 200 astral chars                                          ← REJECTED (max counts UTF-16 units)
 

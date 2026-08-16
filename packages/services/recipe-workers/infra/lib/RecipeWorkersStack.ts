@@ -510,7 +510,7 @@ export class RecipeWorkersStack extends Stack {
         // (idx_pending_archives_status_next). Cheap per tick, but bought nothing 1440 times a day.
         //
         // ⛔ RESTORE TO ONE MINUTE BEFORE REAL TRAFFIC ARRIVES — and not only for archive latency.
-        // {@link ARCHIVE_AGE_ALARM_THRESHOLD_SECONDS} (3600s, an FR-007b-i MUST) encodes "un-drained for
+        // ARCHIVE_AGE_ALARM_THRESHOLD_SECONDS (3600s, an FR-007b-i MUST) encodes "un-drained for
         // an hour ⇒ stuck, not busy", and that inference holds ONLY while the sweep is fast. Under a
         // daily sweep WITH traffic, a pending row legitimately waits up to 24h, so that alarm would sit
         // in permanent ALARM and mail a human on every ordinary archive. It stays quiet today purely

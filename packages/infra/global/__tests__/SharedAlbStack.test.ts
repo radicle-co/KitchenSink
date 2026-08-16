@@ -21,7 +21,7 @@ beforeAll(() => {
         },
     });
     const network = new NetworkStack(app, 'Net-test', { env, stage: 'test' });
-    const domain = new DomainStack(app, 'Domain-test', { env, domainName: 'example.com' });
+    const domain = new DomainStack(app, 'Domain-test', { env, domainName: 'example.com', stage: 'prod' });
     const alb = new SharedAlbStack(app, 'SharedAlb-test', {
         env,
         stackName: 'kitchensink-alb-test',
@@ -101,5 +101,21 @@ describe('SharedAlbStack', () => {
         template.hasOutput('SharedAlbHttpsListenerArn', {
             Export: { Name: 'kitchensink-alb-test:SharedAlbHttpsListenerArn' },
         });
+    });
+});
+
+/**
+ * ADR-0020 / plan U15 — the origin-side certificate reaches the listener.
+ *
+ * DomainStack mints `*.internal.{domain}` as a SECOND certificate (never a SAN on the first — that
+ * replaces an in-use export and deadlocks per ADR-0002). It is only useful if the shared HTTPS listener
+ * actually presents it, so this pins the attachment rather than trusting that the cert's existence is
+ * enough. A cert that exists but is unattached fails the TLS handshake exactly as if it were missing.
+ */
+describe('SharedAlbStack internal-origin certificate attachment', () => {
+    it('attaches the internal certificate alongside the apex one', () => {
+        // CDK keeps the first certificate inline on the listener and emits every additional one as its
+        // own ListenerCertificate resource — so the count IS the assertion that a second cert attached.
+        template.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerCertificate', 1);
     });
 });

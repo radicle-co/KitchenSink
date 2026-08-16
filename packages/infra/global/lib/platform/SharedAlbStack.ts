@@ -44,7 +44,11 @@ export class SharedAlbStack extends Stack {
         // route to some arbitrary service).
         this.httpsListener = this.loadBalancer.addListener('SharedHttpsListener', {
             port: 443,
-            certificates: [domain.certificate],
+            // ADR-0020 / plan U15: the apex cert plus, in prod, the additive `*.internal.{domain}` one
+            // the CloudFront origins present. `internalCertificate` is `undefined` outside prod by
+            // design (no distributions there), so absence is normal and must not throw — CDK keeps the
+            // first cert inline on the listener and emits the rest as ListenerCertificate resources.
+            certificates: [domain.certificate, ...(domain.internalCertificate ? [domain.internalCertificate] : [])],
             open: true,
             defaultAction: elbv2.ListenerAction.fixedResponse(404, {
                 contentType: 'text/plain',

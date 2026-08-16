@@ -52,6 +52,7 @@ export class GlobalStack extends Stack {
             env: props.env,
             stackName: `kitchensink-domain-${stage}`,
             domainName,
+            stage,
         });
 
         this.alb = new SharedAlbStack(this, `SharedAlb-${stage}`, {

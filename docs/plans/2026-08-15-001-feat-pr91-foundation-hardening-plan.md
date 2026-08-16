@@ -38,39 +38,60 @@ below.
 
 ## Status ledger (updated 2026-08-16)
 
-Five units are DONE and verified; twelve remain. Each unit's own section carries its evidence.
+Eleven units are DONE; U10 is half done; five remain. Each unit's section carries its evidence.
 
-| Unit             | State          | Commit     | Evidence                                                                     |
-| ---------------- | -------------- | ---------- | ---------------------------------------------------------------------------- |
-| **U15**          | ✅ DONE        | `1e7cd082` | Live `curl`: three internal hosts `200` / `ssl_verify 0`, publics unaffected |
-| **U1**           | ✅ DONE        | `7775e228` | `docs/reviews/2026-08-16-u1-erasure-diagnosis.md`                            |
-| **U2**           | ✅ DONE        | `67fea871` | identity 409, webhooks 193, web 1072, mobile 58 + 388 native                 |
-| **U3**           | ✅ DONE        | `e9d0c639` | ADR-0020 written; 0016/0017/0019 amended; doc-link gate green                |
-| **U4**           | ✅ DONE        | `e728c289` | messaging 20, food-service 775; nine hand-rolled doubles retired             |
-| U5–U14, U16, U17 | ⬜ NOT STARTED | —          | See _Implementation units_; dependency order below                           |
+| Unit                    | State            | Commit     | Evidence                                                       |
+| ----------------------- | ---------------- | ---------- | -------------------------------------------------------------- |
+| **U15**                 | ✅ DONE          | `1e7cd082` | Live `curl`: three internal hosts `200` / `ssl_verify 0`       |
+| **U1**                  | ✅ DONE          | `7775e228` | `docs/reviews/2026-08-16-u1-erasure-diagnosis.md`              |
+| **U2**                  | ✅ DONE          | `67fea871` | identity 409, webhooks 193, web 1072, mobile 58 + 388          |
+| **U3**                  | ✅ DONE          | `e9d0c639` | ADR-0020 written; 0016/0017/0019 amended                       |
+| **U4**                  | ✅ DONE          | `e728c289` | messaging 20; nine hand-rolled doubles retired                 |
+| **U5**                  | ✅ DONE          | `1fb5f2e3` | MessageSubstrateStack + per-PR ownership split                 |
+| **U6**                  | ✅ DONE          | `1fb5f2e3` | DynamoPublisher; PutItem-only IAM                              |
+| **U7**                  | ✅ DONE          | `64ada10e` | 014 carries C-1…C-10; `supersedes` withdrawn                   |
+| **U8**                  | ✅ DONE          | `dd692c49` | food-service 837; kcal/kJ + per-serving traps pinned           |
+| **U9**                  | ✅ DONE          | `062bcb4b` | AWAITING_RETRY on the wire; exhaustion alarm; operator requeue |
+| **U11**                 | ✅ DONE          | `bcb1dfae` | five topics subscribed; repo-wide gate                         |
+| **U10**                 | 🟡 **HALF DONE** | `484ecc1e` | Read path built + migration WRITTEN AND GATED — see below      |
+| U12, U13, U14, U16, U17 | ⬜ NOT STARTED   | —          | See _Implementation units_                                     |
 
-**Next in dependency order.** U5 (substrate table) → U6 (Dynamo adapter; needs U4 ✅ + U5) → U7 (docs,
-needs U5). U8 (food nutrition endpoint) has **no dependencies** and gates U9 and U10 — it is the other
-sensible starting point. U11 needs U1 ✅ + U5. U12 needs U1–U11. U13 needs U3 ✅, then U14. U16 needs
-U15 ✅ + U8, then U17.
+### ⛔ U10 is half done, and the unfinished half is a DESTRUCTIVE migration
 
-**Two units carry irreversible production actions and should not be started casually:** U10 runs a
-column-dropping migration against production with no down-migration, and U17 cuts production DNS and locks
-the prod ALB security group. Both are gated on earlier units being genuinely finished, not merely green.
+`0019_drop_duplicated_nutrition.sql` is written, reviewed, and carries a **DO-NOT-RUN gate**. Running it
+today breaks every recipe read: `RecipesService.assembleNutritionLines` still reads nutrition from
+`IngredientsDal`, which still selects the five columns the migration drops.
+
+**Done:** `FoodNutritionGateway` (KTD-3b stale-then-absent, 12 tests), the food client's `getNutrition`,
+the `?ids=` canonicalization moved into the authored contract, and characterization tests pinning
+pre-change nutrition output.
+
+**Remaining, in order — all five before the migration runs:**
+
+1. Drop the five nutrition fields from `IngredientsDal`'s `RETURNING` projection, its row mapper, and the
+   `Ingredient` type.
+2. Route `assembleNutritionLines` through `FoodNutritionGateway`, threading the caller token the way
+   `IngredientsService` already does (`caller: CallerToken | undefined` as the first parameter).
+3. Delete `leadCaloriesFor` and its three stored-lead write sites; derive the figure at read time.
+4. Drop both fields from the GDPR export (`export.mappers.ts`, `account.schema.ts`) and regenerate.
+5. Update the fixtures and tests the compiler lists — it enumerates all eleven files.
+
+Then run the migration against production, per the plan's owner ruling. **The compiler is the checklist:**
+`npx tsc --noEmit` in `packages/services/recipe-service` lists every remaining site.
+
+**Next after U10:** U12 (203 findings), U13 → U14 (respec), U16 → U17 (edge; U16 needs U15 ✅ + U8 ✅).
+U17 cuts production DNS and locks the prod ALB security group — the second irreversible production action.
 
 ### Carried-forward findings from the completed units
 
-- **The erasure alarm cannot currently report a failure in either stage** (U1). Prod's alarm is
-  dimensionless with no action (stale deploy — redeploy `kitchensink-identity-webhooks-prod` fixes it);
-  sandbox's emitter dies before emitting. Any erasure work verified _by that alarm_ is unverified.
-- **Sandbox's erasure-reconciliation fails 3×/day** because `cron(0 5 * * ? *)` = 01:00 ET fires inside
-  ADR-0007's 00:00–09:00 ET RDS shutdown. Fix the schedule, not the handler.
-- **Sandbox's erasure fan-out targets services that do not exist there** — no recipe/food service is
-  deployed to sandbox, so the SSM base URLs collect the shared ALB's default `404`.
-- **`KitchenSink/IdentityWebhooks` has no metrics at all**, cause unresolved. The emitter is proven
-  correct; the prime suspect and the one-parameter experiment that settles it are in the U1 finding.
-- **Prod carries unmerged PR-91 infra drift** applied during U15's manual deploy (identity's SQS grant
-  fix, SNS topic policies, food/recipe migration Lambdas on `nodejs24.x`). Recorded in U15's section.
+- **The erasure alarm cannot currently report a failure in either stage** (U1). Prod's is a stale deploy
+  (redeploy `kitchensink-identity-webhooks-prod`); sandbox's emitter dies before emitting.
+- **Sandbox's erasure-reconciliation fails 3×/day** — `cron(0 5 * * ? *)` = 01:00 ET fires inside
+  ADR-0007's RDS shutdown. Fix the schedule, not the handler.
+- **Sandbox's erasure fan-out targets services that do not exist there**, so it collects the ALB's default 404.
+- **`KitchenSink/IdentityWebhooks` has no metrics at all**, cause unresolved; the emitter is proven correct
+  and the one-parameter experiment that settles it is in the U1 finding.
+- **Prod carries unmerged PR-91 infra drift** applied during U15's manual deploy.
 
 ---
 

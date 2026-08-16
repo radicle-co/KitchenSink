@@ -273,11 +273,18 @@ describe('RecipeWorkersStack', () => {
         });
     });
 
-    it('schedules the sweeper — the outbox has NO other drain trigger', () => {
+    it('schedules the sweeper daily — the outbox has NO other drain trigger', () => {
         // recipe-service never enqueues (a save must not depend on SQS, FR-007b-i), so without this rule
         // nothing ever turns an outbox row into a message and versions accumulate un-archived forever.
+        //
+        // The cadence is pinned, not incidental: it IS the worst-case archive delay, and it is coupled to
+        // ARCHIVE_AGE_ALARM_THRESHOLD_SECONDS (3600s), whose "un-drained for an hour ⇒ stuck" inference
+        // only holds while the sweep is faster than an hour. One day is a deliberate, temporary cost
+        // posture (owner, 2026-08-15) that is safe ONLY while there is no production traffic — see the
+        // ⛔ note on ArchiveSweepSchedule. This assertion is what makes restoring the cadence a
+        // test-visible change rather than a silent one.
         template.hasResourceProperties('AWS::Events::Rule', {
-            ScheduleExpression: 'rate(1 minute)',
+            ScheduleExpression: 'rate(1 day)',
             State: 'ENABLED',
         });
     });

@@ -23,7 +23,7 @@ import {
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
-import { BASE_LISTENER_PRIORITY } from '@kitchensink/infra-alb';
+import { BASE_LISTENER_PRIORITY, internalOriginForStage } from '@kitchensink/infra-alb';
 import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
 
 export interface IdentityServiceStackProps extends StackProps {
@@ -327,6 +327,13 @@ export class IdentityServiceStack extends Stack {
         const subdomain = isProd ? 'identity' : `identity.${stage}`;
         const serviceDomain = `${subdomain}.${domainName}`;
 
+        // ADR-0020 / plan U15 — the origin host the CloudFront distribution will dial in U16. Resolved by
+        // @kitchensink/infra-alb, never spelled here: the rule condition below, the A-record below, and
+        // EdgeStack's origin must be the SAME string, and nothing at synth checks that they are. `undefined`
+        // outside prod is the normal case (only prod has a distribution, and only prod's DomainStack mints
+        // the `*.internal` certificate that can terminate the name).
+        const internalOrigin = internalOriginForStage({ service: 'identity', stage, domainName });
+
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
             hostedZoneId: Fn.importValue(`kitchensink-domain-${stage}:HostedZoneId`),
             zoneName: domainName,
@@ -373,10 +380,19 @@ export class IdentityServiceStack extends Stack {
         // shared persistent service every per-PR preview signs in against, so `stage` is always a base stage
         // here (note the `kitchensink-alb-${stage}` import above, not `${baseStage}`). Its ephemeral band is
         // reserved in the registry and deliberately unused.
+        // The internal origin is a SECOND HOST ON THIS RULE, never a second rule: priority is a namespace
+        // shared across independently-deployed stacks, so a second rule would have to claim one and the
+        // deploy would fail with `Priority 'N' is currently in use` (ADR-0003). Public host stays FIRST and
+        // keeps serving — U15 adds a door, U17 is what closes the old one, and identity closes LAST.
         new elbv2.ApplicationListenerRule(this, 'IdentityServiceListenerRule', {
             listener: sharedHttpsListener,
             priority: BASE_LISTENER_PRIORITY.identity,
-            conditions: [elbv2.ListenerCondition.hostHeaders([serviceDomain])],
+            conditions: [
+                elbv2.ListenerCondition.hostHeaders([
+                    serviceDomain,
+                    ...(internalOrigin === undefined ? [] : [internalOrigin.host]),
+                ]),
+            ],
             targetGroups: [targetGroup],
         });
 
@@ -394,6 +410,16 @@ export class IdentityServiceStack extends Stack {
             recordName: subdomain,
             target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
         });
+
+        // Prod only (ADR-0020 / U15). Same ALB, second name: the distribution origins at this record, and
+        // the listener rule above already matches the host it resolves to.
+        if (internalOrigin !== undefined) {
+            new route53.ARecord(this, 'IdentityServiceInternalAliasRecord', {
+                zone: hostedZone,
+                recordName: internalOrigin.recordName,
+                target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
+            });
+        }
 
         this.serviceUrl = `https://${serviceDomain}`;
 

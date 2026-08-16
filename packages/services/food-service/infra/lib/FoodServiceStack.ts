@@ -27,7 +27,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { listenerPriorityForStage } from '@kitchensink/infra-alb';
+import { internalOriginForStage, listenerPriorityForStage } from '@kitchensink/infra-alb';
 import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 
 /**
@@ -612,6 +612,13 @@ export class FoodServiceStack extends Stack {
         const subdomain = foodSubdomainForStage(stage);
         const serviceDomain = `${subdomain}.${domainName}`;
 
+        // ADR-0020 / plan U15 — the origin host the CloudFront distribution will dial in U16. Resolved by
+        // @kitchensink/infra-alb, never spelled here: the rule condition below, the A-record below, and
+        // EdgeStack's origin must be the SAME string, and nothing at synth checks that they are. `undefined`
+        // outside prod is the normal case (only prod has a distribution, and only prod's DomainStack mints
+        // the `*.internal` certificate that can terminate the name).
+        const internalOrigin = internalOriginForStage({ service: 'food', stage, domainName });
+
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
             hostedZoneId: Fn.importValue(`kitchensink-domain-${baseStage}:HostedZoneId`),
             zoneName: domainName,
@@ -649,10 +656,19 @@ export class FoodServiceStack extends Stack {
         // single HTTPS listener, so they are allocated by @kitchensink/infra-alb and NOT restated here — the
         // copy-per-service that preceded it drifted (ADR-0003). A base stage keeps food's fixed 200 (no prod
         // diff); a per-PR preview rides the SHARED sandbox listener and takes food's own per-PR band.
+        // The internal origin is a SECOND HOST ON THIS RULE, never a second rule: priority is a namespace
+        // shared across independently-deployed stacks, so a second rule would have to claim one and the
+        // deploy would fail with `Priority 'N' is currently in use` (ADR-0003). Public host stays FIRST and
+        // keeps serving — U15 adds a door, U17 is what closes the old one.
         new elbv2.ApplicationListenerRule(this, 'FoodServiceListenerRule', {
             listener: sharedHttpsListener,
             priority: listenerPriorityForStage({ service: 'food', stage, baseStage }),
-            conditions: [elbv2.ListenerCondition.hostHeaders([serviceDomain])],
+            conditions: [
+                elbv2.ListenerCondition.hostHeaders([
+                    serviceDomain,
+                    ...(internalOrigin === undefined ? [] : [internalOrigin.host]),
+                ]),
+            ],
             targetGroups: [targetGroup],
         });
 
@@ -670,6 +686,16 @@ export class FoodServiceStack extends Stack {
             recordName: subdomain,
             target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
         });
+
+        // Prod only (ADR-0020 / U15). Same ALB, second name: the distribution origins at this record, and
+        // the listener rule above already matches the host it resolves to.
+        if (internalOrigin !== undefined) {
+            new route53.ARecord(this, 'FoodServiceInternalAliasRecord', {
+                zone: hostedZone,
+                recordName: internalOrigin.recordName,
+                target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
+            });
+        }
 
         this.serviceUrl = foodServiceOriginForStage(stage, domainName);
 

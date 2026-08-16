@@ -494,3 +494,67 @@ describe('Deletion-queue grant (regression: closure/reactivation never reached C
         });
     });
 });
+
+/**
+ * ADR-0020 / plan U15 — the internal ORIGIN host this service answers on behind the CloudFront edge.
+ *
+ * Additive by construction: prod gains a SECOND host on its existing rule plus a matching A-record, and the
+ * public name keeps serving from the ALB untouched. U17 removes the public host, per service, and identity
+ * moves LAST — it carries the auth path and the ADR-0001 hazard.
+ *
+ * Pinned here because neither failure is visible in a green synth: a SECOND listener rule (instead of a
+ * second condition) would have to claim a priority on a namespace shared across stacks and fail the prod
+ * deploy with `Priority 'N' is currently in use` (ADR-0003); and a record naming anything other than the
+ * host the rule matches yields an origin that resolves to nothing, surfacing only in U16.
+ */
+describe('the internal-origin host (prod only, ADR-0020 / U15)', () => {
+    const internalHost = 'identity.internal.example.com';
+
+    it('matches BOTH the public and the internal host on the SAME rule in prod', () => {
+        const template = identityTemplate('prod');
+
+        template.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'host-header',
+                    // Exact, and public FIRST: nothing has cut over, so the public name must still match.
+                    HostHeaderConfig: Match.objectLike({ Values: ['identity.example.com', internalHost] }),
+                }),
+            ]),
+        });
+    });
+
+    it('keeps its live prod priority — an in-place condition update, never a rule replacement', () => {
+        identityTemplate('prod').hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: BASE_LISTENER_PRIORITY.identity,
+        });
+    });
+
+    it('publishes the internal A-record at exactly the host the rule matches', () => {
+        const template = identityTemplate('prod');
+
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        template.hasResourceProperties('AWS::Route53::RecordSet', { Type: 'A', Name: `${internalHost}.` });
+    });
+
+    it('aliases the internal record to the SAME shared ALB as the public one', () => {
+        const records = Object.values(identityTemplate('prod').findResources('AWS::Route53::RecordSet')) as Array<{
+            Properties: { Name: string; AliasTarget?: unknown };
+        }>;
+        const publicRecord = records.find((r) => r.Properties.Name === 'identity.example.com.');
+        const internalRecord = records.find((r) => r.Properties.Name === `${internalHost}.`);
+
+        expect(publicRecord?.Properties.AliasTarget).toBeDefined();
+        expect(internalRecord?.Properties.AliasTarget).toEqual(publicRecord?.Properties.AliasTarget);
+    });
+
+    it('creates nothing internal outside prod — no other stage has the *.internal certificate', () => {
+        for (const stage of ['sandbox', 'test']) {
+            const template = identityTemplate(stage);
+
+            template.resourceCountIs('AWS::Route53::RecordSet', 1);
+            expect(JSON.stringify(template.toJSON())).not.toContain('identity.internal.');
+        }
+    });
+});

@@ -19,3 +19,10 @@ export {
     type PriorityBand,
     type SharedListenerService,
 } from './listenerPriority.js';
+
+export {
+    INTERNAL_ORIGIN_LABEL,
+    internalOriginForStage,
+    type InternalOrigin,
+    type InternalOriginRequest,
+} from './internalOriginHost.js';

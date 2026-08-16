@@ -684,7 +684,10 @@ describe('Base-stage platform imports (ADR-0006)', () => {
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',
-                    HostHeaderConfig: Match.objectLike({ Values: ['food.example.com'] }),
+                    // `arrayWith`, because prod's rule now ALSO carries the internal-origin host (U15).
+                    // What this test owns is the bare `food` label; the exact pair is pinned below, in
+                    // "the internal-origin host (prod only)".
+                    HostHeaderConfig: Match.objectLike({ Values: Match.arrayWith(['food.example.com']) }),
                 }),
             ]),
         });
@@ -830,5 +833,83 @@ describe('the listener rule this stack claims on the shared listener', () => {
         expect(priorities[0]).toBeGreaterThanOrEqual(FOOD_PER_PR_BAND.floor);
         expect(priorities[0]).toBeLessThanOrEqual(FOOD_PER_PR_BAND.ceiling);
         expect(priorities[0]).toBeLessThan(recipeBand.floor);
+    });
+});
+
+/**
+ * ADR-0020 / plan U15 — the internal ORIGIN host this service answers on behind the CloudFront edge.
+ *
+ * U15 is deliberately ADDITIVE and changes nothing about how traffic reaches this service today: prod gains
+ * a SECOND host on its existing rule and a matching A-record, while the public name keeps serving from the
+ * ALB exactly as before. U17 is what removes the public host, one service at a time, once the distribution
+ * owns the public record.
+ *
+ * Two failure modes are pinned here because neither is observable from a green synth:
+ *
+ *   - **a SECOND listener rule instead of a second condition** would need its own priority on a namespace
+ *     shared across stacks (ADR-0003) and fail the prod deploy with `Priority 'N' is currently in use`; and
+ *   - **a record that does not name the host the rule matches** resolves to nothing, which surfaces as a
+ *     dead CloudFront origin in U16 rather than as a test failure here.
+ */
+describe('the internal-origin host (prod only, ADR-0020 / U15)', () => {
+    const internalHost = 'food.internal.example.com';
+
+    it('matches BOTH the public and the internal host on the SAME rule in prod', () => {
+        const template = synthFoodTemplate('prod', 'prod');
+
+        template.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Conditions: Match.arrayWith([
+                Match.objectLike({
+                    Field: 'host-header',
+                    // Exact, and public FIRST: nothing has cut over, so the public name must still match.
+                    HostHeaderConfig: Match.objectLike({ Values: ['food.example.com', internalHost] }),
+                }),
+            ]),
+        });
+    });
+
+    it('keeps its live prod priority — an in-place condition update, never a rule replacement', () => {
+        synthFoodTemplate('prod', 'prod').hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: BASE_LISTENER_PRIORITY.food,
+        });
+    });
+
+    it('publishes the internal A-record at exactly the host the rule matches', () => {
+        const template = synthFoodTemplate('prod', 'prod');
+
+        // Two records in prod: the public name and the internal one. The trailing dot is CDK's FQDN form.
+        template.resourceCountIs('AWS::Route53::RecordSet', 2);
+        template.hasResourceProperties('AWS::Route53::RecordSet', {
+            Type: 'A',
+            Name: `${internalHost}.`,
+        });
+    });
+
+    it('aliases the internal record to the SAME shared ALB as the public one', () => {
+        // The internal name is a second door onto the same load balancer, not a new target. Comparing the
+        // two alias targets catches an origin pointed at some other (or an unresolved) ALB import.
+        const records = Object.values(
+            synthFoodTemplate('prod', 'prod').findResources('AWS::Route53::RecordSet'),
+        ) as Array<{ Properties: { Name: string; AliasTarget?: unknown } }>;
+        const publicRecord = records.find((r) => r.Properties.Name === 'food.example.com.');
+        const internalRecord = records.find((r) => r.Properties.Name === `${internalHost}.`);
+
+        expect(publicRecord?.Properties.AliasTarget).toBeDefined();
+        expect(internalRecord?.Properties.AliasTarget).toEqual(publicRecord?.Properties.AliasTarget);
+    });
+
+    it('creates nothing internal outside prod — no other stage has the *.internal certificate', () => {
+        // KTD-7 scopes CloudFront to prod, and only prod's DomainStack mints `*.internal.{domain}`. A host
+        // condition on any other stage would match a name that can never complete a TLS handshake.
+        for (const [stage, baseStage] of [
+            ['pr-7', 'sandbox'],
+            ['sandbox', 'sandbox'],
+        ]) {
+            const template = synthFoodTemplate(stage as string, baseStage as string);
+
+            template.resourceCountIs('AWS::Route53::RecordSet', 1);
+            expect(JSON.stringify(template.toJSON())).not.toContain('.internal.');
+        }
     });
 });

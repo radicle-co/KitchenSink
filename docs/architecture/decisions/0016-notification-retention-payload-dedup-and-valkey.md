@@ -324,3 +324,50 @@ key prefix gives the same isolation for $0.
   attach them to. Per this directory's README they are owed at three sites when the service lands: the Lua
   publish-accept script (decision 6's ordering), the ack handler (idempotency and user-scoping), and the
   dedup key derivation (the RFC 8785 canonicalization and its four load-bearing properties).
+
+## Amendment (2026-08-16) — the escalation clause FIRED, and the substrate is a SECOND store, not a swap
+
+Two things this ADR left open are now settled. Neither reverses its choice of Valkey for 014's pending set.
+
+### The escalation fired on R1.3 — DynamoDB, for a different store
+
+Mitigation 3 above holds the escalation as conditional: _"if a loss is ever judged unacceptable"_. PR 91's
+R1.3 judged exactly that, for the message substrate: a progress message that is dropped between being
+published and being read is unrecoverable and silent, and the producers are fire-and-forget so nobody holds
+a copy to re-send. The clause therefore fires, and the substrate is **DynamoDB with a Number TTL attribute**
+— the option this ADR already named.
+
+Two supporting facts, neither of them price, because the price argument in this ADR's table was about a
+different question:
+
+- **ElastiCache is VPC-only.** R1.1 requires producers to write without VPC attachment. That is not a cost
+  trade; it is a hard exclusion, and it alone settles the substrate.
+- **Valkey pub/sub drops a message when no listener is connected.** R1.3 forbids exactly that, and PR 91
+  ships the producer half **before** any consumer exists (plan U5/U7), so "no listener connected" is the
+  normal state for the substrate's entire first release rather than an edge case.
+
+⚠️ The brainstorm that preceded this rejected Valkey at **$61.32/mo**. That figure is the **Redis OSS** row
+of the table above, not the Valkey row (≈ $6.13). The price objection is withdrawn; the VPC and pub/sub
+facts are what decide it.
+
+### The substrate and 014's pending set are TWO STORES, and that is deliberate
+
+Say it plainly, because "we now have DynamoDB, so move the pending set too" is the obvious next thought and
+it is wrong:
+
+| Store                                    | Owns                                                             | Lifecycle               |
+| ---------------------------------------- | ---------------------------------------------------------------- | ----------------------- |
+| **Message substrate** (DynamoDB, PR 91)  | Producer progress messages, per group, written fire-and-forget   | 3-day TTL, reaped       |
+| **014's pending set** (Valkey, this ADR) | Notifications RETAINED until the client acks them or 3 days pass | Deleted on ack (FR-003) |
+
+They differ in the thing that matters: the substrate is a **log a consumer reads**, while the pending set is
+**state a consumer mutates** (ack deletes it, and dedup-by-canonical-payload compares against what is
+currently pending). Merging them would put ack-and-dedup semantics onto a table whose producers must stay
+ignorant of consumers, which is the property R1.1 exists to protect.
+
+**The substrate is NOT a backfill source for 014.** Its 3-day reaper outruns 014's own delivery window, so
+anything published before 014 exists is gone before a consumer could read it. 014 starts from an empty
+pending set; it does not replay the substrate.
+
+**What this ADR's mitigation 1 still owes:** the unverified question — whether ElastiCache _Serverless_ for
+Valkey exposes the durability option at our engine version — is **still unverified** and still belongs to 014. The escalation firing for the substrate does not answer it for the pending set.

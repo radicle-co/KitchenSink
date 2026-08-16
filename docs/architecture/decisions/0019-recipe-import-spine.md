@@ -171,3 +171,63 @@ itself.
 - Consumers parse status messages at the boundary with zod (ADR-0015). A bus payload is untrusted input.
 - Ingestion is idempotent: at-least-once delivery means a handler must tolerate redelivery of a message it
   has already applied.
+
+## Amendment (2026-08-16) — §1 and §4 both overreached, and PR 91 built the substrate that shows why
+
+Two decisions above were made before the message substrate existed. Building it (plan U4–U7) established
+facts about the storage that make both unimplementable as written. Neither is a change of intent; both are
+the same intent expressed against what the substrate actually guarantees.
+
+### §4 is amended: supersession is CONSUMER-SIDE SELECTION, not a monotonic sequence in the envelope
+
+**What §4 says.** "Supersession is decided by a monotonic sequence carried in the envelope, not by arrival
+order."
+
+**Why that cannot be built as stated.** A monotonic sequence has to be issued by something, and the only
+place to issue it from is the producer. That makes the producer stateful for a value whose entire purpose is
+to be read by a consumer that does not exist yet (014), and it makes every producer's write depend on
+knowing what it last wrote for that entity — which the substrate's producers deliberately do not, because
+they are fire-and-forget (R1.1) and may run concurrently in more than one task.
+
+The sequence was also solving a problem the substrate solves better. Its stated job is to stop an
+at-least-once redelivery reverting `succeeded` to `processing`. The substrate stores messages **durably per
+group, ordered by sort key** (`<ISO-8601 ms>#<ULID>`), and its stream record is a **doorbell**: a consumer
+is woken and then RE-QUERIES the group, which returns in order. A consumer that re-queries never observes a
+revert, because it never reads a single message in isolation — so there is nothing for a sequence number to
+protect against.
+
+**Amended decision.** The consumer, not the producer, decides which message for a group is current:
+**most-recent-by-timestamp wins** (owner ruling, 2026-08-15). The envelope carries no sequence.
+
+**The precondition this depends on, stated so it is checked rather than assumed: SINGLE WRITER PER GROUP.**
+Timestamp selection is only correct when one writer is producing a group's messages. Two concurrent writers
+for one entity can stamp out of order relative to their real sequence, and most-recent-wins would then pick
+the loser. Every producer named in this ADR satisfies this today — a bulk import job owns its entities, and
+food's resolution pipeline is the single writer for a food (ADR-0003/`food_id` ownership). **A future
+producer that shares a group with another writer must not use this rule**; it needs its own ordering
+discipline, and adding one is a decision, not an implementation detail. Feature 011 records this invariant
+in its own spec (plan U14).
+
+### §1 is amended: per-domain processors that CONVERGE at recipe creation, not one shared processor
+
+**What §1 says.** Every channel terminates in "**one** bulk import processor owned by the recipe service".
+
+**Why that is the wrong shape.** The diagram's own boxes give it away: the image branch (011) is a separate
+deployable by this ADR's §3, and food resolution is owned by the food service, not recipe. "One processor"
+therefore describes a component that would have to reach across two service boundaries to do its job — and
+§1's stated benefit (provenance, quota, outcome reporting and partial-failure semantics written once) does
+not actually require one processor. It requires one place where those rules live, which is the convergence
+point, not the pipeline.
+
+Forcing one processor also fights ADR-0017's no-new-deployable default in the opposite direction: it would
+pull 011's image work back into recipe-service, which §3 of this same ADR explicitly took an exception to
+keep out.
+
+**Amended decision.** Each domain runs its **own** processor — recipe's bulk import, 011's image branch,
+food's resolution pipeline — and they **converge at recipe creation**, which remains the single place that
+classifies provenance, enforces quota, reports per-recipe outcome and defines partial-failure semantics.
+The union of `sourceType` and its exhaustive `switch` are unchanged: they live at the convergence point,
+which is where they always effectively were.
+
+**What does NOT change.** A channel is still "an adapter plus a `sourceType` member". Nothing about the
+client-facing surface, the status vocabulary, or §5's placeholders is affected.

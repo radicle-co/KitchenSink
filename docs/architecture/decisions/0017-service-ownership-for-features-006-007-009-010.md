@@ -260,3 +260,40 @@ assertion. This amendment does not make a deployable cheap; it accepts the cost 
 007 and 009 remain in the recipe service, 010 remains in the identity service, and their flip conditions
 above are unchanged and still require their stated triggers. The default recorded by this ADR — a new
 deployable must be justified against what a deployable costs here — stands.
+
+## Amendment (2026-08-16) — the 006 extraction's two "engineering facts" do NOT hold; the decision stands on the owner's authority alone
+
+The 2026-08-14 amendment above is kept — **006 still gets its own deployable** — but its stated reasoning is
+withdrawn and replaced. An adversarial review of the premises (verdict: WEAK) refuted both supporting facts,
+and a decision resting on refuted arguments is one that gets re-litigated by the next reader who checks them.
+
+**Fact 1 — "the recipe service's scope grew" — was self-citation.** It cited
+[ADR-0019](0019-recipe-import-spine.md) as evidence, a document written in the same session hours earlier by
+the same author. Two documents agreeing with each other is not corroboration. The underlying observation is
+not wrong — ADR-0019 does place the import processor, four channel adapters, ingredient resolution and status
+emission in the recipe service — but it is a **restatement of a decision**, not independent evidence for a
+second one.
+
+**Fact 2 — "extraction is cheapest before implementation" — proves too much.** It is a fully general
+argument: it applies with identical force to 007 and 009, which are equally unimplemented and equally
+unmigrated. The amendment then denied that generalisation without saying what distinguishes 006 from them
+under its own argument. An argument that would justify extracting every feature cannot justify extracting
+exactly one.
+
+**The cost the amendment never priced.** This ADR's own Context (`:88-95`) recorded that CO-LOCATING 006
+**deletes** work: an `ON DELETE CASCADE` retires 006's orphan handler and its `is_orphaned` column
+(TASK-018). Extracting 006 reinstates both — or accepts a dangling `recipe_id` across a database boundary,
+which [ADR-0014](0014-service-owned-api-contracts.md) and 006's own C-006-002 forbid. That is a real,
+quantified cost on the extraction side of the ledger, and it was not on the ledger.
+
+**What the decision actually rests on.** An owner architectural ruling, made with the trigger unmet and the
+costs now stated. That is a legitimate basis — it is the owner's system — and the 2026-08-14 amendment was
+already honest that the recorded flip condition had not fired. What is corrected here is the claim that
+independent engineering facts compelled it. They do not; the owner did.
+
+**Unchanged:** 007, 009 and 010 stay where the Decision table puts them, their flip conditions still require
+their stated triggers, and this is still **not** a precedent that each feature gets a service — now for the
+only honest reason, which is that the owner ruled on 006 specifically and has not ruled on the others.
+
+**Consequence to carry into 006's specs (plan U13):** 006 must re-declare the orphan handling that
+co-location would have deleted. It may not hold a foreign key into the recipe database.

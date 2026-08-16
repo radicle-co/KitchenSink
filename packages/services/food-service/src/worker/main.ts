@@ -3,7 +3,7 @@
  * DAOs, the source-adapter registry (USDA wired), the per-source rolling-window limiter, the
  * merge/persist seam, and the completion-event emitter into a {@link WorkerRuntime}, then starts the
  * single-drainer loop. The actual EventBridge put is deliberately NOT required here — the bootstrap
- * uses the no-AWS {@link ConsoleEventBus} fallback so the worker runs without an AWS dependency; the
+ * uses the no-AWS `ConsolePublisher` fallback so the worker runs without an AWS dependency; the
  * real EventBridge bus is wired with the infra slice.
  *
  * @sideEffect Opens Postgres connections, acquires the advisory lock, and begins draining.
@@ -13,7 +13,7 @@ import { availableParallelism } from 'node:os';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { ConsoleEventBus } from '../events/ConsoleEventBus.js';
+import { ConsolePublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../events/FoodEventEmitter.js';
 import { AdminMetricsDao } from '../foods/admin/adminMetrics.dao.js';
 import { FetchQueueDao } from '../foods/dao/fetchQueue.dao.js';
@@ -62,8 +62,8 @@ async function bootstrap(): Promise<void> {
         // consults isPaused — cannot drift from the cap the API and the change-refresh task charge.
         limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),
         merge: new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry)),
-        events: new FoodEventEmitter(new ConsoleEventBus(), undefined, (error, detailType) =>
-            logger.warn('event-bus-put-failed', { detailType, error: String(error) }),
+        events: new FoodEventEmitter(new ConsolePublisher(), undefined, (error, kind) =>
+            logger.warn('message-publish-failed', { kind, error: String(error) }),
         ),
         logger,
         metrics,

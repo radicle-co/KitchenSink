@@ -18,5 +18,7 @@ export type {
     PublishCompletedInput,
     PublishFailedInput,
 } from './FoodEventEmitter.js';
-export { ConsoleEventBus } from './ConsoleEventBus.js';
-export type { EventBus, EventBusPutInput } from './eventBus.js';
+// The `EventBus`/`ConsoleEventBus` seam that used to live here was DELETED, not deprecated (plan U4). It
+// was EventBridge-shaped (`{ detailType, detail }`) and could not carry the substrate's two-field group key,
+// and leaving it exported would have let a new producer pick the wrong one. Its replacement is the shared
+// `publish` port in `@kitchensink/messaging`, with `ConsolePublisher` as the no-AWS default.

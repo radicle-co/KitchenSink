@@ -35,6 +35,8 @@ COPY packages/schemas/food/dist ./packages/schemas/food/dist
 # ability to report anything.
 COPY packages/shared/nest-error-envelope/prod.package.json ./packages/shared/nest-error-envelope/package.json
 COPY packages/shared/nest-error-envelope/dist ./packages/shared/nest-error-envelope/dist
+COPY packages/shared/messaging/prod.package.json ./packages/shared/messaging/package.json
+COPY packages/shared/messaging/dist ./packages/shared/messaging/dist
 
 EXPOSE 3000
 

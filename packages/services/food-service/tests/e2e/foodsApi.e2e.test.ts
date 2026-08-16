@@ -32,7 +32,7 @@ vi.mock('../../src/sources/usda/usda.adapter.js', async () => {
 });
 
 import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
-import type { EventBus, EventBusPutInput } from '../../src/events/eventBus.js';
+import { InMemoryPublisher, type OutboundMessage } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../../src/events/FoodEventEmitter.js';
 import { FetchQueueDao, FoodDao, FoodSourcesDao } from '../../src/foods/dao/index.js';
 import { foodErrorSchema } from '../../src/foods/foods.schema.js';
@@ -83,11 +83,12 @@ function programmedResolve(name: string): string {
 }
 
 describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + real Postgres + worker drain)', () => {
+    /** The shared capturing adapter (plan U4) — replaces this suite's hand-rolled bus double. */
+    const captureBus = new InMemoryPublisher();
     let app: INestApplication;
     let pool: pg.Pool;
     let baseUrl: string;
     let consumer: FoodConsumerService;
-    const capturedEvents: EventBusPutInput[] = [];
 
     /** Issue an HTTP request; omit `token` for an unauthenticated call. */
     async function call(
@@ -123,8 +124,8 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
     }
 
     /** Completion/failure events captured for a given food id, by detailType. */
-    function eventsFor(id: string, detailType: string): EventBusPutInput[] {
-        return capturedEvents.filter((event) => event.detailType === detailType && event.detail['id'] === id);
+    function eventsFor(id: string, detailType: string): OutboundMessage[] {
+        return captureBus.messages.filter((event) => event.kind === detailType && event.payload!['id'] === id);
     }
 
     /**
@@ -193,11 +194,6 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
 
         // Build the worker over the app's own DI instances (same registry/limiter/merge/pool) so the
         // stub the app uses is the stub the worker fans out through. The completion bus captures events.
-        const captureBus: EventBus = {
-            async putEvent(input: EventBusPutInput): Promise<void> {
-                capturedEvents.push(input);
-            },
-        };
         consumer = new FoodConsumerService({
             foodDao: app.get(FoodDao, { strict: false }),
             sources: app.get(FoodSourcesDao, { strict: false }),
@@ -222,7 +218,7 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
                      source_call_log, source_sync_metadata RESTART IDENTITY CASCADE
         `);
         stub.reset();
-        capturedEvents.length = 0;
+        captureBus.clear();
     });
 
     // ── Auth (real Clerk verification, FR-035/FR-038/FR-039/FR-047) ─────────────────────────────────
@@ -322,7 +318,7 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
             // FoodFetchCompleted emitted for the RESOLVED disposition.
             const completed = eventsFor(id, 'FoodFetchCompleted');
             expect(completed).toHaveLength(1);
-            expect(completed[0]!.detail['status']).toBe('RESOLVED');
+            expect(completed[0]!.payload!['status']).toBe('RESOLVED');
         });
 
         it('dedups a same-normalized-name re-add to one id/row', async () => {
@@ -507,10 +503,12 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
                 details: { id, status: 'FAILED' },
             });
 
-            expect(eventsFor(id, 'FoodFetchCompleted').some((event) => event.detail['status'] === 'FAILED')).toBe(true);
+            expect(eventsFor(id, 'FoodFetchCompleted').some((event) => event.payload!['status'] === 'FAILED')).toBe(
+                true,
+            );
             const failed = eventsFor(id, 'FetchFailed');
             expect(failed).toHaveLength(1);
-            expect(failed[0]!.detail['attempts']).toBe(5);
+            expect(failed[0]!.payload!['attempts']).toBe(5);
         });
     });
 

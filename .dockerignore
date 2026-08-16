@@ -28,6 +28,8 @@
 # The shared Nest error-envelope mechanism, imported by all three services' ApiExceptionFilter.
 !packages/shared/nest-error-envelope/dist
 !packages/shared/nest-error-envelope/prod.package.json
+!packages/shared/messaging/dist
+!packages/shared/messaging/prod.package.json
 !packages/clients/usda/dist
 !packages/clients/usda/prod.package.json
 # Recipe service image (feature 001; mirrors the food allowlist): the service dist + prod manifest, plus

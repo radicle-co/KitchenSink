@@ -32,7 +32,7 @@ vi.mock('../../src/sources/usda/usda.adapter.js', async () => {
 });
 
 import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
-import type { EventBus, EventBusPutInput } from '../../src/events/eventBus.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../../src/events/FoodEventEmitter.js';
 import { FetchQueueDao, FoodDao, FoodSourcesDao } from '../../src/foods/dao/index.js';
 import { MergeAndPersistService } from '../../src/foods/merge/mergeAndPersist.service.js';
@@ -61,6 +61,8 @@ const m2mToken = mintToken(keypair.privateKeyPem, { sub: 'svc_client_e2e', azp: 
 const silentLogger: WorkerLogger = { info(): void {}, warn(): void {}, error(): void {} };
 
 describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the booted food service (e2e)', () => {
+    /** The shared capturing adapter (plan U4) — replaces this suite's hand-rolled bus double. */
+    const captureBus = new InMemoryPublisher();
     let app: INestApplication;
     let pool: pg.Pool;
     let baseUrl: string;
@@ -108,13 +110,6 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
         await app.listen(0);
         const address = app.getHttpServer().address() as AddressInfo;
         baseUrl = `http://127.0.0.1:${address.port}`;
-
-        const capturedEvents: EventBusPutInput[] = [];
-        const captureBus: EventBus = {
-            async putEvent(input: EventBusPutInput): Promise<void> {
-                capturedEvents.push(input);
-            },
-        };
         consumer = new FoodConsumerService({
             foodDao: app.get(FoodDao, { strict: false }),
             sources: app.get(FoodSourcesDao, { strict: false }),

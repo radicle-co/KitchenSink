@@ -30,7 +30,7 @@ vi.mock('../../src/sources/usda/usda.adapter.js', async () => {
 });
 
 import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
-import type { EventBus, EventBusPutInput } from '../../src/events/eventBus.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../../src/events/FoodEventEmitter.js';
 import { CandidateStore, FetchQueueDao, FoodDao, FoodSourcesDao } from '../../src/foods/dao/index.js';
 import { EnqueueEmitter } from '../../src/foods/enqueue.emitter.js';
@@ -58,12 +58,13 @@ const userToken = mintToken(keypair.privateKeyPem, {
 const silentLogger: WorkerLogger = { info(): void {}, warn(): void {}, error(): void {} };
 
 describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e', () => {
+    /** The shared capturing adapter (plan U4) — replaces this suite's hand-rolled bus double. */
+    const captureBus = new InMemoryPublisher();
     let app: INestApplication;
     let pool: pg.Pool;
     let baseUrl: string;
     let consumer: FoodConsumerService;
     let changeRefresh: ChangeRefreshConsumer;
-    const capturedEvents: EventBusPutInput[] = [];
 
     async function call(
         method: string,
@@ -155,12 +156,6 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
         app = await NestFactory.create(AppModule, { logger: false });
         await app.listen(0);
         baseUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
-
-        const captureBus: EventBus = {
-            async putEvent(input: EventBusPutInput): Promise<void> {
-                capturedEvents.push(input);
-            },
-        };
         const drizzle = app.get<FoodDrizzle>(DrizzleProvider, { strict: false });
         consumer = new FoodConsumerService({
             foodDao: app.get(FoodDao, { strict: false }),
@@ -194,7 +189,7 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
                      source_call_log, source_sync_metadata RESTART IDENTITY CASCADE
         `);
         stub.reset();
-        capturedEvents.length = 0;
+        captureBus.clear();
     });
 
     // ── T-170 + T-171: changed item → selective in-place re-pull, food stays RESOLVED ───────────────

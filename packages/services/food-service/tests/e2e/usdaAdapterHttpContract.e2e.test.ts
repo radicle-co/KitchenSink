@@ -32,7 +32,7 @@ import { MockAgent, getGlobalDispatcher, setGlobalDispatcher, type Dispatcher } 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
-import type { EventBus, EventBusPutInput } from '../../src/events/eventBus.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../../src/events/FoodEventEmitter.js';
 import { FetchQueueDao, FoodDao, FoodSourcesDao } from '../../src/foods/dao/index.js';
 import { MergeAndPersistService } from '../../src/foods/merge/mergeAndPersist.service.js';
@@ -87,6 +87,8 @@ function fdcIdsOf(body: string): number[] {
 }
 
 describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undici MockAgent (e2e)', () => {
+    /** The shared capturing adapter (plan U4) — replaces this suite's hand-rolled bus double. */
+    const captureBus = new InMemoryPublisher();
     let app: INestApplication;
     let pool: pg.Pool;
     let baseUrl: string;
@@ -206,13 +208,6 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
         await app.listen(0);
         const address = app.getHttpServer().address() as AddressInfo;
         baseUrl = `http://127.0.0.1:${address.port}`;
-
-        const capturedEvents: EventBusPutInput[] = [];
-        const captureBus: EventBus = {
-            async putEvent(input: EventBusPutInput): Promise<void> {
-                capturedEvents.push(input);
-            },
-        };
         registry = app.get(SourceAdapterRegistry, { strict: false });
         consumer = new FoodConsumerService({
             foodDao: app.get(FoodDao, { strict: false }),

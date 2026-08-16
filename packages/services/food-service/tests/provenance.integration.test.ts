@@ -11,7 +11,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type pg from 'pg';
 
-import type { EventBus, EventBusPutInput } from '../src/events/eventBus.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../src/events/FoodEventEmitter.js';
 import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
@@ -62,7 +62,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
     });
 
     /** Build a consumer over a fake adapter; expose the adapter (to assert it is never called) + events. */
-    function build(): { consumer: FoodConsumerService; adapter: FakeAdapter; puts: EventBusPutInput[] } {
+    function build(): { consumer: FoodConsumerService; adapter: FakeAdapter; publisher: InMemoryPublisher } {
         const adapter: FakeAdapter = {
             source: 'usda',
             searchByName: vi.fn(async () => [{ source: 'usda', externalKey: 'k1', name: 'X' }]),
@@ -73,8 +73,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
         registry.register(adapter);
         const limiter = new RollingWindowLimiter(new SourceCallLogDao(db));
         const merge = new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry));
-        const puts: EventBusPutInput[] = [];
-        const bus: EventBus = { putEvent: async (input) => void puts.push(input) };
+        const publisher = new InMemoryPublisher();
         const consumer = new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
@@ -82,11 +81,11 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
             registry,
             limiter,
             merge,
-            events: new FoodEventEmitter(bus),
+            events: new FoodEventEmitter(publisher),
             logger: new SilentWorkerLogger(),
         });
 
-        return { consumer, adapter, puts };
+        return { consumer, adapter, publisher };
     }
 
     /** Create a PENDING food + a pending queue row, with NO requester rows by default. */
@@ -99,7 +98,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
 
     it('refuses to drain a row with NO recorded requester → tombstone, no source call', async () => {
         const id = await seedWithoutRequester('orphan enqueue');
-        const { consumer, adapter, puts } = build();
+        const { consumer, adapter, publisher } = build();
 
         const disposition = await consumer.processNext();
 
@@ -111,7 +110,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
         // No external call was logged against the window, and no completion event fired.
         const { rows } = await pool.query<{ n: string }>(`SELECT count(*) AS n FROM source_call_log`);
         expect(rows[0]?.n).toBe('0');
-        expect(puts).toHaveLength(0);
+        expect(publisher.messages).toHaveLength(0);
     });
 
     it('refuses a row whose recorded requester is the forbidden "system" shortcut', async () => {

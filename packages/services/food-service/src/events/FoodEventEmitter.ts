@@ -5,24 +5,35 @@
  * {@link FoodEventEmitter.publishFetchFailed} ONLY on a `FAILED` tombstone (DSN-9 — a `NOT_FOUND`
  * tombstone is a normal outcome and emits no `FetchFailed`/raises no alarm).
  *
- * The actual AWS put (EventBridge `PutEvents`, canonical `detailType: 'FoodFetchCompleted'` matching
- * the deployed CDK `FoodFetchCompletedRule`) sits behind the injectable {@link EventBus} seam, so the
- * worker tests inject a capturing fake bus and never touch real AWS. Both publishes are
- * **fire-and-forget**: a bus failure is logged via the optional error sink and swallowed — a
- * completion/alarm signal must never fail the drain or strand the leased row.
+ * Both publishes go through the shared `publish` PORT (`@kitchensink/messaging`, plan U4), which owns the
+ * fire-and-forget guarantee and the boundary parse: a store failure is reported to the error sink and
+ * swallowed, because a completion/alarm signal must never fail the drain or strand the leased row.
+ *
+ * ⛔ **DSN-9 lives HERE, not in the port.** `publishFetchFailed` is called only on a `FAILED` tombstone; a
+ * `NOT_FOUND` tombstone is a normal outcome and must raise no alarm. That is FOOD's policy — it is the
+ * reason food's alarms are not permanently lit — and moving it behind a shared "should this publish?" hook
+ * would put it where no producer's tests cover it.
+ *
+ * The messages are keyed to the substrate's group (`groupType: 'food'`, `groupId` = the internal food id),
+ * so a consumer subscribes to one food's progress rather than filtering a firehose. The former
+ * EventBridge `detailType` becomes the message `kind`, unchanged in value so the deployed
+ * `FoodFetchCompletedRule` and every existing assertion still name the same string.
  *
  * @implements FR-034
  */
 import { ulid } from 'ulidx';
 
 import type { FoodStatus } from '../foods/dao/index.js';
-import type { EventBus } from './eventBus.js';
+import { publish, type MessagePublisher } from '@kitchensink/messaging';
 
-/** Canonical EventBridge `detailType` for the completion event (matches the CDK `FoodFetchCompletedRule`). */
+/** The completion message's `kind` (kept byte-identical to the former EventBridge `detailType`). */
 export const FOOD_FETCH_COMPLETED_DETAIL_TYPE = 'FoodFetchCompleted';
 
-/** Canonical EventBridge `detailType` for the terminal-failure alarm event (FAILED only, DSN-9). */
+/** The terminal-failure message's `kind` — emitted on a `FAILED` tombstone only (DSN-9). */
 export const FETCH_FAILED_DETAIL_TYPE = 'FetchFailed';
+
+/** The substrate group every message from this producer belongs to (KTD-2). */
+const FOOD_GROUP_TYPE = 'food';
 
 /** The `FoodFetchCompleted` detail payload (plan §4) — carries the internal food `id`, never `fdcId`. */
 export interface FoodFetchCompletedDetail {
@@ -127,48 +138,60 @@ export function buildFetchFailed(input: PublishFailedInput, clock?: EventClock):
 
 export class FoodEventEmitter implements FoodEventPublisher {
     /**
-     * @param bus - The injectable AWS-put seam.
+     * @param publisher - The substrate adapter (`ConsolePublisher` locally, DynamoDB in deployed stages).
      * @param clock - Optional clock/id overrides.
-     * @param onError - Optional sink for a swallowed fire-and-forget put failure.
+     * @param onError - Optional sink for a swallowed fire-and-forget publish failure.
      */
     public constructor(
-        private readonly bus: EventBus,
+        private readonly publisher: MessagePublisher,
         private readonly clock?: EventClock,
         private readonly onError?: (error: unknown, detailType: string) => void,
     ) {}
 
     /**
-     * Emit `FoodFetchCompleted` (fire-and-forget). A bus failure is reported to `onError` and
+     * Emit `FoodFetchCompleted` (fire-and-forget). A publish failure is reported to `onError` and
      * swallowed — a completion signal must never fail the drain.
      *
      * @param input - The food id + terminal status.
-     * @sideEffect Puts an event on the bus (best-effort).
+     * @sideEffect Publishes to the substrate (best-effort).
      */
     public async publishFoodFetchCompleted(input: PublishCompletedInput): Promise<void> {
         const detail = buildFoodFetchCompleted(input, this.clock);
 
-        try {
-            await this.bus.putEvent({ detailType: FOOD_FETCH_COMPLETED_DETAIL_TYPE, detail: { ...detail } });
-        } catch (error) {
-            this.onError?.(error, FOOD_FETCH_COMPLETED_DETAIL_TYPE);
-        }
+        await publish(
+            this.publisher,
+            {
+                groupType: FOOD_GROUP_TYPE,
+                groupId: detail.id,
+                timestamp: detail.timestamp,
+                kind: FOOD_FETCH_COMPLETED_DETAIL_TYPE,
+                payload: { ...detail },
+            },
+            { onError: (error) => this.onError?.(error, FOOD_FETCH_COMPLETED_DETAIL_TYPE) },
+        );
     }
 
     /**
-     * Emit `FetchFailed` (fire-and-forget, DSN-9 — FAILED only). A bus failure is reported to
+     * Emit `FetchFailed` (fire-and-forget, DSN-9 — FAILED only). A publish failure is reported to
      * `onError` and swallowed.
      *
      * @param input - The food id + attempts + last error.
-     * @sideEffect Puts an event on the bus (best-effort).
+     * @sideEffect Publishes to the substrate (best-effort).
      */
     public async publishFetchFailed(input: PublishFailedInput): Promise<void> {
         const detail = buildFetchFailed(input, this.clock);
 
-        try {
-            await this.bus.putEvent({ detailType: FETCH_FAILED_DETAIL_TYPE, detail: { ...detail } });
-        } catch (error) {
-            this.onError?.(error, FETCH_FAILED_DETAIL_TYPE);
-        }
+        await publish(
+            this.publisher,
+            {
+                groupType: FOOD_GROUP_TYPE,
+                groupId: detail.id,
+                timestamp: detail.timestamp,
+                kind: FETCH_FAILED_DETAIL_TYPE,
+                payload: { ...detail },
+            },
+            { onError: (error) => this.onError?.(error, FETCH_FAILED_DETAIL_TYPE) },
+        );
     }
 }
 

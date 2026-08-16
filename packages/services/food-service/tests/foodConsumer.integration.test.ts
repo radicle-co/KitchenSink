@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type pg from 'pg';
 
-import type { EventBus, EventBusPutInput } from '../src/events/eventBus.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../src/events/FoodEventEmitter.js';
 import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
@@ -76,17 +76,12 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         adapter: FoodSourceAdapter,
         caps?: Partial<Record<'usda', SourceCap>>,
         concurrency?: number,
-    ): { consumer: FoodConsumerService; puts: EventBusPutInput[] } {
+    ): { consumer: FoodConsumerService; publisher: InMemoryPublisher } {
         const registry = new SourceAdapterRegistry();
         registry.register(adapter);
         const limiter = new RollingWindowLimiter(new SourceCallLogDao(db), caps ? { caps } : undefined);
         const merge = new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry));
-        const puts: EventBusPutInput[] = [];
-        const bus: EventBus = {
-            putEvent: async (input) => {
-                puts.push(input);
-            },
-        };
+        const publisher = new InMemoryPublisher();
         const consumer = new FoodConsumerService({
             foodDao,
             sources: new FoodSourcesDao(db),
@@ -94,12 +89,12 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
             registry,
             limiter,
             merge,
-            events: new FoodEventEmitter(bus),
+            events: new FoodEventEmitter(publisher),
             logger: new SilentWorkerLogger(),
             ...(concurrency !== undefined ? { concurrency } : {}),
         });
 
-        return { consumer, puts };
+        return { consumer, publisher };
     }
 
     /** Enqueue a freshly created PENDING food with one requester. */
@@ -131,7 +126,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         const adapter = makeFakeUsdaAdapter();
         adapter.searchByName.mockResolvedValue(hits);
         adapter.fetchByKeys.mockResolvedValue(candidates);
-        const { consumer, puts } = build(adapter);
+        const { consumer, publisher } = build(adapter);
 
         const disposition = await consumer.processNext();
 
@@ -157,9 +152,9 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect(rows[0]?.n).toBe('1');
 
         // T-165: FoodFetchCompleted captured on the fake bus.
-        expect(puts).toHaveLength(1);
-        expect(puts[0]?.detailType).toBe('FoodFetchCompleted');
-        expect(puts[0]?.detail).toMatchObject({ id, status: 'RESOLVED' });
+        expect(publisher.messages).toHaveLength(1);
+        expect(publisher.messages[0]?.kind).toBe('FoodFetchCompleted');
+        expect(publisher.messages[0]?.payload).toMatchObject({ id, status: 'RESOLVED' });
     });
 
     it('falls back to per-key fetchByKey when the adapter exposes no batch method', async () => {
@@ -191,7 +186,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
             makeMergeCandidate('usda', { externalKey: '1', name: 'Broccoli, raw' }),
             makeMergeCandidate('usda', { externalKey: '2', name: 'Broccoli, cooked' }),
         ]);
-        const { consumer, puts } = build(adapter);
+        const { consumer, publisher } = build(adapter);
 
         const disposition = await consumer.processNext();
 
@@ -203,14 +198,14 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
             [id],
         );
         expect(rows[0]?.n).toBe('2');
-        expect(puts[0]?.detail).toMatchObject({ id, status: 'UNRESOLVED' });
+        expect(publisher.messages[0]?.payload).toMatchObject({ id, status: 'UNRESOLVED' });
     });
 
     it('tombstones NOT_FOUND when no source has the item (FoodFetchCompleted, NO FetchFailed — DSN-9)', async () => {
         const id = await enqueueFood('fictional food xyz');
         const adapter = makeFakeUsdaAdapter();
         adapter.searchByName.mockResolvedValue([]);
-        const { consumer, puts } = build(adapter);
+        const { consumer, publisher } = build(adapter);
 
         const disposition = await consumer.processNext();
 
@@ -219,15 +214,15 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect(food?.status).toBe('NOT_FOUND');
         expect(food?.tombstonedAt).not.toBeNull();
         expect((await queue.getByFoodId(id))?.status).toBe('tombstone');
-        expect(puts.map((put) => put.detailType)).toEqual(['FoodFetchCompleted']); // NO FetchFailed
-        expect(puts[0]?.detail).toMatchObject({ id, status: 'NOT_FOUND' });
+        expect(publisher.messages.map((put) => put.kind)).toEqual(['FoodFetchCompleted']); // NO FetchFailed
+        expect(publisher.messages[0]?.payload).toMatchObject({ id, status: 'NOT_FOUND' });
     });
 
     it('a genuine 5xx (500) → attempts++ with backoff; after 5 real failures → FAILED tombstone + FetchFailed (DSN-9)', async () => {
         const id = await enqueueFood('broken source food');
         const adapter = makeFakeUsdaAdapter();
         adapter.searchByName.mockRejectedValue(new SourceApiError('usda', 500, 'USDA server error'));
-        const { consumer, puts } = build(adapter);
+        const { consumer, publisher } = build(adapter);
 
         const dispositions: string[] = [];
 
@@ -251,7 +246,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         const qrow = await queue.getByFoodId(id);
         expect(qrow?.status).toBe('tombstone');
         expect(qrow?.attempts).toBe(5);
-        const detailTypes = puts.map((put) => put.detailType);
+        const detailTypes = publisher.messages.map((put) => put.kind);
         expect(detailTypes).toContain('FoodFetchCompleted');
         expect(detailTypes).toContain('FetchFailed');
     });
@@ -338,7 +333,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         }
 
         const adapter = makeFakeUsdaAdapter();
-        const { consumer, puts } = build(adapter, { usda: { hardCap: 10, pauseThreshold: 9 } });
+        const { consumer, publisher } = build(adapter, { usda: { hardCap: 10, pauseThreshold: 9 } });
 
         const disposition = await consumer.processNext();
 
@@ -346,7 +341,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         expect(adapter.searchByName).not.toHaveBeenCalled();
         expect((await foodDao.getById(id))?.status).toBe('PENDING');
         expect((await queue.getByFoodId(id))?.status).toBe('pending'); // re-queued, not in_flight
-        expect(puts).toHaveLength(0);
+        expect(publisher.messages).toHaveLength(0);
     });
 
     it('stalls at the cap then RESUMES draining once the rolling window clears (stall→resume, FR-019/FR-021/FR-026)', async () => {

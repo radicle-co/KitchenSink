@@ -8,22 +8,20 @@ import {
     buildFetchFailed,
     buildFoodFetchCompleted,
 } from '../FoodEventEmitter.js';
-import { type EventBus, type EventBusPutInput } from '../eventBus.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
 
 const fixedClock: EventClock = {
     now: () => new Date('2026-06-29T00:00:00.000Z'),
     newEventId: () => 'evt_1',
 };
 
-function captureBus(): { puts: EventBusPutInput[]; bus: EventBus } {
-    const puts: EventBusPutInput[] = [];
-    const bus: EventBus = {
-        putEvent: async (input) => {
-            puts.push(input);
-        },
-    };
-
-    return { puts, bus };
+/**
+ * The shared capturing adapter, replacing this suite's hand-rolled bus fake (plan U4). Food-service carried
+ * nine separate ad-hoc doubles, each re-deciding what "captured" meant; one shared double means these
+ * assertions run against the same shape the production adapter receives.
+ */
+function captureBus(): { publisher: InMemoryPublisher } {
+    return { publisher: new InMemoryPublisher() };
 }
 
 describe('event payload builders (T-165, plan §4)', () => {
@@ -59,36 +57,42 @@ describe('event payload builders (T-165, plan §4)', () => {
     });
 });
 
-describe('FoodEventEmitter (fire-and-forget over the injectable EventBus)', () => {
+describe('FoodEventEmitter (fire-and-forget over the shared publish port)', () => {
     it('publishes FoodFetchCompleted under the canonical detailType (matches the CDK rule)', async () => {
-        const { puts, bus } = captureBus();
+        const { publisher } = captureBus();
 
-        await new FoodEventEmitter(bus, fixedClock).publishFoodFetchCompleted({ id: 'f', status: 'RESOLVED' });
+        await new FoodEventEmitter(publisher, fixedClock).publishFoodFetchCompleted({ id: 'f', status: 'RESOLVED' });
 
-        expect(puts).toHaveLength(1);
-        expect(puts[0]?.detailType).toBe(FOOD_FETCH_COMPLETED_DETAIL_TYPE);
-        expect(puts[0]?.detail).toMatchObject({ id: 'f', status: 'RESOLVED' });
+        expect(publisher.messages).toHaveLength(1);
+        expect(publisher.messages[0]?.kind).toBe(FOOD_FETCH_COMPLETED_DETAIL_TYPE);
+        expect(publisher.messages[0]?.payload).toMatchObject({ id: 'f', status: 'RESOLVED' });
+        // The substrate group (KTD-2): a consumer subscribes to ONE food's progress, not a firehose.
+        expect(publisher.messages[0]).toMatchObject({ groupType: 'food', groupId: 'f' });
     });
 
     it('publishes FetchFailed under the canonical detailType', async () => {
-        const { puts, bus } = captureBus();
+        const { publisher } = captureBus();
 
-        await new FoodEventEmitter(bus, fixedClock).publishFetchFailed({ id: 'f', attempts: 5, lastError: 'x' });
+        await new FoodEventEmitter(publisher, fixedClock).publishFetchFailed({ id: 'f', attempts: 5, lastError: 'x' });
 
-        expect(puts[0]?.detailType).toBe(FETCH_FAILED_DETAIL_TYPE);
-        expect(puts[0]?.detail).toMatchObject({ id: 'f', attempts: 5, lastError: 'x' });
+        expect(publisher.messages[0]?.kind).toBe(FETCH_FAILED_DETAIL_TYPE);
+        expect(publisher.messages[0]?.payload).toMatchObject({ id: 'f', attempts: 5, lastError: 'x' });
+        expect(publisher.messages[0]).toMatchObject({ groupType: 'food', groupId: 'f' });
     });
 
-    it('swallows a bus failure and reports it (a completion signal must never fail the drain)', async () => {
+    it('swallows a publish failure and reports it (a completion signal must never fail the drain)', async () => {
         const onError = vi.fn();
-        const bus: EventBus = {
-            putEvent: async () => {
-                throw new Error('eventbridge down');
+        const failing = {
+            send: async () => {
+                throw new Error('substrate down');
             },
         };
 
         await expect(
-            new FoodEventEmitter(bus, fixedClock, onError).publishFoodFetchCompleted({ id: 'f', status: 'FAILED' }),
+            new FoodEventEmitter(failing, fixedClock, onError).publishFoodFetchCompleted({
+                id: 'f',
+                status: 'FAILED',
+            }),
         ).resolves.toBeUndefined();
         expect(onError).toHaveBeenCalledOnce();
     });

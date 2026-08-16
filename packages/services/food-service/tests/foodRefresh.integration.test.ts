@@ -14,7 +14,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type pg from 'pg';
 
-import type { EventBus, EventBusPutInput } from '../src/events/eventBus.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../src/events/FoodEventEmitter.js';
 import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
@@ -77,17 +77,12 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService — change-refresh branch (i
     });
 
     /** Wire a fresh consumer around the fake adapter; capture emitted events. */
-    function build(adapter: FoodSourceAdapter): { consumer: FoodConsumerService; puts: EventBusPutInput[] } {
+    function build(adapter: FoodSourceAdapter): { consumer: FoodConsumerService; publisher: InMemoryPublisher } {
         const registry = new SourceAdapterRegistry();
         registry.register(adapter);
         const limiter = new RollingWindowLimiter(new SourceCallLogDao(db));
         const merge = new MergeAndPersistService(db, new GoldenRecordMergeEngine(registry));
-        const puts: EventBusPutInput[] = [];
-        const bus: EventBus = {
-            putEvent: async (input) => {
-                puts.push(input);
-            },
-        };
+        const publisher = new InMemoryPublisher();
         const consumer = new FoodConsumerService({
             foodDao,
             sources,
@@ -95,11 +90,11 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService — change-refresh branch (i
             registry,
             limiter,
             merge,
-            events: new FoodEventEmitter(bus),
+            events: new FoodEventEmitter(publisher),
             logger: new SilentWorkerLogger(),
         });
 
-        return { consumer, puts };
+        return { consumer, publisher };
     }
 
     /** Resolve a single-source food to RESOLVED with one backing item at `itemVersion`. */
@@ -170,7 +165,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService — change-refresh branch (i
             }),
         );
 
-        const { consumer, puts } = build(adapter);
+        const { consumer, publisher } = build(adapter);
         await enqueueRefresh(id);
         const disposition = await consumer.processNext();
         expect(disposition).toBe('refreshed');
@@ -188,7 +183,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService — change-refresh branch (i
 
         // Queue row acked; completion emitted.
         expect(await queue.getByFoodId(id)).toBeUndefined();
-        expect(puts.filter((p) => p.detailType === 'FoodFetchCompleted')).toHaveLength(1);
+        expect(publisher.messages.filter((p) => p.kind === 'FoodFetchCompleted')).toHaveLength(1);
     });
 
     it('leaves an ALL-UNCHANGED food untouched (no golden-record writes)', async () => {

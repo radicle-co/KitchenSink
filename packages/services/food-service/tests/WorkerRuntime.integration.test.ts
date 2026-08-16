@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 
-import type { EventBus } from '../src/events/eventBus.js';
+import { InMemoryPublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../src/events/FoodEventEmitter.js';
 import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
@@ -69,7 +69,7 @@ describe.skipIf(!DATABASE_URL)('WorkerRuntime (integration)', () => {
     function buildConsumer(adapter: FoodSourceAdapter): FoodConsumerService {
         const registry = new SourceAdapterRegistry();
         registry.register(adapter);
-        const bus: EventBus = { putEvent: async () => {} };
+        const bus = new InMemoryPublisher();
 
         return new FoodConsumerService({
             foodDao,

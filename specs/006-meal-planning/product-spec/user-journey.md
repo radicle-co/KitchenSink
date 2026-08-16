@@ -54,7 +54,7 @@ sequenceDiagram
     API->>DB: SELECT plan + entries
     API->>RG: batchNutrition(distinct recipeIds)
     RG->>RS: POST /api/v1/recipes/nutrition-batch
-    RS-->>RG: [{recipeId, nutrition|null}]
+    RS-->>RG: { nutrition: {recipeId: known|unaccounted} }  (unreadable ids ABSENT)
     RG-->>API: results (or availability=unavailable)
     API->>API: aggregatePlanNutrition(entries, byRecipeId) — PURE fold
     API-->>U: 200 {plan, entries, dayNutrition[], planTotal, isComplete}

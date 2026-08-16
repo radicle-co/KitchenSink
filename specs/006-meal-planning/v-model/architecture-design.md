@@ -138,7 +138,7 @@ sequenceDiagram
     SV->>NS: summarize(entries)
     NS->>GW: batchNutrition(distinct recipeIds)
     GW->>GW: chunk to batch limit
-    GW-->>NS: [{recipeId, nutrition|null}] or availability='unavailable'
+    GW-->>NS: { nutrition: {id: known|unaccounted} } (unreadable ABSENT) or availability='unavailable'
     NS->>AG: fold(entries, byRecipeId)
     AG-->>NS: { perDay[], planTotal, isComplete }
     NS-->>SV: summary
@@ -213,12 +213,12 @@ document written before the handlers.
 
 ### ARCH-015 `RecipeGateway`
 
-| Direction | Name             | Format                                                                                                                         | Constraints                                                                  |
-| --------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| Input     | `batchNutrition` | `(recipeIds: RecipeId[], principal)`                                                                                           | Chunked to the batch limit by the gateway; callers pass all ids              |
-| Input     | `isReadable`     | `(recipeId: RecipeId, principal)`                                                                                              | Bounded `AbortSignal` timeout                                                |
-| Output    | result           | `{ results: Array<{recipeId, nutrition: RecipeNutrition \| null}>, availability: 'available' \| 'degraded' \| 'unavailable' }` | **Three-state, not boolean.** `nutrition: null` ⇒ unreadable ⇒ orphaned      |
-| Error     | —                | —                                                                                                                              | **Never throws.** Timeout, 5xx, malformed body and partial batch all degrade |
+| Direction | Name             | Format                                                                                                            | Constraints                                                                                                                                                                    |
+| --------- | ---------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Input     | `batchNutrition` | `(recipeIds: RecipeId[], principal)`                                                                              | Chunked to the batch limit by the gateway; callers pass all ids                                                                                                                |
+| Input     | `isReadable`     | `(recipeId: RecipeId, principal)`                                                                                 | Bounded `AbortSignal` timeout                                                                                                                                                  |
+| Output    | result           | `{ nutrition: Record<RecipeId, RecipeNutritionState>, availability: 'available' \| 'degraded' \| 'unavailable' }` | **Three-state, not boolean.** A recipe id ABSENT from the map ⇒ unreadable ⇒ orphaned. `availability: 'degraded'` is now also derivable from any `known.freshness === 'stale'` |
+| Error     | —                | —                                                                                                                 | **Never throws.** Timeout, 5xx, malformed body and partial batch all degrade                                                                                                   |
 
 ### ARCH-017 error envelope
 
@@ -231,14 +231,14 @@ One shape for the whole service: `{ code: string, message: string, details?: unk
 
 ### Flow 1 — Assignment → nutrition
 
-| Stage | Module       | Input              | Transformation                                   | Output                                  |
-| ----- | ------------ | ------------------ | ------------------------------------------------ | --------------------------------------- |
-| 1     | ARCH-012     | HTTP body          | Zod parse → typed DTO                            | `AssignEntry`                           |
-| 2     | ARCH-002/003 | dto + plan         | Validate cell against range + slot set           | validated cell                          |
-| 3     | ARCH-015     | recipeId           | Bounded HTTP; normalize; never throw             | readable \| not-readable \| unavailable |
-| 4     | ARCH-012     | entry              | INSERT (+ idempotency record, same transaction)  | `MealPlanEntry`                         |
-| 5     | ARCH-015     | distinct recipeIds | Chunked batch nutrition                          | `Map<RecipeId, RecipeNutrition\|null>`  |
-| 6     | ARCH-004     | entries + map      | **Pure fold** × servings; propagate `isComplete` | `{ perDay, planTotal }`                 |
+| Stage | Module       | Input              | Transformation                                   | Output                                                      |
+| ----- | ------------ | ------------------ | ------------------------------------------------ | ----------------------------------------------------------- |
+| 1     | ARCH-012     | HTTP body          | Zod parse → typed DTO                            | `AssignEntry`                                               |
+| 2     | ARCH-002/003 | dto + plan         | Validate cell against range + slot set           | validated cell                                              |
+| 3     | ARCH-015     | recipeId           | Bounded HTTP; normalize; never throw             | readable \| not-readable \| unavailable                     |
+| 4     | ARCH-012     | entry              | INSERT (+ idempotency record, same transaction)  | `MealPlanEntry`                                             |
+| 5     | ARCH-015     | distinct recipeIds | Chunked batch nutrition                          | `Map<RecipeId, RecipeNutritionState>` (absent ⇒ unreadable) |
+| 6     | ARCH-004     | entries + map      | **Pure fold** × servings; propagate `isComplete` | `{ perDay, planTotal }`                                     |
 
 Note there is **no stage 7**. The May flow had two more — cache invalidate and cache store.
 

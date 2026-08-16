@@ -540,7 +540,10 @@ FUNCTION batchNutrition(recipeIds, principal) -> { byRecipeId, availability }:
                                     { json: { recipeIds: chunk }, signal: AbortSignal.timeout(TIMEOUT_MS) })
             parsed = batchNutritionSchema.safeParse(res)
             IF NOT parsed.success: anyFailed = true; logThrottled('malformed'); CONTINUE
-            FOR EACH r IN parsed.data.results: byRecipeId.set(r.recipeId, r.nutrition)   // may be null
+            FOR EACH (id, state) IN parsed.data.nutrition: byRecipeId.set(id, state)
+            // A requested id ABSENT from the map is unreadable -> orphan (FR-033). Read it with a
+            // hasOwn guard, never a bare index: a Record index reaches the prototype chain, so an id
+            // of 'toString' returns a FUNCTION rather than undefined.
             anySucceeded = true
         CATCH (timeout | 5xx | network | auth):
             anyFailed = true; logThrottled(errorKind)          // ≤ 1 log per interval; rest at debug

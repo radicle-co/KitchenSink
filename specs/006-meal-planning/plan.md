@@ -538,12 +538,21 @@ FR-024 with NFR-006 cannot be met by reading each recipe individually: a 90-day 
 recipe service must expose a **batch nutrition projection**:
 
 ```
-POST /api/v1/recipes/nutrition-batch      { recipeIds: string[] }   →   { results: Array<{
-    recipeId: string; nutrition: RecipeNutrition | null; }> }
+POST /api/v1/recipes/nutrition-batch      { recipeIds: string[] }   →   { nutrition: Record<RecipeId,
+    | { state: 'known'; caloriesPerServing; proteinG; carbsG; fatG; isComplete; freshness: 'fresh' | 'stale' }
+    | { state: 'unaccounted'; reason: 'no_resolved_ingredients' | 'no_nutrient_data' | 'food_unavailable' }> }
 ```
 
-`nutrition: null` means "not readable by this caller" — the signal 006 turns into orphan state (FR-033), with no
-existence disclosure. This is **additive** to the shipped recipe service (no existing route changes), is bounded (≤ 360
+A recipe the caller may not read is **ABSENT from the map** — that, not a `null`, is the signal 006 turns into
+orphan state (FR-033). Absence discloses nothing: `unaccounted` would confirm the id exists and `known` would leak
+the figure.
+
+⚠️ The per-recipe value is a **three-state fact of which only two states cross the wire**. `pending` is deliberately
+NOT a member: it exists only in a client as a Suspense fallback, because the moment a server can emit it a skeleton
+can become permanent. `unaccounted` is terminal — it is the answer, not the absence of one — and carries no figure,
+so an outage can never be rendered as `0` calories. `known` requires a number, so a `0` there is a real measured
+zero. `freshness: 'stale'` marks a figure served from cache during a food-service degrade (KTD-3b: serve stale,
+MARKED); 006's gateway-level `availability: 'degraded'` is derivable from it and no longer needs its own signal. This is **additive** to the shipped recipe service (no existing route changes), is bounded (≤ 360
 ids, chunked by the gateway), and reuses `@kitchensink/recipe-core/nutrition` on the producing side so there is exactly
 one macro computation in the platform. Tracked as T001–T003 against `packages/services/recipe-service`, and it MUST
 land before 006's nutrition tasks.

@@ -15,6 +15,10 @@ import { AdminMetricsService } from '../adminMetrics.service.js';
 import type { RollingWindowLimiter } from '../../../sources/RollingWindowLimiter.js';
 import type { FoodSourceId } from '../../../sources/foodSourceAdapter.js';
 
+/** U9 requeue collaborators — this suite exercises the metrics paths, which never touch them. */
+const foodDaoDouble = { setStatus: async () => undefined } as never;
+const queueDouble = { reactivate: async () => undefined } as never;
+
 function fakeDao(): AdminMetricsDao {
     return {
         queueDepths: async () => ({ pending: 7, inFlight: 2, tombstone: 3 }),
@@ -34,7 +38,7 @@ function fakeLimiter(): RollingWindowLimiter {
 
 describe('AdminMetricsService.collect', () => {
     it('composes queue depths, backlog, and per-source window utilization', async () => {
-        const service = new AdminMetricsService(fakeDao(), fakeLimiter());
+        const service = new AdminMetricsService(fakeDao(), fakeLimiter(), foodDaoDouble, queueDouble);
 
         const metrics = await service.collect();
 
@@ -60,7 +64,7 @@ describe('AdminMetricsService.collect', () => {
             isPaused: async () => true,
         } as unknown as RollingWindowLimiter;
 
-        const metrics = await new AdminMetricsService(fakeDao(), limiter).collect();
+        const metrics = await new AdminMetricsService(fakeDao(), limiter, foodDaoDouble, queueDouble).collect();
 
         expect(metrics.sources[0]).toMatchObject({ windowCount: 900, utilization: 0.9, paused: true });
     });
@@ -68,7 +72,7 @@ describe('AdminMetricsService.collect', () => {
 
 describe('AdminMetricsService.queueDepths', () => {
     it('returns the fetch_queue depth signals (pending / in-flight / tombstone)', async () => {
-        const service = new AdminMetricsService(fakeDao(), fakeLimiter());
+        const service = new AdminMetricsService(fakeDao(), fakeLimiter(), foodDaoDouble, queueDouble);
 
         expect(await service.queueDepths()).toEqual({ pending: 7, inFlight: 2, tombstone: 3 });
     });

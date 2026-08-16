@@ -47,16 +47,23 @@ export const MAX_FOOD_NAME_LENGTH = 200;
 /**
  * Food lifecycle status — the service's canonical set (FR-002/FR-003/FR-004).
  *
- * `PENDING` a fetch is enqueued · `UNRESOLVED` awaiting a human disambiguation pick · `RESOLVED` a golden
- * record exists · `NOT_FOUND` no wired source has it (tombstoned until TTL) · `FAILED` every source errored
- * past the retry budget.
+ * `PENDING` a fetch is enqueued, never attempted · `AWAITING_RETRY` a real source failure occurred and a
+ * retry is scheduled with backoff (U9) · `UNRESOLVED` awaiting a human disambiguation pick · `RESOLVED` a
+ * golden record exists · `NOT_FOUND` no wired source has it (tombstoned until TTL) · `FAILED` every source
+ * errored past the five-attempt retry budget.
  */
-export const foodStatusSchema = z.enum(['PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED']);
+export const foodStatusSchema = z.enum(['PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED', 'AWAITING_RETRY']);
 
 export type FoodStatus = z.infer<typeof foodStatusSchema>;
 
-/** The non-terminal statuses a `202` body can carry — `RESOLVED` would be a `200`, and the rest are `404`. */
-export const pendingFoodStatusSchema = z.enum(['PENDING', 'UNRESOLVED']);
+/**
+ * The non-terminal statuses a `202` body can carry — `RESOLVED` would be a `200`, and the rest are `404`.
+ *
+ * `AWAITING_RETRY` belongs HERE, not with the terminal set: the food is still going to be attempted, so the
+ * caller should keep polling exactly as it would for `PENDING`. Putting it in the terminal set would tell a
+ * client to give up on a food the worker is about to retry.
+ */
+export const pendingFoodStatusSchema = z.enum(['PENDING', 'UNRESOLVED', 'AWAITING_RETRY']);
 
 export type PendingFoodStatus = z.infer<typeof pendingFoodStatusSchema>;
 

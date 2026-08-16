@@ -39,6 +39,15 @@ export const FOOD_METRIC = {
     unresolvedBacklog: 'food-unresolved-backlog',
     /** Count of tombstone (NOT_FOUND/FAILED) queue rows (alarm at > 0). */
     tombstoneCount: 'food-tombstone-count',
+    /**
+     * Foods that exhausted the five-attempt retry budget (U9) — DISTINCT from `tombstoneCount`.
+     *
+     * DSN-9 silences the `NOT_FOUND` tombstone because "no wired source has this food" is a normal outcome.
+     * Exhausting five REAL failures is not: a source has been erroring across the whole backoff curve, and
+     * that food is now blackholed for every user until an operator requeues it. Sharing the tombstone
+     * metric would bury it among the outcomes it does not resemble.
+     */
+    retryBudgetExhausted: 'food-retry-budget-exhausted',
     /** Share of reads served from the local store with no source call, as a percentage (SC-005). */
     localStoreServeRate: 'food-local-store-serve-rate',
     /** ⛔ NOT EMITTED. Share of API requests rejected `401` — FR-052, and the misconfigured-key signal. */
@@ -291,6 +300,18 @@ export class FoodMetrics {
             { metrics: [{ name: FOOD_METRIC.localStoreServeRate, value: served ? 100 : 0, unit: 'Percent' }] },
             this.sink,
         );
+    }
+
+    /**
+     * Record one food exhausting its five-attempt retry budget (U9).
+     *
+     * Dimensionless on purpose — the food id belongs on the log line, not in a dimension (the repo's
+     * cardinality gate rejects an id dimension, and moving it to a property fixes only the cost half).
+     *
+     * @sideEffect Emits an EMF metric.
+     */
+    public recordRetryBudgetExhausted(): void {
+        emitMetric({ metrics: [{ name: FOOD_METRIC.retryBudgetExhausted, value: 1, unit: 'Count' }] }, this.sink);
     }
 
     /**

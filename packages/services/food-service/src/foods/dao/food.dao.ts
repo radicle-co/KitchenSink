@@ -180,11 +180,18 @@ export interface FoodDaoOptions {
  * transition matches no row (`rowCount=0`) and is rejected without mutating the record.
  */
 const LEGAL_PRIORS: Record<FoodStatus, readonly FoodStatus[]> = {
-    PENDING: ['FAILED', 'NOT_FOUND'],
-    RESOLVED: ['PENDING', 'UNRESOLVED'],
-    UNRESOLVED: ['PENDING'],
-    NOT_FOUND: ['PENDING'],
-    FAILED: ['PENDING'],
+    // `AWAITING_RETRY` is a legal prior EVERYWHERE `PENDING` is (U9): a retrying food can still resolve,
+    // still turn out to need disambiguation, still be found absent, and still exhaust its budget. Omitting
+    // it from any of these would make the first failure a dead end — the food would be stuck retrying with
+    // no legal transition out, and `setStatus` rejects an illegal move by matching no row, silently.
+    PENDING: ['FAILED', 'NOT_FOUND', 'AWAITING_RETRY'],
+    RESOLVED: ['PENDING', 'UNRESOLVED', 'AWAITING_RETRY'],
+    UNRESOLVED: ['PENDING', 'AWAITING_RETRY'],
+    NOT_FOUND: ['PENDING', 'AWAITING_RETRY'],
+    FAILED: ['PENDING', 'AWAITING_RETRY'],
+    // Reached on a real source failure that has NOT exhausted the budget — from a first attempt
+    // (`PENDING`) or from a previous retry (itself).
+    AWAITING_RETRY: ['PENDING', 'AWAITING_RETRY'],
 };
 
 export class FoodDao {

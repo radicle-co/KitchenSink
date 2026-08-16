@@ -95,11 +95,13 @@ export class FoodsService {
             return this.toFoodResponse(record);
         }
 
-        if (record.status === 'PENDING' || record.status === 'UNRESOLVED') {
+        if (record.status === 'PENDING' || record.status === 'UNRESOLVED' || record.status === 'AWAITING_RETRY') {
+            // `AWAITING_RETRY` answers 202 like `PENDING`, because the food IS still going to be attempted.
+            // Answering 404 would tell a client to give up on a food the worker retries minutes later.
             throw new FoodPendingError(
                 id,
                 record.status,
-                record.status === 'PENDING' ? ESTIMATED_WAIT_SECONDS : undefined,
+                record.status === 'PENDING' || record.status === 'AWAITING_RETRY' ? ESTIMATED_WAIT_SECONDS : undefined,
             );
         }
 

@@ -28,6 +28,7 @@ describe('emf-metrics', () => {
                 sourceApiSuccessRate: 'source-api-success-rate',
                 unresolvedBacklog: 'food-unresolved-backlog',
                 tombstoneCount: 'food-tombstone-count',
+                retryBudgetExhausted: 'food-retry-budget-exhausted',
                 localStoreServeRate: 'food-local-store-serve-rate',
                 auth401Rate: 'auth-401-rate',
                 pendingAgeSeconds: 'food-fetch-pending-age-seconds',
@@ -66,6 +67,7 @@ describe('emf-metrics', () => {
             metrics.recordInFlightLeases(1);
             metrics.recordWorkerError(1);
             metrics.recordLocalStoreServe(true);
+            metrics.recordRetryBudgetExhausted();
             metrics.recordSourceWindowCount('usda', 1);
 
             const emitted = new Set(
@@ -83,6 +85,7 @@ describe('emf-metrics', () => {
                 'food-in-flight-leases',
                 'food-local-store-serve-rate',
                 'food-resolution-latency-seconds',
+                'food-retry-budget-exhausted',
                 'food-tombstone-count',
                 'food-unresolved-backlog',
                 'food-worker-error-count',

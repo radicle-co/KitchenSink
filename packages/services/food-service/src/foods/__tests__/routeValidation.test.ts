@@ -132,7 +132,7 @@ describe('route input validation — the closed inventory', () => {
         expect(ALL_INPUTS.filter((input) => input.kind === 'body')).toHaveLength(3);
         // Two queries now: `GET /foods` search and `GET /foods/nutrition` (plan U8), both zod DTOs.
         expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(2);
-        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(5);
+        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(6);
         // Nothing reads a caller-supplied HEADER. §15.4(1) puts headers under the pipe too, so a new one has to
         // arrive as a zod DTO — and this assertion is what makes adding one a decision rather than an accident.
         expect(ALL_INPUTS.filter((input) => input.kind === 'headers')).toStrictEqual([]);
@@ -168,6 +168,8 @@ describe('route input validation — the closed inventory', () => {
             .sort();
 
         expect(raw).toStrictEqual([
+            // U9's operator requeue. Guarded by the same `isFoodId` check as every other `:id` route.
+            'FoodsAdminController.requeueFood(@param id): String',
             'FoodsController.getCandidates(@param id): String',
             'FoodsController.getFood(@param id): String',
             'FoodsController.getStatus(@param id): String',

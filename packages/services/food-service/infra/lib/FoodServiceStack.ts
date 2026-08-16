@@ -61,6 +61,7 @@ const FOOD_METRIC = {
     inFlightLeases: 'food-in-flight-leases',
     workerErrorCount: 'food-worker-error-count',
     localStoreServeRate: 'food-local-store-serve-rate',
+    retryBudgetExhausted: 'food-retry-budget-exhausted',
 } as const;
 
 /** The single shared base logical database on the persistent platform instance (ADR-0006). */
@@ -800,6 +801,24 @@ export class FoodServiceStack extends Stack {
             });
 
         // Any tombstone (NOT_FOUND/FAILED) row is worth a look — alarm at > 0 (DSN-9 / FR-016).
+        // ⛔ SEPARATE from the tombstone alarm below, deliberately (U9). DSN-9 keeps the `NOT_FOUND`
+        // tombstone quiet because "no wired source has this food" is a normal outcome — but a food that
+        // burned five REAL failures across the whole backoff curve is blackholed for every user until an
+        // operator requeues it, and folding it into the tombstone count buries it among the outcomes it
+        // does not resemble. Recovery is `POST /api/v1/foods/admin/foods/{id}/requeue`.
+        const retryExhaustedAlarm = new cloudwatch.Alarm(this, 'FoodRetryBudgetExhaustedAlarm', {
+            metric: emfMetric(FOOD_METRIC.retryBudgetExhausted, 'sum'),
+            threshold: 0,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 1,
+            datapointsToAlarm: 1,
+            alarmDescription:
+                'A food exhausted its five-attempt retry budget and is blackholed until an operator ' +
+                'requeues it (POST /api/v1/foods/admin/foods/{id}/requeue).',
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        retryExhaustedAlarm.addAlarmAction(alarmAction);
+
         const tombstoneAlarm = new cloudwatch.Alarm(this, 'FoodTombstoneAlarm', {
             metric: emfMetric(FOOD_METRIC.tombstoneCount, 'max'),
             threshold: 0,

@@ -41,7 +41,18 @@ const tsvector = customType<{ data: string; driverData: string }>({
 // ── Controlled enums (DB-7: domain-model controlled sets use pgEnum) ────────────────────────────
 
 /** Food lifecycle status (FR-028 lifecycle R11/R13). */
-export const foodStatusEnum = pgEnum('food_status', ['PENDING', 'UNRESOLVED', 'RESOLVED', 'NOT_FOUND', 'FAILED']);
+export const foodStatusEnum = pgEnum('food_status', [
+    'PENDING',
+    'UNRESOLVED',
+    'RESOLVED',
+    'NOT_FOUND',
+    'FAILED',
+    // U9 — a real source failure has occurred and a retry is scheduled. Distinct from PENDING, which means
+    // "queued, never attempted": a client can tell "we are retrying" from "we have not started", which is
+    // the whole point of putting the state on the wire. Terminal only after the five-attempt budget, at
+    // which point the food becomes FAILED.
+    'AWAITING_RETRY',
+]);
 
 /** Generic vs branded food (FR-IDN-3; replaces the USDA data-type enum). */
 export const foodKindEnum = pgEnum('food_kind', ['generic', 'branded']);

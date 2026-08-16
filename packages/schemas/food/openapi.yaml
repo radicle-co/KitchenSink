@@ -666,6 +666,7 @@ components:
                   enum:
                     - PENDING
                     - UNRESOLVED
+                    - AWAITING_RETRY
                 estimatedWaitSeconds:
                   type: number
               required:
@@ -745,6 +746,7 @@ components:
                     - RESOLVED
                     - NOT_FOUND
                     - FAILED
+                    - AWAITING_RETRY
               required:
                 - id
                 - status
@@ -840,6 +842,7 @@ components:
             - RESOLVED
             - NOT_FOUND
             - FAILED
+            - AWAITING_RETRY
         nutrients:
           type: array
           items:
@@ -871,6 +874,7 @@ components:
           enum:
             - PENDING
             - UNRESOLVED
+            - AWAITING_RETRY
         estimatedWaitSeconds:
           type: number
       required:
@@ -889,6 +893,7 @@ components:
             - RESOLVED
             - NOT_FOUND
             - FAILED
+            - AWAITING_RETRY
         estimatedWaitSeconds:
           type: number
         food:
@@ -965,6 +970,7 @@ components:
             - RESOLVED
             - NOT_FOUND
             - FAILED
+            - AWAITING_RETRY
         estimatedWaitSeconds:
           type: number
       required:
@@ -983,6 +989,7 @@ components:
             - RESOLVED
             - NOT_FOUND
             - FAILED
+            - AWAITING_RETRY
         name:
           nullable: true
           type: string

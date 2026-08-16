@@ -324,6 +324,9 @@ export class BulkSeedService {
                 return 'seeded';
 
             case 'PENDING':
+            // A food awaiting a retry is seeded exactly like a pending one: the bulk source has the answer
+            // the retry was going to look for, so seeding it now is what the retry would have achieved.
+            case 'AWAITING_RETRY':
                 await this.persister.resolveAndPersist({ foodId, candidates: [candidate] });
 
                 return 'seeded';

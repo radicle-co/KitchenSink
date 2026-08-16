@@ -56,8 +56,11 @@ describe('foodStatusSchema', () => {
 describe('pendingFoodStatusSchema', () => {
     // A `202` means "not readable yet". `RESOLVED` would be a `200` and the terminal statuses are `404`, so
     // admitting any of them here would let the service describe a response it never sends.
-    it('admits only the two statuses that answer 202', () => {
-        expect([...pendingFoodStatusSchema.options].sort()).toStrictEqual(['PENDING', 'UNRESOLVED']);
+    it('admits only the three statuses that answer 202', () => {
+        // `AWAITING_RETRY` joined the 202 set with U9: the food IS still going to be attempted, so a client
+        // should keep polling exactly as it would for `PENDING`. Answering 404 would tell it to give up on a
+        // food the worker retries minutes later.
+        expect([...pendingFoodStatusSchema.options].sort()).toStrictEqual(['AWAITING_RETRY', 'PENDING', 'UNRESOLVED']);
     });
 
     it('rejects RESOLVED and the terminal statuses', () => {

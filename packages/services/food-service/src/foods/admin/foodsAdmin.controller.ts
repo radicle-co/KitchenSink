@@ -10,11 +10,12 @@
  *
  * @implements FR-039 FR-051
  */
-import { Controller, Get, Req } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
 
 import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../../auth/authenticatedPrincipal.js';
 import { apiError } from '../../common/apiError.js';
-import { AdminMetricsService, type OperationalMetrics } from './adminMetrics.service.js';
+import { isFoodId } from '../../db/ulid.js';
+import { AdminMetricsService, type OperationalMetrics, type RequeueResponse } from './adminMetrics.service.js';
 import type { QueueDepthMetrics } from './adminMetrics.dao.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
@@ -39,6 +40,35 @@ export class FoodsAdminController {
         this.requireAdmin(req);
 
         return this.metrics.queueDepths();
+    }
+
+    /**
+     * `POST /api/v1/foods/admin/foods/:id/requeue` — the operator escape hatch for a blackholed food (U9).
+     *
+     * ⛔ **This exists because the retry budget is a trap without it.** Five real failures tombstone a food
+     * `FAILED` permanently. A transient USDA outage or a bad API key therefore blackholes that food for
+     * EVERY user, forever, and the only recovery would be editing the database by hand — which is not a
+     * recovery procedure, it is an incident. This clears the attempt count and the terminal mark so the
+     * normal drain picks the food up again.
+     *
+     * Admin-scoped like every other route here: it resets state a user could otherwise use to force
+     * unbounded source calls by repeatedly exhausting and clearing a budget.
+     *
+     * Idempotent — requeuing an already-pending food is a no-op that still answers `202`.
+     */
+    @Post('foods/:id/requeue')
+    @HttpCode(HttpStatus.ACCEPTED)
+    public async requeueFood(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<RequeueResponse> {
+        this.requireAdmin(req);
+
+        // Same guard every other `:id` route applies. Without it a malformed id reaches two DAO writes and
+        // fails as a 500 rather than the 400 the caller can act on — and the route-input inventory in
+        // `routeValidation.test.ts` requires every raw param to name the validator that covers it.
+        if (!isFoodId(id)) {
+            throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
+        }
+
+        return this.metrics.requeueFood(id);
     }
 
     /** Require the `food:admin` scope from the verified token, else `403` (FR-039/FR-051). */

@@ -176,9 +176,12 @@ export class FoodConsumerService {
                 error: error instanceof Error ? error.message : 'unknown',
             });
 
-            disposition = isRetryBudgetExhausted(failed.attempts)
-                ? await this.tombstoneFailed(row.foodId, failed.attempts, 'processing_error')
-                : 'record_failure';
+            if (isRetryBudgetExhausted(failed.attempts)) {
+                disposition = await this.tombstoneFailed(row.foodId, failed.attempts, 'processing_error');
+            } else {
+                await this.markAwaitingRetry(row.foodId);
+                disposition = 'record_failure';
+            }
         }
 
         // T-181: a row that reached a terminal lifecycle state contributes to resolution latency
@@ -295,6 +298,7 @@ export class FoodConsumerService {
                 return this.tombstoneFailed(foodId, failed.attempts, 'all_sources_errored');
             }
 
+            await this.markAwaitingRetry(foodId);
             this.logger.warn('record-failure', { foodId, attempts: failed.attempts });
 
             return 'record_failure';
@@ -615,8 +619,35 @@ export class FoodConsumerService {
         await this.queue.tombstone(foodId, lastError);
         await this.events.publishFoodFetchCompleted({ id: foodId, status: 'FAILED' });
         await this.events.publishFetchFailed({ id: foodId, attempts, lastError });
+        // ⛔ A SEPARATE signal from the tombstone count, deliberately. DSN-9 silences the `NOT_FOUND`
+        // tombstone because "no wired source has this food" is a normal outcome — but exhausting five real
+        // failures is not: it means a source has been erroring for the whole backoff curve, and without its
+        // own metric that blackholed food is invisible among the NOT_FOUNDs it does not resemble.
+        this.metrics?.recordRetryBudgetExhausted();
         this.logger.error('tombstone-failed', { foodId, attempts });
 
         return 'failed';
+    }
+
+    /**
+     * Mark a food `AWAITING_RETRY` after a real failure that did NOT exhaust the budget (U9).
+     *
+     * Best-effort by design: the queue row already carries the authoritative retry state (`attempts` and the
+     * backoff gate), so this is the WIRE-VISIBLE half. A failure to write it must not turn a retryable food
+     * into a processing error and consume a second attempt — the food would then burn its budget on the
+     * status write rather than on fetches.
+     *
+     * @param foodId - The food that failed.
+     * @sideEffect Updates `food.status`; logs and swallows its own failure.
+     */
+    private async markAwaitingRetry(foodId: string): Promise<void> {
+        try {
+            await this.foodDao.setStatus({ id: foodId, status: 'AWAITING_RETRY' });
+        } catch (error) {
+            this.logger.warn('awaiting-retry-mark-failed', {
+                foodId,
+                error: error instanceof Error ? error.message : 'unknown',
+            });
+        }
     }
 }

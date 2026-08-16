@@ -91,6 +91,7 @@ function synthFoodTemplate(stage: string, baseStage: string): Template {
 const FOOD_METRIC_NAMESPACE = 'Commise/Food';
 const FOOD_METRIC = {
     fetchQueueDepth: 'food-fetch-queue-depth',
+    retryBudgetExhausted: 'food-retry-budget-exhausted',
     tombstoneCount: 'food-tombstone-count',
     pendingAgeSeconds: 'food-fetch-pending-age-seconds',
     localStoreServeRate: 'food-local-store-serve-rate',
@@ -561,8 +562,18 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
         serviceTemplate.resourceCountIs('AWS::SNS::Topic', 1);
     });
 
-    it('creates exactly the four food alarms with the correct thresholds', () => {
-        serviceTemplate.resourceCountIs('AWS::CloudWatch::Alarm', 4);
+    it('creates exactly the five food alarms with the correct thresholds', () => {
+        // Five since U9 added the retry-budget-exhaustion alarm, which is deliberately SEPARATE from the
+        // tombstone alarm below: DSN-9 keeps `NOT_FOUND` quiet, and folding a blackholed food into that
+        // count would bury it among the outcomes it does not resemble.
+        serviceTemplate.resourceCountIs('AWS::CloudWatch::Alarm', 5);
+
+        serviceTemplate.hasResourceProperties('AWS::CloudWatch::Alarm', {
+            Namespace: FOOD_METRIC_NAMESPACE,
+            MetricName: FOOD_METRIC.retryBudgetExhausted,
+            Threshold: 0,
+            ComparisonOperator: 'GreaterThanThreshold',
+        });
 
         // Tombstone > 0 — reads the EMF metric name straight from the source constant (contract link).
         serviceTemplate.hasResourceProperties('AWS::CloudWatch::Alarm', {

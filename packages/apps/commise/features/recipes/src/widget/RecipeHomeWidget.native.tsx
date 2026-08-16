@@ -19,7 +19,7 @@ import {
     RecentRecipeGrid,
     RecipeWidgetCard,
     RecipeWidgetEmptyState,
-    RecipeWidgetSkeleton,
+    RecipeWidgetLoadingCard,
     toRecipeSummary,
 } from '../components/index.js';
 
@@ -60,11 +60,9 @@ const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({
     const { widgetTitle } = useMessages(recipeMessages);
 
     if (isLoading) {
-        return (
-            <RecipeWidgetCard title={widgetTitle}>
-                <RecipeWidgetSkeleton itemCount={MAX_RECENT_RECIPES} />
-            </RecipeWidgetCard>
-        );
+        // The SAME card the web entry's Suspense fallback renders, so "the recipe widget is waiting" looks
+        // identical on both platforms and cannot drift when one of them is edited (§14).
+        return <RecipeWidgetLoadingCard />;
     }
 
     const recent = recipes.slice(0, MAX_RECENT_RECIPES).map(toRecipeSummary);

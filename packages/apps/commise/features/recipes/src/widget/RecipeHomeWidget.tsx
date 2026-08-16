@@ -27,7 +27,7 @@ import {
     RecentRecipeGrid,
     RecipeWidgetCard,
     RecipeWidgetEmptyState,
-    RecipeWidgetSkeleton,
+    RecipeWidgetLoadingCard,
     toRecipeSummary,
 } from '../components/index.js';
 
@@ -51,17 +51,6 @@ export interface RecipeHomeWidgetProps {
      */
     readonly renderNutrition?: RenderRecipeNutrition;
 }
-
-/** The card shown while the recipes promise is still pending — the Suspense fallback. */
-const RecipeHomeWidgetFallback: FC = () => {
-    const { widgetTitle } = useMessages(recipeMessages);
-
-    return (
-        <RecipeWidgetCard title={widgetTitle}>
-            <RecipeWidgetSkeleton itemCount={MAX_RECENT_RECIPES} />
-        </RecipeWidgetCard>
-    );
-};
 
 /**
  * Suspends on the recipes promise via `use`, then — as the orchestration step — SELECTS the render component:
@@ -90,10 +79,19 @@ const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise, on
 /**
  * The recipe Home widget (web): a `<Suspense>` boundary whose fallback is the skeleton card and whose
  * content suspends on the recipes promise — the loading state is declarative, not an `isLoading` branch.
+ *
+ * ⚠️ EVERY prop is threaded to the content component, `renderNutrition` included. The split into two
+ * functions across a Suspense hop is exactly where a prop goes missing without a compile error — the widget
+ * still accepts it, still type-checks, and renders identically to a surface that never supplied one, so the
+ * only thing that catches it is an assertion that the returned NODE reached a card.
  */
-const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe }) => (
-    <Suspense fallback={<RecipeHomeWidgetFallback />}>
-        <RecipeHomeWidgetContent recipesPromise={recipesPromise} onSelectRecipe={onSelectRecipe} />
+const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe, renderNutrition }) => (
+    <Suspense fallback={<RecipeWidgetLoadingCard />}>
+        <RecipeHomeWidgetContent
+            recipesPromise={recipesPromise}
+            onSelectRecipe={onSelectRecipe}
+            renderNutrition={renderNutrition}
+        />
     </Suspense>
 );
 

@@ -108,4 +108,41 @@ describe('RecipeHomeWidget (web)', () => {
         expect(screen.getByRole('article', { name: 'Ragu' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Ragu' })).toBeNull();
     });
+
+    /**
+     * ⛔ The `renderNutrition` seam must survive the widget's OWN Suspense hop (ADR-0021 §6). The outer
+     * component and the suspending content component are two different functions here, and the prop has to be
+     * threaded through both — a widget that accepts the prop, type-checks, and quietly drops it between them
+     * renders exactly like a host that never supplied one, so no other test in this file (and nothing in the
+     * host's suite that only asserts "no chip appears") can tell the two apart. That defect shipped: the
+     * declared prop reached `RecipeHomeWidgetProps`, `RecentRecipeGrid` forwarded it, and the widget's own
+     * root never passed it down, so web's Home widget could not render a figure at all.
+     */
+    it('calls renderNutrition once per rendered card, with that card’s own recipe id', async () => {
+        const renderNutrition = vi.fn((recipeId: string) => <span>{`kcal:${recipeId}`}</span>);
+        const recipes = [
+            makeRecipe({ id: 'r1', title: 'Weeknight Pasta' }),
+            makeRecipe({ id: 'r2', title: 'Chana Masala' }),
+        ];
+
+        await act(async () => {
+            render(<RecipeHomeWidget recipesPromise={Promise.resolve(recipes)} renderNutrition={renderNutrition} />);
+        });
+
+        // The NODE reaches the DOM (a widget that called the prop and discarded the result would pass a
+        // call-count-only assertion), and each card asked about ITSELF — not the first recipe, twice.
+        expect(screen.getByText('kcal:r1')).toBeTruthy();
+        expect(screen.getByText('kcal:r2')).toBeTruthy();
+        expect(renderNutrition.mock.calls.map(([recipeId]) => recipeId)).toStrictEqual(['r1', 'r2']);
+    });
+
+    it('renders no nutrition node at all when the host supplies no renderNutrition', async () => {
+        await act(async () => {
+            render(<RecipeHomeWidget recipesPromise={Promise.resolve([makeRecipe({ id: 'r1', title: 'Ragu' })])} />);
+        });
+
+        // The counterweight: a widget hard-wiring its own placeholder (or a fabricated zero) into the slot
+        // would satisfy the test above and fabricate a figure on every unwired surface.
+        expect(screen.queryByText(/cal/iu)).toBeNull();
+    });
 });

@@ -61,6 +61,7 @@ export {
     RecentRecipeItem,
     RecipeWidgetCard,
     RecipeWidgetEmptyState,
+    RecipeWidgetLoadingCard,
     RecipeWidgetSkeleton,
     toRecipeSummary,
 } from './components/index.js';

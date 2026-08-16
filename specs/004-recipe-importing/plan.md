@@ -12,15 +12,15 @@
 The patterns in force for this feature, the ones deliberately preserved from 001, and the shapes where a
 pattern's intent is **already satisfied** so nobody adds redundant machinery.
 
-| Pattern                     | Where                                                                                                 | Why it fits                                                                                                                                              |
-| --------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Strategy**                | `RecipeExtractor` implementations (JSON-LD, microdata, heuristic)                                     | One interface, interchangeable extraction algorithms selected at runtime by what the page actually contains.                                             |
-| **Chain of Responsibility** | `ExtractorChain` running the Strategy set in order, first non-null wins                               | Each extractor either handles the page or passes it on; adding one is additive.                                                                          |
-| **Ports & Adapters**        | `OcrProvider` (→ Textract), `OEmbedProvider` (→ Meta), `SourceFetcher` (→ undici)                     | Every third-party dependency is a domain-declared port with an edge adapter, so the core is testable without the vendor and D-001/D-002 stay reversible. |
-| **Policy / Specification**  | `PaywallPolicy`, `ProvenancePolicy` (pure classification)                                             | Import policy is a pure decision over inputs, separable from I/O and exhaustively testable.                                                              |
-| **State machine**           | `ImportJob` (`queued → running → succeeded \| failed`), `ImportDraft` (`open → confirmed \| expired`) | Makes illegal lifecycle transitions unrepresentable rather than validated after the fact.                                                                |
-| **Facade**                  | `ImportService` over fetch → extract → normalize → classify → dedup                                   | One entry point per channel; the orchestration sequence lives in exactly one place (HAZ-026).                                                            |
-| **Value object**            | `CanonicalSourceUrl`                                                                                  | Canonicalization is a property of the type, not a step a caller can forget (HAZ-019).                                                                    |
+| Pattern                     | Where                                                                                                 | Why it fits                                                                                                                                                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Strategy**                | `RecipeExtractor` implementations (JSON-LD, microdata, heuristic)                                     | One interface, interchangeable extraction algorithms selected at runtime by what the page actually contains.                                                                                                                  |
+| **Chain of Responsibility** | `ExtractorChain` running the Strategy set in order, first non-null wins                               | Each extractor either handles the page or passes it on; adding one is additive.                                                                                                                                               |
+| **Ports & Adapters**        | `OEmbedProvider` (→ Meta), `SourceFetcher` (→ undici)                                                 | Every third-party dependency is a domain-declared port with an edge adapter, so the core is testable without the vendor and D-002 stays reversible. _(`OcrProvider` moved to 011 with the photo channel — D-001 as amended.)_ |
+| **Policy / Specification**  | `PaywallPolicy`, `ProvenancePolicy` (pure classification)                                             | Import policy is a pure decision over inputs, separable from I/O and exhaustively testable.                                                                                                                                   |
+| **State machine**           | `ImportJob` (`queued → running → succeeded \| failed`), `ImportDraft` (`open → confirmed \| expired`) | Makes illegal lifecycle transitions unrepresentable rather than validated after the fact.                                                                                                                                     |
+| **Facade**                  | `ImportService` over fetch → extract → normalize → classify → dedup                                   | One entry point per channel; the orchestration sequence lives in exactly one place (HAZ-026).                                                                                                                                 |
+| **Value object**            | `CanonicalSourceUrl`                                                                                  | Canonicalization is a property of the type, not a step a caller can forget (HAZ-019).                                                                                                                                         |
 
 **Already satisfied — do NOT add machinery for these:**
 
@@ -110,22 +110,22 @@ CREATE UNIQUE INDEX recipes_source_url_canonical_unique
 
 **`import_drafts`** — owner-scoped staging, expiring, holds no recipe row.
 
-| Column                    | Type                    | Notes                                                                            |
-| ------------------------- | ----------------------- | -------------------------------------------------------------------------------- |
-| `id`                      | `uuid` PK               |                                                                                  |
-| `owner_id`                | `varchar(255)` NOT NULL | App-user ULID, matching `recipes.owner_id` (D2 — no FK)                          |
-| `status`                  | `text` NOT NULL         | `open`/`confirmed`/`expired`, CHECK-constrained                                  |
-| `import_channel`          | `text` NOT NULL         | CHECK-constrained to the channel set                                             |
-| `source_type`             | `text` NOT NULL         | Provenance classification decided at draft time                                  |
-| `source_url`              | `text` NULL             |                                                                                  |
-| `source_url_canonical`    | `text` NULL             |                                                                                  |
-| `source_citation`         | `text` NULL             | FR-014a free-text citation when no URL exists                                    |
-| `extracted`               | `jsonb` NOT NULL        | Normalized draft payload (title, lines, steps, times, photos)                    |
-| `field_confidence`        | `jsonb` NOT NULL        | Per-field extraction confidence                                                  |
-| `missing_required`        | `text[]` NOT NULL       | Required fields still absent                                                     |
-| `ocr_object_key`          | `text` NULL             | S3 key of the source image; deleted no later than expiry                         |
-| `expires_at`              | `timestamptz` NOT NULL  | FR-018 — `created_at + 7 days` (D-005); stage-configurable, capped at 7d in prod |
-| `created_at`/`updated_at` | `timestamptz` NOT NULL  |                                                                                  |
+| Column                    | Type                    | Notes                                                                                                                 |
+| ------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `id`                      | `uuid` PK               |                                                                                                                       |
+| `owner_id`                | `varchar(255)` NOT NULL | App-user ULID, matching `recipes.owner_id` (D2 — no FK)                                                               |
+| `status`                  | `text` NOT NULL         | `open`/`confirmed`/`expired`, CHECK-constrained                                                                       |
+| `import_channel`          | `text` NOT NULL         | CHECK-constrained to the channel set                                                                                  |
+| `source_type`             | `text` NOT NULL         | Provenance classification decided at draft time                                                                       |
+| `source_url`              | `text` NULL             |                                                                                                                       |
+| `source_url_canonical`    | `text` NULL             |                                                                                                                       |
+| `source_citation`         | `text` NULL             | FR-014a free-text citation when no URL exists                                                                         |
+| `extracted`               | `jsonb` NOT NULL        | Normalized draft payload (title, lines, steps, times, photos)                                                         |
+| `field_confidence`        | `jsonb` NOT NULL        | Per-field extraction confidence                                                                                       |
+| `missing_required`        | `text[]` NOT NULL       | Required fields still absent                                                                                          |
+| ~~`ocr_object_key`~~      | —                       | ⛔ Removed with the channel — **011** owns the image and it never enters this service (D-001 as amended, ADR-0019 §3) |
+| `expires_at`              | `timestamptz` NOT NULL  | FR-018 — `created_at + 7 days` (D-005); stage-configurable, capped at 7d in prod                                      |
+| `created_at`/`updated_at` | `timestamptz` NOT NULL  |                                                                                                                       |
 
 **`import_jobs`** — async job state for the fetch/OCR channels (`queued`/`running`/`succeeded`/`failed`),
 carrying `draft_id` on success and a `RecipeErrorCode` on failure, plus the `idempotency_key`.
@@ -208,21 +208,22 @@ This feature's entire input side is untrusted external data, and none of it is a
 - `packages/clients/usda` is the reference implementation. **Do not "converge" a boundary schema away**: on
   this feature it is the parse standing between a hostile page and the recipe write path.
 
-| Method | Path                                              | Auth        | Success | Notes                                   |
-| ------ | ------------------------------------------------- | ----------- | ------- | --------------------------------------- |
-| POST   | `/api/v1/recipes/import/url`                      | user        | `202`   | Async job; `Idempotency-Key` required   |
-| POST   | `/api/v1/recipes/import/instagram`                | user        | `202`   | Gated by capability flag (D-002)        |
-| POST   | `/api/v1/recipes/import/file`                     | user        | `201`   | Sync — local parse, no outbound call    |
-| POST   | `/api/v1/recipes/import/photo`                    | user        | `202`   | Async OCR                               |
-| GET    | `/api/v1/recipes/import/jobs/{id}`                | user, owner | `200`   | Job status → `draftId` or error code    |
-| GET    | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `200`   | Draft for review                        |
-| PATCH  | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `200`   | User corrections                        |
-| POST   | `/api/v1/recipes/import/drafts/{id}/confirm`      | user, owner | `201`   | Creates the Recipe; the only write path |
-| DELETE | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `204`   | Discard                                 |
-| GET    | `/api/v1/recipes/import/sources`                  | user        | `200`   | Enabled channels + blocklist summary    |
-| GET    | `/api/v1/admin/import/paywalled-domains`          | admin scope | `200`   | D-004                                   |
-| POST   | `/api/v1/admin/import/paywalled-domains`          | admin scope | `201`   | D-004                                   |
-| DELETE | `/api/v1/admin/import/paywalled-domains/{domain}` | admin scope | `204`   | D-004                                   |
+| Method   | Path                                              | Auth        | Success | Notes                                                                                                                                       |
+| -------- | ------------------------------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST     | `/api/v1/recipes/import/url`                      | user        | `202`   | Async job; `Idempotency-Key` required                                                                                                       |
+| POST     | `/api/v1/recipes/import/instagram`                | user        | `202`   | Gated by capability flag (D-002)                                                                                                            |
+| POST     | `/api/v1/recipes/import/file`                     | user        | `201`   | Sync — local parse, no outbound call                                                                                                        |
+| POST     | `/api/v1/recipes/import/text`                     | user        | `201`   | Sync — raw-text paste, no outbound call (`FR-052`)                                                                                          |
+| ~~POST~~ | ~~`/api/v1/recipes/import/photo`~~                | —           | —       | ⛔ **011 owns the photo channel** (D-001 as amended, ADR-0019 §3). 004 keeps only the `imported_physical` `sourceType` in the bulk contract |
+| GET      | `/api/v1/recipes/import/jobs/{id}`                | user, owner | `200`   | Job status → `draftId` or error code                                                                                                        |
+| GET      | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `200`   | Draft for review                                                                                                                            |
+| PATCH    | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `200`   | User corrections                                                                                                                            |
+| POST     | `/api/v1/recipes/import/drafts/{id}/confirm`      | user, owner | `201`   | Creates the Recipe; the only write path                                                                                                     |
+| DELETE   | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `204`   | Discard                                                                                                                                     |
+| GET      | `/api/v1/recipes/import/sources`                  | user        | `200`   | Enabled channels + blocklist summary                                                                                                        |
+| GET      | `/api/v1/admin/import/paywalled-domains`          | admin scope | `200`   | D-004                                                                                                                                       |
+| POST     | `/api/v1/admin/import/paywalled-domains`          | admin scope | `201`   | D-004                                                                                                                                       |
+| DELETE   | `/api/v1/admin/import/paywalled-domains/{domain}` | admin scope | `204`   | D-004                                                                                                                                       |
 
 **Clone is NOT here** — `POST /api/v1/recipes/{id}/clone` already ships in 001.
 
@@ -303,20 +304,20 @@ the boundary parse is not hygiene here, it is the feature's primary control surf
 
 ### Error codes — added to `RecipeErrorCode`, mapped in `ApiExceptionFilter`
 
-| Code                          | HTTP  | Meaning                                                                        |
-| ----------------------------- | ----- | ------------------------------------------------------------------------------ |
-| `IMPORT_SOURCE_BLOCKED`       | `422` | Domain on the paywalled blocklist                                              |
-| `IMPORT_SOURCE_UNREACHABLE`   | `422` | DNS/TLS/timeout/4xx/5xx from the source                                        |
-| `IMPORT_NO_RECIPE_FOUND`      | `422` | Fetched successfully, no recognisable recipe                                   |
-| `IMPORT_NO_CAPTION`           | `422` | Instagram post has no recipe text in caption                                   |
-| `IMPORT_UNSUPPORTED_FORMAT`   | `415` | File magic bytes are not JSON/YAML/Markdown                                    |
-| `IMPORT_PAYLOAD_TOO_LARGE`    | `413` | Response or upload exceeded its bound                                          |
-| `IMPORT_OCR_FAILED`           | `422` | OCR produced no usable text                                                    |
-| `IMPORT_PROVIDER_UNAVAILABLE` | `503` | Circuit open / provider down — retryable                                       |
-| `IMPORT_DRAFT_INCOMPLETE`     | `422` | Confirm attempted with missing required fields                                 |
-| `IMPORT_DRAFT_EXPIRED`        | `410` | Draft passed `expires_at`                                                      |
-| `IMPORT_QUOTA_EXCEEDED`       | `429` | Daily import allowance exhausted; carries `resetsAt`                           |
-| `IMPORT_REQUIRES_PREMIUM`     | `403` | Channel produces a non-public recipe and the caller has no entitlement (D-014) |
+| Code                          | HTTP  | Meaning                                                                                                                       |
+| ----------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `IMPORT_SOURCE_BLOCKED`       | `422` | Domain on the paywalled blocklist                                                                                             |
+| `IMPORT_SOURCE_UNREACHABLE`   | `422` | DNS/TLS/timeout/4xx/5xx from the source                                                                                       |
+| `IMPORT_NO_RECIPE_FOUND`      | `422` | Fetched successfully, no recognisable recipe                                                                                  |
+| `IMPORT_NO_CAPTION`           | `422` | Instagram post has no recipe text in caption                                                                                  |
+| `IMPORT_UNSUPPORTED_FORMAT`   | `415` | File magic bytes are not JSON/YAML/Markdown                                                                                   |
+| `IMPORT_PAYLOAD_TOO_LARGE`    | `413` | Response or upload exceeded its bound                                                                                         |
+| `IMPORT_TEXT_UNPARSEABLE`     | `422` | A pasted body contained no recognisable recipe content (`FR-052`). _(`IMPORT_OCR_FAILED` transfers to 011 with the channel.)_ |
+| `IMPORT_PROVIDER_UNAVAILABLE` | `503` | Circuit open / provider down — retryable                                                                                      |
+| `IMPORT_DRAFT_INCOMPLETE`     | `422` | Confirm attempted with missing required fields                                                                                |
+| `IMPORT_DRAFT_EXPIRED`        | `410` | Draft passed `expires_at`                                                                                                     |
+| `IMPORT_QUOTA_EXCEEDED`       | `429` | Daily import allowance exhausted; carries `resetsAt`                                                                          |
+| `IMPORT_REQUIRES_PREMIUM`     | `403` | Channel produces a non-public recipe and the caller has no entitlement (D-014)                                                |
 
 `422` (not `400`) for policy and extraction failures: the request is well-formed but semantically
 unprocessable — the meaning `ENGINEERING_EXCELLENCE.md §1` assigns it. The previous revision used `400` in
@@ -332,23 +333,23 @@ Verified against the npm registry on 2026-08-02. The previous revision opened wi
 `import { parse } from 'schema-org-js'` — **that package does not exist** (registry 404); it was the primary
 strategy for the requirement carrying SC-002.
 
-| Need                    | Chosen                         | Ver / last publish | Rejected / why                                                         |
-| ----------------------- | ------------------------------ | ------------------ | ---------------------------------------------------------------------- |
-| HTML parse + selectors  | `cheerio`                      | 1.2.0 · 2026-07    | `jsdom` — full DOM emulation, far heavier than needed                  |
-| JSON-LD extraction      | `JSON.parse` + **Zod** schema  | zod already a dep  | No library needed; the risk is _validation_, which Zod covers          |
-| Microdata               | `microdata-node`               | 2.0.0 · 2022-06    | ⚠️ dormant. Accepted: small, focused, stable format. See risk below.   |
-| RDFa                    | — **excluded** (C-007)         | —                  | No maintained Node parser; negligible recipe usage vs JSON-LD          |
-| Ingredient-line parsing | `parse-ingredient`             | 2.2.0 · 2026-04    | `recipe-ingredient-parser-v2` (dormant since 2022)                     |
-| ISO-8601 duration       | `iso8601-duration`             | 2.1.4 · 2026-06    | Hand-rolled regex — the gate explicitly forbids it                     |
-| URL canonicalization    | `normalize-url`                | 9.0.1 · 2026-05    | Hand-rolled — HAZ-019 is exactly this bug                              |
-| Timeout/retry/breaker   | `cockatiel`                    | 4.0.0 · 2026-05    | `opossum` (breaker only); hand-rolled backoff                          |
-| HTML sanitization       | `sanitize-html`                | 2.17.6 · 2026-07   | `isomorphic-dompurify` — needs a DOM; server-side overhead             |
-| File type (magic bytes) | `file-type`                    | **already a dep**  | Trusting the client MIME string — the gate forbids it                  |
-| YAML                    | `yaml`                         | 2.9.0 · 2026       | `js-yaml` — `yaml` is the maintained successor                         |
-| Markdown frontmatter    | `gray-matter`                  | 4.0.3 · 2023-07    | Stable, ubiquitous, format frozen. Low risk.                           |
-| Private-IP detection    | `ipaddr.js`                    | 2.4.0 · 2026       | Hand-rolled CIDR math                                                  |
-| OCR                     | `@aws-sdk/client-textract`     | 3.1101 · 2026-07   | Tesseract (self-host + model ops); Google Vision (second cloud vendor) |
-| HTTP client             | `undici` (Node built-in fetch) | runtime            | axios — no need; undici gives the custom dispatcher SSRF needs         |
+| Need                    | Chosen                         | Ver / last publish | Rejected / why                                                                                                                                                                |
+| ----------------------- | ------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTML parse + selectors  | `cheerio`                      | 1.2.0 · 2026-07    | `jsdom` — full DOM emulation, far heavier than needed                                                                                                                         |
+| JSON-LD extraction      | `JSON.parse` + **Zod** schema  | zod already a dep  | No library needed; the risk is _validation_, which Zod covers                                                                                                                 |
+| Microdata               | `microdata-node`               | 2.0.0 · 2022-06    | ⚠️ dormant. Accepted: small, focused, stable format. See risk below.                                                                                                          |
+| RDFa                    | — **excluded** (C-007)         | —                  | No maintained Node parser; negligible recipe usage vs JSON-LD                                                                                                                 |
+| Ingredient-line parsing | `parse-ingredient`             | 2.2.0 · 2026-04    | `recipe-ingredient-parser-v2` (dormant since 2022)                                                                                                                            |
+| ISO-8601 duration       | `iso8601-duration`             | 2.1.4 · 2026-06    | Hand-rolled regex — the gate explicitly forbids it                                                                                                                            |
+| URL canonicalization    | `normalize-url`                | 9.0.1 · 2026-05    | Hand-rolled — HAZ-019 is exactly this bug                                                                                                                                     |
+| Timeout/retry/breaker   | `cockatiel`                    | 4.0.0 · 2026-05    | `opossum` (breaker only); hand-rolled backoff                                                                                                                                 |
+| HTML sanitization       | `sanitize-html`                | 2.17.6 · 2026-07   | `isomorphic-dompurify` — needs a DOM; server-side overhead                                                                                                                    |
+| File type (magic bytes) | `file-type`                    | **already a dep**  | Trusting the client MIME string — the gate forbids it                                                                                                                         |
+| YAML                    | `yaml`                         | 2.9.0 · 2026       | `js-yaml` — `yaml` is the maintained successor                                                                                                                                |
+| Markdown frontmatter    | `gray-matter`                  | 4.0.3 · 2023-07    | Stable, ubiquitous, format frozen. Low risk.                                                                                                                                  |
+| Private-IP detection    | `ipaddr.js`                    | 2.4.0 · 2026       | Hand-rolled CIDR math                                                                                                                                                         |
+| ~~OCR~~                 | ~~`@aws-sdk/client-textract`~~ | —                  | ⛔ **011's dependency, not 004's.** Kept as a row so the alternatives it weighed (Tesseract self-host, Google Vision) transfer with the decision rather than being re-derived |
+| HTTP client             | `undici` (Node built-in fetch) | runtime            | axios — no need; undici gives the custom dispatcher SSRF needs                                                                                                                |
 
 **Dependency risk — `microdata-node` and `gray-matter` are dormant.** Both are behind the `RecipeExtractor` /
 parser ports, both handle frozen formats, and neither is on a security-sensitive path (their output is
@@ -433,13 +434,13 @@ rather than argument.
 ### Rate limiting and backpressure
 
 **Burst limiting** reuses the shipped `@nestjs/throttler`: `@Throttle` overrides of `10/min/user` on URL and
-Instagram, `5/min/user` on photo. File import and job polling inherit the shipped write/read defaults.
+Instagram, `10/min/user` on raw text (`FR-052`). _(The `5/min` photo limit transfers to 011.)_ File import and job polling inherit the shipped write/read defaults.
 
 **Daily allowance is NOT a throttler.** `throttle.config.ts` documents that `@nestjs/throttler` v6 applies the
 logical AND of every registered throttler to every route — registering a second (daily) throttler would cap
 every endpoint in the service. The allowance is therefore **domain policy**: `ImportsService` counts the
 principal's `import_jobs` in the trailing 24h and rejects with `IMPORT_QUOTA_EXCEEDED` (`429`) carrying
-`resetsAt`. Limits: **200/day/user** across all channels, **50/day** sub-quota for OCR (bounds Textract spend).
+`resetsAt`. Limits: **200/day/user** across all channels. _(The **50/day** OCR sub-quota bounding Textract spend transfers to 011 with the channel — 011 MUST inherit it rather than re-derive it.)_
 
 The quota function takes the principal's tier as a parameter and today returns the same limits for every tier —
 the seam 010-subscriptions needs, without inventing tier rules 010 hasn't specified yet.
@@ -450,7 +451,7 @@ Queue depth is bounded; over-capacity sheds with `429`.
 
 ## 6. Idempotency
 
-`POST /import/{url,instagram,photo}` are non-idempotent creates and MUST require an `Idempotency-Key` header,
+`POST /import/{url,instagram,text}` are non-idempotent creates and MUST require an `Idempotency-Key` header,
 with the first response cached per `(key, endpoint, principal)` — `ENGINEERING_EXCELLENCE.md §1`. Without it,
 a client retry on a slow import double-imports. The dedup unique index catches the URL case but not OCR or
 file, which have no natural key.

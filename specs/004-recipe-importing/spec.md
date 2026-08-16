@@ -185,6 +185,24 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   offering an affordance that does nothing, and the bulk import contract MUST accept the
   `imported_physical` `sourceType` so 011 can submit against it without a contract change.
   See [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §1 and §3.
+- **FR-052** _(raw-text channel — added 2026-08-16, owner ruling)_: System MUST allow users to import a recipe
+  by **pasting its text**, as a first-class import method listed in the chooser (`FR-046`) alongside URL and
+  file — not as an error-recovery fallback. The channel MUST accept a bounded body of raw text plus a
+  **declared** source, and MUST create the draft **synchronously**: there is no outbound fetch and no vendor
+  call, so there is nothing to poll and an asynchronous job would add a failure mode without removing one.
+  Pasted text MUST flow through the **same** normalize → parse → classify → draft path as every other channel
+  (`FR-047`), and unparseable lines MUST be preserved verbatim and flagged (`FR-020`) rather than failing the
+  import — a paste of prose still produces a reviewable draft. `sourceType` MUST be **declared and whitelisted
+  server-side** (`FR-025`): `user_created` for the user's own content, `imported_paid` when the user attests a
+  paid or non-public source and supplies a citation (`FR-014a`). `imported_public` and `imported_physical`
+  MUST NOT be representable on this endpoint. The pasted body is user input at an untrusted boundary and MUST
+  NOT be logged (`NFR-008`).
+    > **Why this is a hole being closed, not a feature being added.** Every failure state in this feature's
+    > own wireframes already offers "paste manually", and the product spec's J3 journey is entirely about
+    > pasting from a cookbook — while no FR, no endpoint and no task existed for it. `FR-014a` specified the
+    > **attestation** for pasted content but attached it to ordinary recipe creation, so the promise the UI
+    > makes had no channel behind it. It is also what the photo transfer makes load-bearing: with OCR owned by
+    > 011, paste is how a user gets a physical-copy recipe in **today**.
 - **FR-019**: System MUST allow users to import recipes from structured files (JSON, YAML, or Markdown with
   YAML frontmatter), producing a draft. File type MUST be determined by content inspection (magic bytes), not
   by the client-supplied filename or MIME type.
@@ -208,21 +226,46 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   visibly unavailable state with the reason, **not** omitted and **not** rendered as a control that does
   nothing. Rationale: format inference is how a paste-a-URL field silently accepts a file path, and how
   provenance gets guessed instead of declared.
-- **FR-047**: Every import channel MUST terminate in **one** bulk import processor. A channel's distinct
-  responsibility is limited to producing candidate recipe records from its source plus the `sourceType` that
-  records provenance; everything after extraction — validation, ingredient resolution, recipe creation, and
-  per-recipe outcome reporting (`FR-027`) — MUST be the shared path. `sourceType` MUST be **declared by the
-  invoking surface and whitelisted server-side** (`FR-025`), never inferred from the payload. Adding a channel
-  MUST be an adapter plus a `sourceType` member, not a new pipeline.
+- **FR-047** _(amended 2026-08-16 — [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §1)_:
+  Every import channel MUST **converge at recipe creation**, which is the single place that classifies
+  provenance, enforces quota, creates the recipe and reports per-recipe outcome (`FR-027`). A channel's
+  distinct responsibility is limited to producing candidate recipe records from its source plus the
+  `sourceType` that records provenance. `sourceType` MUST be **declared by the invoking surface and
+  whitelisted server-side** (`FR-025`), never inferred from the payload. Adding a channel MUST be an adapter
+  plus a `sourceType` member, not a new pipeline.
+    > ⛔ **This requirement previously read "one bulk import processor", and that was the wrong unit.** The
+    > diagram it came with already contradicted it: 011's image branch is a **separate deployable** by
+    > ADR-0019 §3, and ingredient resolution is owned by the **food** service. One processor would therefore
+    > have had to reach across two service boundaries to do its job, and pulling 011's image work back into
+    > the recipe service is exactly what §3 took an exception to avoid. What FR-047 actually requires is **one
+    > place where those rules live** — the convergence point — not one pipeline. Each domain runs its own
+    > processor (recipe's bulk import, 011's image branch, food's resolution pipeline) and they meet at recipe
+    > creation. The `sourceType` union and its exhaustive `switch` are unchanged; they live at the convergence
+    > point, which is where they always effectively were.
 - **FR-048**: System MUST emit a status message **per recipe** as that recipe advances through the import
   spine — accepted, in flight (carrying the current stage), and terminal (succeeded, failed, or errored).
-  Messages for one recipe MUST **supersede** prior messages for that recipe rather than accumulating, so a
-  consumer holding only the latest message for an entity holds correct current state. Supersession MUST be
-  decided by a **monotonic sequence carried in the envelope**, never by arrival order: the bus is
-  at-least-once and out-of-order, and last-write-wins on arrival would silently revert a terminal
-  `succeeded` to `processing` on a redelivery. A 1,000-recipe import (`FR-026`) therefore produces a bounded
-  live view rather than an unbounded event log each client must reconcile.
-- **FR-049**: System MUST emit the same shape of superseding status message **per food item** as ingredient
+  Messages for one recipe MUST be **selectable down to the current one** rather than accumulating, so a
+  consumer holding the current message for an entity holds correct current state. **Selection is
+  CONSUMER-SIDE: most-recent-by-timestamp wins** _(amended 2026-08-16 — ADR-0019 §4, owner ruling
+  2026-08-15)_. The envelope carries **no sequence**. A 1,000-recipe import (`FR-026`) therefore produces a
+  bounded live view rather than an unbounded event log each client must reconcile.
+    > ⛔ **This requirement previously mandated a "monotonic sequence carried in the envelope". It cannot be
+    > built as written.** A monotonic sequence has to be issued by the producer, which makes a
+    > **fire-and-forget** producer stateful for a value whose only reader is a consumer that did not yet
+    > exist — and the substrate's producers may run concurrently in more than one task, so there is no single
+    > writer of "the last sequence I used". It was also solving a problem the substrate already solves: the
+    > stated hazard is a redelivered `processing` reverting a terminal `succeeded`, and the substrate stores
+    > messages durably **per group, ordered by sort key**, with the stream record acting as a **doorbell** —
+    > the consumer is woken and then **re-queries the group**, which returns in order. A consumer that
+    > re-queries never observes the revert, because it never reads one message in isolation.
+    >
+    > **⛔ The precondition, stated so it is checked rather than assumed: SINGLE WRITER PER GROUP.** Timestamp
+    > selection is correct only while one writer produces a group's messages. Two concurrent writers for one
+    > entity can stamp out of order relative to their true sequence, and most-recent-wins would then pick the
+    > loser. Every producer named today satisfies it — a bulk import job owns its entities, food's resolution
+    > pipeline is the single writer for a food, and 011's image branch owns the jobs it creates. **A future
+    > producer that shares a group with another writer MUST NOT rely on this rule.**
+- **FR-049**: System MUST emit the same shape of status message **per food item** as ingredient
   resolution advances through its import/sync stages to a terminal state. The recipe-level status
   (`FR-048`) MUST NOT be the only signal, because a recipe can be created while its ingredients are still
   resolving (`FR-020` — an unresolved ingredient MUST NOT block confirmation).

@@ -36,6 +36,7 @@ import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import type { FC, JSX } from 'react';
 
 import { webMessages } from '@/i18n/messages';
+import { IngredientRowsSkeleton } from './IngredientRowsSkeleton';
 
 /** Props for {@link IngredientPicker}. */
 export interface IngredientPickerProps {
@@ -299,9 +300,9 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                     )}
 
                     {viewState.kind === 'resolving' && (
-                        <p role="status" aria-label={picker.resolving} className="px-2 py-1 text-body-sm text-slate">
-                            {picker.resolving}
-                        </p>
+                        // The post-pick resolution poll. ONE placeholder row: exactly one line is being
+                        // resolved, so reserving three would promise rows that are never coming.
+                        <IngredientRowsSkeleton label={picker.resolving} rowCount={1} />
                     )}
 
                     {viewState.kind === 'disambiguating' && resolveError && (
@@ -333,9 +334,11 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
 
             {viewState.kind === 'searching' && (
                 <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-sm">
-                    <p role="status" aria-label={picker.searching} className="px-2 py-1 text-body-sm text-slate">
-                        {picker.searching}
-                    </p>
+                    {/* Placeholder ROWS, not a bare line of text: the panel is about to fill with suggestion
+                        rows, and a text-only wait leaves it blank and then shoves the action row below down
+                        the page when they land. The caption is still the region's CONTENT — see
+                        `IngredientRowsSkeleton` for why that half is not optional. */}
+                    <IngredientRowsSkeleton label={picker.searching} />
                     {actionRow}
                 </div>
             )}

@@ -58,6 +58,12 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     the shared entry path is still proven on every run, whatever vertical was selected. (It absorbed
 #     `auth/welcome-flow`, deleted with the welcome screen itself by owner decision on 2026-07-28.)
 #   - `home` next, then the recipe stories.
+#   - `recipes/deferred-calories` sits next to `list-detail`: same populated seed, read-only, and it crosses
+#     into Discover at the end, so it wants the same settled library. It is in the `recipes` vertical rather
+#     than `discovery` because its subject is the CARD's deferred figure, which every card surface shares.
+#     Note what it can prove here: this job runs NO food service (see `deploy`/`_ci-heavy.yml`'s
+#     `FOOD_SERVICE_URL`), so no calorie figure can render — the flow asserts the invariant instead, that the
+#     placeholder always comes down. Its own docblock says so; do not "fix" it by asserting a number.
 #   - `recipes/discover-browse` sits with the other read-only discovery flows (it types and clears a query but
 #     mutates nothing, so it is order-independent).
 #   - `recipes/ingredient-catalog-blend` sits with the other CREATE-wizard flows: it publishes a recipe, so it
@@ -96,6 +102,7 @@ FLOW_PLAN="spine:auth/login-flow
 home:home
 recipes:recipes/rating
 recipes:recipes/list-detail
+recipes:recipes/deferred-calories
 recipes:recipes/empty-library
 recipes:recipes/search-navigation
 recipes:recipes/edit

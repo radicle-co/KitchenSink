@@ -14,14 +14,11 @@
  * prop shape onto it; that divergence is the thing being corrected, and
  * `__tests__/RecipeNutritionBoundary.native.test.tsx` is the evidence.
  */
-import { useMessages } from '@commise/i18n/react';
-import { ErrorBoundary } from 'react-error-boundary';
-import { Suspense, use, type FC } from 'react';
+import { use, type FC } from 'react';
 
-import { recipeNutritionMessages } from './messages.js';
+import { NutritionBoundaryShell } from './NutritionBoundaryShell.native.js';
 import { RecipeCalorieChip } from './RecipeCalorieChip.native.js';
-import { RecipeCalorieSkeleton } from './RecipeCalorieSkeleton.native.js';
-import { NUTRITION_FOOD_UNAVAILABLE, type RecipeCalorieState } from './model.js';
+import type { RecipeCalorieState } from './model.js';
 
 /** Props for the native nutrition boundary. */
 export interface RecipeNutritionBoundaryProps {
@@ -47,19 +44,9 @@ const RecipeNutritionContent: FC<RecipeNutritionBoundaryProps> = ({ nutritionPro
  * @param props - The pending reading for one recipe.
  * @returns The boundary rendering exactly one of the three states.
  */
-export const RecipeNutritionBoundary: FC<RecipeNutritionBoundaryProps> = ({ nutritionPromise }) => {
-    const { loadingLabel } = useMessages(recipeNutritionMessages);
-
-    return (
-        // See the web leaf: without `resetKeys` the boundary never leaves its error state, so one failed
-        // lookup would pin this card's figure off for the component's whole lifetime.
-        <ErrorBoundary
-            resetKeys={[nutritionPromise]}
-            fallback={<RecipeCalorieChip nutrition={NUTRITION_FOOD_UNAVAILABLE} />}
-        >
-            <Suspense fallback={<RecipeCalorieSkeleton label={loadingLabel} />}>
-                <RecipeNutritionContent nutritionPromise={nutritionPromise} />
-            </Suspense>
-        </ErrorBoundary>
-    );
-};
+export const RecipeNutritionBoundary: FC<RecipeNutritionBoundaryProps> = ({ nutritionPromise }) => (
+    // The nesting + `resetKeys` live in the shared shell — see `NutritionBoundaryShell.native.tsx`.
+    <NutritionBoundaryShell resetKey={nutritionPromise}>
+        <RecipeNutritionContent nutritionPromise={nutritionPromise} />
+    </NutritionBoundaryShell>
+);

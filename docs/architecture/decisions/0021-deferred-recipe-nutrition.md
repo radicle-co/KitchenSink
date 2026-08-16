@@ -135,10 +135,29 @@ that matters most.
 
 ### 6. Both platforms render-as-you-fetch, with the same mechanism
 
-Web creates the promise in the RSC route **without awaiting it** and passes it into the client subtree;
-React serializes a pending promise across the boundary and streams the resolution. Mobile calls
-`ensureQueryData` the moment the ids are known, which returns a promise _and_ seeds the cache, so render
-finds an in-flight query.
+**Both platforms create the promise CLIENT-side**, via `queryClient.ensureQueryData(...)` the moment the
+on-screen recipe ids are known. It returns a promise _and_ seeds the cache, so render finds an in-flight
+query and the skeleton is mounted from the first frame rather than the first effect.
+
+⛔ **Correction (2026-08-16).** This section first specified that WEB create the promise in the RSC route
+without awaiting it, so React would serialize a pending promise across the boundary and stream the
+resolution. **That does not work here, and implementing it would have been strictly worse:**
+
+- An RSC-created promise is not in the client `QueryClient`, so it cannot join `ensureQueryData`. The client
+  hook would fire its own request and `/recipes` would batch **twice**.
+- The server knows only page ONE. `/discover` is an infinite query whose later pages are fetched
+  client-side, so every load-more card would have no promise at all and render **blank** — the failure this
+  feature exists to remove.
+
+Making the RSC route the source would therefore need a second code path for pages 2+, i.e. two origins for
+one fact. The upgrade path that would make it work is **pending-query dehydration** (`shouldDehydrateQuery`
+admitting `status === 'pending'`, TanStack v5), unverified in this repo and not required for the behaviour:
+a client-created promise still renders the card immediately and fills the figure in when the response lands,
+which is what the owner asked for.
+
+⚠️ So "HTTP streaming" here is satisfied by a deferred request behind a Suspense boundary, on both
+platforms — not by RSC streaming. Do not re-introduce the RSC promise without first proving pending
+dehydration, or `/recipes` silently doubles its batch traffic.
 
 ⚠️ `RecipeHomeWidget.native.tsx` states "React Native has no Suspense-for-data streaming". That is true of
 **server** streaming and false of the mechanism — `use(promise)` + `<Suspense>` work identically on the RN

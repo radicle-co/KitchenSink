@@ -26,6 +26,7 @@
  */
 import type { Locale } from '@commise/i18n';
 import type { RecipeNutritionResponse, RecipeNutritionState } from '@kitchensink/schema-recipe';
+import type { ReactNode } from 'react';
 
 import { formatCalories } from '../card/model.js';
 import { fillTemplate } from '../list/model.js';
@@ -128,6 +129,22 @@ export const selectRecipeCalorieState = (
     recipeId: string,
 ): RecipeCalorieState | null =>
     Object.hasOwn(response.nutrition, recipeId) ? (response.nutrition[recipeId] ?? null) : null;
+
+/**
+ * How a card SURFACE asks its host for one recipe's nutrition node — the render-prop seam between the
+ * presentational grids and the deferred lookup.
+ *
+ * **Pattern: Strategy as a render prop.** It exists so a list/grid stays a pure `props → JSX` component that
+ * knows nothing about promises, Suspense, or the batch endpoint: it calls this once per card and drops the
+ * result into `RecipeCard`'s `nutrition` slot. The ORCHESTRATION layer (a container, or a server page that
+ * streamed a pending promise into one) closes over the page's single batch promise and hands the closure
+ * down, which is what makes N cards ONE read.
+ *
+ * ⚠️ OPTIONAL EVERYWHERE ON PURPOSE. A surface with no host-supplied renderer renders no nutrition line at
+ * all — the card's established absent-value rule — rather than a placeholder or a fabricated zero. That is
+ * also what lets a platform leaf that has not been wired yet keep compiling and keep rendering honestly.
+ */
+export type RenderRecipeNutrition = (recipeId: string) => ReactNode;
 
 /** What a leaf needs to paint one calorie chip: the two strings, plus the two flags that style it. */
 export interface RecipeCalorieChipModel {

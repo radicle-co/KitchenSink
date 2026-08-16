@@ -8,21 +8,15 @@
  * `use(promise)` suspends, so the choice between skeleton / chip / terminal answer is made by React's
  * unwinding rather than by a branch on flags. The render components stay pure `props → JSX`.
  *
- * The nesting is **ErrorBoundary → Suspense → content**. An error boundary catches a throw from ANY
- * descendant, so an inner boundary would also catch `use()`'s re-thrown rejection; the outer position is
- * chosen because it additionally covers a throw from the FALLBACK itself, and because it is the conventional
- * reading order (catch, then wait). Do not read this as "inverting it crashes the card" — it does not.
+ * The nesting — **ErrorBoundary → Suspense → content**, and the `resetKeys` that make the error branch
+ * recoverable — lives in {@link NutritionBoundaryShell}, shared with {@link RecipeNutritionSlot} (the
+ * batch-reading twin) so the two cannot drift. Read that module for the invariant it holds: **neither branch
+ * is terminal.**
  *
- * ⛔ THE INVARIANT THIS COMPONENT EXISTS TO HOLD: **neither branch is terminal.** Every way this subtree can
- * stop waiting — a resolved reading, a resolved `unaccounted`, a rejection, a deadline enforced upstream as a
- * rejection — lands on a component that renders an ANSWER, and the error branch RESETS when a new lookup
- * arrives. Both halves are load-bearing: a skeleton that outlives its request is a spinner forever, and an
- * error state that outlives its request is the same defect wearing the other mask — invisible, because on a
- * card it renders as nothing. `resetKeys` is what closes the second half; see its note below.
- *
- * `react-error-boundary` is used rather than a hand-rolled class: error boundaries are a `componentDidCatch`
- * /`getDerivedStateFromError` mechanism with reset semantics that both apps already depend on this library
- * for (library-first).
+ * ⛔ THIS COMPONENT vs THE SLOT. This one renders ONE recipe's own promise, which is the right shape for a
+ * surface that has one (a detail view). A card GRID holds one BATCH promise for the whole page, and selecting
+ * a single recipe out of it has a fourth outcome — the recipe the response omitted — that this component's
+ * `Promise<RecipeCalorieState>` deliberately cannot express. That surface uses `RecipeNutritionSlot`.
  *
  * ⚠️ NO `onError` REPORTING, and that is a gap rather than a decision. During a food-service outage every
  * card's figure silently becomes nothing, which on screen is indistinguishable from an honest
@@ -30,14 +24,11 @@
  * no reporting seam of its own (the host owns Sentry), so wiring it belongs with the host that mounts these
  * boundaries. Recorded so the absence is a known hole, not an assumed non-issue.
  */
-import { useMessages } from '@commise/i18n/react';
-import { ErrorBoundary } from 'react-error-boundary';
-import { Suspense, use, type FC } from 'react';
+import { use, type FC } from 'react';
 
-import { recipeNutritionMessages } from './messages.js';
+import { NutritionBoundaryShell } from './NutritionBoundaryShell.js';
 import { RecipeCalorieChip } from './RecipeCalorieChip.js';
-import { RecipeCalorieSkeleton } from './RecipeCalorieSkeleton.js';
-import { NUTRITION_FOOD_UNAVAILABLE, type RecipeCalorieState } from './model.js';
+import type { RecipeCalorieState } from './model.js';
 
 /** Props for {@link RecipeNutritionBoundary}. */
 export interface RecipeNutritionBoundaryProps {
@@ -67,21 +58,8 @@ const RecipeNutritionContent: FC<RecipeNutritionBoundaryProps> = ({ nutritionPro
  * @param props - The pending reading for one recipe.
  * @returns The boundary rendering exactly one of the three states.
  */
-export const RecipeNutritionBoundary: FC<RecipeNutritionBoundaryProps> = ({ nutritionPromise }) => {
-    const { loadingLabel } = useMessages(recipeNutritionMessages);
-
-    return (
-        // `resetKeys` is NOT optional decoration. Without it `react-error-boundary` never leaves its error
-        // state (its `componentDidUpdate` resets only when a reset key CHANGES), so the first failed lookup
-        // would pin this card's figure off for the component's whole lifetime — surviving every refetch,
-        // refresh and filter change, and doing so silently, because the failure renders as nothing.
-        <ErrorBoundary
-            resetKeys={[nutritionPromise]}
-            fallback={<RecipeCalorieChip nutrition={NUTRITION_FOOD_UNAVAILABLE} />}
-        >
-            <Suspense fallback={<RecipeCalorieSkeleton label={loadingLabel} />}>
-                <RecipeNutritionContent nutritionPromise={nutritionPromise} />
-            </Suspense>
-        </ErrorBoundary>
-    );
-};
+export const RecipeNutritionBoundary: FC<RecipeNutritionBoundaryProps> = ({ nutritionPromise }) => (
+    <NutritionBoundaryShell resetKey={nutritionPromise}>
+        <RecipeNutritionContent nutritionPromise={nutritionPromise} />
+    </NutritionBoundaryShell>
+);

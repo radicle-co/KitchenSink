@@ -30,7 +30,7 @@ import type { CollectionMemberRowProps } from './model.js';
  *
  * @param props - The member recipe (with its `addedVia` provenance) and the select/remove callbacks.
  */
-export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSelect, onRemove }) => {
+export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSelect, onRemove, nutrition }) => {
     const { detail } = useMessages(collectionMessages);
     const cardModel = toRecipeCardModel(member);
     const sourceLabel =
@@ -40,7 +40,7 @@ export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSe
     const removeLabel = fillTemplate(detail.removeRecipe, { title: member.title });
 
     return (
-        <RecipeCard recipe={cardModel}>
+        <RecipeCard recipe={cardModel} nutrition={nutrition}>
             <div className="flex flex-col gap-2 p-4">
                 <div className="flex items-start justify-between gap-3">
                     <button

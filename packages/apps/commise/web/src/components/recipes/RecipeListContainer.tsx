@@ -10,16 +10,18 @@
 import {
     QUICK_TIME_FACET,
     RecipeList,
+    RecipeNutritionSlot,
     isQuickRecipe,
     matchesListFacet,
     toRecipeListItem,
 } from '@commise/features-recipes';
 import type { RecipeListItem } from '@commise/features-recipes';
+import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { toQueryStatus } from '@commise/features-core';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { FC } from 'react';
 
 import { recipeSourceHrefs } from './sourceTabHref';
@@ -91,10 +93,29 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
             .map(toRecipeListItem);
     }, [rawRecipes, searchValue, activeFacets]);
 
+    // The deferred calorie lookup (ADR-0021), started from the page the QUERY loaded — `rawRecipes`, NOT the
+    // filtered `recipes` below. Filtering is a view concern over an already-loaded page: batching the visible
+    // rows would re-key the read on every keystroke and every facet chip, so every chip on screen would blink
+    // back to its skeleton as the viewer types, and the same recipes would be re-fetched under a new key.
+    // ONE page ⇒ ONE request; each card gets a slot over that one promise.
+    const recipeIds = useMemo(() => rawRecipes.map((recipe) => recipe.id), [rawRecipes]);
+    const nutritionFor = useRecipeNutritionBatches([recipeIds]);
+    const renderNutrition = useCallback(
+        (recipeId: string) => {
+            const batch = nutritionFor(recipeId);
+
+            // `null` means no page on screen carries this recipe — we never asked, so the card says nothing
+            // rather than mounting a boundary with no promise to settle (a skeleton that renders forever).
+            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
+        },
+        [nutritionFor],
+    );
+
     return (
         <RecipeList
             status={status}
             recipes={recipes}
+            renderNutrition={renderNutrition}
             searchValue={searchValue}
             onSearchChange={setSearchValue}
             onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}

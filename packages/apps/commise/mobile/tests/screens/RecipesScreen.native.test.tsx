@@ -73,6 +73,15 @@ vi.mock('react-native-safe-area-context', () => ({
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
 
+// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
+// stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
+// assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
+vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
+    useRecipeNutritionBatches: () => () => null,
+}));
+
 const useRecipesMock = vi.mocked(useRecipes);
 const useRecipeMock = vi.mocked(useRecipe);
 

@@ -21,7 +21,12 @@
  *   query (so only searches that actually ran are recorded), persisted in `localStorage` via the injected
  *   `webRecentSearchStore` port. Choosing one routes through the SAME `onSearchChange` a keystroke does.
  */
-import { RecipeBrowseRails, RecipeDiscoveryList, RecipeFilterBar } from '@commise/features-recipes';
+import {
+    RecipeBrowseRails,
+    RecipeDiscoveryList,
+    RecipeFilterBar,
+    RecipeNutritionSlot,
+} from '@commise/features-recipes';
 import type { RecipeFacets } from '@commise/features-recipes';
 import type {
     FacetDimension,
@@ -50,12 +55,13 @@ import {
     useDebouncedValue,
     useIngredientFilterSearch,
     useRecentSearches,
+    useRecipeNutritionBatches,
 } from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useCloneRecipe, useInfiniteSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { FC } from 'react';
 
 import { webRecentSearchStore } from '@/lib/recentSearchStore';
@@ -161,6 +167,26 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
     // permits an empty object by design -- see its docstring for why the bar's shape is partial.
     const facets: RecipeFacets = search.data?.pages[0]?.facets ?? {};
 
+    // The deferred calorie lookup (ADR-0021), batched ONE REQUEST PER FETCHED PAGE. This surface is
+    // infinite: "Load more" appends, so a single batch over every accumulated id would change the id set —
+    // and with it the query key and the promise — on every page, dropping every chip already on screen back
+    // to its skeleton. Per-page keeps each page's promise settled and asks only about what is new.
+    const recipeIdPages = useMemo(
+        () => search.data?.pages.map((page) => page.results.map((result) => result.recipe.id)) ?? [],
+        [search.data],
+    );
+    const nutritionFor = useRecipeNutritionBatches(recipeIdPages);
+    const renderNutrition = useCallback(
+        (recipeId: string) => {
+            const batch = nutritionFor(recipeId);
+
+            // `null` = no page on screen carries this recipe, so we never asked: render nothing rather than a
+            // boundary with no promise to settle.
+            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
+        },
+        [nutritionFor],
+    );
+
     const searching = searchInput.trim().length > 0 || hasActiveFilters(filters);
     const browsing = !searching && !browseDismissed;
 
@@ -201,6 +227,7 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
             }
             onRetry={() => void search.refetch()}
             cloningId={cloningId}
+            renderNutrition={renderNutrition}
             hasActiveFilters={hasActiveFilters(filters)}
             // L5: this surface IS the "Community" source, so it mounts the SAME switcher the library does with
             // `community` active — the half that was missing. Without it a viewer who chose "Community" landed

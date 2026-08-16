@@ -209,7 +209,6 @@ function makeRecipe(over: Partial<Recipe> = {}): Recipe {
         hasSubstantiveEdit: false,
         dietaryFlags: [],
         tags: [],
-        hasPartialNutrition: false,
         currentVersion: 1,
         ratingCount: 0,
         createdAt: ISO,
@@ -1351,6 +1350,41 @@ export async function mockRecipeApi(
 
                 return route.fulfill({ status: 204, body: '' });
             }
+        }
+
+        // The DEFERRED calorie batch (`POST /api/v1/recipes/nutrition-batch`, ADR-0021). It answers from the
+        // SAME in-memory store the list/detail reads come from, and — deliberately — it OMITS any recipe the
+        // store does not hold, because omission is how the real contract expresses "not for you". A mock that
+        // answered for every id asked would make the omitted-recipe path (the one that renders blank) untestable
+        // from the outside, which is exactly the class of gap the store exists to prevent.
+        if (path.endsWith('/api/v1/recipes/nutrition-batch') && method === 'POST') {
+            const requested = body()['recipeIds'];
+            const ids = Array.isArray(requested) ? requested.filter((id): id is string => typeof id === 'string') : [];
+            const nutrition: Record<string, unknown> = {};
+
+            for (const id of ids) {
+                const recipe = store.get(id);
+
+                if (recipe === undefined) {
+                    continue;
+                }
+
+                const calories = recipe.nutrition?.calories;
+                nutrition[id] =
+                    calories === undefined
+                        ? { state: 'unaccounted', reason: 'no_nutrient_data' }
+                        : {
+                              state: 'known',
+                              caloriesPerServing: calories,
+                              proteinG: recipe.nutrition?.proteinG,
+                              carbsG: recipe.nutrition?.carbsG,
+                              fatG: recipe.nutrition?.fatG,
+                              isComplete: recipe.nutrition?.isComplete ?? true,
+                              freshness: 'fresh',
+                          };
+            }
+
+            return route.fulfill({ json: { nutrition } });
         }
 
         // Recipes: list + create.

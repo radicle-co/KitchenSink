@@ -32,9 +32,11 @@ import {
     CollectionDetail,
     CollectionHeader,
     PullUpdatesDialog,
+    RecipeNutritionSlot,
     collectionMessages,
     type CollectionDetailError,
 } from '@commise/features-recipes';
+import { useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { toDetailQueryView } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useAuth } from '@clerk/nextjs';
@@ -51,7 +53,7 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState, type FC } from 'react';
+import { useCallback, useMemo, useState, type FC } from 'react';
 
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { webMessages } from '@/i18n/messages';
@@ -133,6 +135,24 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
     // stranding the viewer on a permanent spinner with no retry; mobile's `CollectionDetailScreen` has always
     // routed it into ERROR, and web now agrees BY CONSTRUCTION, because both read the same rule.
     const view = toDetailQueryView(query);
+
+    // ⛔ ABOVE THE EARLY RETURNS, and that placement is the requirement rather than a style choice: this
+    // container returns for loading / error / not-found below, so a hook called only on the ready path would
+    // change the hook COUNT between renders and crash the surface the moment a refetch flips the branch.
+    // An empty page is skipped by the hook itself, so the not-yet-loaded case simply asks for nothing.
+    const memberIds = useMemo(
+        () => (view.status === 'ready' ? view.data.recipes.map((recipe) => recipe.id) : []),
+        [view],
+    );
+    const nutritionFor = useRecipeNutritionBatches([memberIds]);
+    const renderNutrition = useCallback(
+        (recipeId: string) => {
+            const batch = nutritionFor(recipeId);
+
+            return batch === null ? null : <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
+        },
+        [nutritionFor],
+    );
 
     if (view.status === 'loading') {
         return (
@@ -317,6 +337,7 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
                         onSelectRecipe={(recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route)}
                         onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id, recipeId })}
                         onAddRecipe={() => router.push(`/${locale}/collections/${id}/add` as Route)}
+                        renderNutrition={renderNutrition}
                     />
                 </div>
             </div>

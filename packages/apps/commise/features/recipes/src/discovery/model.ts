@@ -12,6 +12,7 @@ import { RecipeSearchSortBy, type RecipeSearchResult } from '@kitchensink/recipe
 
 import type { RecipeCardModel } from '../card/model.js';
 import type { RecipeListRefreshControl, RecipeListTabControl } from '../list/model.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
 /**
  * The sort options the discovery UI offers (S3), in display order — a subset of {@link RecipeSearchSortBy}
@@ -83,6 +84,16 @@ export interface RecipeBrowseRailsProps {
     readonly cloningId?: string | null;
     readonly onSelectRecipe: (id: string) => void;
     readonly onClone: (id: string) => void;
+    /**
+     * Render one recipe's deferred per-serving calorie figure for a RAIL card (see
+     * {@link RenderRecipeNutrition}). The host closes over the rails' batch promises, so a rail's cards are
+     * one request that lands together. Absent ⇒ the rails render no nutrition line.
+     *
+     * The rails are a card surface like any other, and the one a viewer meets FIRST: they are the default
+     * state of Discover, so omitting this would leave the screen's opening view the only card grid in the
+     * product with no figure.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /**
@@ -131,6 +142,11 @@ export interface RecipeDiscoveryCardProps {
     readonly onSelect: (id: string) => void;
     /** Invoked with the recipe id when the row's clone action is activated. */
     readonly onClone: (id: string) => void;
+    /**
+     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
+     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
+     */
+    readonly nutrition?: ReactNode;
 }
 
 /**
@@ -199,6 +215,12 @@ export interface RecipeDiscoveryListProps {
      * every list. The container wires it to the search query's `isRefetching` + `refetch`.
      */
     readonly refresh?: RecipeListRefreshControl;
+    /**
+     * How to render one card's deferred calorie figure — called once per visible card with its recipe id
+     * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
+     * ONE read. Absent ⇒ no card shows a nutrition line, which is the card's absent-value rule, not a gap.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /**

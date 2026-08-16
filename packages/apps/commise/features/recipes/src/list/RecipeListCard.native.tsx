@@ -14,6 +14,6 @@ import type { RecipeListCardProps } from './model.js';
  *
  * @param props - The recipe view-model and the selection callback.
  */
-export const RecipeListCard: FC<RecipeListCardProps> = ({ recipe, onSelect }) => (
-    <RecipeCard recipe={recipe} onSelect={onSelect} />
+export const RecipeListCard: FC<RecipeListCardProps> = ({ recipe, onSelect, nutrition }) => (
+    <RecipeCard recipe={recipe} onSelect={onSelect} nutrition={nutrition} />
 );

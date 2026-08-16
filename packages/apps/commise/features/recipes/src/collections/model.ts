@@ -6,6 +6,7 @@
  * controlled, presentational components: they fetch nothing and delegate every interaction upward.
  */
 import type { Locale } from '@commise/i18n';
+import type { ReactNode } from 'react';
 import type { Collection, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { PullDiff } from '@kitchensink/recipe-service-client';
 // Imported (not merely re-exported) because the props below reference both by name, and an `export … from`
@@ -13,6 +14,7 @@ import type { PullDiff } from '@kitchensink/recipe-service-client';
 import type { CollectionMemberRecipe, CollectionWithRecipesResponse } from '@kitchensink/schema-recipe';
 
 import type { RecipeListRefreshControl } from '../list/model.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
 /**
  * The minimal recipe shape the collection picker needs to list and add a candidate. The picker renders a
@@ -160,6 +162,12 @@ export interface CollectionDetailViewProps {
     readonly onAddRecipe: () => void;
     /** An honest error from the last delete/remove attempt to surface, or ABSENT for none (B17). */
     readonly error?: CollectionDetailError;
+    /**
+     * How to render one card's deferred calorie figure — called once per visible card with its recipe id
+     * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
+     * ONE read. Absent ⇒ no card shows a nutrition line, which is the card's absent-value rule, not a gap.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /**
@@ -177,6 +185,11 @@ export interface CollectionMemberRowProps {
     readonly onSelect: (recipeId: string) => void;
     /** Invoked with the member's recipe id when the row's remove control is activated. */
     readonly onRemove: (recipeId: string) => void;
+    /**
+     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
+     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
+     */
+    readonly nutrition?: ReactNode;
 }
 
 /**

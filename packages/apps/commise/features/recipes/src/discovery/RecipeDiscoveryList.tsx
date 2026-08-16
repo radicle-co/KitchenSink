@@ -65,6 +65,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     onExitToBrowse,
     recentSearches,
     tab,
+    renderNutrition,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -161,6 +162,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                                 isCloning={cloningId === result.recipe.id}
                                 onSelect={onSelectRecipe}
                                 onClone={onClone}
+                                nutrition={renderNutrition?.(result.recipe.id)}
                             />
                         </li>
                     ))}

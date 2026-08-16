@@ -39,12 +39,13 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
     isCloning,
     onSelect,
     onClone,
+    nutrition,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const cloneLabel = fillTemplate(isCloning ? discovery.cloningLabel : discovery.cloneLabel, { title: recipe.title });
 
     return (
-        <RecipeCard recipe={recipe}>
+        <RecipeCard recipe={recipe} nutrition={nutrition}>
             {/* Cover + title navigate; a single button so the row is reached by its title (list contract). */}
             <button
                 type="button"

@@ -21,6 +21,8 @@ export {
 } from './ingredientResolver.model.js';
 export type { DeriveViewStateInput, IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
 export { useDebouncedValue } from './useDebouncedValue.js';
+export { toRecipeNutritionPages, useRecipeNutritionBatches } from './useRecipeNutritionBatches.js';
+export type { RecipeNutritionLookup } from './useRecipeNutritionBatches.js';
 export { usePollIngredientStatus } from './usePollIngredientStatus.js';
 export { useRecipePhotoUpload } from './useRecipePhotoUpload.js';
 export type { RecipePhotoUploadFile, UseRecipePhotoUploadResult } from './useRecipePhotoUpload.js';

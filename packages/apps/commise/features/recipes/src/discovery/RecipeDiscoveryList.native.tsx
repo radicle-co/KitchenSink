@@ -61,6 +61,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     refresh,
     recentSearches,
     tab,
+    renderNutrition,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -161,6 +162,8 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 keyExtractor={(result) => result.recipe.id}
                 renderItem={({ item }) => (
                     <View role="listitem" style={styles.flashCell}>
+                        {/* ONE promise, N slots: the host's renderer closes over this page's single
+                            nutrition batch, so the grid's figures cost one request and land together. */}
                         <RecipeDiscoveryCard
                             recipe={toRecipeCardModel(item.recipe)}
                             authorHandle={item.recipe.authorHandle}
@@ -168,6 +171,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                             isCloning={cloningId === item.recipe.id}
                             onSelect={onSelectRecipe}
                             onClone={onClone}
+                            nutrition={renderNutrition?.(item.recipe.id)}
                         />
                     </View>
                 )}

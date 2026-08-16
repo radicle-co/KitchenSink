@@ -8,6 +8,7 @@
 import type { ReactNode } from 'react';
 
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
 /**
  * Maximum number of recent recipes the widget shows (US-0 / FR-046: up to 4 most
@@ -49,6 +50,11 @@ export interface RecipeWidgetCardProps {
 export interface RecentRecipeItemProps {
     recipe: RecipeSummary;
     readonly onSelect?: (id: string) => void;
+    /**
+     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
+     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
+     */
+    readonly nutrition?: ReactNode;
 }
 
 /**
@@ -59,6 +65,12 @@ export interface RecentRecipeItemProps {
 export interface RecentRecipeGridProps {
     readonly recipes: readonly RecipeSummary[];
     readonly onSelectRecipe?: (id: string) => void;
+    /**
+     * How to render one card's deferred calorie figure — called once per visible card with its recipe id
+     * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
+     * ONE read. Absent ⇒ no card shows a nutrition line, which is the card's absent-value rule, not a gap.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /**

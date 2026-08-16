@@ -24,7 +24,7 @@ import type { CollectionMemberRowProps } from './model.js';
  *
  * @param props - The member recipe (with its `addedVia` provenance) and the select/remove callbacks.
  */
-export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSelect, onRemove }) => {
+export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSelect, onRemove, nutrition }) => {
     const { detail } = useMessages(collectionMessages);
     const cardModel = toRecipeCardModel(member);
     const sourceLabel =
@@ -34,7 +34,9 @@ export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSe
     const removeLabel = fillTemplate(detail.removeRecipe, { title: member.title });
 
     return (
-        <RecipeCard recipe={cardModel}>
+        // The slot only reaches the meta row because this CUSTOM arrangement renders `RecipeCard.Meta` below;
+        // an arrangement that drops that part loses the figure silently (see `RecipeCardProps.nutrition`).
+        <RecipeCard recipe={cardModel} nutrition={nutrition}>
             <View style={styles.body}>
                 <View style={styles.headerRow}>
                     <Pressable

@@ -11,6 +11,14 @@ export {
     RECIPE_HOME_WIDGET_ID,
     recipeHomeWidgetDescriptor,
 } from './descriptor.js';
+export { RecipeCardGridSkeleton } from './card/RecipeCardGridSkeleton.js';
+export type { RecipeCardGridSkeletonProps } from './card/RecipeCardGridSkeleton.js';
+// The feature's own copy dictionary. Exported so a HOST that paints a recipe surface outside the feature's
+// own components — the web route-level `loading.tsx` grid skeleton — says the SAME "Loading recipes" the
+// in-page skeleton does, instead of minting a second string for the same wait.
+export { recipeMessages } from './messages.js';
+export type { RecipeMessages } from './messages.js';
+
 export {
     RecipeCard,
     STAR_COUNT,
@@ -27,6 +35,7 @@ export {
     RecipeCalorieChip,
     RecipeCalorieSkeleton,
     RecipeNutritionBoundary,
+    RecipeNutritionSlot,
     recipeNutritionMessages,
     toCalorieChipModel,
     unaccountedReasonText,
@@ -42,7 +51,9 @@ export type {
     RecipeCalorieUnaccountedReason,
     RecipeNutritionBoundaryProps,
     RecipeNutritionMessages,
+    RecipeNutritionSlotProps,
     RecipeNutritionViewState,
+    RenderRecipeNutrition,
 } from './nutrition/index.js';
 export {
     MAX_RECENT_RECIPES,

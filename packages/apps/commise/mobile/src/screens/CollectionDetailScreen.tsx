@@ -23,9 +23,11 @@ import {
     CollectionDetail,
     CollectionHeader,
     PullUpdatesDialog,
+    RecipeNutritionSlot,
     collectionMessages,
     type CollectionDetailError,
 } from '@commise/features-recipes';
+import { toRecipeNutritionPages, useRecipeNutritionBatches } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { canGoPrivate, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
 import { isPullDriftError, type PullDiff } from '@kitchensink/recipe-service-client';
@@ -117,6 +119,17 @@ export function CollectionDetailScreen({
         previewPull.reset();
         commitPull.reset();
     }
+
+    // The deferred calorie lookup (ADR-0021 §6). Called BEFORE the loading/error early-returns below (rules of
+    // hooks) and fed from the loaded members, so the rows paint over an in-flight request.
+    //
+    // ⛔ EVERY member, not the revealed window `CollectionDetail` renders: the window grows on tap, and
+    // batching it would re-batch on every "show more" and blink the figures already on screen back to
+    // skeletons. Chunked at the published cap, so a collection longer than the cap loses the tail's figures
+    // rather than the whole list's (`toRecipeNutritionPages`).
+    const nutritionFor = useRecipeNutritionBatches(
+        toRecipeNutritionPages((query.data?.recipes ?? []).map((member) => member.id)),
+    );
 
     const back = (
         <Pressable accessibilityRole="button" accessibilityLabel={t.back} onPress={onBack} style={styles.backButton}>
@@ -267,6 +280,15 @@ export function CollectionDetailScreen({
                 onSelectRecipe={onSelectRecipe}
                 onRemoveRecipe={(recipeId) => removeRecipe.mutate({ id: collectionId, recipeId })}
                 onAddRecipe={onAddRecipe}
+                // ONE promise, N slots. `null` ⇒ no batch covers this member: render nothing rather than a
+                // boundary with nothing to settle.
+                renderNutrition={(recipeId) => {
+                    const batch = nutritionFor(recipeId);
+
+                    return batch === null ? null : (
+                        <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />
+                    );
+                }}
             />
 
             {isCloned && (

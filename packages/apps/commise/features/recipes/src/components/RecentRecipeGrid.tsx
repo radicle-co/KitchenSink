@@ -21,16 +21,20 @@ import type { RecentRecipeGridProps } from './props.js';
  * renders an empty grid — the widget's orchestration layer selects the dedicated empty-state component
  * instead, so this leaf never has to invent a placeholder card.
  */
-export const RecentRecipeGrid: FC<RecentRecipeGridProps> = ({ recipes, onSelectRecipe }) => (
+export const RecentRecipeGrid: FC<RecentRecipeGridProps> = ({ recipes, onSelectRecipe, renderNutrition }) => (
     <ul className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {recipes.map((recipe) => (
             <li key={recipe.id}>
                 {/* `onSelect` is forwarded only when the host gave us one, so a destination-less surface
                     renders inert cards rather than buttons that do nothing. */}
                 {onSelectRecipe === undefined ? (
-                    <RecentRecipeItem recipe={recipe} />
+                    <RecentRecipeItem recipe={recipe} nutrition={renderNutrition?.(recipe.id)} />
                 ) : (
-                    <RecentRecipeItem recipe={recipe} onSelect={onSelectRecipe} />
+                    <RecentRecipeItem
+                        recipe={recipe}
+                        onSelect={onSelectRecipe}
+                        nutrition={renderNutrition?.(recipe.id)}
+                    />
                 )}
             </li>
         ))}

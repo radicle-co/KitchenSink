@@ -26,6 +26,7 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     onRetry,
     tab,
     filters,
+    renderNutrition,
 }) => {
     const { list } = useMessages(recipeMessages);
     const locale = useLocale();
@@ -80,7 +81,13 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {recipes.map((recipe) => (
                         <li key={recipe.id}>
-                            <RecipeListCard recipe={recipe} onSelect={onSelectRecipe} />
+                            {/* ONE promise, N slots: the host's renderer closes over the page's single
+                                nutrition batch, so this grid's figures cost one request and land together. */}
+                            <RecipeListCard
+                                recipe={recipe}
+                                onSelect={onSelectRecipe}
+                                nutrition={renderNutrition?.(recipe.id)}
+                            />
                         </li>
                     ))}
                 </ul>

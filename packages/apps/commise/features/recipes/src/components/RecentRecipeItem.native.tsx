@@ -16,5 +16,9 @@ import type { RecentRecipeItemProps } from './props.js';
  * A single recent-recipe card on React Native. Accessible content is the recipe title, time, servings,
  * difficulty, and rating. Actionable when `onSelect` is given; inert otherwise.
  */
-export const RecentRecipeItem: FC<RecentRecipeItemProps> = ({ recipe, onSelect }) =>
-    onSelect === undefined ? <RecipeCard recipe={recipe} /> : <RecipeCard recipe={recipe} onSelect={onSelect} />;
+export const RecentRecipeItem: FC<RecentRecipeItemProps> = ({ recipe, onSelect, nutrition }) =>
+    onSelect === undefined ? (
+        <RecipeCard recipe={recipe} nutrition={nutrition} />
+    ) : (
+        <RecipeCard recipe={recipe} onSelect={onSelect} nutrition={nutrition} />
+    );

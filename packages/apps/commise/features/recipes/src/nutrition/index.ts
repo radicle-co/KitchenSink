@@ -5,9 +5,10 @@
  * (`*.tsx`) or native (`*.native.tsx`) leaf at bundle time; the model and the copy are platform-agnostic, so
  * a consumer imports the SAME names on both platforms and the two can never drift on what they say.
  *
- * A consumer normally needs only `RecipeNutritionBoundary` — it selects the other two. The chip and
- * skeleton are exported for the surfaces that already hold a settled reading (no promise to suspend on) and
- * for the tests that must reach each state directly.
+ * A consumer normally needs only ONE of the two boundaries: `RecipeNutritionSlot` for a card GRID (one batch
+ * promise, N cards, and the omitted-recipe outcome), or `RecipeNutritionBoundary` for a surface that already
+ * holds a single recipe's promise. The chip and skeleton are exported for the surfaces that already hold a
+ * settled reading (no promise to suspend on) and for the tests that must reach each state directly.
  */
 export { RecipeCalorieChip } from './RecipeCalorieChip.js';
 export type { RecipeCalorieChipProps } from './RecipeCalorieChip.js';
@@ -17,6 +18,9 @@ export type { RecipeCalorieSkeletonProps } from './RecipeCalorieSkeleton.js';
 
 export { RecipeNutritionBoundary } from './RecipeNutritionBoundary.js';
 export type { RecipeNutritionBoundaryProps } from './RecipeNutritionBoundary.js';
+
+export { RecipeNutritionSlot } from './RecipeNutritionSlot.js';
+export type { RecipeNutritionSlotProps } from './RecipeNutritionSlot.js';
 
 export {
     NUTRITION_FOOD_UNAVAILABLE,
@@ -32,6 +36,7 @@ export type {
     RecipeCalorieUnaccounted,
     RecipeCalorieUnaccountedReason,
     RecipeNutritionViewState,
+    RenderRecipeNutrition,
 } from './model.js';
 
 export { recipeNutritionMessages } from './messages.js';

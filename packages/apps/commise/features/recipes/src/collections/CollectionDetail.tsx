@@ -35,6 +35,7 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     onRemoveRecipe,
     onAddRecipe,
     error,
+    renderNutrition,
 }) => {
     const { detail } = useMessages(collectionMessages);
     const [revealCount, setRevealCount] = useState(MEMBER_WINDOW_SIZE);
@@ -79,6 +80,7 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                                     member={recipe}
                                     onSelect={onSelectRecipe}
                                     onRemove={onRemoveRecipe}
+                                    nutrition={renderNutrition?.(recipe.id)}
                                 />
                             </li>
                         ))}

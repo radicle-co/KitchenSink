@@ -6,9 +6,11 @@
  * view-model projection and the copy-formatting primitives.
  */
 import type { Locale } from '@commise/i18n';
+import type { ReactNode } from 'react';
 
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
 import type { RecipeListMessages } from '../messages.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 
 /**
  * The three top-level states the list view renders. `ready` further splits into empty vs populated on
@@ -170,6 +172,11 @@ export interface RecipeListCardProps {
     readonly recipe: RecipeListItem;
     /** Invoked with the recipe id when the row is activated. */
     readonly onSelect: (id: string) => void;
+    /**
+     * This recipe's per-serving nutrition, as an already-decided NODE for the card's meta row (the host
+     * closes over the page's ONE batch promise — see `RenderRecipeNutrition`). Absent ⇒ no nutrition line.
+     */
+    readonly nutrition?: ReactNode;
 }
 
 /**
@@ -191,6 +198,12 @@ export interface RecipeListViewProps {
     readonly filters?: RecipeListFilterControl;
     /** Optional pull-to-refresh (L8) — mobile only; the web leaf ignores it (no web pull gesture). */
     readonly refresh?: RecipeListRefreshControl;
+    /**
+     * How to render one card's deferred calorie figure — called once per visible card with its recipe id
+     * (see {@link RenderRecipeNutrition}). The host closes over the page's ONE batch promise, so N cards are
+     * ONE read. Absent ⇒ no card shows a nutrition line, which is the card's absent-value rule, not a gap.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
 /** Pull-to-refresh control (L8): whether a refresh is in flight, and the refetch to run on pull. */

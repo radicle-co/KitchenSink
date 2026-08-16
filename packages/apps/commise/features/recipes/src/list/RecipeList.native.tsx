@@ -40,6 +40,7 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     tab,
     filters,
     refresh,
+    renderNutrition,
 }) => {
     const { list } = useMessages(recipeMessages);
     const locale = useLocale();
@@ -104,7 +105,13 @@ export const RecipeList: FC<RecipeListViewProps> = ({
             <FlashList
                 data={recipes}
                 keyExtractor={(recipe) => recipe.id}
-                renderItem={({ item }) => <RecipeListCard recipe={item} onSelect={onSelectRecipe} />}
+                // ONE promise, N slots: the host's renderer closes over the page's single nutrition batch,
+                // so this list's figures cost one request and land together. It also survives cell RECYCLING
+                // — a recycled cell re-renders the slot with a new id against an already-settled promise, so
+                // `use()` returns synchronously and no chip flickers back to a skeleton on scroll.
+                renderItem={({ item }) => (
+                    <RecipeListCard recipe={item} onSelect={onSelectRecipe} nutrition={renderNutrition?.(item.id)} />
+                )}
                 ListHeaderComponent={<Text style={styles.count}>{count}</Text>}
                 ItemSeparatorComponent={CardSeparator}
                 style={styles.cardsScroll}

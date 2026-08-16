@@ -32,6 +32,7 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     onRemoveRecipe,
     onAddRecipe,
     error,
+    renderNutrition,
 }) => {
     const { detail } = useMessages(collectionMessages);
     const [revealCount, setRevealCount] = useState(MEMBER_WINDOW_SIZE);
@@ -76,6 +77,10 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
                             member={recipe}
                             onSelect={onSelectRecipe}
                             onRemove={onRemoveRecipe}
+                            // ONE promise, N slots. The host batches EVERY member, not just the revealed
+                            // window: revealing more rows must not mint a new batch and blink the figures
+                            // already on screen back to skeletons.
+                            nutrition={renderNutrition?.(recipe.id)}
                         />
                     ))}
                     {remainingCount > 0 && (

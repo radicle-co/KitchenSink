@@ -15,13 +15,18 @@ import { RecentRecipeItem } from './RecentRecipeItem.js';
 import type { RecentRecipeGridProps } from './props.js';
 
 /** The recent-recipes card list on React Native: a single column of tappable cards. */
-export const RecentRecipeGrid: FC<RecentRecipeGridProps> = ({ recipes, onSelectRecipe }) => (
+export const RecentRecipeGrid: FC<RecentRecipeGridProps> = ({ recipes, onSelectRecipe, renderNutrition }) => (
     <View style={styles.list}>
         {recipes.map((recipe) =>
             onSelectRecipe === undefined ? (
-                <RecentRecipeItem key={recipe.id} recipe={recipe} />
+                <RecentRecipeItem key={recipe.id} recipe={recipe} nutrition={renderNutrition?.(recipe.id)} />
             ) : (
-                <RecentRecipeItem key={recipe.id} recipe={recipe} onSelect={onSelectRecipe} />
+                <RecentRecipeItem
+                    key={recipe.id}
+                    recipe={recipe}
+                    onSelect={onSelectRecipe}
+                    nutrition={renderNutrition?.(recipe.id)}
+                />
             ),
         )}
     </View>

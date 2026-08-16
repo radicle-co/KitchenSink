@@ -39,12 +39,15 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
     isCloning,
     onSelect,
     onClone,
+    nutrition,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const cloneLabel = fillTemplate(isCloning ? discovery.cloningLabel : discovery.cloneLabel, { title: recipe.title });
 
     return (
-        <RecipeCard recipe={recipe}>
+        // The slot only reaches the meta row because this CUSTOM arrangement renders `RecipeCard.Meta` below;
+        // an arrangement that drops that part loses the figure silently (see `RecipeCardProps.nutrition`).
+        <RecipeCard recipe={recipe} nutrition={nutrition}>
             <Pressable accessibilityRole="button" accessibilityLabel={recipe.title} onPress={() => onSelect(recipe.id)}>
                 <RecipeCard.Cover />
                 <View style={styles.titleWrap}>

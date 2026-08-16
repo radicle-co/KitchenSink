@@ -13,6 +13,7 @@ import type { FC } from 'react';
 import type { Recipe } from '@kitchensink/recipe-core';
 
 import { recipeMessages } from '../messages.js';
+import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import {
     MAX_RECENT_RECIPES,
     RecentRecipeGrid,
@@ -23,9 +24,16 @@ import {
 } from '../components/index.js';
 
 /**
- * Props for the recipe Home widget (native). The data contract is prop-driven rather than promise-driven
- * (React Native has no Suspense-for-data streaming), but the NAVIGATION contract is identical to the web
- * entry's: the widget reports the activated recipe's id and the host routes.
+ * Props for the recipe Home widget (native).
+ *
+ * The RECIPES arrive as props while the web entry takes a promise, because only web has a server pass to
+ * stream one from — the host slot reads them from the shared `useRecipes` query instead.
+ *
+ * ⚠️ CORRECTION (ADR-0021 §6). This docblock used to justify that with "React Native has no
+ * Suspense-for-data streaming". That is true of SERVER streaming (there is no RSC payload to stream into a
+ * React Native client) and FALSE of the mechanism: `use(promise)` + `<Suspense>` are client-side React 19 and
+ * behave identically here — which is exactly how {@link RecipeHomeWidgetProps.renderNutrition} works. Do not
+ * re-derive the old conclusion from the old sentence.
  */
 export interface RecipeHomeWidgetProps {
     recipes?: readonly Recipe[];
@@ -35,9 +43,20 @@ export interface RecipeHomeWidgetProps {
      * the same capability. Absent ⇒ the cards render inert.
      */
     readonly onSelectRecipe?: (id: string) => void;
+    /**
+     * Render one recipe's deferred per-serving calorie figure (see {@link RenderRecipeNutrition}) — the
+     * PROMISE-driven half of this widget, and the proof that the premise corrected above was wrong. The host
+     * slot closes over the widget's ONE batch promise. Absent ⇒ the cards render no nutrition line.
+     */
+    readonly renderNutrition?: RenderRecipeNutrition;
 }
 
-const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], isLoading = false, onSelectRecipe }) => {
+const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({
+    recipes = [],
+    isLoading = false,
+    onSelectRecipe,
+    renderNutrition,
+}) => {
     const { widgetTitle } = useMessages(recipeMessages);
 
     if (isLoading) {
@@ -60,7 +79,7 @@ const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], isLoading =
 
     return (
         <RecipeWidgetCard title={widgetTitle}>
-            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} />
+            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} renderNutrition={renderNutrition} />
         </RecipeWidgetCard>
     );
 };

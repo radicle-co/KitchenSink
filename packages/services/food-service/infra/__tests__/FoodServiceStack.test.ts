@@ -1,3 +1,7 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -19,6 +23,17 @@ import {
     foodServiceOriginForStage,
     foodSubdomainForStage,
 } from '../lib/FoodServiceStack.js';
+
+/**
+ * The migration runner's handler entry, derived the way `FoodServiceStack` derives it.
+ *
+ * The stack ships the real bundle when `dist-lambda/` exists and an inline placeholder otherwise, and the
+ * two have different entry points. CI never bundles before the unit tier, so a literal here is a test that
+ * only passes on a developer machine that happened to have built.
+ */
+const MIGRATION_HANDLER = existsSync(resolve(fileURLToPath(import.meta.url), '../../../dist-lambda'))
+    ? 'lambdas/migrate/handler.handler'
+    : 'index.handler';
 
 /** Food's own per-PR band, read from the allocation authority rather than restated as a literal. */
 const FOOD_PER_PR_BAND = ephemeralBandsForSlot(EPHEMERAL_SLOT_ORDER.indexOf('food')).perPr;
@@ -454,7 +469,16 @@ describe('Vestigial lambdas removed (Decisions B/C/D)', () => {
 describe('In-VPC migration-runner Lambda (T-191)', () => {
     it('creates the migration function in a PRIVATE subnet with the food DB env contract', () => {
         serviceTemplate.hasResourceProperties('AWS::Lambda::Function', {
-            Handler: 'lambdas/migrate/handler.handler',
+            // ⛔ DERIVED from the bundle's presence, exactly as the stack derives it — not the literal
+            // `lambdas/migrate/handler.handler`. The stack falls back to an inline placeholder (whose entry
+            // is `index.handler`) when `dist-lambda/` is absent, which is ALWAYS the case in CI: nothing
+            // runs `bundle:lambda` before the unit tier. Hard-coding the asset-branch handler made this test
+            // pass only on a machine that happened to have built, and fail in CI — the same
+            // "invisible if you built before" class as the stale-bundle defect in `esbuild.mjs`.
+            //
+            // Asserting the PAIRING is also stronger than asserting either literal: it catches a handler
+            // that no longer matches the code source it ships with, in whichever branch is taken.
+            Handler: MIGRATION_HANDLER,
             // Read from the shared pin, not re-hardcoded. The literal here was `nodejs22.x` and this test
             // was the only thing in the repo that broke when the runtime moved to `nodejs24.x` — a second
             // authoritative copy of a version that is supposed to live in exactly one place

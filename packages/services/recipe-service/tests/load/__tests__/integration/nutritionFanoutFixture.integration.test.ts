@@ -37,6 +37,7 @@ import {
     chunksFor,
     fanoutRecipeId,
     overlapRecipeId,
+    unresolvableRecipeId,
     wavesFor,
 } from '../../nutritionFanoutFixture.js';
 import { deleteNutritionFanoutFixture, seedNutritionFanoutFixture } from '../../prepareNutritionFanoutFixture.js';
@@ -124,7 +125,10 @@ describe.skipIf(!DATABASE_URL)('the nutrition-batch load fixture manufactures fa
         const padded = [...seeded];
 
         for (let index = padded.length; index < FANOUT_RECIPE_COUNT; index += 1) {
-            padded.push(`00000000-0000-4000-8000-${String(index).padStart(12, '0')}`);
+            // From the fixture's OWN id space, not a parallel scheme invented here — see
+            // `unresolvableRecipeId`. A hand-rolled range collides with whatever else the shared CI
+            // database holds, which turns this assertion into a claim about neighbouring specs.
+            padded.push(unresolvableRecipeId(index));
         }
 
         const short = await shapeOf(seeded);

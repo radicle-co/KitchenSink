@@ -111,6 +111,22 @@ function fixtureUuid(space: string, index: number): string {
     return `00000000-0000-4000-8000-${space}${String(index).padStart(11, '0')}`;
 }
 
+/**
+ * An id in a space this fixture NEVER seeds — a recipe that provably does not exist.
+ *
+ * ⛔ Minted from `fixtureUuid` rather than hand-rolled at the call site. The padding test previously built
+ * its own `00000000-0000-4000-8000-{12 digits}` ids, a scheme parallel to this one, and any row that any
+ * OTHER spec seeds in that range makes "padding adds no distinct food" false — which is exactly how it
+ * failed in CI, where the whole integration tier shares one database, while passing locally against a
+ * private one. Space `e` is owned by this fixture and written by nothing, so an id from it cannot resolve.
+ *
+ * @param index - The nth unresolvable id.
+ * @returns A well-formed UUID that matches no recipe.
+ */
+export function unresolvableRecipeId(index: number): string {
+    return fixtureUuid('e', index);
+}
+
 /** The `index`-th zero-overlap recipe. Pure. */
 export function fanoutRecipeId(index: number): string {
     return fixtureUuid('a', index);

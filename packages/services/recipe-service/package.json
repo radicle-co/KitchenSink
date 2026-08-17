@@ -36,6 +36,7 @@
         "@kitchensink/identity-core": "*",
         "@kitchensink/nest-error-envelope": "*",
         "@kitchensink/recipe-core": "*",
+        "@kitchensink/schema-food": "*",
         "@kitchensink/schema-recipe": "*",
         "@nestjs/common": "^11.0.0",
         "@nestjs/config": "^4.0.0",

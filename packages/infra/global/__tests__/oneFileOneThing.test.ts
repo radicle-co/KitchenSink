@@ -59,7 +59,7 @@
  * and adding one is a decision to be argued in the message that adds it.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -375,6 +375,12 @@ export function findGodFiles(
  *
  * DISCOVERED from git rather than enumerated, so a package added later is in scope without an edit here.
  *
+ * ⚠️ `git ls-files` describes the INDEX, not the working tree, so it still lists a file that has been
+ * DELETED but not yet staged — and reading it threw `ENOENT`, taking this whole suite down with an error
+ * that says nothing about "one file, one thing". Skipping the absent ones is not a weakening: a file that
+ * no longer exists cannot violate the rule, and the untracked-new-file direction is covered by the fact
+ * that a new file must be staged before it can be committed, which is when this gate runs for real.
+ *
  * @returns `[repo-relative path, source text]` pairs.
  * @sideEffect Shells out to `git ls-files` and reads every matched file.
  */
@@ -387,6 +393,7 @@ function trackedSources(): readonly (readonly [string, string])[] {
         .split('\n')
         .map((line) => line.trim())
         .filter((file) => file.length > 0 && !file.endsWith('.d.ts'))
+        .filter((file) => existsSync(path.join(repoRoot, file)))
         .map((file) => [file, readFileSync(path.join(repoRoot, file), 'utf8')] as const);
 }
 

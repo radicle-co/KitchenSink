@@ -180,6 +180,14 @@ jobs:
               if: steps.flags.outputs.deploy_webhooks == 'true'
               run: npm run infra:build --workspace=packages/services/identity-webhooks
 
+            # ⛔ Same two constraints as the prod pipeline: ABOVE the prune (`esbuild` is a devDependency,
+            # so a bundle on the far side of it exits 127) and above the identity `cdk deploy` (the stack
+            # ships `dist-lambda/` as the migration runner's asset, and an unbundled deploy ships a
+            # placeholder that THROWS and fails the in-deploy migration trigger).
+            - name: Bundle identity migration runner Lambda
+              if: steps.flags.outputs.deploy_service == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/identity
+
             - name: Prune dev dependencies
               run: npm prune --omit=dev
 
@@ -235,22 +243,27 @@ jobs:
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
 
+            # The SAFETY NET, not the mechanism: the schema is applied INSIDE the deploy above by an
+            # `aws-cdk-lib/triggers` Trigger the ECS service depends on. Kept because it is idempotent and
+            # catches a stage whose schema is behind for a reason no code change explains. ⛔ Must stay
+            # AFTER the deploy that ships its bundle — hoisting it invokes the previous deploy's Lambda
+            # with the previous migration set, which exits 0 having applied nothing.
+            - name: Run identity DB migrations
+              if: steps.flags.outputs.run_migrations == 'true'
+              run: |
+                  set -euo pipefail
+                  FN=$(bash .github/scripts/cfn-export.sh "kitchensink-identity-service-${STAGE}:IdentityMigrationFunctionName")
+                  echo "Invoking migration runner: $FN"
+                  ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/migrate-out.json)
+                  echo "Result: $(cat /tmp/migrate-out.json)"
+                  if [ "$ERR" != "None" ]; then echo "::error::identity DB migration failed"; exit 1; fi
+
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'
               env:
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
-
-            - name: Run identity DB migrations
-              if: steps.flags.outputs.run_migrations == 'true'
-              run: |
-                  set -euo pipefail
-                  FN=$(bash .github/scripts/cfn-export.sh "kitchensink-identity-webhooks-${STAGE}:MigrationFunctionName")
-                  echo "Invoking migration runner: $FN"
-                  ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/migrate-out.json)
-                  echo "Result: $(cat /tmp/migrate-out.json)"
-                  if [ "$ERR" != "None" ]; then echo "::error::identity DB migration failed"; exit 1; fi
 
             # Post-deploy smoke test. `cdk deploy` returning success only means the stack converged —
             # it does NOT prove the service serves traffic. Hit the public /health end-to-end

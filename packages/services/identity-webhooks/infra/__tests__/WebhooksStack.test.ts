@@ -114,8 +114,33 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
         template.resourceCountIs('AWS::ApiGateway::RestApi', 1);
     });
 
-    it('exposes the migration runner Lambda name for the deploy workflow to invoke', () => {
-        template.hasOutput('MigrationFunctionName', {});
+    /**
+     * REWRITTEN, not deleted. This asserted `hasOutput('MigrationFunctionName')` — correct while this stack
+     * owned the schema-migration runner, and now the assertion of a hazard.
+     *
+     * The runner moved to `IdentityServiceStack`, and the reason is ordering rather than tidiness. A
+     * migration must be applied BEFORE the ECS service that depends on it starts serving, and the only
+     * construct that can express that is an in-stack `triggers.Trigger` with the service taking a
+     * `DependsOn`. This stack is a DIFFERENT CDK app, deployed AFTER the identity service (it imports
+     * `kitchensink-identity-service-{stage}:IdentityServiceLogGroupName`), so a runner here can only ever
+     * run once the new tasks are already live against the old schema — which for identity is a failed
+     * sign-in, not a degraded read (`AuthMiddleware` read-through-creates a user row on every
+     * authenticated request).
+     *
+     * The coverage did not disappear: `packages/services/identity/infra/__tests__/stacks.test.ts` asserts
+     * the runner, the trigger, and the ECS `DependsOn` in the stack that now owns them. What is asserted
+     * HERE is that this stack no longer carries a SECOND runner — two runners on one schema is the drift
+     * the repo-wide `prodDeployMigrationOrder.test.ts` guard exists to catch, and the pipeline can only
+     * invoke one of them.
+     */
+    it('no longer owns a schema-migration runner — it moved to the identity service stack', () => {
+        const handlers = Object.values(template.findResources('AWS::Lambda::Function')).map(
+            (fn) => (fn as { Properties: { Handler?: string } }).Properties.Handler,
+        );
+
+        expect(handlers).not.toContain('handlers/migrate.handler');
+        expect(Object.keys(template.findOutputs('*'))).not.toContain('MigrationFunctionName');
+        expect(JSON.stringify(template.toJSON())).not.toContain('MigrationFunctionName');
     });
 
     describe('custom-domain base-path mappings (the public webhook URL shape)', () => {
@@ -181,11 +206,21 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
         });
     });
 
-    it('provisions the deletion-worker, reconciliation, and migration Lambdas alongside the webhook', () => {
-        // The four service Lambdas (webhook + deletion-worker + reconciliation + migration). CDK may add
-        // helper functions (e.g. log-retention), so assert "at least four" rather than an exact count.
-        const fnCount = Object.keys(template.findResources('AWS::Lambda::Function')).length;
-        expect(fnCount).toBeGreaterThanOrEqual(4);
+    it('provisions the deletion-worker and reconciliation Lambdas alongside the webhook', () => {
+        // Asserted by HANDLER rather than by count, which is what the migration runner's departure exposed:
+        // a bare `>= 4` reads the same whether a function was removed or merely renamed, and CDK adds helper
+        // functions (log-retention) that inflate it either way. Naming each handler makes a removal visible.
+        const handlers = Object.values(template.findResources('AWS::Lambda::Function')).map(
+            (fn) => (fn as { Properties: { Handler?: string } }).Properties.Handler,
+        );
+
+        expect(handlers).toEqual(
+            expect.arrayContaining([
+                'handlers/identityWebhook.handler',
+                'handlers/deletionWorker.handler',
+                'handlers/reconciliation.handler',
+            ]),
+        );
     });
 
     it('runs reconciliation on a nightly schedule (NOT off the deletion queue)', () => {

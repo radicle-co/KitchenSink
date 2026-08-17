@@ -292,14 +292,13 @@ export class WebhooksStack extends Stack {
         );
         dbCredentialsSecret.grantRead(erasureReconciliationRole);
 
-        // migration (handlers/migrate.ts): SLIM. It only reads the DB creds (DB_SECRET_ARN) to apply the
-        // bundled ordered SQL — no SQS, no bucket, no auth secret, and no migration-plan secret (that
-        // prop is unused by this handler; the runner discovers .sql files, it does not read a plan).
-        const migrationRole = makeLambdaRole(
-            'MigrationLambdaRole',
-            'Slim least-privilege role for the schema-migration Lambda (DB-secret read only)',
-        );
-        dbCredentialsSecret.grantRead(migrationRole);
+        // ⛔ NO migration role here any more, and none should come back. The schema-migration runner moved
+        // to `IdentityServiceStack` (with its own slim role) because a migration must be applied BEFORE the
+        // ECS service that depends on it starts serving, and the only construct that orders those two is an
+        // in-stack `triggers.Trigger` with the service taking a `DependsOn`. This is a different CDK app,
+        // and it deploys AFTER the identity service — it imports that stack's log-group export below — so a
+        // runner here could only ever run once the new tasks were already live against the old schema. For
+        // identity that is a failed sign-in, not a degraded read.
 
         const webhookFn = new lambda.Function(this, 'WebhookFunction', {
             runtime,
@@ -558,28 +557,13 @@ export class WebhooksStack extends Stack {
         });
         signatureRejectionAlarm.addAlarmAction(alarmAction);
 
-        // In-VPC schema migration runner. The RDS instance lives in private-isolated subnets, so the
-        // deploy pipeline (outside the VPC) invokes this Lambda to apply migrations. It reuses the
-        // lambda SG (which has egress to PostgreSQL) and the DB credentials in commonEnv.
-        const migrationFn = new lambda.Function(this, 'MigrationFunction', {
-            runtime,
-            architecture,
-            handler: 'handlers/migrate.handler',
-            code: lambda.Code.fromAsset(distPath),
-            role: migrationRole,
-            vpc,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-            securityGroups: [lambdaSecurityGroup],
-            timeout: Duration.seconds(300),
-            memorySize: 512,
-            environment: commonEnv,
-            logGroup: webhooksLogGroup,
-        });
-
-        new CfnOutput(this, 'MigrationFunctionName', {
-            value: migrationFn.functionName,
-            exportName: `${this.stackName}:MigrationFunctionName`,
-        });
+        // ⛔ The in-VPC schema migration runner used to be declared HERE, as `MigrationFunction`, exporting
+        // `{stackName}:MigrationFunctionName` for the deploy pipeline to invoke. Both are gone, and neither
+        // should be recreated in this stack — see the note where its role used to be built. The runner and
+        // its export now live in `IdentityServiceStack`
+        // (`kitchensink-identity-service-{stage}:IdentityMigrationFunctionName`), which is what both
+        // pipelines resolve. The SQL never moved: `packages/services/identity/src/database/migrations` was
+        // always its home, and this package's `esbuild.mjs` no longer copies it.
 
         const apiLogGroup = new logs.LogGroup(this, 'IdentityWebhooksApiLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,

@@ -22,7 +22,8 @@
  *
  * The real repair therefore lives INSIDE the deploy — an `aws-cdk-lib/triggers` `Trigger` between the
  * Lambda's code update and the ECS service's rollout, asserted in each service's own infra suite
- * (`FoodServiceStack.test.ts`, `RecipeServiceStack.test.ts`). What remains in the pipeline is the safety
+ * (`FoodServiceStack.test.ts`, `RecipeServiceStack.test.ts`, and identity's `stacks.test.ts` — identity's
+ * runner moved OUT of the webhooks app precisely so it could take part). What remains in the pipeline is the safety
  * net: an idempotent invocation that catches a stage whose schema is behind for a reason no code change
  * explains (a restore, a newly-created stage, a stack whose asset was never bundled). Both mechanisms
  * depend on the same ordering, so the ordering is what is pinned here.
@@ -38,7 +39,7 @@
  * being mentioned here.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -95,7 +96,7 @@ function migrationSteps(steps: readonly IndexedStep[]): readonly IndexedStep[] {
 
 /**
  * The CloudFormation stack a migration step resolves its function name from, reduced to the service token
- * in `kitchensink-{token}-${STAGE}` — which is also the directory name under `packages/services/`.
+ * in `kitchensink-{token}-${STAGE}`.
  *
  * Deriving the owning package from the stack the step ITSELF names is the point: it cannot drift from the
  * step, and it needs no table of services to maintain.
@@ -105,6 +106,57 @@ function migrationSteps(steps: readonly IndexedStep[]): readonly IndexedStep[] {
  */
 function stackTokens(step: IndexedStep): readonly string[] {
     return [...(step.run ?? '').matchAll(/kitchensink-([a-z0-9-]+)-\$\{STAGE\}/g)].map((match) => match[1] as string);
+}
+
+/**
+ * Stack token → the service package that DECLARES that stack, read out of each service's CDK entrypoint.
+ *
+ * ⚠️ This map used to be the identity function, and that assumption was load-bearing without saying so.
+ * It holds for `food-service` and `recipe-service`, whose stack is `kitchensink-{dir}-{stage}` — and it
+ * does NOT hold for identity, whose ECS stack is `kitchensink-identity-service-{stage}` inside
+ * `packages/services/identity`. While identity's migration runner lived in `identity-webhooks` (where the
+ * token happens to equal the directory) nothing here noticed; the day the runner moved to the stack that
+ * actually owns the ECS service, every assertion below would have failed on a naming coincidence rather
+ * than on a real ordering defect — and the tempting repair is to except identity, which would have
+ * exempted the one service where a schema/code mismatch is a failed SIGN-IN rather than a degraded read.
+ *
+ * So the pairing is DERIVED instead: each service's `infra/bin` CDK entrypoint states its own
+ * `stackName:` template, which is the same string CI passes to `describe-stacks`. Nothing is enumerated,
+ * and a service that renames its stack updates this map by editing the one place the name is written.
+ *
+ * @returns Stack token → the directory under `packages/services/` whose CDK app declares it.
+ * @sideEffect Shells out to git and reads the CDK entrypoints.
+ */
+function stackTokenOwners(): ReadonlyMap<string, string> {
+    const owners = new Map<string, string>();
+    const entrypoints = execFileSync('git', ['ls-files', '--', `${SERVICES_ROOT}/*/infra/bin/*.ts`], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+    })
+        .split('\n')
+        .filter(Boolean);
+
+    for (const file of entrypoints) {
+        const serviceDir = file.split('/')[2] as string;
+        const source = readFileSync(path.join(repoRoot, file), 'utf8');
+
+        for (const match of source.matchAll(/stackName:\s*`kitchensink-([a-z0-9-]+)-\$\{[A-Za-z_]\w*\}`/g)) {
+            owners.set(match[1] as string, serviceDir);
+        }
+    }
+
+    return owners;
+}
+
+/**
+ * The service package a migration step's stack belongs to.
+ *
+ * @param token - The service token from `kitchensink-{token}-${STAGE}`.
+ * @returns The directory under `packages/services/`, or `undefined` when no CDK app declares that stack.
+ * @sideEffect Reads the CDK entrypoints (via {@link stackTokenOwners}).
+ */
+function ownerPackage(token: string): string | undefined {
+    return stackTokenOwners().get(token);
 }
 
 /**
@@ -173,16 +225,27 @@ function cdkDeployPosition(steps: readonly IndexedStep[], serviceDir: string): C
 }
 
 /**
- * Service packages that ship a schema-migration runner Lambda handler, discovered from the tracked tree.
+ * Service packages that ship a schema-migration runner Lambda handler, discovered from the working tree.
  *
  * `git ls-files` rather than a directory walk, so build output (`dist/`, `dist-lambda/`) — which contains a
  * COMPILED copy of every one of these handlers — can never contribute a phantom service.
  *
+ * ⚠️ `--others --exclude-standard` as well as the index, and the `existsSync` filter below, because a
+ * plain `git ls-files` describes the INDEX rather than the tree: a runner added but not yet staged is
+ * invisible to it, and one deleted but not yet staged is still listed. A change that MOVES a runner from
+ * one package to another is BOTH at once, so the unadjusted guard would have been wrong in both directions
+ * for exactly the change it most needs to police — and a guard that only tells the truth after `git add`
+ * is a guard that gets run too late to stop anything. `--exclude-standard` keeps the build output out.
+ *
  * @returns The service directory names, sorted.
- * @sideEffect Shells out to git.
+ * @sideEffect Shells out to git and stats the results.
  */
 function runnerPackages(): readonly string[] {
-    const tracked = execFileSync('git', ['ls-files', '--', SERVICES_ROOT], { cwd: repoRoot, encoding: 'utf8' })
+    const tracked = execFileSync(
+        'git',
+        ['ls-files', '--cached', '--others', '--exclude-standard', '--', SERVICES_ROOT],
+        { cwd: repoRoot, encoding: 'utf8' },
+    )
         .split('\n')
         .filter(Boolean);
 
@@ -190,6 +253,12 @@ function runnerPackages(): readonly string[] {
         ...new Set(
             tracked
                 .filter((file) => /\/src\/.*(^|\/)migrate(\/handler)?\.ts$/.test(file))
+                // `git ls-files` reads the INDEX, which still lists a file that has been deleted in the
+                // working tree but not yet staged. Without this the guard would demand a pipeline step for a
+                // runner that no longer exists — which is exactly the state a change that MOVES a runner
+                // between packages passes through, and a guard that is wrong mid-change is a guard people
+                // learn to run after committing.
+                .filter((file) => existsSync(path.join(repoRoot, file)))
                 .map((file) => file.split('/')[2] as string),
         ),
     ].sort();
@@ -258,11 +327,23 @@ describe('prod-deploy.yml — a migration runner is invoked only AFTER the deplo
         );
     });
 
+    it('resolves every migration step to the service package whose CDK app declares that stack', () => {
+        // Anchors the pairing itself. Every assertion below turns a stack token into a package directory;
+        // if a token resolves to nothing, those assertions would compare against `undefined` and could only
+        // fail with a confusing message — or, worse, be "fixed" by excepting the service that broke.
+        const steps = prodDeploySteps();
+        const unowned = migrationSteps(steps)
+            .flatMap((step) => stackTokens(step))
+            .filter((token) => ownerPackage(token) === undefined);
+
+        expect(unowned, 'no packages/services/*/infra/bin CDK app declares these stacks').toEqual([]);
+    });
+
     it('places every migration step AFTER the cdk deploy of the app that owns its runner', () => {
         const steps = prodDeploySteps();
         const violations = migrationSteps(steps).flatMap((step) =>
             stackTokens(step).flatMap((token) => {
-                const deploy = cdkDeployPosition(steps, token);
+                const deploy = cdkDeployPosition(steps, ownerPackage(token) ?? token);
                 const invoke = commandPosition([step], /aws lambda invoke/);
 
                 return deploy === undefined || (invoke !== undefined && runsBefore(deploy, invoke) < 0)
@@ -284,7 +365,7 @@ describe('prod-deploy.yml — a migration runner is invoked only AFTER the deplo
         const steps = prodDeploySteps();
         const unpaired = migrationSteps(steps)
             .flatMap((step) => stackTokens(step))
-            .filter((token) => cdkDeployPosition(steps, token) === undefined);
+            .filter((token) => cdkDeployPosition(steps, ownerPackage(token) ?? token) === undefined);
 
         expect(unpaired, 'these migration steps name a stack no cdk deploy step in this job deploys').toEqual([]);
     });
@@ -294,7 +375,9 @@ describe('prod-deploy.yml — a migration runner is invoked only AFTER the deplo
         // from the tree, so a service that grows a runner and no pipeline step fails here — which is how
         // the recipe service's schema came to be missing entirely on a preview that was otherwise green.
         const steps = prodDeploySteps();
-        const invoked = new Set(migrationSteps(steps).flatMap((step) => stackTokens(step)));
+        const invoked = new Set(
+            migrationSteps(steps).flatMap((step) => stackTokens(step).map((token) => ownerPackage(token) ?? token)),
+        );
         const missing = runnerPackages().filter((service) => !invoked.has(service));
 
         expect(missing, 'these services ship a migration runner that prod-deploy never invokes').toEqual([]);

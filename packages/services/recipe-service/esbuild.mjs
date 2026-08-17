@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { copyFileSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +42,11 @@ writeFileSync('dist-lambda/package.json', `${JSON.stringify({ type: 'module' }, 
 // truth; this is a build-time file copy. Discovery is by readdir+sort, so adding a .sql is picked up.
 const pkgRoot = dirname(fileURLToPath(import.meta.url));
 const migrationsSrc = join(pkgRoot, 'src', 'database', 'migrations');
+// ⛔ EMPTIED first, never merged into. `dist-lambda/` is not cleaned between builds, so a copy that merely
+// adds files leaves yesterday's `.sql` in place: a migration that was RENAMED would ship under both names
+// and be applied twice under two different `schema_migrations` keys, and a deleted one would keep shipping.
+// It also makes a broken copy step invisible on a machine that had built before.
+rmSync('dist-lambda/migrations', { recursive: true, force: true });
 mkdirSync('dist-lambda/migrations', { recursive: true });
 const sqlFiles = readdirSync(migrationsSrc).filter((file) => file.endsWith('.sql'));
 for (const file of sqlFiles) {

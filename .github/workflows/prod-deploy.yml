@@ -296,6 +296,17 @@ jobs:
               if: steps.flags.outputs.deploy_global == 'true'
               run: npm run bundle:lambda --workspace=packages/infra/global
 
+            # ⛔ MUST stay ABOVE "Prune dev dependencies" (`esbuild` is a devDependency: a bundle on the far
+            # side of the prune exits 127) AND above the identity `cdk deploy` further down. The second half
+            # is the one with teeth: `esbuild.mjs` copies `src/database/migrations/*.sql` into `dist-lambda/`
+            # and the stack ships that directory as the migration runner's asset, so an unbundled deploy
+            # ships an inline placeholder that THROWS — failing the in-deploy migration trigger, and the
+            # deploy with it. `prodDeployMigrationOrder.test.ts` pins the position against that deploy;
+            # `workflowInvariants.test.ts` invariant 3 pins it against the prune.
+            - name: Bundle identity migration runner Lambda
+              if: steps.flags.outputs.deploy_service == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/identity
+
             - name: Prune dev dependencies
               run: npm prune --omit=dev
 
@@ -356,26 +367,31 @@ jobs:
               run: |
                   npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
 
+            # The SAFETY NET, not the mechanism. The schema is applied INSIDE the deploy above, by an
+            # `aws-cdk-lib/triggers` Trigger the ECS service takes a `DependsOn` on — which is the only
+            # ordering that keeps the new tasks off an old schema, and the reason the runner moved out of
+            # `kitchensink-identity-webhooks-${STAGE}` (a different CDK app, deployed AFTER this one).
+            #
+            # This step is kept because it is idempotent and catches a stage whose schema is behind for a
+            # reason no code change explains: a restore, a stage created later, a `deploy_webhooks`-only run.
+            # ⛔ It must stay AFTER the deploy that ships its bundle. Hoisting it invokes the PREVIOUS
+            # deploy's Lambda with the PREVIOUS migration set — exit 0, nothing applied, nothing to see.
+            - name: Run identity DB migrations
+              if: steps.flags.outputs.run_migrations == 'true'
+              run: |
+                  set -euo pipefail
+                  FN=$(bash .github/scripts/cfn-export.sh "kitchensink-identity-service-${STAGE}:IdentityMigrationFunctionName")
+                  echo "Invoking migration runner: $FN"
+                  ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/migrate-out.json)
+                  echo "Result: $(cat /tmp/migrate-out.json)"
+                  if [ "$ERR" != "None" ]; then echo "::error::identity DB migration failed"; exit 1; fi
+
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'
               env:
                   IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
-
-            # The RDS instance is in private-isolated subnets, unreachable from the runner — so apply
-            # schema migrations by invoking the in-VPC MigrationFunction Lambda (idempotent; tracked in
-            # schema_migrations). Runs after the webhooks stack (which owns the Lambda) and the global
-            # infra deploy (which gives the lambda SG egress to PostgreSQL).
-            - name: Run identity DB migrations
-              if: steps.flags.outputs.run_migrations == 'true'
-              run: |
-                  set -euo pipefail
-                  FN=$(bash .github/scripts/cfn-export.sh "kitchensink-identity-webhooks-${STAGE}:MigrationFunctionName")
-                  echo "Invoking migration runner: $FN"
-                  ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/migrate-out.json)
-                  echo "Result: $(cat /tmp/migrate-out.json)"
-                  if [ "$ERR" != "None" ]; then echo "::error::identity DB migration failed"; exit 1; fi
 
             # Post-deploy smoke test. `cdk deploy` returning success only means the stack converged —
             # it does NOT prove the service serves traffic. Hit the public /health end-to-end

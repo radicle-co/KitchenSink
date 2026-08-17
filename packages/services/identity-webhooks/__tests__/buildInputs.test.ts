@@ -13,6 +13,7 @@
  * so the two projects cannot both stop covering them.
  */
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -33,6 +34,14 @@ const PROGRAM_CACHE = new Map<string, readonly string[]>();
 
 /** Generous because the cost is process spawn + program construction, not our own code. */
 const TSC_TIMEOUT_MS = 120_000;
+
+/**
+ * The CDK stack source — the authority on which handlers must survive the build.
+ *
+ * @returns The stack's TypeScript source text.
+ * @sideEffect Reads the stack definition from disk.
+ */
+const stackSource = (): string => readFileSync(path.join(packageRoot, 'infra/lib/WebhooksStack.ts'), 'utf8');
 
 /**
  * Every file the given project would compile, including transitive imports.
@@ -83,17 +92,22 @@ describe('production build inputs', () => {
         () => {
             const files = programFiles('tsconfig.build.json');
 
-            // Each WebhooksStack function names `handlers/<name>.handler`; a handler dropped from the build is an
-            // asset that is missing at runtime rather than a visible build failure.
-            for (const handler of [
-                'identityWebhook',
-                'deletionWorker',
-                'reconciliation',
-                'tombstoneSweep',
-                'erasureReconciliation',
-                'logForwarder',
-                'migrate',
-            ]) {
+            // DERIVED from the stack, not listed here. The list used to be hardcoded, and a hardcoded list of
+            // the stack's own handlers rots in BOTH directions: a handler added to the stack and forgotten in
+            // the build is the failure this test exists for, and it could not see one; a handler REMOVED from
+            // the stack fails here for no reason at all (which is how the schema-migration runner's move to
+            // `IdentityServiceStack` reddened this file). Reading the stack means the subject can only ever be
+            // "what the stack actually references".
+            const referenced = [...stackSource().matchAll(/handler: '(?:handlers\/)([A-Za-z0-9_]+)\.handler'/g)].map(
+                (match) => match[1] as string,
+            );
+
+            // Non-vacuity: if the `handler:` shape ever changes, this must fail rather than assert nothing.
+            expect(referenced.length, 'expected to find the stack\u2019s Lambda handler references').toBeGreaterThan(3);
+
+            // A handler dropped from the build is an asset that is missing at RUNTIME rather than a visible
+            // build failure.
+            for (const handler of referenced) {
                 expect(files).toContain(path.join('src', 'handlers', `${handler}.ts`));
             }
         },

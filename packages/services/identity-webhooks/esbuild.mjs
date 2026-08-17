@@ -1,7 +1,5 @@
 import { build } from 'esbuild';
-import { copyFileSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { writeFileSync } from 'node:fs';
 
 /**
  * Bundle each Lambda handler into a self-contained ESM file under dist/, mirroring the src/ layout so
@@ -25,7 +23,6 @@ const entryPoints = [
     // Lambda references `handlers/erasureReconciliation.handler`.
     'src/handlers/erasureReconciliation.ts',
     'src/handlers/logForwarder.ts',
-    'src/handlers/migrate.ts',
 ];
 
 await build({
@@ -55,17 +52,10 @@ await build({
 
 writeFileSync('dist/package.json', `${JSON.stringify({ type: 'module' }, null, 2)}\n`);
 
-// Ship the identity-service migration SQL alongside the bundle so the migrate Lambda reads it at
-// runtime (handlers/migrate.ts) without a cross-package import. identity-service stays the single
-// source of truth; this is a build-time file copy, not a module import.
-const pkgRoot = dirname(fileURLToPath(import.meta.url));
-const migrationsSrc = join(pkgRoot, '..', 'identity', 'src', 'database', 'migrations');
-mkdirSync('dist/migrations', { recursive: true });
-const sqlFiles = readdirSync(migrationsSrc).filter((f) => f.endsWith('.sql'));
-for (const file of sqlFiles) {
-    copyFileSync(join(migrationsSrc, file), join('dist/migrations', file));
-}
+// ⛔ NO migration SQL is copied here any more. This package used to reach across into
+// `packages/services/identity/src/database/migrations` for the migrate handler that lived beside these
+// ones; that handler moved to `packages/services/identity`, which now bundles the SQL beside its own
+// runner (`packages/services/identity/esbuild.mjs`). The SQL's home never changed — only which bundle
+// carries it — so there is still exactly ONE source of truth for it.
 
-console.log(
-    `bundled ${entryPoints.length} handlers + ${sqlFiles.length} migrations to dist/ + wrote dist/package.json {"type":"module"}`,
-);
+console.log(`bundled ${entryPoints.length} handlers to dist/ + wrote dist/package.json {"type":"module"}`);

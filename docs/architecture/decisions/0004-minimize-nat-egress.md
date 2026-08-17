@@ -7,7 +7,7 @@
 
 ## ⚠️ Before you change this — the trap
 
-- **Do not move the webhook lambdas (`webhook`, `deletion-worker`, `reconciliation`, `migrate`) off the NAT, and do not "simplify" by deleting the NAT.** They are VPC-attached for exactly one reason: the RDS is `publiclyAccessible: false` (PRIVATE_ISOLATED), so they can only reach it from inside the VPC — and a VPC Lambda's only outbound paths are a NAT or VPC endpoints. `assignPublicIp` does **not** give a Lambda internet/AWS egress (that works only for Fargate/EC2). Removing the NAT silently breaks their Secrets Manager / CloudWatch Logs / SQS / Clerk access.
+- **Do not move the DB-bound lambdas (`webhook`, `deletion-worker`, `reconciliation` in `kitchensink-identity-webhooks-{stage}`, and the schema-migration runner, which now lives in `kitchensink-identity-service-{stage}`) off the NAT, and do not "simplify" by deleting the NAT.** They are VPC-attached for exactly one reason: the RDS is `publiclyAccessible: false` (PRIVATE_ISOLATED), so they can only reach it from inside the VPC — and a VPC Lambda's only outbound paths are a NAT or VPC endpoints. `assignPublicIp` does **not** give a Lambda internet/AWS egress (that works only for Fargate/EC2). Removing the NAT silently breaks their Secrets Manager / CloudWatch Logs / SQS / Clerk access.
 - **Do not open the NAT instance security group beyond the VPC CIDR.** It is `OUTBOUND_ONLY` by default with inbound restricted to the VPC range so only the private subnets route through it.
 - **The single NAT instance is a deliberate single-AZ SPOF + ~5 Gbps cap.** Fine at this scale; revisit (HA NAT instances per-AZ, or back to a managed Gateway) when uptime/throughput demands grow.
 - **Tasks now get public IPs.** That is _egress-only_ — inbound is locked to the ALB security group. Do not relax the service SG's inbound rules thinking the task is "already public."
@@ -23,7 +23,7 @@
 
 1. **NAT Gateway → NAT instance.** `NatProvider.instanceV2` on a `t4g.nano` (`OUTBOUND_ONLY`; inbound opened only to the VPC CIDR). ~$3–4/mo/stage. The `cdk diff` swap is a route **modification** (`NatGatewayId → InstanceId`) — no VPC/subnet/RDS replacement (ADR-0002 gate clean).
 2. **Fargate egresses via the IGW, not the NAT.** The identity service moves to **public subnets + `assignPublicIp`**, inbound still locked to the ALB SG; it reaches the private RDS intra-VPC by SG. (Food's API + worker do the same in 003.)
-3. **Minimize NAT membership to the irreducible set.** After (1)+(2), the NAT serves **only** the four DB-bound webhook lambdas — the "no alternative because the DB is private" case. A guard test asserts `NetworkStack` has 0 NAT Gateways and a `t4g.nano` instance.
+3. **Minimize NAT membership to the irreducible set.** After (1)+(2), the NAT serves **only** the DB-bound identity lambdas — the "no alternative because the DB is private" case. (The set is unchanged in substance since the schema-migration runner moved from `kitchensink-identity-webhooks-{stage}` to `kitchensink-identity-service-{stage}`: same function, same private subnets, same lambda security group, declared in the stack that owns the ECS service so an in-deploy `triggers.Trigger` can run it BEFORE that service serves traffic.) A guard test asserts `NetworkStack` has 0 NAT Gateways and a `t4g.nano` instance.
 
 ## Consequences
 

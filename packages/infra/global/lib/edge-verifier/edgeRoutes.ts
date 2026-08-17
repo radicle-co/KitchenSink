@@ -42,12 +42,19 @@
 /**
  * The request header the viewer-request function mints to partition the cache per principal.
  *
+ * ⛔ The `x-commise-` prefix is load-bearing, not branding. This was `x-edge-principal`, and creating the
+ * cache policy failed outright in production: `The parameter Headers contains x-edge-principal that is not
+ * allowed`. **`X-Edge-*` is CloudFront's own reserved namespace**, so a cache policy refuses to key on one.
+ * Nothing local catches that — the name is a plain string and the synth is valid CloudFormation — so
+ * `edgeVerifier.test.ts` now asserts the prefix instead. Do not move it back, and do not reach for
+ * `x-amz-cf-*`, `x-amzn-*` or `cloudfront-*` either; all are reserved.
+ *
  * ⛔ It is a CACHE PARTITION TOKEN, never an identity assertion. It reaches the origin only because a
  * cache-key header is forwarded by definition, and every origin authenticates the `Authorization` bearer
  * itself (`AuthMiddleware`). Nothing downstream may trust it — and nothing does: the value is an opaque
  * digest (`principalCacheKey`, in `./edgeVerifier.ts`), so it is not usable as a user id even by mistake.
  */
-export const EDGE_PRINCIPAL_HEADER = 'x-edge-principal';
+export const EDGE_PRINCIPAL_HEADER = 'x-commise-principal';
 
 /**
  * The path patterns served WITHOUT edge verification, in CloudFront path-pattern form.

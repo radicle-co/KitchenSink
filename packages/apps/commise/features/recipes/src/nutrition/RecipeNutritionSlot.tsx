@@ -9,7 +9,7 @@
  * they suspend together, settle together, and cost a single request. Handing each card its own promise would
  * pass every per-card test and issue N requests.
  *
- * ⛔ WHY THIS IS NOT A PROP ON {@link RecipeNutritionBoundary}. Selecting one recipe out of the batch has a
+ * ⛔ WHY THIS IS NOT A PROP ON `RecipeNutritionBoundary`. Selecting one recipe out of the batch has a
  * FOURTH outcome the per-recipe boundary deliberately cannot express: the recipe the response OMITTED.
  * `selectRecipeCalorieState` returns `null` for it, `null` is not assignable to that component's promise, and
  * the owner ruling (2026-08-16) is that such a card renders the skeleton while the lookup is in flight and

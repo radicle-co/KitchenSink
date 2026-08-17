@@ -6,7 +6,7 @@
  *
  * Pure `props → JSX` (no props): the shared {@link RecipeCardGridSkeleton} plus the one thing a `loading.tsx`
  * cannot supply on its own — the localized label, which comes from a client hook (`useMessages`), exactly as
- * {@link RouteLoadingState} resolves its own copy.
+ * `RouteLoadingState` resolves its own copy.
  *
  * ⛔ WHY NOT `RouteLoadingState` HERE. That is a single line of text. On a route that is about to paint a
  * four-column card grid, a text line means the whole page reflows the moment the segment resolves, and the

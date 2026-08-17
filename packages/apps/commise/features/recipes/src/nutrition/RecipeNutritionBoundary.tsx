@@ -9,7 +9,7 @@
  * unwinding rather than by a branch on flags. The render components stay pure `props → JSX`.
  *
  * The nesting — **ErrorBoundary → Suspense → content**, and the `resetKeys` that make the error branch
- * recoverable — lives in {@link NutritionBoundaryShell}, shared with {@link RecipeNutritionSlot} (the
+ * recoverable — lives in {@link NutritionBoundaryShell}, shared with `RecipeNutritionSlot` (the
  * batch-reading twin) so the two cannot drift. Read that module for the invariant it holds: **neither branch
  * is terminal.**
  *

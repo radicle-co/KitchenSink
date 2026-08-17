@@ -4,7 +4,7 @@
  * @module @commise/features-recipes/nutrition — the deferred figure's boundary NESTING, stated once (web).
  *
  * **Pattern: Template Method / Layout component.** Two surfaces suspend on a deferred calorie lookup —
- * {@link RecipeNutritionBoundary} (ONE recipe's promise) and {@link RecipeNutritionSlot} (one recipe's
+ * `RecipeNutritionBoundary` (ONE recipe's promise) and `RecipeNutritionSlot` (one recipe's
  * SELECTION out of a page-wide batch promise) — and they differ ONLY in what suspends inside. Everything
  * around it is the same invariant, so it lives here rather than in both:
  *
@@ -22,7 +22,7 @@
  *    surfaces — React caches a rejection on the promise object itself, so recovering requires a NEW promise.
  *
  * Extracting it is the point: before this, a fix to one surface's boundary (the `onError` reporting gap
- * recorded on {@link RecipeNutritionBoundary}, say) could silently miss the other. It is NOT exported from
+ * recorded on `RecipeNutritionBoundary`, say) could silently miss the other. It is NOT exported from
  * the feature barrel — it is how the two public components are built, not a third thing to compose.
  */
 import { useMessages } from '@commise/i18n/react';

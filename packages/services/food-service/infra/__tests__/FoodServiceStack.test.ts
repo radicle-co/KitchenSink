@@ -412,13 +412,33 @@ describe('USDA API-key secret grant (regression: suffix-less GetSecretValue neve
 });
 
 describe('Vestigial lambdas removed (Decisions B/C/D)', () => {
-    it('keeps ONLY the migration-runner Lambda (bulk-sync / stale-refresh / search-indexer are gone)', () => {
-        serviceTemplate.resourceCountIs('AWS::Lambda::Function', 1);
+    /**
+     * REWRITTEN, not relaxed. This asserted `resourceCountIs('AWS::Lambda::Function', 1)`, which stopped
+     * being true when the stack gained its in-deploy schema-migration trigger: `aws-cdk-lib/triggers`
+     * synthesizes a shared custom-resource PROVIDER handler alongside it. That function is CDK framework
+     * machinery, not a food workload, so counting it would have made the count meaningless — and simply
+     * bumping the number to 2 would have thrown away what the assertion was for.
+     *
+     * The invariant it was really expressing is unchanged and is now stated directly: this stack authors
+     * exactly ONE Lambda of its own (the migration runner), and every other function in the template is a
+     * CDK custom-resource provider. A resurrected bulk-sync/stale-refresh/search-indexer fails on the first
+     * assertion, not on a name match, so the check does not depend on guessing what it would be called.
+     */
+    it('authors ONLY the migration-runner Lambda (bulk-sync / stale-refresh / search-indexer are gone)', () => {
+        const logicalIds = Object.keys(serviceTemplate.findResources('AWS::Lambda::Function'));
+        const authored = logicalIds.filter((id) => id.startsWith('Food'));
 
-        const fns = serviceTemplate.findResources('AWS::Lambda::Function');
-        const logicalIds = Object.keys(fns).join(',');
+        expect(authored).toHaveLength(1);
+        expect(authored[0]).toMatch(/^FoodMigrationFunction/);
+        expect(logicalIds).not.toEqual([]);
 
-        expect(logicalIds).not.toMatch(/BulkSync|StaleRefresh|SearchIndexer/);
+        for (const id of logicalIds.filter((candidate) => !candidate.startsWith('Food'))) {
+            expect(id, 'the only non-food Lambdas here may be CDK custom-resource providers').toMatch(
+                /CustomResourceProvider/,
+            );
+        }
+
+        expect(logicalIds.join(',')).not.toMatch(/BulkSync|StaleRefresh|SearchIndexer/);
     });
 
     it('keeps the FoodEventBus but drops the now-consumer-less FoodFetchCompleted rule', () => {
@@ -1250,5 +1270,139 @@ describe('the message substrate this stack owns (plan U5)', () => {
 
         expect(statements).toHaveLength(1);
         expect(statements[0]?.Action).toEqual('dynamodb:PutItem');
+    });
+});
+
+/**
+ * The schema-before-traffic gate (ADR-0021 / the prod deploy-ordering hazard).
+ *
+ * ## What breaks without it
+ *
+ * `cdk deploy` returns only once the ECS service has STABILISED, so a pipeline that deploys and then
+ * invokes the migration runner has already put the new image in front of live traffic for the whole
+ * stabilisation window. Food's read path now joins `food_nutrient_view` (migration `0006`), so that window
+ * is `relation "food_nutrient_view" does not exist` — a 500 on every nutrition read, and since prod is
+ * fronted by CloudFront, a 500 that gets CACHED.
+ *
+ * ## Why the fix is IN the stack and not in the workflow
+ *
+ * The obvious repair — move the pipeline's migrate step above its `cdk deploy` — is WORSE than the hazard,
+ * and silently so. `esbuild.mjs` copies `src/db/migrations/*.sql` into `dist-lambda/migrations/` at BUILD
+ * time and that bundle ships WITH `cdk deploy`, so invoking first invokes the PREVIOUS deploy's Lambda with
+ * the PREVIOUS migration set: exit 0, "nothing pending", nothing applied, and the new tasks still meet a
+ * missing relation. The only place that can run the NEW migrations before the NEW tasks serve is inside the
+ * deploy, between the Lambda's code update and the ECS service's rollout — which is what
+ * `aws-cdk-lib/triggers` expresses and what these assertions pin.
+ *
+ * ## What each assertion is load-bearing for
+ *
+ * The trigger is tied to the function the PIPELINE invokes (the `FoodMigrationFunctionName` output), not to
+ * "some Lambda": a second runner drifting from the one CI calls is exactly the class of defect
+ * `serviceInfraWiringInvariants.test.ts` exists for. The ECS dependency is asserted over EVERY
+ * `AWS::ECS::Service` the stack synthesizes rather than a named one, so a third Fargate service added later
+ * is covered without anyone remembering this file. And the trigger's socket timeout is compared against the
+ * runner's OWN timeout rather than a literal, because the default is two minutes and the runner is allowed
+ * five — a full migration that outlives the socket fails a deploy that had already applied the schema.
+ */
+describe('the in-deploy schema-migration gate (ECS must not serve before the schema exists)', () => {
+    /** Resource shape as `Template.findResources` returns it — `DependsOn` included, which is the point. */
+    interface SynthesizedResource {
+        readonly Properties?: Record<string, unknown>;
+        readonly DependsOn?: string | readonly string[];
+    }
+
+    /**
+     * The logical ID the stack's `*MigrationFunctionName` output points at — i.e. the function the
+     * production pipeline resolves and invokes. Everything below is anchored to THIS function so the
+     * in-deploy gate cannot silently drift onto a different one.
+     *
+     * @param template - A synthesized template.
+     * @returns The migration function's logical ID.
+     */
+    function pipelineInvokedMigrationFunctionId(template: Template): string {
+        const outputs = template.findOutputs('*') as Record<string, { Value?: { Ref?: string } }>;
+        const entry = Object.entries(outputs).find(([name]) => name.endsWith('MigrationFunctionName'));
+
+        expect(entry, 'the stack must still export the migration function the pipeline invokes').toBeDefined();
+
+        const ref = entry?.[1].Value?.Ref;
+
+        expect(typeof ref, 'the migration-function output must be a Ref to a function in this stack').toBe('string');
+
+        return ref as string;
+    }
+
+    /** `DependsOn` is a string OR an array in CloudFormation; normalize before asserting membership. */
+    const dependsOn = (resource: SynthesizedResource): readonly string[] =>
+        typeof resource.DependsOn === 'string' ? [resource.DependsOn] : (resource.DependsOn ?? []);
+
+    it('runs the migration runner during the deploy, as a trigger on the function CI invokes', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+        const migrationFunctionId = pipelineInvokedMigrationFunctionId(template);
+        const versions = Object.entries(template.findResources('AWS::Lambda::Version')) as Array<
+            [string, { Properties: { FunctionName: { Ref?: string } } }]
+        >;
+
+        // One version, on the migration function. `triggers.Trigger` keys the custom resource to
+        // `handler.currentVersion`, which is what makes it re-execute when — and only when — the bundled
+        // migration set changes.
+        expect(versions).toHaveLength(1);
+        expect(versions[0]?.[1].Properties.FunctionName).toEqual({ Ref: migrationFunctionId });
+
+        const triggers = Object.entries(template.findResources('Custom::Trigger'));
+
+        expect(triggers, 'the stack must define exactly one in-deploy migration trigger').toHaveLength(1);
+        // Destructured rather than optional-chained through the cast: `(x?.y as T).z` short-circuits to
+        // `undefined` and THEN dereferences, so a missing trigger would throw a TypeError instead of
+        // failing the assertion above with its message. oxlint flags exactly that (no-unsafe-optional-chaining).
+        const trigger = triggers[0]?.[1] as SynthesizedResource | undefined;
+        const versionLogicalId = versions[0]?.[0];
+
+        expect(trigger, 'the trigger resource must be present to inspect').toBeDefined();
+        expect(versionLogicalId, 'the runner must publish a version for the trigger to key on').toBeDefined();
+        expect(JSON.stringify(trigger?.Properties?.['HandlerArn'])).toContain(versionLogicalId);
+
+        // `executeAfter(migrationFn)`, read back out of the template. The runner's `rds-db:connect` grant
+        // lands on its OWN role, inside the function's construct subtree, and the custom resource only
+        // *references* the version — so without this edge CloudFormation is free to invoke the trigger
+        // before that policy exists, and the first deploy of any new stage dies on an auth error.
+        const triggerDependsOn = dependsOn(triggers[0]?.[1] as SynthesizedResource);
+
+        expect(triggerDependsOn).toContain(migrationFunctionId);
+        expect(
+            triggerDependsOn.some((id) => /ServiceRoleDefaultPolicy/.test(id)),
+            'the trigger must wait for the runner role policy that carries its rds-db:connect grant',
+        ).toBe(true);
+    });
+
+    it('holds EVERY Fargate service in this stack behind that trigger', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+        const [triggerId] = Object.keys(template.findResources('Custom::Trigger'));
+        const services = Object.entries(template.findResources('AWS::ECS::Service')) as Array<
+            [string, SynthesizedResource]
+        >;
+
+        // Guards the loop below against passing vacuously if the services are ever renamed away.
+        expect(services.length, 'expected the API service and the fetch worker').toBeGreaterThanOrEqual(2);
+
+        for (const [serviceId, service] of services) {
+            expect(dependsOn(service), `${serviceId} must not roll out before the migration trigger has run`).toContain(
+                triggerId,
+            );
+        }
+    });
+
+    it('gives the trigger longer to wait than the runner is allowed to take', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+        const migrationFunctionId = pipelineInvokedMigrationFunctionId(template);
+        const runner = template.findResources('AWS::Lambda::Function')[migrationFunctionId] as {
+            Properties: { Timeout: number };
+        };
+        const [trigger] = Object.values(template.findResources('Custom::Trigger')) as SynthesizedResource[];
+
+        expect(Number(trigger?.Properties?.['Timeout'])).toBeGreaterThanOrEqual(runner.Properties.Timeout * 1000);
+        // A trigger that skipped re-execution on a code change would apply nothing on the deploy that
+        // introduces a migration — the exact silent no-op this whole gate exists to remove.
+        expect(trigger?.Properties?.['ExecuteOnHandlerChange']).toBe(true);
     });
 });

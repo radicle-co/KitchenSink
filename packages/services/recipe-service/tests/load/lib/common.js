@@ -32,13 +32,50 @@ export const VERSION_ARCHIVE_READ_P95_MS = Number(__ENV['RECIPE_VERSION_ARCHIVE_
 // search's 2s — a per-keystroke path cannot be given a full-text query's budget.
 export const SUGGEST_P95_MS = Number(__ENV['RECIPE_SUGGEST_P95_MS'] || 1500);
 
-// The deferred nutrition batch (POST /api/v1/recipes/nutrition-batch). Budgeted as a FAN-OUT bound rather
-// than a query cost: the endpoint is one indexed read plus one batched food call, and the food half splits
-// at food's 100-id per-request cap into SEQUENTIAL sub-requests — so the tail grows with the number of
-// DISTINCT foods a batch names, not with the number of recipes. 1.5s is deliberately tighter than search's
-// 2s (this is a card-grid enrichment, not a full-text query) and looser than the 500ms single-recipe read
-// (it legitimately crosses a service boundary). It is the number that decides whether the published
-// MAX_NUTRITION_RECIPE_IDS cap is a promise the service can keep.
+// --- The deferred nutrition batch (POST /api/v1/recipes/nutrition-batch) -------------------------
+//
+// THE DERIVATION. This endpoint's cost is a FAN-OUT, not a query: one indexed read of the named recipes'
+// lines, then the DISTINCT foods those lines reference, split at food's 100-id cap and issued in bounded
+// waves of six (`MAX_CONCURRENT_CHUNKS`, ADR-0021 §4). So
+//
+//     waves = ceil(ceil(distinctFoods / 100) / 6)      cost ≈ readCost + waves × foodLatency
+//
+// and the tail is dominated by the WAVE COUNT — which grows with distinct FOODS, not with recipe ids. At
+// the 500-recipe cap that is 1 wave for a shared pantry and 9 for a zero-overlap list: the same request
+// width, an order of magnitude apart in cost. `nutritionBatch.load.js` measures both ends.
+//
+// 1.5s is deliberately tighter than search's 2s (this is a card-grid enrichment, not a full-text query)
+// and looser than the 500ms single-recipe read (it legitimately crosses a service boundary). It is the
+// number that decides whether the published MAX_NUTRITION_RECIPE_IDS cap is a promise the service can keep.
+//
+// MEASURED — 2026-08-17 (the way SEARCH_P95_MS records its own history; a budget with no measurement
+// beside it is a preference). Recipe-service Docker image + Postgres 16 (Docker) + `foodNutritionStub.mjs`
+// standing in for food at a STATED per-chunk latency, WSL2 workstation, k6 v0.54.0, 15s ramp + 30s hold +
+// 5s down per scenario, scenarios run sequentially:
+//
+//   | scenario    | VUs | ids | distinct foods | waves | p95      | p99      |
+//   | ----------- | --- | --- | -------------- | ----- | -------- | -------- |
+//   | degraded    |   5 | 500 | food is down   |     0 |  73.22ms |  77.52ms |
+//   | page        |  50 |  20 |             12 |     1 |  32.74ms |  34.00ms |
+//   | plan        |  10 | 120 |          1,200 |     2 |  75.90ms |  91.76ms |
+//   | cap-overlap |   5 | 500 |             12 |     1 |  70.96ms |  74.87ms |
+//   | cap-fanout  |   5 | 500 |          5,000 |     9 | 411.08ms | 447.45ms |
+//
+// THE SLOPE IS THE FAN-OUT, and it was measured rather than assumed: sweeping the stub delay L over
+// 5/10/25/50ms moved the single-client cap-fanout median 131.6 / 173.9 / 309.3 / 538.2ms — a slope of
+// 9.04 ms per ms, against 9 predicted waves. The other two shapes came out at 2.03 (plan, 2 waves) and
+// 0.99 (cap-overlap, 1 wave). So the model is `≈ 87 + 9L` at the cap, and the 500-id cap crosses 500ms at
+// L ≈ 46ms and this 1500ms budget at L ≈ 157ms. Food budgets a single golden-record read at 50ms p95
+// (SC-001) and answers `?ids=` from a 3-query view, so the cap sits ON the 500ms line and comfortably
+// inside this one. Recorded in ADR-0021's residual-risk note.
+//
+// The superseded `capBatch` scenario measured 34.2ms for the same "500 ids" — one food call, 20 resolved
+// recipes — because it padded with ids that resolve to nothing. Same request width, 9.3× off the cost.
+//
+// ⛔ Workstation numbers against a STUBBED food origin: they bound the recipe-side STRUCTURE (how many
+// sequential round trips one batch costs), not production latency. A run against a real food service
+// measures the warm path instead; both must satisfy the same threshold, which is why the budget is stated
+// as a bound rather than derived from one happy-path measurement.
 export const NUTRITION_BATCH_P95_MS = Number(__ENV['RECIPE_NUTRITION_BATCH_P95_MS'] || 1500);
 
 // The published per-request recipe-id cap (mirrors MAX_NUTRITION_RECIPE_IDS in the authored contract,
@@ -49,6 +86,17 @@ export const MAX_NUTRITION_RECIPE_IDS = Number(__ENV['RECIPE_MAX_NUTRITION_IDS']
 
 // A realistic card-grid page — what a list/search surface actually asks about in one call.
 export const NUTRITION_PAGE_SIZE = Number(__ENV['RECIPE_NUTRITION_PAGE_SIZE'] || 20);
+
+// The bearer the nutrition scenarios forward so the gateway actually CALLS food.
+//
+// ⚠️ NOT cosmetic, and the reason the old scenario could not have measured fan-out even with the right
+// fixture: `FoodNutritionGateway.lookup` degrades WITHOUT issuing a request when it has no caller
+// credential to forward, and the CI load container boots with the dev-auth bypass (`RECIPE_DEV_AUTH_USER_ID`)
+// and therefore no bearer. A run with no `Authorization` header measures the short-circuit, never the
+// fan-out. `resolveCallerBearerToken` reads the header directly (independently of the bypass), so under the
+// bypass ANY string is forwarded; against a real stage this must be a real Clerk token in
+// RECIPE_LOAD_TEST_TOKEN, or the service answers 401 and `http_req_failed` trips.
+export const NUTRITION_FORWARD_BEARER = TOKEN || __ENV['RECIPE_LOAD_STUB_BEARER'] || 'load-test-forwarded-bearer';
 
 // --- Load shape ---------------------------------------------------------------------------------
 // SC-009's headline target is p95 <= 500ms at 10k concurrent. A single k6 runner cannot honestly
@@ -66,6 +114,83 @@ export function rampStages(peak) {
         { duration: HOLD, target: peak },
         { duration: RAMP_DOWN, target: 0 },
     ];
+}
+
+// Parse a k6 duration string ('90s', '2m', '1h') to seconds.
+function durationToSeconds(value) {
+    const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)$/.exec(String(value).trim());
+
+    if (!match) {
+        throw new Error(`common.js: unsupported duration '${value}' (expected e.g. '30s', '2m')`);
+    }
+
+    return Number(match[1]) * { ms: 0.001, s: 1, m: 60, h: 3600 }[match[2]];
+}
+
+// Wall-clock length of one `rampStages()` window, in whole seconds. A script whose scenarios must run one
+// AFTER another derives their `startTime` from this instead of hardcoding offsets — otherwise raising
+// RECIPE_LOAD_HOLD would silently make them overlap, and overlapping scenarios measure each other.
+export function rampSeconds() {
+    return Math.ceil(durationToSeconds(RAMP_UP) + durationToSeconds(HOLD) + durationToSeconds(RAMP_DOWN));
+}
+
+// Trend statistics a script reports. k6's DEFAULT set omits p(99), which leaves the tail invisible in both
+// the terminal summary and the `--summary-export` artifact CI uploads — and a threshold whose neighbouring
+// percentile you cannot read turns a failure into a guess.
+export const SUMMARY_TREND_STATS = ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'];
+
+// --- Generated fixtures ---------------------------------------------------------------------------
+//
+// ⚠️ k6's `open()` resolves relative to the directory of the MODULE WHOSE CODE IS EXECUTING at the moment
+// of the call — not the process cwd, and not the entry script's directory unconditionally. The distinction
+// only shows up in a helper module like this one, and it is exactly what decides './' vs '../'. The loader
+// below is a FUNCTION the entry script calls from its INIT context, which resolves against the ENTRY's
+// directory — so './<name>' is correct for a fixture beside the entry scripts even though this file sits one
+// directory deeper. (food's `lib/common.js` records the same measured table; identity opens its pool at its
+// helper's module TOP LEVEL, which is the other row of it and correctly uses '../'. The two are not copies —
+// do not reconcile them to one prefix.) VERIFIED on k6 v1.3.0 by running this script from both the package
+// directory and the repo root.
+//
+// GENERATED and GITIGNORED, so it is never present from a fresh checkout: this fails with an actionable
+// message naming the prepare step rather than letting k6 report a bare `open() failed`.
+const NUTRITION_FIXTURE_FILE = __ENV['RECIPE_NUTRITION_FIXTURE_FILE'] || './perf-fixture.json';
+
+// Load the recipe-id sets + measured fan-out `prepareNutritionFanoutFixture.ts` emitted. INIT context only.
+export function loadNutritionFixture() {
+    let raw;
+
+    try {
+        raw = open(NUTRITION_FIXTURE_FILE);
+    } catch (error) {
+        throw new Error(
+            `common.js: cannot read the nutrition fixture at '${NUTRITION_FIXTURE_FILE}' (${error}). It is ` +
+                'generated, gitignored, per-run state — run `DATABASE_URL=… npx tsx ' +
+                'tests/load/prepareNutritionFanoutFixture.ts` first (it seeds the two ingredient-overlap ' +
+                'recipe sets this scenario measures and emits their MEASURED distinct-food counts).',
+            { cause: error },
+        );
+    }
+
+    const fixture = JSON.parse(raw);
+
+    for (const set of ['fanout', 'overlap', 'page', 'plan']) {
+        const seeded = fixture[set];
+
+        if (!seeded || !Array.isArray(seeded.recipeIds) || seeded.recipeIds.length === 0) {
+            throw new Error(`common.js: fixture '${NUTRITION_FIXTURE_FILE}' has no ${set}.recipeIds — re-seed it.`);
+        }
+
+        // A set that names no food would make its scenario a request-width probe with a one-call fan-out —
+        // the defect ADR-0021's residual-risk note records. Fail at INIT rather than pass at the threshold.
+        if (!(seeded.distinctFoodCount > 0)) {
+            throw new Error(
+                `common.js: fixture set '${set}' names ${seeded.distinctFoodCount} distinct foods, so it cannot ` +
+                    'exercise the food fan-out at all — re-run the prepare step against a migrated database.',
+            );
+        }
+    }
+
+    return fixture;
 }
 
 // Read-only headers (Bearer + Accept).

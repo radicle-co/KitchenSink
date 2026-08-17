@@ -62,6 +62,23 @@ jobs:
         env:
             SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
+            # ⛔ WITHOUT THIS, EVERY PROD DEPLOY UNDOES THE U17 CUTOVER.
+            #
+            # `publicRecordOwnerFor` reads an UNSET value as "nobody has cut over" — the correct default,
+            # since it means a deploy that was never told to move anything changes nothing. But the U17
+            # cutover was performed by hand, so the pipeline never learned it: run unset, all three service
+            # stacks synthesize their PRE-cutover template, each re-creating the `{service}.commise.app`
+            # A-record that `EdgeStack` now owns and re-adding the public host to its ALB listener rule.
+            #
+            # Route 53 refuses a duplicate record, so that deploy either fails outright or — if EdgeStack's
+            # copy loses — takes the apex services off CloudFront and back onto a load balancer whose
+            # listener no longer accepts them. Both outcomes are written up in `publicRecordOwner.ts`.
+            #
+            # It stays here until the `basePath`-era machinery is retired and ownership is unconditional;
+            # `prodDeployMigrationOrder.test.ts` asserts this value equals the full service registry, so a
+            # fourth edge-fronted service fails there rather than in production.
+            EDGE_CUTOVER_SERVICES: food,recipe,identity
+
         steps:
             # ⚠️ DELIBERATE: this is the ONE checkout in this file that KEEPS its git credential
             # (`persist-credentials` is left at its `true` default), unlike every other checkout in the repo.

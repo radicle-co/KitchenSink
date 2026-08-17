@@ -19,6 +19,14 @@ appId: io.commise.mobile
 # invisible to a reviewer, because it looks exactly like a slow network. It also proves that a FAILED
 # nutrition lookup leaves the rest of the card intact, which is the degradation the ADR promises.
 #
+# ⚠️ AND THE HONEST LIMIT OF THAT CLAIM: "the placeholder is gone" is ALSO satisfied by a surface that never
+# mounted a nutrition slot at all — a card whose `renderNutrition` seam was dropped renders no chip and no
+# placeholder, exactly like a settled `unaccounted`. This environment gives no positive on-screen evidence to
+# distinguish them, because the correct answer here IS blank. That gap is covered by tiers that can see it:
+# `RecipeHomeWidget.test.tsx` asserts `renderNutrition` is invoked once per card, and the two native screen
+# tests below mount the real slot. Do not read a green run here as proof that the feature is WIRED — only as
+# proof that, wherever it is wired, nothing latches.
+#
 # The figure itself (`420 cal`, the stale/approximate variants, the omitted recipe) is proved in the vitest
 # tiers — `nutrition/__tests__/cardSurfaces.nutrition.native.test.tsx` and
 # `mobile/tests/screens/screenNutrition.native.test.tsx`.
@@ -35,14 +43,21 @@ appId: io.commise.mobile
 
 # ⛔ THE ASSERTION. The calorie placeholder must be GONE within a bound. The client puts a hard 12s deadline
 # on the batch (`NUTRITION_BATCH_DEADLINE_MS`) precisely so this promise always settles, and a settled batch —
-# answer, omission or failure — takes every skeleton down with it. 25s leaves room for the deadline plus one
-# retry on a cold emulator while still failing fast on a genuine latch.
+# answer, omission or failure — takes every skeleton down with it.
+#
+# ⚠️ THE BUDGET IS 30s BECAUSE THE WORST CASE IS 25s, and 25s therefore had ZERO margin. `withDeadline` is
+# called inside the `queryFn`, so each ATTEMPT gets its own fresh 12s — and `NUTRITION_BATCH_RETRIES` is 1,
+# behind TanStack's default ~1s backoff. A correct app can legitimately take 12 + 1 + 12 = 25s to settle, so a
+# 25s bound failed on the boundary rather than on a defect. (It never binds in THIS environment — nothing
+# listens on `FOOD_SERVICE_URL`, so the connection is refused in milliseconds — but a bound that is only safe
+# because the pathological path is unreachable is a flake waiting for the day it becomes reachable.) 30s keeps
+# 5s of margin and still fails fast on a genuine latch, which never comes down at all.
 #
 # It is asserted as a WAIT, not a bare `assertNotVisible`: the placeholder is legitimately on screen while the
 # request is in flight, so an immediate check would be racing the very state this feature is supposed to show.
 - extendedWaitUntil:
       notVisible: 'Loading calories'
-      timeout: 25000
+      timeout: 30000
 
 # A failed/absent figure must cost the CARD nothing: the row is still complete and still navigable. (Without
 # this, "no skeleton" would also pass on a screen that rendered no cards at all.)
@@ -62,6 +77,13 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'Discover recipes'
       timeout: 40000
+
+# ⛔ THE RAILS MUST HAVE RENDERED before "no placeholder" means anything here. 'Discover recipes' is the
+# screen's title and renders in the LOADING state too (see `discover-browse.yaml`), so waiting on it alone
+# would have let the placeholder assertion below pass over a screen holding zero cards — the same vacuity the
+# list half avoids by anchoring on a seeded row. 'Trending' is the first rail's static heading, rendered only
+# once the rails have data, and it is seed-drift-immune.
+- assertVisible: 'Trending'
 - extendedWaitUntil:
       notVisible: 'Loading calories'
-      timeout: 25000
+      timeout: 30000

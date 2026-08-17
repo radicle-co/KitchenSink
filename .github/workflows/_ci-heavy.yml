@@ -618,11 +618,8 @@ jobs:
             # that reports 'disabled' and skips the cross-service call entirely, silently retiring the behavior
             # under test.
             #
-            # `nutrition-batch` runs under the SAME unreachable-food condition, and for it that is the point
-            # rather than a limitation: the deferred calorie lookup must still answer `200` with a terminal
-            # `unaccounted` state per recipe when food is down, because its wire union deliberately has no
-            # `pending` member and a card grid has to be able to stop waiting. Its `http_req_failed` threshold
-            # is therefore the assertion that a food outage degrades the endpoint instead of failing it.
+            # `nutrition-batch` is NOT in this block — it needs a reachable food origin and a forwarded
+            # bearer, and it gets both in its own step below.
             - name: Run k6 load scripts
               working-directory: packages/services/recipe-service
               env:
@@ -630,11 +627,78 @@ jobs:
               run: |
                   k6 run --summary-export=k6-sc009-summary.json tests/load/sc009ReadWrite.load.js
                   k6 run --summary-export=k6-search-summary.json tests/load/searchLatency.load.js
-                  k6 run --summary-export=k6-nutrition-batch-summary.json tests/load/nutritionBatch.load.js
                   k6 run --summary-export=k6-suggest-summary.json tests/load/ingredientSuggestLatency.load.js
                   k6 run --summary-export=k6-save-summary.json tests/load/saveUnderArchive.load.js
                   k6 run --summary-export=k6-pull-summary.json tests/load/pullFromSource.load.js
                   k6 run --summary-export=k6-version-archive-summary.json tests/load/versionArchiveRead.load.js
+            # ── The deferred-nutrition batch (ADR-0021 §4 + its residual-risk note) ────────────────────
+            #
+            # This scenario is the ONE that needs food to ANSWER, and it is why it has its own steps. Its
+            # subject is a FAN-OUT: `ceil(distinctFoods / 100) / 6` waves of food calls, so it must be
+            # measured with (a) recipe ids that actually resolve to many distinct foods, and (b) a food
+            # origin that replies with latency. Without both it measures a short-circuit — which is exactly
+            # what the superseded `capBatch` did, padding to the 500-id cap with ids that resolve to no
+            # recipe and reporting a one-call fan-out as if it were the cap.
+            #
+            # The stub is started HERE and stopped immediately after, deliberately: every other script in
+            # this job is written against an UNREACHABLE food (`FOOD_SERVICE_URL` points at :3002 with
+            # nothing listening), and `ingredient-suggest-latency` in particular asserts that degradation.
+            # Bracketing the stub around one step leaves every one of those conditions untouched.
+            #
+            # ⚠️ Seeded AFTER the other scripts, on purpose: it adds 1,000 PUBLIC recipes and 5,012 catalog
+            # ingredients, which are rows `searchLatency` and `ingredientSuggestLatency` would otherwise have
+            # to rank. Their budgets were set against the corpus `prepare-db.mjs` leaves behind, so seeding
+            # earlier would move two other scenarios' numbers for a reason that has nothing to do with them.
+            - name: Seed the nutrition fan-out fixture
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
+              run: npx tsx packages/services/recipe-service/tests/load/prepareNutritionFanoutFixture.ts
+            - name: Run k6 nutrition-batch load script (ADR-0021 fan-out at the 500-id cap)
+              working-directory: packages/services/recipe-service
+              env:
+                  RECIPE_API_BASE_URL: http://localhost:3000
+                  # Five scenarios run SEQUENTIALLY (a fan-out cost is only attributable when the two
+                  # overlap shapes do not contend), so the shape is shortened the way the erasure step is:
+                  # 5 x 50s rather than 5 x 105s. Thresholds are unaffected — per tests/load/README.md the
+                  # peak/duration are env-driven precisely so a CI smoke shape and a full-scale run share
+                  # one pass/fail bar — so this trades sample count, never strictness.
+                  RECIPE_LOAD_RAMP_UP: 15s
+                  RECIPE_LOAD_HOLD: 30s
+                  RECIPE_LOAD_RAMP_DOWN: 5s
+                  # The stated assumption the measured p95 is a function of. 25ms is the order of a warm
+                  # same-region 100-id read (food budgets ONE golden-record read at 50ms p95, SC-001, and
+                  # answers `?ids=` from a 3-query view) — not a measurement of food, which is why it is
+                  # named here rather than buried, and why the summary is uploaded with it.
+                  FOOD_STUB_DELAY_MS: 25
+              run: |
+                  # Output to a FILE, not the step's stdout: a background process holding the step's pipes
+                  # can keep the runner waiting after the script itself has finished.
+                  node tests/load/foodNutritionStub.mjs > food-stub.log 2>&1 &
+                  STUB_PID=$!
+                  for i in $(seq 1 20); do
+                      if curl -sf http://localhost:3002/health > /dev/null; then break; fi
+                      sleep 1
+                  done
+                  curl -sf http://localhost:3002/health > /dev/null || { echo "food stub did not start"; exit 1; }
+                  curl -sf -X POST http://localhost:3002/__stats/reset > /dev/null
+                  k6 run --summary-export=k6-nutrition-batch-summary.json tests/load/nutritionBatch.load.js
+                  # ⛔ THE GUARD AGAINST THIS SCENARIO GOING QUIET AGAIN. k6's thresholds cannot tell a fast
+                  # answer from an empty one; the stub's own counters can. A run that measured the cap must
+                  # show chunked requests of exactly 100 ids — no chunking (or no requests at all) means the
+                  # gateway short-circuited and the latency numbers describe nothing.
+                  STATS=$(curl -sf http://localhost:3002/__stats)
+                  echo "food stub: ${STATS}"
+                  node -e '
+                      const s = JSON.parse(process.argv[1]);
+                      const fail = (m) => { console.error(`::error::nutrition fan-out was not exercised — ${m}`); process.exit(1); };
+                      if (s.requests < 1000) fail(`the stub served only ${s.requests} chunk requests`);
+                      if (s.maxIdsInOneRequest !== 100) fail(`the widest chunk was ${s.maxIdsInOneRequest} ids, not food’s 100-id cap`);
+                      if (s.overCapRequests > 0) fail(`${s.overCapRequests} requests exceeded food’s 100-id cap`);
+                  ' "${STATS}"
+                  # Bracket closed: every later step (and any step appended after this one) sees the same
+                  # unreachable food origin the rest of this job is written against. Reported either way
+                  # rather than suppressed — a stub that is already gone is information, not an excuse.
+                  if kill "${STUB_PID}"; then echo "food stub stopped"; else echo "food stub already exited"; fi
             - name: Upload k6 summaries
               if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

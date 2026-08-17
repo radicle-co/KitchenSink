@@ -88,7 +88,21 @@ export interface FoodNutritionGatewayOptions {
     readonly maxEntries?: number;
 }
 
-/** Five minutes: long enough to absorb a recipe list's repeats, short enough that a correction lands soon. */
+/**
+ * How long a cached entry stays servable during an outage.
+ *
+ * ⛔ This is NOT a read-through cache, and the comment here used to imply it was ("long enough to absorb a
+ * recipe list's repeats"). It absorbs nothing: `lookup` fetches EVERY wanted id on every call and reads the
+ * cache only for chunks that FAILED. A 500-recipe list re-pays all 50 chunk calls on every request —
+ * measured, at 13,968 chunk requests for the same 5,000 ids across one load run.
+ *
+ * That is a defensible design rather than a bug: always-fetch means always-fresh, and the cache exists as
+ * an outage fallback, so this TTL is the staleness bound on what a degraded read may serve — not a hit
+ * window. Making it read-through is the single largest performance win available here (repeat fan-out
+ * would collapse to ~0 waves), but it is a deliberate change to the freshness CONTRACT, not an
+ * optimization: a within-TTL hit that never touched food would still be reported `fresh`, and ADR-0021's
+ * vocabulary has no word for "recent but not just now". Decide that before changing this.
+ */
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 
 /** Enough for a large recipe list's distinct ingredients several times over, and still trivially bounded. */

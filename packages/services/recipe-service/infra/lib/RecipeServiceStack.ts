@@ -16,6 +16,7 @@ import {
     aws_route53_targets as route53_targets,
     aws_s3 as s3,
     aws_ssm as ssm,
+    triggers,
 } from 'aws-cdk-lib';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -385,10 +386,14 @@ export class RecipeServiceStack extends Stack {
             runtime: NODE_LAMBDA_RUNTIME,
             architecture: lambda.Architecture.ARM_64,
             handler: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler',
+            // ⛔ The placeholder THROWS. It used to resolve `{ ok: false, reason: "asset-not-built" }`, which
+            // is a SUCCESSFUL invocation — so an unbundled deploy reported a clean migration run having
+            // applied nothing. That is the same silent no-op the in-deploy trigger below exists to remove,
+            // arriving by a different road; failing the invocation fails the trigger, and so the deploy.
             code: hasLambdaAsset
                 ? lambda.Code.fromAsset(lambdaAssetDir)
                 : lambda.Code.fromInline(
-                      'export const handler = async () => ({ ok: false, reason: "asset-not-built" });',
+                      'exports.handler = async () => { throw new Error("recipe migration bundle missing: run `npm run bundle:lambda --workspace=packages/services/recipe-service` before deploying"); };',
                   ),
             timeout: Duration.seconds(300),
             memorySize: 512,
@@ -404,6 +409,39 @@ export class RecipeServiceStack extends Stack {
             securityGroups: [serviceSecurityGroup],
         });
         database.grantConnect(migrationFn, 'recipe_app');
+
+        // ── Schema BEFORE traffic: run the migration inside the deploy ───────────────────────────
+        //
+        // The mechanism and its trap are food's, verbatim — see `FoodServiceStack.ts` for the full
+        // reasoning. In short: `cdk deploy` returns only once ECS has stabilised, so deploy-then-migrate
+        // serves the new image against the old schema for the whole stabilisation window; and the
+        // instinctive repair (hoist the pipeline's migrate step) invokes the PREVIOUS deploy's bundle,
+        // which carries the PREVIOUS migration set and applies nothing while exiting 0. Only a trigger
+        // between the Lambda's code update and this service's rollout orders the two.
+        //
+        // ⚠️ RECIPE IS WHERE THIS INVERTS AN EXPLICIT PRIOR DECISION, so it is recorded here and not only
+        // in a PR description. `0019_drop_duplicated_nutrition.sql` is CONTRACTING — it drops seven columns
+        // — and its header states, correctly for the order in force at the time, "Production deploys CODE
+        // BEFORE MIGRATING". That is no longer true. From here the rule is EXPAND-FIRST: a migration must be
+        // safe to apply while the PREVIOUS release is still serving, so a destructive one ships in a LATER
+        // release than the code that stopped reading the column — never the same one. 0019 is already
+        // applied in production, so nothing about it changes; what changes is the discipline for the next
+        // one. That comment in 0019 is now stale and should be corrected in a follow-up.
+        //
+        // `executeAfter(migrationFn)` keeps the trigger behind the runner's own `rds-db:connect` grant (it
+        // lives on the function's role, inside its construct subtree); `timeout` is the trigger's SOCKET
+        // timeout, which defaults to two minutes while the runner is allowed five.
+        //
+        // ⚠️ NOT COVERED, and deliberately so: the recipe-workers stack is a separate CDK app deployed
+        // BEFORE this one, so its DB-bound Lambdas can still start against an un-migrated schema. They are
+        // queue- and schedule-driven with retries rather than serving user requests, which makes them a
+        // delay rather than an outage — but it is a real residual, not an oversight.
+        new triggers.Trigger(this, 'RecipeSchemaMigrations', {
+            handler: migrationFn,
+            timeout: Duration.seconds(360),
+            executeAfter: [migrationFn],
+            executeBefore: [apiService],
+        });
 
         // ── Shared ALB host-rule + DNS (mirrors identity/food) ──────────────────────────────────
         const subdomain = recipeSubdomainForStage(stage);

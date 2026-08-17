@@ -44,7 +44,12 @@ import {
     rampStages,
 } from './lib/common.js';
 
-const warmTokens = new SharedArray('warm-tokens', loadTokens);
+// ⛔ `() => loadTokens().users`, NOT `loadTokens`. `loadTokens()` returns the whole pool OBJECT
+// (`{ users: [...] }`), and `SharedArray` accepts only an array — passing the function directly aborts the
+// run with `GoError: only arrays can be made into SharedArray` before a single request is made. Every other
+// script in this directory already had it right; this one was wired into CI without ever being executed,
+// so the mistake was invisible until the heavy tier actually ran.
+const warmTokens = new SharedArray('warm-tokens', () => loadTokens().users);
 
 const rejectTrend = new Trend('food_auth_flood_reject_duration', true);
 const servedTrend = new Trend('food_auth_flood_served_duration', true);

@@ -282,10 +282,42 @@ jobs:
               run: npm run contract:verify
 
     test:
-        name: Test
+        name: Test (${{ matrix.group }})
         timeout-minutes: 30
         runs-on: ubuntu-latest
         needs: [install]
+        # ⛔ THREE GROUPS, and the split is by MEASURED cost, not by taste.
+        #
+        # `turbo run test` was 399s on one runner. Per-package wall times (measured 2026-08-18):
+        # infra-global 71.5s, web 42.7s, food-service 40.1s, recipe-service 37.1s, mobile 33.9s,
+        # features-recipes 32.4s, everything else under 25s. `infra-global` alone is the longest pole and
+        # is ALSO the one task that can never be cached (below), so it gets its own runner; the rest split
+        # frontend from services.
+        #
+        # ⚠️ The groups are asserted COMPLETE by `unitTestGroupCoverage.test.ts` — every workspace package
+        # with a `test` script must be reachable from exactly one group. A package added to none would
+        # silently stop being tested while CI stayed green, which is the failure this split could otherwise
+        # introduce.
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - group: infra
+                      filter: --filter=@kitchensink/infra-global
+                    # `!@commise/test-utils` because it is NAMED `@commise/*` but LIVES in
+                    # `packages/tools/`, so both this glob and the services group's directory glob claim
+                    # it — the coverage gate caught it being tested twice, on two runners.
+                    - group: frontend
+                      filter: --filter=@commise/* --filter=!@commise/test-utils
+                    # Directory globs, so a new package under any of these is covered the day it lands —
+                    # `packages/utils/*` is here because the coverage gate caught `identity-utils` falling
+                    # through every filter in this block's first draft.
+                    - group: services
+                      filter: >-
+                          --filter=./packages/services/* --filter=./packages/shared/*
+                          --filter=./packages/schemas/* --filter=./packages/tools/*
+                          --filter=./packages/clients/* --filter=./packages/infra/*
+                          --filter=./packages/utils/* --filter=!@kitchensink/infra-global
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -304,7 +336,43 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            - run: npx turbo run test
+            # ⛔ PERSIST turbo's cache, which this repo has deliberately not done until now.
+            #
+            # `turbo.json` records why: `infra-global`'s gates read `.github/**`, `specs/*/tasks.md` and
+            # OTHER packages' sources, and turbo does not hash files belonging to another workspace package
+            # into a task's inputs (measured: 993 files declared, ZERO resolved from
+            # `packages/services/*/src/**`). A cache hit there would report green on gates that never ran
+            # against this commit.
+            #
+            # That hazard is already fenced: `@kitchensink/infra-global#test` is `cache: false`. Verified
+            # before enabling this — a second run reports `identity-core:test: cache hit` and
+            # `infra-global:test: cache bypass, force executing`. So the cache accelerates the other 56
+            # tasks and cannot serve a stale answer for the one that matters.
+            #
+            # Keyed on the lockfile AND the commit so each run writes its own entry, with `restore-keys`
+            # falling back to the newest prior cache for the same dependency set.
+            - name: Restore turbo cache
+              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: .turbo/cache
+                  key: ${{ runner.os }}-turbo-${{ matrix.group }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+                  restore-keys: |
+                      ${{ runner.os }}-turbo-${{ matrix.group }}-${{ hashFiles('package-lock.json') }}-
+                      ${{ runner.os }}-turbo-${{ matrix.group }}-
+            # ⛔ Via `env:` and word-split under `set -f`, not `${{ }}` interpolated into the command.
+            #
+            # Two reasons, both load-bearing. (1) This file's own convention keeps `${{ }}` out of `run:`
+            # bodies so a pattern can never be copied to a value an outsider controls. (2) The filters
+            # contain `*`, and an unquoted glob is subject to PATHNAME EXPANSION before turbo ever sees it —
+            # `set -f` disables that, while leaving the word splitting that turns one string into several
+            # `--filter` arguments. Quoting `"$TEST_FILTER"` instead would pass the whole thing as a SINGLE
+            # argument, which turbo reads as one malformed filter and answers with zero tasks.
+            - name: Run unit tests (${{ matrix.group }})
+              env:
+                  TEST_FILTER: ${{ matrix.filter }}
+              run: |
+                  set -f
+                  npx turbo run test $TEST_FILTER
 
     integration-identity:
         name: Integration (identity — Postgres)
@@ -1006,7 +1074,21 @@ jobs:
             # merged report — the whole point of the blob/merge split below — would be missing most of the run.
             fail-fast: false
             matrix:
-                shard: [1, 2, 3, 4]
+                # ⛔ EIGHT, and the ceiling is arithmetic — see the Clerk interlock above.
+                #
+                # The only Clerk limit SHARED across shards is the Backend API (100 req/10s on a dev
+                # instance); per-user and per-IP limits do not bind, because each shard provisions its own
+                # user on its own runner IP. This suite spends ~1 BAPI call per test, so:
+                #   4 shards ≈ 5 req/10s  → 20x margin      8 shards ≈ 10 req/10s → 10x margin
+                #
+                # Measured 2026-08-18: 108 tests in 34 files at ~9.8s each, and `setup` is a DEPENDENCY
+                # project so it is not sharded — it runs IN FULL in every shard, at a measured 32-35s.
+                # That fixed toll is what bounds this, not Clerk:
+                #   4 shards → 27 tests + 35s setup ≈ 300s     8 shards → 14 tests + 35s ≈ 167s
+                # Past ~8 the toll dominates (16 shards would pay 16x35s to run 7 tests each), so raising
+                # this further buys nothing. `--shard` distributes whole FILES, and there are 34 of them,
+                # so 8 shards still have real work to split.
+                shard: [1, 2, 3, 4, 5, 6, 7, 8]
         # `id-token: write` is what makes the Argos upload SECRETLESS (U10a): the CLI exchanges a short-lived
         # GitHub OIDC token for a build-scoped Argos credential, so no `ARGOS_TOKEN` secret exists to leak — and
         # a FORK pull request, which cannot read repository secrets at all, still uploads (Argos falls back to

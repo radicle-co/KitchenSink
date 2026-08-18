@@ -569,7 +569,7 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // Clerk/AWS secrets are withheld from Dependabot and fork PRs by design; the soft failure lets the
     // dependent steps skip on `steps.secrets.outcome`, instead of reporting a red check nobody can fix.
     'continue-on-error _ci-heavy.yml::e2e-mobile-maestro::Load ${{ inputs.stage }} Clerk secrets ×1',
-    'continue-on-error _ci.yml::build::Load ${{ inputs.stage }} secrets ×1',
+    'continue-on-error _ci.yml::build::Load sandbox (dev-instance) Clerk secrets for the web build ×1',
     'continue-on-error _ci.yml::e2e-backend::Load ${{ inputs.stage }} secrets ×1',
     'continue-on-error _ci.yml::e2e-mobile::Load ${{ inputs.stage }} secrets ×1',
     'continue-on-error _ci.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for localhost web E2E ×1',
@@ -1004,11 +1004,36 @@ describe('invariant 2 — every artifact download has an upload before it', () =
         expect(uploads.length).toBeGreaterThan(0);
         expect(downloaded.length).toBeGreaterThan(0);
 
-        // And every download is a PATTERN over the sharded blob/visual artifacts — the shape `merge-multiple`
-        // needs. Naming one artifact exactly would silently pick up only shard 1's results.
+        // REWRITTEN (was: "every download is a PATTERN"). That held only while every download in the tree
+        // consumed a SHARDED artifact, and it stopped being true when `e2e-web` began serving a production
+        // build: the `build` job publishes ONE `.next` artifact and each of the eight shards downloads that
+        // same one BY NAME, which is correct — a `*` pattern there would be the mistake.
+        //
+        // So the rule is stated against the thing that actually makes an exact name wrong: a SHARDED upload
+        // names itself with `${{ matrix.… }}`, and there is no literal a `name:` can hold that collects all of
+        // them. Reaching for one silently yields shard 1 alone — a merged report that looks complete and is
+        // missing seven eighths of the run. Checking the literal PREFIX (rather than equality) catches the
+        // hand-written `…-1` variant too, which equality would wave through.
+        const shardedPrefixes = uploads
+            .map((name) => name.indexOf('${{ matrix.'))
+            .map((index, position) => (index === -1 ? null : (uploads[position] as string).slice(0, index)))
+            .filter((prefix): prefix is string => prefix !== null);
+
         for (const download of downloaded) {
-            expect(download.pattern).toContain('*');
+            const named = download.name;
+
+            if (named === undefined) {
+                continue;
+            }
+
+            expect(
+                shardedPrefixes.filter((prefix) => named.startsWith(prefix)),
+                `${download.step} names \`${named}\`, which is one leg of a sharded artifact — use a pattern`,
+            ).toEqual([]);
         }
+
+        // …and the pattern-shaped consumers still exist, so the paragraph above is not guarding an empty set.
+        expect(downloaded.some((download) => (download.pattern ?? '').includes('*'))).toBe(true);
     });
 });
 

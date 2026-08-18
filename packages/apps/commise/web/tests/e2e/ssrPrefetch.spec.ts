@@ -9,12 +9,21 @@ import { signInWithTicket } from './utils/auth';
  *
  * The web e2e harness cannot mock the Next.js SERVER's own outbound fetch: `page.route` only intercepts
  * requests the BROWSER issues, but a `page.tsx`'s server-side `RecipeServiceClient` prefetch runs inside the
- * Next dev-server's own Node process and never touches the browser's network stack. In THIS harness
+ * Next server's own Node process and never touches the browser's network stack. In THIS harness
  * `NEXT_PUBLIC_API_URL` resolves to the web app's own origin (`.env.local` — no recipe API listens there), so
  * every SSR prefetch below deterministically FAILS with a 404 from the Next server itself (not a connection
  * refusal, since something IS listening on that port — just not the recipe API). That is not a gap to work
  * around — it IS the environment this suite proves B19's required degradation contract against: "a prefetch
  * failure should NOT break the page; the client will refetch" (see each page's own B19 doc comment).
+ *
+ * ⚠️ WHEN the prefetch fails depends on which server the run drives, and the assertions below hold either
+ * way. Under `next dev` (local) every route is rendered per request, so all four prefetches fail AT REQUEST
+ * TIME. Under `next start` (CI — see `utils/webServerMode.ts`) `/recipes`, `/discover` and `/collections`
+ * are SSG-prerendered, so their prefetch failed at BUILD time and the shipped HTML already carries the
+ * empty dehydrated cache this spec expects; only `/recipes/[id]` is dynamic and still fails per request.
+ * The contract being proved — 200 rather than 500, then the client refetch renders the seeded data — is
+ * the same in both, which is why this file is not split. What CI no longer exercises is the per-request
+ * failure path for the three SSG routes; `/recipes/[id]` still covers it.
  *
  * What this spec proves, deterministically, for all four data pages:
  *

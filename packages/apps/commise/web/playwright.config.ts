@@ -2,6 +2,7 @@ import nextEnv from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
 
 import { AUTH_STATE_PATH, SESSION_OWNING_SPEC_GLOBS } from './tests/e2e/utils/authState';
+import { resolveWebServerMode, webServerCommand } from './tests/e2e/utils/webServerMode';
 
 // @next/env is CommonJS — destructure off the default import (named ESM imports fail).
 const { loadEnvConfig } = nextEnv;
@@ -20,6 +21,11 @@ const LOCALE = process.env.E2E_LOCALE ?? 'en';
 const PORT = Number(process.env.PORT ?? 3000);
 const ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
+// `dev` locally, `start` (a real production build) under CI. The whole rationale — including the measured
+// per-test cost of on-demand route compilation that made this a reliability problem rather than a speed one —
+// lives in `tests/e2e/utils/webServerMode.ts`, next to the guard that pins it.
+const WEB_SERVER_MODE = resolveWebServerMode(process.env);
+
 export default defineConfig({
     testDir: './tests/e2e',
     // Only `*.spec.ts` are Playwright specs (project convention). The default testMatch also grabs
@@ -27,16 +33,17 @@ export default defineConfig({
     // readViewerAppId.test.ts) as Playwright specs and crash the run on their `vitest` imports.
     testMatch: '**/*.spec.ts',
     // Serial (single worker), not parallel: this run's specs share ONE Clerk test user (run-scoped — see
-    // tests/e2e/utils/runFixtureIdentity.ts) and ONE Next dev server, and concurrent sign-ins / on-demand
-    // route compilation under load flake intermittently. Reliability matters more than wall-clock for a
-    // red-alert auth suite. NOTE: this says nothing about two SEPARATE runs — those are isolated by the
-    // per-run fixture identity, not by the worker count.
+    // tests/e2e/utils/runFixtureIdentity.ts) and ONE Next server, and concurrent sign-ins — plus, in `dev`
+    // mode, on-demand route compilation — under load flake intermittently. Reliability matters more than
+    // wall-clock for a red-alert auth suite. NOTE: this says nothing about two SEPARATE runs — those are
+    // isolated by the per-run fixture identity, not by the worker count.
     fullyParallel: false,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 1,
     workers: 1,
     // 60s, not Playwright's 30s default. Almost every spec here opens with `signInWithTicket`, whose own
-    // landing poll budgets 30s to absorb Next dev's on-demand route compilation — i.e. EXACTLY the default
+    // landing poll budgets 30s to absorb the Clerk handshake — and, in `dev` mode, Next's on-demand route
+    // compilation on top of it. That is EXACTLY the default
     // per-test budget. A step whose timeout equals the whole test's budget can never report its own
     // failure: the test dies of a generic 30s timeout first, which is how the `signInWithTicket` flake
     // presents (a bare timeout on the sign-in step, with no indication of which precondition missed).
@@ -97,9 +104,22 @@ export default defineConfig({
     webServer: process.env.PLAYWRIGHT_BASE_URL
         ? undefined
         : {
-              command: 'npm run dev',
+              // `next dev` locally, `next start` under CI — see tests/e2e/utils/webServerMode.ts.
+              //
+              // ⚠️ `start` SERVES A BUILD; it does not make one. CI's `build` job publishes `.next` as an
+              // artifact and the Playwright job downloads it. Locally, run `npm run build` first (with the
+              // three NEXT_PUBLIC_* values this app requires) or leave the mode at `dev`.
+              command: webServerCommand(WEB_SERVER_MODE),
               // Empty basePath (subdomain shape) unless E2E_BASE_PATH pins a legacy prefix; the locale
               // lives in the path. PREVIEW_BASE_PATH is only set when exercising the legacy path shape.
+              //
+              // ⚠️ PREVIEW_BASE_PATH IS BUILD-TIME AND HAS NO EFFECT ON A `start` RUN. `next.config.ts`
+              // reads it through `derivePreviewBasePath` while the bundle is being COMPILED, so the prefix
+              // is already baked (or absent) in whatever `.next` this server is about to serve — passing it
+              // here only reaches an already-built app, which ignores it. CI runs the BARE shape only (no
+              // workflow sets E2E_BASE_PATH or PREVIEW_BASE_PATH), so nothing is lost today. If the legacy
+              // prefixed preview shape is ever wired into CI it needs its OWN build, made with
+              // PREVIEW_BASE_PATH set — it cannot share the bare artifact. See ADR-0001.
               env: BASE_PATH ? { PREVIEW_BASE_PATH: BASE_PATH, PORT: String(PORT) } : { PORT: String(PORT) },
               // Readiness probe: the localized sign-in page returns 200 (`/sign-in` 307s to `/{locale}`).
               url: `http://localhost:${PORT}${BASE_PATH}/${LOCALE}/sign-in`,

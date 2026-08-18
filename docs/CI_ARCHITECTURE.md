@@ -46,13 +46,28 @@ which is a benign no-op for whichever loses.
 - **Pushes to `main`** run `ci-main.yml` → `_ci.yml` with `stage: prod` → the composite reads
   `kitchensink/prod/identity/keys`.
 
-**Exception — the web E2E always uses the sandbox (dev) Clerk keys, even on `main`.** Clerk
-_production_ instances (`pk_live`) are domain-locked and refuse to initialize on any origin other than
-their production domain. The web E2E runs ClerkJS in a browser against the Playwright dev server on
-`http://localhost:3000`, so a `pk_live` key aborts with _"Production Keys are only allowed for domain
-…"_ and `<SignIn>` never mounts. Only a _development_ instance (`pk_test`) permits localhost, so the
+**Exception — the web E2E always uses the sandbox (dev) Clerk keys, even on `main`, and so does the web
+BUILD.** Clerk _production_ instances (`pk_live`) are domain-locked and refuse to initialize on any origin
+other than their production domain. The web E2E runs ClerkJS in a browser against a Playwright-managed
+server on `http://localhost:3000`, so a `pk_live` key aborts with _"Production Keys are only allowed for
+domain …"_ and `<SignIn>` never mounts. Only a _development_ instance (`pk_test`) permits localhost, so the
 `e2e-web` job pins `load-secrets` to `stage: sandbox` regardless of pipeline stage. Backend/mobile E2E
 don't run ClerkJS in a localhost browser, so they keep using the stage's own secrets.
+
+The `build` job's `@commise/web` leg pins the same `stage: sandbox` for the same reason, one step earlier:
+`NEXT_PUBLIC_*` is inlined by the bundler, so the Clerk instance is frozen into the bundle at build time —
+and since `e2e-web` now **serves that build** (see below), a stage-scoped key there would bake `pk_live`
+into the very artifact the localhost suite must sign into. `webE2eProductionBuild.test.ts` fails if either
+job's stage, key or API origins drift from the other's.
+
+**The web E2E serves the PRODUCTION build, not `next dev`.** The `build` job publishes `.next` as a
+GitHub **artifact** (not an `actions/cache` entry — a per-SHA cache entry would feed the eviction problem
+described above), and each of the eight `e2e-web` shards downloads it and runs `next start`
+(`E2E_WEB_SERVER: start`, resolved by `packages/apps/commise/web/tests/e2e/utils/webServerMode.ts`).
+Under `next dev`, Next compiles each route the first time it is _requested_ — inside the assertion that
+triggered it — which put link-and-heading specs at 18.3 s / 14.4 s / 10.6 s, i.e. at their assertion
+budgets, and produced navigation "failures" that were really unfinished compilations. Local runs keep
+using `next dev`; the mode defaults off `CI`.
 
 The base pipeline jobs (install, build-ui, lint, format, typecheck, test, build matrix, e2e) are defined
 once in `_ci.yml`, and the heavy ones once in `_ci-heavy.yml`. There is no duplicated AWS/Clerk fetch logic — the composite is the single source
@@ -61,9 +76,11 @@ of truth and exports every alias the apps/tests consume (`NEXT_PUBLIC_CLERK_PUBL
 
 Secrets live in AWS Secrets Manager scoped by stage (`kitchensink/{sandbox,prod}/identity/keys`, JSON
 keys `PUBLISHABLE_KEY` / `SECRET_KEY` / `WEBHOOK_SIGNING_SECRET`). The web build statically
-prerenders Clerk-wrapped pages, so it needs a real publishable key; the composite supplies the
-stage-correct one. If AWS creds are unavailable (e.g. a fork PR), secret-dependent steps skip rather
-than fail.
+prerenders Clerk-wrapped pages, so it needs a real publishable key; the composite supplies it — the
+**sandbox** one for the web build and the web E2E (see the exception above), the stage-correct one
+everywhere else. If AWS creds are unavailable (e.g. a fork PR), secret-dependent steps skip rather
+than fail — and the web build and `e2e-web` skip on the same condition, so the artifact and its consumer
+stay consistent.
 
 ## Per-PR ephemeral lifecycle — deploy + teardown (ADR-0005)
 

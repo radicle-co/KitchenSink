@@ -1283,16 +1283,29 @@ jobs:
               if: matrix.workspace == '@commise/web'
               run: '[ -n "$(ls -A packages/apps/commise/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/ui'
 
-            # The web build statically prerenders Clerk-wrapped pages and needs a real publishable
-            # key. Load the stage-scoped key; if creds are unavailable (e.g. fork PRs) the build is
-            # skipped rather than failing.
-            - name: Load ${{ inputs.stage }} secrets
+            # ⛔ SANDBOX, NOT `inputs.stage` — and that is the whole reason this artifact is usable.
+            #
+            # `NEXT_PUBLIC_*` is INLINED by the bundler, so the Clerk instance this bundle talks to is frozen
+            # in right here. `e2e-web` now SERVES this build (`next start`) and signs into it with the SANDBOX
+            # development instance — which is not a preference: Clerk production keys are domain-locked and
+            # clerk-js aborts with "Production Keys are only allowed for domain <domain>" on localhost, so
+            # <SignIn> never mounts. See `e2e-web`'s own load-secrets step for the full account.
+            #
+            # Loading `${{ inputs.stage }}` here would therefore bake a `pk_live` key on `main` into the very
+            # bundle the localhost Playwright suite has to authenticate against. Both jobs read the ONE secret
+            # `kitchensink/sandbox/identity/keys`, so the built instance and the harness instance cannot drift
+            # apart — pinning two equal literals instead would let them go stale together.
+            # `webE2eProductionBuild.test.ts` fails if either side moves.
+            #
+            # If creds are unavailable (e.g. fork PRs) the build is skipped rather than failing — and `e2e-web`
+            # skips on the same condition, so the pair stays consistent.
+            - name: Load sandbox (dev-instance) Clerk secrets for the web build
               if: matrix.workspace == '@commise/web'
               id: secrets
               continue-on-error: true
               uses: ./.github/actions/load-secrets
               with:
-                  stage: ${{ inputs.stage }}
+                  stage: sandbox
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
@@ -1305,9 +1318,20 @@ jobs:
               # what stops an unconfigured build from inlining `http://localhost:3000` into a bundle it
               # ships to real browsers, which is exactly what reached the sandbox preview.
               #
-              # This job only proves the app COMPILES; its output is never deployed (Vercel builds the
-              # preview, the prod pipeline builds prod). So localhost is the honest value here — it makes
-              # the build hermetic and needs no cloud endpoint. Harmless for the other workspaces.
+              # ⚠️ THIS OUTPUT IS NOW RUN, not merely compiled. It is still deployed nowhere (Vercel builds the
+              # preview, the prod pipeline builds prod), but `e2e-web` downloads it and serves it with
+              # `next start`, so these values are the ones the Playwright suite's browser actually sees. They
+              # are therefore the SAME localhost origins `e2e-web` states at runtime, and that equality is
+              # asserted by `webE2eProductionBuild.test.ts` rather than left to review. Nothing listens on
+              # :4000, and :3000 is the web server itself — which is deliberate: every spec mocks the API with
+              # the origin-agnostic `page.route('**/api/v1/**')`, so the SSR-side prefetch fails and each page
+              # degrades to its client fetch, exactly what `tests/e2e/ssrPrefetch.spec.ts` asserts.
+              #
+              # `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is deliberately ABSENT here: it arrives from the sandbox
+              # `load-secrets` step above, and a value on this line would override it (step `env:` beats
+              # `$GITHUB_ENV`) and bake an instance the Playwright harness cannot sign into. It used to hold
+              # the placeholder `pk_test_bG9jYWxob3N0JA` ("localhost$"), which was harmless while nothing ran
+              # this bundle and is a live defect now.
               env:
                   # Via `env:` rather than interpolated into the command, so no `${{ … }}` reaches a shell
                   # anywhere in this file. The matrix values are static literals, so this is uniformity and
@@ -1315,13 +1339,38 @@ jobs:
                   WORKSPACE: ${{ matrix.workspace }}
                   NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
                   NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
-                  # `src/config/env.ts` now REQUIRES the Clerk publishable key and asserts it belongs to the
-                  # same stage as the endpoints above (the 2026-08-07 outage: a sandbox key against production
-                  # endpoints). These endpoints are localhost placeholders and this build is never deployed, so
-                  # a development-instance placeholder is the coherent value. Deliberately NOT the real key via
-                  # load-secrets: that would make this job depend on secrets, and GitHub withholds them from
-                  # Dependabot-triggered runs, which would red every dependency PR. Decodes to `localhost$`.
-                  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bG9jYWxob3N0JA
+
+            # ⛔ AN ARTIFACT, NOT `actions/cache`. The repo's Actions cache sits under GitHub's 10 GB cap with
+            # LRU eviction, and it has already been the outage: at 9.77 GB, entries were evicted out from under
+            # running jobs and one `node_modules` miss turned into 9 red Playwright jobs (see the restore-step
+            # comments above and `cache-prune.yml`). A per-SHA `.next` entry — one per commit, ~30 MB — would
+            # feed exactly that. Artifacts have their own storage and retention, and this one is consumed by
+            # `e2e-web` in the same run and by nothing else.
+            #
+            # `.next/cache` is webpack's incremental cache (1.7 GB locally) and `.next/standalone` is the
+            # self-contained server for a future ECS deploy (130 MB); `next start` reads NEITHER, so both are
+            # excluded and what ships is ~30 MB of `server/` + `static/` + manifests. The negated patterns do
+            # not participate in the artifact's root calculation (`@actions/glob` omits them from the search
+            # paths), so the single positive path stays the root and entries are relative to `.next` —
+            # which is what makes the download below restore in place.
+            - name: Upload the web production build for the Playwright suite
+              if: matrix.workspace == '@commise/web' && steps.secrets.outcome == 'success'
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: web-next-build-${{ inputs.stage }}
+                  path: |
+                      packages/apps/commise/web/.next
+                      !packages/apps/commise/web/.next/cache
+                      !packages/apps/commise/web/.next/standalone
+                  # 3, not the 1 the sibling blob-report artifacts use, and the difference is the RE-RUN
+                  # window: "Re-run failed jobs" re-runs `e2e-web` alone and feeds it the ORIGINAL run's
+                  # artifacts, so a 1-day retention turns re-running yesterday's red shard into
+                  # "Artifact not found" — a pipeline failure that looks nothing like the test failure being
+                  # investigated. The blobs are produced and consumed within one run and have no such window.
+                  retention-days: 3
+                  # NOT the default `warn`: an empty upload yields an empty download, and `next start` then
+                  # dies with "could not find a production build" two jobs away from the cause.
+                  if-no-files-found: error
 
     e2e-backend:
         # Static name (not a matrix) so a skipped run still shows a clean title instead of a raw
@@ -1438,13 +1487,18 @@ jobs:
         # default and validates at load, so an unset variable is a loud build failure rather than a silent
         # localhost fallback — which means CI must state them. Locally the same two values come from the
         # COMMITTED `.env.development`, which Next loads only for `next dev`; the Playwright webServer runs
-        # `npm run dev`, so a developer machine and CI resolve identical origins.
+        # `npm run dev` there, so a developer machine and CI resolve identical origins.
+        #
+        # ⚠️ THESE ARE ALSO BAKED, not merely read at runtime. `NEXT_PUBLIC_*` is inlined by the bundler, so
+        # the values that reach the BROWSER are the ones the `build` job stated when it compiled the artifact
+        # this job serves. They are restated here because the Next SERVER process still reads them, and the two
+        # statements must agree — `webE2eProductionBuild.test.ts` fails if they diverge.
         #
         # These localhost values are the CORRECT ones for this suite, not a placeholder: every spec mocks the
         # API with the ORIGIN-AGNOSTIC glob `page.route('**/api/v1/**')` (tests/e2e/utils/recipeApi.ts, plus the
         # two narrower `**/api/v1/...` routes in accountDangerZone/ingredientCatalogPick), and no spec ever builds
         # a URL out of these vars — so the browser-side origin only has to be a valid absolute URL. Port 3000
-        # is the Playwright dev server itself and nothing listens on 4000, which means the SERVER-side SSR
+        # is the Playwright web server itself and nothing listens on 4000, which means the SERVER-side SSR
         # prefetch (which `page.route` cannot intercept) fails and each page degrades to its client fetch —
         # exactly the behavior `tests/e2e/ssrPrefetch.spec.ts` asserts. Pointing these at a live backend would
         # make the suite non-hermetic, not more correct (that path is the opt-in `recipeLive.spec.ts`, gated on
@@ -1452,6 +1506,19 @@ jobs:
         env:
             NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
             NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
+            # ⛔ SERVE THE BUILD, DO NOT COMPILE DURING THE TESTS. `playwright.config.ts` reads this and runs
+            # `next start` instead of `next dev` (tests/e2e/utils/webServerMode.ts owns the resolution and its
+            # reasoning). It is stated EXPLICITLY rather than left to the `CI` default so that the run graph
+            # shows which server this job drives — the difference is not cosmetic.
+            #
+            # With `next dev`, Next compiles a route the first time it is REQUESTED, and that compilation
+            # lands inside the assertion that triggered it: specs that only click a link and read a heading
+            # measured 18.3s / 14.4s / 10.6s, i.e. AT their budgets, and on 6e40d66a all three attempts of
+            # `recipeSourceTabs.spec.ts` failed with `toHaveURL(/\/discover/)` still reading `/en/recipes`
+            # fourteen times — a correct link that had not finished navigating in 5s. Retries hid most of it,
+            # which is exactly why it survived. Reproduced on one machine: `dev` 56.4s with that spec rescued
+            # by a retry, `start` 27.0s with nothing flaky.
+            E2E_WEB_SERVER: start
             # ⚠️ THE CLERK SAFETY INTERLOCK FOR SHARDING. Read before touching the matrix.
             #
             # Each shard is a SEPARATE Playwright process, so each runs `globalSetup` AND `globalTeardown`.
@@ -1524,8 +1591,13 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
-            # The Playwright dev server imports @commise/ui/theme.css, so the built UI dist must
-            # be present (mirrors the build job).
+            # STILL REQUIRED after the move to `next start`, for a different reason — worth stating, because
+            # the old one no longer holds. The server this job runs is PRE-BUILT (`@commise/ui` is in
+            # `transpilePackages`, so it is compiled INTO the artifact; `.next/server` carries no
+            # `require("@commise/ui…")` at all), so the dev server's `theme.css` import is gone. But
+            # `tests/e2e/mockupFidelity.spec.ts` imports `@commise/ui/tokens/gradients`, which the package's
+            # own exports map resolves to `./dist/tokens/gradients.js` — Playwright loads that spec directly,
+            # so the dist must exist or the shard holding it fails to collect.
             - name: Restore UI build artifacts
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -1550,6 +1622,21 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
+            # THE PRODUCTION BUILD THIS SHARD SERVES. `playwright.config.ts` runs `next start` under CI
+            # (`E2E_WEB_SERVER` in this job's `env:` above), and `next start` SERVES a build — it does not make
+            # one. The `build` job made it once, with the sandbox Clerk key and these same localhost origins,
+            # and all eight shards restore that one artifact rather than each paying a `next build`.
+            #
+            # No fallback build here, on purpose. A shard that reached this point without an artifact has a
+            # broken pipeline (the upload is in its `needs` closure), and `next start` says so immediately and
+            # loudly; rebuilding would paper over it at ~8x the cost. `if-no-files-found: error` on the upload
+            # side is the other half of that.
+            - name: Download the web production build
+              if: steps.secrets.outcome == 'success'
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: web-next-build-${{ inputs.stage }}
+                  path: packages/apps/commise/web/.next
             # Cache the Playwright browser binaries (~/.cache/ms-playwright) keyed on the lockfile so
             # the Chromium download only happens when the Playwright version changes.
             - name: Cache Playwright browsers

@@ -72,10 +72,33 @@ export const SUGGEST_P95_MS = Number(__ENV['RECIPE_SUGGEST_P95_MS'] || 1500);
 // The superseded `capBatch` scenario measured 34.2ms for the same "500 ids" — one food call, 20 resolved
 // recipes — because it padded with ids that resolve to nothing. Same request width, 9.3× off the cost.
 //
-// ⛔ Workstation numbers against a STUBBED food origin: they bound the recipe-side STRUCTURE (how many
-// sequential round trips one batch costs), not production latency. A run against a real food service
-// measures the warm path instead; both must satisfy the same threshold, which is why the budget is stated
-// as a bound rather than derived from one happy-path measurement.
+// MEASURED IN CI — 2026-08-18, `_ci-heavy.yml` "Load test (recipe — k6)" on `ubuntu-latest` (2 vCPU),
+// SAME script, SAME `FOOD_STUB_DELAY_MS=25`, same 5 sequential scenarios. This is the run the budget is
+// actually held against, and it is NOT a rounding error away from the workstation table above:
+//
+//   | scenario    | ids | distinct foods | waves | p95      | p99      | vs workstation |
+//   | ----------- | --- | -------------- | ----- | -------- | -------- | -------------- |
+//   | degraded    | 500 | food is down   |     0 | 149.04ms | 175.04ms |          2.0×  |
+//   | page        |  20 |             12 |     1 |  44.50ms |  50.97ms |          1.4×  |
+//   | plan        | 120 |          1,200 |     2 | 119.40ms | 130.24ms |          1.6×  |
+//   | cap-overlap | 500 |             12 |     1 | 255.51ms | 268.36ms |          3.6×  |
+//   | cap-fanout  | 500 |          5,000 |     9 | 857.00ms | 860.92ms |          2.1×  |
+//
+// ⛔ THE `≈ 87 + 9L` MODEL ABOVE IS WORKSTATION-SPECIFIC — do not carry it to another host. Subtract the
+// stub's own cost (waves × 25ms) and what remains is recipe-side: cap-overlap 46ms → 231ms, cap-fanout
+// 186ms → 632ms. On 2 vCPUs the batch is dominated by the recipe's OWN work — chunking 5,000 ids into 50
+// requests and folding 5,000 entries into 500 per-recipe sums — not by waiting on food. That inverts the
+// slope: the workstation says "the fan-out is the cost", CI says "the aggregation is the cost". Both are
+// true of their host, which is why the threshold is a BOUND and not a derived number.
+//
+// Headroom against the 1500ms budget is therefore 1.75×, not the 3.6× the workstation implied. That is
+// still a pass with room, but it is the figure to re-check when the cap, the chunk size, or the runner
+// class changes — and the reason to re-run rather than re-derive.
+//
+// ⛔ BOTH tables are against a STUBBED food origin: they bound the recipe-side STRUCTURE (how many
+// sequential round trips one batch costs, and what folding the result costs), not production latency. A
+// run against a real food service measures the warm path instead; all three must satisfy the same
+// threshold, which is why the budget is stated as a bound rather than derived from one measurement.
 export const NUTRITION_BATCH_P95_MS = Number(__ENV['RECIPE_NUTRITION_BATCH_P95_MS'] || 1500);
 
 // The published per-request recipe-id cap (mirrors MAX_NUTRITION_RECIPE_IDS in the authored contract,

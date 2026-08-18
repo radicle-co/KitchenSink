@@ -181,12 +181,23 @@ one fetch and fill together.
 
 ## Residual risk
 
-**Fan-out at the cap is the real tail, and the k6 scenario does not measure it.** `capBatch` pads with
-unresolvable ids, so it measures request _width_ while fan-out stays at one call — it would go green on a
-case that cannot fail. The bound is `ceil(distinctFoods ÷ MAX_IDS_PER_REQUEST) ÷ MAX_CONCURRENT_CHUNKS`
-waves. Seed disjoint ingredient sets so distinct-food count scales with recipe count, record the observed
-p95 beside the derivation, and only then call the 500 cap safe. If it still misses, lowering the documented
-cap is a spec amendment with a number behind it — REQ-IF-008 forbids silent truncation.
+**Fan-out at the cap — CLOSED 2026-08-18, and the closing measurement moved the conclusion.** The risk as
+first written was that `capBatch` padded with unresolvable ids, so it measured request _width_ while fan-out
+stayed at one call: a scenario that would go green on a case that cannot fail. It was replaced by
+`prepareNutritionFanoutFixture` (disjoint ingredient sets, so distinct-food count scales with recipe count)
+driving two scenarios that bracket the cap at the bound
+`ceil(distinctFoods ÷ MAX_IDS_PER_REQUEST) ÷ MAX_CONCURRENT_CHUNKS` — `capOverlap` (500 ids, 12 foods,
+1 wave) and `capFanout` (500 ids, 5,000 foods, 50 chunks, 9 waves).
+
+Observed in CI on `ubuntu-latest` (2 vCPU, stub at 25ms/chunk): **cap-fanout p95 857ms, cap-overlap 255ms**,
+against the 1500ms budget — the 500 cap holds, with 1.75× headroom. No spec amendment to the cap is owed.
+
+The number that matters for the future is not the pass, it is what the pass revealed: subtract the stub's own
+`waves × 25ms` and the recipe-side residual is **632ms of the 857ms**. On 2 vCPUs this batch is dominated by
+the service's OWN aggregation — chunking 5,000 ids into 50 requests and folding 5,000 entries into 500
+per-recipe sums — not by waiting on food. The workstation's `≈ 87 + 9L` fan-out model does not transfer;
+re-measure on the target host rather than re-deriving. Full tables and derivation in
+`tests/load/lib/common.js`.
 
 ## Alternatives rejected
 

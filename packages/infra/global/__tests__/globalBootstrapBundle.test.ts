@@ -35,8 +35,13 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { App } from 'aws-cdk-lib';
+import { Template } from 'aws-cdk-lib/assertions';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
+
+import { DataStack } from '../lib/platform/DataStack.js';
+import { NetworkStack } from '../lib/platform/NetworkStack.js';
 
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
 const DATA_STACK = fileURLToPath(new URL('../lib/platform/DataStack.ts', import.meta.url));
@@ -125,6 +130,9 @@ describe('every workflow that deploys the global infra app bundles its handlers 
     });
 });
 
+/** A synth-only account/region; nothing here is deployed. */
+const SYNTH_ENV = { account: '123456789012', region: 'us-east-1' };
+
 describe('DataStack — the missing-bundle placeholder never reports success', () => {
     const source = readFileSync(DATA_STACK, 'utf8');
 
@@ -149,8 +157,31 @@ describe('DataStack — the missing-bundle placeholder never reports success', (
         // Custom resources re-run on PROPERTY change, not on code change. Without a property tracking which
         // code shipped, a stage bootstrapped by the placeholder stays un-bootstrapped forever even after the
         // real bundle starts deploying — exactly prod's position before this fix.
-        const occurrences = source.match(/codeSource: hasLambdaAsset \? 'bundle' : 'inline-stub'/g) ?? [];
+        //
+        // REWRITTEN 2026-08-18 to assert the SYNTHESIZED TEMPLATE rather than to grep this file for the
+        // literal `codeSource: hasLambdaAsset ? …`. The grep proved a string appeared in a source file, which
+        // is not the invariant: it would pass on a `codeSource` computed into a variable that never reached
+        // a resource, and it broke the moment the expression was refactored (the probe moved to module scope
+        // to stop two stacks in one synth disagreeing) even though the property it guards was untouched.
+        // Reading it off the template proves the property is actually ON both custom resources, which is the
+        // thing CloudFormation compares.
+        const app = new App();
+        const network = new NetworkStack(app, 'Net-probe', { env: SYNTH_ENV, stage: 'prod' });
+        const data = new DataStack(app, 'Data-probe', { env: SYNTH_ENV, network, stage: 'prod' });
+        const resources = Template.fromStack(data).findResources('AWS::CloudFormation::CustomResource');
+        const bootstraps = Object.values(resources).filter(
+            (resource) => resource.Properties?.foodDatabaseName || resource.Properties?.recipeDatabaseName,
+        );
 
-        expect(occurrences, 'both the food and recipe custom resources need the codeSource property').toHaveLength(2);
+        expect(bootstraps, 'both the food and recipe bootstrap custom resources must be present').toHaveLength(2);
+
+        for (const bootstrap of bootstraps) {
+            // The value tracks which code shipped, so it must be one of the two known states — not absent,
+            // and not some third thing a refactor invented.
+            expect(
+                bootstrap.Properties?.codeSource,
+                'a bootstrap custom resource with no codeSource never re-runs when the real bundle lands',
+            ).toMatch(/^(bundle|inline-stub)$/);
+        }
     });
 });

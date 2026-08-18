@@ -25,6 +25,35 @@ import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@ki
 
 import type { NetworkStack } from './NetworkStack.js';
 
+/**
+ * Where the esbuild-produced handler bundle lives, and whether it is there — read ONCE, at module load.
+ *
+ * ⛔ The reading is pinned deliberately, and it used to happen inside the constructor. `bin/app.ts` builds
+ * every stack of a stage in ONE process, so a per-construction probe makes each stack's template depend on
+ * when it happened to be built rather than on the app's inputs — two stacks in the same synth could
+ * disagree about their own handler. That is not a hypothetical: `cdkNagSynth.integration.test.ts` runs
+ * `npm run bundle:lambda`, which creates this directory, and it sits in `__tests__/` where the default unit
+ * glob picks it up — so vitest runs it in PARALLEL with `cdkNagTemplateParity.test.ts`, whose two
+ * module-scope synths must be byte-identical. The bundle landing between those two lines made the same app
+ * emit `"codeSource": "inline-stub"` and then `"codeSource": "bundle"`, and the prod no-diff proof failed
+ * on a diff nobody wrote. Reproduced deterministically by creating the directory ~0.95s into that file's
+ * import; by 1.05s the window has closed.
+ *
+ * Reading once is also right for the real path: `npm run deploy` is `bundle:lambda && cdk deploy`, so the
+ * bundle is complete before this module is ever imported. The integration suite likewise bundles and then
+ * synthesizes in a CHILD process, which loads this module fresh afterwards.
+ *
+ * `find` already answers both questions — a candidate it returns is one that exists — so there is no
+ * separate second `existsSync` to drift from it.
+ */
+const LAMBDA_ASSET_CANDIDATES = ((): { readonly dir: string; readonly present: boolean } => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const candidates = [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')];
+    const found = candidates.find((candidate) => existsSync(candidate));
+
+    return { dir: found ?? candidates[0]!, present: found !== undefined };
+})();
+
 export interface DataStackProps extends StackProps {
     readonly network: NetworkStack;
     readonly stage?: string;
@@ -203,18 +232,12 @@ export class DataStack extends Stack {
             `create no role and no database. Run \`npm run bundle:lambda --workspace=packages/infra/global\` ` +
             `before cdk deploy (the package\\'s own npm \`deploy\` script already does).'); };`;
 
-        const here = dirname(fileURLToPath(import.meta.url));
-        const lambdaAssetDir =
-            [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
-                existsSync(candidate),
-            ) ?? resolve(here, '../../dist-lambda');
-        const hasLambdaAsset = existsSync(lambdaAssetDir);
         const foodBootstrapFn = new lambda.Function(this, 'FoodDbBootstrapFunction', {
             runtime: NODE_LAMBDA_RUNTIME,
             architecture: lambda.Architecture.ARM_64,
-            handler: hasLambdaAsset ? 'food-db-bootstrap/handler.handler' : 'index.handler',
-            code: hasLambdaAsset
-                ? lambda.Code.fromAsset(lambdaAssetDir)
+            handler: LAMBDA_ASSET_CANDIDATES.present ? 'food-db-bootstrap/handler.handler' : 'index.handler',
+            code: LAMBDA_ASSET_CANDIDATES.present
+                ? lambda.Code.fromAsset(LAMBDA_ASSET_CANDIDATES.dir)
                 : lambda.Code.fromInline(missingBundleStub('food-db-bootstrap')),
             timeout: Duration.seconds(300),
             memorySize: 256,
@@ -245,7 +268,7 @@ export class DataStack extends Stack {
                 // Re-runs when the handler goes from the inline stub to the real bundle. Without this a
                 // CODE-only change never re-invokes the resource, so a stage bootstrapped by the stub
                 // stays un-bootstrapped forever even after the bundle starts shipping.
-                codeSource: hasLambdaAsset ? 'bundle' : 'inline-stub',
+                codeSource: LAMBDA_ASSET_CANDIDATES.present ? 'bundle' : 'inline-stub',
             },
         });
         // `GRANT rds_iam` needs the instance's IAM-auth modify to be applied first. The env already
@@ -262,9 +285,9 @@ export class DataStack extends Stack {
         const recipeBootstrapFn = new lambda.Function(this, 'RecipeDbBootstrapFunction', {
             runtime: NODE_LAMBDA_RUNTIME,
             architecture: lambda.Architecture.ARM_64,
-            handler: hasLambdaAsset ? 'recipe-db-bootstrap/handler.handler' : 'index.handler',
-            code: hasLambdaAsset
-                ? lambda.Code.fromAsset(lambdaAssetDir)
+            handler: LAMBDA_ASSET_CANDIDATES.present ? 'recipe-db-bootstrap/handler.handler' : 'index.handler',
+            code: LAMBDA_ASSET_CANDIDATES.present
+                ? lambda.Code.fromAsset(LAMBDA_ASSET_CANDIDATES.dir)
                 : lambda.Code.fromInline(missingBundleStub('recipe-db-bootstrap')),
             timeout: Duration.seconds(300),
             memorySize: 256,
@@ -292,7 +315,7 @@ export class DataStack extends Stack {
             properties: {
                 recipeDatabaseName: this.recipeDatabaseName,
                 stage: stageTag,
-                codeSource: hasLambdaAsset ? 'bundle' : 'inline-stub',
+                codeSource: LAMBDA_ASSET_CANDIDATES.present ? 'bundle' : 'inline-stub',
             },
         });
         // Same explicit ordering as the food bootstrap: `GRANT rds_iam` needs the instance's IAM-auth

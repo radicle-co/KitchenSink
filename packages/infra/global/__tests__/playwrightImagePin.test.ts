@@ -35,7 +35,7 @@ function installedPlaywrightVersion(): string {
     return entry![1].version!;
 }
 
-/** The image tag the web e2e job runs in. */
+/** The image reference the web e2e job runs in — digest-pinned, so this is a `@sha256:` form. */
 function containerImage(): string {
     const workflow = parse(readFileSync(path.join(repoRoot, '.github/workflows/_ci.yml'), 'utf8')) as {
         jobs: { 'e2e-web': { container?: { image?: string } } };
@@ -44,18 +44,37 @@ function containerImage(): string {
     return workflow.jobs['e2e-web'].container?.image ?? '';
 }
 
+/**
+ * The human-readable version tag recorded beside the digest.
+ *
+ * ⛔ The image MUST be digest-pinned (the zizmor gate rejects a mutable tag, correctly — a tag can be
+ * repointed under us), and a digest carries no version. So the tag lives in a comment on the line above,
+ * and this reads it: that comment is the only place the version is legible to a human, which makes it the
+ * thing that must not drift.
+ */
+function documentedTag(): string {
+    const ci = readFileSync(path.join(repoRoot, '.github/workflows/_ci.yml'), 'utf8');
+    const match =
+        /#\s*(mcr\.microsoft\.com\/playwright:v[\d.]+-\w+)\s*\n\s*image: mcr\.microsoft\.com\/playwright@sha256:/.exec(
+            ci,
+        );
+
+    return match?.[1] ?? '';
+}
+
 describe('the Playwright container tag tracks the installed version', () => {
     it('⛔ pins the image to exactly the version package-lock resolves', () => {
         const image = containerImage();
 
-        expect(image, 'the web e2e job must run in the official Playwright image').toContain(
-            'mcr.microsoft.com/playwright:',
+        expect(image, 'the web e2e job must run in the official Playwright image, DIGEST-pinned').toMatch(
+            /^mcr\.microsoft\.com\/playwright@sha256:[0-9a-f]{64}$/,
         );
         expect(
-            image,
-            `image is ${image} but package-lock installs @playwright/test ${installedPlaywrightVersion()}. ` +
-                'Bump the tag in `_ci.yml` — the image ships browsers built for one release, and a mismatch ' +
-                'surfaces as an unsupported runtime pairing rather than a clear error.',
+            documentedTag(),
+            `the digest is documented as ${documentedTag() || '(nothing)'} but package-lock installs ` +
+                `@playwright/test ${installedPlaywrightVersion()}. Re-resolve the digest and update BOTH the ` +
+                'comment and the `image:` line — the image ships browsers built for one release, and a ' +
+                'mismatch surfaces as an unsupported runtime pairing rather than a clear error.',
         ).toBe(`mcr.microsoft.com/playwright:v${installedPlaywrightVersion()}-noble`);
     });
 

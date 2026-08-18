@@ -1066,7 +1066,12 @@ jobs:
         # dependency bump that forgets this line fails a test instead of producing a confusing runtime
         # mismatch.
         container:
-            image: mcr.microsoft.com/playwright:v1.60.0-noble
+            # Digest-pinned, not tag-pinned: the zizmor gate rejects a mutable image reference, and it is
+            # right to — a tag can be repointed under us. The human-readable tag stays in the comment so the
+            # version is still legible, and `playwrightImagePin.test.ts` asserts THAT against
+            # `package-lock.json`, so the two cannot drift.
+            # mcr.microsoft.com/playwright:v1.60.0-noble
+            image: mcr.microsoft.com/playwright@sha256:83192064c7510f7ee73dd63dc5f22a5e01a92c81a2e6a9c715d9e3fe55471fd9
         needs: build
         # SHARDED, 4 ways. This job WAS the entire critical path of a PR run: measured on the green run
         # 31514368684 it started at +4.0m and ran 15.5m, ending at 19.5m, while every other job in the

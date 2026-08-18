@@ -1049,6 +1049,24 @@ jobs:
         name: E2E (web — Playwright) ${{ matrix.shard }}/${{ strategy.job-total }}
         timeout-minutes: 30
         runs-on: ubuntu-latest
+        # ⛔ THE OFFICIAL PLAYWRIGHT IMAGE, so this job never runs `apt` at all.
+        #
+        # `playwright install-deps` shells out to apt for Chromium's system libraries and fonts. On
+        # 2026-08-18 the Azure Ubuntu mirror served them at 30-60 SECONDS PER PACKAGE — all eight shards
+        # blew a 3-minute budget having fetched six fonts — and earlier the same night it stalled outright
+        # for 1h47m. Neither is our defect, but starting every shard with a package download makes each run
+        # hostage to a mirror.
+        #
+        # This image ships the browsers and every OS dependency baked in, so the download, the mirror and
+        # that whole failure mode disappear. It also makes the job FASTER: the browser-cache restore and
+        # both install steps are gone.
+        #
+        # ⚠️ The tag MUST match the installed Playwright version, or the bundled browsers and the test
+        # runner disagree. `playwrightImagePin.test.ts` asserts it against `package-lock.json`, so a
+        # dependency bump that forgets this line fails a test instead of producing a confusing runtime
+        # mismatch.
+        container:
+            image: mcr.microsoft.com/playwright:v1.60.0-noble
         needs: build
         # SHARDED, 4 ways. This job WAS the entire critical path of a PR run: measured on the green run
         # 31514368684 it started at +4.0m and ran 15.5m, ending at 19.5m, while every other job in the
@@ -1198,51 +1216,6 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            # Cache the Playwright browser binaries (~/.cache/ms-playwright) keyed on the lockfile so
-            # the Chromium download only happens when the Playwright version changes.
-            - name: Cache Playwright browsers
-              id: playwright-cache
-              if: steps.secrets.outcome == 'success'
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-              with:
-                  path: ~/.cache/ms-playwright
-                  key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-            # Cache miss: download the browser + OS deps. Cache hit: browsers are restored, so only the
-            # OS-level system dependencies still need installing.
-            # ⛔ BOUNDED AND RETRIED, because this step is the one that hangs.
-            #
-            # Both commands shell out to `apt-get` for Chromium's OS libraries. On 2026-08-18 two shards sat
-            # in `install-deps` for 1h47m — the log's last line is apt fetching package lists from the
-            # Ubuntu/Microsoft/Google mirrors, then nothing — while the other two had already cleared it and
-            # finished in 6 and 10 minutes. A mirror stall is not our defect, but an UNBOUNDED one is: with
-            # no step timeout it presents as "CI is still running" rather than a failure anyone can retry.
-            #
-            # 18 SECONDS is the measured normal for the cache-hit path, so 3 minutes fails a genuine stall
-            # fast while never firing on a slow-but-working mirror. The retry then absorbs exactly the
-            # transient this was: one stalled fetch costs ~3 minutes and self-heals instead of costing a
-            # re-run of the whole shard. `apt-get update` is re-run first because a half-populated list is
-            # the state a killed fetch leaves behind.
-            - name: Install Playwright browsers (cache miss)
-              if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit != 'true'
-              timeout-minutes: 6
-              run: |
-                  npx playwright install --with-deps chromium \
-                      || { echo "::warning::playwright install stalled or failed — retrying once"; \
-                           sudo apt-get update -qq; \
-                           npx playwright install --with-deps chromium; }
-            - name: Install Playwright system deps (cache hit)
-              if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit == 'true'
-              timeout-minutes: 3
-              run: |
-                  npx playwright install-deps chromium \
-                      || { echo "::warning::playwright install-deps stalled or failed — retrying once"; \
-                           sudo apt-get update -qq; \
-                           npx playwright install-deps chromium; }
-            # `--shard` is Playwright's own splitter (it distributes whole FILES to balance test count, and
-            # never splits a file). `--reporter=blob` overrides the config's `html` for CI only: a blob report
-            # is the machine-readable intermediate that `merge-reports` recombines in the report job below, so
-            # a failure stays diagnosable from ONE artifact instead of four partial HTML reports. The config
-            # keeps `html` as its default so a local `npx playwright test` is unchanged.
             - name: Run web e2e tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
               if: steps.secrets.outcome == 'success'
               # ⚠️ The shard coordinates reach the shell through `env:`, NOT by `${{ }}` interpolation into

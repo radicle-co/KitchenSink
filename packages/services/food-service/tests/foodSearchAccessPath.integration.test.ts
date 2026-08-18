@@ -203,6 +203,27 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
                     ) AS built`,
             [EQUIVALENCE_SIZE, PREPARATIONS, INGREDIENTS, CUTS, BRANDS],
         );
+        // ⛔ RAISE THE STATISTICS TARGET BEFORE ANALYZING, or this suite is a coin toss.
+        //
+        // Every assertion below is about WHICH PLAN the planner chooses, and that choice is made from
+        // sampled statistics. At the default target (100) `ANALYZE` samples ~30,000 of these 100,000 rows
+        // to estimate a predicate that matches **63** — so the row estimate swings between runs, and often
+        // enough it lands high enough that a Seq Scan costs less than the trigram bitmap path. Measured on
+        // a pristine `postgres:16` container: **1 cold run in 3 failed**, which is exactly the intermittent
+        // CI red this replaces. It passed reliably on a long-lived local database only because leftover
+        // rows from other specs changed the distribution.
+        //
+        // A higher target samples more rows and stores a finer histogram, which makes the estimate — and
+        // therefore the plan — stable. This does NOT force the outcome the test wants: `NO_INDEX_PATHS`
+        // still has to produce a Seq Scan, the natural plan still has to pick `food_name_trgm_gist_idx` on
+        // its own costing, and the equivalence probes still compare real rows. It removes sampling noise,
+        // not the question.
+        //
+        // Raising EQUIVALENCE_SIZE — what the failure message suggests — would not fix this: the corpus is
+        // already selective (63 of 100,000), so the problem is estimate VARIANCE, not table size, and a
+        // bigger table would make every run slower while staying a coin toss.
+        await pool.query('ALTER TABLE food ALTER COLUMN name SET STATISTICS 1000');
+        await pool.query('ALTER TABLE food ALTER COLUMN description SET STATISTICS 1000');
         await pool.query('ANALYZE food');
     }, 60_000);
 

@@ -1127,12 +1127,35 @@ jobs:
                   key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
             # Cache miss: download the browser + OS deps. Cache hit: browsers are restored, so only the
             # OS-level system dependencies still need installing.
+            # ⛔ BOUNDED AND RETRIED, because this step is the one that hangs.
+            #
+            # Both commands shell out to `apt-get` for Chromium's OS libraries. On 2026-08-18 two shards sat
+            # in `install-deps` for 1h47m — the log's last line is apt fetching package lists from the
+            # Ubuntu/Microsoft/Google mirrors, then nothing — while the other two had already cleared it and
+            # finished in 6 and 10 minutes. A mirror stall is not our defect, but an UNBOUNDED one is: with
+            # no step timeout it presents as "CI is still running" rather than a failure anyone can retry.
+            #
+            # 18 SECONDS is the measured normal for the cache-hit path, so 3 minutes fails a genuine stall
+            # fast while never firing on a slow-but-working mirror. The retry then absorbs exactly the
+            # transient this was: one stalled fetch costs ~3 minutes and self-heals instead of costing a
+            # re-run of the whole shard. `apt-get update` is re-run first because a half-populated list is
+            # the state a killed fetch leaves behind.
             - name: Install Playwright browsers (cache miss)
               if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit != 'true'
-              run: npx playwright install --with-deps chromium
+              timeout-minutes: 6
+              run: |
+                  npx playwright install --with-deps chromium \
+                      || { echo "::warning::playwright install stalled or failed — retrying once"; \
+                           sudo apt-get update -qq; \
+                           npx playwright install --with-deps chromium; }
             - name: Install Playwright system deps (cache hit)
               if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit == 'true'
-              run: npx playwright install-deps chromium
+              timeout-minutes: 3
+              run: |
+                  npx playwright install-deps chromium \
+                      || { echo "::warning::playwright install-deps stalled or failed — retrying once"; \
+                           sudo apt-get update -qq; \
+                           npx playwright install-deps chromium; }
             # `--shard` is Playwright's own splitter (it distributes whole FILES to balance test count, and
             # never splits a file). `--reporter=blob` overrides the config's `html` for CI only: a blob report
             # is the machine-readable intermediate that `merge-reports` recombines in the report job below, so

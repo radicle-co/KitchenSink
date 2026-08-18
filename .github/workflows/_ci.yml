@@ -1242,14 +1242,31 @@ jobs:
                       || { echo "::warning::playwright install stalled or failed — retrying once"; \
                            sudo apt-get update -qq; \
                            npx playwright install --with-deps chromium; }
-            - name: Install Playwright system deps (cache hit)
+            # ⛔ PROBE, don't pre-install. A cached browser BINARY is useless without its shared libraries,
+            # but on the ubuntu-latest image those libraries are already present — and `install-deps` pays a
+            # full `apt-get update` against Azure's mirrors to discover that. Every shard paid it, so one
+            # flaky mirror took out shards 2/8 and 6/8 (`has timed out after 8 minutes`) on a run whose only
+            # change was documentation, and the retry-once wrapper could not help: the stall consumed the
+            # whole budget before the fallback was reached.
+            #
+            # Launching the browser is the ONLY evidence that actually matters here — it is exactly what the
+            # shard is about to do, and it costs ~2s instead of ~3min. So apt is now the FALLBACK, reached
+            # only when the launch really fails, and it keeps the update+retry that a genuine miss needs.
+            # `--no-sandbox` because the probe runs as root on the runner, where Chromium's sandbox refuses
+            # to start; the tests themselves launch through Playwright's own config, which is unaffected.
+            - name: Ensure Playwright system deps (cache hit)
               if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit == 'true'
               timeout-minutes: 8
               run: |
-                  npx playwright install-deps chromium \
-                      || { echo "::warning::playwright install-deps stalled or failed — retrying once"; \
-                           sudo apt-get update -qq; \
-                           npx playwright install-deps chromium; }
+                  if node -e "require('playwright-core').chromium.launch({args:['--no-sandbox']}).then(b => b.close())"; then
+                      echo "chromium launches — system deps already satisfied, skipping apt"
+                  else
+                      echo "::warning::chromium failed to launch on the cached browser — installing system deps"
+                      npx playwright install-deps chromium \
+                          || { echo "::warning::playwright install-deps stalled or failed — retrying once"; \
+                               sudo apt-get update -qq; \
+                               npx playwright install-deps chromium; }
+                  fi
             # `--shard` is Playwright's own splitter (it distributes whole FILES to balance test count, and
             # never splits a file). `--reporter=blob` overrides the config's `html` for CI only: a blob report
             # is the machine-readable intermediate that `merge-reports` recombines in the report job below, so

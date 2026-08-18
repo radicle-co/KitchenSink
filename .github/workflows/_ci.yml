@@ -67,6 +67,16 @@ jobs:
               with:
                   node-version: 24
                   cache: npm
+            # `cache: npm` is KEPT here and removed from every restore-only job below, which is the split
+            # that matters: this job runs `npm ci` and can actually use the tarball cache, while those jobs
+            # restore the extracted `node_modules` entry and could never read it — they were each downloading
+            # ~0.53 GB per run for nothing (~10.6 GB of pointless transfer across one CI run).
+            #
+            # It is kept rather than dropped because dropping it here reclaims NO quota: the same key is
+            # written by `sandbox-deploy`, `sandbox-identity-deploy` and `sandbox-web-preview`, all of which
+            # run on `pull_request`, so the entry exists for every lockfile hash regardless. Removing it would
+            # only buy this critical-path job a cold `npm ci`. Accumulation is bounded by `cache-prune.yml`
+            # instead, which is the mechanism that actually holds the repo under GitHub's 10 GB cap.
             - run: npm ci
             - name: Cache dependencies
               uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -91,7 +101,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -102,6 +111,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - run: npm run build --workspace=@commise/ui
             - name: Cache UI build artifacts
               uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -121,7 +148,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -132,8 +158,25 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - run: npx turbo run lint
-
             # Workflow files get NO coverage from `turbo run lint` — eslint does not read YAML. GitHub
             # validates them only at dispatch time, and an invalid one does not fail a check: it produces a
             # zero-job `startup_failure` attributed to the PUSH event, so the workflow that should have run
@@ -198,7 +241,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -209,6 +251,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - run: npx turbo run format:check
 
     typecheck:
@@ -223,7 +283,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -234,6 +293,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - run: npx turbo run typecheck
 
     # DRIFT LAYER 2 (Correctness) — CODING_STANDARDS §15.2.5. `packages/schemas/*` publishes each service's
@@ -267,7 +344,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -278,6 +354,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - name: Verify the committed contract artifacts match the generator output
               run: npm run contract:verify
 
@@ -325,7 +419,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -336,6 +429,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # ⛔ PERSIST turbo's cache, which this repo has deliberately not done until now.
             #
             # `turbo.json` records why: `infra-global`'s gates read `.github/**`, `specs/*/tasks.md` and
@@ -400,7 +511,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -411,6 +521,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # Self-contained: the integration suite bootstraps the schema from migrations against the
             # Postgres service and proves create-user idempotency. No AWS/Clerk secrets required.
             - name: Run identity integration tests
@@ -456,7 +584,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -467,6 +594,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # The tier skips cleanly when DATABASE_URL is unset and HARD-FAILS when it is set but
             # unreachable (verified: ECONNREFUSED aborts the run rather than reporting a pass). So setting
             # it here is what makes the tier actually execute — do not drop this env block thinking the
@@ -514,7 +659,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -525,6 +669,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # ⛔ Required by `tests/support/messageTable.ts`, which SYNTHESIZES `FoodServiceStack` so the
             # substrate suite runs against the key schema CloudFormation would really create. These three
             # packages ship BUILT JS rather than `./src` (ADR-0013), their `dist/` is gitignored, and the
@@ -599,7 +761,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -610,6 +771,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # The suite bootstraps the schema from src/database/migrations against the Postgres service
             # and seeds its own fixtures (same pattern as identity/food). No AWS/Clerk secrets required.
             - name: Run recipe integration tests
@@ -684,7 +863,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -695,6 +873,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # Apply the recipe schema to the throwaway DB FIRST — the workers integration specs have no
             # globalSetup and assume the schema is present. This is the SAME set of ordered migration SQL
             # files recipe-service's tests/globalSetup.ts applies (drop `public`, then each file in
@@ -759,7 +955,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -770,6 +965,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - name: Restore UI build artifacts
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -835,7 +1048,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -846,6 +1058,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # Boots the real food-service Nest app against the Postgres service, applies the
             # kitchensink_food migration, and asserts GET /health + DB reachability end to end.
             - name: Run food E2E tests
@@ -897,7 +1127,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -908,6 +1137,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # Own database (recipe_e2e), separate from integration's recipe_test: both tiers reset the
             # schema in setup, so sharing one would have them racing. The S3_* pair is required, not
             # optional — recipe-service reads S3 config via its own env keys and LocalStack needs
@@ -949,7 +1196,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -960,6 +1206,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - name: Run infra integration tests
               run: npm run test:integration --workspace=@kitchensink/infra-global
 
@@ -982,7 +1246,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -993,6 +1256,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - name: Restore UI build artifacts
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -1056,7 +1337,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -1067,6 +1347,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - name: Load ${{ inputs.stage }} secrets
               id: secrets
               continue-on-error: true
@@ -1198,7 +1496,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -1209,6 +1506,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # The Playwright dev server imports @commise/ui/theme.css, so the built UI dist must
             # be present (mirrors the build job).
             - name: Restore UI build artifacts
@@ -1389,7 +1704,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             # `merge-reports` is part of the installed @playwright/test, so the same restored node_modules the
             # shards used is all this needs — no browser download (it renders a report, it runs no tests).
             - name: Restore dependencies
@@ -1402,6 +1716,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             # `merge-multiple` flattens all four shards' blobs into one directory, which is the input shape
             # `merge-reports` expects. Absent blobs are tolerated: on a fork PR the shards skip their run
             # entirely (no secrets), and this job must not invent a red for that designed skip.
@@ -1501,7 +1833,6 @@ jobs:
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
-                  cache: npm
             - name: Restore dependencies
               uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
@@ -1512,6 +1843,24 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # ⛔ A CACHE MISS MUST BE SLOW, NOT FATAL. These jobs restore `node_modules` and never install,
+            # so before this step a miss did not degrade them — it killed them: no `node_modules` means no
+            # `tsc`, and the build step died with `sh: 1: tsc: not found` / `npm error code 127`. Across the
+            # 8 Playwright shards plus the merged report that turned ONE evicted cache entry into 9 red jobs,
+            # and a re-run usually went green because `install` had re-saved the entry meanwhile — which is
+            # exactly what made it look like flake instead of a missing fallback.
+            #
+            # The miss is real and expected: the repo's Actions cache sits under a 10 GB cap with LRU
+            # eviction, and every lockfile change mints a fresh entry, so an in-flight run CAN have its entry
+            # evicted underneath it. The `::warning::` keeps that visible — a silent reinstall would hide the
+            # eviction rate, which is the number worth watching.
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
             - name: Load ${{ inputs.stage }} secrets
               id: secrets
               continue-on-error: true

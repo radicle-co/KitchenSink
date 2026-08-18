@@ -78,7 +78,7 @@
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
-        "tsx": "*",
+        "tsx": "^4.23.12",
         "typescript": "^5.9.3",
         "undici": "^6.27.0",
         "vitest": "^4.0.0",

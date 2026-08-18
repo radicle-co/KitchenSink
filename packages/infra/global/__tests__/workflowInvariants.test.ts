@@ -592,6 +592,12 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'suppressed-exit _ci-heavy.yml::e2e-mobile-maestro::Recipe-service logs on failure ×1',
     'suppressed-exit _ci-heavy.yml::load-test::Recipe-service logs on failure ×1',
     'suppressed-exit _ci-heavy.yml::load-test-food::Food-service logs on failure ×1',
+    // One cache entry failing to DELETE must not abort the sweep: entries legitimately vanish between the
+    // list and the delete (a concurrent run, or GitHub's own LRU eviction — the very pressure this job
+    // relieves), and aborting there would leave the prune half-done with the largest entries untouched. The
+    // failure is reported as an `::error::`-free `::warning::` per entry and the loop continues; the LISTING
+    // above deliberately carries no suppression, so an API outage is still loud.
+    'suppressed-exit cache-prune.yml::prune::Delete cache entries for hashes nothing references ×1',
     // Health probes: curl exits non-zero on connection failure, and the retry loop needs the code (`000`) in
     // hand rather than an aborted step. Each of these three ends in `::error::` + `exit 1` — invariant 5
     // proves the assertion is still there.

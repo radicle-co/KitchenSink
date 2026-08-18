@@ -70,11 +70,11 @@
         "@types/react-dom": "^19.0.0",
         "@vitejs/plugin-react": "^6.0.1",
         "aws-cdk": "^2.1134.0",
-        "esbuild": "^0.28.0",
+        "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "jsdom": "^24.0.0",
         "prettier": "^3.0.0",
-        "tsx": "*",
+        "tsx": "^4.23.12",
         "typescript": "^5.9.3",
         "vitest": "^4.0.0"
     },

@@ -26,15 +26,26 @@ on:
         - cron: '30 10 * * *'
     workflow_dispatch:
 
-permissions:
-    contents: read
-    actions: write
+# One prune at a time. Two concurrent runs would list the same entries and then race each other's DELETEs,
+# so the loser logs warnings for entries that already vanished — noise that is indistinguishable from a real
+# permissions failure. Never `cancel-in-progress`: a half-finished prune has deleted an arbitrary subset,
+# and the run that gets cancelled is as likely to be the one doing useful work.
+concurrency:
+    group: cache-prune
+    cancel-in-progress: false
+
+# Nothing at the workflow level: the single job below declares exactly what it needs, so a job added later
+# starts from zero rather than silently inheriting `actions: write` — the token that can DELETE caches.
+permissions: {}
 
 jobs:
     prune:
         name: Delete caches for superseded lockfiles
         timeout-minutes: 10
         runs-on: ubuntu-latest
+        permissions:
+            contents: read # read the tree to compute which lockfile hashes are still live
+            actions: write # the cache DELETE scope — no narrower one exists, so it is confined to this job
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:

@@ -808,4 +808,4 @@ jobs:
               working-directory: packages/infra/global
               env:
                   PROD_WEB_SMOKE_ORIGIN: https://${{ vars.DOMAIN_NAME }}
-              run: npx vitest run __tests__/prodWebSurface.integration.test.ts
+              run: npx vitest run --config vitest.integration.config.ts tests/prodWebSurface.integration.test.ts

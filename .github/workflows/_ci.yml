@@ -926,6 +926,43 @@ jobs:
                   CLOUDFRONT_URL: http://localhost:4566/commise-photos
               run: npm run test:e2e --workspace=@kitchensink/recipe-service
 
+    # ⛔ ITS OWN JOB, and its own vitest config, because these specs are not unit tests by any measure: they
+    # run `turbo run build`, `npm run bundle:lambda`, esbuild, two `cdk synth`s in child processes, and shell
+    # scripts against real fixtures. They are NOT folded into `integration-selfcontained` — that job groups
+    # SUB-SECOND suites to avoid paying two checkout+restore cycles, and this one is minutes.
+    #
+    # They previously sat in `__tests__/` and so matched the default unit glob, which is how one of them —
+    # `cdkNagSynth.integration.test.ts`, which writes `dist-lambda/` into the package root as a side effect of
+    # bundling — came to run in PARALLEL with `cdkNagTemplateParity.test.ts`, whose two synths must be
+    # byte-identical. The bundle landing between them broke the ADR-0002 no-prod-diff proof on a diff nobody
+    # wrote. No service containers and no secrets: the one live-probing suite is `describe.runIf`-gated on
+    # PROD_WEB_SMOKE_ORIGIN, which only `prod-deploy.yml` sets, so it skips here by design.
+    integration-infra:
+        name: Integration (infra — synth + bundle)
+        timeout-minutes: 30
+        runs-on: ubuntu-latest
+        needs: [install]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Run infra integration tests
+              run: npm run test:integration --workspace=@kitchensink/infra-global
+
     build:
         name: Build ${{ matrix.workspace }}
         timeout-minutes: 30

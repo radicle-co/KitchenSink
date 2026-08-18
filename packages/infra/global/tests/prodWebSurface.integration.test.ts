@@ -65,7 +65,10 @@ import {
     parseClerkInstance,
     probeWebSurface,
     type WebSurface,
-} from './prodWebSurface.js';
+    // The probe + classifiers are shared by BOTH tiers — `__tests__/prodWebSurface.test.ts` proves the pure
+    // classifiers against fixtures, this file hands them the real deployed artifact — so the module stays
+    // with the other shared support modules in `__tests__/` and is reached across from here.
+} from '../__tests__/prodWebSurface.js';
 
 const ORIGIN = process.env['PROD_WEB_SMOKE_ORIGIN'];
 const LOCALE = process.env['PROD_WEB_SMOKE_LOCALE'] ?? 'en';

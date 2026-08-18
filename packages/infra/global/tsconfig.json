@@ -29,6 +29,6 @@
     // handlers that only `esbuild` ever compiled, and esbuild does not typecheck; `__tests__/` holds the
     // repo-wide conformance layer. A planted `export const probe: number = 'not a number'` in `__tests__/`
     // produced no output from `tsc --noEmit` at all.
-    "include": ["bin/**/*.ts", "lib/**/*.ts", "src/**/*.ts", "__tests__/**/*.ts"],
+    "include": ["bin/**/*.ts", "lib/**/*.ts", "src/**/*.ts", "__tests__/**/*.ts", "tests/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

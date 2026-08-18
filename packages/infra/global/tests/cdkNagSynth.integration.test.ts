@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, it, expect } from 'vitest';
 
 const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-// .../packages/infra/global/__tests__ → repo root is four levels up.
+// .../packages/infra/global/tests → repo root is four levels up.
 const repoRoot = path.resolve(packageDir, '../../..');
 
 /**

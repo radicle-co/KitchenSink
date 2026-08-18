@@ -53,8 +53,8 @@
  *     `${{ github.sha }}` instead of the tag read from ECS.
  *   - both negative-control fixtures below fail if the corresponding positive rule is loosened.
  */
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
@@ -62,7 +62,13 @@ import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
-const TEST_DIR = fileURLToPath(new URL('./', import.meta.url));
+/**
+ * Both test tiers. The env-gated suite this analyzer exists for lives in the INTEGRATION tier — it probes a
+ * live origin — and scanning only `__tests__/` silently found nothing the moment that tier was split out to
+ * `tests/`, which is the failure mode where a discovery-based check reports "no violations" because it
+ * looked in the wrong place. Reported paths carry the directory so the tier is visible in the expectation.
+ */
+const TEST_DIRS = [fileURLToPath(new URL('./', import.meta.url)), fileURLToPath(new URL('../tests/', import.meta.url))];
 const PROD_DEPLOY = 'prod-deploy.yml';
 
 interface WorkflowStep {
@@ -141,24 +147,34 @@ interface EnvGate {
  * argument mentions. Deliberately narrow: an `it.runIf` narrows a suite that already ran, so it is not the
  * "the whole file never executed" defect this analyzer is about.
  */
-function findEnvGates(directory: string): readonly EnvGate[] {
+function findEnvGates(directories: readonly string[]): readonly EnvGate[] {
     const gates: EnvGate[] = [];
 
-    for (const file of readdirSync(directory)
-        .filter((name) => name.endsWith('.test.ts'))
-        .sort()) {
-        const source = readFileSync(join(directory, file), 'utf8');
-        const bindings = new Map(
-            [...source.matchAll(/const\s+(\w+)\s*=\s*process\.env\['([^']+)'\]/g)].map((match) => [
-                match[1] as string,
-                match[2] as string,
-            ]),
-        );
+    for (const directory of directories) {
+        if (!existsSync(directory)) {
+            continue;
+        }
 
-        for (const gate of source.matchAll(/describe\.(?:runIf|skipIf)\(([^)]*)\)/g)) {
-            for (const [constant, variable] of bindings) {
-                if (new RegExp(`\\b${constant}\\b`).test(gate[1] ?? '')) {
-                    gates.push({ file, variable });
+        // The directory's own name, so a gate reads `tests/foo.integration.test.ts` and the tier is obvious.
+        const tier = basename(directory.replace(/\/$/, ''));
+
+        for (const name of readdirSync(directory)
+            .filter((entry) => entry.endsWith('.test.ts'))
+            .sort()) {
+            const file = `${tier}/${name}`;
+            const source = readFileSync(join(directory, name), 'utf8');
+            const bindings = new Map(
+                [...source.matchAll(/const\s+(\w+)\s*=\s*process\.env\['([^']+)'\]/g)].map((match) => [
+                    match[1] as string,
+                    match[2] as string,
+                ]),
+            );
+
+            for (const gate of source.matchAll(/describe\.(?:runIf|skipIf)\(([^)]*)\)/g)) {
+                for (const [constant, variable] of bindings) {
+                    if (new RegExp(`\\b${constant}\\b`).test(gate[1] ?? '')) {
+                        gates.push({ file, variable });
+                    }
                 }
             }
         }
@@ -330,8 +346,8 @@ describe('every env-gated suite in this package is switched on by a workflow', (
     it('finds the suite-level gate variable in the test sources', () => {
         // Anchors the discovery half: if the gate is renamed, or the `describe.runIf` becomes an
         // unconditional `describe`, this stops matching and the wiring assertion below loses its subject.
-        expect(findEnvGates(TEST_DIR)).toEqual([
-            { file: 'prodWebSurface.integration.test.ts', variable: 'PROD_WEB_SMOKE_ORIGIN' },
+        expect(findEnvGates(TEST_DIRS)).toEqual([
+            { file: 'tests/prodWebSurface.integration.test.ts', variable: 'PROD_WEB_SMOKE_ORIGIN' },
         ]);
     });
 
@@ -392,7 +408,7 @@ describe('every env-gated suite in this package is switched on by a workflow', (
 
     it('holds for the real tree', () => {
         expect(
-            findUnwiredEnvGates(findEnvGates(TEST_DIR), realWorkflows()),
+            findUnwiredEnvGates(findEnvGates(TEST_DIRS), realWorkflows()),
             'an env-gated probe that nothing sets the gate for is a test that passes by not running — the ' +
                 'same silent success as a `|| true`, without the grep-ability',
         ).toEqual([]);

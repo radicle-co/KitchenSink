@@ -17,7 +17,10 @@ export default defineConfig({
     },
     test: {
         include: ['__tests__/**/*.test.ts'],
-        exclude: ['node_modules', 'dist', 'cdk.out'],
+        // `tests/**` is the INTEGRATION tier (`vitest.integration.config.ts`) — excluded by path AND
+        // by suffix so a `*.integration.test.ts` left in `__tests__/` cannot rejoin the unit run,
+        // which is exactly how six process-spawning specs ended up racing the unit tests.
+        exclude: ['tests/**', '**/*.integration.test.ts', 'node_modules', 'dist', 'cdk.out'],
         typecheck: {
             enabled: false,
         },

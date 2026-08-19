@@ -46,13 +46,43 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Mediterranean Grilled Lamb'
-# RecipeDetailView sections (header + ingredients + instructions + nutrition).
+# RecipeDetailView sections (header + ingredients + instructions + nutrition). These are CHROME: every one of
+# them is a static section heading that renders whatever the recipe contains, so on their own they prove the
+# component mounted and NOT that this recipe's data arrived. The content assertions below are the story.
 - assertVisible: 'Ingredients'
 - assertVisible: 'Instructions'
 - assertVisible: 'Nutrition (per serving)'
-# REQ-034 — the USDA-source disclosure is GATED to recipes with a user-entered ingredient; this
-# seeded recipe's ingredients are all food-database-resolved, so the notice must NOT render (the
-# positive case — a freeform ingredient — is covered by `create.yaml`).
+
+# ⛔ THE RECIPE'S OWN SEEDED DATA — the half the headings above cannot prove. Every value here comes from the
+# lamb's row in `packages/services/recipe-service/src/database/seed.ts` (15 prep / 30 cook / 45 total, 4
+# servings, private), so a detail that rendered another recipe, a skeleton, or a partial projection fails.
+# The three durations are asserted as a SET on purpose: any one alone is also produced by a screen that
+# renders a single stat cell and drops the rest.
+#
+# ⚠️ Every value here sits ABOVE the `Ingredients` heading already asserted immediately before it (title band
+# → stat strip → Ingredients), so these additions need nothing from Maestro's visibility rules that this flow
+# was not already relying on. The recipe's footer visibility badge, which sits BELOW the last existing
+# assertion, is deliberately NOT asserted for that reason — it would be the one claim here resting on
+# untested ground, and a flow that cannot be run locally must not add one.
+- assertVisible: 'Herb-marinated grilled lamb.'
+- assertVisible: 'Serves'
+- assertVisible: '15 min'
+- assertVisible: '30 min'
+- assertVisible: '45 min'
+
+# ⚠️ WHAT THIS FLOW STILL CANNOT ASSERT, AND WHY IT IS NOT A LOOSE END TO "FIX" HERE. The seed inserts rows
+# into `recipes` ONLY — no `recipe_ingredients`, no `recipe_steps` — so every seeded recipe renders an EMPTY
+# ingredient checklist and an EMPTY step list, and no quantity, ingredient name or instruction text exists on
+# this screen to assert (`recipes/serving-scale.yaml` records the same constraint for scaled quantities).
+# That is a FIXTURE gap, not a UI gap: closing it means adding lines and steps to the shared seed, which is
+# `recipe-service` source shared with the integration/e2e corpus, so it belongs in its own change. Until then
+# the per-step checkbox below stays guarded, and its guard is honest rather than decorative.
+
+# REQ-034 — the USDA-source disclosure is GATED to recipes carrying a user-entered ingredient
+# (`hasUserEnteredIngredients`); this seeded recipe carries no ingredient lines at all (see the note above),
+# so the notice must NOT render. ⚠️ That makes this a WEAK negative: it holds for "no user-entered lines" and
+# for "no lines", and only the first is the rule. The positive case — a freeform ingredient — is covered by
+# `create.yaml`, which is what actually pins the gate.
 - assertNotVisible: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
 # W2/D4 — per-step cooking-progress checkboxes are interactive (smoke: tapping does not crash).
 - runFlow:

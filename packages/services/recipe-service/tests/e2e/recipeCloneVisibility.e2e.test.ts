@@ -21,16 +21,20 @@
  *
  * The booted app authenticates as CLONER (dev bypass); OWNER's source recipes are seeded directly via a
  * raw pg pool (mirroring `ratings.e2e.test.ts`). For the one assertion that needs OWNER to read their OWN
- * recipe (owner GET private = 200), the dev-bypass identity is flipped via `RECIPE_DEV_AUTH_USER_ID`
- * for that single request and restored in a `finally` — the exact pattern `throttle.e2e.test.ts` uses to
- * exercise two authenticated identities against one booted app (the dev bypass reads the env var fresh on
- * every request, so flipping it between sequential — never concurrent — requests is safe). Skips cleanly
- * without a database.
+ * recipe (owner GET private = 200), the dev-bypass identity is flipped via `RECIPE_DEV_AUTH_USER_ID` for that
+ * single request and restored in a `finally` — the shared {@link asPrincipal} helper on `harness.ts` (the
+ * pattern `throttle.e2e.test.ts` introduced; the dev bypass reads the env var fresh on every request, so
+ * flipping it between sequential — never concurrent — requests is safe). Skips cleanly without a database.
+ *
+ * **The clone story's SECOND half** — that the cloner can then EDIT the recipe they now own, and that doing so
+ * leaves the SOURCE untouched — is the last `it` here. It sits in this file rather than a new one because it
+ * is the same story as the clone that precedes it, and splitting it would put a proof and its premise in two
+ * places.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
+import { asPrincipal, bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
@@ -43,6 +47,7 @@ interface RecipeBody {
     title: string;
     visibility: string;
     status: string;
+    currentVersion: number;
     clonedFromId?: string;
     sourceAttribution?: string;
 }
@@ -88,27 +93,6 @@ describe.skipIf(!hasDatabaseUrl)('recipe clone + visibility (e2e, assembled app)
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({}),
         });
-    }
-
-    /**
-     * Run `fn` authenticated as `userId` against the ONE booted app, then restore whatever dev-bypass
-     * identity was active before — mirrors `throttle.e2e.test.ts`'s "keys the write limit PER USER" test,
-     * the established pattern for exercising two identities without booting a second app.
-     * @sideEffect Temporarily mutates `process.env['RECIPE_DEV_AUTH_USER_ID']`.
-     */
-    async function asPrincipal<T>(userId: string, fn: () => Promise<T>): Promise<T> {
-        const previous = process.env['RECIPE_DEV_AUTH_USER_ID'];
-        process.env['RECIPE_DEV_AUTH_USER_ID'] = userId;
-
-        try {
-            return await fn();
-        } finally {
-            if (previous === undefined) {
-                delete process.env['RECIPE_DEV_AUTH_USER_ID'];
-            } else {
-                process.env['RECIPE_DEV_AUTH_USER_ID'] = previous;
-            }
-        }
     }
 
     it('cloning a PUBLIC recipe as another user: 201, owned by the CLONER (not the author), distinct id, public by C-004 default', async () => {
@@ -192,5 +176,45 @@ describe.skipIf(!hasDatabaseUrl)('recipe clone + visibility (e2e, assembled app)
         expect(body.visibility).toBe('public');
         expect(body.status).toBe('published');
         expect(body.ownerId).toBe(CLONER);
+    });
+
+    it('the CLONER can then EDIT their clone (200, version bumped), and the SOURCE recipe is left untouched', async () => {
+        // The second half of the clone story: a clone that cannot be edited is not the cloner's recipe in any
+        // sense a user would recognise. `recipeCloneVisibility` proved the clone is CREATED and owned by the
+        // cloner; nothing proved the ownership it reports is the ownership the write path honours.
+        const sourceId = await seedRecipe(OWNER, 'public', 'published', 'Editable Clone Source');
+
+        const cloned = await clone(sourceId);
+        expect(cloned.status).toBe(201);
+        const clonedBody = (await cloned.json()) as RecipeBody;
+        expect(clonedBody.ownerId).toBe(CLONER);
+
+        const patched = await fetch(`${booted.baseUrl}/api/v1/recipes/${clonedBody.id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                expectedVersion: clonedBody.currentVersion,
+                title: 'My Version Of It',
+                description: 'Edited by the cloner.',
+            }),
+        });
+        expect(patched.status).toBe(200);
+        const patchedBody = (await patched.json()) as RecipeBody;
+        expect(patchedBody.id).toBe(clonedBody.id);
+        expect(patchedBody.title).toBe('My Version Of It');
+        expect(patchedBody.ownerId).toBe(CLONER);
+        // A real write, not an echo: the optimistic-concurrency token advanced.
+        expect(patchedBody.currentVersion).toBe(clonedBody.currentVersion + 1);
+
+        // ⛔ THE ADVERSARIAL HALF: a clone is a COPY, not a view. Editing it must not write through to the
+        // recipe it was cloned from — read the SOURCE row straight from Postgres rather than through the API
+        // that just answered 200 about a different row.
+        const { rows } = await pool.query<{ title: string; current_version: number }>(
+            'SELECT title, current_version FROM recipes WHERE id = $1',
+            [sourceId],
+        );
+        expect(rows).toHaveLength(1);
+        expect(rows[0]!.title).toBe('Editable Clone Source');
+        expect(rows[0]!.current_version).toBe(1);
     });
 });

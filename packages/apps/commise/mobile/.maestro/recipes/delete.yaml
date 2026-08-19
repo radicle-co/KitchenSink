@@ -36,5 +36,22 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Delete'
-# Back on the recipe list.
+
+# ⛔ THE ASSERTION THAT MAKES THIS FLOW A DELETE TEST. Returning to the list proves navigation, nothing more:
+# `assertVisible: 'Recipes'` is satisfied by a delete that answered 500 and by one that silently no-op'd,
+# because the chrome renders in every state. The seed gives the signed-in FREE owner exactly THREE recipes
+# (`packages/services/recipe-service/src/database/seed.ts`), the delete mutation invalidates the list query
+# (`useDeleteRecipe` → `invalidateEditedRecipeRows`), and the populated branch renders the count — so the
+# library settling at TWO is the one observable only a delete that actually reached the service can produce.
+# `extendedWaitUntil` (not `assertVisible`) because the refetch is asynchronous.
 - assertVisible: 'Recipes'
+- extendedWaitUntil:
+      visible:
+          text: '^2 recipes$'
+      timeout: 40000
+
+# ...and the row itself is gone. Maestro matches the whole rendered hierarchy rather than only the visible
+# viewport (which is why this flow's sibling can assert three headings down a long detail without scrolling),
+# so this catches a tombstoned recipe that the list still projects. It is the WEAKER of the two assertions —
+# a list that failed to render at all would also satisfy it — which is exactly why the count above leads.
+- assertNotVisible: 'Gourmet Garden Salad'

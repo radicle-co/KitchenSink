@@ -252,6 +252,10 @@ export class FoodConsumerService {
         // does not name a real principal — no requester at all, or a forbidden `'system'` shortcut means
         // an unauthenticated/unauthorized producer enqueued it, so NO external source call may happen on
         // its behalf. Tombstone the row (it never should have existed) without touching the source.
+        //
+        // An operator requeue (U9) satisfies this like any other producer: it re-enqueues through
+        // `EnqueueEmitter` as the named `svc_admin_requeue` service principal, so the recovered row has a
+        // real recorded requester and needs no special case here.
         const requesterIds = await this.queue.listRequesterIds(foodId);
 
         if (!hasValidProvenance(requesterIds)) {

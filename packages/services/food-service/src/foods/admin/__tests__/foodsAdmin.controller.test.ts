@@ -7,7 +7,8 @@
  * Requirement → test mapping:
  * - FR-039 / FR-051 → authenticated-but-unscoped → 403 `FORBIDDEN`; scoped → 200 + metrics.
  * - U9 → the requeue is scope-gated like the GETs, validates the id AFTER the scope check (FR-051 puts
- *   `403` ahead of `400`), and reaches the recovery service — never the metrics service.
+ *   `403` ahead of `400`), and reaches the recovery service — never the metrics service — carrying the
+ *   VERIFIED operator, which is the only record of who authorised the resulting source calls (FR-048).
  *
  * The rejection is asserted by STATUS + published `code`, not by which `HttpException` subclass was constructed:
  * the status comes from the one `FOOD_ERROR_STATUS` table (`common/apiError.ts`), and this route used to emit the
@@ -147,11 +148,32 @@ describe('FoodsAdminController.requeueFood (U9)', () => {
 
     // The re-home is only real if the controller stopped asking the metrics service to write. A mock that
     // still answered `requeueFood` on the metrics double would hide exactly that.
-    it('delegates to the RECOVERY service, and leaves the read-only metrics service untouched', async () => {
+    //
+    // ⚠️ REWRITTEN for the accountable-principal argument (U9 × FR-048). It previously asserted delegation
+    // with the id ALONE, which is now an incomplete statement of the route's job: a requeue authorises
+    // outbound source calls for a food that has no requester left to account for them (`tombstone` prunes
+    // them, DSN-10), so WHO asked is what makes those calls attributable at all. Asserting only the id
+    // would go green with the operator silently dropped.
+    it('delegates to the RECOVERY service with the VERIFIED operator, leaving the metrics service untouched', async () => {
         const result = await ctx.controller.requeueFood(FOOD_ID, makeReq(['food:admin']));
 
         expect(result).toStrictEqual({ id: FOOD_ID, status: 'PENDING' });
-        expect(ctx.recovery['requeueFood']).toHaveBeenCalledExactlyOnceWith(FOOD_ID);
+        expect(ctx.recovery['requeueFood']).toHaveBeenCalledExactlyOnceWith(FOOD_ID, 'admin_1');
         expect(Object.keys(ctx.service)).not.toContain('requeueFood');
+    });
+
+    /**
+     * The operator id comes from the VERIFIED token and nowhere else (FR-038) — the same rule that keeps a
+     * client-suppliable header out of every other identity decision in this service. A body/header-sourced
+     * operator would make the one audit record of who requeued a food forgeable by the person requeueing it.
+     */
+    it('takes the operator from the verified principal, never from anything the caller supplies', async () => {
+        const req = makeReq(['food:admin']);
+        (req as unknown as { body: unknown }).body = { operator: 'someone_else' };
+        (req as unknown as { headers: Record<string, string> }).headers = { 'x-operator': 'someone_else' };
+
+        await ctx.controller.requeueFood(FOOD_ID, req);
+
+        expect(ctx.recovery['requeueFood']).toHaveBeenCalledExactlyOnceWith(FOOD_ID, 'admin_1');
     });
 });

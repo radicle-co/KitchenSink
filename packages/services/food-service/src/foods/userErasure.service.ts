@@ -5,6 +5,10 @@
  * per-user data the food service stores (foods are shared reference data; there are deliberately no
  * `user_fetch_quota`/`global_fetch_quota` tables). Idempotent.
  *
+ * ⚠️ The `svc_*` rows in that table (`svc_change_refresh`, `svc_admin_requeue`) are NOT user identity and
+ * are deliberately out of scope here: they are constant named service principals, erasable by nothing and
+ * belonging to no person.
+ *
  * **CR-002/U1 (R5).** The user footprint is keyed by the app-user **ULID** (identity's `users.id`), NOT
  * the Clerk `sub`. `eraseUser` therefore takes the ULID. This unit only makes the erasure leg
  * key-correct; wiring the actual caller (the deletion-worker fan-out) is U4b/R11 — `eraseUser` remains

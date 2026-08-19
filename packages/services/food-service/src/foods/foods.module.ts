@@ -37,6 +37,7 @@ import { ServiceErasureController } from './serviceErasure.controller.js';
 import { GoldenRecordMergeEngine } from './merge/mergeEngine.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { UserErasureService } from './userErasure.service.js';
+import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
 
 @Module({
     controllers: [FoodsController, FoodsAdminController, ServiceErasureController],
@@ -45,7 +46,6 @@ import { UserErasureService } from './userErasure.service.js';
         EnqueueEmitter,
         AdmissionService,
         AdminMetricsService,
-        FoodRecoveryService,
         UserErasureService,
         FoodAuthGuard,
         // CR-002 / U4b / R11 — the internal service-principal erasure route's verifier + guard. The guard
@@ -53,6 +53,15 @@ import { UserErasureService } from './userErasure.service.js';
         // so the machine-auth path is structurally distinct from the Clerk user path.
         FoodServiceErasureAuthService,
         FoodServiceErasureGuard,
+        // U9's write side. A FACTORY, not a class provider: its structured audit sink is the `WorkerLogger`
+        // INTERFACE, which erases to `Object` in `design:paramtypes`, so Nest's DI cannot resolve it and the
+        // module would fail to instantiate at boot (the failure mode the `FetchQueueDao` note below records).
+        {
+            provide: FoodRecoveryService,
+            inject: [FoodDao, EnqueueEmitter],
+            useFactory: (foodDao: FoodDao, enqueue: EnqueueEmitter): FoodRecoveryService =>
+                new FoodRecoveryService(foodDao, enqueue, new ConsoleWorkerLogger('food-admin')),
+        },
         {
             provide: AdminMetricsDao,
             inject: [DrizzleProvider],

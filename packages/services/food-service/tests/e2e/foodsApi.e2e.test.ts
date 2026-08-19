@@ -588,17 +588,18 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
      * The requeue against a food blackholed by a REAL source outage over the real worker — the population
      * U9 exists for, which no other tier reaches (both lower tiers construct the resting state by hand).
      *
-     * ⚠️ KNOWN GAP, ASSERTED AS IT ACTUALLY BEHAVES rather than as one might hope. The requeue clears both
-     * halves and answers `202`, but it does NOT by itself get the food re-fetched: `tombstone()` prunes
-     * `fetch_requesters` (DSN-10), so the requeued row names no principal and `processRow`'s FR-048
-     * provenance check re-tombstones it as `unauthenticated_producer` on the next drain — leaving the food
-     * `PENDING` (a permanent `202` to readers) instead of recovered. That is a defect in U9's recovery path,
-     * NOT in the 409 contract this change is about, and fixing it is a decision about whether the operator
-     * is recorded as the requester (FR-048 wants an accountable principal behind every source call). The
-     * case below therefore asserts what the route really guarantees today, and this comment is the record.
+     * ⚠️ REWRITTEN to prove RECOVERY, replacing a case that asserted the broken guarantee. It previously
+     * checked only that the route answered `202` and cleared both halves, and carried a comment recording
+     * the gap as known: `tombstone()` prunes `fetch_requesters` (DSN-10), so the requeued row named no
+     * principal and `processRow`'s FR-048 provenance gate re-tombstoned it as `unauthenticated_producer`
+     * on the next drain — parking the food at `PENDING`, a permanent `202` to readers and strictly worse
+     * than the `404` it had. The fix marks the queue row's producer provenance as operator-initiated (a
+     * NON-PERSONAL marker — the operator's id goes to the audit log, never into `fetch_requesters`, which
+     * is the user-erasure surface), and the gate now accepts an accountable principal that is not a user
+     * requester. So the case below drains AFTER the requeue and requires the food to actually come back.
      */
     describe('POST /api/v1/foods/admin/foods/{id}/requeue', () => {
-        it('clears the terminal state of a food blackholed by a real source outage (202)', async () => {
+        it('recovers a food blackholed by a real source outage: 202, then the next drain RESOLVES it', async () => {
             stub.programSearchError('tempeh starter', 500);
             const { id, status } = await addAndDrain(userToken, 'tempeh starter');
             expect(status).toBe('FAILED');
@@ -615,6 +616,12 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
                 [id],
             );
             expect(row.rows[0]).toMatchObject({ status: 'pending', attempts: 0 });
+
+            // The outage ends, and the requeue has to actually get the food re-fetched — the guarantee the
+            // route's whole reason for existing rests on, and the one this case used to concede was absent.
+            stub.programResolve('tempeh starter');
+            expect(await drainUntilTerminal(id)).toBe('RESOLVED');
+            expect((await call('GET', `/api/v1/foods/${id}`, { token: userToken })).status).toBe(200);
         });
 
         it('unauth → 401; authenticated non-admin → 403 (the scope gate, before any write)', async () => {

@@ -29,6 +29,7 @@ import {
 } from '../src/sources/foodSourceAdapter.js';
 import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
 import { FoodConsumerService } from '../src/worker/foodConsumer.service.js';
+import { SVC_ADMIN_REQUEUE } from '../src/worker/change-refresh/changeRefresh.consumer.js';
 import { SilentWorkerLogger } from '../src/worker/SilentWorkerLogger.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 
@@ -155,5 +156,52 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
 
         expect(await consumer.processNext()).toBe('resolved');
         expect(adapter.searchByName).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * THE OPERATOR-REQUEUE ARM (U9 × FR-048). A blackholed food has zero requesters BY CONSTRUCTION —
+     * `tombstone` prunes them (DSN-10) — so the operator escape hatch could not recover the one population
+     * it exists for: the revived row named no principal, was refused on the next drain, re-tombstoned
+     * `unauthenticated_producer`, and the food stuck at `PENDING`.
+     *
+     * The fix records an accountable principal like every other producer does, rather than teaching this
+     * gate a new accept case: the requeue re-enqueues as the named service principal `svc_admin_requeue`.
+     * The gate is UNCHANGED — which is the point, and what these cases pin.
+     */
+    describe('the U9 operator-requeue principal (svc_admin_requeue)', () => {
+        it('DRAINS a row whose only requester is svc_admin_requeue — the recovery the hatch promises', async () => {
+            const id = await seedWithoutRequester('operator requeued');
+            await requesters.add({ foodId: id, requesterId: SVC_ADMIN_REQUEUE });
+            const { consumer, adapter } = build();
+
+            const disposition = await consumer.processNext();
+
+            expect(disposition).toBe('resolved');
+            expect(adapter.searchByName).toHaveBeenCalledTimes(1);
+            expect((await foodDao.getById(id))?.status).toBe('RESOLVED');
+        });
+
+        it('⛔ still refuses the row if that requester is MISSING — no zero-requester accept case exists', async () => {
+            // The gate was never widened to admit a requester-less row, and must not be. If this ever goes
+            // green, U9 has been "fixed" by weakening an authorization rule instead of naming a principal.
+            const id = await seedWithoutRequester('operator requeued but unattributed');
+            const { consumer, adapter } = build();
+
+            expect(await consumer.processNext()).toBe('rejected_provenance');
+            expect(adapter.searchByName).not.toHaveBeenCalled();
+            expect((await queue.getByFoodId(id))?.lastError).toBe('unauthenticated_producer');
+        });
+
+        it('⛔ still refuses a row where svc_admin_requeue sits ALONGSIDE a "system" requester', async () => {
+            // Every recorded requester must be a real principal — a valid one does not redeem an invalid
+            // one, so a legitimate requeue cannot launder an unauthenticated producer's row.
+            const id = await seedWithoutRequester('operator requeued beside system');
+            await requesters.add({ foodId: id, requesterId: SVC_ADMIN_REQUEUE });
+            await pool.query(`INSERT INTO fetch_requesters (food_id, requester_id) VALUES ($1, 'system')`, [id]);
+            const { consumer, adapter } = build();
+
+            expect(await consumer.processNext()).toBe('rejected_provenance');
+            expect(adapter.searchByName).not.toHaveBeenCalled();
+        });
     });
 });

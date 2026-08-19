@@ -39,8 +39,12 @@ import { FoodRecoveryService } from '../src/foods/admin/foodRecovery.service.js'
 import { isFoodNotFoundError } from '../src/foods/foods.errors.js';
 import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
+import { EnqueueEmitter } from '../src/foods/enqueue.emitter.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
 import { isRetryBudgetExhausted, MAX_FAILURE_ATTEMPTS } from '../src/worker/backoff.js';
+import { hasValidProvenance } from '../src/worker/provenance.js';
+import { SVC_ADMIN_REQUEUE } from '../src/worker/change-refresh/changeRefresh.consumer.js';
+import { SilentWorkerLogger } from '../src/worker/SilentWorkerLogger.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 
 /** Seconds remaining on a queue row's backoff gate, read from the stored column against the server clock. */
@@ -74,7 +78,7 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
         foods = new FoodDao(db);
         queue = new FetchQueueDao(db);
         requesters = new FetchRequestersDao(db);
-        admin = new FoodRecoveryService(foods, queue);
+        admin = new FoodRecoveryService(foods, new EnqueueEmitter(pool), new SilentWorkerLogger());
     });
 
     afterAll(async () => {
@@ -273,6 +277,9 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
     });
 
     describe('the operator requeue clears BOTH halves and gives a blackholed food a way back (R2.4)', () => {
+        /** The authenticated operator every requeue below is issued by (the verified Clerk `sub`). */
+        const OPERATOR = 'admin_2incident';
+
         /** Drive a placeholder all the way to the blackholed resting state an operator would find. */
         async function blackhole(name: string): Promise<string> {
             const id = await placeholder(name);
@@ -290,7 +297,7 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
         it('resets food.status to PENDING and fetch_queue.attempts to 0, and clears the recorded error', async () => {
             const id = await blackhole('recoverable');
 
-            await expect(admin.requeueFood(id)).resolves.toStrictEqual({ id, status: 'PENDING' });
+            await expect(admin.requeueFood(id, OPERATOR)).resolves.toStrictEqual({ id, status: 'PENDING' });
 
             expect(await rawFoodStatus(pool, id)).toBe('PENDING');
             const row = await queue.getByFoodId(id);
@@ -299,17 +306,29 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
             expect(row?.lastError).toBeNull();
         });
 
-        it('makes the food claimable again immediately — the backoff gate is cleared, not merely reset', async () => {
+        /**
+         * ⚠️ STRENGTHENED. Claimability alone was this suite's whole claim about recovery, and it is what let
+         * a real defect through: `leaseNext`'s fallback branch requires no requester, so the row leased
+         * happily — and was then REFUSED one step later, inside `processRow`'s FR-048 provenance gate,
+         * because `tombstone` had pruned every requester (DSN-10). The food sat at `PENDING` forever. So a
+         * claimable row is only half the guarantee; the other half is that the drain will accept it, which
+         * is asserted here against the REAL gate rather than restated in prose.
+         */
+        it('makes the food claimable again immediately AND acceptable to the drain that claims it', async () => {
             const id = await blackhole('re-drained');
 
-            await admin.requeueFood(id);
+            await admin.requeueFood(id, OPERATOR);
 
             expect((await queue.leaseNext())?.foodId).toBe(id);
+            // The tombstone had pruned every requester (DSN-10) — the population U9 exists for. The requeue
+            // put one back, so the drain that just claimed the row will also ACCEPT it.
+            expect(await queue.listRequesterIds(id)).toStrictEqual([SVC_ADMIN_REQUEUE]);
+            expect(hasValidProvenance(await queue.listRequesterIds(id))).toBe(true);
         });
 
         it('restores the full budget — the next failure is attempt 1, not a re-exhaustion', async () => {
             const id = await blackhole('budget restored');
-            await admin.requeueFood(id);
+            await admin.requeueFood(id, OPERATOR);
 
             const row = await queue.recordFailure(id, 'source 503');
 
@@ -322,7 +341,7 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
             await queue.recordFailure(id);
             await foods.setStatus({ id, status: 'AWAITING_RETRY' });
 
-            await admin.requeueFood(id);
+            await admin.requeueFood(id, OPERATOR);
 
             expect(await rawFoodStatus(pool, id)).toBe('PENDING');
             expect((await queue.getByFoodId(id))?.attempts).toBe(0);
@@ -330,14 +349,16 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
 
         it('is IDEMPOTENT — a second requeue of the now-PENDING food succeeds, as the route documents', async () => {
             const id = await blackhole('requeued twice');
-            await admin.requeueFood(id);
+            await admin.requeueFood(id, OPERATOR);
 
-            await expect(admin.requeueFood(id)).resolves.toStrictEqual({ id, status: 'PENDING' });
+            await expect(admin.requeueFood(id, OPERATOR)).resolves.toStrictEqual({ id, status: 'PENDING' });
             expect(await rawFoodStatus(pool, id)).toBe('PENDING');
         });
 
         it('reports an unknown food id as FOOD_NOT_FOUND, not as an internal fault', async () => {
-            await expect(admin.requeueFood('01J9ZK8N7QF3B2X4M6T0V5C1AB')).rejects.toSatisfy(isFoodNotFoundError);
+            await expect(admin.requeueFood('01J9ZK8N7QF3B2X4M6T0V5C1AB', OPERATOR)).rejects.toSatisfy(
+                isFoodNotFoundError,
+            );
         });
 
         /**
@@ -354,7 +375,7 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
                 let thrown: unknown;
 
                 try {
-                    await admin.requeueFood(id);
+                    await admin.requeueFood(id, OPERATOR);
                 } catch (error) {
                     thrown = error;
                 }

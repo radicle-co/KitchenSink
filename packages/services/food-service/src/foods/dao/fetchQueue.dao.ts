@@ -112,6 +112,13 @@ export class FetchQueueDao {
      * failure/lease bookkeeping and refreshing `request_count` (DSN-1/FR-028a). Inserts a fresh row
      * only if none exists.
      *
+     * ⚠️ Revives the QUEUE ROW ONLY — it records no requester, so on its own it produces a row the drain
+     * will REFUSE (FR-048 needs a recorded principal, and a tombstone pruned them all, DSN-10). Every
+     * caller that means "re-fetch this food" must go through `EnqueueEmitter.publishFoodRequested`
+     * ({ reactivate: true }), which records the requester, revives the row and wakes the worker in one
+     * transaction. That is what U9's operator requeue does (as `svc_admin_requeue`), and it is why this
+     * method has no production caller of its own.
+     *
      * @param foodId - Internal food id.
      * @returns The revived queue row.
      * @sideEffect Updates or inserts `fetch_queue`.
@@ -427,6 +434,10 @@ export class FetchQueueDao {
     /**
      * Tombstone an exhausted/`NOT_FOUND` food (`status='tombstone'`, the DLQ analog + audit trail,
      * FR-016/FR-025) and prune its requester rows (DSN-10).
+     *
+     * ⚠️ The prune is what makes a tombstoned food unrecoverable by a bare {@link reactivate}: it now has
+     * NO recorded principal, so the drain refuses it (FR-048). Recovery goes through
+     * `EnqueueEmitter.publishFoodRequested`, which records one — see U9's `FoodRecoveryService`.
      *
      * @param foodId - Internal food id.
      * @param lastError - Optional terminal error detail recorded on the row.

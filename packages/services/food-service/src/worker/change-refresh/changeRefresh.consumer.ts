@@ -32,8 +32,32 @@ import { RollingWindowLimiter } from '../../sources/RollingWindowLimiter.js';
 import { ConsoleWorkerLogger } from '../ConsoleWorkerLogger.js';
 import { type WorkerLogger } from '../workerLogger.js';
 
-/** The named service principal recorded as the refresh requester (FR-048 — never a `'system'` shortcut). */
+/**
+ * THE NAMED SERVICE PRINCIPALS this service enqueues on behalf of (FR-048 — never a `'system'` shortcut).
+ * Declared together, deliberately: they are the complete set of non-human producers that may drive an
+ * external source call, and a reader deciding whether a `svc_*` row in `fetch_requesters` is legitimate
+ * needs to see all of them in one place. `isValidPrincipal` accepts any non-empty `svc_*` by shape rather
+ * than by a lookup against this list, so these constants are the naming convention — not the gate.
+ *
+ * Both are recorded in `fetch_requesters` exactly like a user requester (`operational.ts` documents
+ * `requester_id` as an app-user ULID **or** an allowlisted `svc_*`). Neither is user identity: they are
+ * constants, they belong to no person, and `UserErasureService` can never match them.
+ */
+
+/** The refresh scheduler — re-enqueues a RESOLVED food whose backing item changed upstream (FR-031/032). */
 export const SVC_CHANGE_REFRESH = 'svc_change_refresh';
+
+/**
+ * The U9 operator requeue — the principal recorded when an admin recovers a blackholed food (FR-028a).
+ *
+ * ⛔ **Why a service principal and not the operator's own id.** `fetch_requesters` is this service's
+ * user-erasure surface (`foods/userErasure.service.ts`): an admin's ULID there would widen that surface
+ * AND silently re-break the food if that admin ever erased their own account, coupling an operational
+ * escape hatch to unrelated erasure semantics. A constant carries the accountability FR-048 requires —
+ * "a named, authorized, non-anonymous producer" — with none of that coupling. WHO requeued is recorded in
+ * `FoodRecoveryService`'s `operator-requeue` audit line, which is the only place that identity lives.
+ */
+export const SVC_ADMIN_REQUEUE = 'svc_admin_requeue';
 
 /** Default per-run scan budget — max backing items re-fetched in one scheduled pass (budget-bounded). */
 const DEFAULT_SCAN_LIMIT = 1000;

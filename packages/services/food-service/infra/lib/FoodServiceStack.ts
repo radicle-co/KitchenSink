@@ -757,15 +757,34 @@ export class FoodServiceStack extends Stack {
         // The pipeline's `Run food DB migrations` step is deliberately KEPT as a safety net: it is
         // idempotent, and it still catches a stage whose schema is behind for a reason no code change
         // explains (a restore, a stage created later). `prodDeployMigrationOrder.test.ts` pins both.
+        // ⚠️ DELIBERATE — see docs/architecture/decisions/0022-in-stack-migration-trigger.md
+        // ⛔ DISCOVERED from the construct tree, never a list. This read used to be
+        // `[apiService, workerService]` — EVERY Fargate workload in this stack, which was true when it was
+        // written and stops being true the moment a third one lands. The comment it carried ("not just the
+        // API: the fetch worker queries the same schema") was the reason a human had to remember; the
+        // derivation is that reason made mechanical, and it now covers a DB-touching Lambda too, which the
+        // template gate over `AWS::ECS::Service` never could.
+        //
+        // Two things it still cannot reach, and neither is a gap this can close:
+        //   • the 6-hourly change-refresh RunTask is an EventBridge target, not a deployed service, so
+        //     CloudFormation has no ordering to give it — it retries on its own schedule;
+        //   • `DependsOn` cannot leave a stack, so nothing here orders another CDK app (ADR-0022).
+        //
+        // Read BEFORE the Trigger is constructed, so CDK's own custom-resource provider Lambda — created
+        // inside it, and no consumer of this schema — is not swept in.
+        const orderedBehindTheSchema = this.node
+            .findAll()
+            .filter(
+                (construct): construct is Construct =>
+                    construct instanceof lambda.Function || construct instanceof ecs.BaseService,
+            )
+            .filter((construct) => construct !== migrationFn);
+
         new triggers.Trigger(this, 'FoodSchemaMigrations', {
             handler: migrationFn,
             timeout: Duration.seconds(360),
             executeAfter: [migrationFn],
-            // EVERY Fargate workload in this stack, not just the API: the fetch worker queries the same
-            // schema, and a worker crash-looping on a missing relation is harder to attribute than a 500.
-            // The 6-hourly change-refresh RunTask is an EventBridge target rather than a deployed service,
-            // so CloudFormation has no ordering to give it — it retries on its own schedule.
-            executeBefore: [apiService, workerService],
+            executeBefore: orderedBehindTheSchema,
         });
 
         // ── Shared ALB host-rule + DNS (mirrors identity) ───────────────────────────────────────

@@ -76,7 +76,12 @@ export class FoodsAdminController {
             throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
         }
 
-        return this.recovery.requeueFood(id);
+        // The verified `sub` — documented on `AuthenticatedPrincipal` as the trace/audit identity — is the
+        // accountable principal behind the source calls this requeue authorises (FR-048). `requireAdmin`
+        // has already proven `req.user` is present and scoped. It reaches the AUDIT LOG only: the requeue
+        // records the CONSTANT `svc_admin_requeue` in `fetch_requesters`, never an operator's own id,
+        // because that table is this service's user-erasure surface.
+        return this.recovery.requeueFood(id, req.user?.sub ?? '');
     }
 
     /** Require the `food:admin` scope from the verified token, else `403` (FR-039/FR-051). */

@@ -57,6 +57,14 @@ export function isValidPrincipal(requesterId: string): boolean {
  * Whether a leased food's recorded requester set proves valid producer provenance (FR-048): there is
  * at least one requester AND every requester is a real principal. Pure.
  *
+ * ⛔ **Do not widen this to admit a requester-less row.** A U9 operator requeue was once thought to need
+ * that, because `FetchQueueDao.tombstone` prunes `fetch_requesters` (DSN-10) and every blackholed food
+ * therefore has none. It does NOT: the requeue re-enqueues through the ordinary
+ * `EnqueueEmitter.publishFoodRequested` path as the named service principal `svc_admin_requeue`, exactly
+ * as change-refresh does with `svc_change_refresh`, so the recovered row names a real principal like any
+ * other. Any future "just this one accountable case" belongs in `fetch_requesters` as a named `svc_*`
+ * principal, not as a new accept case here.
+ *
  * @param requesterIds - The `fetch_requesters` requester ids recorded for the food.
  * @returns `true` when the consumer may drain the row, `false` to refuse it.
  */

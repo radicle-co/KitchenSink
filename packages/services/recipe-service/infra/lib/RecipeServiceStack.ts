@@ -432,10 +432,18 @@ export class RecipeServiceStack extends Stack {
         // lives on the function's role, inside its construct subtree); `timeout` is the trigger's SOCKET
         // timeout, which defaults to two minutes while the runner is allowed five.
         //
-        // ⚠️ NOT COVERED, and deliberately so: the recipe-workers stack is a separate CDK app deployed
-        // BEFORE this one, so its DB-bound Lambdas can still start against an un-migrated schema. They are
-        // queue- and schedule-driven with retries rather than serving user requests, which makes them a
-        // delay rather than an outage — but it is a real residual, not an oversight.
+        // ⚠️ THIS TRIGGER COVERS THIS STACK ONLY, and that is a statement about CloudFormation, not a gap.
+        // `executeBefore` compiles to `DependsOn`, which cannot leave a stack — and the recipe WORKERS are
+        // six DB-touching Lambdas in a separate CDK app, applied by a separate `cdk deploy` that runs BEFORE
+        // this one (it must: it publishes the account-erasure SSM parameters resolved above, and a queue's
+        // consumer has to upgrade before its producer). They were therefore updated ahead of the schema on
+        // every release, and on a first-ever pr-{N} deploy they addressed a database the migration had not
+        // created yet.
+        //
+        // That is now closed the only way it can be — `RecipeWorkersStack` carries its OWN barrier, over its
+        // own runner, shipping this same bundle. So the rule for this repo is: a stack that touches a
+        // service's database orders its own resources behind that schema; the pipeline orders nothing.
+        // Both halves are pinned by `packages/infra/global/__tests__/prodDeployMigrationOrder.test.ts`.
         new triggers.Trigger(this, 'RecipeSchemaMigrations', {
             handler: migrationFn,
             timeout: Duration.seconds(360),

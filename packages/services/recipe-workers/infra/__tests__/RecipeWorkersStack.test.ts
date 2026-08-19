@@ -22,6 +22,20 @@ import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
 const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
 
 /**
+ * The recipe-service migration bundle this stack's in-deploy barrier ships. Built by
+ * `npm run bundle:lambda --workspace=packages/services/recipe-service`, which both deploy pipelines already
+ * run before the workers deploy — see the ordering guard in
+ * `packages/infra/global/__tests__/prodDeployMigrationOrder.test.ts`.
+ */
+const RECIPE_MIGRATION_BUNDLE = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../../recipe-service/dist-lambda',
+);
+
+/** Every asset root this stack ships a Lambda from — its own bundle, plus recipe-service's migration bundle. */
+const BUNDLE_ROOTS = [DIST_DIR, RECIPE_MIGRATION_BUNDLE];
+
+/**
  * Specifiers a handler may import bare despite the asset having no `node_modules`.
  *
  * Mirrors `esbuild.mjs`'s `external`, and for its reasons: `@aws-sdk/*` is provided by the Node Lambda runtime,
@@ -126,9 +140,26 @@ const VPC_LOOKUP_CONTEXT = {
  */
 const DB_RESOURCE_ID = 'db-EXAMPLERESOURCEID12345';
 
-function synth(stage = 'sandbox', baseStage = 'sandbox'): Template {
+/**
+ * Synthesize the stack.
+ *
+ * `migrationBundlePath` is passed EXPLICITLY rather than left to a default, because the recipe migration
+ * bundle is built by a SIBLING package (`recipe-service`) and a template that changed shape depending on
+ * whether that sibling happened to be built would make every assertion below conditional on the state of a
+ * directory this suite does not own. The default-resolution path is exercised where it belongs — against
+ * the real app — in `__tests__/integration/infra/workersAppSynth.integration.test.ts`.
+ *
+ * @param stage - The deploy stage.
+ * @param baseStage - The platform stage it rides.
+ * @param migrationBundlePath - The recipe migration bundle directory, or `undefined` to force the
+ *   not-built branch.
+ * @returns The synthesized template.
+ * @sideEffect Reads the bundle directories `Code.fromAsset` stages.
+ */
+function synth(stage = 'sandbox', baseStage = 'sandbox', migrationBundlePath = RECIPE_MIGRATION_BUNDLE): Template {
     const app = new App({ context: VPC_LOOKUP_CONTEXT });
     const stack = new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
+        migrationBundlePath,
         env: { account: '123456789012', region: 'us-east-1' },
         stackName: `kitchensink-recipe-workers-${stage}`,
         stage,
@@ -140,6 +171,40 @@ function synth(stage = 'sandbox', baseStage = 'sandbox'): Template {
         // The BASE name (the platform's CFN export value). The per-stage name is derived INSIDE the stack
         // from the one shared authority, exactly as `RecipeServiceStack` does — see the parity test in
         // `packages/services/recipe-service/infra/__tests__/recipeDatabaseNameParity.test.ts`.
+        dbBaseName: 'kitchensink_recipes',
+        dbUser: 'recipe_app',
+        dbInstanceIdentifier: DB_RESOURCE_ID,
+        archiveBucketName: 'commise-versions-sandbox',
+        mediaBucketName: 'commise-photos-sandbox',
+        handleSyncTopicArn: 'arn:aws:sns:us-east-1:123456789012:kitchensink-handle-sync-sandbox',
+    });
+
+    return Template.fromStack(stack);
+}
+
+/**
+ * Synthesize with NO migration bundle wired at all — the state a deploy is in when
+ * `bundle:lambda --workspace=…/recipe-service` was never run, or when a composition root forgets the prop.
+ *
+ * ⚠️ A separate function rather than `synth(stage, base, undefined)`, because a TypeScript DEFAULT PARAMETER
+ * is applied for an explicitly-passed `undefined` — so the obvious spelling silently synthesized the REAL
+ * bundle and the placeholder assertion passed over the wrong template. (It did, on the first run of this
+ * suite.) Two named functions cannot be confused that way.
+ *
+ * @param stage - The deploy stage.
+ * @returns The synthesized template.
+ */
+function synthWithoutMigrationBundle(stage = 'sandbox'): Template {
+    const app = new App({ context: VPC_LOOKUP_CONTEXT });
+    const stack = new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
+        env: { account: '123456789012', region: 'us-east-1' },
+        stackName: `kitchensink-recipe-workers-${stage}`,
+        stage,
+        baseStage: 'sandbox',
+        vpcId: 'vpc-12345678',
+        lambdaSecurityGroupId: 'sg-12345678',
+        dbEndpoint: 'db.example.internal',
+        dbPort: 5432,
         dbBaseName: 'kitchensink_recipes',
         dbUser: 'recipe_app',
         dbInstanceIdentifier: DB_RESOURCE_ID,
@@ -202,11 +267,98 @@ function rdsConnectResources(template: Template): string[] {
     return resources;
 }
 
-/** The `RECIPE_DB_NAME` every Lambda in the template is configured with. */
+/** A synthesized CloudFormation resource, reduced to what these assertions read. */
+interface SynthesizedResource {
+    readonly Properties?: Record<string, unknown>;
+    readonly DependsOn?: string | string[];
+}
+
+/**
+ * A resource's `DependsOn`, normalized to a list (CloudFormation permits a bare string).
+ *
+ * @param resource - The synthesized resource.
+ * @returns The logical ids it depends on.
+ */
+function dependsOn(resource: SynthesizedResource | undefined): readonly string[] {
+    const value = resource?.DependsOn;
+
+    return value === undefined ? [] : Array.isArray(value) ? value : [value];
+}
+
+/**
+ * Every Lambda in the template that is configured with a recipe logical database — i.e. every function
+ * whose failure mode is "that schema is not there yet".
+ *
+ * ⚠️ BOTH spellings, on purpose. The six workers carry `RECIPE_DB_NAME` (their own env contract) and the
+ * in-deploy migration runner carries `DB_NAME` (the contract `recipe-service`'s `lambdas/migrate/handler.ts`
+ * reads). A guard that knew only one spelling would quietly stop covering whichever kind was added next —
+ * and this set is the subject of the VPC, IAM, database-name and barrier assertions alike, so a gap here is
+ * a gap in all four at once.
+ *
+ * @param template - The synthesized template.
+ * @returns Logical id → the database name that function is configured with.
+ */
+function databaseBoundFunctions(template: Template): ReadonlyMap<string, string> {
+    const found = new Map<string, string>();
+
+    for (const [logicalId, fn] of Object.entries(template.findResources('AWS::Lambda::Function'))) {
+        const variables = (fn as SynthesizedResource).Properties?.['Environment'] as
+            | { Variables?: Record<string, unknown> }
+            | undefined;
+        const name = variables?.Variables?.['RECIPE_DB_NAME'] ?? variables?.Variables?.['DB_NAME'];
+
+        if (typeof name === 'string') {
+            found.set(logicalId, name);
+        }
+    }
+
+    return found;
+}
+
+/**
+ * The logical id of the Lambda the in-deploy migration trigger invokes.
+ *
+ * ⚠️ Resolved THROUGH the `AWS::Lambda::Version`, not by matching the function's id inside `HandlerArn`.
+ * `triggers.Trigger` keys on a published version — `HandlerArn` references the VERSION's logical id, which
+ * merely starts with the same construct id — so the direct match silently finds nothing and every assertion
+ * built on it passes over an empty set.
+ *
+ * @param template - The synthesized template.
+ * @returns The runner's logical id, or `undefined` when there is no trigger.
+ */
+function migrationRunnerId(template: Template): string | undefined {
+    const trigger = Object.values(template.findResources('Custom::Trigger'))[0] as SynthesizedResource | undefined;
+
+    if (trigger === undefined) {
+        return undefined;
+    }
+
+    const handlerArn = JSON.stringify(trigger.Properties?.['HandlerArn']);
+
+    for (const [versionId, version] of Object.entries(template.findResources('AWS::Lambda::Version'))) {
+        if (handlerArn.includes(versionId)) {
+            return ((version as SynthesizedResource).Properties?.['FunctionName'] as { Ref?: string } | undefined)?.Ref;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * The recipe database name every database-bound Lambda in the template is configured with.
+ *
+ * ⚠️ REWRITTEN when the in-deploy barrier landed (it used to read `RECIPE_DB_NAME` off EVERY Lambda). The
+ * stack now also deploys the migration runner, whose env contract is `DB_NAME`, plus CDK's own
+ * custom-resource provider, which addresses no database at all — so the old form yielded `undefined`
+ * entries and its `toHaveLength(6)` could only be repaired by shrinking what it looked at. Reading the
+ * DERIVED database-bound set instead keeps the assertion total AND extends #119's guarantee to the runner,
+ * where migrating one database while the workers read another would be the same defect through a new door.
+ *
+ * @param template - The synthesized template.
+ * @returns The configured database names.
+ */
 function recipeDbNames(template: Template): string[] {
-    return Object.values(template.findResources('AWS::Lambda::Function')).map(
-        (fn) => fn.Properties?.Environment?.Variables?.RECIPE_DB_NAME,
-    );
+    return [...databaseBoundFunctions(template).values()];
 }
 
 describe('RecipeWorkersStack', () => {
@@ -232,15 +384,31 @@ describe('RecipeWorkersStack', () => {
         });
     });
 
-    it('VPC-attaches every Lambda (ADR-0004 — they read the private RDS)', () => {
+    it('VPC-attaches every Lambda that reads the database (ADR-0004)', () => {
         // The load-bearing infra assertion. A Lambda outside the VPC cannot reach the private RDS at
         // all, and `assignPublicIp` does NOT give a VPC Lambda egress (that is a Fargate-only lever) —
         // these are precisely the DB-bound NAT consumers ADR-0004 documents.
-        const functions = template.findResources('AWS::Lambda::Function');
-        const names = Object.keys(functions);
-        expect(names).toHaveLength(6);
+        //
+        // ⚠️ REWRITTEN when the in-deploy migration barrier landed. This asserted over EVERY
+        // `AWS::Lambda::Function` with a literal `toHaveLength(6)`. The stack now also deploys the migration
+        // runner (which reads the database and MUST be in the VPC) and CDK's own custom-resource provider
+        // for the trigger (which reads nothing, calls only the Lambda API, and must NOT be forced into the
+        // VPC — that would put it on the NAT for nothing, ADR-0004). "Every Lambda" was never the rule;
+        // "every Lambda that reads the database" is, and it is now stated instead of approximated. The
+        // escape hatch is closed immediately below: the ONLY function allowed out of the subject set is
+        // CDK's provider, asserted by name and by count, so a real Lambda cannot leave this guard by
+        // quietly dropping its database env.
+        const bound = databaseBoundFunctions(template);
 
-        for (const name of names) {
+        expect([...bound.keys()], 'the six workers plus the in-deploy migration runner').toHaveLength(7);
+
+        const functions = template.findResources('AWS::Lambda::Function');
+        const unbound = Object.keys(functions).filter((name) => !bound.has(name));
+
+        expect(unbound.filter((name) => !/CustomResourceProvider/.test(name))).toStrictEqual([]);
+        expect(unbound, "CDK's trigger provider, and nothing else").toHaveLength(1);
+
+        for (const name of bound.keys()) {
             // Both private subnets from the VPC lookup context — not just "some VpcConfig exists".
             expect(functions[name]?.Properties?.VpcConfig?.SubnetIds, `${name} must be VPC-attached`).toEqual([
                 'subnet-private-1',
@@ -303,24 +471,41 @@ describe('RecipeWorkersStack', () => {
      */
     it('ships a loadable artifact for every Lambda it deploys — derived from the template, not from a list', () => {
         // `handlers/x.handler` → `dist/handlers/x.js`: the exported symbol is everything after the LAST dot.
-        const artifacts = Object.values(template.findResources('AWS::Lambda::Function'))
-            .map((fn) => fn.Properties?.Handler as string)
+        // ⚠️ The bundle ROOTS are now plural, and the subject set excludes CDK's own provider. The stack
+        // ships two assets: its own `dist/` (the six workers) and recipe-service's `dist-lambda/` (the
+        // migration runner — the SQL has one authority and it is not this package). Keeping the single-root
+        // assumption would have forced the runner OUT of this guard, which is the one Lambda here whose
+        // silent failure mode is "reports a clean migration having applied nothing". CDK's trigger provider
+        // ships an asset CDK builds, so it is excluded — by name, and asserted to be the only exclusion, so
+        // a real Lambda cannot leave the guard by looking like a provider.
+        const providers = Object.keys(template.findResources('AWS::Lambda::Function')).filter((name) =>
+            /CustomResourceProvider/.test(name),
+        );
+
+        expect(providers, "CDK's trigger provider, and nothing else").toHaveLength(1);
+
+        const artifacts = Object.entries(template.findResources('AWS::Lambda::Function'))
+            .filter(([name]) => !providers.includes(name))
+            .map(([, fn]) => fn.Properties?.Handler as string)
             .map((handler) => ({
                 handler,
-                file: path.join(DIST_DIR, `${handler.slice(0, handler.lastIndexOf('.'))}.js`),
-            }));
+                candidates: BUNDLE_ROOTS.map((root) =>
+                    path.join(root, `${handler.slice(0, handler.lastIndexOf('.'))}.js`),
+                ),
+            }))
+            .map(({ handler, candidates }) => ({ handler, file: candidates.find((file) => existsSync(file)) }));
 
         // Non-vacuity: a template that yielded no Lambdas would make every assertion below trivially pass.
-        expect(artifacts.length).toBeGreaterThanOrEqual(6);
+        expect(artifacts.length).toBeGreaterThanOrEqual(7);
 
-        expect(artifacts.filter(({ file }) => !existsSync(file)).map(({ handler }) => handler)).toEqual([]);
+        expect(artifacts.filter(({ file }) => file === undefined).map(({ handler }) => handler)).toEqual([]);
 
         // The failure signature of the real defect: `handleSyncWorker.js` was raw `tsc` output opening
         // `import { sql } from 'drizzle-orm'`, so this reports `drizzle-orm` — the specifier that killed the
         // cold start — rather than merely "an entry point is missing from a config file".
         expect(
             artifacts
-                .map(({ handler, file }) => ({ handler, unresolvable: unresolvableImports(file) }))
+                .map(({ handler, file }) => ({ handler, unresolvable: unresolvableImports(file as string) }))
                 .filter(({ unresolvable }) => unresolvable.length > 0),
         ).toEqual([]);
     });
@@ -403,7 +588,7 @@ describe('RecipeWorkersStack', () => {
  * (archive prune, GDPR erasure, orphan deletion) against another stage's data.
  */
 describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
-    it('grants rds-db:connect on a COLON-separated dbuser ARN, on every one of the six roles', () => {
+    it('grants rds-db:connect on a COLON-separated dbuser ARN, on every database-bound role', () => {
         // THE #121 root cause, pinned. `Stack.formatArn` defaults to `ArnFormat.SLASH_RESOURCE_NAME`, which
         // emits `…:dbuser/{resourceId}/{user}` — an ARN that matches NO real resource, so `rds-db:connect`
         // is implicitly denied and RDS reports the denial as `PAM authentication failed`. The required
@@ -415,9 +600,16 @@ describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
         const resources = rdsConnectResources(template);
         const expected = `arn:aws:rds-db:us-east-1:123456789012:dbuser:${DB_RESOURCE_ID}/recipe_app`;
 
-        // One grant per least-privilege function role (ARCH-IT-7) — `grantRdsIam` is called six times, and
-        // a partial fix that repaired some roles would leave those workers silently dead.
-        expect(resources).toHaveLength(6);
+        // One grant per least-privilege function role (ARCH-IT-7) — a partial fix that repaired some roles
+        // would leave those workers silently dead.
+        //
+        // ⚠️ The count is DERIVED from the database-bound functions rather than the literal `6` it used to
+        // be, because the stack now also deploys the in-deploy migration RUNNER, which authenticates as the
+        // same `recipe_app` role over RDS-IAM. Leaving the literal would have made the honest repair
+        // ("expect 7") indistinguishable from the dishonest one ("expect whatever it is now"), and the
+        // runner is where a regression bites hardest: it fails on the FIRST deploy of a new stage, with no
+        // previous schema to fall back on.
+        expect(resources).toHaveLength(databaseBoundFunctions(template).size);
 
         for (const resource of resources) {
             expect(resource).toBe(expected);
@@ -434,7 +626,10 @@ describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
         const template = synth('pr-73', 'sandbox');
         const names = recipeDbNames(template);
 
-        expect(names).toHaveLength(6);
+        // Six workers plus the in-deploy migration runner. The runner is the reason the count moved: a
+        // runner pointed at the base database while the workers read the preview's own would migrate the
+        // wrong schema and report success — #119's failure mode arriving through a new door.
+        expect(names).toHaveLength(7);
         expect(new Set(names)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 
@@ -840,5 +1035,103 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         prTemplate.hasResourceProperties('AWS::SNS::Topic', {
             DisplayName: 'Recipe workers alarms (pr-73)',
         });
+    });
+});
+
+/**
+ * ⛔ SCHEMA BEFORE WORK: the in-deploy migration barrier (the recipe half of the rule
+ * `RecipeServiceStack`'s `RecipeSchemaMigrations` trigger states for the API tasks).
+ *
+ * ## The hazard these assertions exist for
+ *
+ * `cdk deploy` of this app runs BEFORE the recipe SERVICE deploy in both pipelines — it must, because this
+ * stack publishes the `account-erasure-queue-{url,arn}` SSM parameters the service resolves at deploy time,
+ * and because a queue's CONSUMER must upgrade before its PRODUCER. But the schema those six Lambdas read is
+ * applied by a trigger inside the SERVICE deploy, so until this change every release put new worker code in
+ * front of the old schema and left it there for the whole service deploy — while the still-running previous
+ * release kept feeding the archive, erasure and handle-sync queues. On a first-ever `pr-{N}` deploy it is not
+ * even skew: the per-PR logical database is CREATED by the migration run (ADR-0006), so the workers addressed
+ * a database that did not exist.
+ *
+ * No `DependsOn` can span two CDK apps invoked as two `cdk deploy` commands, so the barrier has to live in
+ * THIS stack: its own runner, carrying this release's SQL, with every DB-touching function behind it.
+ *
+ * ## Why the covered set is derived from the template
+ *
+ * A `triggers.Trigger` keeps its name while covering nothing. Naming the six functions here would be the same
+ * copied list that let `handle-sync-worker` ship unbundled — so the subjects are DISCOVERED from the
+ * synthesized template (every Lambda configured with a recipe database) and a seventh DB-touching Lambda added
+ * outside `executeBefore` fails HERE rather than in production.
+ */
+
+describe('RecipeWorkersStack — the in-deploy schema barrier', () => {
+    it('declares exactly one migration trigger, keyed on a runner defined in THIS stack', () => {
+        // Anchors every assertion below. Without it, "every function depends on the trigger" over an empty
+        // set of triggers is vacuously satisfied by deleting the trigger — the one repair that would look
+        // green and change nothing.
+        const template = synth();
+
+        expect(
+            Object.keys(template.findResources('Custom::Trigger')),
+            'the stack must define exactly one in-deploy migration trigger',
+        ).toHaveLength(1);
+
+        const runnerId = migrationRunnerId(template);
+
+        expect(runnerId, 'the trigger must invoke a runner defined in this stack').toBeDefined();
+        expect(
+            databaseBoundFunctions(template).has(runnerId as string),
+            'the runner must be configured against the recipe database',
+        ).toBe(true);
+    });
+
+    it('⛔ holds EVERY database-bound Lambda in this stack behind that trigger', () => {
+        const template = synth();
+        const [triggerId] = Object.keys(template.findResources('Custom::Trigger'));
+        const runnerId = migrationRunnerId(template);
+        const functions = template.findResources('AWS::Lambda::Function');
+
+        const unordered = [...databaseBoundFunctions(template).keys()]
+            // The runner is ordered by `executeAfter`, not `executeBefore` — it IS the barrier.
+            .filter((id) => id !== runnerId)
+            .filter((id) => !dependsOn(functions[id] as SynthesizedResource).includes(triggerId as string));
+
+        expect(
+            unordered,
+            'these Lambdas can have their code updated before the migration has run — new code against the ' +
+                'old schema, fed the whole time by the still-running previous release',
+        ).toStrictEqual([]);
+    });
+
+    it('gives the trigger longer to wait than the runner is allowed to take', () => {
+        // `timeout` on a Trigger is the custom resource's SOCKET timeout and defaults to two minutes. A
+        // runner allowed longer than that reports success to nobody: the socket closes first and the deploy
+        // fails on a timeout that says nothing about the migration.
+        const template = synth();
+        const trigger = Object.values(template.findResources('Custom::Trigger'))[0] as SynthesizedResource;
+        const runner = template.findResources('AWS::Lambda::Function')[
+            migrationRunnerId(template) as string
+        ] as SynthesizedResource;
+
+        expect(Number(trigger.Properties?.['Timeout'])).toBeGreaterThanOrEqual(
+            Number(runner.Properties?.['Timeout']) * 1000,
+        );
+        // Without this the barrier runs on the FIRST deploy and never again, so the release that actually
+        // adds a migration is exactly the one it would sit out.
+        expect(trigger.Properties?.['ExecuteOnHandlerChange']).toBe(true);
+    });
+
+    it('⛔ THROWS rather than migrating nothing when the recipe migration bundle was never built', () => {
+        // The quietest failure available, and this repo has shipped it once already: a placeholder that
+        // RESOLVES is a SUCCESSFUL invocation, so the trigger passes, the deploy goes green, and the schema
+        // was never touched. The placeholder must fail the invocation, and therefore the deploy.
+        const template = synthWithoutMigrationBundle();
+        const runner = template.findResources('AWS::Lambda::Function')[
+            migrationRunnerId(template) as string
+        ] as SynthesizedResource;
+        const inline = (runner.Properties?.['Code'] as { ZipFile?: string } | undefined)?.ZipFile;
+
+        expect(inline, 'an unbuilt bundle must synthesize an inline placeholder, not a stale asset').toBeDefined();
+        expect(inline).toContain('throw new Error');
     });
 });

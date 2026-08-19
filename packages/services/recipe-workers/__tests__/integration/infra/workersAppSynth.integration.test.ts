@@ -121,6 +121,45 @@ function resources(template: Record<string, unknown>): Record<string, { Type?: s
     return (template['Resources'] ?? {}) as Record<string, { Type?: string; Properties?: never }>;
 }
 
+/** A synthesized resource, reduced to what these assertions read off it. */
+interface SynthesizedResource {
+    readonly Type?: string;
+    readonly Properties?: Record<string, unknown>;
+    readonly DependsOn?: string | string[];
+}
+
+/**
+ * Every Lambda in the app's real template that is configured with a recipe logical database.
+ *
+ * ⚠️ BOTH env spellings, and the reason is the in-deploy schema barrier: the six workers carry
+ * `RECIPE_DB_NAME` while the migration runner the barrier ships carries `DB_NAME` (the contract
+ * `recipe-service`'s `lambdas/migrate/handler.ts` reads). Reading only one of them both UNDER-covers the
+ * runner — where migrating a different database than the workers read is exactly #119 through a new door —
+ * and crashes on CDK's own trigger provider, which has no environment at all.
+ *
+ * @param template - The synthesized template.
+ * @returns Logical id → the database name that function is configured with.
+ */
+function databaseBoundFunctions(template: Record<string, unknown>): ReadonlyMap<string, string> {
+    const found = new Map<string, string>();
+
+    for (const [logicalId, resource] of Object.entries(resources(template)) as [string, SynthesizedResource][]) {
+        if (resource.Type !== 'AWS::Lambda::Function') {
+            continue;
+        }
+
+        const variables = (resource.Properties?.['Environment'] as { Variables?: Record<string, string> } | undefined)
+            ?.Variables;
+        const name = variables?.['RECIPE_DB_NAME'] ?? variables?.['DB_NAME'];
+
+        if (typeof name === 'string') {
+            found.set(logicalId, name);
+        }
+    }
+
+    return found;
+}
+
 afterAll(() => {
     for (const dir of outDirs) {
         rmSync(dir, { recursive: true, force: true });
@@ -130,17 +169,16 @@ afterAll(() => {
 describe('recipe-workers CDK app — deploy input contract', () => {
     it('derives the per-PR database from the BASE name CI passes (#119)', () => {
         const template = synthApp('pr-73');
-        const dbNames = Object.values(resources(template))
-            .filter((resource) => resource.Type === 'AWS::Lambda::Function')
-            .map(
-                (resource) =>
-                    (resource as unknown as { Properties: { Environment: { Variables: Record<string, string> } } })
-                        .Properties.Environment.Variables['RECIPE_DB_NAME'],
-            );
+        const dbNames = [...databaseBoundFunctions(template).values()];
 
         // All six, and the preview's OWN database — not the shared `kitchensink_recipes` the old fallback
         // produced. This is the value the live pr-73 Lambdas were measured to have wrong.
-        expect(dbNames).toHaveLength(6);
+        //
+        // ⚠️ SEVEN since the in-deploy schema barrier landed: the six workers plus the migration runner it
+        // ships. The runner is now inside this guarantee rather than beside it, which matters more than the
+        // count — a runner migrating the BASE database while the workers read the preview's own would
+        // reproduce #119 exactly, and report success doing it.
+        expect(dbNames).toHaveLength(7);
         expect(new Set(dbNames)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 
@@ -166,7 +204,10 @@ describe('recipe-workers CDK app — deploy input contract', () => {
             }
         }
 
-        expect(grants).toHaveLength(6);
+        // Six worker roles plus the migration runner's — all authenticating as `recipe_app` over RDS-IAM,
+        // so all failing the same way if the separator regresses. Derived from the database-bound set rather
+        // than restated as a literal, so the count cannot be "repaired" to whatever it happens to be.
+        expect(grants).toHaveLength(databaseBoundFunctions(template).size);
 
         for (const grant of grants) {
             // The colon after `dbuser` is the entire fix: the SLASH form (CDK's `formatArn` default) names
@@ -188,5 +229,50 @@ describe('recipe-workers CDK app — deploy input contract', () => {
         }
 
         expect(message).toContain('RECIPE_DB_BASE_NAME');
+    });
+
+    it('⛔ wires the schema barrier from the REAL composition root, over every database-bound Lambda', () => {
+        // The seam the synth suite cannot see. `RecipeWorkersStack` takes the recipe-service migration
+        // bundle as a PROP; only `infra/bin/app.ts` knows where that bundle lives on disk. If that path is
+        // wrong — a package moved, a directory renamed — the stack silently falls back to the throwing
+        // placeholder and NOTHING about the template shape changes, so every assertion in the synth suite
+        // still passes while the deploy would fail at the trigger. This runs the real app and reads the real
+        // template back, which is the only place that path is exercised.
+        const template = synthApp('pr-73');
+        const all = resources(template) as Record<string, SynthesizedResource>;
+        const triggerIds = Object.entries(all)
+            .filter(([, resource]) => resource.Type === 'Custom::Trigger')
+            .map(([id]) => id);
+
+        expect(triggerIds, 'the app must synthesize exactly one in-deploy migration trigger').toHaveLength(1);
+
+        const trigger = all[triggerIds[0] as string] as SynthesizedResource;
+        const handlerArn = JSON.stringify(trigger.Properties?.['HandlerArn']);
+        const runnerId = Object.entries(all)
+            .filter(([id, resource]) => resource.Type === 'AWS::Lambda::Version' && handlerArn.includes(id))
+            .map(([, resource]) => (resource.Properties?.['FunctionName'] as { Ref?: string } | undefined)?.Ref)
+            .find((id): id is string => id !== undefined);
+
+        expect(runnerId, 'the trigger must invoke a runner defined in this stack').toBeDefined();
+
+        // The composition root resolved a REAL bundle, not the placeholder: an asset, not inline code.
+        const runner = all[runnerId as string] as SynthesizedResource;
+
+        expect(
+            (runner.Properties?.['Code'] as { ZipFile?: string; S3Key?: string } | undefined)?.S3Key,
+            'infra/bin/app.ts must resolve the recipe-service migration bundle — an inline placeholder here ' +
+                'means the path is wrong and every deploy would fail at the trigger',
+        ).toBeDefined();
+
+        const unordered = [...databaseBoundFunctions(template).keys()]
+            .filter((id) => id !== runnerId)
+            .filter((id) => {
+                const value = all[id]?.DependsOn;
+                const deps = value === undefined ? [] : Array.isArray(value) ? value : [value];
+
+                return !deps.includes(triggerIds[0] as string);
+            });
+
+        expect(unordered, 'these Lambdas would be updated before the migration has run').toStrictEqual([]);
     });
 });

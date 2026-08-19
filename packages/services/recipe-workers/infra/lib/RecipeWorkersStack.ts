@@ -18,6 +18,7 @@ import {
     aws_sns_subscriptions as sns_subscriptions,
     aws_sqs as sqs,
     aws_ssm as ssm,
+    triggers,
 } from 'aws-cdk-lib';
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
@@ -36,6 +37,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** Where `npm run build` (esbuild) emits the bundled handlers CDK ships via `Code.fromAsset`. */
 const DIST_PATH = path.join(__dirname, '../../dist');
+
+/**
+ * How long the schema-migration runner may take. Matches `RecipeServiceStack`'s runner: the two apply the
+ * SAME ordered SQL, so a stage where one would time out is a stage where the other would too.
+ */
+const MIGRATION_RUNNER_TIMEOUT = Duration.seconds(300);
+
+/**
+ * How long the in-deploy trigger waits on that runner. Strictly longer, because it is the custom resource's
+ * SOCKET timeout (default two minutes): a socket that closes first fails the deploy with an error that says
+ * nothing at all about the migration.
+ */
+const MIGRATION_TRIGGER_TIMEOUT = Duration.seconds(360);
 
 /**
  * The single key root under which ALL recipe media lives, mirroring `ownerMediaPrefix` in
@@ -215,6 +229,23 @@ export interface RecipeWorkersStackProps extends StackProps {
      * absent the worker's CDN adapter degrades to a logged no-op rather than failing erasure.
      */
     readonly cloudfrontDistributionId?: string;
+
+    /**
+     * Absolute path to the recipe-service Lambda BUNDLE (`dist-lambda/`), which carries the migration
+     * runner and this release's `*.sql`.
+     *
+     * ⚠️ It is a PROP, not a path this stack derives, and that is the point. The schema barrier below has to
+     * ship the recipe SERVICE's migration runner — the SQL has exactly one authority and it is not this
+     * package — so the dependency crosses a package boundary. Resolving it inside the stack would hide that
+     * crossing and, worse, make the synthesized template depend on whether a SIBLING package happened to be
+     * built. Declared here and wired at the composition root (`infra/bin/app.ts`), the coupling is stated
+     * once, where the app already knows the repo layout, and a test can drive both branches deterministically.
+     *
+     * Absent (or pointing at a directory that does not exist) ⇒ the runner synthesizes as a THROWING inline
+     * placeholder, so an unbundled deploy fails loudly instead of reporting a clean migration that applied
+     * nothing.
+     */
+    readonly migrationBundlePath?: string;
 }
 
 /**
@@ -692,6 +723,92 @@ export class RecipeWorkersStack extends Stack {
             ruleName: `kitchensink-recipe-erasure-orphan-sweep-${props.stage}`,
             schedule: events.Schedule.rate(Duration.hours(1)),
             targets: [new events_targets.LambdaFunction(orphanSweeperFn)],
+        });
+
+        // ── ⛔ SCHEMA BEFORE WORK — the in-deploy migration barrier ─────────────────────────────────
+        //
+        // Every Lambda above reads `kitchensink_recipes`, and until this existed they were all updated
+        // BEFORE the schema they read. `RecipeServiceStack`'s `RecipeSchemaMigrations` trigger orders the
+        // migration ahead of the API tasks, but CloudFormation's `DependsOn` cannot leave a stack — and this
+        // is a different CDK app, applied by a different `cdk deploy`, which both pipelines run FIRST.
+        //
+        // ⚠️ AND IT MUST STAY FIRST, so "just deploy the workers later" is not the repair. This stack
+        // publishes the `account-erasure-queue-{url,arn}` SSM parameters `RecipeServiceStack` resolves at
+        // DEPLOY time, so the service cannot even synthesize before it on a new stage; and independently, a
+        // queue's CONSUMER must upgrade before its PRODUCER, or the new API enqueues erasure messages the old
+        // worker has never seen. Reordering trades a schema-skew window for a message-contract-skew window on
+        // a right-to-erasure request — a different defect, not a fix.
+        //
+        // So the barrier lives HERE, and it is a real `DependsOn`: this release's SQL is applied by a runner
+        // deployed in this same stack, before any of these functions' code is updated. Two consequences worth
+        // stating plainly:
+        //
+        //  - The schema is applied while the PREVIOUS release is still serving, so migrations must be
+        //    EXPAND-FIRST (the discipline `RecipeServiceStack` already records). A contracting migration ships
+        //    a release LATER than the code that stopped reading the column, never in the same one.
+        //  - On a first-ever `pr-{N}` deploy the runner CREATES the per-PR logical database (ADR-0006). That
+        //    used to happen after these six functions already existed, addressing a database that did not.
+        //
+        // ⛔ The tempting cheaper repair — have this stack's trigger invoke recipe-service's EXISTING runner
+        // by name — is the silent no-op `prodDeployMigrationOrder.test.ts` documents: at this point in the
+        // pipeline that function still carries the PREVIOUS release's bundle, so it exits 0 having applied
+        // nothing. The runner has to be deployed WITH the SQL it applies.
+        const migrationRole = makeRole('SchemaMigrationRunnerRole', 'Recipe schema migration runner (in-deploy)');
+        grantRdsIam(migrationRole);
+
+        const migrationBundlePath = props.migrationBundlePath;
+        const hasMigrationBundle = migrationBundlePath !== undefined && existsSync(migrationBundlePath);
+        const migrationFn = new lambda.Function(this, 'RecipeSchemaMigrationRunner', {
+            runtime,
+            architecture,
+            // The bundled layout of `packages/services/recipe-service/dist-lambda` — its esbuild copies the
+            // ordered `*.sql` in beside the handler, which is what makes the asset self-contained.
+            handler: hasMigrationBundle ? 'lambdas/migrate/handler.handler' : 'index.handler',
+            // ⛔ The placeholder THROWS, mirroring `RecipeServiceStack`. Resolving `{ ok: false }` instead
+            // would be a SUCCESSFUL invocation: the trigger would pass, the deploy would go green, and the
+            // schema would never have been touched — the same silent no-op this barrier exists to remove.
+            code: hasMigrationBundle
+                ? lambda.Code.fromAsset(migrationBundlePath)
+                : lambda.Code.fromInline(
+                      'exports.handler = async () => { throw new Error("recipe migration bundle missing: run `npm run bundle:lambda --workspace=packages/services/recipe-service` before deploying recipe-workers"); };',
+                  ),
+            role: migrationRole,
+            vpc,
+            vpcSubnets,
+            securityGroups: [lambdaSecurityGroup],
+            timeout: MIGRATION_RUNNER_TIMEOUT,
+            memorySize: 512,
+            // The env contract `lambdas/migrate/handler.ts` reads (`DB_*`), NOT the workers' `RECIPE_DB_*`.
+            // `dbName` is the SAME derived value the six functions above carry, so the runner cannot migrate
+            // one database while the workers read another (#119's failure mode, through a new door).
+            environment: {
+                STAGE: props.stage,
+                DB_HOST: props.dbEndpoint,
+                DB_PORT: String(props.dbPort),
+                DB_NAME: dbName,
+            },
+            logGroup,
+        });
+
+        // ⛔ DISCOVERED from the construct tree, never a list of the six. A `triggers.Trigger` keeps its name
+        // while covering nothing, and a copied list is precisely what let `handle-sync-worker` ship unbundled
+        // past two guards. Read BEFORE the Trigger is constructed, so CDK's own custom-resource provider
+        // Lambda — created inside it, not a consumer of this schema — is not swept in.
+        const orderedBehindTheSchema = this.node
+            .findAll()
+            .filter((construct): construct is lambda.Function => construct instanceof lambda.Function)
+            .filter((fn) => fn !== migrationFn);
+
+        new triggers.Trigger(this, 'RecipeSchemaMigrations', {
+            handler: migrationFn,
+            // The trigger's SOCKET timeout, which defaults to two minutes while the runner is allowed five —
+            // derived from the runner's own timeout so the two cannot drift into "the deploy fails on a
+            // socket close that says nothing about the migration".
+            timeout: MIGRATION_TRIGGER_TIMEOUT,
+            // Keeps the trigger behind the runner's `rds-db:connect` grant, which lives on its role inside
+            // the function's construct subtree — the custom resource only REFERENCES the version.
+            executeAfter: [migrationFn],
+            executeBefore: orderedBehindTheSchema,
         });
 
         // ── alarms (T138 / FR-007b-i) ──────────────────────────────────────────────────────────────

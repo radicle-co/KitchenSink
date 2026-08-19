@@ -57,6 +57,8 @@ const SERVICES_ROOT = 'packages/services';
 
 interface WorkflowStep {
     readonly name?: string;
+    readonly id?: string;
+    readonly if?: string;
     readonly run?: string;
 }
 
@@ -459,5 +461,361 @@ describe('the production pipeline knows which services are cut over to the edge'
         const declared = /EDGE_CUTOVER_SERVICES:\s*([^\n#]+)/.exec(workflow)?.[1]?.trim() ?? '';
 
         expect(() => cutOverServicesFromEnv({ EDGE_CUTOVER_SERVICES: declared })).not.toThrow();
+    });
+});
+
+/**
+ * ⛔ THE SECOND HALF OF THE SAME INVARIANT: a Lambda that talks to a service's database is CODE, governed by
+ * the same rule as that service's ECS tasks — it may not be updated ahead of the schema it reads.
+ *
+ * ## What the trigger above does NOT reach
+ *
+ * `RecipeServiceStack`'s `triggers.Trigger` orders the migration ahead of `apiService`, and CloudFormation
+ * enforces that absolutely — INSIDE one stack. The recipe **workers** are six DB-touching Lambdas in a
+ * DIFFERENT CDK app (`kitchensink-recipe-workers-{stage}`), applied by a SEPARATE `cdk deploy`, and both
+ * pipelines run that deploy FIRST. So every release shipped new worker code over the old schema and left it
+ * there until the service deploy's trigger caught up — and an SQS-driven worker (archive, erasure,
+ * handle-sync) is fed by the STILL-RUNNING previous release for that whole window, so it is not idle time.
+ * On a first-ever `pr-{N}` deploy it is worse than skew: the per-PR logical database is created BY the
+ * migration run (ADR-0006), so until then the six workers address a database that does not exist.
+ *
+ * ## Why this is a guard and not a `DependsOn`
+ *
+ * No CloudFormation primitive spans two CDK apps run as two CLI invocations. There are therefore exactly two
+ * ways for a DB-touching stack to be safe, and this suite accepts EITHER:
+ *
+ *   1. it is deployed after the migration-owning app, so the pipeline's own sequencing orders it; or
+ *   2. it carries its OWN in-deploy barrier — a `triggers.Trigger` over the same migration runner, with the
+ *      DB-touching resources behind it — which is a real `DependsOn` and needs no pipeline cooperation.
+ *
+ * ⛔ Reordering the pipeline to reach (1) was considered and REJECTED, and the reason is not the one that
+ * first suggests itself. The workers-first order is not merely an SSM accident (`RecipeWorkersStack` publishes
+ * the `account-erasure-queue-{url,arn}` parameters that `RecipeServiceStack` resolves at deploy time, so the
+ * service cannot even synthesize first on a new stage): it is also the CORRECT order for a queue, because the
+ * CONSUMER must upgrade before the PRODUCER. Deploying the service first would trade a schema-skew window for
+ * a message-contract-skew window on the account-erasure path, which is not an improvement — it is a different
+ * defect on a right-to-erasure request. So recipe takes route (2).
+ *
+ * ## What this guard can and cannot see
+ *
+ * It checks that the barrier EXISTS in the stack that addresses the database. That the barrier COVERS every
+ * DB-touching resource — the way a `triggers.Trigger` stops being a barrier while keeping its name — is a
+ * property of the synthesized template, and is asserted where the template is:
+ * `packages/services/recipe-workers/infra/__tests__/RecipeWorkersStack.test.ts` derives the covered set from
+ * the template itself, so a seventh worker cannot be added outside it.
+ *
+ * ## Nothing is enumerated
+ *
+ * "Addresses the same database" is DERIVED: a logical database name in this repo has exactly one authority, a
+ * `…/database-name` module, and the stacks that address one database are the stacks that import the same one.
+ * `recipe-service` and `recipe-workers` both import `@kitchensink/recipe-core/database-name`; food's name
+ * authority is private to its single stack, so it has no peer and is correctly not asserted over. A future
+ * second stack on an existing database is covered the day it imports that authority.
+ */
+
+/** The workflows that deploy a whole stage. Both carried the same ordering, so both are read. */
+const DEPLOY_WORKFLOWS = ['.github/workflows/prod-deploy.yml', '.github/workflows/sandbox-deploy.yml'] as const;
+
+/** One job's steps, carrying enough identity for a failure message to name where it came from. */
+interface WorkflowJob {
+    /** Repo-relative workflow path. */
+    readonly workflow: string;
+    /** The job's key under `jobs:`. */
+    readonly id: string;
+    /** Its steps, in file order, each carrying its index. */
+    readonly steps: readonly IndexedStep[];
+}
+
+/**
+ * Every job of every deploy workflow.
+ *
+ * ⚠️ Ordering is only ever compared WITHIN a job, and that is not a simplification: steps in a job run in
+ * file order, whereas jobs run in `needs:` order, so indices from two jobs are not comparable at all. Both
+ * recipe deploys already live in one job in each workflow.
+ *
+ * @returns The jobs.
+ * @sideEffect Reads the workflows from disk.
+ */
+function deployJobs(): readonly WorkflowJob[] {
+    return DEPLOY_WORKFLOWS.flatMap((workflow) => {
+        const doc = parse(readFileSync(path.join(repoRoot, workflow), 'utf8')) as {
+            jobs: Record<string, { steps?: WorkflowStep[] }>;
+        };
+
+        return Object.entries(doc.jobs).map(([id, job]) => ({
+            workflow,
+            id,
+            steps: (job.steps ?? []).map((step, index) => ({ ...step, index })),
+        }));
+    });
+}
+
+/**
+ * A service package's CDK infra sources (`infra/bin` + `infra/lib`).
+ *
+ * Tracked-plus-untracked and `existsSync`-filtered for the reason {@link runnerPackages} records: a guard
+ * that only tells the truth after `git add` is run too late to stop anything.
+ *
+ * @param serviceDir - The directory name under `packages/services/`.
+ * @returns Repo-relative paths.
+ * @sideEffect Shells out to git and stats the results.
+ */
+function infraSources(serviceDir: string): readonly string[] {
+    return execFileSync(
+        'git',
+        [
+            'ls-files',
+            '--cached',
+            '--others',
+            '--exclude-standard',
+            '--',
+            `${SERVICES_ROOT}/${serviceDir}/infra/bin`,
+            `${SERVICES_ROOT}/${serviceDir}/infra/lib`,
+        ],
+        { cwd: repoRoot, encoding: 'utf8' },
+    )
+        .split('\n')
+        .filter((file) => file.endsWith('.ts') && existsSync(path.join(repoRoot, file)));
+}
+
+/**
+ * Every service package under `packages/services/`.
+ *
+ * @returns The directory names, sorted.
+ * @sideEffect Shells out to git.
+ */
+function serviceDirs(): readonly string[] {
+    return [
+        ...new Set(
+            execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', SERVICES_ROOT], {
+                cwd: repoRoot,
+                encoding: 'utf8',
+            })
+                .split('\n')
+                .filter(Boolean)
+                .map((file) => file.split('/')[2] as string),
+        ),
+    ].sort();
+}
+
+/** An infra source paired with the database-name authorities it imports. */
+interface DatabaseAddressingSource {
+    /** Repo-relative path. */
+    readonly file: string;
+    /** The `…/database-name` module specifiers it imports. */
+    readonly authorities: readonly string[];
+    /** The file's text, so a caller can ask what else it declares. */
+    readonly source: string;
+}
+
+/**
+ * A service's infra sources that name a logical database, with the authority each one imports.
+ *
+ * @param serviceDir - The directory name under `packages/services/`.
+ * @returns One entry per infra source that imports a database-name authority.
+ * @sideEffect Reads the infra sources.
+ */
+function databaseAddressingSources(serviceDir: string): readonly DatabaseAddressingSource[] {
+    return infraSources(serviceDir).flatMap((file) => {
+        const source = readFileSync(path.join(repoRoot, file), 'utf8');
+        const authorities = [...source.matchAll(/from\s+'([^']*\/database-name)'/g)].map((match) => match[1] as string);
+
+        return authorities.length === 0 ? [] : [{ file, authorities, source }];
+    });
+}
+
+/**
+ * The OTHER service packages whose infra addresses the same logical database as `serviceDir`.
+ *
+ * @param serviceDir - The migration-owning service.
+ * @returns The peer directory names, sorted.
+ * @sideEffect Reads every service's infra sources.
+ */
+function servicesSharingDatabaseWith(serviceDir: string): readonly string[] {
+    const owned = new Set(databaseAddressingSources(serviceDir).flatMap((entry) => entry.authorities));
+
+    if (owned.size === 0) {
+        return [];
+    }
+
+    return serviceDirs()
+        .filter((candidate) => candidate !== serviceDir)
+        .filter((candidate) =>
+            databaseAddressingSources(candidate).some((entry) =>
+                entry.authorities.some((authority) => owned.has(authority)),
+            ),
+        );
+}
+
+/**
+ * Whether a service's DB-addressing stack constructs an in-deploy migration barrier.
+ *
+ * The barrier must be declared in the SAME file that names the database — a `Trigger` somewhere else in the
+ * package would satisfy a looser scan while ordering nothing that touches this schema.
+ *
+ * @param serviceDir - The directory name under `packages/services/`.
+ * @returns `true` when at least one DB-addressing source constructs a `triggers.Trigger`.
+ * @sideEffect Reads the infra sources.
+ */
+function carriesMigrationBarrier(serviceDir: string): boolean {
+    return databaseAddressingSources(serviceDir).some((entry) => /new\s+triggers\.Trigger\s*\(/.test(entry.source));
+}
+
+/**
+ * Every step in which a command matching `pattern` runs — one position per matching step, unlike
+ * {@link commandPosition}, which stops at the first.
+ *
+ * @param steps - The job's steps.
+ * @param pattern - The command pattern.
+ * @param requiredText - Text the step's script must also contain.
+ * @returns Every matching position, in execution order.
+ */
+function commandPositions(
+    steps: readonly IndexedStep[],
+    pattern: RegExp,
+    requiredText: readonly string[],
+): readonly CommandPosition[] {
+    return steps.flatMap((step) => {
+        const run = step.run ?? '';
+
+        if (!requiredText.some((text) => run.includes(text))) {
+            return [];
+        }
+
+        const offset = run.search(pattern);
+
+        return offset === -1 ? [] : [{ step: step.index, offset }];
+    });
+}
+
+/** A migration-owning service paired with a peer stack that addresses the same database, within one job. */
+interface SharedDatabaseDeploy {
+    readonly job: WorkflowJob;
+    readonly owner: string;
+    readonly peer: string;
+    readonly ownerDeploy: CommandPosition;
+    readonly peerDeploys: readonly CommandPosition[];
+}
+
+/**
+ * Every (migration-owning service, peer stack) pair that a single job deploys BOTH of.
+ *
+ * @returns The pairs.
+ * @sideEffect Reads the workflows and every service's sources.
+ */
+function sharedDatabaseDeploys(): readonly SharedDatabaseDeploy[] {
+    return deployJobs().flatMap((job) => {
+        const owners = new Set(
+            migrationSteps(job.steps).flatMap((step) =>
+                stackTokens(step)
+                    .map((token) => ownerPackage(token))
+                    .filter((owner): owner is string => owner !== undefined),
+            ),
+        );
+
+        return [...owners].flatMap((owner) => {
+            const ownerDeploy = cdkDeployPosition(job.steps, owner);
+
+            if (ownerDeploy === undefined) {
+                return [];
+            }
+
+            return servicesSharingDatabaseWith(owner).flatMap((peer) => {
+                const peerDeploys = commandPositions(job.steps, /cdk deploy/, [`${SERVICES_ROOT}/${peer}/infra`]);
+
+                return peerDeploys.length === 0 ? [] : [{ job, owner, peer, ownerDeploy, peerDeploys }];
+            });
+        });
+    });
+}
+
+describe('a stack that shares a service database is ordered behind that schema, one way or the other', () => {
+    it('discovers a shared-database pair at all, in every workflow that deploys one', () => {
+        // Anchors both assertions below, exactly as the first test in this file anchors its own: a discovery
+        // predicate that quietly stops matching turns them into assertions over an empty list, which is the
+        // one way a guard like this rots without anyone noticing.
+        const discovered = sharedDatabaseDeploys().map((pair) => `${pair.job.workflow}:${pair.owner}+${pair.peer}`);
+
+        expect(
+            [...discovered].sort(),
+            'expected recipe-service + recipe-workers to be discovered in both deploy workflows',
+        ).toStrictEqual([
+            '.github/workflows/prod-deploy.yml:recipe-service+recipe-workers',
+            '.github/workflows/sandbox-deploy.yml:recipe-service+recipe-workers',
+        ]);
+    });
+
+    it('⛔ requires a peer deployed BEFORE the migration to carry its own in-deploy barrier', () => {
+        const violations = sharedDatabaseDeploys().flatMap((pair) => {
+            const last = pair.peerDeploys[pair.peerDeploys.length - 1] as CommandPosition;
+            const deployedAfterTheMigration = runsBefore(pair.ownerDeploy, last) < 0;
+
+            return deployedAfterTheMigration || carriesMigrationBarrier(pair.peer)
+                ? []
+                : [
+                      `${pair.job.workflow} (${pair.job.id}): ${pair.peer} deploys at step ${last.step}, before ` +
+                          `${pair.owner}'s deploy at step ${pair.ownerDeploy.step} — the deploy that applies the ` +
+                          `schema — and its own stack declares no triggers.Trigger to order it`,
+                  ];
+        });
+
+        expect(
+            violations,
+            'a DB-touching Lambda updated ahead of the migration runs the NEW code against the OLD schema, ' +
+                'and its SQS producers are the still-running previous release',
+        ).toStrictEqual([]);
+    });
+
+    it('builds the migration bundle before the PEER deploy that now ships it, not just before the owner', () => {
+        // A peer that carries its own barrier ships the OWNER's migration bundle — the SQL has one
+        // authority, and it is not the peer's package. So the bundle step, which the suite above only
+        // required to precede the OWNER's deploy, must now precede the peer's EARLIER one as well.
+        //
+        // The failure is loud rather than silent (an unbundled runner synthesizes a THROWING placeholder,
+        // so the trigger fails the deploy), which is precisely why it is worth pinning here: a loud failure
+        // in a pipeline is still a red prod deploy discovered at the worst moment.
+        const violations = sharedDatabaseDeploys()
+            .filter((pair) => carriesMigrationBarrier(pair.peer))
+            .flatMap((pair) => {
+                const scripts = bundlingScripts(pair.owner);
+                const invokesBundler = new RegExp(
+                    `(?:npm|turbo) run (?:${scripts
+                        .map((script) => script.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+                        .join('|')})(?![\\w:-])`,
+                );
+                const build = commandPosition(pair.job.steps, invokesBundler, [
+                    `${SERVICES_ROOT}/${pair.owner}`,
+                    manifest(pair.owner).name,
+                ]);
+                const first = pair.peerDeploys[0] as CommandPosition;
+
+                if (scripts.length === 0) {
+                    return [`${pair.job.workflow}: ${pair.owner} has no esbuild script to build its runner`];
+                }
+
+                return build !== undefined && runsBefore(build, first) < 0
+                    ? []
+                    : [
+                          `${pair.job.workflow} (${pair.job.id}): ${pair.peer} deploys at step ${first.step} but ` +
+                              `${pair.owner}'s Lambda bundle is built at ${JSON.stringify(build)}`,
+                      ];
+            });
+
+        expect(violations, "the peer's barrier ships the owner's runner, so it needs that bundle too").toStrictEqual(
+            [],
+        );
+    });
+
+    it('keeps the migration-owning stack carrying a barrier too, so the rule is not satisfied by removing one', () => {
+        // The complement. Every pair above is exempted the moment the peer deploys later, so nothing here
+        // would notice `RecipeServiceStack`'s own trigger being deleted — and that trigger is what keeps the
+        // API tasks off an old schema. Asserted for the OWNER of each discovered pair, discovered the same way.
+        const missing = [...new Set(sharedDatabaseDeploys().map((pair) => pair.owner))]
+            .filter((owner) => !carriesMigrationBarrier(owner))
+            .sort();
+
+        expect(missing, 'these services own a migration runner but no longer order it against their own stack').toEqual(
+            [],
+        );
     });
 });

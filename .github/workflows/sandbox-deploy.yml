@@ -599,6 +599,23 @@ jobs:
                     "$HEALTH_URL" \
                     "${DEFAULT_AWS_REGION}" \
                     "kitchensink-food-service-${STAGE}"
+            # ⛔ ADR-0007 × ADR-0022 — the composition that wedges stacks. The SHARED sandbox RDS instance
+            # is STOPPED nightly 00:00–09:00 ET, and the schema migration now runs INSIDE the deploy as an
+            # `aws-cdk-lib/triggers` Trigger every Lambda/ECS service in the stack is ordered behind. A
+            # deploy that lands in that window runs the Trigger against a stopped instance
+            # (`connect ETIMEDOUT …:5432`), fails the update, and then fails its ROLLBACK for exactly the
+            # same reason — coming to rest in `UPDATE_ROLLBACK_FAILED`. That state is NOT self-healing:
+            # every LATER sandbox deploy then fails on the wedge instead of on its own diff, until a human
+            # runs `continue-update-rollback --resources-to-skip`. Observed 00:31 EDT on
+            # `kitchensink-recipe-service-pr-91`.
+            #
+            # Waking ON DEMAND for a real deploy is the point; nothing here keeps the tier awake and the
+            # nightly schedule is untouched, so ADR-0007's cost intent stands. Gated on the SAME decision
+            # as the deploy itself, so an unchanged PR that skips its deploy wakes nothing. The script
+            # takes no instance argument by construction — see its header for why prod is unreachable.
+            - name: Wake the shared sandbox database
+              if: steps.gate.outputs.deploy == 'true'
+              run: bash .github/scripts/db-wake.sh ensure "${DEFAULT_AWS_REGION}"
             # turbo (not a bare workspace build) so `^build` compiles the shared @kitchensink/clerk-verify
             # and @kitchensink/usda-client dist first — the image copies those dists and crash-loops on
             # the bare specifiers without them.
@@ -785,6 +802,23 @@ jobs:
                     "${DEFAULT_AWS_REGION}" \
                     "kitchensink-recipe-workers-${STAGE}" \
                     "kitchensink-recipe-service-${STAGE}"
+            # ⛔ ADR-0007 × ADR-0022 — the composition that wedges stacks. The SHARED sandbox RDS instance
+            # is STOPPED nightly 00:00–09:00 ET, and the schema migration now runs INSIDE the deploy as an
+            # `aws-cdk-lib/triggers` Trigger every Lambda/ECS service in the stack is ordered behind. A
+            # deploy that lands in that window runs the Trigger against a stopped instance
+            # (`connect ETIMEDOUT …:5432`), fails the update, and then fails its ROLLBACK for exactly the
+            # same reason — coming to rest in `UPDATE_ROLLBACK_FAILED`. That state is NOT self-healing:
+            # every LATER sandbox deploy then fails on the wedge instead of on its own diff, until a human
+            # runs `continue-update-rollback --resources-to-skip`. Observed 00:31 EDT on
+            # `kitchensink-recipe-service-pr-91`.
+            #
+            # Waking ON DEMAND for a real deploy is the point; nothing here keeps the tier awake and the
+            # nightly schedule is untouched, so ADR-0007's cost intent stands. Gated on the SAME decision
+            # as the deploy itself, so an unchanged PR that skips its deploy wakes nothing. The script
+            # takes no instance argument by construction — see its header for why prod is unreachable.
+            - name: Wake the shared sandbox database
+              if: steps.gate.outputs.deploy == 'true'
+              run: bash .github/scripts/db-wake.sh ensure "${DEFAULT_AWS_REGION}"
             # turbo (not a bare workspace build) so `^build` compiles the shared dists the image COPYs
             # (recipe-core, food-service-client, clerk-verify, identity-core). Without them the container
             # crash-loops at boot on the bare @kitchensink/* specifiers.

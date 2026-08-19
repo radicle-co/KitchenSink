@@ -129,6 +129,25 @@ jobs:
                   } >> "$GITHUB_OUTPUT"
                   echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations (missing: g=$global_missing s=$service_missing w=$webhooks_missing)"
 
+            # ⛔ ADR-0007 × ADR-0022 — the SAME composition that wedged `kitchensink-recipe-service-pr-91`,
+            # and this tier is the one that hurts most. The shared sandbox RDS instance is STOPPED nightly
+            # 00:00–09:00 ET; `IdentityServiceStack` carries an in-stack migration Trigger, `DataStack`'s
+            # bootstrap custom resources CREATE databases and roles, and the five webhook Lambdas all talk
+            # to the same instance. An identity deploy inside that window hits the identical
+            # `connect ETIMEDOUT …:5432`, fails the update, fails the rollback, and rests in
+            # `UPDATE_ROLLBACK_FAILED` — on the SINGLE shared identity service every PR preview signs in
+            # against, so the blast radius is every open preview rather than one PR.
+            #
+            # Run whenever ANY stack in this workflow will deploy. Nothing here keeps the tier awake and
+            # the nightly schedule is untouched (ADR-0007's cost intent stands); the script takes no
+            # instance argument by construction, so it cannot address the prod database.
+            - name: Wake the shared sandbox database
+              if: |
+                  steps.flags.outputs.deploy_global == 'true' ||
+                  steps.flags.outputs.deploy_service == 'true' ||
+                  steps.flags.outputs.deploy_webhooks == 'true'
+              run: bash .github/scripts/db-wake.sh ensure "${DEFAULT_AWS_REGION}"
+
             - name: Setup Node.js
               uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:

@@ -228,7 +228,13 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     // substrate's integration tier can exercise a real DynamoDB — the tier that caught a marshaller
     // option the unit tier structurally cannot see. Same `localstack/localstack:4.4.0` tag and the same
     // deferral as the five already declared here; this record is the ratchet, so it moves deliberately.
-    '_ci.yml:unpinned-images': 12,
+    //
+    // 12 → 14: `e2e-cross-service-linkage` — the job that finally boots recipe-service and food-service
+    // TOGETHER and proves a recipe's nutrition figures come from a live food lookup. It needs the same
+    // two service containers every other tier here uses (`postgres:16` for the two logical databases,
+    // `localstack/localstack:4.4.0` for the buckets and queue recipe boots against), so it inherits the
+    // same two tag-tracked images and the same deferral. No new image, no new reason — two more sites.
+    '_ci.yml:unpinned-images': 14,
     '_ci-heavy.yml:unpinned-images': 5,
 };
 

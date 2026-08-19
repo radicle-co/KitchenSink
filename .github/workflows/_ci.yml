@@ -1173,6 +1173,231 @@ jobs:
                   CLOUDFRONT_URL: http://localhost:4566/commise-photos
               run: npm run test:e2e --workspace=@kitchensink/recipe-service
 
+    # ────────────────────────────────────────────────────────────────────────────────────────────────
+    # ⛔ THE PROOF THAT DID NOT EXIST — recipe-service and food-service, LIVE, actually linked.
+    #
+    # Until this job, NO CI job anywhere ran the two services together. Every recipe tier above points
+    # `FOOD_SERVICE_URL` at a port nothing listens on ON PURPOSE — `recipe-service/tests/e2e/harness.ts`
+    # says so ("Nothing listens here, which is what makes the F2 specs below a real absent-dependency
+    # proof") — and `heavy-e2e.yml` records that the food service "is never booted". Those degraded-path
+    # specs are correct and are DELIBERATELY UNCHANGED; this job is additional, never a replacement.
+    #
+    # What that left uncovered is the success path. Recipe detail nutrition comes FROM the food service,
+    # so every nutrition figure a user has ever seen was produced by a path no test had exercised
+    # successfully: the whole suite proved only that recipe degrades gracefully when food is absent.
+    #
+    # ## Why a real Clerk token rather than recipe's dev-auth bypass
+    #
+    # Recipe calls food AS THE CALLER — it forwards the caller's own verified bearer and there is
+    # deliberately no service credential (`recipe-service/src/auth/CallerToken.ts`). Under the dev bypass
+    # there is no bearer to forward, so `FoodCatalogGateway` degrades to `catalogAvailability:
+    # 'unavailable'` WITHOUT ISSUING A REQUEST — a job written that way would report success with a live
+    # food service sitting untouched beside it. So one throwaway RSA keypair is minted per run and BOTH
+    # services are booted against the same `CLERK_JWT_KEY` and `azp`, exactly as a real stage configures
+    # them from the same SSM parameters.
+    #
+    # ## Why `npx tsx dist/src/main.js` and not `node dist/src/main.js`
+    #
+    # ⚠️ NOT a shortcut, and do not "fix" it to plain `node`. The services are COMPILED first (that is
+    # what emits the `design:paramtypes` metadata Nest's constructor injection needs — esbuild/tsx cannot
+    # emit it, and running the TypeScript sources directly boots an app whose controllers silently have
+    # no dependencies and 500 on every route). But the compiled service still imports workspace packages
+    # that export `./src/*.ts`, and plain `node`'s type stripping resolves a `.js` specifier inside a
+    # `.ts` file LITERALLY (ADR-0013) — `ERR_MODULE_NOT_FOUND … /packages/schemas/food/src/schemas.js`.
+    # tsx supplies the resolver; the service code being executed is the compiled artifact either way.
+    #
+    # Residual gap, stated rather than hidden: this boots the compiled service, NOT the Docker image, so
+    # it does not exercise `prod.package.json` or the container entrypoint. That remains the sandbox
+    # deploy smoke's job (`recipe-service/infra/smoke/deployedSmoke.ts`).
+    e2e-cross-service-linkage:
+        name: E2E (recipe ↔ food LIVE — both services, one real Clerk token)
+        timeout-minutes: 30
+        runs-on: ubuntu-latest
+        needs: [install]
+        services:
+            # ONE Postgres, TWO logical databases — the same shape production uses (ADR-0006), and the
+            # thing a two-service job most needs to get right: each service owns its own schema.
+            # `food_perf` is named for the food seeder's disposable-database allowlist
+            # (`tests/load/perfFixture.ts`), which refuses to write anywhere else.
+            postgres:
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: food_perf
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+            localstack:
+                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                env:
+                    # Only what recipe-service needs to BOOT: the photo/version buckets and the erasure
+                    # queue. Food needs nothing from LocalStack on the read paths this job exercises.
+                    SERVICES: s3,sqs
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
+        env:
+            PGHOST: localhost
+            PGPORT: '5432'
+            PGUSER: postgres
+            PGPASSWORD: postgres
+            FOOD_DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_perf
+            RECIPE_DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_link
+            # Food keeps its schema default (3002); recipe keeps its own (3000). The `azp` below is the
+            # recipe origin because that is what a browser session token carries in a local stage.
+            LINKAGE_FOOD_URL: http://localhost:3002
+            LINKAGE_RECIPE_URL: http://localhost:3000
+            LINKAGE_AZP: http://localhost:3000
+            LINKAGE_CREDENTIALS: ${{ runner.temp }}/linkage/linkage-credentials.json
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            - name: Create recipe-service's database beside food-service's
+              run: psql -v ON_ERROR_STOP=1 -d postgres -c 'CREATE DATABASE recipe_link'
+            # The services' OWN ordered migration SQL, applied the same way `_ci-heavy.yml::load-test-food`
+            # applies them. Not a hand-written schema: a drift between these files and the running service
+            # must surface here as a failure, which it cannot do if the job invents its own DDL.
+            - name: Apply food-service migrations
+              run: |
+                  set -euo pipefail
+                  for file in packages/services/food-service/src/db/migrations/*.sql; do
+                      echo "applying ${file}"
+                      psql -v ON_ERROR_STOP=1 -q -d food_perf -f "${file}"
+                  done
+            - name: Apply recipe-service migrations
+              run: |
+                  set -euo pipefail
+                  for file in packages/services/recipe-service/src/database/migrations/*.sql; do
+                      echo "applying ${file}"
+                      psql -v ON_ERROR_STOP=1 -q -d recipe_link -f "${file}"
+                  done
+            - name: Provision the LocalStack buckets and queue recipe-service boots against
+              env:
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_REGION: us-east-1
+              run: |
+                  set -euo pipefail
+                  aws --endpoint-url http://localhost:4566 s3api create-bucket --bucket commise-photos
+                  aws --endpoint-url http://localhost:4566 s3api create-bucket --bucket commise-versions
+                  aws --endpoint-url http://localhost:4566 sqs create-queue --queue-name account-erasure
+            # The food catalog, from the repo's OWN seeder — the one the k6 tier already uses. It writes
+            # RESOLVED foods with full golden records (20 per-100 g nutrients + 3 portions + provenance),
+            # which is exactly what the linkage proof consumes. Sized down from its 50,000-row default:
+            # the seeder refuses a population too small to make its search probes selective, so 1,200 is
+            # the floor that keeps its own self-checks meaningful, and every row is a read target so any
+            # search hit carries nutrition.
+            - name: Seed the food catalog
+              env:
+                  DATABASE_URL: ${{ env.FOOD_DATABASE_URL }}
+                  FOOD_PERF_RESOLVED_FOODS: '1200'
+                  FOOD_PERF_READ_TARGETS: '1200'
+                  FOOD_PERF_PENDING_FOODS: '5'
+                  FOOD_PERF_NOT_FOUND_FOODS: '5'
+                  FOOD_PERF_SEARCH_PROBES: '4'
+              run: npx tsx packages/services/food-service/tests/load/preparePerfFixture.ts
+            - name: Mint the ONE Clerk credential both services will trust
+              # `$RUNNER_TEMP`, not `${{ runner.temp }}` — an expression is substituted into the script
+              # TEXT before bash parses it, which zizmor's template-injection audit correctly rejects.
+              run: npx tsx packages/tools/cross-service-e2e/scripts/mintLinkageCredentials.ts "${RUNNER_TEMP}/linkage"
+            - name: Build both services
+              run: npx turbo run build --filter=@kitchensink/food-service --filter=@kitchensink/recipe-service
+            - name: Boot food-service
+              env:
+                  DATABASE_URL: ${{ env.FOOD_DATABASE_URL }}
+              run: |
+                  set -euo pipefail
+                  CLERK_JWT_KEY="$(jq -r .publicKeyPem "$LINKAGE_CREDENTIALS")"
+                  export CLERK_JWT_KEY
+                  export NODE_ENV=development STAGE=dev PORT=3002 USDA_API_KEY=linkage-unused-key
+                  export CLERK_AUTHORIZED_PARTIES="$LINKAGE_AZP"
+                  cd packages/services/food-service
+                  setsid nohup npx tsx dist/src/main.js > "${RUNNER_TEMP}/food-service.log" 2>&1 < /dev/null &
+                  cd - > /dev/null
+                  ready=0
+                  for _attempt in $(seq 1 60); do
+                      if curl -sf "${LINKAGE_FOOD_URL}/health" > /dev/null; then ready=1; break; fi
+                      sleep 2
+                  done
+                  if [ "$ready" != '1' ]; then
+                      echo "::error::food-service never answered ${LINKAGE_FOOD_URL}/health"
+                      cat "${RUNNER_TEMP}/food-service.log"
+                      exit 1
+                  fi
+                  echo "food-service is serving."
+            - name: Boot recipe-service, pointed at the LIVE food origin
+              env:
+                  DATABASE_URL: ${{ env.RECIPE_DATABASE_URL }}
+              run: |
+                  set -euo pipefail
+                  CLERK_JWT_KEY="$(jq -r .publicKeyPem "$LINKAGE_CREDENTIALS")"
+                  export CLERK_JWT_KEY
+                  export NODE_ENV=development PORT=3000
+                  export CLERK_AUTHORIZED_PARTIES="$LINKAGE_AZP"
+                  # ⛔ The whole point of the job: a REAL origin here, where every other tier deliberately
+                  # names a dead port. And RECIPE_DEV_AUTH_USER_ID is deliberately NOT set — the bypass
+                  # would leave no bearer to forward and silently degrade the catalog to 'unavailable'.
+                  export FOOD_SERVICE_URL="$LINKAGE_FOOD_URL"
+                  export S3_ENDPOINT=http://localhost:4566 S3_FORCE_PATH_STYLE=true
+                  export S3_BUCKET_PHOTOS=commise-photos S3_BUCKET_VERSIONS=commise-versions
+                  export CLOUDFRONT_URL=http://localhost:4566/commise-photos
+                  export SQS_ENDPOINT=http://localhost:4566
+                  export ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/account-erasure
+                  export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
+                  cd packages/services/recipe-service
+                  setsid nohup npx tsx dist/src/main.js > "${RUNNER_TEMP}/recipe-service.log" 2>&1 < /dev/null &
+                  cd - > /dev/null
+                  ready=0
+                  for _attempt in $(seq 1 60); do
+                      if curl -sf "${LINKAGE_RECIPE_URL}/health" > /dev/null; then ready=1; break; fi
+                      sleep 2
+                  done
+                  if [ "$ready" != '1' ]; then
+                      echo "::error::recipe-service never answered ${LINKAGE_RECIPE_URL}/health"
+                      cat "${RUNNER_TEMP}/recipe-service.log"
+                      exit 1
+                  fi
+                  echo "recipe-service is serving."
+            - name: Prove recipe ↔ food linkage against both live services
+              run: npm run test:e2e --workspace=@kitchensink/cross-service-e2e
+            - name: Service logs on failure
+              if: failure()
+              run: |
+                  echo '── food-service ──'
+                  tail -n 200 "${RUNNER_TEMP}/food-service.log"
+                  echo '── recipe-service ──'
+                  tail -n 200 "${RUNNER_TEMP}/recipe-service.log"
+
     # ⛔ ITS OWN JOB, and its own vitest config, because these specs are not unit tests by any measure: they
     # run `turbo run build`, `npm run bundle:lambda`, esbuild, two `cdk synth`s in child processes, and shell
     # scripts against real fixtures. They are NOT folded into `integration-selfcontained` — that job groups

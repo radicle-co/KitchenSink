@@ -451,11 +451,28 @@ export class IdentityServiceStack extends Stack {
         // The pipeline's `Run identity DB migrations` step is deliberately KEPT as a safety net: it is
         // idempotent, and it still catches a stage whose schema is behind for a reason no code change
         // explains (a restore, a stage created later). `prodDeployMigrationOrder.test.ts` pins both.
+        //
+        // ⚠️ DELIBERATE — see docs/architecture/decisions/0022-in-stack-migration-trigger.md
+        // ⛔ DISCOVERED from the construct tree, never a list. This read used to be `[service]`, which was
+        // correct only for as long as the ECS service stayed the sole thing here that touches the schema —
+        // and nothing said so. A DB-touching Lambda added to this stack (a reconciler, a backfill) would
+        // have been updated AHEAD of the migration with every guard green, because the template gate that
+        // covers this barrier asserts over `AWS::ECS::Service` and cannot see a new function. Read BEFORE
+        // the Trigger is constructed, so CDK's own custom-resource provider Lambda — created inside it, and
+        // no consumer of this schema — is not swept in.
+        const orderedBehindTheSchema = this.node
+            .findAll()
+            .filter(
+                (construct): construct is Construct =>
+                    construct instanceof lambda.Function || construct instanceof ecs.BaseService,
+            )
+            .filter((construct) => construct !== migrationFn);
+
         new triggers.Trigger(this, 'IdentitySchemaMigrations', {
             handler: migrationFn,
             timeout: migrationRunnerTimeout.plus(Duration.seconds(60)),
             executeAfter: [migrationFn],
-            executeBefore: [service],
+            executeBefore: orderedBehindTheSchema,
         });
 
         const scalableTarget = service.autoScaleTaskCount({

@@ -506,15 +506,37 @@ describe('the production pipeline knows which services are cut over to the edge'
  *
  * ## Nothing is enumerated
  *
- * "Addresses the same database" is DERIVED: a logical database name in this repo has exactly one authority, a
- * `…/database-name` module, and the stacks that address one database are the stacks that import the same one.
- * `recipe-service` and `recipe-workers` both import `@kitchensink/recipe-core/database-name`; food's name
- * authority is private to its single stack, so it has no peer and is correctly not asserted over. A future
- * second stack on an existing database is covered the day it imports that authority.
+ * "Addresses the same database" is DERIVED, from the TWO authorities a logical database has in this repo:
+ *
+ *   1. a `…/database-name` module — `recipe-service` and `recipe-workers` both import
+ *      `@kitchensink/recipe-core/database-name`, which is what pairs them; and
+ *   2. the `kitchensink-data-{stage}` export that names the database or the credentials that carry it
+ *      (`DatabaseSecretArn`, `DatabaseName`) — identity's authority, because its runner resolves host,
+ *      database and credentials from the secret at RUNTIME rather than from a name module.
+ *
+ * ⚠️ (2) is not a widening for its own sake — while only (1) was read, `identity` and `identity-webhooks`
+ * were NOT DISCOVERED AS A PAIR AT ALL, so the gate below said nothing about the five DB-touching Lambdas
+ * in `WebhooksStack`. They are safe today only because both pipelines happen to `cdk deploy` them AFTER the
+ * identity service (the deploy that applies the schema), and nothing asserted that. Hoisting that one step
+ * would have put new webhook code — the read-through user create, the deletion worker, the erasure
+ * reconciler — on the previous release's schema, silently, with every gate green. See ADR-0022.
+ *
+ * Food's name authority is private to its single stack, so it has no peer and is correctly not asserted
+ * over. A future second stack on an existing database is covered the day it imports either authority.
  */
 
-/** The workflows that deploy a whole stage. Both carried the same ordering, so both are read. */
-const DEPLOY_WORKFLOWS = ['.github/workflows/prod-deploy.yml', '.github/workflows/sandbox-deploy.yml'] as const;
+/**
+ * The workflows that deploy a whole stage.
+ *
+ * ⚠️ `sandbox-identity-deploy.yml` belongs here for the same reason (2) above belongs in the pairing: it is
+ * the ONLY workflow that deploys the shared sandbox identity service and its webhooks, so leaving it out
+ * asserted the ordering in prod and left sandbox — the stage every PR preview signs in against — unguarded.
+ */
+const DEPLOY_WORKFLOWS = [
+    '.github/workflows/prod-deploy.yml',
+    '.github/workflows/sandbox-deploy.yml',
+    '.github/workflows/sandbox-identity-deploy.yml',
+] as const;
 
 /** One job's steps, carrying enough identity for a failure message to name where it came from. */
 interface WorkflowJob {
@@ -598,27 +620,44 @@ function serviceDirs(): readonly string[] {
     ].sort();
 }
 
-/** An infra source paired with the database-name authorities it imports. */
+/** An infra source paired with the database authorities it names. */
 interface DatabaseAddressingSource {
     /** Repo-relative path. */
     readonly file: string;
-    /** The `…/database-name` module specifiers it imports. */
+    /** The database authorities it names — a `…/database-name` module, or a `kitchensink-data-*` export. */
     readonly authorities: readonly string[];
     /** The file's text, so a caller can ask what else it declares. */
     readonly source: string;
 }
 
 /**
- * A service's infra sources that name a logical database, with the authority each one imports.
+ * A service's infra sources that name a logical database, with the authority each one names.
+ *
+ * Two forms, because this repo has two — and reading only the first is what left `identity` and
+ * `identity-webhooks` undiscovered as a pair (see the block comment above):
+ *
+ *   - `from '….../database-name'` — the module that DERIVES a per-stage database name (food's is private to
+ *     its own stack; recipe's is shared, which is what pairs its two apps);
+ *   - `kitchensink-data-${stage}:DatabaseSecretArn` / `:DatabaseName` — the data stack's export naming the
+ *     database, or the credentials that carry it. Normalized to drop the stage token, since the pairing is
+ *     about WHICH database, not which stage.
+ *
+ * ⚠️ The stage token is matched as `${…}`, not `.*`: `kitchensink-data-` is also a stack-name prefix, and a
+ * looser pattern would pair every service that merely reads an unrelated export off the same stack.
  *
  * @param serviceDir - The directory name under `packages/services/`.
- * @returns One entry per infra source that imports a database-name authority.
+ * @returns One entry per infra source that names a database authority.
  * @sideEffect Reads the infra sources.
  */
 function databaseAddressingSources(serviceDir: string): readonly DatabaseAddressingSource[] {
     return infraSources(serviceDir).flatMap((file) => {
         const source = readFileSync(path.join(repoRoot, file), 'utf8');
-        const authorities = [...source.matchAll(/from\s+'([^']*\/database-name)'/g)].map((match) => match[1] as string);
+        const authorities = [
+            ...[...source.matchAll(/from\s+'([^']*\/database-name)'/g)].map((match) => match[1] as string),
+            ...[...source.matchAll(/kitchensink-data-\$\{[A-Za-z_]\w*\}:(DatabaseSecretArn|DatabaseName)/g)].map(
+                (match) => `kitchensink-data:${match[1] as string}`,
+            ),
+        ];
 
         return authorities.length === 0 ? [] : [{ file, authorities, source }];
     });
@@ -738,10 +777,13 @@ describe('a stack that shares a service database is ordered behind that schema, 
 
         expect(
             [...discovered].sort(),
-            'expected recipe-service + recipe-workers to be discovered in both deploy workflows',
+            'expected recipe-service + recipe-workers, and identity + identity-webhooks, in every workflow ' +
+                'that deploys both halves of the pair',
         ).toStrictEqual([
+            '.github/workflows/prod-deploy.yml:identity+identity-webhooks',
             '.github/workflows/prod-deploy.yml:recipe-service+recipe-workers',
             '.github/workflows/sandbox-deploy.yml:recipe-service+recipe-workers',
+            '.github/workflows/sandbox-identity-deploy.yml:identity+identity-webhooks',
         ]);
     });
 

@@ -444,11 +444,24 @@ export class RecipeServiceStack extends Stack {
         // own runner, shipping this same bundle. So the rule for this repo is: a stack that touches a
         // service's database orders its own resources behind that schema; the pipeline orders nothing.
         // Both halves are pinned by `packages/infra/global/__tests__/prodDeployMigrationOrder.test.ts`.
+        // ⚠️ DELIBERATE — see docs/architecture/decisions/0022-in-stack-migration-trigger.md
+        // ⛔ DISCOVERED from the construct tree, never a list. This read used to be `[apiService]`, true
+        // only while the API task was the sole thing in this stack that touches the schema — and nothing
+        // said so. Read BEFORE the Trigger is constructed, so CDK's own custom-resource provider Lambda —
+        // created inside it, and no consumer of this schema — is not swept in.
+        const orderedBehindTheSchema = this.node
+            .findAll()
+            .filter(
+                (construct): construct is Construct =>
+                    construct instanceof lambda.Function || construct instanceof ecs.BaseService,
+            )
+            .filter((construct) => construct !== migrationFn);
+
         new triggers.Trigger(this, 'RecipeSchemaMigrations', {
             handler: migrationFn,
             timeout: Duration.seconds(360),
             executeAfter: [migrationFn],
-            executeBefore: [apiService],
+            executeBefore: orderedBehindTheSchema,
         });
 
         // ── Shared ALB host-rule + DNS (mirrors identity/food) ──────────────────────────────────

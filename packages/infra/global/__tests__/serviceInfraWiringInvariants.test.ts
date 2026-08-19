@@ -61,40 +61,12 @@ import {
     objectProperties,
     parse,
     readServiceFile,
+    referenceText,
     stringLiterals,
     visit,
 } from './serviceSources.js';
 
 // ───────────────────────────── shared AST helpers ─────────────────────────────
-
-/**
- * A dotted source-text rendering of a reference expression (`deletionQueue`, `this.archiveQueue`).
- *
- * Hand-written rather than `node.getText()`, which needs `setParentNodes` and the original source: the parse in
- * `serviceSources.ts` deliberately omits parent pointers (they roughly double parse cost across ~1,500 files).
- * Only the reference forms a CDK grant is ever written on are supported; anything else is `undefined`, which
- * every caller treats as "cannot attribute", never as "no grant".
- *
- * @param node - The expression to render.
- * @returns The dotted text, or `undefined` when the expression is not a plain reference chain.
- */
-function referenceText(node: ts.Expression): string | undefined {
-    if (ts.isIdentifier(node)) {
-        return node.text;
-    }
-
-    if (node.kind === ts.SyntaxKind.ThisKeyword) {
-        return 'this';
-    }
-
-    if (ts.isPropertyAccessExpression(node)) {
-        const target = referenceText(node.expression);
-
-        return target === undefined ? undefined : `${target}.${node.name.text}`;
-    }
-
-    return undefined;
-}
 
 /**
  * Every module-level `const NAME = 'literal'` in a file.

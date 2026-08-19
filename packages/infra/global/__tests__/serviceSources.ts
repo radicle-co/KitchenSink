@@ -127,18 +127,22 @@ export function readServiceFile(serviceName: string, relativePath: string): stri
 }
 
 /**
- * Walk every node of a parsed source file.
+ * Walk every node of a parsed source file, or of any subtree within one.
  *
- * @param source - The parsed file.
+ * ⚠️ `ts.Node` rather than `ts.SourceFile`, so a gate can re-walk a node it already found — asking "does
+ * THIS expression read the construct tree" without re-parsing the file and hunting for it again. Widening a
+ * parameter is safe for every existing caller, all of which pass a whole file.
+ *
+ * @param root - The parsed file, or a node within one.
  * @param callback - Invoked once per node, pre-order.
  */
-export function visit(source: ts.SourceFile, callback: (node: ts.Node) => void): void {
+export function visit(root: ts.Node, callback: (node: ts.Node) => void): void {
     const walk = (node: ts.Node): void => {
         callback(node);
         ts.forEachChild(node, walk);
     };
 
-    walk(source);
+    walk(root);
 }
 
 /**
@@ -272,4 +276,34 @@ export function literalText(node: ts.Expression | undefined): string | undefined
     }
 
     return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : undefined;
+}
+
+/**
+ * A dotted source-text rendering of a reference expression (`deletionQueue`, `this.archiveQueue`,
+ * `lambda.Function`).
+ *
+ * Hand-written rather than `node.getText()`, which needs `setParentNodes` and the original source: the parse
+ * above deliberately omits parent pointers (they roughly double parse cost across ~1,500 files). Only the
+ * reference forms CDK code is ever written in are supported; anything else is `undefined`, which every caller
+ * treats as "cannot attribute", never as "no match".
+ *
+ * @param node - The expression to render.
+ * @returns The dotted text, or `undefined` when the expression is not a plain reference chain.
+ */
+export function referenceText(node: ts.Expression): string | undefined {
+    if (ts.isIdentifier(node)) {
+        return node.text;
+    }
+
+    if (node.kind === ts.SyntaxKind.ThisKeyword) {
+        return 'this';
+    }
+
+    if (ts.isPropertyAccessExpression(node)) {
+        const target = referenceText(node.expression);
+
+        return target === undefined ? undefined : `${target}.${node.name.text}`;
+    }
+
+    return undefined;
 }

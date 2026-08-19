@@ -129,20 +129,34 @@ describe('blendIngredientSuggestions', () => {
             expect(blended).toEqual([{ provenance: 'local', ingredient: row }]);
         });
 
-        it('keeps a freeform local row and a same-named catalog hit as two DISTINCT suggestions', () => {
-            // Deliberate: dedup is on `food_id` (Stage 2's locked rule), and these are genuinely different
-            // things — the user's own nutrition-less row vs the golden record. Provenance sections + badges
-            // are what disambiguate them for the reader.
+        it('REPLACES a same-named freeform local row with the catalog hit', () => {
+            // ⛔ REWRITTEN 2026-08-19, and it asserts the OPPOSITE of what it used to. It previously read
+            // "keeps … as two DISTINCT suggestions", arguing that dedup is on `food_id` and that the user's
+            // nutrition-less row and the golden record are genuinely different things which sections and
+            // badges disambiguate.
+            //
+            // The owner reversed that after it was MEASURED: importing 338 public-domain recipes through the
+            // app's own resolution path produced 268 lines with no food record, and all 268 were pre-existing
+            // freeform rows. Offering both means whoever takes the top suggestion gets the one with no
+            // nutrition — permanently, since the freeform row then exists forever. Ruling: a catalog match
+            // wins.
+            //
+            // Coverage of the ORIGINAL concern did not go away: that a freeform row and a catalog hit are
+            // structurally different things is still proved by the discriminated union and by
+            // 'keeps a freeform row whose name is genuinely different', which shows a non-colliding freeform
+            // row surviving alongside the catalog section.
             const local = [makeIngredient({ id: 'ing-1', name: 'Chicken breast', isUserEntered: true })];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1', name: 'Chicken breast' })];
 
             const blended = blendIngredientSuggestions({ local, promoted: [], catalogHits, limit: 10 });
 
-            expect(blended).toHaveLength(2);
-            expect(blended.map((s) => s.provenance)).toEqual(['local', 'catalog']);
+            expect(blended).toHaveLength(1);
+            expect(blended.map((s) => s.provenance)).toEqual(['catalog']);
         });
 
         it('ignores local rows that carry no food link when deduping', () => {
+            // The name deliberately does NOT collide with the catalog hit's, so this exercises `food_id`
+            // dedup alone rather than the name-collision rule tested above.
             const local = [makeIngredient({ id: 'ing-1', name: 'Freeform' })];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1' })];
 
@@ -205,5 +219,104 @@ describe('blendIngredientSuggestions', () => {
 
         expect(local).toEqual(localBefore);
         expect(catalogHits).toEqual(hitsBefore);
+    });
+});
+
+/**
+ * ⛔ THE ACCEPTANCE CRITERION for "a catalog match wins over a freeform row of the same name" — an owner
+ * ruling (2026-08-19) that reverses one consequence of "section, don't blend".
+ *
+ * ## The defect, measured rather than theorised
+ *
+ * Importing 338 public-domain recipes through the app's OWN resolution path produced 268 ingredient lines
+ * with no food record — and ALL 268 were pre-existing FREEFORM rows, "Butter" alone accounting for 138. Not
+ * one name failed for any other reason. The database showed why: three ingredients matched `butter%`, and
+ * TWO of them already carried a `food_id`. A catalog-backed butter existed and lost every time.
+ *
+ * The mechanism is this reduction. Dedup is by `food_id` (`linkedFoodIds`), and a freeform row HAS no
+ * `food_id`, so it contributes nothing to that set — both rows survive, and the freeform one wins purely
+ * because the local section renders first. Anyone taking the top suggestion (a hurried human, or an importer
+ * behaving like one) gets the row with no nutrition. Permanently: once "butter" exists as freeform, butter
+ * can never acquire USDA nutrition for anyone.
+ *
+ * ## What is preserved, deliberately
+ *
+ * "Section, don't blend" is an ANTI-JANK layout guarantee, not a ranking preference — the local section is
+ * still never reordered or interleaved. This suppresses a freeform row only when a REAL catalog alternative
+ * is actually on screen, so the sections keep their shape and nothing reflows.
+ *
+ * ## Why suppression is gated on the RENDERED catalog section
+ *
+ * The catalog section is capped by `limit`. Suppressing a freeform row against a hit that then gets sliced
+ * away would leave the user with NEITHER — a worse outcome than the bug. So the cap is applied first and the
+ * suppression reads only what survives it.
+ */
+describe('blendIngredientSuggestions — a catalog match beats a freeform row of the same name', () => {
+    it('⛔ suppresses the freeform row when a catalog hit carries the same name', () => {
+        // The measured case: 138 recipe lines took this branch and got no nutrition.
+        const result = blendIngredientSuggestions({
+            local: [makeIngredient({ id: 'ing-freeform', name: 'Butter', foodId: undefined })],
+            promoted: [],
+            catalogHits: [{ foodId: 'food-butter', name: 'Butter', score: 9 }],
+            limit: 10,
+        });
+
+        expect(result.filter((s) => s.provenance === 'local')).toHaveLength(0);
+        expect(result.map((s) => (s.provenance === 'catalog' ? s.foodId : s.ingredient.id))).toStrictEqual([
+            'food-butter',
+        ]);
+    });
+
+    it('matches on a normalized name — case and surrounding whitespace do not rescue the shadow', () => {
+        const result = blendIngredientSuggestions({
+            local: [makeIngredient({ id: 'ing-freeform', name: '  BUTTER ', foodId: undefined })],
+            promoted: [],
+            catalogHits: [{ foodId: 'food-butter', name: 'Butter', score: 9 }],
+            limit: 10,
+        });
+
+        expect(result.every((s) => s.provenance === 'catalog')).toBe(true);
+    });
+
+    it('keeps a freeform row whose name is genuinely different', () => {
+        // Suppression must be a name COLLISION, not "a catalog hit exists". A cook's own blend is not butter.
+        const result = blendIngredientSuggestions({
+            local: [makeIngredient({ id: 'ing-blend', name: "Grandma's browned butter blend", foodId: undefined })],
+            promoted: [],
+            catalogHits: [{ foodId: 'food-butter', name: 'Butter', score: 9 }],
+            limit: 10,
+        });
+
+        expect(result.filter((s) => s.provenance === 'local')).toHaveLength(1);
+    });
+
+    it('⛔ keeps the freeform row when the colliding hit is CAPPED AWAY — never leave the user with neither', () => {
+        // limit 1 renders one catalog hit; the butter hit is second and never appears, so suppressing the
+        // freeform row against it would remove the only usable option.
+        const result = blendIngredientSuggestions({
+            local: [makeIngredient({ id: 'ing-freeform', name: 'Butter', foodId: undefined })],
+            promoted: [],
+            catalogHits: [
+                { foodId: 'food-other', name: 'Buttermilk', score: 9 },
+                { foodId: 'food-butter', name: 'Butter', score: 8 },
+            ],
+            limit: 1,
+        });
+
+        expect(result.filter((s) => s.provenance === 'local')).toHaveLength(1);
+    });
+
+    it('leaves a catalog-BACKED local row alone — food_id dedup already owns that case', () => {
+        // The pre-existing rule: a local row that already links the food suppresses the catalog hit, not the
+        // other way round. Picking it needs no admission round-trip, so it is the better option.
+        const result = blendIngredientSuggestions({
+            local: [makeIngredient({ id: 'ing-linked', name: 'Butter', foodId: 'food-butter' })],
+            promoted: [],
+            catalogHits: [{ foodId: 'food-butter', name: 'Butter', score: 9 }],
+            limit: 10,
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0]?.provenance).toBe('local');
     });
 });

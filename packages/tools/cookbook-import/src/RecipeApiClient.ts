@@ -35,6 +35,8 @@ import {
     recipeDetailSchema,
 } from '@kitchensink/schema-recipe';
 
+import { isRecipeApiError, RecipeApiError } from './RecipeApiError.js';
+
 /** A catalog ingredient row as the recipe service publishes it. */
 export type Ingredient = z.infer<typeof ingredientSchema>;
 /** The blended `local | catalog` suggestion response. */
@@ -43,30 +45,6 @@ export type IngredientSuggestions = z.infer<typeof ingredientSuggestionsResponse
 export type CreateRecipeBody = z.input<typeof createRecipeRequestSchema>;
 /** A created recipe, as the detail projection publishes it. */
 export type RecipeDetail = z.infer<typeof recipeDetailSchema>;
-
-/** An HTTP failure carrying the service's own error envelope, so a caller can branch on the code. */
-export class RecipeApiError extends Error {
-    /** The HTTP status. */
-    public readonly status: number;
-    /** The service's machine-readable `code`, when the body carried one. */
-    public readonly code: string | undefined;
-    /** The raw response body, for a report the reader can act on. */
-    public readonly body: string;
-
-    public constructor(status: number, code: string | undefined, body: string, message: string) {
-        super(message);
-        this.name = 'RecipeApiError';
-        this.status = status;
-        this.code = code;
-        this.body = body;
-        Object.setPrototypeOf(this, RecipeApiError.prototype);
-    }
-}
-
-/** Type guard for {@link RecipeApiError}. */
-export function isRecipeApiError(error: unknown): error is RecipeApiError {
-    return error instanceof RecipeApiError;
-}
 
 /** Statuses worth trying again: rate limiting and transient backpressure, never a considered rejection. */
 const RETRYABLE = new Set([429, 502, 503, 504]);

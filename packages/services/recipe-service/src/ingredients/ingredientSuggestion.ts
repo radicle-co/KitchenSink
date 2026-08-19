@@ -89,6 +89,20 @@ export interface BlendSuggestionsInput {
  * @param input - The two catalogs' hits plus the per-section cap.
  * @returns The sectioned, deduped suggestions (local section first).
  */
+/**
+ * The comparison key for "these two suggestions name the same thing".
+ *
+ * Case- and whitespace-insensitive ONLY. Deliberately not a stemmer, a synonym table or a fuzzy match: this
+ * decides whether a user's own row is hidden from them, so a false positive silently removes a real choice.
+ * "Butter" vs "  BUTTER " is the same ingredient; "Grandma's browned butter blend" is not, and must survive.
+ *
+ * @param name - A suggestion's display name.
+ * @returns The normalized comparison key.
+ */
+function normalizeSuggestionName(name: string): string {
+    return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 export function blendIngredientSuggestions(input: BlendSuggestionsInput): IngredientSuggestion[] {
     const { local, promoted, catalogHits, limit } = input;
 
@@ -116,14 +130,42 @@ export function blendIngredientSuggestions(input: BlendSuggestionsInput): Ingred
         ),
     );
 
-    const localSection: IngredientSuggestion[] = [...local, ...promotedOrdered]
-        .slice(0, limit)
-        .map((ingredient) => ({ provenance: 'local', ingredient }));
-
+    // ⛔ THE CATALOG SECTION IS COMPUTED FIRST, because the freeform suppression below may only read hits
+    // that will actually be RENDERED. Suppressing a freeform row against a hit the cap then slices away
+    // would leave the user with NEITHER — strictly worse than the shadowing this fixes.
     const catalogSection: IngredientSuggestion[] = catalogHits
         .filter((hit) => !linkedFoodIds.has(hit.foodId))
         .slice(0, limit)
         .map((hit) => ({ provenance: 'catalog', foodId: hit.foodId, name: hit.name, score: hit.score }));
+
+    // ⛔ A CATALOG MATCH BEATS A FREEFORM ROW OF THE SAME NAME (owner ruling, 2026-08-19).
+    //
+    // Dedup above is by `food_id`, and a FREEFORM row has none — so it contributed nothing to
+    // `linkedFoodIds`, both rows survived, and the freeform one won purely because this section renders
+    // first. Measured consequence: importing 338 public-domain recipes through the app's own resolution path
+    // produced 268 lines with no food record, and ALL 268 were pre-existing freeform rows ("Butter" alone was
+    // 138). A catalog-backed butter existed in the same table and lost every time. The shadow was permanent:
+    // once a freeform "butter" exists, butter could never acquire USDA nutrition for anyone.
+    //
+    // ⚠️ This does NOT weaken "section, don't blend". That rule is an ANTI-JANK LAYOUT guarantee — the local
+    // section is still never reordered or interleaved by the catalog section. Only a row that a visible
+    // catalog hit makes redundant is removed, so neither section changes shape.
+    //
+    // A catalog-BACKED local row is untouched: it already links the food, and picking it needs no
+    // `by-food` admission round-trip, so it remains the better option and keeps suppressing the hit.
+    const renderedCatalogNames = new Set(
+        catalogSection.flatMap((suggestion) =>
+            suggestion.provenance === 'catalog' ? [normalizeSuggestionName(suggestion.name)] : [],
+        ),
+    );
+
+    const localSection: IngredientSuggestion[] = [...local, ...promotedOrdered]
+        .filter(
+            (ingredient) =>
+                ingredient.foodId !== undefined || !renderedCatalogNames.has(normalizeSuggestionName(ingredient.name)),
+        )
+        .slice(0, limit)
+        .map((ingredient) => ({ provenance: 'local', ingredient }));
 
     return [...localSection, ...catalogSection];
 }

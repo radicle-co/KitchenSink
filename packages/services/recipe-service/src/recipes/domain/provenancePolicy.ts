@@ -1,7 +1,7 @@
 /**
  * The pure provenance-declaration policy (004-FR-024 / 004-FR-025, ADR-0023).
  *
- * DESIGN PATTERN: **Specification / Policy module**, the sibling of {@link evaluateVisibility}. It answers ONE
+ * DESIGN PATTERN: **Specification / Policy module**, the sibling of `evaluateVisibility`. It answers ONE
  * question — "may this caller declare this provenance, and what provenance results?" — from its inputs alone:
  * no DB, no `Principal` object, no I/O. Grants arrive as a primitive `readonly string[]` for exactly the
  * reason `evaluateVisibility` takes `isPremium: boolean` rather than a principal: a policy that can reach a

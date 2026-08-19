@@ -37,11 +37,12 @@ import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { COOKBOOKS } from '../src/cookbooks.js';
-import { RecipeApiClient, isRecipeApiError } from '../src/RecipeApiClient.js';
+import { RecipeApiClient } from '../src/RecipeApiClient.js';
 import { segmentCookbook } from '../src/gutenbergBook.adapter.js';
 import { toCandidateRecipe } from '../src/proseRecipe.js';
 import { resolveIngredientLikeAUser } from '../src/resolveIngredient.js';
 import type { CreateRecipeBody } from '../src/RecipeApiClient.js';
+import { isRecipeApiError } from '../src/RecipeApiError.js';
 
 const RECIPE_URL = process.env['COOKBOOK_IMPORT_RECIPE_URL'];
 const CREDENTIALS = process.env['COOKBOOK_IMPORT_CREDENTIALS'];

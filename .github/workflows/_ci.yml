@@ -1371,6 +1371,13 @@ jobs:
                   # NOT the default `warn`: an empty upload yields an empty download, and `next start` then
                   # dies with "could not find a production build" two jobs away from the cause.
                   if-no-files-found: error
+                  # ⛔ REQUIRED. `.next` is a HIDDEN directory and upload-artifact v4 skips dotfiles unless
+                  # told otherwise, so EVERY file in this artifact is filtered out and the step reports
+                  # `No files were found with the provided path` — which `if-no-files-found: error` then
+                  # (correctly) turns red. Being the artifact ROOT does not exempt it: the filter tests the
+                  # path, and the dot is in the path. This is not a theoretical footnote — it is what failed
+                  # on the first real run of this artifact.
+                  include-hidden-files: true
 
     e2e-backend:
         # Static name (not a matrix) so a skipped run still shows a clean title instead of a raw

@@ -135,6 +135,29 @@ MAESTRO_VERTICALS='auth home collections discovery recipes'
 # The reset truncates for every flow; for these it also SKIPS the re-seed, which is the only way to reach
 # that state — and the seeded fixture being universal is exactly what hid a first-run defect from this
 # suite. Space-padded on both sides so the membership test below matches whole names only.
+# ⛔ THE DRIVER PORT IS PINNED, AND THE NUMBER'S ONLY IMPORTANT PROPERTY IS THE RANGE IT AVOIDS.
+#
+# Maestro picks this port on the HOST — `TestCommand.selectPort()` is `ServerSocket(0).use { it.localPort }`,
+# commented "guarantees no collision" — and then imposes it on the DEVICE via `am instrument -e port $port`,
+# where the driver does `NettyServerBuilder.forPort(port).start()`. The guarantee holds on the host and means
+# nothing on the emulator: two machines, two independent sets of bound ports. When the number is already taken
+# device-side the driver throws and there is NO retry and NO fallback, so the flow dies before its first
+# command. That is what killed `recipes/discover-clone` in run 32182061356:
+#
+#     E TestRunner: java.io.IOException: Failed to bind to address ::/[::]:35579
+#     E TestRunner: Caused by: java.net.BindException: Address already in use
+#
+# Confirmed against Maestro's source at the pinned CI version and unchanged in 2.7.0/2.8.0 — upgrading does
+# not fix it. All 26 ports that run chose were inside the kernel's ephemeral range (32768-60999), which is the
+# pool `bind(0)` and outbound `connect()` both draw from. 7001 sits BELOW that range, so the kernel can never
+# hand it to anything else by chance: the collision class is removed rather than made rarer.
+#
+# ⚠️ A fixed port is only safe BECAUSE of `maestro_reset_driver` below. Do not keep one without the other.
+MAESTRO_DRIVER_PORT="${MAESTRO_DRIVER_PORT:-7001}"
+
+# Maestro's on-device driver. It reinstalls this every invocation, so removing it between flows costs nothing.
+MAESTRO_DRIVER_PACKAGE="dev.mobile.maestro"
+
 EMPTY_LIBRARY_FLOWS=" recipes/empty-library "
 
 # maestro_select_flows <plan> [<name>=true|false …]
@@ -247,6 +270,50 @@ maestro_select_flows() {
 # flow against a freshly reset database. Returns non-zero if any flow (or any reseed) failed.
 #
 # @sideEffect Drives adb/the emulator, mutates the recipe database, calls Clerk, and runs Maestro.
+# Remove any driver left over from a previous flow, so the pinned port is free.
+#
+# ⛔ This is the half that makes a STATIC port an improvement rather than a hazard. Maestro closes its driver
+# from a JVM shutdown hook gated on a session heartbeat; in the failing run 21 of 26 flows logged no cleanup
+# at all and the other 5 stopped at `[Start] Uninstall driver` with no `[Done]`. If a driver ever outlives its
+# flow, a fixed port hands it straight to the next one — a deterministic red instead of a 1-in-188 flake,
+# which would be strictly worse than the random draw this replaces. So the runner does not trust the hook.
+#
+# Runs BEFORE each flow, never only after: a run that dies mid-flow is exactly the case that leaks a driver,
+# and cleanup that only happens on the way out never executes then.
+#
+# @sideEffect Uninstalls the driver packages and force-stops any surviving process on the device.
+maestro_reset_driver() {
+    adb shell pm uninstall "$MAESTRO_DRIVER_PACKAGE" >/dev/null 2>&1 || true
+    adb shell pm uninstall "${MAESTRO_DRIVER_PACKAGE}.test" >/dev/null 2>&1 || true
+    adb shell am force-stop "$MAESTRO_DRIVER_PACKAGE" >/dev/null 2>&1 || true
+}
+
+# Name whatever is holding the driver port, and any driver that survived a previous flow.
+#
+# ⛔ Diagnosing the original failure meant downloading the run artifact and unzipping per-flow logs just to
+# learn which port each flow used. That is why this prints the port on the happy path too. On failure it also
+# dumps the device socket table: `LISTEN` vs `TIME_WAIT` is the exact distinction that separates "a leftover
+# server" from "ordinary traffic residue", and not having it is what left the last investigation unresolved.
+#
+# Every probe is best-effort — a diagnostic that fails the job it is diagnosing is worse than no diagnostic.
+#
+# @sideEffect Reads socket and process tables from the device.
+maestro_dump_port_owner() {
+    echo "--- who holds device port ${MAESTRO_DRIVER_PORT} ---"
+    # `ss` is absent from some system images; `/proc/net/tcp*` always exists (hex ports, but it still shows
+    # the connection STATE, which is the part that matters).
+    adb shell ss -tanp 2>/dev/null | grep -F ":${MAESTRO_DRIVER_PORT}" \
+        || adb shell netstat -tlnp 2>/dev/null | grep -F ":${MAESTRO_DRIVER_PORT}" \
+        || adb shell cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | tail -40 \
+        || echo "(no socket table available)"
+    echo "--- surviving maestro processes/packages ---"
+    adb shell ps -A 2>/dev/null | grep -i maestro || echo "(none)"
+    adb shell pm list packages 2>/dev/null | grep -i maestro || echo "(none installed)"
+    echo "--- device ephemeral range (the pool the pinned port must sit outside) ---"
+    adb shell cat /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null || echo "(unavailable)"
+    echo "--- end port diagnostics ---"
+}
+
 maestro_run_flows() {
     adb install -r "$APK"
     adb reverse tcp:3000 tcp:3000 || true
@@ -296,9 +363,25 @@ maestro_run_flows() {
         echo "skipped by selection: ${skipped% }"
     fi
 
-    local rc=0 f reseed_mode
+    # Unquoted on purpose: `flows` is a space-separated list.
+    # shellcheck disable=SC2086
+    maestro_run_flow_list $flows
+}
+
+# Run each named flow through the full per-flow lifecycle.
+#
+# Split out of `maestro_run_flows` so the `run-one` subcommand — and therefore
+# `tests/maestroDriverLifecycle.integration.test.ts` — exercises the SAME body CI runs, rather than a
+# reimplementation that could drift away from it silently.
+#
+# @sideEffect Resets the driver, reseeds the database, runs Maestro, and dumps diagnostics on failure.
+maestro_run_flow_list() {
+    local rc=0 f reseed_mode flows="$*"
+
     for f in $flows; do
         echo "::group::maestro flow ${f}"
+        echo "driver port ${MAESTRO_DRIVER_PORT} (pinned below the ephemeral range) for flow ${f}"
+        maestro_reset_driver
         adb logcat -c || true # clear the ring buffer so a failing flow's dump is scoped to just this flow
         case "$EMPTY_LIBRARY_FLOWS" in
             *" ${f} "*) reseed_mode=empty ;;
@@ -308,7 +391,7 @@ maestro_run_flows() {
             echo "reseed failed before ${f}"
             rc=1
         fi
-        if ! maestro test "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+        if ! maestro test --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
             echo "FLOW FAILED: ${f}"
             # Native/Hermes crashes (app -> launcher) leave NO Java/AndroidRuntime trace and release builds strip
             # the JS console, so a narrow filter shows nothing. Dump the full tail and grep every crash-carrying
@@ -317,6 +400,7 @@ maestro_run_flows() {
             echo "--- logcat (crash tags) for ${f} ---"
             adb logcat -d -t 4000 2>&1 | grep -aiE "FATAL|AndroidRuntime|hermes|SIGSEGV|SIGABRT|\blibc\b|DEBUG   |abort message|Exception|io\.commise|ReactNativeJS|ReactNative:|unhandled" | tail -160 || true
             echo "--- end logcat for ${f} ---"
+            maestro_dump_port_owner
             rc=1
         fi
         echo "::endgroup::"
@@ -339,6 +423,15 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         select-plan)
             shift
             maestro_select_flows "$@"
+            ;;
+        driver-port)
+            printf '%s\n' "$MAESTRO_DRIVER_PORT"
+            ;;
+        run-one)
+            # ONE flow through the REAL loop, so the lifecycle test exercises the code CI runs rather than a
+            # reimplementation of it. Not used by CI itself.
+            shift
+            maestro_run_flow_list "$@"
             ;;
         plan)
             # Unquoted on purpose: one plan entry per line of output.

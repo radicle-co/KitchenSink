@@ -30,8 +30,11 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Mediterranean Grilled Lamb'
 
-# ── EDIT 1 (creates version 2) ── the seed carries no ingredients/steps; Publish (whole-form validation)
-# needs >= 1 of each, added via the freeform create exactly as `edit.yaml` does.
+# ── EDIT 1 (creates version 2) ── the seeded recipe now arrives WITH five ingredient lines and four steps of
+# its own (`packages/services/recipe-service/src/database/seed.ts`), so Publish's ">= 1 of each" is already
+# satisfied when the editor opens. An ingredient and a step are still added here — exactly as `edit.yaml` does
+# — so that v2 differs from the seed in CONTENT as well as title, which is what makes the version-history
+# assertions further down about a real edit rather than a title rename.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
@@ -60,8 +63,22 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn:
       text: 'Create .*Tomato.*'
+# ⛔ THE CHECKPOINT THAT THE FREEFORM CREATE REACHED THE FORM (the same pair `edit.yaml` carries, for the same
+# reason). It was `Ingredient 1 name`, which stopped proving anything the moment the seed gained lines of its
+# own: that is the FIRST SEEDED line's field, present before this flow typed a character. Instead:
+#   1. The picker RESETS — `useIngredientResolver`'s `resolveLine` clears the query only AFTER handing the
+#      resolved line up, so "Create “Tomato”" disappearing IS the create resolving (and this is the wait for
+#      the round trip). A failed create leaves the query and the affordance in place, and this goes red.
+#   2. The LINE ITSELF by the NAME this flow typed, not by position — count-independent, and the only thing
+#      left on screen that can carry that text once the search box has been cleared by (1). `^Tomato` is
+#      anchored at the start only, so the emulator's occasional last-character input duplication (the reason
+#      the `Create .*Tomato.*` pattern above is loose) still matches.
+- extendedWaitUntil:
+      notVisible: 'Create .*Tomato.*'
+      timeout: 30000
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element:
+          text: '^Tomato'
       direction: DOWN
       timeout: 30000
 - scrollUntilVisible:
@@ -75,7 +92,13 @@ appId: io.commise.mobile
       direction: UP
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
+# ⛔ `Step 5 instruction`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
+# (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is
+# the fifth. The index is this flow's one coupling to the fixture's COUNT — stated because Maestro has no
+# "last match" selector. `Step 1 instruction` would append this text to the SEEDED first step and leave the
+# added step EMPTY, and `validateRecipeForm` fails `steps` on ANY blank instruction, so `canAdvanceFromStep(3)`
+# never opens and the walk to step 4 below dead-ends.
+- tapOn: 'Step 5 instruction'
 - inputText: 'Marinate for two hours.'
 # Publish is the STEP-4 FOOTER PRIMARY, not a sticky top-bar action. U6 collapsed the wizard chrome to one
 # contextual footer primary — `Next: …` on steps 1-3, swapping to `Publish` on step 4 (`Wizard.native.tsx`'s

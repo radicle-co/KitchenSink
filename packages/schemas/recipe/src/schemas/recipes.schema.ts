@@ -63,6 +63,8 @@ import {
     recipeMinutesSchema,
     recipeSchema,
     recipeServingsSchema,
+    recipeSourceAttributionSchema,
+    recipeSourceUrlSchema,
     recipeStatusSchema,
     recipeStepInstructionSchema,
     recipeTimerSecondsSchema,
@@ -71,6 +73,7 @@ import {
     MAX_RECIPE_INGREDIENTS,
     MAX_RECIPE_LIST_PAGE_SIZE,
     MAX_RECIPE_TAGS,
+    RecipeSourceType,
 } from '@kitchensink/recipe-core';
 
 // ── Nested request shapes ─────────────────────────────────────────────────────────────────────────
@@ -104,6 +107,57 @@ export const recipeStepInputSchema = z.strictObject({
 export type RecipeStepInput = z.infer<typeof recipeStepInputSchema>;
 
 // ── Requests ──────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The scope a principal must hold in its token's SIGNED `public_metadata` to declare a curated public-domain
+ * import (`imported_public`).
+ *
+ * ⚠️ PUBLISHED ON THE CONTRACT DELIBERATELY. It is not an implementation detail: a caller cannot mint a
+ * usable curator token without knowing the string, and the import tooling that does so must read the value
+ * rather than restate it — a second copy of an authorization identifier is the kind of drift that fails
+ * OPEN. `provenancePolicy.ts` imports it from here; nothing re-declares it.
+ *
+ * The GRANT itself is administered out of band, in Clerk, on the signing key's authority — see ADR-0023.
+ */
+export const CURATOR_IMPORT_SCOPE = 'recipes:import:public';
+
+/**
+ * The provenance a caller may DECLARE on `POST /api/v1/recipes` (004-FR-024 / 004-FR-025, ADR-0023).
+ *
+ * ⚠️ A DISCRIMINATED UNION, not an object with optional fields, and that choice is the requirement rather
+ * than a style preference. `imported_public` asserts "this content came from somewhere else, and here is
+ * where"; a declaration carrying that claim with no URL and no attribution is the false-attribution hazard
+ * 004-FR-025 exists to prevent. Making the two fields REQUIRED on that member — and UNREPRESENTABLE on
+ * `user_created`, where they would mean nothing — turns "an import must be attributed" from a rule the
+ * service enforces into a state the wire cannot express.
+ *
+ * ⛔ `imported_physical` and `imported_paid` are DELIBERATELY absent, which NARROWS 004-FR-025 rather than
+ * implementing it. Both are private-only classes under C-004, and `evaluateVisibility` admits either to
+ * `private` with NO premium check — so admitting them here would hand a free-tier caller exactly the private
+ * recipe 004-FR-028 says must be gated on an entitlement, and 004-FR-014a's attestation + citation
+ * machinery that is supposed to travel with them does not exist. They join this union when 004 builds that
+ * gate, and adding a member is additive.
+ *
+ * ⛔ It is also NOT on {@link createRecipeRequestBaseSchema}. `updateRecipeRequestSchema` derives from that
+ * base through `.omit().partial()`, so a field placed there is inherited by `PATCH /api/v1/recipes/{id}` —
+ * which would let ANY caller re-classify an existing recipe as `imported_public` after creation, bypassing
+ * the provenance policy entirely (it runs only on create). `recipes.schema.test.ts` pins the absence.
+ *
+ * WHO may declare what is NOT decided here. This schema owns the legal SHAPE; the grant rule lives in the
+ * pure `evaluateProvenance` policy, so a denial is a `403` about the caller rather than a `400` about the
+ * body.
+ */
+export const recipeSourceInputSchema = z.discriminatedUnion('sourceType', [
+    z.strictObject({ sourceType: z.literal(RecipeSourceType.USER_CREATED) }),
+    z.strictObject({
+        sourceType: z.literal(RecipeSourceType.IMPORTED_PUBLIC),
+        sourceUrl: recipeSourceUrlSchema,
+        sourceAttribution: recipeSourceAttributionSchema,
+    }),
+]);
+
+/** The provenance a caller declared on a create request, if any. */
+export type RecipeSourceInput = z.infer<typeof recipeSourceInputSchema>;
 
 /**
  * Body of `POST /api/v1/recipes`.
@@ -161,6 +215,10 @@ const createRecipeRequestBaseSchema = z.strictObject({
  * zod here is the contract; the document is a projection of it (ADR-0014).
  */
 export const createRecipeRequestSchema = createRecipeRequestBaseSchema
+    // ⚠️ `.extend()` on the CREATE schema, never on the BASE — see `recipeSourceInputSchema`'s note. The base
+    // is what `updateRecipeRequestSchema` derives from, so a provenance field placed there becomes a
+    // provenance field on `PATCH`, and provenance is a create-time fact.
+    .extend({ source: recipeSourceInputSchema.optional() })
     .refine((value) => value.status === 'draft' || value.ingredients.length > 0, {
         message: 'A published recipe needs at least one ingredient.',
         path: ['ingredients'],

@@ -39,3 +39,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0020 — Every production service sits behind CloudFront, and the ALB moves to an internal origin name](0020-cloudfront-edge-and-internal-alb-hostnames.md)
 - [0021 — Recipe calories are fetched after the card, and a skeleton can never be permanent](0021-deferred-recipe-nutrition.md)
 - [0022 — The schema migration runs inside the deploy, ordered by a Trigger in every stack that touches the database](0022-in-stack-migration-trigger.md)
+- [0023 — A granted curator declares `imported_public`; the public-domain corpus is fetched out of band](0023-curator-declared-provenance.md)

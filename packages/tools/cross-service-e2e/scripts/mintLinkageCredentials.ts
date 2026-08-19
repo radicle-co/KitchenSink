@@ -54,6 +54,20 @@ const EXTERNAL_ID = process.env['LINKAGE_EXTERNAL_ID'] ?? '01JXK5N90000000000000
 /** Token lifetime. Long enough for the whole suite, short enough to be worthless if it ever leaked. */
 const TTL_SECONDS = Number(process.env['LINKAGE_TOKEN_TTL_SECONDS'] ?? 3600);
 
+/**
+ * Grants to embed in the token's `public_metadata.scopes`.
+ *
+ * DEFAULTS TO NONE, so every existing caller of this script mints exactly the credential it always did —
+ * the linkage suite proves the UNPRIVILEGED path and must keep doing so. `LINKAGE_SCOPES` exists for the
+ * curated-import tooling, which needs `recipes:import:public` (ADR-0023) to declare provenance, and it is
+ * set HERE rather than injected later because the grant is only trustworthy inside the SIGNED
+ * `public_metadata` — a top-level claim, or a header, is never read as a grant by either service.
+ */
+const SCOPES = (process.env['LINKAGE_SCOPES'] ?? '')
+    .split(',')
+    .map((scope) => scope.trim())
+    .filter((scope) => scope.length > 0);
+
 /** The artefact both the booted services and the spec are configured from. */
 export interface LinkageCredentials {
     /** SPKI public-key PEM — set as `CLERK_JWT_KEY` on BOTH services. */
@@ -66,6 +80,8 @@ export interface LinkageCredentials {
     readonly sub: string;
     /** The app-user ULID carried as `external_id`. */
     readonly externalId: string;
+    /** The grants embedded in the token's signed `public_metadata.scopes` (empty unless requested). */
+    readonly scopes: readonly string[];
 }
 
 const outputDirectory = process.argv[2];
@@ -85,7 +101,7 @@ const token = await new SignJWT({
     external_id: EXTERNAL_ID,
     azp: AZP,
     // The production guards read grants from the SIGNED `public_metadata`, never a top-level claim.
-    public_metadata: { scopes: [], permissions: [] },
+    public_metadata: { scopes: SCOPES, permissions: [] },
 })
     .setProtectedHeader({ alg: 'RS256', typ: 'JWT', kid: 'linkage' })
     .setSubject(SUB)
@@ -94,7 +110,14 @@ const token = await new SignJWT({
     .setExpirationTime(nowSeconds + TTL_SECONDS)
     .sign(privateKey);
 
-const credentials: LinkageCredentials = { publicKeyPem, token, azp: AZP, sub: SUB, externalId: EXTERNAL_ID };
+const credentials: LinkageCredentials = {
+    publicKeyPem,
+    token,
+    azp: AZP,
+    sub: SUB,
+    externalId: EXTERNAL_ID,
+    scopes: SCOPES,
+};
 
 const directory = resolve(outputDirectory);
 mkdirSync(directory, { recursive: true });
@@ -102,5 +125,5 @@ writeFileSync(join(directory, LINKAGE_CREDENTIALS_FILENAME), JSON.stringify(cred
 
 console.log(
     `mint-linkage-credentials: wrote ${join(directory, LINKAGE_CREDENTIALS_FILENAME)} ` +
-        `(azp=${AZP}, sub=${SUB}, external_id=${EXTERNAL_ID}, ttl=${TTL_SECONDS}s)`,
+        `(azp=${AZP}, sub=${SUB}, external_id=${EXTERNAL_ID}, scopes=[${SCOPES.join(' ')}], ttl=${TTL_SECONDS}s)`,
 );

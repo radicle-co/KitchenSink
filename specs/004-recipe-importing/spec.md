@@ -2,7 +2,7 @@
 
 **Feature Branch**: `004-recipe-importing`
 **Created**: 2026-04-14
-**Last revised**: 2026-08-02 (reconciliation against shipped 001; owner decisions D-001..D-004 recorded)
+**Last revised**: 2026-08-19 (`FR-024`/`FR-025` amended for curator-declared provenance — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md); findings recorded against `FR-020`, `FR-023` and the V-Model module design)
 **Status**: Ready for implementation — all revalidation gates resolved. One requirement (FR-009, Instagram) is
 specified in full but **gated on an external Meta credential**; see `D-002` and the Gating section.
 **Input**: Split from `001-commise-recipe-app` — recipe importing from external sources (URLs, Instagram,
@@ -211,6 +211,32 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   null quantity and flagged for user correction — an unparseable line MUST NOT fail the import. Parsed
   ingredient names MUST be submitted to the food catalog (003) for asynchronous resolution using the shipped
   resolution lifecycle; an unresolved ingredient MUST NOT block draft confirmation.
+    > ⚠️ **FINDING (2026-08-19): "preserved with a null quantity" is UNIMPLEMENTABLE against the shipped
+    > schema, on the recipe side of the boundary.** A quantity-less ingredient line — "salt to taste", "a pinch
+    > of nutmeg", the two commonest forms in a 1900s cookbook — **cannot be represented at all** once the draft
+    > becomes a recipe:
+    >
+    > - `recipeIngredientInputSchema` (`recipe-service/src/recipes/recipes.schema.ts`) makes `quantity`
+    >   **required**; and
+    > - `recipe_ingredients.quantity` is `numeric(10, 3) NOT NULL` with
+    >   `CONSTRAINT recipe_ingredients_quantity_positive CHECK ("quantity" > 0)`
+    >   (`src/database/migrations/0001_initial.sql`).
+    >
+    > So `null` has nowhere to go, and `0` is rejected by the CHECK. The requirement holds for the **draft**
+    > (which 004 owns and can shape freely) and **fails at confirmation**, which is exactly the boundary
+    > `MOD-019`'s "never a fabricated `1`" note is trying to protect — a fabricated `1` is the only value that
+    > satisfies the shipped column, and it is a silent data corruption.
+    >
+    > **Recorded behaviour until 004 decides otherwise:** the curated public-domain import **DROPS** a line it
+    > cannot assign a positive quantity to, and **reports it verbatim** in the import outcome, so the loss is
+    > visible and correctable by hand rather than silent or fabricated.
+    >
+    > **Making `quantity` nullable is a separate ONE-WAY-DOOR decision and 004 must take it deliberately**, not
+    > as an implementation detail: it changes a persisted column and its CHECK, the published wire contract
+    > (`CONTRACT_HASH`, and every installed mobile client that parses a recipe), and **every read projection**
+    > that today assumes a number is present — scaling (`a048bfd4`), the nutrition summary, and the detail
+    > view's rendering of a line. The alternative shape — keeping the column non-null and carrying the
+    > unquantified line as display text — is cheaper and should be priced against it in the same decision.
 - **FR-021**: System MUST normalize extracted ISO-8601 durations to integer minutes and free-text servings to
   a positive integer where unambiguous. Where a value is absent or ambiguous, the field MUST be left empty on
   the draft and flagged for user completion — the system MUST NOT substitute a default.
@@ -330,15 +356,45 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   caller without the entitlement MUST be refused with a distinct, machine-readable code — not a generic
   authorization error — so the client can present the upgrade path rather than a failure. The channel MUST also
   be absent from the advertised channel list for such a caller, so no unusable affordance is rendered.
-- **FR-024**: Recipe creation MUST accept an explicit provenance (`sourceType` plus optional source URL and
-  attribution) rather than assuming `user_created`, and MUST evaluate the C-004 visibility policy against the
-  **actual** provenance. Omitted provenance MUST continue to mean `user_created`, so existing behaviour is
-  unchanged. _(Requires a change to 001's `RecipesService` — see the callout above.)_
-- **FR-025**: Client-supplied provenance MUST be whitelisted, never mass-assigned. A caller MAY declare only
-  provenance that is **equally or more restrictive** than `user_created` — specifically the attested paid-source
-  case (`FR-014a`). A caller MUST NOT be able to declare `imported_public` (which would let them attach false
-  attribution) or `imported_physical` (which would grant a free-tier caller a private recipe that C-004
-  reserves for premium). Those classifications are set **only** by the server from the channel it observed.
+- **FR-024** _(PARTIALLY IMPLEMENTED 2026-08-19 — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md))_: Recipe creation
+  MUST accept an explicit provenance (`sourceType` plus optional source URL and attribution) rather than
+  assuming `user_created`, and MUST evaluate the C-004 visibility policy against the **actual** provenance.
+  Omitted provenance MUST continue to mean `user_created`, so existing behaviour is unchanged. _(Requires a
+  change to 001's `RecipesService` — see the callout above.)_
+    > ✅ **The create half has shipped, ahead of the rest of 004 and additively.** `POST /api/v1/recipes` now
+    > takes an optional `source` — a discriminated union over `sourceType` in
+    > `packages/services/recipe-service/src/recipes/recipes.schema.ts` — and `RecipesService.create` no longer
+    > hardcodes `USER_CREATED`: it resolves provenance through the pure `evaluateProvenance` policy
+    > (`src/recipes/domain/provenancePolicy.ts`) and feeds the **resolved** `sourceType` into
+    > `evaluateVisibility`, then writes all three provenance columns from the policy's output rather than from
+    > the body. An absent `source` resolves to `user_created` with `null` source fields, which is byte-for-byte
+    > the pre-change behaviour — so "existing behaviour is unchanged" is a checked property, not a claim.
+    >
+    > **What is still outstanding**: only `user_created` and `imported_public` are declarable (ADR-0023 records
+    > why the other two are held back), and the **bulk** creation path `D-011` also calls for is not built.
+- **FR-025** _(amended 2026-08-19 — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md))_: Client-supplied provenance MUST be
+  whitelisted, never mass-assigned. A caller MAY declare only provenance that is **equally or more restrictive**
+  than `user_created` — specifically the attested paid-source case (`FR-014a`). An **unprivileged** caller MUST
+  NOT be able to declare `imported_public` (which would let them attach false attribution) or
+  `imported_physical` (which would grant a free-tier caller a private recipe that C-004 reserves for premium).
+  Those classifications are set by the server from the channel it observed, **or declared by a principal holding
+  the grant that channel requires**.
+    > ⚠️ **The word "unprivileged" is an AMENDMENT, not a reading of the original.** This requirement previously
+    > forbade **any** caller from declaring `imported_public`, justified by the server setting it "from the
+    > channel it observed". That justification assumes **the server performs the fetch**. For the curated
+    > public-domain import channel it does not fetch anything (see the `FR-023` finding below), so there is no
+    > observed channel — and inventing one would satisfy this requirement's letter while removing its substance.
+    > The honest construction: the curator scope `recipes:import:public` is a **new channel member**, whose
+    > observation is _an administrator granted this principal the scope out of band in Clerk, carried inside the
+    > token's SIGNED `public_metadata`, on the signing key's authority_.
+    >
+    > Argued on **this requirement's own threat model** — false attribution on public content — an administrator
+    > grant is a **stronger** control than "the server fetched a URL the caller chose", because a caller-supplied
+    > URL can point at content the caller wrote. Fetching proves a document exists at a URL; it proves nothing
+    > about authorship, and this requirement is an authorship control.
+    >
+    > `imported_physical` and `imported_paid` remain **undeclarable by anyone** — that half is unchanged, and
+    > ADR-0023 records why admitting them today would breach `FR-028`.
 - **FR-026**: System MUST support importing a single file containing **many** recipes — up to **1,000** per
   file, rejecting a larger file with an explicit limit message — producing one draft per
   recipe. Drafts with no missing required fields MUST be confirmable in a single bulk action; drafts with gaps
@@ -352,6 +408,28 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   **path-specific** `Disallow` matching the requested path MUST be honoured, while a **bare site-wide**
   `Disallow: /` MUST NOT block a user-initiated import. A blocked fetch MUST be reported as
   `IMPORT_SOURCE_BLOCKED` and MUST be counted, so the real-world cost of this policy is measurable.
+    > ⚠️ **FINDING (2026-08-19 — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md)): `robots.txt` compliance is NOT
+    > terms-of-use compliance, and this requirement treats them as the same check.** A site may permit a path in
+    > `robots.txt` and forbid automated access in prose elsewhere. Measured on the live site the same day:
+    >
+    > - `https://www.gutenberg.org/robots.txt` is, in full, `User-agent: *` / `Disallow: /ebooks/search` — so
+    >   this requirement's check **PASSES** for `/cache/epub/…`, the paths a public-domain cookbook comes from;
+    > - `https://www.gutenberg.org/policy/robot_access.html` states the site _"is intended for human users only.
+    >   Any perceived use of automated tools to access the Project Gutenberg website will result in a temporary
+    >   or permanent block of your IP address."_ Its only exceptions are a private **mirror**, the rate-limited
+    >   **`/robot/harvest`** endpoint, and the catalog feeds — all operator activities, none of them a
+    >   per-request fetch of a `/cache/epub/…` URL by an application server.
+    >
+    > **Consequence, already in force:** the public-domain cookbook corpus is downloaded **by an operator, out
+    > of band**; nothing 004 deploys and no CI job fetches `gutenberg.org`. The persisted `sourceUrl` is a
+    > **citation for a human reader**, not a fetch target. Egress identity here is shared and stage-level — a
+    > VPC-attached Lambda leaves through the single `t4g.nano` NAT instance (ADR-0004), Fargate leaves through
+    > an address the task does not choose, and CI runners share GitHub's pools — so a block earned by an import
+    > job is not scoped to that job.
+    >
+    > **What 004 owes:** `FR-023` should gain an explicit terms-of-use step (an allow/deny list of sources with a
+    > recorded basis, per-source, maintained like `D-004`'s blocklist), because no automated check can read a
+    > policy page. Until it does, a source passing `robots.txt` MUST NOT be read as cleared to fetch.
 - **FR-022**: System MUST enforce a per-user daily import quota across all channels, and a tighter sub-quota
   for OCR imports specifically. Exceeding either MUST return a distinct, machine-readable error carrying the
   time at which the quota resets — not a generic rate-limit response. The quota is a **product allowance**, not
@@ -803,3 +881,26 @@ channel is hidden by its capability flag and its tests run against the contract 
   deliberately excluded**: it is vanishingly rare for recipe content relative to JSON-LD and microdata, and no
   maintained Node RDFa parser exists. The chain is a Strategy set behind one interface, so adding RDFa later is
   additive if fixture evidence ever justifies it.
+
+---
+
+## Findings against this feature's own artifacts _(2026-08-19)_
+
+Recorded here rather than fixed in place, because each is a decision this feature must take rather than an
+edit. The two requirement-level findings are written against the requirements themselves — see `FR-020`
+(a null quantity is unrepresentable at confirmation) and `FR-023` (`robots.txt` is not the terms of use).
+
+- **⚠️ `v-model/module-design.md` prescribes file names that FAIL lint.** `MOD-019`, `MOD-020` and `MOD-021`
+  give their modules kebab-case paths — `src/imports/normalize/ingredient-line.ts`, `value-normalizers.ts`,
+  `content-sanitizer.ts` — and `docs/CODING_STANDARDS.md` §1 is **one regime, every package: `camelCase`, and
+  hyphens are PROHIBITED in file names**, enforced in CI by `eslint-plugin-check-file`. A module built at the
+  path the design names would not pass lint. Implementations MUST use `ingredientLine.ts`,
+  `valueNormalizers.ts`, `contentSanitizer.ts`; treat the design's paths as naming the **module**, not the
+  file. (`MOD-022`'s `provenance.policy.ts` carries a dot-suffix rather than a hyphen, so §1's prohibition does
+  not reach it — but the policy that shipped lives at `src/recipes/domain/provenancePolicy.ts`, beside `visibilityPolicy.ts`, because
+  it runs at recipe **creation**, which is where ADR-0019's convergence point put it.)
+- **`MOD-022` as designed is a different function from the one that shipped, and both are wanted.** The design
+  maps an **observed channel** to a `sourceType` (`url → imported_public`, `ocr → imported_physical`, …); the
+  shipped `evaluateProvenance` decides whether a **caller may declare** the provenance it sent. They compose —
+  the channel mapper produces the declaration, the grant policy authorizes it at the create boundary — and the
+  channel mapper is still 004's to build.

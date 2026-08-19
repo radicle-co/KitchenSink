@@ -63,13 +63,16 @@ appId: io.commise.mobile
 # block at the foot of one long scrolling form — w3 replaced that flat form with the screen-per-step wizard.
 # Walk forward through the footer `Next: …` primaries to reach it.
 #
-# Steps 2 and 3 CANNOT be passed through untouched (this flow's previous assumption, which stranded it on step
-# 2): each `Next: …` is gated by `canAdvanceFromStep`, and `recipe-service`'s seed inserts the recipe row
-# directly via SQL with NO ingredients and NO steps (see `database/seed.ts`, and the same note in
-# `versions.yaml`). So step 2 refuses to advance until the draft has an ingredient and step 3 until it has an
-# instruction. Both are added here exactly as `versions.yaml` does — the freeform "Create …" path, whose name
-# is deliberately OUTSIDE the seeded catalog so it cannot collide with `search-navigation.yaml`'s "Flour"
-# ingredient filter. Nothing is saved (this flow never publishes), so the recipe itself is left untouched.
+# Steps 2 and 3 could not be passed through untouched when this flow was written (which stranded it on step 2):
+# each `Next: …` is gated by `canAdvanceFromStep`, and `recipe-service`'s seed inserted the recipe row directly
+# via SQL with NO ingredients and NO steps, so step 2 refused to advance until the draft had an ingredient and
+# step 3 until it had an instruction. ⚠️ THAT IS NO LONGER TRUE — the seed now carries five lines and four
+# steps (`database/seed.ts`), so both gates open on arrival. An ingredient and a step are still added here,
+# exactly as `versions.yaml` does, via the freeform "Create …" path — whose name is deliberately OUTSIDE the
+# seeded catalog so it cannot collide with `search-navigation.yaml`'s "Flour" ingredient filter. Both
+# checkpoints below had to be RE-AIMED at the row/step this flow itself adds, because the ones written against
+# the empty fixture now land on seeded content. Nothing is saved (this flow never publishes), so the recipe
+# itself is left untouched.
 - scrollUntilVisible:
       element: 'Next: Ingredients'
       direction: DOWN
@@ -89,8 +92,23 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn:
       text: 'Create .*Tomato.*'
+# ⛔ THE CHECKPOINT THAT THE FREEFORM CREATE REACHED THE FORM (the same pair `edit.yaml` carries, for the same
+# reason). It was `Ingredient 1 name` — the FIRST SEEDED line's field once the fixture gained lines of its
+# own, so it was on screen before this flow typed a character and passed whether the create resolved or not.
+# Instead:
+#   1. The picker RESETS — `useIngredientResolver`'s `resolveLine` clears the query only AFTER handing the
+#      resolved line up, so "Create “Tomato”" disappearing IS the create resolving, and this doubles as the
+#      wait for the round trip. A failed create leaves the query and the affordance in place, and this reds.
+#   2. The LINE ITSELF by the NAME this flow typed, not by position — count-independent, and the only thing
+#      that can carry that text once (1) has emptied the search box. `^Tomato` is anchored at the start only,
+#      so the emulator's occasional last-character input duplication still matches (the same allowance the
+#      `Create .*Tomato.*` pattern above makes).
+- extendedWaitUntil:
+      notVisible: 'Create .*Tomato.*'
+      timeout: 30000
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element:
+          text: '^Tomato'
       direction: DOWN
       timeout: 30000
 - scrollUntilVisible:
@@ -104,7 +122,13 @@ appId: io.commise.mobile
       direction: UP
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
+# ⛔ `Step 5 instruction`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
+# (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row just created is
+# the fifth. The index is this flow's one coupling to the fixture's COUNT — stated because Maestro has no
+# "last match" selector. `Step 1 instruction` would append this text to the SEEDED first step and leave the
+# added step EMPTY, and `validateRecipeForm` fails `steps` on ANY blank instruction, so `canAdvanceFromStep(3)`
+# never opens and `Next: Photos` below — the whole point of this flow — can no longer be tapped through.
+- tapOn: 'Step 5 instruction'
 - inputText: 'Marinate for two hours.'
 - scrollUntilVisible:
       element: 'Next: Photos'

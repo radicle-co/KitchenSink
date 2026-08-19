@@ -41,14 +41,34 @@ appId: io.commise.mobile
                 visible: 'Mediterranean Grilled Lamb'
                 timeout: 40000
           - assertVisible: 'Ingredients'
-          - assertVisible: 'Instructions'
-          - assertVisible: 'Nutrition (per serving)'
+          # ⚠️ `Instructions` and `Nutrition (per serving)` were asserted BLIND here, and can no longer be: the
+          # seeded lamb now carries five ingredient lines and four steps
+          # (`packages/services/recipe-service/src/database/seed.ts`), which pushes both headings roughly a
+          # screen below the fold, and `assertVisible` only ever sees the current viewport — so a blind assert
+          # would now fail for a TALLER FIXTURE rather than for a broken screen. They are still asserted, in
+          # document order, with `scrollUntilVisible`, which still FAILS when the heading genuinely is absent
+          # (unlike a `when: visible` guard, which would SKIP it). Same remedy `recipes/list-detail.yaml`
+          # applies to the same two headings on the same screen.
+          - scrollUntilVisible:
+                element: 'Instructions'
+                direction: DOWN
+                timeout: 20000
+          - scrollUntilVisible:
+                element: 'Nutrition (per serving)'
+                direction: DOWN
+                timeout: 20000
 
           # We really left Home: the time-of-day greeting is gone.
           - assertNotVisible: '.*Chef.*'
 
           # Back must land on the recipe LIST, not on a dead end — proving `RecipesScreen` was seeded with the
-          # list beneath the pushed detail.
+          # list beneath the pushed detail. `Back` lives INSIDE the detail's own ScrollView, so the walk above
+          # left it off the TOP of the screen — scroll back up to it rather than tapping blind (the idiom
+          # `recipes/list-detail.yaml` uses after the same walk).
+          - scrollUntilVisible:
+                element: 'Back'
+                direction: UP
+                timeout: 20000
           - tapOn: 'Back'
           - assertVisible: 'Recipes'
           - assertVisible: 'New recipe'

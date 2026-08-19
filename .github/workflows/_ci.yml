@@ -1000,6 +1000,18 @@ jobs:
             # if CI calls it by name (§7), which is why this step exists alongside the config and the script.
             - name: Run food-service-client integration tests
               run: npm run test:integration --workspace=@kitchensink/food-service-client
+            # Pure text-normalization (MOD-019/020/021) — no Docker, no network. Its integration tier runs the
+            # ASSEMBLED pipeline over a committed slice of real Project Gutenberg prose against a hand-checked
+            # golden file, which is the only tier that can catch a stage regressing while every unit truth table
+            # still passes. A non-unit tier is only real if CI calls it by name (§7).
+            - name: Run recipe-import-core integration tests
+              run: npm run test:integration --workspace=@kitchensink/recipe-import-core
+            # The curated cookbook importer. Its integration tier drives the REAL `POST /api/v1/recipes` and the
+            # REAL ingredient-resolution endpoints, and SKIPS (rather than fails) when `COOKBOOK_IMPORT_RECIPE_URL`
+            # is unset — mirroring how the recipe service's own DB-backed tiers guard on `DATABASE_URL`. The step
+            # exists so the suite is wired the day an origin is provided, instead of being discovered missing then.
+            - name: Run cookbook-import integration tests
+              run: npm run test:integration --workspace=@kitchensink/cookbook-import
 
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)

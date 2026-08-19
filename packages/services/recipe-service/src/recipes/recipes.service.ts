@@ -34,7 +34,15 @@ import { toRecipeNutritionState } from './domain/nutritionState.js';
 import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipeIngredients.dal.js';
-import { invalidVisibility, notOwner, recipeNotFound, unknownIngredient, versionConflict } from './recipe.error.js';
+import {
+    invalidVisibility,
+    notOwner,
+    provenanceNotPermitted,
+    recipeNotFound,
+    unknownIngredient,
+    versionConflict,
+} from './recipe.error.js';
+import { evaluateProvenance } from './domain/provenancePolicy.js';
 import { defaultCloneVisibility, evaluateVisibility } from './domain/visibilityPolicy.js';
 import { isRecipeViewableBy } from './domain/recipeVisibility.js';
 import { recipeRowToDomain } from './mappers/recipeRowToDomain.js';
@@ -634,24 +642,50 @@ export class RecipesService {
     }
 
     /**
-     * Create a recipe owned by `principal.userId`. A create is always a `user_created` recipe with no
-     * substantive edit yet, so the requested visibility is gated by the same pure C-004
-     * {@link evaluateVisibility} policy the set-visibility endpoint uses: a free-tier caller requesting
+     * Create a recipe owned by `principal.userId`.
+     *
+     * ⚠️ A create is no longer ALWAYS `user_created` (004-FR-024 / ADR-0023). It carries the provenance the
+     * caller DECLARED, resolved by {@link evaluateProvenance} — which defaults an absent declaration to
+     * `user_created`, so a body that says nothing behaves exactly as it always did, and gates
+     * `imported_public` on the curator grant. A create still carries no substantive edit yet, and the
+     * requested visibility is gated by the same pure C-004 {@link evaluateVisibility} policy the
+     * set-visibility endpoint uses — now against the RESOLVED provenance: a free-tier caller requesting
      * `private` is rejected with `INVALID_VISIBILITY` (FR-003 — free-tier user_created recipes are
      * public-only), rather than silently persisting a `private` row the policy forbids. Premium is
      * derived from the signed token's `permissions` (see {@link PREMIUM_PERMISSION}).
      */
     public async create(principal: Principal, dto: CreateRecipeDto, caller?: CallerToken): Promise<RecipeResponse> {
+        // ── Provenance FIRST, then visibility ────────────────────────────────────────────────────
+        // The order is the seam (ADR-0023): the provenance policy decides WHAT THE RECIPE IS, and C-004
+        // then decides what visibility THAT THING may hold. Until 004-FR-024, `evaluateVisibility` was
+        // handed the literal `USER_CREATED`, so the provenance a caller declared and the provenance its
+        // visibility was judged against could not be the same fact.
+        //
+        // `scopes` ∪ `permissions` mirrors identity's `ScopesGuard` rule that a grant is satisfied by
+        // EITHER list; both come from the token's SIGNED `public_metadata`.
+        const provenanceDecision = evaluateProvenance({
+            declared: dto.source,
+            grantedScopes: [...principal.scopes, ...principal.permissions],
+        });
+
+        if (!provenanceDecision.allowed) {
+            throw provenanceNotPermitted(provenanceDecision.reason, {
+                requiredScope: provenanceDecision.requiredScope,
+                sourceType: dto.source?.sourceType,
+            });
+        }
+
+        const provenance = provenanceDecision.provenance;
         const requested = dto.visibility ?? RecipeVisibility.PUBLIC;
         const decision = evaluateVisibility({
-            sourceType: RecipeSourceType.USER_CREATED,
+            sourceType: provenance.sourceType,
             isPremium: principal.permissions.includes(PREMIUM_PERMISSION),
             hasSubstantiveEdit: false,
             requested,
         });
 
         if (!decision.allowed) {
-            throw invalidVisibility(decision.reason, { visibility: requested, sourceType: 'user_created' });
+            throw invalidVisibility(decision.reason, { visibility: requested, sourceType: provenance.sourceType });
         }
 
         const ingredients = await this.resolveIngredientLines(dto.ingredients);
@@ -676,6 +710,13 @@ export class RecipesService {
             ...(dto.status !== undefined ? { status: dto.status } : {}),
             tags: dto.tags ?? [],
             dietaryFlags: dto.dietaryFlags ?? [],
+            // Provenance as the policy RESOLVED it, never as the body stated it. `sourceType` is always
+            // written (the resolved value equals the column default for an undeclared create, so the row is
+            // unchanged); the two nullable text columns are written as the policy's `null`, which is what
+            // "no external source" means — never `''`, which would render as an empty credit line.
+            sourceType: provenance.sourceType,
+            sourceUrl: provenance.sourceUrl,
+            sourceAttribution: provenance.sourceAttribution,
             ingredientNamesText: buildIngredientNamesText(ingredients),
             // Denormalized headline per-serving calories (W8-a.1) — recomputed from the resolved lines so the
             // list/search/collection-embed cards render calories without an N+1. Absent → column stays NULL.

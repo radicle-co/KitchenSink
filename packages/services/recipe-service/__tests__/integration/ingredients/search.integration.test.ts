@@ -20,7 +20,7 @@ import pg from 'pg';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
-import { SEED_INGREDIENTS } from '../../../tests/globalSetup.js';
+import { seed } from '../../../src/database/seed.js';
 
 /** The harness Postgres connection string. Unset → the suite skips entirely. */
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -46,14 +46,15 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
         // composition) depend on the baseline existing. Serial file execution (fileParallelism: false)
         // means restoring the seed here guarantees it's present for any spec that runs after this one,
         // regardless of file order.
-        for (const ingredient of SEED_INGREDIENTS) {
-            await pool.query(
-                `INSERT INTO ingredients (id, name, is_user_entered, search_vector)
-                 VALUES ($1, $2, true, to_tsvector('english', $2))
-                 ON CONFLICT (id) DO NOTHING`,
-                [ingredient.id, ingredient.name],
-            );
-        }
+        //
+        // ⚠️ REWRITTEN: this used to re-insert `SEED_INGREDIENTS` row by row, which restored only HALF of
+        // what the `beforeEach` destroys. The wipe starts with `DELETE FROM recipe_ingredients` — and the
+        // seeded recipes now HAVE ingredient lines — so a catalog-only restore left every seeded recipe
+        // composed of nothing, with an `ingredient_names_text` still naming ingredients it no longer
+        // links to. Calling the seed module itself restores the whole seeded world (catalog + lines +
+        // steps + collection), is idempotent by construction (`ON CONFLICT DO NOTHING` on stable ids),
+        // and cannot drift from the fixture the way a hand-rolled copy of one INSERT already had.
+        await seed(pool);
 
         await pool.end();
     });

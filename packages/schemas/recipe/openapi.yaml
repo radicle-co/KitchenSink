@@ -4250,6 +4250,36 @@ components:
           items:
             type: string
             minLength: 1
+        source:
+          oneOf:
+            - type: object
+              properties:
+                sourceType:
+                  type: string
+                  enum:
+                    - user_created
+              required:
+                - sourceType
+              additionalProperties: false
+            - type: object
+              properties:
+                sourceType:
+                  type: string
+                  enum:
+                    - imported_public
+                sourceUrl:
+                  type: string
+                  maxLength: 2048
+                  format: uri
+                sourceAttribution:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              required:
+                - sourceType
+                - sourceUrl
+                - sourceAttribution
+              additionalProperties: false
       required:
         - title
         - ingredients

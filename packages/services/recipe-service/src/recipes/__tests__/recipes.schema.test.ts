@@ -44,6 +44,8 @@ import {
     MAX_RECIPE_INGREDIENT_NAME_LENGTH,
     MAX_RECIPE_INGREDIENT_QUANTITY,
     MAX_RECIPE_LIST_PAGE_SIZE,
+    MAX_RECIPE_SOURCE_ATTRIBUTION_LENGTH,
+    MAX_RECIPE_SOURCE_URL_LENGTH,
     MAX_RECIPE_TAGS,
     MAX_RECIPE_TITLE_LENGTH,
     MIN_RECIPE_INGREDIENT_QUANTITY,
@@ -565,6 +567,128 @@ describe('updateRecipeRequestSchema — a partial of create, minus visibility, p
                 expectedVersion: 1,
                 deviceLabel: 'a'.repeat(MAX_RECIPE_DEVICE_LABEL_LENGTH),
             }).success,
+        ).toBe(true);
+    });
+});
+
+// ── Declared provenance on create (004-FR-024 / 004-FR-025, ADR-0023) ─────────────────────────────
+
+/** A well-formed curated declaration; `over` layers the field under test on top. */
+function source(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+        sourceType: 'imported_public',
+        sourceUrl: 'https://www.gutenberg.org/cache/epub/12350/pg12350.txt',
+        sourceAttribution: 'The International Jewish Cook Book by Florence Kreisler Greenbaum',
+        ...over,
+    };
+}
+
+describe('createRecipeRequestSchema — the optional `source` declaration', () => {
+    it('still accepts a body with NO source, so 004-FR-024’s "unchanged behaviour" holds at the wire', () => {
+        const parsed = createRecipeRequestSchema.safeParse(body());
+
+        expect(parsed.success).toBe(true);
+        expect(parsed.success && 'source' in parsed.data).toBe(false);
+    });
+
+    it('accepts a bare user_created declaration (the baseline a caller may always state)', () => {
+        expect(createAccepts({ source: { sourceType: 'user_created' } })).toBe(true);
+    });
+
+    it('accepts a COMPLETE imported_public declaration', () => {
+        expect(createAccepts({ source: source() })).toBe(true);
+    });
+
+    /**
+     * ⚠️ THE SHAPE IS A DISCRIMINATED UNION, NOT AN OBJECT WITH OPTIONAL FIELDS — and that is the point.
+     *
+     * An `imported_public` recipe asserts "this content came from somewhere else, and here is where". A
+     * declaration carrying that claim with no URL and no attribution is the false-attribution hazard
+     * 004-FR-025 exists to prevent, arriving through the front door. Making the two fields REQUIRED on that
+     * member (and unrepresentable on `user_created`) means an unattributed import is not a rule the service
+     * enforces — it is a state the wire cannot express.
+     */
+    it.each(['sourceUrl', 'sourceAttribution'])('REFUSES an imported_public declaration missing %s', (field) => {
+        const incomplete = source();
+        delete incomplete[field];
+
+        expect(createAccepts({ source: incomplete })).toBe(false);
+    });
+
+    it('REFUSES source fields on a user_created declaration — they have no meaning there', () => {
+        expect(createAccepts({ source: { sourceType: 'user_created', sourceUrl: 'https://example.com' } })).toBe(false);
+        expect(createAccepts({ source: { sourceType: 'user_created', sourceAttribution: 'Someone' } })).toBe(false);
+    });
+
+    /**
+     * `imported_physical` and `imported_paid` are DELIBERATELY not declarable, and their absence is a
+     * narrowing of 004-FR-025 rather than an oversight. Both are private-only classes under C-004, and
+     * `evaluateVisibility` allows either to go private with NO premium check — so admitting them here would
+     * hand a free-tier caller the private recipe 004-FR-028 says must be gated on an entitlement, and
+     * 004-FR-014a's attestation + citation machinery that is supposed to accompany them does not exist yet.
+     * They join the union when 004 builds that gate, not before.
+     */
+    it.each(['imported_physical', 'imported_paid'])('REFUSES %s — not declarable until 004 builds its gate', (kind) => {
+        expect(createAccepts({ source: { sourceType: kind, sourceAttribution: 'A book' } })).toBe(false);
+    });
+
+    it('REFUSES an unknown sourceType', () => {
+        expect(createAccepts({ source: source({ sourceType: 'imported_telepathically' }) })).toBe(false);
+    });
+
+    it('REFUSES a stray key inside source (the nested object is strict too, GR-017 §17-c)', () => {
+        expect(createAccepts({ source: source({ clonedFromId: 'smuggled' }) })).toBe(false);
+        expect(createAccepts({ source: source({ hasSubstantiveEdit: true }) })).toBe(false);
+    });
+
+    it('REFUSES a sourceUrl that is not a URL', () => {
+        expect(createAccepts({ source: source({ sourceUrl: 'not-a-url' }) })).toBe(false);
+    });
+
+    it('REFUSES an empty sourceAttribution — the field exists to carry a credit, and "" credits nobody', () => {
+        expect(createAccepts({ source: source({ sourceAttribution: '' }) })).toBe(false);
+    });
+
+    it('carries recipe-core’s length bounds rather than restating them', () => {
+        expect(
+            createAccepts({ source: source({ sourceAttribution: 'a'.repeat(MAX_RECIPE_SOURCE_ATTRIBUTION_LENGTH) }) }),
+        ).toBe(true);
+        expect(
+            createAccepts({
+                source: source({ sourceAttribution: 'a'.repeat(MAX_RECIPE_SOURCE_ATTRIBUTION_LENGTH + 1) }),
+            }),
+        ).toBe(false);
+        expect(
+            createAccepts({
+                source: source({ sourceUrl: `https://e.com/${'a'.repeat(MAX_RECIPE_SOURCE_URL_LENGTH)}` }),
+            }),
+        ).toBe(false);
+    });
+});
+
+/**
+ * ⛔ THE REGRESSION THAT ARRIVES FOR FREE IF `source` IS ADDED TO THE WRONG SCHEMA.
+ *
+ * `updateRecipeRequestSchema` is derived from `createRecipeRequestBaseSchema` via `.omit().partial()`. Had
+ * `source` been added to that BASE, `PATCH /api/v1/recipes/{id}` would have inherited it and any caller
+ * could RE-CLASSIFY an existing recipe as `imported_public` after creation — bypassing the provenance policy
+ * entirely, because the policy runs only on create. That is the actual privilege-escalation path in this
+ * change, and it is pinned by a test rather than by a comment.
+ *
+ * It composes with the shipped rule that attribution is immutable after create
+ * (`substantiveEditImported.test.ts`: an update NEVER rewrites `sourceType`/`sourceUrl`/`sourceAttribution`).
+ */
+describe('updateRecipeRequestSchema — provenance is a CREATE-time fact and stays one', () => {
+    it('does NOT declare source', () => {
+        expect(Object.keys(updateRecipeRequestSchema.shape)).not.toContain('source');
+    });
+
+    it('answers 400 for a PATCH that tries to re-declare provenance', () => {
+        const parsed = updateRecipeRequestSchema.safeParse({ expectedVersion: 1, source: source() });
+
+        expect(parsed.success).toBe(false);
+        expect(
+            parsed.error?.issues.some((issue) => issue.code === 'unrecognized_keys' && issue.keys.includes('source')),
         ).toBe(true);
     });
 });

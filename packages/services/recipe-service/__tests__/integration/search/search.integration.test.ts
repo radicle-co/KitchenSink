@@ -16,6 +16,8 @@ import pg from 'pg';
 
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
+// Aliased: this file already has a local `seed()` that inserts ONE corpus row.
+import { seed as reseedDeterministicWorld } from '../../../src/database/seed.js';
 import { SearchDal, type RecipeSearchFilters } from '../../../src/search/dal/search.dal.js';
 
 /** The harness Postgres connection string. Unset → the suite skips entirely. */
@@ -94,6 +96,14 @@ describe.skipIf(!hasDatabaseUrl)('SearchDal search (integration: FTS + facets + 
     });
 
     afterAll(async () => {
+        // The `beforeEach` below deletes EVERY recipe — including the seeded ones, whose ingredient
+        // lines, steps and collection memberships cascade away with them. That was survivable while the
+        // seed inserted bare `recipes` rows nothing asserted on; it is a landmine now that the seeded
+        // world has composition, because with `fileParallelism: false` whatever file runs next inherits
+        // whatever this file left behind. Restoring through the seed module itself (idempotent, stable
+        // ids) hands the next spec the same world the global setup did.
+        await reseedDeterministicWorld(pool);
+
         await pool.end();
     });
 

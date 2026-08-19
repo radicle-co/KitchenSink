@@ -65,6 +65,23 @@ export const MAX_RECIPE_INGREDIENTS = 100;
 export const MAX_RECIPE_TAGS = 50;
 
 /**
+ * Longest `sourceUrl` a declared provenance may carry (004-FR-024).
+ *
+ * The column is `text` and has no ceiling of its own, so this is a PAYLOAD bound rather than a storage one.
+ * 2048 is the practical URL ceiling every mainstream browser and proxy enforces; a longer value is not a
+ * link anyone can follow, which is the only thing the field is for.
+ */
+export const MAX_RECIPE_SOURCE_URL_LENGTH = 2048;
+
+/**
+ * Longest `sourceAttribution` a declared provenance may carry (004-FR-024).
+ *
+ * Also a payload bound over a `text` column. It is sized for a credit line — work, author, and where the
+ * copy came from — not for a licence text, because the detail view RENDERS this string to the reader.
+ */
+export const MAX_RECIPE_SOURCE_ATTRIBUTION_LENGTH = 500;
+
+/**
  * Smallest ingredient quantity that survives the round trip — one step at `quantity numeric(10,3)`'s scale.
  *
  * Anything smaller rounds to `0.000` and then violates the column's `CHECK (quantity > 0)`, an uncaught
@@ -119,6 +136,23 @@ export const recipeTitleSchema = z.string().min(1).max(MAX_RECIPE_TITLE_LENGTH);
  * response still OMITS the key for a `NULL` column, so nothing starts emitting `''`.
  */
 export const recipeDescriptionSchema = z.string().max(MAX_RECIPE_DESCRIPTION_LENGTH);
+
+/**
+ * The original source URL of an imported recipe.
+ *
+ * `.url()` matches what `recipeSchema.sourceUrl` already publishes on the RESPONSE side, so a declared
+ * source round-trips through the typed client rather than throwing on read-back.
+ */
+export const recipeSourceUrlSchema = z.string().url().max(MAX_RECIPE_SOURCE_URL_LENGTH);
+
+/**
+ * The human-readable credit shown beside an imported recipe.
+ *
+ * `.min(1)` is load-bearing twice over: `recipeSchema.sourceAttribution` is `min(1)` (so `''` would be a
+ * response no client could read), and an attribution that credits nobody is precisely the unattributed
+ * import 004-FR-025 exists to prevent.
+ */
+export const recipeSourceAttributionSchema = z.string().min(1).max(MAX_RECIPE_SOURCE_ATTRIBUTION_LENGTH);
 
 /** A cuisine label. `.min(1)` for the same round-trip reason as {@link recipeTitleSchema}. */
 export const recipeCuisineSchema = z.string().min(1).max(MAX_RECIPE_CUISINE_LENGTH);

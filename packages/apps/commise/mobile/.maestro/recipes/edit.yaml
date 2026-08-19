@@ -13,8 +13,11 @@ appId: io.commise.mobile
 # The seed is guaranteed present (the CI loop reseeds the DB before every flow), so the target recipe is
 # reached by scrolling to it rather than a `when: visible` guard that would silently SKIP the whole flow when
 # the recipe is below the fold (the list scrolls; only ~1 tall cover card fits the viewport at a time). The
-# seed recipe itself carries no ingredients or steps, but a full Publish (whole-form validation, unchanged by
-# the wizard) needs >= 1 of each — added via the freeform create on steps 2/3, exactly as before the wizard.
+# seed recipe now arrives WITH five ingredient lines and four steps of its own (it did not when this flow was
+# written), so the >= 1-of-each a full Publish requires is already satisfied when the editor opens. The
+# freeform create on steps 2/3 is kept anyway — it is this flow's coverage of that path — but BOTH of its
+# checkpoints had to be re-aimed at the row/step this flow itself adds, because the ones written against an
+# empty fixture now land on SEEDED content instead (see steps 2 and 3).
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'
@@ -53,8 +56,9 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Next: Ingredients'
 
-# Step 2 of 4 (Ingredients) — the seed carries none; Publish requires >= 1. Add one via the freeform create
-# (no food-service dependency, same as before the wizard). The picker sits at the top of this step's body.
+# Step 2 of 4 (Ingredients) — the seeded recipe already carries five lines, so this add is no longer what
+# satisfies Publish's >= 1; it is this flow's coverage of the freeform create (no food-service dependency,
+# same as before the wizard). The picker sits at the top of this step's body.
 - assertVisible: 'Step 2 of 4'
 - scrollUntilVisible:
       element: 'Search ingredients'
@@ -69,8 +73,29 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn:
       text: 'Create .*Tomato.*'
+# ⛔ THE CHECKPOINT THAT THE FREEFORM CREATE REACHED THE FORM. This was `Ingredient 1 name`, and that was a
+# real proof only while the seed inserted the recipe row ALONE: `packages/services/recipe-service/src/database/seed.ts`
+# now gives every seeded recipe its own lines (the lamb has five), so `Ingredient 1 name` is the FIRST SEEDED
+# line's field — on screen before this flow typed anything, and therefore passing whether or not the create
+# resolved. Two assertions replace it, both about THIS flow's own action:
+#   1. The picker RESETS. `useIngredientResolver`'s `resolveLine` clears the query only AFTER handing the
+#      resolved line up, so "Create “Tomato”" disappearing IS the create resolving; a failed create leaves the
+#      query — and this affordance — in place, and the wait goes red. (It is also the wait for the round trip.)
+#   2. The LINE ITSELF, addressed by the name this flow typed rather than by its position — the fact under
+#      test, and one that does not move when the fixture grows. A TextInput's own value is matchable text in
+#      this suite (see `search-navigation.yaml`'s "Flour" note, and why `ingredient-catalog-blend.yaml` types
+#      'Flou'), and after the reset above the search box is empty, so the row is the only thing that can
+#      satisfy it. Anchored at the START only: `^Tomato` cannot be met by a substring of another row, and the
+#      open end tolerates the emulator's occasional last-character input duplication that the `Create .*Tomato.*`
+#      pattern above already allows for.
+# The count-derived alternative (`Ingredient 6 name` — 5 seeded lines + 1) was rejected: it re-couples this
+# flow to the fixture's line COUNT, and it would also be satisfied by a blank sixth row.
+- extendedWaitUntil:
+      notVisible: 'Create .*Tomato.*'
+      timeout: 30000
 - scrollUntilVisible:
-      element: 'Ingredient 1 name'
+      element:
+          text: '^Tomato'
       direction: DOWN
       timeout: 30000
 - scrollUntilVisible:
@@ -79,14 +104,23 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Next: Instructions'
 
-# Step 3 of 4 (Instructions) — same reason, the seed carries no steps.
+# Step 3 of 4 (Instructions) — same as step 2: the seeded recipe already has steps, so this add is coverage
+# of the add-a-step path, not what opens the gate.
+#
+# ⛔ `Step 5 instruction`, NOT `Step 1`. `Add step` APPENDS, and the seeded lamb carries four steps of its own
+# (`SEED_RECIPE_STEPS`, `packages/services/recipe-service/src/database/seed.ts`), so the row this flow just
+# created is the fifth. This index is the one place the flow is coupled to the fixture's COUNT; it is stated
+# rather than derived because Maestro has no "last match" selector. Typing into `Step 1 instruction` does not
+# merely assert the wrong row — it appends this text to the SEEDED first step and leaves the added step EMPTY,
+# and `validateRecipeForm` fails `steps` when ANY instruction is blank, so `canAdvanceFromStep(3)` never opens
+# and the `Next: Photos` below can no longer be tapped through.
 - assertVisible: 'Step 3 of 4'
 - scrollUntilVisible:
       element: 'Add step'
       direction: UP
       timeout: 20000
 - tapOn: 'Add step'
-- tapOn: 'Step 1 instruction'
+- tapOn: 'Step 5 instruction'
 - inputText: 'Combine everything and simmer.'
 - scrollUntilVisible:
       element: 'Next: Photos'

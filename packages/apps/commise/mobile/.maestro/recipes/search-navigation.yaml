@@ -9,7 +9,11 @@ appId: io.commise.mobile
 #   - "Discover"    -> SERVER-side search (`useSearchRecipes`, a `query` param per keystroke), needs a wait.
 #
 # Also covers the FR-006 gap #3 ingredient filter (typeahead pick -> chip -> removable), read-only via the
-# seeded catalog ingredient "Flour" (no seed or flow-created recipe is ever attached to it).
+# seeded catalog ingredient "Flour" (no seed or flow-created recipe is ever attached to it). ⚠️ That is an
+# INVARIANT the seed fixture now maintains deliberately, not a happy accident: the five seed recipes DO carry
+# real ingredient lines, and Flour/Sugar/Butter are held back as pure catalog rows precisely so the
+# "No matching recipes" assertion below stays a real one. `src/database/__tests__/seed.test.ts` fails if any
+# of the three is ever attached to a recipe.
 #
 # Read-only: it types and clears text but mutates nothing, so it is order-independent. It anchors on
 # "Asparagus with Green Sauce" and "Herb Risotto" — the two seed rows no other flow renames or deletes.

@@ -13,9 +13,13 @@ appId: io.commise.mobile
 # "prep was correctly scaled" would look identical to Maestro. Doubling the asparagus gives 20 prep /
 # 10 cook / 30 total, all distinct.
 #
-# ⚠️ The seed recipes carry NO ingredient lines, so this flow asserts the TIMINGS and the disclosure rather
-# than scaled quantities; the quantity half is covered at the component tier and, on a populated recipe, by
-# the web Playwright suite.
+# ⚠️ This flow asserts the TIMINGS and the disclosure rather than scaled quantities. That was once a hard
+# constraint (the seed carried no ingredient lines at all); it is now an OPPORTUNITY LEFT OPEN — the seed gives
+# this recipe five real lines (`500 g` asparagus, `30 g` parsley, `1 tbsp` capers, `4 tbsp` olive oil, `1`
+# lemon), so the doubled quantities ARE on screen and could be asserted here. Not added by the change that
+# seeded them, because that change could not run Maestro and an unverified new assertion is how a flow starts
+# failing for reasons unrelated to the code. The quantity half stays covered at the component tier and, on a
+# populated recipe, by the web Playwright suite.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'Recipes'

@@ -7,7 +7,8 @@
  * schedule (the archive's ONLY trigger — no rule means the outbox never drains), and the FR-007b-i
  * alarm thresholds.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,10 +28,28 @@ const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * run before the workers deploy — see the ordering guard in
  * `packages/infra/global/__tests__/prodDeployMigrationOrder.test.ts`.
  */
-const RECIPE_MIGRATION_BUNDLE = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    '../../../recipe-service/dist-lambda',
-);
+const RECIPE_MIGRATION_BUNDLE = ((): string => {
+    // ⛔ A STUB, NOT `../../../recipe-service/dist-lambda`. Pointing at the sibling's real build made this
+    // UNIT suite depend on whether recipe-service happened to have been bundled: green locally, where the
+    // directory is usually left over from other work, and red in CI, where the unit job never bundles a
+    // sibling. The symptom was honest but misleading — `expected [ 'index.handler' ] to deeply equal [] `,
+    // i.e. the stack had fallen back to its throwing placeholder and the loadability check correctly said
+    // that artifact does not exist.
+    //
+    // The bundle is an injected PROP precisely so a test can supply one, which is the same seam
+    // `edgeBundleFixture.ts` gives `EdgeStack`. Building the sibling here instead would be right for the
+    // integration tier (and `workersAppSynth.integration.test.ts` does exactly that) but wrong for a unit
+    // suite that must stay fast and self-contained.
+    //
+    // Only the SHAPE matters: `hasMigrationBundle` needs the directory to exist, and the loadability check
+    // resolves `lambdas/migrate/handler.handler` to `lambdas/migrate/handler.js` beneath a bundle root.
+    const directory = mkdtempSync(path.join(tmpdir(), 'recipe-migration-bundle-'));
+
+    mkdirSync(path.join(directory, 'lambdas/migrate'), { recursive: true });
+    writeFileSync(path.join(directory, 'lambdas/migrate/handler.js'), 'exports.handler = async () => ({});\n');
+
+    return directory;
+})();
 
 /** Every asset root this stack ships a Lambda from — its own bundle, plus recipe-service's migration bundle. */
 const BUNDLE_ROOTS = [DIST_DIR, RECIPE_MIGRATION_BUNDLE];

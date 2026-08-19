@@ -13,12 +13,12 @@
  * so synth never calls AWS, and `CDK_OUTDIR` sends the template to a temp directory.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -165,6 +165,33 @@ afterAll(() => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+/**
+ * Ensure the recipe-service Lambda bundle this app composes actually exists.
+ *
+ * ⛔ WITHOUT THIS THE SUITE IS A LIE IN ONE DIRECTION. `infra/bin/app.ts` resolves
+ * `../../../recipe-service/dist-lambda`, and when that directory is absent the stack deliberately
+ * synthesizes a THROWING placeholder — so the "resolved a REAL bundle" assertion below fails. Locally the
+ * directory is usually left over from other work and the suite passes; in CI, where the recipe-workers job
+ * never bundles recipe-service, it failed. The assertion was reading "was recipe-service built?" while
+ * claiming to read "is the path right?".
+ *
+ * Building it here makes the test self-sufficient and keeps it honest about which of those two it proves —
+ * the same pattern `cdkNagSynth.integration.test.ts` uses for its own bundle. Conditional because the bundle
+ * is deterministic and rebuilding it on every run costs seconds for nothing.
+ *
+ * @sideEffect Runs esbuild and writes `packages/services/recipe-service/dist-lambda/`.
+ */
+beforeAll(() => {
+    const bundle = join(packageRoot, '../recipe-service/dist-lambda');
+
+    if (!existsSync(bundle)) {
+        execFileSync('npm', ['run', 'bundle:lambda', '--workspace=@kitchensink/recipe-service'], {
+            cwd: join(packageRoot, '../../..'),
+            stdio: 'inherit',
+        });
+    }
+}, 300_000);
 
 describe('recipe-workers CDK app — deploy input contract', () => {
     it('derives the per-PR database from the BASE name CI passes (#119)', () => {

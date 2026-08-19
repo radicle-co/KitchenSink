@@ -41,7 +41,7 @@ describe('safeHttpUrl — schemes that must NEVER produce a link', () => {
         // `raw.startsWith('http')` guard says "not http, reject" while the platform would happily run it —
         // and a naive `new URL(raw).protocol` check on an engine that trims says "javascript:", which we
         // must reject. Both readings must land on `null`.
-        expect(safeHttpUrl('javascript:alert(1)')).toBeNull();
+        expect(safeHttpUrl('\u0001javascript:alert(1)')).toBeNull();
         expect(safeHttpUrl('\njavascript:alert(1)')).toBeNull();
         expect(safeHttpUrl('\tjava\nscript:alert(1)')).toBeNull();
     });

@@ -125,12 +125,16 @@ interface RecipeResponseExtras {
      * (`getById`) from the viewer-scoped `recipe_ratings` row.
      */
     viewerRating?: number;
-    /**
-     * The nutrition figure U10 stopped storing (plan U10). Supplied only by the DETAIL read, which is the
-     * one path that actually fetches food's live data; list/search emit no nutrition at all rather than
-     * paying an N+1 — the deferred batch endpoint is where a card gets its number.
+    /*
+     * ⛔ THERE IS NO `derivedNutrition` EXTRA, and reintroducing one is how the drift comes back.
+     *
+     * It carried `leadCaloriesPerServing` into the base projection, and the only path that ever set it was
+     * `toDetailResponse` — from the SAME `computeDetailNutrition` result it already emits as `nutrition`.
+     * So the detail body reported one number twice, under two names, with nothing keeping them in step
+     * (ADR-0021's "Follow-up owed"). The detail's figure is `nutrition`; a card's is
+     * `POST /api/v1/recipes/nutrition-batch`, whose union can say "measured zero" and "unaccounted"
+     * separately — which an optional number never could.
      */
-    derivedNutrition?: { leadCaloriesPerServing?: number };
 }
 
 /**
@@ -155,10 +159,10 @@ function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtr
     const { recipe, steps, ingredients } = aggregate;
     // `description` is excluded from the canonical base (see the doc comment above) and re-applied below
     // under RecipeResponse's own omit-when-null rule.
-    // Nutrition is emitted ONLY when the caller computed it. An absent `derivedNutrition` yields a recipe
-    // with no nutrition fields, which is what "we did not look it up" honestly looks like — the pinned
+    // The base projection carries NO nutrition of any kind — the mapper has no input for one. A recipe with
+    // no nutrition fields is what "we did not look it up" honestly looks like; the pinned
     // `hasPartialNutrition: true` that used to stand here claimed "partial", a different fact.
-    const { description: _canonicalDescription, ...base } = recipeRowToDomain(recipe, extras.derivedNutrition ?? {});
+    const { description: _canonicalDescription, ...base } = recipeRowToDomain(recipe);
 
     return {
         ...base,
@@ -550,6 +554,10 @@ export class RecipesService {
      * denormalized column. With that column dropped there is nothing to maintain: the detail read derives
      * the figure from the same computation it already performs, and list/search honestly report nutrition
      * as unaccounted rather than serving a value frozen at the recipe's last save.
+     *
+     * Its OUTPUT field outlived it by a release and has now gone too (ADR-0021's "Follow-up owed"): the
+     * detail response no longer echoes `nutrition.calories` back as a top-level `leadCaloriesPerServing`,
+     * and a card's figure comes from `POST /api/v1/recipes/nutrition-batch`.
      */
 
     /**
@@ -581,14 +589,11 @@ export class RecipesService {
 
         return toRecipeResponse(aggregate, {
             photos,
+            // `nutrition` is the detail read's ONE calorie representation. It used to be accompanied by
+            // `derivedNutrition: { leadCaloriesPerServing: nutrition.calories }` — the same number, from the
+            // same computation, emitted a second time at the top level. Removed per ADR-0021's "Follow-up
+            // owed": completeness is reported once (`nutrition.isComplete`), and so is the figure.
             nutrition,
-            // Derived from the SAME computation the detail body reports, so the card figure and the detail
-            // total cannot disagree — the claim `nutrition.ts` used to make and could not keep while a
-            // second, frozen copy lived in a column.
-            // Derived from the SAME computation the detail body reports, so the card figure and the detail
-            // total cannot disagree. Completeness itself is no longer duplicated up here: the detail body's
-            // own `nutrition.isComplete` is the single place it is reported.
-            derivedNutrition: nutrition.calories > 0 ? { leadCaloriesPerServing: nutrition.calories } : {},
             ...(coverRow !== undefined ? { coverPhotoUrl: resolveCoverUrl(coverRow, this.photosCdnUrl) } : {}),
             ...(options.viewerRating !== undefined ? { viewerRating: options.viewerRating } : {}),
         });

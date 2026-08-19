@@ -204,16 +204,20 @@ export interface Recipe {
     cuisine?: string;
     dietaryFlags: string[];
     tags: string[];
-    /**
-     * Headline per-serving calories for card display (FR-007 / W8-a.1) — a DENORMALIZED value recomputed at
-     * write time from the recipe's ingredient lines (single source: the service's `leadCaloriesPerServing`),
-     * so the LIST, SEARCH, and collection-embed projections render it WITHOUT the N+1 a full nutrition read
-     * would cost. On detail it agrees with `nutrition.calories`.
+    /*
+     * ⛔ THERE IS DELIBERATELY NO `leadCaloriesPerServing` HERE, AND ADDING ONE BACK IS THE DRIFT.
      *
-     * ABSENT when the recipe has no accounted nutrition — never reported as `0` (which would read as a
-     * genuine zero-calorie figure), mirroring {@link averageRating}.
+     * It was the W8-a.1 denormalization: per-serving calories recomputed at write time into
+     * `recipes.lead_calories_per_serving` so list/search/collection-embed cards rendered a figure without an
+     * N+1. Migration 0019 dropped the column (U10), and ADR-0021 replaced the card's figure with a DEFERRED
+     * lookup — `POST /api/v1/recipes/nutrition-batch`, whose three-state union distinguishes a MEASURED zero
+     * from an unaccounted recipe in a way an optional `number | undefined` structurally cannot.
+     *
+     * The field then survived on the DETAIL read alone, where it was `nutrition.calories` a second time
+     * under a second name — two representations of one fact, with no rule for which wins and no mechanism
+     * keeping them in step. That is ADR-0021's recorded "Follow-up owed", and this is it being paid: the
+     * detail's figure is `RecipeDetail.nutrition`, a card's is the batch endpoint, and there is no third.
      */
-    leadCaloriesPerServing?: number;
     /**
      * The recipe author's display name (W8-a.2 / decision 6) — the "by @handle" cards render. DENORMALIZED
      * from the identity service's `profiles.displayName` at write time (no cross-service read); kept current
@@ -313,8 +317,8 @@ export const recipeSchema = z.object({
     cuisine: z.string().min(1).optional(),
     dietaryFlags: z.array(z.string().min(1)),
     tags: z.array(z.string().min(1)),
-    // Denormalized headline per-serving calories (W8-a.1); absent (not 0) when no accounted nutrition.
-    leadCaloriesPerServing: nonNegativeNumberSchema.optional(),
+    // ⛔ No `leadCaloriesPerServing` — see the `Recipe` interface above. A card's calorie figure comes from
+    // `POST /api/v1/recipes/nutrition-batch`; the detail's comes from `RecipeDetail.nutrition`.
     authorHandle: z.string().min(1).optional(),
     currentVersion: positiveIntSchema,
     // 1..5 mean; absent (not 0) when ratingCount is 0 — see the Recipe.averageRating docstring.

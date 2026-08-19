@@ -75,10 +75,10 @@ export interface LineCatalogNutrition {
 
 /**
  * Assemble the {@link NutritionLine} for one recipe line from its measure and its resolved catalog nutrition
- * — the SINGLE place a line's nutrition inputs are merged. Both the detail read (from persisted rows) and
- * the write-time lead-calorie denormalization (from resolved lines) route through this, so a card's stored
- * `leadCaloriesPerServing` and the detail's live `nutrition.calories` are computed from byte-identical
- * inputs and can never disagree. Only defined fields are carried (an absent macro stays absent, not `0`). Pure.
+ * — the SINGLE place a line's nutrition inputs are merged. Both the recipe DETAIL read and the deferred
+ * per-recipe batch (`POST /api/v1/recipes/nutrition-batch`) route through this, so the figure on a card and
+ * the figure on the detail are computed from byte-identical inputs and can never disagree. Only defined
+ * fields are carried (an absent macro stays absent, not `0`). Pure.
  *
  * @param measure - The line's quantity/unit and any per-line user override (FR-007a), already normalized.
  * @param catalog - The line's resolved catalog per-100g nutrition + portions, or `undefined` when unresolved.
@@ -191,26 +191,24 @@ export function computeRecipeNutrition(lines: readonly NutritionLine[], servings
     };
 }
 
-/**
- * The denormalization source (W8-a.1) for the base `Recipe` projection's headline per-serving calories —
- * recomputed at write time (create/update/clone) and stored on `recipes.lead_calories_per_serving`, so the
- * list, search, and collection-embed projections surface it WITHOUT the N+1 the full nutrition read would
- * cost. It is the calorie term of {@link computeRecipeNutrition} — the ONE aggregator — never a second rule.
+/*
+ * ⛔ `leadCaloriesPerServing(lines, servings)` STOOD HERE AND WAS DELETED. Do not reintroduce it, under any
+ * name, as a second way to ask this module for a recipe's calories.
  *
- * ABSENT (`undefined`) when the recipe has no accounted nutrition (no lines, or every line unaccountable):
- * a card must never render a misleading `0` where the real meaning is "no data", exactly as `averageRating`
- * is absent — not `0` — when unrated. (A genuinely zero-calorie recipe therefore also omits the badge;
- * that safe-side omission is preferred over fabricating a headline number.)
+ * It was the write-time denormalization source (W8-a.1) for `recipes.lead_calories_per_serving`. Migration
+ * 0019 dropped that column, ADR-0021 moved a card's figure to `POST /api/v1/recipes/nutrition-batch`, and
+ * this repo's follow-up removed the field from the wire — leaving a function with no caller anywhere.
  *
- * @param lines - The recipe's ingredient lines with their measures + nutrition inputs.
- * @param servings - The recipe's serving count (REQUIRED positive — the recipe contract guarantees it).
- * @returns The per-serving calories when at least one line contributes a positive amount, else `undefined`. Pure.
+ * It is worth recording WHY dead-and-harmless was the wrong reading of it. Its body was
+ * `calories > 0 ? calories : undefined`, i.e. a SECOND, DIFFERENT rule for "is there a figure here" that
+ * disagreed with the one the system actually ships: `toRecipeNutritionState` (recipe service) decides that
+ * from whether any LINE contributed, so a genuinely zero-calorie recipe — water, black coffee — is
+ * `known { caloriesPerServing: 0 }`, whereas this function erased it as if the data were missing. Anyone
+ * reaching for the convenient-looking helper would have silently adopted the losing rule.
+ *
+ * Per-serving calories have exactly one derivation: `computeRecipeNutrition`. Whether that figure is
+ * REPORTABLE is a separate question, answered once, by the classifier.
  */
-export function leadCaloriesPerServing(lines: readonly NutritionLine[], servings: number): number | undefined {
-    const { calories } = computeRecipeNutrition(lines, servings);
-
-    return calories > 0 ? calories : undefined;
-}
 
 /**
  * Whether the partial-nutrition disclosure notice (REQ-034, FR-007a) should render for a recipe — `true`

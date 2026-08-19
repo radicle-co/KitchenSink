@@ -131,7 +131,7 @@ export const computeTotalTime = (prepTimeMinutes: number, cookTimeMinutes: numbe
 
 /**
  * Map a form ingredient line to the recipe-core {@link NutritionLine} the aggregator
- * (`computeRecipeNutrition`/`leadCaloriesPerServing`) consumes (w3/e3 plumbing, feeding step 2's per-row +
+ * (`computeRecipeNutrition`) consumes (w3/e3 plumbing, feeding step 2's per-row +
  * running per-serving nutrition, FR-007/FR-007a). Delegates the actual merge to recipe-core's own
  * `toNutritionLine(measure, catalog)` — the single place a line's nutrition inputs are combined (module doc,
  * `recipe-core/src/nutrition.ts`) — by splitting this line into its {@link LineMeasure} (quantity/unit + any

@@ -184,14 +184,30 @@ describe('recipeSchema — CR-001 rating aggregate + derived fields', () => {
         expect(recipeSchema.safeParse(withoutCount).success).toBe(false);
     });
 
-    it('accepts the denormalized leadCaloriesPerServing (W8-a.1) and tolerates its absence', () => {
-        expect(recipeSchema.parse(makeRecipe({ leadCaloriesPerServing: 320 })).leadCaloriesPerServing).toBe(320);
-        // Absent (not 0) when the recipe has no accounted nutrition — a card must not show a misleading 0.
-        expect(recipeSchema.parse(makeRecipe()).leadCaloriesPerServing).toBeUndefined();
-    });
+    /**
+     * REWRITTEN, not deleted, and it now proves the OPPOSITE of what it used to.
+     *
+     * The two tests here were "accepts the denormalized `leadCaloriesPerServing` (W8-a.1)" and "rejects a
+     * negative one". Both described a field that has left the wire (ADR-0021's "Follow-up owed"): the
+     * `recipes.lead_calories_per_serving` column it denormalized was dropped by migration 0019, and the
+     * only surface still emitting it — the DETAIL read — was emitting `nutrition.calories` a second time
+     * under a second name. Keeping the field would have left two representations of one number with no rule
+     * for which wins.
+     *
+     * Where the coverage went: the per-serving figure's arithmetic is `computeRecipeNutrition`
+     * (`nutrition.test.ts`); the never-a-misleading-`0` rule those tests guarded is now the
+     * `known` / `unaccounted` split in the recipe service's `toRecipeNutritionState`
+     * (`src/recipes/domain/__tests__/nutritionState.test.ts` + `recipeNutritionState.test.ts`), which is
+     * strictly stronger — it distinguishes a MEASURED zero from an unaccounted recipe, which an optional
+     * `number | undefined` structurally could not.
+     */
+    it('⛔ carries NO leadCaloriesPerServing — one number, one representation', () => {
+        // Zod strips unknown keys, so a stale producer's field is dropped rather than passed through.
+        const parsed = recipeSchema.parse({ ...makeRecipe(), leadCaloriesPerServing: 320 });
 
-    it('rejects a negative leadCaloriesPerServing (calories are non-negative)', () => {
-        expect(recipeSchema.safeParse(makeRecipe({ leadCaloriesPerServing: -1 })).success).toBe(false);
+        expect(parsed).not.toHaveProperty('leadCaloriesPerServing');
+        // And the calorie figure is not silently renamed either — no recipe-level calorie key survives.
+        expect(Object.keys(parsed).filter((key) => key.toLowerCase().includes('calor'))).toStrictEqual([]);
     });
 
     it('accepts the denormalized authorHandle (W8-a.2) and tolerates its absence', () => {

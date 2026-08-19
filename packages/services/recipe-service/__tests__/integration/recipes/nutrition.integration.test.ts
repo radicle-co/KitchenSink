@@ -39,7 +39,6 @@ const UNCACHED_FOOD_ID = '01JFOODNUTRITIONUNCACHED01';
 
 interface RecipeBody {
     id: string;
-    leadCaloriesPerServing?: number;
     nutrition: { calories: number; proteinG: number; carbsG: number; fatG: number; isComplete: boolean };
 }
 
@@ -188,6 +187,15 @@ describe.skipIf(!hasDatabaseUrl)('per-serving nutrition from the food service (i
             fatG: 2.5,
             isComplete: true,
         });
+
+        // ⛔ ONE representation of this recipe's calories, not two. The detail body used to ALSO carry
+        // `leadCaloriesPerServing: 437.5` — the same number, derived from the same computation, under a
+        // second name. That was the survivor U10 removed everywhere else (ADR-0021's "Follow-up owed"): a
+        // reader had two keys to choose from and no rule for which one wins, and any future divergence
+        // between them would be silent. `nutrition.calories` is the detail's figure; a CARD's figure comes
+        // from `POST /api/v1/recipes/nutrition-batch`. This is the ONLY tier that can prove the SERIALIZED
+        // body carries no second key — a unit test asserts on a value the mapper returns, not on the JSON.
+        expect(created).not.toHaveProperty('leadCaloriesPerServing');
     });
 
     it('requests the CANONICAL nutrition URL — the edge cache key (ADR-0020)', () => {
@@ -233,8 +241,13 @@ describe.skipIf(!hasDatabaseUrl)('per-serving nutrition from the food service (i
         const body = (await res.json()) as RecipeBody;
 
         expect(body.nutrition.isComplete).toBe(false);
-        // ⛔ The distinction that matters: unaccounted, not "contains zero calories".
-        expect(body.leadCaloriesPerServing).toBeUndefined();
+        // ⛔ The distinction that matters: unaccounted, not "contains zero calories". REWRITTEN from
+        // `expect(body.leadCaloriesPerServing).toBeUndefined()` to prove the stronger NEW rule: the key is
+        // not on the wire AT ALL, so there is no longer a second place a fabricated `0` could appear. The
+        // absent-never-zero invariant itself is unchanged and still asserted here — by `isComplete: false`
+        // with no calorie key anywhere in the body — and, for a card, by the `unaccounted` member of the
+        // deferred union (`nutritionBatch.integration.test.ts`).
+        expect(body).not.toHaveProperty('leadCaloriesPerServing');
         // REWRITTEN, not deleted. This line used to assert `hasPartialNutrition === true`. That field has
         // left the wire: it was a two-valued encoding of a three-valued fact, pinned `true` at three call
         // sites to mean "not looked up" — which is not what it meant. The invariant it carried here is

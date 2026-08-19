@@ -57,12 +57,14 @@ export interface RecipeResponse {
     sourceAttribution?: string;
     clonedFromId?: string;
     hasSubstantiveEdit: boolean;
-    /**
-     * Denormalized headline per-serving calories (W8-a.1) — recomputed at write time so list/search/
-     * collection-embed cards render calories without an N+1. ABSENT (never `0`) when the recipe has no
-     * accounted nutrition, mirroring {@link averageRating}. On detail it agrees with `nutrition.calories`.
+    /*
+     * ⛔ NO `leadCaloriesPerServing`. It was the W8-a.1 denormalization, and its own docstring gave the game
+     * away — "on detail it agrees with `nutrition.calories`" is a statement that one fact had two wire
+     * representations. Migration 0019 dropped the column behind it and ADR-0021 moved a card's figure to
+     * `POST /api/v1/recipes/nutrition-batch`; what remained was the detail read echoing its own
+     * `nutrition.calories` back under a second name. Removed (ADR-0021's "Follow-up owed"). The detail's
+     * calorie figure is `nutrition`, and there is no other.
      */
-    leadCaloriesPerServing?: number;
     ingredients: RecipeIngredientResponse[];
     steps: RecipeStepResponse[];
     servings: number;

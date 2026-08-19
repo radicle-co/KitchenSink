@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { computeRecipeNutrition, leadCaloriesPerServing, toNutritionLine } from '../nutrition.js';
+import { computeRecipeNutrition, toNutritionLine } from '../nutrition.js';
 
 /** A resolved line: 200 g of a food at 165 kcal/100 g. */
 const chicken = toNutritionLine(
@@ -74,18 +74,22 @@ describe('recipe totals and the per-serving lead figure, as they compute TODAY',
         expect(computeRecipeNutrition([chicken, flour], 4).calories).toBe(196.3);
     });
 
-    it('derives the lead calorie figure from the same inputs as the detail total', () => {
-        // The claim U10 makes TRUE by deleting the second source: `leadCaloriesPerServing` and the detail's
-        // `nutrition.calories` are computed from byte-identical inputs. Today that holds because both route
-        // through `toNutritionLine`; after U10 it holds because there is only one source of the inputs.
-        const lines = [chicken, flour];
-
-        expect(leadCaloriesPerServing(lines, 4)).toBe(computeRecipeNutrition(lines, 4).calories);
-    });
-
-    it('reports the lead figure ABSENT for a recipe with no resolvable nutrition', () => {
-        expect(leadCaloriesPerServing([unresolved], 1)).toBeUndefined();
-    });
+    /*
+     * ⛔ TWO TESTS WERE DELETED HERE, and the reason is that the thing they characterized no longer exists.
+     *
+     *  - "derives the lead calorie figure from the same inputs as the detail total" asserted that
+     *    `leadCaloriesPerServing(lines, n) === computeRecipeNutrition(lines, n).calories`. That equality was
+     *    the WHOLE problem: it is the statement that one number had two representations. U10 removed the
+     *    stored copy; ADR-0021's follow-up removed the wire copy and the function itself, so there is
+     *    nothing left for the two sides of that equation to be.
+     *  - "reports the lead figure ABSENT for a recipe with no resolvable nutrition" characterized
+     *    `calories > 0 ? calories : undefined`. That rule was replaced — not preserved — by
+     *    `toRecipeNutritionState` (recipe service), which separates a MEASURED zero from an unaccounted
+     *    recipe instead of conflating them. Its coverage is `domain/__tests__/nutritionState.test.ts`.
+     *
+     * The characterization this file exists for is unaffected: every user-visible FIGURE below is still
+     * pinned against `computeRecipeNutrition`, which is now the only thing that computes one.
+     */
 
     it('treats a partially-resolved recipe as partial, not as zero', () => {
         const partial = computeRecipeNutrition([chicken, unresolved], 2);

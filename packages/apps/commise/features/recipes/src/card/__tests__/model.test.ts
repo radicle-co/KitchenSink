@@ -82,11 +82,17 @@ describe('toRecipeCardModel', () => {
     // that lands after the card does, so projecting it as a card field is what made a pending reading
     // indistinguishable from a genuine absence. The states now live in `nutrition/model.ts` and reach the card
     // through its `nutrition` SLOT; `nutrition/__tests__/model.test.ts` owns the coverage.
+    //
+    // The fixture no longer INJECTS `leadCaloriesPerServing: 420` (it seeded a wire field that has since left
+    // `Recipe` entirely — ADR-0021's "Follow-up owed"), so the assertion is now stated over the projection's
+    // whole key set rather than one name: the card model carries no calorie-shaped field under ANY spelling,
+    // which is what stops the next surface reaching for one instead of the nutrition slot.
     it('never carries calories — a deferred reading is not a field on the card’s own view-model', () => {
-        const projected = toRecipeCardModel(makeRecipe({ leadCaloriesPerServing: 420 }));
+        const projected = toRecipeCardModel(makeRecipe());
 
+        expect(Object.keys(projected).filter((key) => key.toLowerCase().includes('calor'))).toStrictEqual([]);
         expect(projected).not.toHaveProperty('leadCaloriesPerServing');
-        expect(JSON.stringify(projected)).not.toContain('420');
+        expect(projected).not.toHaveProperty('nutrition');
     });
 
     it('omits difficulty entirely when the author stated none (never a default)', () => {

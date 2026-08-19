@@ -51,10 +51,12 @@ export interface RecipeCardModel {
     /** Author-stated cuisine (CR-002). ABSENT → the card renders no cuisine chip. */
     readonly cuisine?: string;
     /*
-     * ⛔ THERE IS DELIBERATELY NO `leadCaloriesPerServing` HERE (deferred calorie lookup).
+     * ⛔ THERE IS DELIBERATELY NO CALORIE FIELD HERE (deferred calorie lookup).
      *
-     * A per-serving figure is no longer part of the recipe payload: it is looked up separately and lands
-     * AFTER the card renders. Carrying it as an optional card field made the three real conditions —
+     * A per-serving figure is no longer part of the recipe payload at all — the wire `Recipe` carries none
+     * (ADR-0021's "Follow-up owed" removed the last `leadCaloriesPerServing`); it is looked up separately
+     * and lands AFTER the card renders. Carrying it as an optional card field made the three real
+     * conditions —
      * pending, known, unaccounted — collapse into two (`number | undefined`), so a lookup still in flight was
      * indistinguishable from a recipe that genuinely has no figure, and a card had no way to choose between a
      * skeleton, a number, and nothing.

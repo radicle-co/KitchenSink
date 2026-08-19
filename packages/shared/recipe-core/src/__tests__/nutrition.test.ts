@@ -10,7 +10,6 @@ import { describe, it, expect } from 'vitest';
 import {
     computeRecipeNutrition,
     hasUserEnteredIngredients,
-    leadCaloriesPerServing,
     toNutritionLine,
     type NutritionLine,
 } from '../nutrition.js';
@@ -129,51 +128,27 @@ describe('computeRecipeNutrition', () => {
     });
 });
 
-/**
- * {@link leadCaloriesPerServing} is the denormalization source (W8-a.1) for the card's headline calorie
- * number on the base `Recipe` projection — recomputed at write time so list/search/collection-embed avoid
- * an N+1. It is the calorie term of {@link computeRecipeNutrition} (single source), ABSENT when the recipe
- * has no accounted nutrition — mirroring `averageRating`, a card must never show a misleading `0` where the
- * real meaning is "no data".
+/*
+ * ⛔ The `describe('leadCaloriesPerServing')` suite that stood here was DELETED with the function it covered
+ * (ADR-0021's "Follow-up owed"). Four tests went; here is exactly where each one's coverage lives now, so
+ * nothing was dropped on the floor:
+ *
+ *  - "is the per-serving calorie term of the aggregate (single source)" — vacuous once there is only one
+ *    function. `computeRecipeNutrition` (above) owns the arithmetic; the assertion only ever restated that
+ *    a wrapper returned its wrappee.
+ *  - "is ABSENT for a recipe with no lines" / "…when every line is unaccountable" / "is PRESENT when at
+ *    least one line contributes" — these three encoded the absent-vs-zero rule, and they encoded it WRONGLY
+ *    for today's contract: `calories > 0 ? calories : undefined` also erases a MEASURED zero (water, black
+ *    coffee) as if it were missing data. The rule now lives in the recipe service's `toRecipeNutritionState`
+ *    (`src/recipes/domain/nutritionState.ts`), which decides it from whether any LINE contributed rather
+ *    than from the total's value — so a genuine `0` is `known { caloriesPerServing: 0 }` and an unaccounted
+ *    recipe is `unaccounted { reason }`. Its coverage is `domain/__tests__/nutritionState.test.ts` and
+ *    `recipes/__tests__/recipeNutritionState.test.ts`, and it is strictly stronger than what was deleted.
  */
-describe('leadCaloriesPerServing', () => {
-    it('is the per-serving calorie term of the aggregate (single source)', () => {
-        const lines: NutritionLine[] = [
-            { quantity: 1, unit: 'scoop', userCalories: 200, userProteinG: 30, userCarbsG: 10, userFatG: 5 },
-        ];
-
-        expect(leadCaloriesPerServing(lines, 2)).toBe(100);
-        // exactly the calorie term — never diverges from the detail nutrition
-        expect(leadCaloriesPerServing(lines, 2)).toBe(computeRecipeNutrition(lines, 2).calories);
-    });
-
-    it('is ABSENT (undefined) for a recipe with no ingredient lines — never a misleading 0', () => {
-        expect(leadCaloriesPerServing([], 4)).toBeUndefined();
-    });
-
-    it('is ABSENT when every line is unaccountable (nothing resolved) — omit, do not show 0', () => {
-        const lines: NutritionLine[] = [
-            { quantity: 1, unit: 'clove', caloriesPer100g: 50 }, // non-mass unit → excluded
-            { quantity: 1, unit: 'pinch' }, // freeform, no nutrition
-        ];
-
-        expect(leadCaloriesPerServing(lines, 1)).toBeUndefined();
-    });
-
-    it('is PRESENT when at least one line contributes, even if the mix is incomplete', () => {
-        const lines: NutritionLine[] = [
-            { quantity: 100, unit: 'g', caloriesPer100g: 100 }, // accounted
-            { quantity: 1, unit: 'clove', caloriesPer100g: 50 }, // excluded
-        ];
-
-        expect(leadCaloriesPerServing(lines, 1)).toBe(100);
-    });
-});
 
 /**
- * {@link toNutritionLine} is the SINGLE line-assembler both the detail read and the write-time lead-calorie
- * denormalization route through — proving a card's stored calories and the detail's live calories are built
- * from identical inputs (the correctness property W8-a.1 depends on).
+ * {@link toNutritionLine} is the SINGLE line-assembler every nutrition read routes through — the detail
+ * total and the deferred per-recipe batch are built from identical inputs and cannot disagree.
  */
 describe('toNutritionLine', () => {
     it('carries only defined fields (absent macro stays absent, never 0)', () => {
@@ -198,13 +173,16 @@ describe('toNutritionLine', () => {
         });
     });
 
-    it('composes with the aggregator: assembled lines feed leadCaloriesPerServing consistently', () => {
+    // NARROWED, not deleted: this asserted the same composition through `leadCaloriesPerServing`, which is
+    // gone. The property it proves is unchanged — an assembled non-mass line is EXCLUDED from the total and
+    // flips `isComplete`, rather than silently contributing.
+    it('composes with the aggregator: an assembled non-mass line is excluded, not counted', () => {
         const assembled = [
             toNutritionLine({ quantity: 100, unit: 'g' }, { caloriesPer100g: 100 }),
             toNutritionLine({ quantity: 1, unit: 'clove' }, { caloriesPer100g: 50 }), // non-mass → excluded
         ];
 
-        expect(leadCaloriesPerServing(assembled, 1)).toBe(100);
+        expect(computeRecipeNutrition(assembled, 1)).toMatchObject({ calories: 100, isComplete: false });
     });
 });
 

@@ -4,9 +4,9 @@
  *
  * Before this module existed, the SAME field rules — `description ?? ''`, the three time columns'
  * `?? 0` fallback, the derived `usesPremiumCapability`, the null-omit rules for `difficulty` /
- * `averageRating` / `leadCaloriesPerServing` / `authorHandle` / `sourceUrl` / `sourceAttribution` /
- * `clonedFromId` / `cuisine` / `deletedAt`, and the `Date | string → ISO` coercion — were independently
- * re-encoded in THREE places, free to drift:
+ * `averageRating` / `authorHandle` / `sourceUrl` / `sourceAttribution` / `clonedFromId` / `cuisine` /
+ * `deletedAt`, and the `Date | string → ISO` coercion — were independently re-encoded in THREE places,
+ * free to drift:
  *
  *   - `collections/collections.service.ts#toRecipe` now calls this directly — its Drizzle `RecipeRow`
  *     input satisfies {@link RecipeRowInput} structurally, no adapter needed.
@@ -83,35 +83,27 @@ function toIsoString(value: Date | string): string {
  * row→domain Data Mapper (S-R4).
  *
  * Nulls are OMITTED (never a fabricated default) for every genuinely optional `Recipe` field
- * (`difficulty`, `averageRating`, `leadCaloriesPerServing`, `authorHandle`, `sourceUrl`,
- * `sourceAttribution`, `clonedFromId`, `cuisine`, `deletedAt`). `description` and the three time columns
- * fall back (`?? ''` / `?? 0`) because `Recipe` requires them non-null — the time fallback is inert in
- * practice (the columns are `NOT NULL` in the schema) but preserved verbatim from the original mappers.
- * `usesPremiumCapability` is derived via the ONE authoritative `recipe-core` rule — never re-implemented
- * here.
+ * (`difficulty`, `averageRating`, `authorHandle`, `sourceUrl`, `sourceAttribution`, `clonedFromId`,
+ * `cuisine`, `deletedAt`). `description` and the three time columns fall back (`?? ''` / `?? 0`) because
+ * `Recipe` requires them non-null — the time fallback is inert in practice (the columns are `NOT NULL` in
+ * the schema) but preserved verbatim from the original mappers. `usesPremiumCapability` is derived via the
+ * ONE authoritative `recipe-core` rule — never re-implemented here.
+ *
+ * ⛔ THIS MAPPER TAKES NO NUTRITION, and that is the point rather than an omission. It briefly carried a
+ * `DerivedNutritionFields` second parameter holding `leadCaloriesPerServing` — the figure U10 stopped
+ * storing — and exactly one caller ever supplied it: the DETAIL read, where the value was
+ * `nutrition.calories` passed back in under a second name. That made a row→domain mapper a second place
+ * calories could enter a response (ADR-0021's "Follow-up owed"). A recipe's calorie figure now has two
+ * definite homes and no third: `RecipeDetail.nutrition` on the detail read, and
+ * `POST /api/v1/recipes/nutrition-batch` for a card. `hasPartialNutrition` left for the related reason —
+ * it was a two-valued encoding of a three-valued fact, pinned `true` at three call sites to mean "not
+ * looked up", which is not what it meant; the discriminated `recipeNutritionStateSchema` union carries
+ * that fact now, with a discriminant.
  *
  * @param row - The normalized row (a Drizzle `RecipeRow`, or an adapted raw row satisfying the same
  *   structural shape).
- * @param derived - The nutrition figure that is no longer STORED (plan U10): computed from food's live data
- *   rather than read from a column that froze at its last write. An EMPTY object is the honest input from a
- *   path that did not look nutrition up at all (list, search, the collection embed) — it produces a recipe
- *   with no nutrition fields, which is exactly what "we have not accounted for this" looks like on a
- *   projection. The figures themselves come from `POST /api/v1/recipes/nutrition-batch`.
  */
-/**
- * The nutrition figure U10 stopped storing. Supplied by the caller, which knows the recipe's lines.
- *
- * ⛔ `hasPartialNutrition` USED TO LIVE HERE and is deliberately gone. It was a two-valued encoding of a
- * three-valued fact, and three call sites pinned it `true` to mean "not looked up" — a meaning its own
- * docstring did not carry. The discriminated `recipeNutritionStateSchema` union carries that fact now, with
- * a discriminant, so there is nothing left for this mapper to assert or to fabricate.
- */
-export interface DerivedNutritionFields {
-    /** Headline per-serving calories; ABSENT (never `0`) when the recipe has no accounted nutrition. */
-    readonly leadCaloriesPerServing?: number;
-}
-
-export function recipeRowToDomain(row: RecipeRowInput, derived: DerivedNutritionFields = {}): Recipe {
+export function recipeRowToDomain(row: RecipeRowInput): Recipe {
     const visibility = row.visibility as RecipeVisibility;
     const sourceType = row.sourceType as RecipeSourceType;
 
@@ -130,9 +122,6 @@ export function recipeRowToDomain(row: RecipeRowInput, derived: DerivedNutrition
         hasSubstantiveEdit: row.hasSubstantiveEdit,
         dietaryFlags: row.dietaryFlags,
         tags: row.tags,
-        ...(derived.leadCaloriesPerServing !== undefined
-            ? { leadCaloriesPerServing: derived.leadCaloriesPerServing }
-            : {}),
         currentVersion: row.currentVersion,
         ratingCount: row.ratingCount,
         usesPremiumCapability: usesPremiumCapability({ visibility, sourceType }),

@@ -1012,7 +1012,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'exportAccount',
             summary: 'Export everything the recipe service holds for the caller.',
             description:
-                'GDPR Art. 15 (access) + Art. 20 (portability). The read-only INVERSE of erasure: it returns the same owner-scoped roots erasure removes or keeps. Scoped ENTIRELY by the verified token — there is no body or query parameter that can point it at another account. Two shape decisions differ from the API’s read contracts on purpose: an absent value is an explicit `null` rather than an omitted key, and `numeric` columns (`averageRating`, `leadCaloriesPerServing`) stay STRINGS, because a portability document reports what is stored. Photo and version entries carry METADATA and resolved CDN URLs, never bytes. Rate-limited with the tightest (export) cap.',
+                'GDPR Art. 15 (access) + Art. 20 (portability). The read-only INVERSE of erasure: it returns the same owner-scoped roots erasure removes or keeps. Scoped ENTIRELY by the verified token — there is no body or query parameter that can point it at another account. Two shape decisions differ from the API’s read contracts on purpose: an absent value is an explicit `null` rather than an omitted key, and a `numeric` column (`averageRating`) stays a STRING, because a portability document reports what is stored. Photo and version entries carry METADATA and resolved CDN URLs, never bytes. Rate-limited with the tightest (export) cap.',
             responses: {
                 '200': { description: 'The caller’s full export.', schema: 'AccountExport' },
                 ...sharedErrorResponses(),

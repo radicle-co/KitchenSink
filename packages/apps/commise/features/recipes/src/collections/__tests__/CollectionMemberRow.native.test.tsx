@@ -78,20 +78,21 @@ describe('CollectionMemberRow (native) — composes RecipeCard (not a hand-rolle
                 currentVersion: 3,
                 visibility: 'private',
                 status: 'published',
-                leadCaloriesPerServing: 520,
             }),
         });
 
         expect(screen.getByText('Chicken Alfredo')).toBeTruthy();
         expect(screen.getByLabelText('Version 3').textContent).toBe('v3');
         expect(screen.getByText('Private')).toBeTruthy();
-        expect(screen.queryByText('520 cal')).toBeNull();
+        // No fabricated figure of any kind while the deferred lookup is unwired on this surface.
+        expect(screen.queryByText(/\d+ cal/)).toBeNull();
     });
 
     // NARROWED from "…and renders no calorie line when calories are absent (never 0)". With the figure gone
     // from the card model entirely, the calorie half could no longer fail for ANY implementation — coverage
-    // theatre under a title that still advertised it. The test above keeps `leadCaloriesPerServing: 520` in
-    // its fixture and asserts nothing renders, which is the assertion that still has teeth.
+    // theatre under a title that still advertised it. Its `leadCaloriesPerServing: 520` fixture line has now
+    // gone too: the field left the wire `Recipe` (ADR-0021's "Follow-up owed"), so a member CANNOT carry a
+    // figure to leak. The test above asserts no calorie text renders at all, which still has teeth.
     it('hides the version badge at v1', () => {
         renderRow({ member: makeCollectionMemberRecipe({ currentVersion: 1 }) });
 

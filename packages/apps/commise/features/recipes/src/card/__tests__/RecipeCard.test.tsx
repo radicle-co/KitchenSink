@@ -238,8 +238,9 @@ describe('RecipeCard (web) — merged fields (CR-002 / L2·L3)', () => {
     });
 
     // REPLACES "renders the localized calorie line when present, and none when absent". The card no longer
-    // KNOWS about calories: `leadCaloriesPerServing` left the card model with the deferred lookup, because a
-    // figure that arrives after the card does cannot be a field on the card's own view-model. The card now
+    // KNOWS about calories: `leadCaloriesPerServing` left the card model with the deferred lookup, and has
+    // since left the wire `Recipe` entirely, because a figure that arrives after the card does cannot be a
+    // field on the card's own view-model. The card now
     // owns only the SLOT; what goes in it (chip, skeleton, or nothing) is the nutrition layer's decision and
     // is covered by `nutrition/__tests__/RecipeCalorieChip.test.tsx` and `RecipeNutritionBoundary.test.tsx`.
     it('renders whatever the nutrition slot supplies, inside the meta row', () => {

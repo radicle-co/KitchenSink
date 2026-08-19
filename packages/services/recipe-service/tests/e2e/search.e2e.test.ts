@@ -48,7 +48,7 @@ interface CookTimeSeededRecipe {
 }
 
 interface SearchHit {
-    recipe: { id: string; title: string; leadCaloriesPerServing?: number };
+    recipe: { id: string; title: string };
 }
 
 interface FacetBucket {
@@ -206,7 +206,15 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
         expect(body.results.length).toBeGreaterThan(0);
 
         for (const hit of body.results) {
-            expect(hit.recipe.leadCaloriesPerServing, hit.recipe.title).toBeUndefined();
+            // STRENGTHENED from `expect(hit.recipe.leadCaloriesPerServing).toBeUndefined()`. That field has
+            // now left the wire `Recipe` altogether (ADR-0021's "Follow-up owed" — it survived on the DETAIL
+            // read as a second copy of `nutrition.calories`), so the assertion is stated over the hit's whole
+            // key set: a search hit carries NO calorie-shaped field under any spelling, and no completeness
+            // verdict it did not compute.
+            expect(
+                Object.keys(hit.recipe).filter((key) => key.toLowerCase().includes('calor')),
+                hit.recipe.title,
+            ).toStrictEqual([]);
             expect(hit.recipe, hit.recipe.title).not.toHaveProperty('hasPartialNutrition');
         }
     });

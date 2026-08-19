@@ -213,10 +213,11 @@ const exportTimestampSchema = z.string().min(1);
 /**
  * A single owner-scoped recipe (the `recipes` golden row), including tombstoned/draft/private rows.
  *
- * ⚠️ Numeric columns Postgres returns as strings (`averageRating`, `leadCaloriesPerServing`, both `numeric`) are
- * published AS STRINGS, which is what the mapper emits — a faithful mirror of the row, deliberately unlike the read
- * path, which coerces them to numbers. A portability document reports what is stored, and a lossy re-encode of a
- * `numeric` is exactly the kind of quiet change an export must not make.
+ * ⚠️ A numeric column Postgres returns as a string (`averageRating`, a `numeric`) is published AS A STRING, which
+ * is what the mapper emits — a faithful mirror of the row, deliberately unlike the read path, which coerces it to a
+ * number. A portability document reports what is stored, and a lossy re-encode of a `numeric` is exactly the kind of
+ * quiet change an export must not make. (`leadCaloriesPerServing` was named here as the second such column; it never
+ * reached the export and its column is gone — migration 0019.)
  */
 export const recipeExportSchema = z
     .object({

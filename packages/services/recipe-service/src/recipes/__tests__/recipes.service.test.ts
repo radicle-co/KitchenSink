@@ -575,7 +575,65 @@ describe('RecipesService — difficulty passthrough (FR-001b)', () => {
  * because the column is dropped and the figure is derived on every detail read from food's live data.
  * Keeping the tests would have pinned the design the unit deleted. The derivation is covered by
  * `recipeRowToDomain.test.ts` and by the characterization suite in `@kitchensink/recipe-core`.
+ *
+ * What REPLACES it is the suite below — the other half of the same removal, which U10 left standing and
+ * ADR-0021 recorded as a "Follow-up owed".
  */
+
+describe('RecipesService — ONE calorie representation on the detail read (ADR-0021 follow-up)', () => {
+    /**
+     * A recipe whose single line carries a USER OVERRIDE, so the per-serving figure is non-zero without any
+     * food lookup at all — the degraded gateway double stays honest and the arithmetic is fully determined:
+     * 250 kcal over the fixture's servings.
+     */
+    function overriddenAggregate(): RecipeAggregate {
+        const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, servings: 2 });
+
+        return {
+            recipe,
+            steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
+            ingredients: [
+                makeRecipeIngredientRow({
+                    recipeId: recipe.id,
+                    ingredientId: 'ing-A',
+                    ingredientName: 'Beef',
+                    quantity: '1',
+                    unit: 'g',
+                    displayText: null,
+                    userCalories: '250',
+                    userProteinG: '26',
+                    userCarbsG: '0',
+                    userFatG: '15',
+                }),
+            ],
+        };
+    }
+
+    it('⛔ reports calories ONCE — `nutrition.calories`, with no second `leadCaloriesPerServing` key', async () => {
+        // The drift class this closes: the detail read used to emit the SAME number twice, once inside
+        // `nutrition` and once as a top-level `leadCaloriesPerServing`. Two representations of one fact have
+        // no rule for which wins and no way to stay in step; DRY governs knowledge, and this is one piece of
+        // knowledge. A card's figure comes from `POST /api/v1/recipes/nutrition-batch` — never from here.
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(overriddenAggregate()) });
+
+        const detail = await newService(dal).getById(OWNER, 'r-1');
+
+        expect(detail.nutrition?.calories).toBe(125);
+        expect(detail).not.toHaveProperty('leadCaloriesPerServing');
+    });
+
+    it('emits no calorie key at all when nothing is accounted for (KTD-3b: absent, never a fabricated 0)', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(aggregate()) });
+
+        const detail = await newService(dal).getById(OWNER, 'r-1');
+
+        expect(detail).not.toHaveProperty('leadCaloriesPerServing');
+        // `nutrition.calories` is `0` here because the aggregate has no lines at all; the ACCOUNTED-NESS
+        // signal a reader acts on is `isComplete`, and for a card the `unaccounted` member of the deferred
+        // union. Neither is a second copy of the figure.
+        expect(detail.nutrition?.isComplete).toBe(true);
+    });
+});
 
 describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDOR)', () => {
     /** A public DRAFT owned by `owner` — the leak class the status term closes (public, but owner-only). */

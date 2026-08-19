@@ -114,11 +114,13 @@ export const recipes = pgTable(
             .notNull()
             .default(sql`'{}'`),
 
-        // Denormalized headline per-serving calories (W8-a.1, 0012 migration) — recomputed on every write
-        // from the ingredient lines (@kitchensink/recipe-core leadCaloriesPerServing) so the LIST /
-        // SEARCH / collection-embed base projections avoid an N+1. NULL exactly when the recipe has no
-        // accounted nutrition (the projection then omits the field — never a misleading 0, as with
-        // average_rating). numeric(8,1) matches the aggregator's one-decimal wire precision.
+        // ⛔ NO `lead_calories_per_serving` COLUMN, and this comment is here so nobody adds one back. It
+        // existed (0012, W8-a.1) as denormalized per-serving calories recomputed on every write. Migration
+        // 0019 DROPPED it: it was a copy of the food service's data that froze at the recipe's last save,
+        // with no invalidation. `nutrition.integration.test.ts` asserts against the live `information_schema`
+        // that it is gone, because only that tier can. A card's calorie figure now comes from
+        // `POST /api/v1/recipes/nutrition-batch` (ADR-0021); the detail read's comes from the same live
+        // computation it already performs. Neither is stored, and there is no third source.
 
         // Denormalized author display-name (W8-a.2 / decision 6 / 0015 migration) — profiles.displayName
         // written at create/clone time so cards render "by @handle" without a cross-service call. NULLABLE:

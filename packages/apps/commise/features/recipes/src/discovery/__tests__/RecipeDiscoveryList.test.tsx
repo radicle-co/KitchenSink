@@ -336,12 +336,13 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
         expect(screen.queryByText(/From undefined/)).toBeNull();
     });
 
-    // The "calories" half of this assertion MOVED rather than being dropped. A per-serving figure is now a
-    // DEFERRED lookup delivered through the card's `nutrition` slot, so a discovery row renders no calorie
-    // line until this surface passes one (its own wiring task). The states themselves are covered by
-    // `nutrition/__tests__/RecipeCalorieChip.test.tsx`; what is asserted HERE is the honest consequence —
-    // nothing is rendered, and above all no stale figure and no fabricated 0.
-    it('composes the compound card fields — author handle, cuisine, visibility (S1), and no calorie line', () => {
+    // NARROWED a second time, and the fixture line that made it possible is gone with it. It used to seed
+    // `leadCaloriesPerServing: 320` and assert "320 cal" did not render — but that field has now left the
+    // wire `Recipe` entirely (ADR-0021's "Follow-up owed"), so a search result CANNOT carry a stale figure
+    // and the assertion could no longer fail for any implementation. What still has teeth is asserted
+    // below: the row renders no fabricated `0 cal` while the deferred lookup is unwired. The figure's real
+    // states are covered by `nutrition/__tests__/RecipeCalorieChip.test.tsx`.
+    it('composes the compound card fields — author handle, cuisine, visibility (S1), and no fabricated 0', () => {
         renderDiscovery({
             status: 'ready',
             results: [
@@ -350,7 +351,6 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
                     title: 'Ribollita',
                     authorHandle: 'tuscan_cook',
                     cuisine: 'Tuscan',
-                    leadCaloriesPerServing: 320,
                     visibility: 'public',
                     status: 'published',
                 }),
@@ -359,7 +359,6 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
 
         expect(screen.getByText('by @tuscan_cook')).toBeTruthy();
         expect(screen.getByText('Tuscan')).toBeTruthy();
-        expect(screen.queryByText('320 cal')).toBeNull();
         expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByText('Public')).toBeTruthy();
         // Still selectable by title and cloneable — the compound composition keeps the row contract.

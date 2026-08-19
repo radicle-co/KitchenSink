@@ -161,7 +161,6 @@ export { MASS_UNIT_TO_GRAMS, normalizeUnit, unitToGrams } from './units.js';
 export {
     computeRecipeNutrition,
     hasUserEnteredIngredients,
-    leadCaloriesPerServing,
     lineNutritionSource,
     toNutritionLine,
 } from './nutrition.js';

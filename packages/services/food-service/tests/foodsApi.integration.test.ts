@@ -861,6 +861,89 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Pos
         });
     });
 
+    // ── POST /api/v1/foods/admin/foods/{id}/requeue (U9) ───────────────────────────────────────────────
+    /**
+     * The requeue's answers ON THE WIRE. The unit tier proves the service raises the right exception; only a
+     * booted app proves the global `ApiExceptionFilter` turns it into the documented status and body —
+     * which is exactly where the `RESOLVED` case was wrong (a `500`, because no arm classified the DAO's
+     * internal transition error).
+     */
+    describe('POST /api/v1/foods/admin/foods/{id}/requeue', () => {
+        /** The blackholed resting state an operator would find: a tombstoned, FAILED food with a spent budget. */
+        async function blackhole(name: string): Promise<string> {
+            const id = await seedFood('FAILED', name);
+            await pool.query(
+                `INSERT INTO fetch_queue (food_id, status, attempts, last_error) VALUES ($1, 'tombstone', 5, 'all_sources_errored')`,
+                [id],
+            );
+
+            return id;
+        }
+
+        it('rejects a valid token without the admin scope with 403', async () => {
+            const id = await blackhole('unscoped requeue');
+            const res = await call('POST', `/api/v1/foods/admin/foods/${id}/requeue`, { token: 'user' });
+
+            expect(res.status).toBe(403);
+        });
+
+        it('requeues a blackholed food for an admin-scoped token (202) and clears BOTH halves', async () => {
+            const id = await blackhole('recoverable over http');
+
+            const res = await call('POST', `/api/v1/foods/admin/foods/${id}/requeue`, { token: 'admin' });
+
+            expect(res.status).toBe(202);
+            expect(res.body).toStrictEqual({ id, status: 'PENDING' });
+
+            const food = await pool.query('SELECT status FROM food WHERE id = $1', [id]);
+            expect(food.rows[0].status).toBe('PENDING');
+            const queue = await pool.query('SELECT status, attempts FROM fetch_queue WHERE food_id = $1', [id]);
+            expect(queue.rows[0]).toMatchObject({ status: 'pending', attempts: 0 });
+        });
+
+        it('returns 400 INVALID_ID for a malformed id', async () => {
+            const res = await call('POST', '/api/v1/foods/admin/foods/not-a-ulid/requeue', { token: 'admin' });
+
+            expect(res.status).toBe(400);
+            expect((res.body as { code: string }).code).toBe('INVALID_ID');
+        });
+
+        it('returns 404 FOOD_NOT_FOUND for an unknown id', async () => {
+            const res = await call('POST', `/api/v1/foods/admin/foods/${ulid()}/requeue`, { token: 'admin' });
+
+            expect(res.status).toBe(404);
+            expect((res.body as { code: string }).code).toBe('FOOD_NOT_FOUND');
+        });
+
+        /**
+         * ⛔ THE REGRESSION THIS ROUTE EXISTED WITHOUT. A `RESOLVED`/`UNRESOLVED` food answered `500`, which
+         * mid-incident reads as "the requeue failed" — so the operator retries a food that was never stuck.
+         * The body must both classify the outcome (`409` + `NOT_REQUEUEABLE`) and name the route that IS
+         * right for a healthy food.
+         */
+        it.each(['RESOLVED', 'UNRESOLVED'])(
+            'answers 409 NOT_REQUEUEABLE for a %s food, naming /refetch',
+            async (status) => {
+                const id = await seedFood(status, `healthy ${status} over http`);
+
+                const res = await call('POST', `/api/v1/foods/admin/foods/${id}/requeue`, { token: 'admin' });
+
+                expect(res.status).toBe(409);
+
+                // Parsed against the PUBLISHED union, not field-picked: a body the contract cannot describe fails.
+                const parsed = foodErrorSchema.safeParse(res.body);
+                expect(parsed.success, JSON.stringify(res.body)).toBe(true);
+                expect((res.body as { code: string }).code).toBe('NOT_REQUEUEABLE');
+                expect((res.body as { details: unknown }).details).toStrictEqual({ id, status });
+                expect((res.body as { message: string }).message).toContain(`/api/v1/foods/${id}/refetch`);
+
+                // A rejected requeue writes nothing.
+                const food = await pool.query('SELECT status FROM food WHERE id = $1', [id]);
+                expect(food.rows[0].status).toBe(status);
+            },
+        );
+    });
+
     // ── Backpressure + flood-shed (T-144) ──────────────────────────────────────────────────────────
     describe('backpressure (T-144)', () => {
         it('returns 503 + Retry-After at the queue-depth ceiling', async () => {

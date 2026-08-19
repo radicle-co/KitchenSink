@@ -33,6 +33,12 @@ export function isFoodDaoError(error: unknown): error is FoodDaoError {
  * the requested target status is not reachable from the row's current status under the legal
  * lifecycle transition set (FR-028a), or the food id does not exist. The food's status is left
  * unchanged.
+ *
+ * ⛔ NEVER give this an arm in `ApiExceptionFilter`. It is raised from several call sites whose HTTP
+ * meanings differ — an operator requeue of a healthy food is a `409` the caller can act on, while the same
+ * rejection from the merge/persist path behind `PATCH /{id}` is a server-side lifecycle bug that must stay
+ * a `500` (and must keep its `error`-level log line, which a 4xx would demote to `warn`). One global
+ * mapping would be wrong at all but one site, so each caller translates it at its own boundary.
  */
 export class IllegalStatusTransitionError extends FoodDaoError {
     /** The food id whose transition was rejected. */

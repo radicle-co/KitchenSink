@@ -10,6 +10,7 @@
 
 export * from './schemas/apiError.schema.js';
 export * from './schemas/adminMetrics.schema.js';
+export * from './schemas/foodRecovery.schema.js';
 export * from './schemas/serviceErasure.schema.js';
 export * from './schemas/foods.schema.js';
 export * from './schemas/health.schema.js';

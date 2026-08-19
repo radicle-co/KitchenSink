@@ -49,6 +49,7 @@ import {
     queueDepthMetricsSchema,
     sourceWindowMetricsSchema,
 } from '../src/foods/admin/adminMetrics.schema.js';
+import { requeueResponseSchema } from '../src/foods/admin/foodRecovery.schema.js';
 import { foodServiceErasureAcceptedResponseSchema } from '../src/foods/dto/serviceErasure.schema.js';
 import { healthStatusSchema } from '../src/health/health.schema.js';
 
@@ -87,6 +88,7 @@ export const openApiComponents = {
     BacklogMetrics: backlogMetricsSchema,
     SourceWindowMetrics: sourceWindowMetricsSchema,
     OperationalMetrics: operationalMetricsSchema,
+    RequeueResponse: requeueResponseSchema,
     FoodServiceErasureAcceptedResponse: foodServiceErasureAcceptedResponseSchema,
     HealthStatus: healthStatusSchema,
 } as const;
@@ -357,6 +359,32 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                     '200': { description: 'The queue depths.', schema: 'QueueDepthMetrics' },
                     '401': unauthorized,
                     '403': forbidden,
+                },
+            },
+        },
+        '/api/v1/foods/admin/foods/{id}/requeue': {
+            post: {
+                operationId: 'requeueFood',
+                summary: 'Requeue a blackholed ingredient (admin)',
+                description:
+                    'The operator escape hatch for a food the retry budget tombstoned: it clears the terminal ' +
+                    'lifecycle mark AND the attempt count so the normal drain picks the food up again (U9). ' +
+                    'Requires the `food:admin` scope, checked BEFORE id validation so `403` precedes `400` ' +
+                    '(FR-039/FR-051). Idempotent — requeuing an already-`PENDING` food answers `202`.',
+                parameters: [idParameter],
+                responses: {
+                    '202': { description: 'Requeued; the food is `PENDING` again.', schema: 'RequeueResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
+                    '409': {
+                        description:
+                            'The food is not blackholed — a `RESOLVED`/`UNRESOLVED` food has nothing to clear. ' +
+                            '`code: NOT_REQUEUEABLE`, with the observed status in `details.status` and the ' +
+                            'route that IS applicable (`POST /api/v1/foods/{id}/refetch`) named in the message.',
+                        schema: 'ApiError',
+                    },
                 },
             },
         },

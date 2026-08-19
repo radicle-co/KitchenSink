@@ -468,6 +468,63 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
       description: The focused queue-depth signals on their own (FR-039).
+  /api/v1/foods/admin/foods/{id}/requeue:
+    post:
+      operationId: requeueFood
+      summary: Requeue a blackholed ingredient (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "202":
+          description: Requeued; the food is `PENDING` again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequeueResponse"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: "No such food — `code: FOOD_NOT_FOUND`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "The food is not blackholed — a `RESOLVED`/`UNRESOLVED` food has nothing to clear. `code: NOT_REQUEUEABLE`,
+            with the observed status in `details.status` and the route that IS applicable (`POST
+            /api/v1/foods/{id}/refetch`) named in the message."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "The operator escape hatch for a food the retry budget tombstoned: it clears the terminal lifecycle mark
+        AND the attempt count so the normal drain picks the food up again (U9). Requires the `food:admin` scope, checked
+        BEFORE id validation so `403` precedes `400` (FR-039/FR-051). Idempotent — requeuing an already-`PENDING` food
+        answers `202`."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
   /api/v1/internal/account/erasure:
     post:
       operationId: eraseAccountFootprint
@@ -731,6 +788,37 @@ components:
               type: string
               enum:
                 - NOT_RESOLVABLE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+                status:
+                  type: string
+                  enum:
+                    - PENDING
+                    - UNRESOLVED
+                    - RESOLVED
+                    - NOT_FOUND
+                    - FAILED
+                    - AWAITING_RETRY
+              required:
+                - id
+                - status
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - NOT_REQUEUEABLE
             message:
               type: string
             details:
@@ -1115,6 +1203,18 @@ components:
         - queue
         - backlog
         - sources
+    RequeueResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+      required:
+        - id
+        - status
     FoodServiceErasureAcceptedResponse:
       type: object
       properties:

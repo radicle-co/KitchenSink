@@ -1,0 +1,110 @@
+/**
+ * The WRITE side of the admin surface (U9): the operator's way back from a blackholed food. Split from
+ * `AdminMetricsService`, which is the read model and had grown an operation that mutates two tables.
+ *
+ * @implements FR-028a
+ */
+import { Injectable } from '@nestjs/common';
+
+import { apiError } from '../../common/apiError.js';
+// AUTHORED wire contract (CODING_STANDARDS §15.2), published via `@kitchensink/schema-food`.
+export type { RequeueResponse } from './foodRecovery.schema.js';
+import type { RequeueResponse } from './foodRecovery.schema.js';
+import { isIllegalStatusTransitionError } from '../dao/dao.errors.js';
+import { FoodDao } from '../dao/food.dao.js';
+import { FetchQueueDao } from '../dao/fetchQueue.dao.js';
+import { FoodNotFoundError } from '../foods.errors.js';
+
+/**
+ * Recovery commands an operator issues against a single food.
+ *
+ * DESIGN PATTERN: **Command**, and the write half of the CQRS split with `AdminMetricsService` — one operator
+ * intent per method, each owning what its own failures MEAN on its own route. That ownership is the reason
+ * this is a service and not a filter arm: `IllegalStatusTransitionError` is a DAO invariant raised from six
+ * call sites whose HTTP meanings differ, so it can only be translated where the caller's intent is known.
+ */
+@Injectable()
+export class FoodRecoveryService {
+    public constructor(
+        private readonly foodDao: FoodDao,
+        private readonly queue: FetchQueueDao,
+    ) {}
+
+    /**
+     * Requeue a blackholed food (U9) — clear the attempt count and the terminal mark so the normal drain
+     * picks it up again.
+     *
+     * ⛔ **Both halves, or neither works.** Clearing `fetch_queue.attempts` without resetting the food's
+     * terminal `FAILED` status leaves the food unreadable while the queue happily re-fetches it; resetting
+     * the status without clearing the count means the very next failure re-exhausts an already-spent budget
+     * and it tombstones again immediately. `reactivate` already does the queue half — this adds the
+     * lifecycle half and orders them so a failure between the two leaves the food retryable rather than
+     * stuck.
+     *
+     * ⚠️ **Idempotent, because an operator will run it twice.** `PENDING → PENDING` is not a legal
+     * transition (FR-028a), so the bare `setStatus` rejected a food that was ALREADY pending — a second
+     * invocation, or one that raced the worker's own recovery, answered `500` on a route whose contract
+     * says `202`. Nothing distinguishes that from "the requeue failed", which is the worst answer to give
+     * someone mid-incident. An already-pending food needs no mark cleared, so it is a success, not a fault.
+     *
+     * The rejection is CLASSIFIED after the fact rather than pre-checked with a read: the conditional
+     * UPDATE stays the single authority on what is legal, and a concurrent writer that moved the food to
+     * `PENDING` first is then indistinguishable from having done it here — which is the correct outcome.
+     *
+     * @param foodId - The food to requeue.
+     * @returns The requeued food's id and its new status.
+     * @throws {FoodNotFoundError} (→ 404) when no such food exists.
+     * @throws {HttpException} `NOT_REQUEUEABLE` (→ 409) when the food is not blackholed at all.
+     * @sideEffect Resets `food.status` to `PENDING` and clears `fetch_queue.attempts`.
+     */
+    public async requeueFood(foodId: string): Promise<RequeueResponse> {
+        // Lifecycle FIRST: `PENDING` is a legal target from both terminal states and from `AWAITING_RETRY`,
+        // so this is the step that can legitimately reject. If the queue reset ran first and this failed,
+        // the food would be re-fetchable while still reading `FAILED` to every caller.
+        try {
+            await this.foodDao.setStatus({ id: foodId, status: 'PENDING' });
+        } catch (error) {
+            if (!isIllegalStatusTransitionError(error)) {
+                throw error;
+            }
+
+            await this.assertRequeueable(foodId);
+        }
+
+        await this.queue.reactivate(foodId);
+
+        return { id: foodId, status: 'PENDING' };
+    }
+
+    /**
+     * Decide whether a rejected `→ PENDING` transition was benign, and re-raise it as something a caller
+     * can act on when it was not.
+     *
+     * The DAO error is NOT re-thrown: it is internal (its message names the rejected transition), nothing
+     * classifies it as anything but a `500`, and a `500` here tells an operator mid-incident "the requeue
+     * failed" when the truth is "this food was never stuck". The `409` says which, and the message says
+     * what to run instead.
+     *
+     * @param foodId - The food whose transition was rejected.
+     * @throws {FoodNotFoundError} when no row exists at all.
+     * @throws {HttpException} `NOT_REQUEUEABLE` when the food is in a state a requeue cannot clear (a
+     *   `RESOLVED`/`UNRESOLVED` food is not blackholed — `POST /{id}/refetch` is the route for those).
+     * @sideEffect Reads `food`.
+     */
+    private async assertRequeueable(foodId: string): Promise<void> {
+        const food = await this.foodDao.getById(foodId);
+
+        if (!food) {
+            throw new FoodNotFoundError(foodId);
+        }
+
+        if (food.status !== 'PENDING') {
+            throw apiError(
+                'NOT_REQUEUEABLE',
+                `Food '${foodId}' is ${food.status}, not blackholed — re-fetch it with ` +
+                    `POST /api/v1/foods/${foodId}/refetch`,
+                { id: foodId, status: food.status },
+            );
+        }
+    }
+}

@@ -583,6 +583,71 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
         });
     });
 
+    // ── The operator requeue (U9 / R2.4) ────────────────────────────────────────────────────────────
+    /**
+     * The requeue against a food blackholed by a REAL source outage over the real worker — the population
+     * U9 exists for, which no other tier reaches (both lower tiers construct the resting state by hand).
+     *
+     * ⚠️ KNOWN GAP, ASSERTED AS IT ACTUALLY BEHAVES rather than as one might hope. The requeue clears both
+     * halves and answers `202`, but it does NOT by itself get the food re-fetched: `tombstone()` prunes
+     * `fetch_requesters` (DSN-10), so the requeued row names no principal and `processRow`'s FR-048
+     * provenance check re-tombstones it as `unauthenticated_producer` on the next drain — leaving the food
+     * `PENDING` (a permanent `202` to readers) instead of recovered. That is a defect in U9's recovery path,
+     * NOT in the 409 contract this change is about, and fixing it is a decision about whether the operator
+     * is recorded as the requester (FR-048 wants an accountable principal behind every source call). The
+     * case below therefore asserts what the route really guarantees today, and this comment is the record.
+     */
+    describe('POST /api/v1/foods/admin/foods/{id}/requeue', () => {
+        it('clears the terminal state of a food blackholed by a real source outage (202)', async () => {
+            stub.programSearchError('tempeh starter', 500);
+            const { id, status } = await addAndDrain(userToken, 'tempeh starter');
+            expect(status).toBe('FAILED');
+            expect((await call('GET', `/api/v1/foods/${id}`, { token: userToken })).status).toBe(404);
+
+            const requeue = await call('POST', `/api/v1/foods/admin/foods/${id}/requeue`, { token: adminToken });
+
+            expect(requeue.status).toBe(202);
+            expect(requeue.body).toStrictEqual({ id, status: 'PENDING' });
+            expect(await foodStatus(id)).toBe('PENDING');
+
+            const row = await pool.query<{ status: string; attempts: number }>(
+                'SELECT status, attempts FROM fetch_queue WHERE food_id = $1',
+                [id],
+            );
+            expect(row.rows[0]).toMatchObject({ status: 'pending', attempts: 0 });
+        });
+
+        it('unauth → 401; authenticated non-admin → 403 (the scope gate, before any write)', async () => {
+            stub.programSearchError('miso koji', 500);
+            const { id } = await addAndDrain(userToken, 'miso koji');
+
+            expect((await call('POST', `/api/v1/foods/admin/foods/${id}/requeue`)).status).toBe(401);
+            expect((await call('POST', `/api/v1/foods/admin/foods/${id}/requeue`, { token: userToken })).status).toBe(
+                403,
+            );
+            expect(await foodStatus(id)).toBe('FAILED');
+        });
+
+        /**
+         * ⛔ A healthy food answered `500` here until the wire contract gained `NOT_REQUEUEABLE`. Asserted
+         * against the PUBLISHED union so the body cannot drift from the contract it claims to speak.
+         */
+        it('answers 409 NOT_REQUEUEABLE for a RESOLVED food, naming the refetch route', async () => {
+            const { id, status } = await addAndDrain(userToken, programmedResolve('Rhubarb'));
+            expect(status).toBe('RESOLVED');
+
+            const res = await call('POST', `/api/v1/foods/admin/foods/${id}/requeue`, { token: adminToken });
+
+            expect(res.status).toBe(409);
+            expect(foodErrorSchema.parse(res.body)).toEqual({
+                code: 'NOT_REQUEUEABLE',
+                message: expect.stringContaining(`/api/v1/foods/${id}/refetch`),
+                details: { id, status: 'RESOLVED' },
+            });
+            expect(await foodStatus(id)).toBe('RESOLVED');
+        });
+    });
+
     // ── Backpressure (FR-046) ───────────────────────────────────────────────────────────────────────
     describe('backpressure', () => {
         it('returns 503 + Retry-After at the queue-depth ceiling', async () => {

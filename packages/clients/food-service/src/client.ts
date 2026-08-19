@@ -515,7 +515,11 @@ export class FoodServiceClient {
                 return new NotFoundError(body.details.id, body.details.status);
             case 'CANDIDATE_MISMATCH':
                 return new CandidateMismatchError(body.details.id);
+            // Three 409s, one client error: the status cannot separate them and the correct handling is the
+            // server's message, which names the route to use instead. A caller needing the distinction has
+            // the `code` on the parsed body.
             case 'NOT_RESOLVABLE':
+            case 'NOT_REQUEUEABLE':
                 return new ConflictError(body.message);
             case 'FETCH_UNAVAILABLE':
                 // The header is the transport-level contract and wins; the body repeats it for a consumer that

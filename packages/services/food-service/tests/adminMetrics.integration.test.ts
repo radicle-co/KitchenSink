@@ -19,10 +19,6 @@ import { AdminMetricsService } from '../src/foods/admin/adminMetrics.service.js'
 import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 
-/** U9 requeue collaborators — this suite exercises the metrics paths, which never touch them. */
-const foodDaoDouble = { setStatus: async () => undefined } as never;
-const queueDouble = { reactivate: async () => undefined } as never;
-
 /** Seed a food in a given lifecycle status; `queued` adds a fetch_queue row with the given status. */
 async function seed(
     pool: pg.Pool,
@@ -51,7 +47,7 @@ describe.skipIf(!DATABASE_URL)('AdminMetricsService operational signals (integra
         const limiter = new RollingWindowLimiter(new SourceCallLogDao(db), {
             caps: { usda: { hardCap: 1000, pauseThreshold: 900 } },
         });
-        service = new AdminMetricsService(new AdminMetricsDao(db), limiter, foodDaoDouble, queueDouble);
+        service = new AdminMetricsService(new AdminMetricsDao(db), limiter);
     });
 
     afterAll(async () => {

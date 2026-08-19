@@ -181,6 +181,11 @@ describe('foodErrorSchema', () => {
         FOOD_NOT_FOUND: { code: 'FOOD_NOT_FOUND', message: 'gone', details: { id: 'f1', status: 'NOT_FOUND' } },
         CANDIDATE_MISMATCH: { code: 'CANDIDATE_MISMATCH', message: 'not in set', details: { id: 'f1' } },
         NOT_RESOLVABLE: { code: 'NOT_RESOLVABLE', message: 'not awaiting', details: { id: 'f1', status: 'PENDING' } },
+        NOT_REQUEUEABLE: {
+            code: 'NOT_REQUEUEABLE',
+            message: 'not blackholed — re-fetch it with POST /api/v1/foods/f1/refetch',
+            details: { id: 'f1', status: 'RESOLVED' },
+        },
         FETCH_UNAVAILABLE: { code: 'FETCH_UNAVAILABLE', message: 'shed', details: { retryAfterSeconds: 30 } },
         INTERNAL_ERROR: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     };

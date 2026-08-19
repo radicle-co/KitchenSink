@@ -20,26 +20,26 @@
  *    can say whether the curve stored is the curve documented.
  *  - `leaseNext` obeys `last_requested <= now()`. Whether the persisted gate actually withholds the row is a
  *    property of the stored timestamp and the claim statement together.
- *  - `AdminMetricsService.requeueFood` issues two writes to two tables and had NO test at any tier.
+ *  - `FoodRecoveryService.requeueFood` issues two writes to two tables and had NO test at any tier.
  *
- * ## Known gap, deliberately not asserted here
+ * ## The requeue's rejection is asserted here too (previously a recorded gap)
  *
- * Requeuing a `RESOLVED`/`UNRESOLVED` food still surfaces `IllegalStatusTransitionError` as a `500`
- * (`FR-028a` makes `RESOLVED → PENDING` illegal, and the exception filter has no arm for that error). That is
- * a wire-contract decision — which published code a caller should receive — so it is reported rather than
- * settled by a test that would bless either answer.
+ * Requeuing a `RESOLVED`/`UNRESOLVED` food surfaced `IllegalStatusTransitionError` as a `500` until the
+ * wire-contract decision was made: it is a `409` carrying `NOT_REQUEUEABLE` and naming the refetch route.
+ * The decision needs a test HERE and not only in the unit tier, because what makes the transition illegal is
+ * the DAO's conditional UPDATE against the real `food_status` enum — a double can only restate the rule it
+ * was told.
  */
+import { HttpException } from '@nestjs/common';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 
-import { AdminMetricsDao } from '../src/foods/admin/adminMetrics.dao.js';
-import { AdminMetricsService } from '../src/foods/admin/adminMetrics.service.js';
+import type { ApiErrorBody } from '../src/common/apiError.schema.js';
+import { FoodRecoveryService } from '../src/foods/admin/foodRecovery.service.js';
 import { isFoodNotFoundError } from '../src/foods/foods.errors.js';
 import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
-import { SourceCallLogDao } from '../src/foods/dao/sourceCallLog.dao.js';
-import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
 import { isRetryBudgetExhausted, MAX_FAILURE_ATTEMPTS } from '../src/worker/backoff.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
 
@@ -66,7 +66,7 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
     let foods: FoodDao;
     let queue: FetchQueueDao;
     let requesters: FetchRequestersDao;
-    let admin: AdminMetricsService;
+    let admin: FoodRecoveryService;
 
     beforeAll(async () => {
         pool = makePool();
@@ -74,14 +74,7 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
         foods = new FoodDao(db);
         queue = new FetchQueueDao(db);
         requesters = new FetchRequestersDao(db);
-        admin = new AdminMetricsService(
-            new AdminMetricsDao(db),
-            new RollingWindowLimiter(new SourceCallLogDao(db), {
-                caps: { usda: { hardCap: 1000, pauseThreshold: 900 } },
-            }),
-            foods,
-            queue,
-        );
+        admin = new FoodRecoveryService(foods, queue);
     });
 
     afterAll(async () => {
@@ -346,5 +339,39 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
         it('reports an unknown food id as FOOD_NOT_FOUND, not as an internal fault', async () => {
             await expect(admin.requeueFood('01J9ZK8N7QF3B2X4M6T0V5C1AB')).rejects.toSatisfy(isFoodNotFoundError);
         });
+
+        /**
+         * The rejection, against the REAL conditional UPDATE. The unit tier states the FR-028a rule in a
+         * double; only Postgres can say the rule the DAO actually enforces is that rule.
+         */
+        it.each(['RESOLVED', 'UNRESOLVED'] as const)(
+            'rejects a %s food with 409 NOT_REQUEUEABLE and leaves BOTH tables untouched',
+            async (status) => {
+                const id = await placeholder(`healthy ${status}`);
+                await queue.recordFailure(id, 'a real error');
+                await foods.setStatus({ id, status });
+
+                let thrown: unknown;
+
+                try {
+                    await admin.requeueFood(id);
+                } catch (error) {
+                    thrown = error;
+                }
+
+                expect(thrown).toBeInstanceOf(HttpException);
+                expect((thrown as HttpException).getStatus()).toBe(409);
+
+                const body = (thrown as HttpException).getResponse() as ApiErrorBody;
+                expect(body.code).toBe('NOT_REQUEUEABLE');
+                expect(body.details).toStrictEqual({ id, status });
+                expect(body.message).toContain(`/api/v1/foods/${id}/refetch`);
+
+                // A rejected requeue is a NO-OP, not a partial write: the lifecycle mark stands and the
+                // attempt count is not silently restored.
+                expect(await rawFoodStatus(pool, id)).toBe(status);
+                expect((await queue.getByFoodId(id))?.attempts).toBe(1);
+            },
+        );
     });
 });

@@ -504,6 +504,8 @@ export const foodErrorCodeSchema = z.enum([
     'CANDIDATE_MISMATCH',
     /** A resolve was attempted on a food that is not awaiting disambiguation (`409`, FR-028a). */
     'NOT_RESOLVABLE',
+    /** An operator requeue was attempted on a food that is not blackholed — use `POST /{id}/refetch` (`409`, U9). */
+    'NOT_REQUEUEABLE',
     /** Backpressure / flood-shed / resolve cap — a `503` + `Retry-After`, NEVER a per-user `429` (FR-046). */
     'FETCH_UNAVAILABLE',
     /** An unmapped server fault. The body carries no internal detail, by design. */
@@ -595,6 +597,22 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
                 .object({
                     id: z.string(),
                     /** The status that makes it non-resolvable (anything but `UNRESOLVED`). */
+                    status: foodStatusSchema,
+                })
+                .loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('NOT_REQUEUEABLE'),
+            message: z.string(),
+            details: z
+                .object({
+                    id: z.string(),
+                    /**
+                     * The status that makes the requeue inapplicable — the food's OBSERVED status, not the
+                     * rejected target, because the operator's next move depends on where the food actually is.
+                     */
                     status: foodStatusSchema,
                 })
                 .loose(),

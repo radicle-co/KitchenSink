@@ -31,6 +31,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AddFoodBodyDto } from '../../../foods/dto/foods.dto.js';
+import { IllegalStatusTransitionError } from '../../../foods/dao/dao.errors.js';
 import {
     CandidateMismatchError,
     FetchUnavailableError,
@@ -196,6 +197,27 @@ describe('ApiExceptionFilter (food)', () => {
             message: `Food '${VALID_ID}' is PENDING`,
             details: { id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 15 },
         });
+    });
+
+    /**
+     * ⛔ THE DELIBERATE NON-MAPPING. `IllegalStatusTransitionError` is a DAO invariant raised from several
+     * call sites whose HTTP meanings differ: U9's operator requeue turns it into a `409` at its own service
+     * boundary, while the same rejection from the merge/persist path behind `PATCH /{id}` is a server-side
+     * lifecycle bug. Giving it an arm HERE would answer that bug with `409 "use the refetch route"` — advice
+     * that is nonsense on a resolve route — and would demote its log line from `error` to `warn`, deleting it
+     * from the 5xx signal. This case is what makes adding that arm turn a suite red.
+     */
+    it('does NOT classify a DAO IllegalStatusTransitionError — it stays a 500, logged at error with a stack', () => {
+        const { host, captured } = makeHost();
+
+        filter.catch(new IllegalStatusTransitionError(VALID_ID, 'PENDING'), host);
+
+        expect(captured.status).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+        expect(captured.body).toEqual({ code: FoodErrorCode.INTERNAL_ERROR, message: 'Internal server error' });
+        // The DAO message names the rejected transition and never reaches a caller.
+        expect(JSON.stringify(captured.body)).not.toContain('Illegal status transition');
+        expect(records[0]?.level).toBe('error');
+        expect(records[0]?.context['stack']).toContain('IllegalStatusTransitionError');
     });
 
     it('collapses an unknown throwable to a generic 500 with no leaked detail', () => {

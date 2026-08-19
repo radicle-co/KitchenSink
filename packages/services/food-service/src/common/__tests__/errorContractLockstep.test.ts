@@ -218,6 +218,31 @@ describe('the food error contract, end to end through both halves', () => {
          * human-readable prose is not a discriminant", and it is why the message is safe to edit for clarity or
          * for a copy review.
          */
+        /**
+         * The THIRD 409, added with U9's operator requeue: a food that is not blackholed at all.
+         *
+         * The client has no requeue method — the route is admin-only and off its surface — but the code still
+         * has to cross this seam, because `errorForCode` is EXHAUSTIVE over the published union. A code the
+         * service publishes and the client cannot name is a `typecheck` failure there by construction; what
+         * this case adds is proof of what the client does with it once named, and that it did NOT land on
+         * `CandidateMismatchError` (the `409` a message-sniffing client would have guessed at).
+         */
+        it('NOT_REQUEUEABLE → a plain ConflictError carrying the message that names the refetch route', async () => {
+            const { wire, error } = await throughTheWire(
+                apiError(CODE.NOT_REQUEUEABLE, `Food '${FOOD_ID}' is RESOLVED — re-fetch it instead`, {
+                    id: FOOD_ID,
+                    status: 'RESOLVED',
+                }),
+                (client) => client.resolve(FOOD_ID, ['cand_1']),
+            );
+
+            expect(wire.status).toBe(HttpStatus.CONFLICT);
+            expect((wire.body as { code: string }).code).toBe(CODE.NOT_REQUEUEABLE);
+            expect(error).toBeInstanceOf(ConflictError);
+            expect(error).not.toBeInstanceOf(ClientCandidateMismatchError);
+            expect((error as Error).message).toContain('re-fetch it instead');
+        });
+
         it('survives a full rewording of both messages, in both directions', async () => {
             const mismatch = throughTheFilter(new CandidateMismatchError(FOOD_ID));
             const notResolvable = throughTheFilter(new NotResolvableError(FOOD_ID, 'RESOLVED'));
@@ -334,6 +359,7 @@ describe('the food error contract, end to end through both halves', () => {
             new FoodNotFoundError(FOOD_ID),
             new CandidateMismatchError(FOOD_ID),
             new NotResolvableError(FOOD_ID, 'PENDING'),
+            apiError(CODE.NOT_REQUEUEABLE, 'not blackholed', { id: FOOD_ID, status: 'RESOLVED' }),
             new FetchUnavailableError(30),
             new FoodPendingError(FOOD_ID, 'PENDING', 15),
             apiError(CODE.INVALID_ID, 'bad id'),

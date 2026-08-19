@@ -26,6 +26,7 @@ import { createUsdaSourceRegistry } from '../sources/usda/usdaRegistry.js';
 import { AdmissionService } from './admission.service.js';
 import { AdminMetricsDao } from './admin/adminMetrics.dao.js';
 import { AdminMetricsService } from './admin/adminMetrics.service.js';
+import { FoodRecoveryService } from './admin/foodRecovery.service.js';
 import { FoodsAdminController } from './admin/foodsAdmin.controller.js';
 import { CandidateStore, FetchQueueDao, FoodDao, FoodSourcesDao, SourceCallLogDao } from './dao/index.js';
 import { FoodSearchDao } from './dao/foodSearch.dao.js';
@@ -44,6 +45,7 @@ import { UserErasureService } from './userErasure.service.js';
         EnqueueEmitter,
         AdmissionService,
         AdminMetricsService,
+        FoodRecoveryService,
         UserErasureService,
         FoodAuthGuard,
         // CR-002 / U4b / R11 — the internal service-principal erasure route's verifier + guard. The guard
@@ -57,7 +59,7 @@ import { UserErasureService } from './userErasure.service.js';
             useFactory: (db: FoodDrizzle): AdminMetricsDao => new AdminMetricsDao(db),
         },
         { provide: FoodDao, inject: [DrizzleProvider], useFactory: (db: FoodDrizzle): FoodDao => new FoodDao(db) },
-        // ⛔ NOT optional, and its absence did not fail a unit test: `AdminMetricsService` takes this in its
+        // ⛔ NOT optional, and its absence did not fail a unit test: `FoodRecoveryService` takes this in its
         // constructor (U9), so without the provider Nest cannot instantiate the module AT ALL — the API
         // process aborts at boot. It went unnoticed because the unit tests construct that service directly,
         // and because Nest reports a DI failure through `process.abort()`, which vitest surfaces only as

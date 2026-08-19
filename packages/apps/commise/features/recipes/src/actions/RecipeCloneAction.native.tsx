@@ -3,7 +3,8 @@
  *
  * The React Native leaf of `RecipeCloneAction` — same controlled
  * contract: a clone button disabled when cloning is not allowed (`!canClone`) or in flight (`cloning`) and
- * marked busy while cloning, plus a source-attribution line rendered only when `sourceAttribution` is set.
+ * marked busy while cloning. The source-attribution line MOVED to `detail/RecipeSourceLine.native` — see
+ * the web leaf's module doc for why rendering provenance from a clone control was the wrong home.
  *
  * ## Why this IS the design-system `Button` now
  *
@@ -37,24 +38,15 @@ import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
 import { CloneIcon } from './icons.js';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeCloneActionProps } from './model.js';
 
-export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
-    canClone,
-    sourceAttribution,
-    cloning = false,
-    onClone,
-}) => {
+export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({ canClone, cloning = false, onClone }) => {
     const { clone } = useMessages(recipeActionMessages);
 
     return (
         <View style={styles.wrap}>
-            {sourceAttribution !== undefined && sourceAttribution.length > 0 && (
-                <Text style={styles.attribution}>{fillTemplate(clone.attribution, { source: sourceAttribution })}</Text>
-            )}
             {/* `busy` supplies the in-place `ActivityIndicator`, the disabled in-flight guard (so the clone
                 cannot be double-fired), and the `accessibilityState.busy` announcement VoiceOver/TalkBack read. */}
             <Button variant="secondary" icon={<CloneIcon />} disabled={!canClone} busy={cloning} onPress={onClone}>

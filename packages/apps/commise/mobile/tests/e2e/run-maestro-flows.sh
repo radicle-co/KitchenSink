@@ -58,6 +58,9 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     the shared entry path is still proven on every run, whatever vertical was selected. (It absorbed
 #     `auth/welcome-flow`, deleted with the welcome screen itself by owner decision on 2026-07-28.)
 #   - `home` next, then the recipe stories.
+#   - `recipes/serving-scale` sits next to `list-detail`: same populated seed, and read-only in the strongest
+#     sense — the serving scale it drives is session-only display state that never reaches the service, so it
+#     cannot perturb any later flow's fixture.
 #   - `recipes/deferred-calories` sits next to `list-detail`: same populated seed, read-only, and it crosses
 #     into Discover at the end, so it wants the same settled library. It is in the `recipes` vertical rather
 #     than `discovery` because its subject is the CARD's deferred figure, which every card surface shares.
@@ -102,6 +105,7 @@ FLOW_PLAN="spine:auth/login-flow
 home:home
 recipes:recipes/rating
 recipes:recipes/list-detail
+recipes:recipes/serving-scale
 recipes:recipes/deferred-calories
 recipes:recipes/empty-library
 recipes:recipes/search-navigation

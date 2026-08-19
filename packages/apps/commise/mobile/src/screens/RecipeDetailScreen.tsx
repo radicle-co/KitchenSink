@@ -202,9 +202,6 @@ export function RecipeDetailScreen({
                     viewerCanClone && (
                         <RecipeCloneAction
                             canClone={viewerCanClone}
-                            {...(recipe.sourceAttribution === undefined
-                                ? {}
-                                : { sourceAttribution: recipe.sourceAttribution })}
                             cloning={cloneRecipe.isPending}
                             onClone={() =>
                                 cloneRecipe.mutate(recipeId, { onSuccess: (created) => onCloned?.(created.id) })

@@ -1,10 +1,13 @@
 /**
  * @module @commise/features-recipes — web recipe clone action (T075 building block).
  *
- * Controlled, presentational clone button plus optional source-attribution line. The button is disabled when
- * cloning is not allowed (`!canClone`) or a clone is in flight (`cloning`), and marked busy while cloning so
- * it cannot be double-submitted. The attribution line renders only when `sourceAttribution` is present. It
- * performs NO mutation — the composing app wires the clone mutation to `onClone`.
+ * Controlled, presentational clone button. It is disabled when cloning is not allowed (`!canClone`) or a
+ * clone is in flight (`cloning`), and marked busy while cloning so it cannot be double-submitted. It performs
+ * NO mutation — the composing app wires the clone mutation to `onClone`.
+ *
+ * The source-attribution line that used to live here MOVED to `detail/RecipeSourceLine`: rendering it from a
+ * clone control meant provenance reached only viewers who could clone, so an imported recipe's own owner
+ * could never see where it came from.
  *
  * ## Why this is the design-system `Button` (and why it used to hand-roll a coral pill)
  *
@@ -37,28 +40,17 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../list/model.js';
 import { CloneIcon } from './icons.js';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeCloneActionProps } from './model.js';
 
-export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
-    canClone,
-    sourceAttribution,
-    cloning = false,
-    onClone,
-}) => {
+export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({ canClone, cloning = false, onClone }) => {
     const { clone } = useMessages(recipeActionMessages);
 
     return (
         // `items-start` keeps the pill hugging its label — the DS Button is `inline-flex`, so a stretching
         // column would blow it out to the full footer width (the job the old `self-start` utility did).
         <div className="flex flex-col items-start gap-2">
-            {sourceAttribution !== undefined && sourceAttribution.length > 0 && (
-                <p className="text-body-sm text-slate">
-                    {fillTemplate(clone.attribution, { source: sourceAttribution })}
-                </p>
-            )}
             {/* `busy` supplies the in-place spinner, the disabled in-flight guard, and `aria-busy`. */}
             <Button variant="secondary" icon={<CloneIcon />} onPress={onClone} disabled={!canClone} busy={cloning}>
                 {clone.clone}

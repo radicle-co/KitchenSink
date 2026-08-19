@@ -101,8 +101,24 @@ export type {
     RecipeListViewProps,
     RecipeSourceTabsProps,
 } from './list/index.js';
-export { RecipeDetailView, formatQuantity, useCookingProgress } from './detail/index.js';
-export type { CookingProgressBinding, RecipeDetailViewProps } from './detail/index.js';
+export {
+    RecipeDetailView,
+    RecipeSourceLine,
+    ServingScaleControl,
+    formatQuantity,
+    resetServingScale,
+    useCookingProgress,
+    useServingScale,
+} from './detail/index.js';
+export type {
+    CookingProgressBinding,
+    RecipeDetailBodyProps,
+    RecipeDetailViewProps,
+    RecipeSourceLineNativeProps,
+    RecipeSourceLineProps,
+    ServingScaleBinding,
+    ServingScaleControlProps,
+} from './detail/index.js';
 export {
     RecipeRatingDisplay,
     RecipeRatingInput,

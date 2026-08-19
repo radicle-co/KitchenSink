@@ -118,6 +118,21 @@ export interface RecipeDetailMessages {
     readonly visibilityPrivate: string;
     /** Accessible name for the badges footer region. */
     readonly badgesLabel: string;
+    /** Label for the recipe-source (provenance) region — where an imported recipe came from. */
+    readonly sourceHeading: string;
+    /** Accessible name for the serving-count input/readout of the scaling control. */
+    readonly servingsAdjustLabel: string;
+    /** Accessible name for the "one fewer serving" control. */
+    readonly servingsDecrease: string;
+    /** Accessible name for the "one more serving" control. */
+    readonly servingsIncrease: string;
+    /** Notice shown while the view is scaled away from the recipe's own yield (contains `{original}`). */
+    readonly scaledNotice: string;
+    /**
+     * The SAFETY disclosure that rides with {@link scaledNotice}: cook times and step timers are shown
+     * unscaled, because thermal cooking time is not proportional to batch size.
+     */
+    readonly scaledTimingCaveat: string;
 }
 
 /**
@@ -247,6 +262,13 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             badgesLabel: 'Recipe status',
+            sourceHeading: 'Source',
+            servingsAdjustLabel: 'Servings',
+            servingsDecrease: 'Fewer servings',
+            servingsIncrease: 'More servings',
+            scaledNotice: 'Adjusted from {original} servings — ingredient amounts and prep time are scaled.',
+            scaledTimingCaveat:
+                'Cook times and step timers are shown unchanged: cooking time does not scale with batch size. Check for doneness.',
         },
         card: {
             proBadge: 'PRO',

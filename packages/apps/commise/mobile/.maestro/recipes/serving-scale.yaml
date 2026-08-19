@@ -1,0 +1,77 @@
+appId: io.commise.mobile
+---
+# Configurable serving size on the recipe detail (mobile mirror of the web Playwright
+# `recipeSourceAndScale.spec.ts` — cross-platform mandate, CLAUDE.md §14).
+#
+# Runs against the seeded recipe API (EXPO_PUBLIC_RECIPE_API_URL) with an authenticated session. The anchor
+# is the seed's "Asparagus with Green Sauce": 2 servings, 10 min prep, 10 min cook, 20 min total
+# (`packages/services/recipe-service/src/database/seed.ts`).
+#
+# ⚠️ WHY THIS SEED AND NOT THE LAMB. Every number below has to stay distinguishable after scaling, or the
+# flow cannot tell a correct render from a broken one. The lamb (15 prep / 30 cook) is useless here: doubled,
+# its prep becomes 30 — the same string as its unchanged cook time — so "cook time was wrongly scaled" and
+# "prep was correctly scaled" would look identical to Maestro. Doubling the asparagus gives 20 prep /
+# 10 cook / 30 total, all distinct.
+#
+# ⚠️ The seed recipes carry NO ingredient lines, so this flow asserts the TIMINGS and the disclosure rather
+# than scaled quantities; the quantity half is covered at the component tier and, on a populated recipe, by
+# the web Playwright suite.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 40000
+
+- scrollUntilVisible:
+      element: 'Asparagus with Green Sauce'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Asparagus with Green Sauce'
+- assertVisible: 'Ingredients'
+
+# Gap A, negative case: this seed recipe was user-created and has no source, so the provenance line must
+# render NOTHING — not an empty "Source" row. (The positive case needs an imported recipe, which the seed
+# does not contain; it is covered at the component tier and by the web Playwright suite.)
+- assertNotVisible: 'Source'
+
+# DEFAULT: the detail opens at the serving count the recipe was CREATED with (2), presenting nothing as
+# adjusted. Asserted as a PAIR — the absent notice is what distinguishes "opened at the default" from
+# "happens to show 2 after something scaled it".
+- assertVisible: 'Serves'
+- assertVisible:
+      text: '^2$'
+- assertNotVisible: 'Adjusted from 2 servings'
+- assertVisible: '20 min'
+
+# Scale UP by two taps: 2 -> 4 servings.
+- repeat:
+      times: 2
+      commands:
+          - tapOn: 'More servings'
+
+- assertVisible:
+      text: '^4$'
+- assertVisible: 'Adjusted from 2 servings'
+# Hands-on prep DOUBLES (10 -> 20) and the total moves by exactly that delta (20 -> 30).
+- assertVisible: '30 min'
+# ⛔ THE LOAD-BEARING ASSERTION: cook time is STILL 10 minutes. A "scale every timing" implementation renders
+# 20 in the Cook cell, this string vanishes, and the flow goes red — which is the point, because telling a
+# cook to cook a double batch for twice as long is a food-safety error, not a display preference.
+- assertVisible: '10 min'
+- assertVisible: 'Cook times and step timers are shown unchanged: cooking time does not scale with batch size. Check for doneness.'
+
+# Scale back DOWN to the author's yield: the disclosure disappears and the stored total returns.
+- repeat:
+      times: 2
+      commands:
+          - tapOn: 'Fewer servings'
+
+- assertVisible:
+      text: '^2$'
+- assertNotVisible: 'Adjusted from 2 servings'
+- assertVisible: '20 min'
+
+- tapOn: 'Back'
+- assertVisible: 'Recipes'

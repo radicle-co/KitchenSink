@@ -71,3 +71,60 @@ export interface RecipeDetailViewProps {
      */
     readonly footerActions?: ReactNode;
 }
+
+/**
+ * Props for the PURE detail body — the whole `RecipeDetailView` contract plus the serving scale it renders
+ * at. Split out so the body stays `props → JSX` while `RecipeDetailView` itself is a thin orchestration
+ * shell that binds the session serving-scale store and computes the scaled projection.
+ *
+ * The scale is deliberately NOT on {@link RecipeDetailViewProps}: it is not something an app can forget to
+ * wire, because there is nothing for an app to wire. That is the structural answer to the failure this
+ * feature was added to fix — a capability that reaches the screen only if a container remembers to pass it.
+ */
+export interface RecipeDetailBodyProps extends RecipeDetailViewProps {
+    /** The serving count the body renders at (already clamped to the recipe's supported `servingsRange`). */
+    readonly servings: number;
+    /** Report a newly chosen serving count back to the shell. */
+    readonly onServingsChange: (servings: number) => void;
+}
+
+/**
+ * Props for the recipe-source (provenance) line, shared by the web (`RecipeSourceLine.tsx`) and native
+ * (`RecipeSourceLine.native.tsx`) leaves so the two cannot drift on the contract (§14.4).
+ *
+ * Both fields are UNTRUSTED and both are optional; every combination renders something defensible, and the
+ * all-absent case renders nothing at all. A `sourceUrl` becomes a link only if it survives `safeHttpUrl`.
+ */
+export interface RecipeSourceLineProps {
+    /** The recipe's original URL, as stored. Untrusted — gated by `safeHttpUrl` before it is ever linked. */
+    readonly sourceUrl?: string;
+    /** The author-stated provenance ("Serious Eats", "Grandma's cookbook"). */
+    readonly sourceAttribution?: string;
+}
+
+/**
+ * The NATIVE source line's props: the shared contract plus the injected "open a URL" adapter.
+ *
+ * React Native has no declarative link, so leaving the app is a platform CALL. Injecting it (defaulting to
+ * `openExternalUrl`) keeps the leaf a pure `props → JSX` render and gives tests a seam that a double
+ * actually crosses. The web leaf needs no equivalent — `<a href>` already is the browser's link adapter.
+ */
+export interface RecipeSourceLineNativeProps extends RecipeSourceLineProps {
+    /** Open a VERIFIED href. Defaults to the `Linking.openURL` adapter. */
+    readonly onOpen?: (href: string) => void;
+}
+
+/**
+ * Props for the serving-count control, shared by the web and native leaves (§14.4).
+ *
+ * Controlled by construction: it owns no state and derives its own bounds from `baseServings` via
+ * `servingsRange`, so it cannot offer a serving count the domain would refuse.
+ */
+export interface ServingScaleControlProps {
+    /** The serving count currently displayed. */
+    readonly servings: number;
+    /** The recipe's authored serving count — the default, and what defines the selectable range. */
+    readonly baseServings: number;
+    /** Report a newly chosen serving count. Absent → the control renders inert rather than disappearing. */
+    readonly onServingsChange?: (servings: number) => void;
+}

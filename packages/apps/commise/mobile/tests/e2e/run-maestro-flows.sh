@@ -300,12 +300,29 @@ maestro_reset_driver() {
 # @sideEffect Reads socket and process tables from the device.
 maestro_dump_port_owner() {
     echo "--- who holds device port ${MAESTRO_DRIVER_PORT} ---"
-    # `ss` is absent from some system images; `/proc/net/tcp*` always exists (hex ports, but it still shows
-    # the connection STATE, which is the part that matters).
-    adb shell ss -tanp 2>/dev/null | grep -F ":${MAESTRO_DRIVER_PORT}" \
-        || adb shell netstat -tlnp 2>/dev/null | grep -F ":${MAESTRO_DRIVER_PORT}" \
-        || adb shell cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | tail -40 \
-        || echo "(no socket table available)"
+    # ⛔ "the tool is missing" and "the port is not held" are DIFFERENT answers and must not share a branch.
+    # A `cmd | grep port || fallback` chain conflates them: a free port makes grep exit non-zero and silently
+    # demotes you to the next tool, so the log ends up showing a raw hex dump that reads like `ss` failed.
+    # Observed on a real API-34 image, which is why this is written out longhand.
+    local table
+    table="$(adb shell ss -tan 2>/dev/null || true)"
+
+    if [ -z "${table//[[:space:]]/}" ]; then
+        # `ss` is absent from some images. `/proc/net/tcp*` always exists — ports are HEX there, so name the
+        # value we are looking for rather than making the reader convert it.
+        printf '(ss unavailable — raw /proc/net/tcp; port %s is %04X in hex)\n' \
+            "$MAESTRO_DRIVER_PORT" "$MAESTRO_DRIVER_PORT"
+        adb shell cat /proc/net/tcp /proc/net/tcp6 2>/dev/null || echo "(no socket table available)"
+    elif printf '%s\n' "$table" | grep -F ":${MAESTRO_DRIVER_PORT}"; then
+        # Matched lines are printed by the grep above. `State` distinguishes a LISTENing server from
+        # TIME_WAIT residue — the exact ambiguity that left the 35579 investigation unresolved.
+        echo "(above: sockets on ${MAESTRO_DRIVER_PORT} — check State for LISTEN vs TIME_WAIT)"
+    else
+        # A real answer, not a failure: whatever held it has already gone. Say so, and show the full table so
+        # the next reader can see what the device DID have open.
+        echo "(nothing holds ${MAESTRO_DRIVER_PORT} now — the occupant released it before this ran)"
+        printf '%s\n' "$table" | head -30
+    fi
     echo "--- surviving maestro processes/packages ---"
     adb shell ps -A 2>/dev/null | grep -i maestro || echo "(none)"
     adb shell pm list packages 2>/dev/null | grep -i maestro || echo "(none installed)"

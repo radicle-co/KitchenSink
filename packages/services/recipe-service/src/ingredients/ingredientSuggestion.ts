@@ -74,9 +74,13 @@ export interface BlendSuggestionsInput {
  * rows BEFORE the per-section cap — so a row squeezed out by the cap is dropped outright rather than
  * reappearing lower down under a different provenance. Bounded, never duplicated.
  *
- * A freeform (no `food_id`) row that merely shares a NAME with a catalog hit is deliberately NOT deduped:
- * they are different things (the user's own nutrition-less row vs the golden record), the provenance
- * sections/badges distinguish them, and fuzzy-name reconciliation is a later refinement, not Stage 2.
+ * ⛔ A freeform (no `food_id`) row that shares a NAME with a food-backed alternative IS suppressed (owner
+ * ruling, 2026-08-19). This paragraph previously said the opposite — that the two are different things which
+ * provenance badges distinguish, and that name reconciliation was a later refinement. Measurement overruled
+ * it: importing 338 recipes through the app's own path produced 268 lines with no food record, ALL of them
+ * pre-existing freeform rows shadowing a catalog-backed twin, permanently. Matching is exact on a normalized
+ * name (case/whitespace only) — never stemming or synonyms, because a false positive silently removes a
+ * choice the reader legitimately made.
  *
  * **Ordering.** `[local text hits (as given)] → [promoted rows, by catalog score] → [catalog hits (as given)]`.
  * Promoted rows sort by their food's catalog score because that is the only relevance signal they have — the
@@ -153,17 +157,48 @@ export function blendIngredientSuggestions(input: BlendSuggestionsInput): Ingred
     //
     // A catalog-BACKED local row is untouched: it already links the food, and picking it needs no
     // `by-food` admission round-trip, so it remains the better option and keeps suppressing the hit.
-    const renderedCatalogNames = new Set(
-        catalogSection.flatMap((suggestion) =>
+    // The names for which a FOOD-BACKED alternative exists — the thing that makes a freeform row redundant.
+    //
+    // ⛔ IT MUST INCLUDE FOOD-BACKED *FAMILIAR* ROWS, NOT ONLY CATALOG HITS. Reading the catalog section
+    // alone made this fix DEFEAT ITSELF: `linkedFoodIds` deliberately drops a hit whose food already has a
+    // local row, so the first caller to benefit admitted that row, the hit vanished from the catalog
+    // section, its name left this set — and the freeform row shadowed everything from then on, permanently.
+    // Caught live in a 448-recipe run three seconds apart: `Honey` resolved for one recipe and went freeform
+    // for the next.
+    const familiar = [...local, ...promotedOrdered];
+    const foodBackedNames = new Set([
+        ...familiar.flatMap((ingredient) =>
+            ingredient.foodId === undefined ? [] : [normalizeSuggestionName(ingredient.name)],
+        ),
+        ...catalogSection.flatMap((suggestion) =>
             suggestion.provenance === 'catalog' ? [normalizeSuggestionName(suggestion.name)] : [],
         ),
+    ]);
+
+    const kept = familiar.filter(
+        (ingredient) =>
+            ingredient.foodId !== undefined || !foodBackedNames.has(normalizeSuggestionName(ingredient.name)),
     );
 
-    const localSection: IngredientSuggestion[] = [...local, ...promotedOrdered]
-        .filter(
-            (ingredient) =>
-                ingredient.foodId !== undefined || !renderedCatalogNames.has(normalizeSuggestionName(ingredient.name)),
-        )
+    // ⛔ REPAIR PASS — never leave the reader with NEITHER row. Suppression is only justified while the
+    // replacement is actually on screen, and both sections are capped by `limit`. A freeform row whose
+    // food-backed twin sits beyond the cap (and whose catalog hit was filtered out as already-linked) would
+    // otherwise vanish with nothing in its place, which is strictly worse than the shadowing being fixed.
+    const visible = new Set([
+        ...kept
+            .slice(0, limit)
+            .flatMap((ingredient) =>
+                ingredient.foodId === undefined ? [] : [normalizeSuggestionName(ingredient.name)],
+            ),
+        ...catalogSection.flatMap((suggestion) =>
+            suggestion.provenance === 'catalog' ? [normalizeSuggestionName(suggestion.name)] : [],
+        ),
+    ]);
+    const rescued = familiar.filter(
+        (ingredient) => ingredient.foodId === undefined && !visible.has(normalizeSuggestionName(ingredient.name)),
+    );
+
+    const localSection: IngredientSuggestion[] = (rescued.length === 0 ? kept : familiar)
         .slice(0, limit)
         .map((ingredient) => ({ provenance: 'local', ingredient }));
 

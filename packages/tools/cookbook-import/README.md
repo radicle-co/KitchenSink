@@ -41,10 +41,19 @@ Registered books (`--book`), all verified public domain by reading their own hea
 | `international-jewish` | #12350 | _The International Jewish Cook Book_ — Florence Kreisler Greenbaum |
 | `jewish-manual`        | #12327 | _The Jewish Manual_ — Lady Judith Cohen Montefiore                 |
 | `golden-rule`          | #55555 | _The Golden Rule Cook Book_ — M. R. L. Sharpe                      |
+| `mrs-wilson`           | #17438 | _Mrs. Wilson's Cook Book_ — Mary A. Wilson                         |
+| `sunday-dinners`       | #31534 | _Fifty-Two Sunday Dinners_ — Elizabeth O. Hiller                   |
 
 The registry lives in [`src/cookbooks.ts`](./src/cookbooks.ts), and `assertPublicDomain` re-checks the
 licence header against the **actual bytes** on every run — a copyrighted Gutenberg ebook must never be
 published as `imported_public` under a user-visible attribution line.
+
+⛔ **A public-domain header is the floor for membership, not the bar.** `segmentCookbook` recognises a
+heading only as a lone ALL-CAPS line, so a book that sets its titles in Title Case collapses whole
+chapters into ONE block — which then imports as a single "recipe" carrying dozens of ingredients from a
+dozen different dishes, and passes every skip rule on the way. The tell is **ingredient lines per accepted
+candidate**: a registered book sits at 3.5–6.5, an unsegmentable one at 20–180. `src/cookbooks.ts` records
+which Gutenberg texts were rejected on that measure and which on sampled output quality.
 
 ## Step 2 — mint a curator credential
 

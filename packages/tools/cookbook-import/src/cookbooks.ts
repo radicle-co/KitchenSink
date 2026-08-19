@@ -73,15 +73,36 @@ function cookbook(ebookId: number, title: string, author: string): Cookbook {
 /**
  * The registered corpus, keyed by the `--book` argument.
  *
- * All three are ALL-CAPS-heading, prose-bodied domestic cookery — the shape this tool's adapter reads.
- * They differ in the two ways that matter, deliberately, so the parser is exercised rather than tuned to
- * one book: #12327 prints a trailing period on its headings, and #55555 writes quantities as NUMERALS
- * where the other two spell them out.
+ * Every entry is ALL-CAPS-heading, prose-bodied domestic cookery — the shape this tool's adapter reads.
+ * They differ in the ways that matter, deliberately, so the parser is exercised rather than tuned to one
+ * book: #12327 prints a trailing period on its headings, and #55555 and #31534 write quantities as
+ * NUMERALS where the others spell them out.
+ *
+ * ## ⛔ MEMBERSHIP IS A QUALITY DECISION, NOT A LICENCE ONE — and most public-domain cookbooks FAIL it
+ *
+ * The public-domain header ({@link assertPublicDomain}) is the floor, not the bar. A book also has to
+ * SEGMENT: `segmentCookbook` recognises a heading only as a
+ * lone ALL-CAPS line, so a book that sets its recipe titles in Title Case, or runs them into the first
+ * sentence, collapses whole chapters into ONE block — which then presents as a single "recipe" with
+ * dozens of ingredients drawn from a dozen different dishes. That is not a parse failure the skip rules
+ * catch (the mega-block has plenty of ingredients, steps and a stated duration), so it would be imported,
+ * and it would be garbage.
+ *
+ * Measured over the 27 Gutenberg texts held locally on 2026-08-19, the tell is INGREDIENT LINES PER
+ * ACCEPTED CANDIDATE. A registered book sits at 3.5–6.5; a book whose headings this adapter cannot see
+ * sits at 20–180. Rejected on exactly that evidence, and NOT to be added without first teaching the
+ * adapter their heading shape: #22790 (32), #26323 (16), #29728 (no candidates at all), #36689 (181),
+ * #60598 (30), #65379 (108), #68983 (29), #71395 (33), #9101 (67). Rejected on sampled OUTPUT quality
+ * despite an acceptable ratio: #10136 (Beeton — the `INGREDIENTS.--…` block is read as prose, yielding
+ * lines like `4 lb or`), #13545 (narrative interleaved with recipes: `44 in large refrigerator`,
+ * `7 quart [Illustration`) and #24407 (ingredients bleed across adjacent recipes).
  */
 export const COOKBOOKS: Readonly<Record<string, Cookbook>> = Object.freeze({
     'international-jewish': cookbook(12350, 'The International Jewish Cook Book', 'Florence Kreisler Greenbaum'),
     'jewish-manual': cookbook(12327, 'The Jewish Manual', 'Lady Judith Cohen Montefiore'),
     'golden-rule': cookbook(55555, 'The Golden Rule Cook Book', 'M. R. L. Sharpe'),
+    'mrs-wilson': cookbook(17438, "Mrs. Wilson's Cook Book", 'Mary A. Wilson'),
+    'sunday-dinners': cookbook(31534, 'Fifty-Two Sunday Dinners', 'Elizabeth O. Hiller'),
 });
 
 /** The `--book` keys this tool accepts. */

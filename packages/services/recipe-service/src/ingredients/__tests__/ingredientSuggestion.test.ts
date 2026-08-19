@@ -186,8 +186,15 @@ describe('blendIngredientSuggestions', () => {
         });
 
         it('counts promoted rows against the local cap', () => {
-            const local = [makeIngredient({ id: 'ing-1' }), makeIngredient({ id: 'ing-2' })];
-            const promoted = [makeIngredient({ id: 'ing-9', foodId: 'food-1' })];
+            // ⚠️ DISTINCT NAMES ON PURPOSE. `makeIngredient` defaults every row to 'All-purpose flour', so
+            // leaving them shared would make this CAP test incidentally exercise the catalog-beats-freeform
+            // rule instead — the promoted row would suppress both freeform rows and the assertion below
+            // would be measuring the wrong thing. That rule has its own tests; this one is about the cap.
+            const local = [
+                makeIngredient({ id: 'ing-1', name: 'Rye flour' }),
+                makeIngredient({ id: 'ing-2', name: 'Spelt flour' }),
+            ];
+            const promoted = [makeIngredient({ id: 'ing-9', name: 'Oat flour', foodId: 'food-1' })];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1' })];
 
             const blended = blendIngredientSuggestions({ local, promoted, catalogHits, limit: 2 });
@@ -288,6 +295,46 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
         });
 
         expect(result.filter((s) => s.provenance === 'local')).toHaveLength(1);
+    });
+
+    it('⛔ KEEPS SUPPRESSING once the food has a local row — the fix must not defeat itself', () => {
+        // The bug my first attempt shipped. `linkedFoodIds` deliberately drops a catalog hit whose food
+        // already has a local row, so reading the CATALOG SECTION alone meant the first caller to benefit
+        // admitted that row, the hit vanished, its name left the suppression set, and the freeform row
+        // shadowed everything afterwards — permanently. Observed live three seconds apart in a 448-recipe
+        // run: `Honey` resolved for one recipe and went freeform for the next.
+        const result = blendIngredientSuggestions({
+            local: [
+                makeIngredient({ id: 'ing-freeform', name: 'Honey', foodId: undefined }),
+                makeIngredient({ id: 'ing-linked', name: 'Honey', foodId: 'food-honey' }),
+            ],
+            promoted: [],
+            // Filtered out of the catalog section by `linkedFoodIds` — exactly the condition that broke it.
+            catalogHits: [{ foodId: 'food-honey', name: 'Honey', score: 9 }],
+            limit: 10,
+        });
+
+        expect(result.map((s) => (s.provenance === 'local' ? s.ingredient.id : s.foodId))).toStrictEqual([
+            'ing-linked',
+        ]);
+    });
+
+    it('⛔ rescues the freeform row when its food-backed twin is beyond the cap', () => {
+        // The other half of the guard: suppression is only justified while the replacement is ON SCREEN.
+        // Here the twin sits past `limit` and its catalog hit is filtered out as already-linked, so
+        // suppressing would leave the reader with NEITHER — worse than the shadowing being fixed.
+        const result = blendIngredientSuggestions({
+            local: [
+                makeIngredient({ id: 'ing-a', name: 'Alpha', foodId: 'food-a' }),
+                makeIngredient({ id: 'ing-freeform', name: 'Honey', foodId: undefined }),
+                makeIngredient({ id: 'ing-linked', name: 'Honey', foodId: 'food-honey' }),
+            ],
+            promoted: [],
+            catalogHits: [{ foodId: 'food-honey', name: 'Honey', score: 9 }],
+            limit: 2,
+        });
+
+        expect(result.some((s) => s.provenance === 'local' && s.ingredient.name === 'Honey')).toBe(true);
     });
 
     it('⛔ keeps the freeform row when the colliding hit is CAPPED AWAY — never leave the user with neither', () => {

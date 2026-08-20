@@ -11,6 +11,12 @@ branch: chore/code-quality-enforcement-phase-1-2
 
 # fix: ingredient resolution quality
 
+> ⛔ **SUPERSEDED (2026-08-20) by `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`.**
+> Kept for its measurements and rejected alternatives. Do not implement from it: U1's formula was measured
+> at 4 regressions and 0 fixes on multi-word queries, U3's "change nothing structural" was based on a
+> statistic the import itself manufactured, and the plan misses the client-side rankers, the
+> `additionalDescriptions` alias table, and the cross-service deploy ordering.
+
 ## Summary
 
 Importing 448 public-domain recipes **through the app's own resolution path** — plain text in, no

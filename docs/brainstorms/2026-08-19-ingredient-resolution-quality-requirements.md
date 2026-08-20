@@ -513,14 +513,12 @@ AE26. **Covers R13.** A search-ahead request returns without waiting on a knowle
 
 ## Outstanding questions
 
-**Resolve before planning**
+**Resolved by owner ruling, 2026-08-20**
 
-1. Does a curated mapping go global on first write, or stay scoped to its author until a second
-   independent correction corroborates it? R19 assumes the former; the alternative bounds the blast radius
-   of one wrong click.
-2. What lexical-only resolution rate, measured after R1–R10 and R25–R28 land, makes building the
-   knowledge-base and LLM tiers worthwhile — and who decides if the measured rate lands above it?
-3. What absolute multi-word precision@1 floor does the success criterion name?
+1. A curated mapping is **grant-gated global**: a held grant writes globally on first correction; every
+   other correction stays author-scoped until a second independent user corroborates it.
+2. The **whole cascade is committed scope**. Measurement sizes the work rather than deciding it.
+3. The absolute multi-word precision@1 floor is **0.85**.
 
 **Deferred to planning**
 

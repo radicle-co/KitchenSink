@@ -38,9 +38,15 @@ beats the name that _is_ the token.
 ⚠️ **The measurement instrument and the product do not share a ranker.** Five ranking sites exist, not two.
 `rankIngredientSuggestions` and `rankIngredientResults` re-sort the server's output client-side
 (PREFIX > SUBSTRING > FUZZY), and the importer bypasses them entirely by reading `suggestions[0]` off the
-API. `Flour` is a PREFIX match and `Carob flour` is a SUBSTRING match, so **the picker already resolves
-`flour` correctly today** while the importer does not. The server defect is real; the severity measured
-from the import overstates what users currently experience.
+API. The mechanism is a **tiebreak, not a score inversion**: `word_similarity('flour', 'Carob flour')` and
+`word_similarity('flour', 'Flour')` both return 1.0, and `name ASC` breaks the tie alphabetically. Both rows
+therefore sit inside the server's page, the client re-sort sees both, and PREFIX beats SUBSTRING — so the
+picker likely resolves `flour` correctly today while the importer does not.
+
+⚠️ "Likely" is doing work in that sentence. The server truncates at `DEFAULT_SEARCH_LIMIT = 10` before the
+client sorts anything, so the client re-sort can only reorder a page the broken sort key already selected.
+U1 measures whether the true match survives that page rather than leaving this reasoned. The server defect
+is real either way; what is unmeasured is how much of it users currently see.
 
 **The local ingredient table decides most lines, and pollutes itself.** 92.8% of imported lines were
 decided locally before the food catalog was consulted. ⚠️ That figure bounds the OLD behaviour: the run
@@ -103,8 +109,12 @@ queries, precision 26→22, because `word_similarity` does not penalise extra wo
 that penalty. One structure, two base metrics: the catalog keeps `similarity`, the local table keeps
 `word_similarity` (which the `flor` → `All-purpose flour` case needs at exactly 0.600).
 
-⚠️ `foodSearch.dao.test.ts` pins the current sort-key SQL **byte for byte**. Per CLAUDE.md, that test is
-rewritten to prove the new behaviour with the reason stated in its doc comment — never edited to compile.
+⚠️ `foodSearch.dao.test.ts` does **not** pin the sort key. It asserts branch substrings (`'similarity('`,
+`'plainto_tsquery'`, `'name %'`, `'ILIKE'`) and the `ORDER BY score DESC, name ASC` clause, never the
+`GREATEST(...)` expression, and it deliberately does not pin placeholder numbering. **A tiered sort key
+passes it unchanged.** That is worse than a failing test: nothing forces the rewrite, and a stale suite
+stays green while counting as coverage for behaviour it no longer describes. The replacement must assert
+the tier expression itself.
 
 ### KTD-2 — USDA already ships the alias table we were about to rebuild
 
@@ -123,16 +133,42 @@ candidates that agree within 10% on nutrients. Everything else verifies.
 ⚠️ Abstain on **margin, not score**. A lone high-scoring candidate measured 50% accurate against 71% when
 several were offered — a candidate with nothing behind it is a warning sign, not a confirmation.
 
+⛔ **Each skip condition needs a guard, or it inverts its own intent.**
+
+- **Wide tier-2 margin** requires **at least two scored candidates**. A singleton shortlist has no runner-up,
+  so a naive `top − next` reads as maximal confidence and routes straight to publish — precisely the case
+  the paragraph above calls least trustworthy. A shortlist of one always verifies, whatever it scored.
+- **Exact tier-1 hit** skips the **food-identity check only**. A curated mapping is keyed on a normalized
+  phrase and can establish nothing about quantity. The parser defects this plan exists to fix are quantity
+  defects and they land on tier-1 lines too, so quantity, unit and range are still verified.
+- **Nutrient equivalence** is computed over energy plus the macronutrients per 100 g, and also requires two
+  or more candidates. It measures inter-candidate _agreement_, which is not correctness: the 334 lines that
+  collapsed onto three attractors were sets that agreed with each other and were all wrong. It therefore
+  applies only when the winning candidate also cleared the margin test.
+
 ### KTD-4 — Bedrock + Amazon Nova Micro
 
 Chosen on measured correctness and cost. Nova Micro scores **5.5%** on Vectara's grounded-hallucination
 benchmark (exact SKU match) against Claude Haiku 4.5's 9.8% and GPT-5-Nano's 10.5%, at **$0.27/month** for
-our volume versus Haiku's $8.48. Bedrock adds no vendor relationship and no secret — IAM from Fargate —
-and AWS's no-training commitment applies uniformly across models.
+our volume versus Haiku's $8.48. Bedrock adds no vendor relationship and no secret — IAM via the **recipe-workers Lambda execution role**,
+not Fargate — and AWS's no-training commitment applies uniformly across models.
+
+⚠️ **The benchmark is a coarse screen, not the decision.** Vectara's HHEM measures _summarization_
+grounding, not parse verification, and KTD-5 holds that cross-model spread on verification is small — so a
+4.3-point HHEM gap cannot order models on this task either. What remains is roughly an $8/month spread,
+which this same section dismisses as immaterial when rejecting the NLI screen. Nova Micro is a
+**cost-driven starting default**; U11's bake-off on our own residual is the decision.
+
+**R24 requires no-retention as well as no-training.** Bedrock model-invocation logging stays **disabled**
+for this integration; if ever enabled for debugging, the runbook names the destination and window.
+
+Cost basis: $0.27/month assumes ~8,000 verified lines per month under KTD-3's verify-everything policy, not
+the import corpus; at 80,000 lines it is $2.74. Swap augmentation for position bias doubles the call count
+and is included.
 
 Open risk: Nova's structured-output enforcement strength is unverified. Our schema is a three-way enum plus
 a short string, and U11 bakes off Nova Micro against Haiku 4.5 and Gemini Flash-Lite on our own corpus for
-**under $3 total**. Model identifier is stored on every verification; the ID lives in SSM, never a constant.
+**under $6 total** at doubled call count. Model identifier is stored on every verification; the ID lives in SSM, never a constant.
 
 Rejected: DeepSeek (trains by default, PRC residency); z.ai (ambiguous training clause, no grammar-enforced
 schema); always-on local (~$9/month electricity against $0.27 hosted, plus production traffic on the
@@ -140,20 +176,45 @@ workstation holding the AWS credentials); a self-hosted NLI screen (saves ~$6/mo
 
 ### KTD-5 — Model size does not buy verification quality
 
-Best AUC across 7 models spanning an **18× parameter range varied by 2.3 points**. The ceiling is task
-difficulty, not scale. This is why the cheapest credible model is the right default and why swapping models
+Best AUC across 7 models spanning an **18× parameter range varied by 2.3 points** (arXiv 2605.11330,
+_Rethinking Evaluation for LLM Hallucination Detection_). The ceiling is task difficulty, not scale. This is why the cheapest credible model is the right default and why swapping models
 is a recalibration rather than a redesign.
 
-### KTD-6 — The quantity change ships half now
+### KTD-6 — The quantity model lands whole, because there are no installed clients
 
-`quantityHigh` is additive and safe on a non-strict response envelope. Making `quantity` nullable breaks
-installed mobile clients parsing a required-positive field — a hard break on a published contract we cannot
-redeploy. Ranges land now; absent-quantity stays import-side until a client release gates it.
+An earlier draft deferred absent-quantity to protect installed mobile clients parsing a required-positive
+`quantity`. **The product is pre-launch and not live**, so that contract protects nothing today, and the
+deferral cost more than it saved: U1 asserts `Butter, size of an egg` resolves with quantity unresolved,
+which a value object of `exact | range` cannot represent — the plan's own red test had no unit that could
+turn it green.
 
-### KTD-7 — Two ordered deploys, not one step
+Both halves land now — `quantity_high` added, `NOT NULL` and the positive check dropped, the wire field
+widened — modelled as `exact | range | absent` so illegal states stay unrepresentable. ⚠️ This is the one
+decision here that must be revisited if a client ships before U8 lands.
 
-Recipe-service cannot read a `name` field food-service has not published. U3 deploys, then U4. The
-`CONTRACT_HASH` boot assertion enforces it loudly if the order is violated.
+### KTD-7 — The canonical name already ships; there is no cross-service ordering problem
+
+An earlier draft split the write-path fix into two ordered deploys, premised on food-service publishing no
+canonical name. It does: `statusResponseSchema.food` is `foodResponseSchema`, which carries `name`. And
+`sanitizeFoodName` is NFKC plus invisible-character hygiene — "Unicode _hygiene_, not confusable folding,"
+per its own docstring — so on a fresh add it returns the caller's prose unchanged, and would have published
+the very value the fix exists to stop writing.
+
+The rename therefore belongs at the `RESOLVED` transition, inside recipe-service, reading a contract that
+already ships. No `addResponseSchema` change, no deploy ordering, one unit instead of two.
+
+⚠️ The ordering guard that draft named does not exist, and must not be relied on elsewhere:
+`assertContractHashesAgree` compares two stamps baked into a single image against
+`@kitchensink/schema-recipe`, and the cross-service check in
+`packages/clients/food-service/src/contractSkew.ts` states in its own docstring that it
+**"WARNS, IT DOES NOT REFUSE."**
+
+### KTD-8 — The gate amends the origin's fallthrough model, by owner ruling
+
+Origin R12 describes a cascade where a confident hit is terminal. The gate re-checks confidently-resolved
+tier-1 and tier-2 lines, which is a different model. That change is an **owner ruling** — the LLM as
+fail-safe, with skip conditions narrowed by a stated low tolerance for bad food data — recorded here
+because a plan should not amend a requirement silently.
 
 ---
 
@@ -178,6 +239,17 @@ the existing parse golden corpus with the known failures.
 ⚠️ Precision targets are stated against inter-annotator agreement, not 100%. Three annotators agreed
 unanimously on the correct USDA row only **61%** of the time in published work; dietitians agreed 51%.
 
+**Annotation protocol** — without this the floors measure agreement with one person, which is the
+over-fitting R58 and R59 exist to prevent. Every judgement-set entry carries **two independent labels**;
+disagreements are adjudicated by a third pass and the resolution recorded in the entry's `why` field; the
+observed agreement rate is committed alongside the set so 0.9 and 0.85 are read against our own ceiling
+rather than a published one. R60's adjudicated sample follows the same protocol.
+
+**Two baselines, not one.** The judgement set measures the server. A second committed baseline captures the
+**client-re-sorted top-1 for every distinct query in the 2,432-line import corpus** — what users actually
+see today. U5 gates on both, because "zero regressions" against server output alone would measure the
+server against itself while the picker silently got worse.
+
 **Execution note:** every entry is written red, before any fix.
 **Patterns to follow:** `foodSearchAccessPath.integration.test.ts` — equivalence of the `(id, name, score)`
 sequence with access paths disabled and enabled, plus a vacuity guard. Seed at 50,000 rows; the planner
@@ -194,6 +266,9 @@ removed for cause.
 - Judgement set: `flour` → `Flour`; `brown sugar` → `Sugars, brown`; `red wine vinegar` → `Vinegar, red wine`.
 - Known-miss entries assert they still miss, including word-order inversions the tiers do not solve.
 - Collation: `name ASC` ordering identical between the local image and a CI-shaped instance.
+- Truncation: for `flour`, `milk` and `sugar`, record whether the true match survives the server's
+  `DEFAULT_SEARCH_LIMIT = 10` page on both surfaces — the measurement the Problem frame's severity claim
+  rests on.
 
 **Verification:** the suite is red for every known defect and green for every case already correct.
 
@@ -208,9 +283,14 @@ removed for cause.
 `packages/services/food-service/src/foods/seed/`, `packages/services/food-service/src/foods/dao/foodSearch.dao.ts`.
 
 **Approach:** parse `additionalDescriptions` in the USDA client (validating the raw upstream shape at the
-boundary per GR-015 §15-d), persist it, and include it in the searchable text. Expand-first: additive
-column, additive index. ~1.8 curated aliases per row, containing brands and regional synonyms we were
-going to rediscover by hand.
+boundary per GR-015 §15-d) and persist it. ~1.8 curated aliases per row, carrying brands and regional
+synonyms we were otherwise going to rediscover by hand.
+
+⛔ Aliases get their **own** `STORED` generated tsvector and their own GIN index — they are **not** folded
+into `search_vector`. Folding them in would need `ALTER COLUMN ... SET EXPRESSION`, which arrived in
+**PostgreSQL 17** and is therefore unavailable until U13; the PG 16 equivalent is DROP + ADD COLUMN, taking
+an ACCESS EXCLUSIVE lock, rewriting `food`, and dropping the dependent GIN index. `relevanceQuery` ORs the
+two vectors and combines their `ts_rank`. That keeps the unit genuinely additive.
 
 **Execution note:** integration test first, against a real database — a unit test cannot observe a
 migration that did not apply.
@@ -226,40 +306,40 @@ migration that did not apply.
 **Verification:** alias-only queries resolve; judgement-set entries covering brand and regional terms move
 from known-miss to hit.
 
-### U3. Food-service publishes the canonical name (deploy A)
-
-**Goal:** give recipe-service something correct to write.
-**Requirements:** R25, R28. **Dependencies:** U2. **Blocks U4 — ordering is not optional.**
-**Files:** `packages/services/food-service/src/foods/foods.schema.ts`,
-`packages/schemas/food/` (regenerated), `packages/services/food-service/src/foods/foods.service.ts`.
-
-**Approach:** add `name` to `addResponseSchema`, sourced from `sanitizeFoodName`. Additive on a non-strict
-envelope, so old clients ignore it.
-
-**Test scenarios:** `addByName` response carries the sanitized canonical name; contract hash regenerates;
-an old client parsing the response is unaffected.
-**Verification:** `@kitchensink/schema-food` regenerated and committed; food-service deployed before U4.
-
-### U4. Recipe-service stops minting caller prose (deploy B)
+### U3. Recipe-service writes the canonical name at resolution
 
 **Goal:** close the write path that pollutes the table the ranker reads.
-**Requirements:** R25, R26, R27. **Dependencies:** U3 deployed.
+**Requirements:** R25, R26, R27, R28. **Dependencies:** U2.
 **Files:** `packages/services/recipe-service/src/ingredients/ingredients.service.ts`,
 `.../dal/ingredients.dal.ts`, `.../ingredients.controller.ts`.
 
-**Approach:** `addByName` writes food-service's canonical name, not the caller's text. ⛔ Preserve the
-`by-name` USDA acquisition path — 202 `PENDING` → `RESOLVED` — which is how a food absent from the seed
-legitimately enters the catalog. What is forbidden is minting caller prose, not acquiring real foods.
-Define what an unresolved line persists, given `recipe_ingredients.ingredient_id` is `NOT NULL`.
+**Approach:** `refreshStatus` writes `status.food.name` onto the local row when a food transitions to
+`RESOLVED`, replacing whatever prose the caller supplied at add time. A `PENDING` row carries the sanitized
+caller text until then — that is honest, because no canonical name exists yet. The existing `0001` trigger
+refreshes `search_vector` on the update, so the ranking surface picks it up without extra work.
+
+⛔ Preserve the `by-name` USDA acquisition path — 202 `PENDING` → `RESOLVED` — which is how a food absent
+from the seed legitimately enters the catalog. What is forbidden is minting caller prose as a permanent
+label, not acquiring real foods on demand. Define what an unresolved line persists, given
+`recipe_ingredients.ingredient_id` is `NOT NULL`.
+
+**Execution note:** integration test first, against a real database.
 
 **Test scenarios:**
 
-- `addByName` with prose input persists the canonical name, not the input.
+- A food resolving to `RESOLVED` renames the local row to food-service's canonical name.
+- A `PENDING` row keeps the caller's sanitized text and is not treated as canonical.
+- `search_vector` reflects the renamed value after the update.
 - A food genuinely absent from the catalog still triggers acquisition and resolves to the real food.
 - An unresolved line persists without violating the foreign key.
-- Integration: two users submitting different prose for the same food converge on one row with one name.
+- Integration: two users submitting different prose for the same food converge on one row, one name.
 
-**Verification:** after a re-import, no row in `ingredients` has a name that is a prose fragment.
+**Verification:** after a re-import, no `RESOLVED` row in `ingredients` has a name that is a prose fragment.
+
+### U4. _(merged into U3)_
+
+The two-deploy split this unit described rested on a false premise — see KTD-7. Its work now lives in U3.
+The U-ID is retained rather than renumbered so existing references stay valid.
 
 ### U5. Tiered ranking on both surfaces, and retire the client re-sorts
 
@@ -269,6 +349,7 @@ Define what an unresolved line persists, given `recipe_ingredients.ingredient_id
 `.../foodSearch.dao.ts`, `packages/services/recipe-service/src/ingredients/dal/ingredientRelevance.ts` (new),
 `.../ingredients.dal.ts`, `packages/apps/commise/features/recipes/src/hooks/ingredientResolver.model.ts`,
 `.../useIngredientResolver.ts`, `.../useIngredientFilterSearch.ts`,
+`packages/services/recipe-service/src/ingredients/foodCatalog.gateway.ts`,
 `packages/tools/service-test-harness/src/rankingConformance.ts` (new).
 
 **Approach:** extract a named Scoring Policy per surface owning the weights, the tier gap and the
@@ -285,13 +366,19 @@ deliberately non-partial.
 **Test scenarios:**
 
 - Judgement set precision@1 ≥ 0.9 on single-token staples; multi-word ≥ 0.85 absolute.
+- Zero regressions against the **user-facing baseline** U1 captures, not only the judgement set.
+- The replacement DAO test asserts the tier expression itself — the existing one passes a tiered key
+  unchanged, so nothing else forces the rewrite.
 - Tier gap proven by an executable test, so a later weight edit cannot silently break it.
 - Equivalence + vacuity at 50,000 rows for both surfaces.
 - Conformance contract passes for both policies.
 - Component tests assert the picker renders the server's order unmodified.
 
-**Verification:** zero regressions against the committed baseline; `Carob flour`, `Crackers, milk` and the
-sugar candy no longer win their queries.
+**Verification:** zero regressions against **both** committed baselines; `Carob flour`, `Crackers, milk`
+and the sugar candy no longer win their queries; and a **k6 re-measurement of the SC-007 search budget at
+the 50,000-food scale** passes. That last gate is not optional — U5 adds tier arithmetic to a per-row cost
+that already forced SC-007 to be widened to 250 ms ±15% after the `narrow` shape measured 253 ms, and U2
+widens the searchable text underneath it.
 
 ### U6. Match strategy, `raw` injection, and word-order handling
 
@@ -311,7 +398,9 @@ on 4,179 real food items.
 
 **Test scenarios:** single-token behaviour byte-identical to today; `red wine vinegar` → `Vinegar, red wine`;
 `chives` gains `raw` and hits `Chives, raw`; `butter` does not gain `raw`; `flor` still resolves.
-**Verification:** local-decides share re-measured on the clean corpus and recorded (R10).
+**Verification:** local-decides share re-measured and recorded (R10). ⚠️ This requires the cleared table
+U12a produces, so U12's clear step is sequenced **before** U5/U6 and only its re-import step stays at the
+end — see Sequencing.
 
 ### U7. Parser — precedence, clause splitting, units, ranges
 
@@ -342,25 +431,41 @@ _The Jewish Manual_ at 142 mL, both recording citation and measure system; a cor
 in dropped-lines rather than persisting.
 **Verification:** golden corpus green; dropped-line count recorded in the import report.
 
-### U8. Quantity model — expand migration and wire
+### U8. Quantity model — ranges, absent quantities, and the wire
 
-**Goal:** make a range representable without breaking installed clients.
-**Requirements:** R36, R37, R41. **Dependencies:** U7.
+**Goal:** make ranges and absent quantities representable.
+**Requirements:** R36, R37, R38, R40, R41. **Dependencies:** U7.
 **Files:** `packages/services/recipe-service/src/database/migrations/0020_quantity_range.sql` (new),
 `.../database/schema/ingredients.ts`, `packages/shared/recipe-core/src/recipeRequestBounds.ts`,
-`.../recipe.types.ts`, `.../scaling.ts`, `packages/services/recipe-service/src/recipes/recipes.schema.ts`,
-`packages/schemas/recipe/` (regenerated).
+`.../recipe.types.ts`, `.../scaling.ts`, `.../nutrition.ts`,
+`packages/services/recipe-service/src/recipes/recipes.schema.ts`, `packages/schemas/recipe/` (regenerated),
+`packages/apps/commise/features/recipes/src/versions/diff.ts`,
+`.../versions/conflictDiff.ts`, `.../versions/model.ts`.
 
-**Approach:** ⛔ **Expand only, per ADR-0022.** Add `quantity_high numeric(10,3) NULL` and a `NOT VALID`
-coherence check ordering the bounds. Leave `quantity NOT NULL` and its positive check in place — the
-contraction ships a later release, after mobile adoption. Model the quantity as a value object
-(`exact | range`) rather than a scalar plus two loose bounds that can disagree, mirroring the existing
-"`''` is rejected so unitless has ONE representation" convention.
+**Approach:** add `quantity_high numeric(10,3) NULL` and a `NOT VALID` coherence check ordering the bounds,
+drop `NOT NULL` and the positive check on `quantity`, and widen the wire field. Model the quantity as a
+value object (`exact | range | absent`) rather than a scalar plus two loose bounds that can disagree,
+mirroring the existing "`''` is rejected so unitless has ONE representation" convention.
+
+Per KTD-6 this lands whole rather than in two releases: the product is pre-launch, so the required-positive
+response field protects no installed client, and deferring it would leave U1's `Butter, size of an egg`
+scenario with no unit able to turn it green.
+
+**R38 — nutrition computed from a collapsed range carries provenance naming the bound used**, mirroring
+U7's historical-unit marker. Without it the release withholds nutrition when the verifier disagrees while
+silently publishing a low-bound figure up to a third under — two opposite honesty postures on one page.
 
 **Execution note:** integration test against a real database asserting the migrated schema.
-**Test scenarios:** range persists and round-trips; scaling 4→6 servings turns `2 to 3` into `3 to 4.5`;
-an old client parsing a response with `quantityHigh` is unaffected; the coherence check rejects `high < low`.
-**Verification:** prod template unchanged; migration applies through the in-stack trigger.
+**Test scenarios:**
+
+- Range persists and round-trips; scaling 4→6 servings turns `2 to 3` into `3 to 4.5`.
+- A line stating no quantity persists as absent, not zero, and is not dropped.
+- The coherence check rejects `high < low`.
+- ⚠️ Changing only the **upper** bound registers as a modified ingredient in both the two-way diff and the
+  three-way conflict marker. `ingredientContentChanged` is a positive field-by-field enumeration, so a new
+  field is invisible to it **by construction** and no compile error catches the omission.
+- Nutrition computed from a range is marked range-derived and names the bound used (R38).
+  **Verification:** prod template unchanged; migration applies through the in-stack trigger.
 
 ### U9. UI — ranged quantity on both platforms
 
@@ -370,11 +475,18 @@ an old client parsing a response with `quantityHigh` is unaffected; the coherenc
 `.native.tsx` sibling, `.../detail/RecipeDetailBody.tsx` and its `.native.tsx` sibling,
 `.../detail/model.ts`, `.../form/messages.ts`.
 
-**Approach:** `formatQuantity` is the single formatter and gains the range case. Edit fields accept a range
-alongside a scalar. All copy is localized — no literals.
+**Approach:** `formatQuantity` is the single formatter and gains the range and absent cases. All copy is
+localized — no literals.
 
-**Test scenarios:** component tests for every state — scalar, range, absent, invalid — on **both**
-platforms; Playwright spec for entering and viewing a range; Maestro flow for the same.
+**Interaction, specified so the two platforms cannot diverge:** two adjacent numeric inputs (low / high)
+sharing one unit field, mirroring the existing scalar input's `aria-label` / `aria-invalid` /
+`aria-describedby` wiring. An invalid range — high below low, or high present with low absent — surfaces
+inline through the existing `quantityInvalid` error pattern and blocks submission rather than silently
+coercing. Absent quantity renders as an empty field, not a zero.
+
+**Test scenarios:** component tests for every state — scalar, range, absent, invalid, loading, error — on
+**both** platforms; Playwright spec for entering and viewing a range; Maestro flow for the same; and a
+scenario asserting the range-derived nutrition caveat (R38) renders on both platforms.
 **Verification:** paired web and mobile tasks, per the enforced cross-platform rule.
 
 ### U10. Knowledge base and curated mappings
@@ -401,10 +513,32 @@ Corroboration is a concurrent counter, so "independent" is enforced by a unique 
 `(normalized_key, author_id)`, not read-modify-write. Copy the existing `ON CONFLICT DO NOTHING` + re-read
 shape for the write race.
 
-**Test scenarios:** truth table over grants × scope; a corroborating second correction promotes to global;
-the same author correcting twice does not; a near-twin phrase resolves from the KB without an LLM call; a
-later correction supersedes an earlier mapping.
-**Verification:** GR-021 table-collision gate passes; policy unit tests are truth-table shaped.
+⛔ **Supersession is scope-gated, or the grant is bypassable through the edit path.** A global-scope mapping
+may be superseded only by a grant holder or by a fresh independent-corroboration pair; an author-scoped
+mapping may be superseded only by its own author. Without this rule, "a later correction supersedes an
+earlier mapping" hands any authenticated user a one-step path to overwrite a curator's global mapping —
+the exact escalation the grant exists to prevent, reached through editing rather than writing.
+
+⛔ **The embedding tier needs its own bar.** Tier 3 is consulted on every lookup ahead of the LLM, so a
+single confidently-wrong machine resolution gets the same global reach as a curated mapping with none of
+its review. An embedding entry is written only for a resolution the verification gate agreed with, and a
+curated correction always overrides it.
+
+**Promotion is auditable.** Every promotion to global scope emits a signal carrying the mapping id, both
+corroborating author ids, and the normalized key. ADR-0023 pairs its grant-based global write with exactly
+this kind of enumerability; two accounts held by one person clear a distinct-author check, and the answer
+is that promotions are reviewable after the fact, not that collusion is prevented.
+
+**Test scenarios:**
+
+- Truth table over grants × scope; a corroborating second correction promotes to global; the same author
+  correcting twice does not.
+- A non-grant-holder cannot supersede a global mapping; a grant holder can.
+- An author-scoped mapping is superseded only by its own author.
+- A near-twin phrase resolves from the knowledge base without an LLM call.
+- An embedding entry is not written for a resolution the gate did not agree with.
+- Every promotion emits its audit signal.
+  **Verification:** GR-021 table-collision gate passes; policy unit tests are truth-table shaped.
 
 ### U11. Verification gate — Bedrock Nova Micro, bake-off, calibration
 
@@ -417,49 +551,93 @@ later correction supersedes an earlier mapping.
 
 **Approach:** the provider client validates the raw upstream shape with zod at the boundary and declares
 its own types — GR-015 §15-d names LLM providers explicitly, and no OpenAPI document is written for an API
-we do not serve. Runs in `recipe-workers`, off the synchronous path, behind the shipped `PENDING → RESOLVED`
-lifecycle.
+we do not serve. Runs in `recipe-workers`, off the synchronous path, behind the shipped
+`PENDING → RESOLVED` lifecycle.
+
+⚠️ **Egress.** recipe-workers Lambdas are `PRIVATE_WITH_EGRESS`, so a Bedrock call would otherwise leave
+through the single shared `t4g.nano` NAT instance whose consumer list ADR-0004 closes to four DB-bound
+webhook Lambdas. This unit adds a `com.amazonaws.<region>.bedrock-runtime` **VPC interface endpoint** to
+`RecipeWorkersStack` instead of widening NAT usage.
+
+**The raw source line is untrusted input.** It is delimited explicitly in the prompt and the model is
+instructed to disregard directives inside it. Constrained decoding bounds the output shape, not the meaning
+assigned within it.
+
+**R23's cost ceiling** is a runaway guard, not a budget: verification costs cents. A per-run cap set at 3×
+expected corpus size, plus the existing account budget alarm, and the cascade returns unresolved rather
+than spending past it.
 
 The gate receives the raw source line, our parse, and the shortlist; it never retrieves, so it cannot invent
 a `food_id`. Constrained decoding, ordinal enum for certainty, **abstention as a schema branch** rather than
 a low number. Skip conditions are narrow: exact tier-1 hit, wide tier-2 margin, or candidates agreeing
 within 10% on nutrients.
 
-**Bake off Nova Micro against Haiku 4.5 and Gemini Flash-Lite on our own 2,432 lines — under $3 total** —
-and pick on measured accuracy. ⚠️ Calibrate on the **residual**, not the whole judgement set: the gate sees
-a systematically different distribution. Mitigate self-preference bias with a structured rubric (measured
+**Bake off Nova Micro against Haiku 4.5 and Gemini Flash-Lite on our own 2,432 lines — under $6 total** —
+and pick on measured accuracy against a stated bar: a maximum **false-agree** rate on lines known wrong and
+a maximum **false-disagree** rate on lines known correct. ⛔ If no candidate clears both, the gate ships
+**observe-only** — verdicts recorded, publication ungated — until one does. "Pick on measured accuracy"
+with no floor and no fallback is not an implementable instruction.
+
+⚠️ Calibrate on the **residual**, not the whole judgement set: the gate sees a systematically different
+distribution. The bake-off runs on the full corpus for comparability but the committed thresholds come from
+the residual slice, and the plan records both numbers so they are not confused. Mitigate self-preference bias with a structured rubric (measured
 at −31.5 points) and position bias with swap augmentation (10–15 points).
 
-**Test scenarios:** a wrong quantity in the parse is flagged; a wrong food is flagged; a correct parse
-passes; provider unavailable terminates as unresolved rather than falling back to a rejected candidate; an
-unattended caller records unresolved into dropped-lines and does not block; every verification stores the
-model identifier; high band emits the same telemetry as middle.
-**Verification:** measured agreement rate recorded; the bake-off result committed with the chosen model.
+**Test scenarios:**
+
+- A wrong quantity in the parse is flagged; a wrong food is flagged; a correct parse passes.
+- A singleton shortlist reaches the verifier regardless of its score (KTD-3's margin guard).
+- A tier-1 identity hit carrying a corrupted quantity is still flagged.
+- A wrong-but-mutually-agreeing shortlist still reaches the verifier.
+- Provider unavailable terminates as unresolved rather than falling back to a rejected candidate.
+- The per-run cost ceiling terminates the cascade as unresolved when reached.
+- An unattended caller records unresolved into dropped-lines and does not block.
+- An ingredient line containing an embedded instruction does not change the verdict shape.
+- Every verification stores the model identifier; the high band emits the same telemetry as the middle.
+  **Verification:** measured agreement rate recorded; the bake-off result committed with the chosen model.
 
 ### U12. Catalog clear and reseed
 
 **Goal:** a clean starting state for the measurement.
-**Requirements:** R30, R31, R44–R47. **Dependencies:** U4, U7 — ⚠️ **after** the write-path fix, or the
+**Requirements:** R44–R47. **Dependencies:** U4, U7 — ⚠️ **after** the write-path fix, or the
 next import re-pollutes it.
-**Files:** `packages/services/food-service/src/foods/seed/clearCli.ts` (new), `.../seedCli.ts`.
+**Files:** `packages/services/food-service/src/foods/seed/clearCli.ts` (new), `.../seedCli.ts`,
+`packages/services/recipe-service/src/ingredients/unlinkCli.ts` (new).
 
 **Approach:** no clear/truncate tooling exists today — this is a net-new destructive capability with no
 guard rails to copy. It names its stages explicitly, requires confirmation, and refuses prod without an
-explicit flag. ⚠️ Reseeding mints **fresh ULIDs**, and `ingredients.food_id` has **no foreign key** — so
-clearing the catalog silently orphans every recipe-side reference unless they are cleared in the same
-operation. Set `food.origin = 'bulk'` on reseed, or change-refresh churns and clobbers nutrition.
+explicit flag.
 
-**Test scenarios:** clear refuses prod without the flag; clear + reseed leaves no dangling `food_id`;
-reseeded rows carry `origin = 'bulk'`; a dry run reports counts without writing.
-**Verification:** post-reseed, no `food_id` outside the food database refers to a missing row.
+⚠️ **It is a two-service operation and the plan must own both halves.** Reseeding mints fresh ULIDs and
+`ingredients.food_id` has no foreign key, so a food-service-only clear silently orphans every recipe-side
+reference. The recipe-side step **nulls `food_id` and `food_resolution_status` in place** — it does _not_
+delete `ingredients` rows, because `recipe_ingredients.ingredient_id` is `NOT NULL REFERENCES
+ingredients(id)` with no `ON DELETE`, so deletion raises a foreign-key violation and would take user
+recipes with it.
+
+`food.origin = 'bulk'` on reseed is already implemented in `bulkSeed.service.ts`; verify rather than
+rebuild.
+
+**Test scenarios:**
+
+- Clear refuses prod without the flag; a dry run reports counts without writing.
+- The recipe-side unlink deletes **no** `recipe_ingredients` row and nulls `food_id` in place.
+- Clear + reseed leaves no dangling `food_id`.
+- Reseeded rows carry `origin = 'bulk'`.
+  **Verification:** post-reseed, no `food_id` outside the food database refers to a missing row.
 
 ### U13. PostgreSQL 16 → 18
 
 **Goal:** move the engine, without losing identity data.
 **Requirements:** R48–R56. **Dependencies:** everything else. Last and alone.
 **Files:** `packages/infra/global/lib/platform/DataStack.ts`,
-`packages/infra/global/__tests__/engineVersionDiff.test.ts` (new),
-`docs/runbooks/pg18-upgrade.md` (new).
+`packages/infra/global/__tests__/engineVersionDiff.test.ts` (new), `docs/runbooks/pg18-upgrade.md` (new),
+`docker-compose.yml`, `docker-compose.test.yml`, `.github/workflows/_ci.yml`,
+`.github/workflows/_ci-heavy.yml`.
+
+⚠️ U1 makes "local tracks the RDS major version and collation provider" a continuous invariant, and this
+unit breaks it unless the 16 places pinning `postgres:16` move too — both compose files and 14 CI service
+containers. Verification includes: no `postgres:16` pin remains anywhere in the repo.
 
 **Approach:** `VER_16` → `VER_18` (major-only, preserving the `autoMinorVersionUpgrade` behaviour) with
 `allowMajorVersionUpgrade`. 16.13 → 18 is a **verified one-hop** upgrade.
@@ -477,8 +655,15 @@ Write the template-diff gate first: `cdkNagTemplateParity` compares the same sou
 ADR-0002.
 
 Pre-flight: drop stale per-PR databases (each is pure outage — `pg_upgrade` dumps every database);
-`SELECT datname FROM pg_database WHERE datconnlimit = -2` for invalid databases from interrupted drops;
-check `datlocprovider` (reindex trigram/FTS only if non-libc).
+`SELECT datname FROM pg_database WHERE datconnlimit = -2` for invalid databases from interrupted drops.
+
+⛔ **The reindex condition is about collation _version_, not provider, and it targets btrees.** Trigram and
+tsvector indexes decompose text into trigrams and lexemes and do not depend on collation at all; the
+collation-sensitive indexes are the text **btrees**, including `food_normalized_name_unique`, whose
+correctness underwrites the catalog's dedup key. And `libc` is the provider whose version _can_ shift
+across a major upgrade, so gating on "non-libc" inverts the risk. Compare `pg_database.datcollversion` and
+`pg_collation.collversion` before and after, and REINDEX every btree on a collatable text column when the
+recorded version changed.
 
 Verified as non-issues: `pg_trgm` is byte-identical between 16 and 18 — `similarity`, `word_similarity` and
 all thresholds unchanged, extension stays at 1.6, so the `flor` case at 0.600 survives. `citext` and
@@ -486,23 +671,79 @@ all thresholds unchanged, extension stays at 1.6, so the `flor` case at 0.600 su
 ⚠️ Statistics carryover is **contradictory** between the PG 18 docs and the RDS user guide. Plan as if
 `ANALYZE` is required; the dry run settles it.
 
-**Test scenarios:** the new gate fails on an engine-version change and passes when the template is unchanged;
-every `generatedAlwaysAs` declares `STORED`; post-upgrade the judgement set re-runs with no regressions.
+**Test scenarios:** the new gate fails on an engine-version change and passes when the template is
+unchanged; every `generatedAlwaysAs` declares `STORED`; no `postgres:16` pin survives; post-upgrade the
+judgement set re-runs.
+
+⚠️ A post-upgrade judgement-set difference traceable to a **tiebreak or planner change** is re-baselined and
+recorded, not treated as a regression — U1 measured that `name ASC` tiebreak positions are exactly what
+collation moves. The sandbox soak compares `datcollate` / `datlocprovider` before and after so the two
+causes can be told apart.
 **Verification:** dry run on a snapshot-restored clone measures the real window; sandbox soaks before prod.
+
+### U14. Low-confidence correction surface (web + mobile)
+
+**Goal:** give a cook the affordance that writes a curated mapping. Without it U10 builds a write path no
+user can reach and the learning loop never fires.
+**Requirements:** R13, R15, R19, R43. **Dependencies:** U10, U11.
+**Files:** `packages/apps/commise/features/recipes/src/form/RecipeIngredientsFields.tsx` and its
+`.native.tsx` sibling, `.../form/messages.ts`,
+`packages/apps/commise/web/src/components/recipes/IngredientPicker.tsx`,
+`packages/apps/commise/mobile/src/components/IngredientPicker.tsx`,
+`packages/services/recipe-service/src/ingredients/ingredients.schema.ts`.
+
+**Approach:** a low-band resolution renders as an ingredient-line state the user can act on, polled through
+the same `PENDING → RESOLVED` lifecycle the picker already drives. Selecting a replacement food issues the
+R19 correction write. The `FoodResolutionStatus` union gains a member for needs-review — it currently has
+no state to hang this on — and `RecipeNutritionState`'s `unaccounted` taxonomy gains a fourth reason for
+verification disagreement, so a withheld line reads differently from an unreachable food service. All copy
+localized.
+
+Ships in this release on both platforms, per owner ruling and the enforced cross-platform rule.
+
+**Test scenarios:** component tests for needs-review, corrected, withheld and error states on **both**
+platforms; a Playwright spec and a Maestro flow for correcting a surfaced line; a recipe containing one
+withheld line reports the verification-disagreement reason rather than collapsing into the
+food-unavailable signal.
+
+**Verification:** a user correction reaches the mapping table and the next occurrence of that phrase
+resolves at tier 1.
+
+### U15. Re-import and measure
+
+**Goal:** produce the numbers that say whether any of this worked.
+**Requirements:** R60, plus the success criteria. **Dependencies:** U12 and everything it depends on.
+**Files:** `packages/tools/cookbook-import/src/importReport.ts`, `docs/reports/` (new).
+
+**Approach:** re-run the 448-recipe import through the corrected pipeline and record three numbers, not
+one: **resolution rate**, an **adjudicated accuracy** figure over a random sample of knowledge-base and
+gate resolutions, and the **share of lines surfaced to a user for correction** — the friction metric the
+origin names as the abandonment risk. Rate alone is gameable: a system that resolves confidently wrong
+raises it.
+
+**Test scenarios:** the report emits all three figures; the adjudicated sample follows U1's annotation
+protocol; the run is reproducible from a committed corpus manifest.
+
+**Verification:** the three numbers are committed alongside the plan as the release's evidence.
 
 ---
 
 ## Sequencing
 
-1. **U1** — substrate, red.
-2. **U2** — aliases (cheapest large win).
-3. **U3 → U4** — two ordered deploys, cross-service.
-4. **U5 + U6** — ranking and matching, client re-sorts retired in the same release as U5.
-5. **U7 → U8 → U9** — parser, then expand migration, then UI on both platforms.
-6. **U10** — knowledge base and mappings.
-7. **U11** — verification gate and bake-off.
-8. **U12** — clear and reseed, then re-import and measure.
-9. **U13** — PG 18, alone, with its own gate and runbook.
+1. **U1** — substrate, red. Both baselines captured before anything moves.
+2. **U2** — aliases: the cheapest large win, and it needs its own generated vector rather than folding into
+   `search_vector` (PG 17 syntax is unavailable until U13).
+3. **U3** — the write path stops minting prose. One unit, one service.
+4. **U12 (clear step only)** — ⚠️ moved **before** the ranking work. U6 verifies the local-decides share
+   against a clean table, and U5's baselines must not be anchored to rows U12 later deletes. The reseed and
+   the re-import stay at the end.
+5. **U5 + U6** — ranking and matching. Client re-sorts retired in the **same release** as U5, never before.
+6. **U7 → U8 → U9** — parser, then the quantity model whole, then UI on both platforms.
+7. **U10 → U14** — mappings and the affordance that writes them, together. U10 alone ships a write path
+   nobody can reach.
+8. **U11** — verification gate and bake-off.
+9. **U15** — re-import and measure: resolution rate, adjudicated accuracy, correction-surfacing share.
+10. **U13** — PG 18, alone, with its own gate and runbook.
 
 ---
 
@@ -530,8 +771,18 @@ every `generatedAlwaysAs` declares `STORED`; post-upgrade the judgement set re-r
    and 005's BYOK is scoped to user-facing generation; that assumption amends 005 and needs an owner ruling.
 2. Is REQ-057's prefix-over-substring ordering an owner-held product requirement, or a proxy for relevance?
    U5 retires it, which amends a V-Model traced requirement.
+3. Is the verification gate free-tier or premium-gated? The origin raised it; cost makes it immaterial today
+   but it is a packaging decision with no owner.
 
-**Deferred to implementation** 3. Which named external standard fills unit gaps the books leave (at minimum `dessertspoon`). 4. Whether the 50,000-food performance corpus is still generable. 5. Confidence band thresholds — two-way doors, set from measured accuracy per band.
+**Deferred to implementation**
+
+4. Which named external standard fills unit gaps the books leave (at minimum `dessertspoon`).
+5. Confidence band thresholds — two-way doors, set from measured accuracy per band.
+6. Whether R9's precedence defect needs its own remedy once U6 re-measures the local-decides share, or
+   whether U3's write-path fix and U12's clean start dissolve it. Nothing currently acts on that number.
+
+⚠️ The 50,000-food performance corpus moved **out** of this list: U1 and U5 both depend on it, and U5's k6
+gate cannot run without it. Its generability is a precondition, not a deferral.
 
 ## Sources and research
 

@@ -209,6 +209,16 @@ already ships. No `addResponseSchema` change, no deploy ordering, one unit inste
 `packages/clients/food-service/src/contractSkew.ts` states in its own docstring that it
 **"WARNS, IT DOES NOT REFUSE."**
 
+### KTD-9 — The gate is core platform capability, not a BYOK or tiered feature
+
+Feature 005's plan states "BYOK-first: the platform never pays for AI API calls. Users bring their own
+keys." **Owner ruling (2026-08-20): resolving ingredient, quantity and measurement text we cannot parse
+confidently is a core capability serving every user, not a tier feature.** It is platform-paid and
+platform-keyed. 005's BYOK principle is scoped to user-facing generation and does not reach here — an
+unattended import has no user and therefore no key, so BYOK could not have covered this path anyway.
+
+That closes both the free-versus-premium question and the 005 collision.
+
 ### KTD-8 — The gate amends the origin's fallthrough model, by owner ruling
 
 Origin R12 describes a cascade where a confident hit is terminal. The gate re-checks confidently-resolved
@@ -563,9 +573,15 @@ webhook Lambdas. This unit adds a `com.amazonaws.<region>.bedrock-runtime` **VPC
 instructed to disregard directives inside it. Constrained decoding bounds the output shape, not the meaning
 assigned within it.
 
-**R23's cost ceiling** is a runaway guard, not a budget: verification costs cents. A per-run cap set at 3×
-expected corpus size, plus the existing account budget alarm, and the cascade returns unresolved rather
-than spending past it.
+**R23's cost ceiling — $100/month, enforced, configurable.** Owner-set. At a measured $0.27/month this is
+~370× headroom, so it is a runaway guard rather than a budget, and it should never bind in normal running.
+
+Enforcement needs an **authoritative counter read before the call** — CloudWatch metrics lag by minutes,
+which is adequate for alerting and useless for a hard stop. The ceiling lives in **SSM** so it changes
+without a redeploy; spend accrues in an **atomic DynamoDB counter** on the substrate table this branch
+already ships. When the month's ceiling is exhausted the cascade returns unresolved **without calling the
+provider**, and those lines follow the same path as provider-unavailable: nutrition withheld, surfaced for
+correction. A per-run cap at 3× expected corpus size bounds a single pathological import.
 
 The gate receives the raw source line, our parse, and the shortlist; it never retrieves, so it cannot invent
 a `food_id`. Constrained decoding, ordinal enum for certainty, **abstention as a schema branch** rather than
@@ -573,10 +589,14 @@ a low number. Skip conditions are narrow: exact tier-1 hit, wide tier-2 margin, 
 within 10% on nutrients.
 
 **Bake off Nova Micro against Haiku 4.5 and Gemini Flash-Lite on our own 2,432 lines — under $6 total** —
-and pick on measured accuracy against a stated bar: a maximum **false-agree** rate on lines known wrong and
-a maximum **false-disagree** rate on lines known correct. ⛔ If no candidate clears both, the gate ships
-**observe-only** — verdicts recorded, publication ungated — until one does. "Pick on measured accuracy"
-with no floor and no fallback is not an implementable instruction.
+and pick the best performer. **Owner ruling: ship the winner and improve from there — a working gate beats
+no gate.** So the bake-off selects rather than gates.
+
+⚠️ The two error directions are not symmetric, and only one is safe to ship past. A wrong **agree** passes
+data that would have shipped anyway — no worse than today. A wrong **disagree** withholds nutrition from a
+correct line, which is worse than today. So both rates are measured, the winner ships regardless, and the
+**false-disagree rate is the number that triggers a rethink** — including falling back to observe-only
+(verdicts recorded, publication ungated) if it turns out high in production.
 
 ⚠️ Calibrate on the **residual**, not the whole judgement set: the gate sees a systematically different
 distribution. The bake-off runs on the full corpus for comparability but the committed thresholds come from
@@ -766,13 +786,13 @@ protocol; the run is reproducible from a committed corpus manifest.
 
 **Resolve before implementation**
 
-1. Feature 005's plan states "the platform never pays for AI API calls — users bring their own keys." An
-   unattended import has no user and therefore no key. This plan assumes the gate is a platform capability
-   and 005's BYOK is scoped to user-facing generation; that assumption amends 005 and needs an owner ruling.
-2. Is REQ-057's prefix-over-substring ordering an owner-held product requirement, or a proxy for relevance?
-   U5 retires it, which amends a V-Model traced requirement.
-3. Is the verification gate free-tier or premium-gated? The origin raised it; cost makes it immaterial today
-   but it is a packaging decision with no owner.
+1. Is REQ-057's prefix-over-substring ordering an owner-held product requirement, or a proxy for relevance?
+   U5 retires it, which amends a V-Model traced requirement. **This is the only open blocker.**
+
+_Closed by owner ruling, 2026-08-20:_ the gate is core platform capability, platform-paid, neither BYOK nor
+tier-gated (KTD-9); the cost ceiling is $100/month, SSM-configurable, enforced against a Dynamo counter
+before the call; the bake-off selects a winner and ships it rather than gating on a floor; and quantity is
+nullable on both the column and the wire.
 
 **Deferred to implementation**
 

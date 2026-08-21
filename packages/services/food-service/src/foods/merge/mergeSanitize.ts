@@ -11,6 +11,7 @@
  * @implements FR-ADP-2 FR-ADP-3
  */
 import type { CanonicalCandidate, CanonicalNutrient, CanonicalPortion } from '../../sources/foodSourceAdapter.js';
+import { normalizeAliases } from '../foodAliases.js';
 
 /** A non-negative arbitrary-precision decimal (matches the DB `amount >= 0` numeric domain). */
 const NON_NEGATIVE_DECIMAL = /^\d+(\.\d+)?$/;
@@ -58,6 +59,10 @@ export function sanitizeCandidates(candidates: readonly CanonicalCandidate[]): C
 
         clean.push({
             ...candidate,
+            // Same value grain as the two filters below: a blank, duplicate or over-length synonym is
+            // dropped, never the food. `normalizeAliases` also applies the catalog-name Unicode hygiene,
+            // because an alias is shared searched text with the same identity-split hazard a name has.
+            aliases: normalizeAliases(candidate.aliases),
             nutrients: candidate.nutrients.filter(isStorableNutrient),
             portions: candidate.portions.filter(isStorablePortion),
         });

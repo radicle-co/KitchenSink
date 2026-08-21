@@ -20,10 +20,12 @@ import {
     UsdaTimeoutError,
 } from './errors.js';
 import {
+    ADDITIONAL_DESCRIPTION_ATTRIBUTE,
     RawUsdaFoodArraySchema,
     RawUsdaFoodSchema,
     RawUsdaSearchResultSchema,
     type RawUsdaFood,
+    type RawUsdaFoodAttribute,
     type RawUsdaNutrient,
 } from './schemas.js';
 import type { UsdaDataType, UsdaFoodDetail, UsdaNutrient, UsdaSearchHit, UsdaSearchResult } from './types.js';
@@ -41,6 +43,51 @@ function withoutTrailingSlashes(url: string): string {
     }
 
     return url.slice(0, end);
+}
+
+/**
+ * Rank an unranked alias after every ranked one, without letting the comparator see `Infinity` (which
+ * would make two unranked entries compare equal — fine — but also invites a `NaN` if the value is ever
+ * non-finite). USDA ranks are small positive integers.
+ */
+const UNRANKED = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Extract USDA's curated alternate names from a food-detail `foodAttributes[]` array, in USDA's own
+ * `rank` order. Pure.
+ *
+ * ⚠️ **The detail endpoints do NOT send `additionalDescriptions`.** That flat, `;`-joined field exists
+ * only on the search envelope (`SearchResultFood`). `GET /v1/food/{fdcId}` and `POST /v1/foods` carry the
+ * same knowledge as typed attributes — verified live on 2026-08-21 against fdcId 2705709, where the
+ * search hit reads `'Pioneer;New York;Tillamook;…'` and the detail response has no such key but eight
+ * `foodAttributeType.name = 'Additional Description'` entries. Since the persistence path
+ * (`UsdaSourceAdapter.fetchByKey`/`fetchByKeys`) reads DETAIL, parsing only the flat string would recover
+ * nothing while appearing to work.
+ *
+ * Only that one attribute type is admitted: the same array also carries `WWEIA Category description`
+ * (the food group) and `Adjustments` (moisture/fat notes), neither of which is a name for the food.
+ * Blank values are dropped rather than stored, so a food with nothing usable yields `[]` and persists
+ * as NULL downstream rather than an empty-string sentinel.
+ *
+ * @param attributes - The raw `foodAttributes` array (already shape-validated).
+ * @returns The trimmed alias values, ranked first and in input order thereafter.
+ */
+export function additionalDescriptionsOf(attributes: readonly RawUsdaFoodAttribute[]): string[] {
+    return attributes
+        .map((attribute, index) => ({ attribute, index }))
+        .filter(
+            ({ attribute }) =>
+                (attribute.foodAttributeType?.name ?? '').trim().toLowerCase() === ADDITIONAL_DESCRIPTION_ATTRIBUTE,
+        )
+        .sort((left, right) => {
+            const byRank = (left.attribute.rank ?? UNRANKED) - (right.attribute.rank ?? UNRANKED);
+
+            // Input order is the tiebreak, so the sort is total and the output deterministic — `Array.sort`
+            // is stable in modern V8, but relying on that for a wire-derived array is an unstated premise.
+            return byRank !== 0 ? byRank : left.index - right.index;
+        })
+        .map(({ attribute }) => (attribute.value ?? '').trim())
+        .filter((value) => value.length > 0);
 }
 
 /** Default USDA FoodData Central API base URL. */
@@ -250,6 +297,7 @@ export class UsdaApiClient {
             description: food.description,
             ...(food.dataType !== undefined ? { dataType: food.dataType as UsdaDataType } : {}),
             foodNutrients: nutrients,
+            additionalDescriptions: additionalDescriptionsOf(food.foodAttributes),
             ...(food.brandOwner !== undefined ? { brandOwner: food.brandOwner } : {}),
             ...(food.brandName !== undefined ? { brandName: food.brandName } : {}),
             ...(food.gtinUpc !== undefined ? { gtinUpc: food.gtinUpc } : {}),

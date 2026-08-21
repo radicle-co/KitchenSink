@@ -60,7 +60,7 @@ export const foodKindEnum = pgEnum('food_kind', ['generic', 'branded']);
 /** Source enum — additive; new sources append values (R3/FR-IDN-3). */
 export const foodSourceEnum = pgEnum('food_source', ['usda']);
 
-/** Scalar provenance field enum (R5) — no EAV value column. */
+/** Scalar provenance field enum (R5) — no EAV value column. Additive; `aliases` arrived with 0007. */
 export const foodFieldEnum = pgEnum('food_field', [
     'name',
     'description',
@@ -68,6 +68,7 @@ export const foodFieldEnum = pgEnum('food_field', [
     'brand_owner',
     'brand_name',
     'barcode',
+    'aliases',
 ]);
 
 /** Nutrient amount basis; lives on the value row (FR-028/FR-MRG-3). */
@@ -103,6 +104,11 @@ export const food = pgTable(
         brandOwner: text('brand_owner'),
         brandName: text('brand_name'),
         barcode: text('barcode'),
+        // USDA's curated alternate names (brands, regional synonyms, alternate forms) flattened onto
+        // `ALIAS_DELIMITER` by `foods/foodAliases.ts` (0007 migration, plan U2/KTD-2). NULL — never `''`
+        // — when a food has none (GR-019). A single `text` rather than `text[]` because the vector below
+        // is a STORED generated column and `array_to_string` is STABLE, not IMMUTABLE.
+        aliases: text('aliases'),
         status: foodStatusEnum('status').notNull().default('PENDING'),
         // Data provenance class (0003 migration). Defaults to `live` so every pre-existing row — and
         // every future API-admitted food — stays in the live change-refresh scan; only the bulk seed
@@ -115,6 +121,13 @@ export const food = pgTable(
         // migration). Read-only (generated); the immutable two-arg to_tsvector form is required.
         searchVector: tsvector('search_vector').generatedAlwaysAs(
             sql`to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, ''))`,
+        ),
+        // A SECOND STORED generated tsvector, over the aliases alone (0007 migration). Deliberately not
+        // folded into `search_vector`: changing that column's expression needs PG 17's
+        // `ALTER COLUMN ... SET EXPRESSION`, and the PG 16 equivalent is DROP + ADD COLUMN — an ACCESS
+        // EXCLUSIVE lock, a rewrite of `food`, and `food_search_vector_idx` dropped with it. See 0007.
+        aliasesSearchVector: tsvector('aliases_search_vector').generatedAlwaysAs(
+            sql`to_tsvector('english', coalesce(aliases, ''))`,
         ),
     },
     (table) => [
@@ -138,6 +151,9 @@ export const food = pgTable(
         index('food_name_trgm_gist_idx').using('gist', sql`${table.name} gist_trgm_ops`),
         // Ranked full-text search (T-180): GIN over the generated tsvector (FR-008/FR-010).
         index('food_search_vector_idx').using('gin', table.searchVector),
+        // The curated-alias vector's own GIN index (0007). Starts EMPTY — an alias-less row generates an
+        // empty tsvector, which costs no index entries — and grows only as aliases are acquired.
+        index('food_aliases_search_vector_idx').using('gin', table.aliasesSearchVector),
     ],
 );
 

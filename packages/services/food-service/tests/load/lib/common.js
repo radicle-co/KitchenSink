@@ -90,7 +90,8 @@ export const SUSTAIN_FRACTION = Number(__ENV['FOOD_SUSTAIN_FRACTION'] || 0.85);
 //
 // BREACHABLE BY, at 3+ characters: `FoodSearchDao.search` ORs FOUR predicates — ranked FTS
 // (`search_vector @@ plainto_tsquery`), trigram similarity (`name % query`) and two substring
-// `ILIKE '%q%'` scans — then ranks EVERY match by `GREATEST(ts_rank, similarity(name, query))` before
+// `ILIKE '%q%'` scans, plus the curated-alias tsvector U2 added — then ranks EVERY match by
+// `GREATEST(ts_rank(search_vector), ts_rank(aliases_search_vector), similarity(name, query))` before
 // applying `LIMIT 20`. So a broad query must score thousands of rows, and growth of the RESOLVED
 // population moves this directly.
 //

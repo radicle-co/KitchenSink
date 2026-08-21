@@ -86,6 +86,18 @@ export interface CanonicalCandidate {
     readonly description: string | null;
     /** Product barcode (GTIN/UPC) when present, else `null`. */
     readonly barcode: string | null;
+    /**
+     * The source's curated ALTERNATE NAMES for this food — brands, regional synonyms and alternate forms
+     * — in the source's own significance order, or `[]` when it publishes none (plan U2/KTD-2, R11).
+     *
+     * Total rather than optional on purpose: this field is the one the system was silently DROPPING, so
+     * every adapter (and every fixture) is made to state what it has. `[]` is "this source publishes
+     * none", which the write boundary turns into a NULL column rather than an `''` sentinel.
+     *
+     * Source-agnostic, like every other field here: USDA's `foodAttributes` / `additionalDescriptions`
+     * naming does not cross this boundary (FR-ADP-1).
+     */
+    readonly aliases: readonly string[];
     /** Normalized per-value nutrients (per-100g). */
     readonly nutrients: readonly CanonicalNutrient[];
     /** Normalized portions. */

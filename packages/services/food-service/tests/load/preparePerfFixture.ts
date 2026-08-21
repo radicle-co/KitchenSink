@@ -46,6 +46,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 import {
+    ALIAS_TERMS,
     BRANDS,
     CUTS,
     INGREDIENTS,
@@ -57,6 +58,8 @@ import {
     buildSearchProbes,
     perfBarcode,
     perfBarcodeSql,
+    perfFoodAliases,
+    perfFoodAliasesSql,
     perfExternalKey,
     perfFoodDescription,
     perfFoodDescriptionSql,
@@ -90,6 +93,13 @@ const pool = new pg.Pool({ connectionString });
 /** The vocabulary arrays passed to every rendering statement, in placeholder order after `$1` (the count). */
 const VOCAB_PARAMS = { preparations: 2, ingredients: 3, cuts: 4, brands: 5 } as const;
 const vocabValues = [[...PREPARATIONS], [...INGREDIENTS], [...CUTS], [...BRANDS]];
+
+/**
+ * Placeholder number for the {@link ALIAS_TERMS} array. Appended AFTER the existing `$6`-`$8` arguments
+ * rather than inserted next to the other vocabularies, so no existing placeholder number moves — the
+ * renderings above bind by number, and renumbering them is a silent-corruption change.
+ */
+const ALIAS_TERMS_PARAM = 9;
 
 /**
  * Fail with an actionable message and a non-zero exit. Never `console.warn`-and-continue: a fixture that
@@ -128,8 +138,10 @@ async function requireSchema(): Promise<void> {
 /**
  * Insert one `food` population.
  *
- * `search_vector` is a STORED GENERATED column and is deliberately absent from the column list — Postgres
- * computes it, which is exactly the write-side cost the deployed service pays.
+ * `search_vector` AND `aliases_search_vector` are STORED GENERATED columns and are deliberately absent
+ * from the column list — Postgres computes both, which is exactly the write-side cost the deployed service
+ * pays. `aliases` itself IS written, at USDA's measured ~1.8 per row: with it NULL the second vector would
+ * be empty, its GIN index would hold nothing, and SC-007 would measure the alias branch doing no work.
  *
  * @param kind - Which population to insert.
  * @param count - How many rows.
@@ -147,15 +159,17 @@ async function insertFoods(
 ): Promise<number> {
     const name = perfFoodNameSql(kind, 's.i', VOCAB_PARAMS);
     const description = perfFoodDescriptionSql('s.i', VOCAB_PARAMS);
+    const aliases = perfFoodAliasesSql('s.i', ALIAS_TERMS_PARAM, VOCAB_PARAMS.brands);
     const result = await pool.query(
         `INSERT INTO food (
-             id, name, normalized_name, description, kind, brand_owner, brand_name, barcode,
+             id, name, normalized_name, description, aliases, kind, brand_owner, brand_name, barcode,
              status, origin, tombstoned_at, created_at, updated_at
          )
          SELECT ${perfFoodIdSql(kind, 's.i')},
                 ${name},
                 lower(${name}),
                 ${description},
+                ${aliases},
                 CASE WHEN s.i % 3 = 0 THEN 'branded' ELSE 'generic' END::food_kind,
                 CASE WHEN s.i % 3 = 0 THEN ($5::text[])[(s.i % ${BRANDS.length}) + 1] || ' foods, inc.' END,
                 CASE WHEN s.i % 3 = 0 THEN ($5::text[])[(s.i % ${BRANDS.length}) + 1] END,
@@ -169,7 +183,7 @@ async function insertFoods(
                 now(), now()
            FROM generate_series(0, $1::int - 1) AS s(i)
          ON CONFLICT DO NOTHING`,
-        [count, ...vocabValues, options.barcodeBelow, status, options.tombstoned],
+        [count, ...vocabValues, options.barcodeBelow, status, options.tombstoned, [...ALIAS_TERMS]],
     );
 
     return result.rowCount ?? 0;
@@ -310,10 +324,11 @@ async function assertRenderingsAgree(kind: PerfFoodKind, expectBarcode: boolean)
         name: string | null;
         normalized_name: string;
         description: string | null;
+        aliases: string | null;
         barcode: string | null;
         external_key: string | null;
     }>(
-        `SELECT f.name, f.normalized_name, f.description, f.barcode, s.external_key
+        `SELECT f.name, f.normalized_name, f.description, f.aliases, f.barcode, s.external_key
            FROM food f LEFT JOIN food_sources s ON s.food_id = f.id
           WHERE f.id = $1`,
         [id],
@@ -324,6 +339,7 @@ async function assertRenderingsAgree(kind: PerfFoodKind, expectBarcode: boolean)
         name: perfFoodName(kind, 0),
         normalized_name: perfNormalizedName(kind, 0),
         description: perfFoodDescription(0),
+        aliases: perfFoodAliases(0),
         barcode: expectBarcode ? perfBarcode(0) : null,
         external_key: perfExternalKey(kind, 0),
     };
@@ -333,6 +349,7 @@ async function assertRenderingsAgree(kind: PerfFoodKind, expectBarcode: boolean)
         actual.name !== expected.name ||
         actual.normalized_name !== expected.normalized_name ||
         actual.description !== expected.description ||
+        actual.aliases !== expected.aliases ||
         actual.barcode !== expected.barcode ||
         actual.external_key !== expected.external_key
     ) {
@@ -387,17 +404,36 @@ async function assertGoldenRecordDepth(): Promise<void> {
  * @param probes - The emitted probe set.
  * @sideEffect Reads `food`; terminates the process when a probe is mis-calibrated.
  */
-async function assertProbeSelectivity(probes: { broad: readonly string[]; miss: readonly string[] }): Promise<void> {
+async function assertProbeSelectivity(probes: {
+    broad: readonly string[];
+    miss: readonly string[];
+    alias: readonly string[];
+}): Promise<void> {
     const broad = probes.broad[0]!;
     const miss = probes.miss[0]!;
-    const { rows } = await pool.query<{ broad_matches: number; miss_matches: number }>(
+    const alias = probes.alias[0]!;
+    const { rows } = await pool.query<{
+        broad_matches: number;
+        miss_matches: number;
+        alias_matches: number;
+        alias_via_other_branches: number;
+    }>(
         `SELECT (SELECT count(*)::int FROM food
                   WHERE status = 'RESOLVED' AND search_vector @@ plainto_tsquery('english', $1)) AS broad_matches,
                 (SELECT count(*)::int FROM food
                   WHERE status = 'RESOLVED' AND (search_vector @@ plainto_tsquery('english', $2)
+                        OR aliases_search_vector @@ plainto_tsquery('english', $2)
                         OR name % $2::text
-                        OR name ILIKE '%' || $2 || '%' OR description ILIKE '%' || $2 || '%')) AS miss_matches`,
-        [broad, miss],
+                        OR name ILIKE '%' || $2 || '%' OR description ILIKE '%' || $2 || '%')) AS miss_matches,
+                (SELECT count(*)::int FROM food
+                  WHERE status = 'RESOLVED'
+                    AND aliases_search_vector @@ plainto_tsquery('english', $3)) AS alias_matches,
+                (SELECT count(*)::int FROM food
+                  WHERE status = 'RESOLVED' AND (search_vector @@ plainto_tsquery('english', $3)
+                        OR name % $3::text
+                        OR name ILIKE '%' || $3 || '%'
+                        OR description ILIKE '%' || $3 || '%')) AS alias_via_other_branches`,
+        [broad, miss, alias],
     );
     const actual = rows[0];
 
@@ -413,6 +449,26 @@ async function assertProbeSelectivity(probes: { broad: readonly string[]; miss: 
         fail(
             `the miss probe '${miss}' matches ${actual.miss_matches} row(s); it must match ZERO so the ` +
                 `predicate is evaluated in full. The vocabulary in perfFixture.ts must have changed.`,
+        );
+    }
+
+    // U2: the alias shape has to be answered BY the alias vector and by nothing else. Both halves matter —
+    // zero alias matches means the seed left `aliases` NULL and the k6 `alias` shape would time an empty
+    // GIN scan; a non-zero count on the other branches means the alias vocabulary has collided with the
+    // name/description vocabulary and the shape no longer isolates the branch it exists to measure.
+    if (actual.alias_matches === 0) {
+        fail(
+            `the alias probe '${alias}' matches NO rows through aliases_search_vector. The seeded ` +
+                `food.aliases column is empty or the alias vocabulary drifted from perfFoodAliases(), so ` +
+                `the k6 'alias' shape would report the speed of scanning an empty index.`,
+        );
+    }
+
+    if (actual.alias_via_other_branches !== 0) {
+        fail(
+            `the alias probe '${alias}' also matches ${actual.alias_via_other_branches} row(s) through ` +
+                `name/description. ALIAS_TERMS must share no token with the name vocabulary, or the shape ` +
+                `stops isolating the curated-alias branch.`,
         );
     }
 }

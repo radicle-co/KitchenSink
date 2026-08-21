@@ -47,6 +47,10 @@ vi.mock('@kitchensink/usda-client', async (importOriginal) => {
                 brandName: null,
                 gtinUpc: null,
                 foodNutrients: [{ nutrientName: 'Protein', unitName: 'g', value: 2.8 }],
+                // Total on the real client's `UsdaFoodDetail`: `[]` when USDA publishes no curated
+                // aliases, never absent (U2). A double that omits it lies about the contract it doubles —
+                // and did, until `sanitizeCandidates` iterated it and this suite went 500.
+                additionalDescriptions: [],
                 publicationDate: '2021-05-01',
                 raw: {},
             };

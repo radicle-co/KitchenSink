@@ -272,6 +272,11 @@ export class UsdaSourceAdapter implements FoodSourceAdapter {
             brandName: detail.brandName ?? null,
             description: detail.description,
             barcode: detail.gtinUpc ?? null,
+            // The client has already selected the `Additional Description` attributes and ranked them;
+            // value-grain hygiene and the storable bounds are `foodAliases.ts`'s, applied at the merge
+            // boundary alongside the nutrient/portion filters. An unusable synonym must never cost a food
+            // its lab-analyzed nutrition, so nothing here throws over one.
+            aliases: detail.additionalDescriptions,
             nutrients: this.mapNutrients(detail.foodNutrients, detail.raw, externalKey),
             portions: this.mapPortions(detail.raw, externalKey),
             itemVersion: detail.publicationDate ?? hashItem(detail.raw),

@@ -233,8 +233,19 @@ export class FoodSearchDao {
      * may be removed here. A row matches when EITHER the ranked FTS path
      * hits (`search_vector @@ plainto_tsquery('english', query)` — word-order-independent lexeme match
      * over name + description) OR the pg_trgm fuzzy fallback hits (trigram-similar name `%`, or a
-     * name/description substring `ILIKE`). The score is `GREATEST(ts_rank, similarity(name))` so a strong
-     * full-text relevance OR a strong fuzzy/typo match both rank a row up; ties break on name. Pure.
+     * name/description substring `ILIKE`), **or the curated-alias vector hits** (U2). The score is
+     * `GREATEST(ts_rank(search_vector), ts_rank(aliases_search_vector), similarity(name))` so a strong
+     * full-text relevance, a curated synonym, OR a strong fuzzy/typo match all rank a row up; ties break
+     * on name. Pure.
+     *
+     * ⛔ The alias branch must appear in BOTH the predicate and the score. In the predicate alone, an
+     * alias-only hit matches at score 0 and is truncated out of the 20-row page by the `ORDER BY` — a
+     * silent failure a "does it match?" test cannot see. One `GREATEST`, which is also the sort key, so
+     * the ranking keeps exactly one authority.
+     *
+     * ⛔ Aliases get a tsvector and NOTHING else: no `%`, no `ILIKE`. The `name %` branch alone was 30.5ms
+     * of a 45.8ms statement before 0004 gave it a GiST index; a fourth substring branch over a second
+     * free-text column is per-row cost SC-007's 250ms budget has no room for.
      *
      * @param query - The trimmed user query.
      * @param limit - Max rows.
@@ -249,6 +260,7 @@ export class FoodSearchDao {
             SELECT id, name,
                    GREATEST(
                        ts_rank(search_vector, plainto_tsquery('english', ${query})),
+                       ts_rank(aliases_search_vector, plainto_tsquery('english', ${query})),
                        similarity(name, ${query})
                    )::float8 AS score
             FROM food
@@ -256,6 +268,7 @@ export class FoodSearchDao {
               AND name IS NOT NULL
               AND (
                   search_vector @@ plainto_tsquery('english', ${query})
+                  OR aliases_search_vector @@ plainto_tsquery('english', ${query})
                   OR name % ${query}
                   OR name ILIKE ${pattern} ESCAPE '\\'
                   OR description ILIKE ${pattern} ESCAPE '\\'

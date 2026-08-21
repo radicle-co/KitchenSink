@@ -215,7 +215,76 @@ describe('mergeCandidates — field-level merge rules (FR-MRG-2/FR-MRG-3)', () =
     });
 });
 
+/**
+ * CURATED ALIASES (plan U2 / KTD-2) — merged as a WHOLE LIST, never unioned across sources.
+ *
+ * `food.aliases` is one column with one `food_field_provenance` row, so exactly one contributor can own
+ * it. Unioning two sources' lists would assert a set no source published and leave the provenance row
+ * naming only one of them. The rule mirrors `description`'s "richer free text wins": the contributor with
+ * the MOST aliases wins, ties keep the higher-priority source.
+ *
+ * Mutation lens: reds if the winner is picked by source priority alone (the 1-alias `usda` list would beat
+ * the 6-alias `other` one), if the lists are concatenated, or if provenance stops travelling with the value.
+ */
+describe('mergeCandidates — curated aliases (U2)', () => {
+    it('carries the aliases of a single contributor onto the golden record, with its provenance', () => {
+        const result = mergeCandidates<TestSource>(
+            [makeMergeCandidate<TestSource>('usda', { externalKey: '2705709', aliases: ['Tillamook', 'Longhorn'] })],
+            priorityOf,
+        );
+
+        expect(result.goldenRecord?.aliases?.values).toEqual(['Tillamook', 'Longhorn']);
+        expect(result.goldenRecord?.aliases?.source).toBe('usda');
+        expect(result.goldenRecord?.aliases?.externalKey).toBe('2705709');
+    });
+
+    it('takes the RICHER list even from the lower-priority source, and does not union the two', () => {
+        const result = mergeCandidates<TestSource>(
+            [
+                makeMergeCandidate<TestSource>('usda', { externalKey: 'A', aliases: ['Tillamook'] }),
+                makeMergeCandidate<TestSource>('other', { externalKey: 'B', aliases: ['Coon', 'Hoop', 'Longhorn'] }),
+            ],
+            priorityOf,
+        );
+
+        expect(result.goldenRecord?.aliases?.values).toEqual(['Coon', 'Hoop', 'Longhorn']);
+        expect(result.goldenRecord?.aliases?.source).toBe('other');
+        expect(result.goldenRecord?.aliases?.values).not.toContain('Tillamook');
+    });
+
+    it('breaks a tie on source priority, exactly as the free-text rule does', () => {
+        const result = mergeCandidates<TestSource>(
+            [
+                makeMergeCandidate<TestSource>('other', { externalKey: 'B', aliases: ['Coon'] }),
+                makeMergeCandidate<TestSource>('usda', { externalKey: 'A', aliases: ['Tillamook'] }),
+            ],
+            priorityOf,
+        );
+
+        expect(result.goldenRecord?.aliases?.source).toBe('usda');
+    });
+
+    it('is null — not an empty winner — when no contributor published any alias', () => {
+        // A null draft slot is what makes `upsertGoldenScalars` leave the column alone; an empty winner
+        // would write `''` and reintroduce the sentinel GR-019 forbids.
+        const result = mergeCandidates<TestSource>(
+            [makeMergeCandidate<TestSource>('usda', { aliases: [] })],
+            priorityOf,
+        );
+
+        expect(result.goldenRecord?.aliases).toBeNull();
+    });
+});
+
 describe('sanitizeCandidates — reject-not-store at the merge boundary (T-164, FR-ADP-2/FR-ADP-3)', () => {
+    it('normalizes aliases at the value grain: blanks dropped, duplicates folded, order kept', () => {
+        const [clean] = sanitizeCandidates([
+            makeMergeCandidate('usda', { aliases: ['  Tillamook ', '', 'TILLAMOOK', 'Coon'] }),
+        ]);
+
+        expect(clean?.aliases).toEqual(['Tillamook', 'Coon']);
+    });
+
     it('drops a malformed nutrient value but keeps the candidate and its valid values', () => {
         const [clean] = sanitizeCandidates([
             makeMergeCandidate('usda', {

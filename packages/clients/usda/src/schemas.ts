@@ -64,11 +64,44 @@ export const RawUsdaNutrientSchema = z
 export type RawUsdaNutrient = z.infer<typeof RawUsdaNutrientSchema>;
 
 /**
+ * USDA's `foodAttributeType.name` for a curated alternate name / regional synonym / brand
+ * (`foodAttributeType.id` 1001). This is FNDDS' alias table, and it is the ONLY attribute type the
+ * client surfaces — `WWEIA Category description`, `WWEIA Category number` and `Adjustments` share the
+ * same array and are not names for the food.
+ *
+ * Compared case-insensitively against the trimmed upstream value, but never as a prefix: `Additional`
+ * alone is not this type.
+ */
+export const ADDITIONAL_DESCRIPTION_ATTRIBUTE = 'additional description';
+
+/**
+ * A single `foodAttributes[]` entry on a food-detail response.
+ *
+ * ⚠️ The 2020 OpenAPI document models this as `FoodAttribute` with `sequenceNumber` and a capitalised
+ * `FoodAttributeType`. The LIVE API (probed 2026-08-21) sends a lower-cased `foodAttributeType` and a
+ * `rank` instead. This schema follows the live shape — every field optional, `.passthrough()` — because
+ * a mismatch here must never fail a food whose nutrients are perfectly good.
+ */
+export const RawUsdaFoodAttributeSchema = z
+    .object({
+        value: z.string().optional(),
+        rank: z.number().optional(),
+        foodAttributeType: z
+            .object({ id: z.number().optional(), name: z.string().optional() })
+            .passthrough()
+            .optional(),
+    })
+    .passthrough();
+
+/** Inferred food-attribute type, kept in lock-step with {@link RawUsdaFoodAttributeSchema}. */
+export type RawUsdaFoodAttribute = z.infer<typeof RawUsdaFoodAttributeSchema>;
+
+/**
  * A raw food-detail object from `GET /v1/food/{fdcId}` and each element of `POST /v1/foods`.
  *
- * Required (the client depends on these): `fdcId` and `description`. `foodNutrients` defaults to
- * an empty array when absent so downstream nutrient extraction always has an array to map over.
- * Everything else is optional and only type-constrained.
+ * Required (the client depends on these): `fdcId` and `description`. `foodNutrients` and
+ * `foodAttributes` default to an empty array when absent so downstream extraction always has an array
+ * to map over. Everything else is optional and only type-constrained.
  */
 export const RawUsdaFoodSchema = z
     .object({
@@ -76,6 +109,10 @@ export const RawUsdaFoodSchema = z
         description: z.string(),
         dataType: z.string().optional(),
         foodNutrients: z.array(RawUsdaNutrientSchema).default([]),
+        // The curated alias table (FNDDS): 9,648 additional descriptions across 5,432 main descriptions.
+        // Only present on the DETAIL endpoints; the search envelope flattens the same knowledge into a
+        // `;`-joined `additionalDescriptions` string instead. See `additionalDescriptionsOf`.
+        foodAttributes: z.array(RawUsdaFoodAttributeSchema).default([]),
         brandOwner: z.string().optional(),
         brandName: z.string().optional(),
         gtinUpc: z.string().optional(),

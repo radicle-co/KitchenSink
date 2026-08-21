@@ -84,6 +84,37 @@ function toFraction(literal: string): Fraction | null {
     }
 }
 
+/**
+ * A Unicode vulgar fraction is any character whose NFKD decomposition is `digits FRACTION-SLASH digits`.
+ *
+ * ⚠️ Applied PER TOKEN and anchored, which is the whole difference between this working and the naive
+ * form that does not: NFKD over the WHOLE string turns `"1½"` into `"11⁄2"` — eleven halves, not one and
+ * a half. The tokenizer has already split `"1½"` into `1` and `½`, so each half decomposes unambiguously.
+ * Deriving the value from the decomposition rather than from a hand-written table is also what makes the
+ * whole block work — `⅜`, `⅚` and `↉` cost nothing and cannot be forgotten.
+ */
+const DECOMPOSED_VULGAR_FRACTION = /^(\d+)⁄(\d+)$/u;
+
+/** Reads a single vulgar-fraction character (`½`, `⅔`, `⅜`) as its exact rational. */
+function readVulgarFraction(tokens: readonly Token[], index: number): Reading | null {
+    const token = tokens[index];
+
+    if (token === undefined) {
+        return null;
+    }
+
+    const value = vulgarFractionValue(token.text);
+
+    return value === null ? null : { value, next: index + 1 };
+}
+
+/** The rational a lone vulgar-fraction character states, or `null` when it is not one. */
+function vulgarFractionValue(text: string): Fraction | null {
+    const match = DECOMPOSED_VULGAR_FRACTION.exec(text.normalize('NFKD'));
+
+    return match === null ? null : toFraction(`${match[1]}/${match[2]}`);
+}
+
 function isNumeralToken(token: Token | undefined): boolean {
     return token !== undefined && /^-?\d/.test(token.text);
 }
@@ -92,7 +123,10 @@ function wordValue(token: Token | undefined): number | undefined {
     return token === undefined ? undefined : WHOLE_NUMBER_WORDS.get(token.text.toLowerCase());
 }
 
-/** Reads `"1 1/2"`, `"2/3"`, `"1.5"`, `"3"` and `"-30"` — the notations `fraction.js` parses natively. */
+/**
+ * Reads `"1 1/2"`, `"1½"`, `"2/3"`, `"1.5"`, `"3"` and `"-30"` — the notations `fraction.js` parses
+ * natively, plus the MIXED numeral whose fraction part is a single vulgar-fraction character.
+ */
 function readNumeral(tokens: readonly Token[], index: number): Reading | null {
     const first = tokens[index];
 
@@ -108,8 +142,10 @@ function readNumeral(tokens: readonly Token[], index: number): Reading | null {
 
     const second = tokens[index + 1];
 
-    if (/^\d+$/.test(first.text) && second !== undefined && /^\d+\/\d+$/.test(second.text)) {
-        const fractionPart = toFraction(second.text);
+    if (/^\d+$/.test(first.text) && second !== undefined) {
+        const fractionPart = /^\d+\/\d+$/.test(second.text)
+            ? toFraction(second.text)
+            : vulgarFractionValue(second.text);
 
         if (fractionPart !== null) {
             return { value: whole.add(fractionPart), next: index + 2 };
@@ -194,7 +230,7 @@ function readPhrase(tokens: readonly Token[]): Reading | null {
     const whole = readWholeWord(tokens, 0) ?? readNumeral(tokens, 0);
 
     if (whole !== null && tokens[whole.next]?.text.toLowerCase() === 'and') {
-        const fractionPart = readFractionWords(tokens, whole.next + 1);
+        const fractionPart = readFractionWords(tokens, whole.next + 1) ?? readVulgarFraction(tokens, whole.next + 1);
 
         if (fractionPart !== null) {
             return applyMultiplier(tokens, { value: whole.value.add(fractionPart.value), next: fractionPart.next });
@@ -202,7 +238,7 @@ function readPhrase(tokens: readonly Token[]): Reading | null {
     }
 
     // A fraction reading subsumes the whole reading when both match ("one-half" is 1/2, not 1).
-    const fractionOnly = readFractionWords(tokens, 0);
+    const fractionOnly = readFractionWords(tokens, 0) ?? readVulgarFraction(tokens, 0);
 
     if (fractionOnly !== null) {
         return applyMultiplier(tokens, fractionOnly);
@@ -212,14 +248,34 @@ function readPhrase(tokens: readonly Token[]): Reading | null {
 }
 
 /**
+ * Separators that make two adjacent quantities ONE range rather than two terms.
+ *
+ * ⚠️ ONE OWNER, THREE CALLERS — {@link normalizeQuantityRange} here, and `normalizeDurationToMinutes` and
+ * `normalizeServings` in `valueNormalizers.ts`, which previously declared their own copy. What counts as a
+ * range boundary is a fact about the number grammar, and the grammar lives in this module.
+ */
+export const RANGE_SEPARATOR = /^\s*(?:to|or|through|[-–—])\s*/i;
+
+/**
  * Read the LEADING English quantity phrase of a line and rewrite it as a numeral.
  *
  * DESIGN PATTERN: Adapter. It translates 1900s cookbook prose into the input dialect `parse-ingredient`
  * accepts, and exposes the exact rational for the callers that have no downstream parser.
  *
  * Pure and TOTAL: a line that opens with no quantity phrase comes back unchanged with a `null` quantity,
- * and no input throws. Unicode vulgar fractions (`½`) are deliberately NOT read here — Unicode NFKD turns
- * `"1½"` into `"11/2"` (5.5, not 1.5), and `parse-ingredient` reads them correctly downstream anyway.
+ * and no input throws.
+ *
+ * ⚠️ **Unicode vulgar fractions ARE read here, reversing this module's earlier decision.** That decision
+ * said they were "deliberately NOT read — Unicode NFKD turns `1½` into `11/2` (5.5, not 1.5), and
+ * `parse-ingredient` reads them correctly downstream anyway." Its first premise still stands and is
+ * honoured: NFKD is applied PER TOKEN and anchored ({@link DECOMPOSED_VULGAR_FRACTION}), never to the
+ * line, so the `11/2` trap cannot recur. Its second premise was measured FALSE in two directions:
+ *
+ *  1. This function's own reading won the caller's `??`, so `"1½ cups"` came back as **1** — the fraction
+ *     was never handed downstream at all, and the line was flagged as certain.
+ *  2. `normalizeDurationToMinutes` has no downstream parser to be saved by. `"1½ hours"` returned
+ *     **60 minutes with `needsReview: false`**, and `cook_time_minutes` is `NOT NULL` on a published
+ *     public recipe.
  *
  * @param line - One extracted, already-sanitized text field.
  * @returns The rewritten line, the exact rational, the consumed source phrase, and the remainder.
@@ -242,8 +298,78 @@ export function normalizeQuantity(line: string): NormalizedQuantity {
 
     const phrase = line.slice(first.start, last.end);
     const rest = line.slice(last.end);
-    // A phrase written entirely in numerals needs no rewrite; rewriting it would only churn the text.
-    const rewritten = /[a-z]/i.test(phrase) ? reading.value.toFraction(true) + rest : line;
+
+    // ⛔ THE INVARIANT: this module never claims a PREFIX of a longer numeric literal. A reading that runs
+    // straight into another digit or number-like character has not read the whole number, and returning
+    // its head as "the quantity" is the exact shape of the `1½ → 1` defect. Declining hands the line to
+    // the downstream parser intact instead. `"15-20"` and `"-30"` are unaffected: a separator intervenes.
+    if (/^[\d\p{No}]/u.test(rest)) {
+        return nothing;
+    }
+
+    // A phrase written entirely in ASCII numerals needs no rewrite; rewriting it would only churn the
+    // text. Anything else — number words, or a vulgar fraction — is rewritten into the dialect
+    // `parse-ingredient` reads, so the downstream unit/description parse never depends on its notation
+    // support.
+    const rewritten = /[^\d\s./]/.test(phrase) ? reading.value.toFraction(true) + rest : line;
 
     return { line: rewritten, quantity: reading.value, phrase, rest };
+}
+
+/** A leading quantity phrase, or a leading two-bound RANGE of them, read from one line. */
+export interface NormalizedQuantityRange {
+    /**
+     * The input with BOTH terms of a leading range rewritten as numerals (`"two to three cups"` ->
+     * `"2 to 3 cups"`). Identical to {@link NormalizedQuantity.line} when the line states no range.
+     */
+    readonly line: string;
+    /** The stated amount, or the range's lower bound. `null` when the line opens with no quantity. */
+    readonly low: Fraction | null;
+    /** The range's upper bound, or `null` when the line states one bound rather than two. */
+    readonly high: Fraction | null;
+    /** Everything after the consumed phrase (or the whole range). */
+    readonly rest: string;
+}
+
+/**
+ * Read a leading `X to Y` range, rewriting BOTH bounds as numerals.
+ *
+ * DESIGN PATTERN: Adapter, composed from {@link normalizeQuantity} twice — the grammar is not restated.
+ * `phrase`/`rest` exist on that value object for precisely this walk.
+ *
+ * ⚠️ Rewriting BOTH terms is the point. Rewriting only the first leaves `"two to three cups of flour"` as
+ * `"2 to three cups of flour"`, which `parse-ingredient` reads as quantity 2, NO unit, and the name
+ * `"to three cups of flour"` — a wrong name and a lost unit, both reported as certain.
+ *
+ * A second term that is not itself a quantity is NOT a range: `"one teaspoon or more of vanilla"` states
+ * one amount, and `"a 2-cup mold"` states no range at all.
+ *
+ * @param line - One extracted, already-sanitized text field.
+ * @returns Both bounds and the line rewritten so a downstream parser sees numerals. Pure and TOTAL.
+ */
+export function normalizeQuantityRange(line: string): NormalizedQuantityRange {
+    const first = normalizeQuantity(line);
+
+    if (first.quantity === null) {
+        return { line: first.line, low: null, high: null, rest: first.rest };
+    }
+
+    const separator = RANGE_SEPARATOR.exec(first.rest);
+
+    if (separator === null) {
+        return { line: first.line, low: first.quantity, high: null, rest: first.rest };
+    }
+
+    const second = normalizeQuantity(first.rest.slice(separator[0].length));
+
+    if (second.quantity === null) {
+        return { line: first.line, low: first.quantity, high: null, rest: first.rest };
+    }
+
+    return {
+        line: `${first.quantity.toFraction(true)}${separator[0]}${second.quantity.toFraction(true)}${second.rest}`,
+        low: first.quantity,
+        high: second.quantity,
+        rest: second.rest,
+    };
 }

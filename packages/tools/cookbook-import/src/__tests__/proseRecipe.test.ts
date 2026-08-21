@@ -57,14 +57,17 @@ describe('toCandidateRecipe — what it accepts', () => {
 
         // "…one-half pound of onion…" — a spelled-out FRACTION, which is the whole difficulty of this corpus.
         const onion = [...byName.entries()].find(([name]) => name.includes('onion'))?.[1];
-        expect(onion?.quantity).toBe(0.5);
+        // ⚠️ REWRITTEN for U7's quantity value object — the asserted amount is unchanged. `quantity` was
+        // `number | null`; it is now `exact | range | absent`, because `number | null` had nowhere to put
+        // the upper bound of a stated range (KTD-6, R36).
+        expect(onion?.quantity).toEqual({ kind: 'exact', value: 0.5 });
         // `parse-ingredient` normalizes the unit it recognised; the property under test is that a MASS unit
         // was read off a spelled-out fraction, not the spelling the library settles on.
         expect(onion?.unit).toBe('lb');
 
         // "…three-fourths of a cup of sugar…" — the `X of a UNIT of Y` form.
         const sugar = [...byName.entries()].find(([name]) => name.includes('sugar'))?.[1];
-        expect(sugar?.quantity).toBeCloseTo(0.75, 5);
+        expect(sugar?.quantity).toEqual({ kind: 'exact', value: 0.75 });
         expect(sugar?.unit).toBe('cup');
     });
 
@@ -82,7 +85,11 @@ describe('toCandidateRecipe — what it accepts', () => {
         // asserted only by a comment.
         const { recipe } = candidateFor('ASPARAGUS SOUP');
 
-        expect(recipe.ingredients.some((line) => line.quantity === 4 && line.unit === 'cup')).toBe(true);
+        expect(
+            recipe.ingredients.some(
+                (line) => line.quantity.kind === 'exact' && line.quantity.value === 4 && line.unit === 'cup',
+            ),
+        ).toBe(true);
         expect(recipe.ingredients.some((line) => line.name.toLowerCase().includes('asparagus'))).toBe(true);
     });
 
@@ -262,5 +269,134 @@ describe('adversarial input', () => {
         // Generous by orders of magnitude against the linear implementation, and 1/80th of the exponential
         // one's measured cost for this exact input — so neither side of the gate is a close call.
         expect(elapsed).toBeLessThan(1000);
+    });
+});
+
+/**
+ * U7 (R29, R39) — the clause splitter must not cut a quantity in half, and a clause whose own parse is
+ * value-corrupting must not be re-read into something that merely looks clean.
+ */
+describe('toCandidateRecipe — the clause splitter and the quantity it must not break (R29)', () => {
+    /**
+     * ⛔ THE DEFECT THIS PINS, measured 2026-08-21 on the committed corpus slice.
+     *
+     * `CLAUSE_SPLIT` breaks on a bare ` and `, and it ran BEFORE the quantity normalizer — so
+     * "One and one-half cups of confectioner's sugar" was cut into "One" and
+     * "one-half cups of confectioner's sugar", and the recipe was published calling for **0.5 cups**:
+     * one third of the stated amount, with `needsReview: false`.
+     *
+     * `parseIngredientLine` always read the phrase correctly (pinned in the golden corpus). The loss was
+     * entirely in the split, which is why the fix belongs here and not in the parser.
+     */
+    it('keeps "One and one-half" whole rather than publishing a third of the stated quantity', () => {
+        const { recipe } = candidateFor('GREEN TREE LAYER CAKE AND ICING');
+        const sugar = recipe.ingredients.find((line) => line.name.toLowerCase().includes("confectioner's"));
+
+        expect(sugar).toBeDefined();
+        expect(sugar?.quantity).toEqual({ kind: 'exact', value: 1.5 });
+        expect(sugar?.unit).toBe('cup');
+    });
+
+    /**
+     * The COUNTERPART property, without which the fix above could be "achieved" by never splitting on
+     * `and` at all. `CLAUSE_SPLIT`'s bare-` and ` alternative is load-bearing and documented: these books
+     * chain several ingredients into one punctuation-free clause, and losing the split would import a
+     * third of each recipe's ingredients.
+     */
+    it('still splits a bare "and" that chains two ingredients', () => {
+        const { recipe } = candidateFor('BEET SOUP--RUSSIAN STYLE (FLEISCHIG)');
+        const names = recipe.ingredients.map((line) => line.name.toLowerCase());
+
+        // "Cut one large beet AND one-half pound of onion in thick pieces AND put in kettle with one
+        // pound of fat brisket of beef" — three ingredients in one breath.
+        expect(names.some((name) => name.includes('beet'))).toBe(true);
+        expect(names.some((name) => name.includes('onion'))).toBe(true);
+        expect(names.some((name) => name.includes('beef'))).toBe(true);
+    });
+
+    it('splits an "and" whose neighbours are numbers but which joins no quantity phrase', () => {
+        // "two teaspoons of baking-powder and three and one-half cups of flour" — the FIRST `and` joins
+        // two ingredients and must split; the second belongs to the quantity and must not.
+        const outcome = toCandidateRecipe({
+            title: 'AND TRAP',
+            paragraphs: [
+                'Rub one cup of butter and two cups of sugar to a cream, add four eggs, one cup of milk, ' +
+                    'two teaspoons of baking-powder and three and one-half cups of flour. Beat the whole ' +
+                    'until it is light and perfectly smooth, taking care not to let it stand. Bake in ' +
+                    'layer tins for three-quarters of an hour and serve while fresh.',
+            ],
+        });
+
+        expect(outcome.kind).toBe('candidate');
+
+        if (outcome.kind !== 'candidate') {
+            return;
+        }
+
+        const byName = new Map(outcome.recipe.ingredients.map((line) => [line.name.toLowerCase(), line]));
+
+        expect(byName.get('baking-powder')?.quantity).toEqual({ kind: 'exact', value: 2 });
+        expect(byName.get('flour')?.quantity).toEqual({ kind: 'exact', value: 3.5 });
+    });
+});
+
+describe('toCandidateRecipe — a value-corrupting parse is dropped, never re-read (R39)', () => {
+    /**
+     * ⛔ THE DEFECT THIS PINS, measured 2026-08-21.
+     *
+     * `ingredientInClause` tries successively shorter SUFFIXES of a clause and keeps the first that
+     * yields a quantity and a unit. For "three to two cups of flour" the whole clause parses to
+     * `quantity_bounds_inverted` and is correctly refused — but the suffix "two cups of flour" then
+     * parses CLEANLY to exactly 2, with `needsReview: false`. The lower bound of an inverted range was
+     * about to be published as a certain quantity, having been laundered by dropping a word.
+     *
+     * So the gate is on the WHOLE clause's parse, not on the suffix that happens to survive: a clause
+     * whose own reading misstates a value is not an ingredient at any length.
+     */
+    it('refuses a clause whose full parse states bounds that disagree, rather than keeping a suffix', () => {
+        const outcome = toCandidateRecipe({
+            title: 'INVERTED RANGE',
+            paragraphs: [
+                'Take three to two cups of flour, one cup of milk, two teaspoons of baking-powder and ' +
+                    'one cup of sugar. Mix all of these well together in a large bowl until the batter ' +
+                    'is smooth and creamy, then turn it into a buttered tin. Bake for three-quarters of ' +
+                    'an hour in a slow oven and set aside to cool before serving.',
+            ],
+        });
+
+        expect(outcome.kind).toBe('candidate');
+
+        if (outcome.kind !== 'candidate') {
+            return;
+        }
+
+        expect(outcome.recipe.ingredients.some((line) => line.name.toLowerCase().includes('flour'))).toBe(false);
+        expect(outcome.droppedLines.join(' ')).toContain('three to two cups of flour');
+
+        // The counterpart, so the rule cannot be satisfied by refusing the whole block.
+        expect(outcome.recipe.ingredients.some((line) => line.name.toLowerCase().includes('milk'))).toBe(true);
+    });
+
+    it('carries a stated RANGE through to the candidate rather than narrowing it (R36)', () => {
+        const outcome = toCandidateRecipe({
+            title: 'STATED RANGE',
+            paragraphs: [
+                'Take two to three cups of flour, one cup of milk, two teaspoons of baking-powder and one ' +
+                    'cup of sugar. Mix all of these well together in a large bowl until the batter is ' +
+                    'smooth and creamy, then turn it into a buttered tin. Bake for three-quarters of an ' +
+                    'hour in a slow oven and set aside to cool before serving.',
+            ],
+        });
+
+        expect(outcome.kind).toBe('candidate');
+
+        if (outcome.kind !== 'candidate') {
+            return;
+        }
+
+        const flour = outcome.recipe.ingredients.find((line) => line.name.toLowerCase().includes('flour'));
+
+        expect(flour?.quantity).toEqual({ kind: 'range', low: 2, high: 3 });
+        expect(flour?.unit).toBe('cup');
     });
 });

@@ -119,6 +119,26 @@ export const GOLDEN_INGREDIENTS: readonly GoldenIngredient[] = [
     { phrase: 'one egg', quantity: 1, unit: null, name: 'egg', needsReview: false },
     { phrase: 'three\ntablespoons of flour', quantity: 3, unit: 'tablespoon', name: 'flour', needsReview: false },
 
+    // ── U7 (R29, R30) — the `X and one-half` form, which is where the clause splitter lost two thirds of
+    // a stated quantity. Both phrases occur verbatim in the slice; `parseIngredientLine` always read them
+    // correctly, and pinning that here is what makes `proseRecipe`'s split guard a REGRESSION test rather
+    // than a claim: if the guard is removed, the mapper breaks while these stay green, which is exactly
+    // the split of responsibility the two tiers should have.
+    {
+        phrase: "One and one-half cups of confectioner's sugar",
+        quantity: 1.5,
+        unit: 'cup',
+        name: "confectioner's sugar",
+        needsReview: false,
+    },
+    {
+        phrase: 'three and one-half cups of flour',
+        quantity: 3.5,
+        unit: 'cup',
+        name: 'flour',
+        needsReview: false,
+    },
+
     // Prose that is NOT an ingredient line. The import must preserve and flag these, never invent a
     // quantity for them -- this is the FR-020 half that a happy-path corpus would never exercise.
     { phrase: 'vanilla to flavor', quantity: null, unit: null, name: 'vanilla to flavor', needsReview: true },
@@ -141,6 +161,21 @@ export const GOLDEN_INGREDIENTS: readonly GoldenIngredient[] = [
         quantity: null,
         unit: null,
         name: 'Cool and fill in cake.',
+        needsReview: true,
+    },
+    // The slice's ONE `*ful` occurrence, and it states no quantity. R31's `*ful` handling must not turn a
+    // METHOD into an ingredient just because the parser now recognises the word as a unit — and it does
+    // not: the quantity stays ABSENT, which is what disqualifies the clause downstream.
+    //
+    // ⚠️ `unit: 'drop'` is recorded because it is what the pipeline really does, not because it is right:
+    // `drop` is a unit in `parse-ingredient`'s own table, so the imperative verb reads as one. It is
+    // harmless here (an absent quantity means no ingredient is built) and it PREDATES U7 — pinning it
+    // means a future change that starts attaching quantities to imperative verbs fails this row.
+    {
+        phrase: 'Drop in tablespoonfuls',
+        quantity: null,
+        unit: 'drop',
+        name: 'in tablespoonfuls',
         needsReview: true,
     },
 ];

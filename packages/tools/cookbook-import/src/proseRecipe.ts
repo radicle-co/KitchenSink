@@ -26,6 +26,8 @@
  * argued and disclosed to the reader rather than hidden.
  */
 import {
+    corruptsStatedValue,
+    findQuantityPhrases,
     normalizeDurationToMinutes,
     normalizeQuantity,
     parseIngredientLine,
@@ -55,7 +57,7 @@ const MIN_STEPS = 2;
 /** Shortest body worth attempting, in characters. Below this a "recipe" is a cross-reference or a note. */
 const MIN_BODY_LENGTH = 200;
 
-/** Most leading words the suffix scan will drop while hunting for a quantity inside one clause. */
+/** Most start positions the suffix scan will try while hunting for a quantity inside one clause. */
 const MAX_SUFFIX_SKIP = 8;
 
 /** Longest ingredient name kept; the wire caps it at 120 and a longer span is runaway prose, not a name. */
@@ -223,8 +225,51 @@ export type RecipeCandidateOutcome =
  * that only ever finds the leftmost quantity per clause would import that recipe with a third of its
  * ingredients. A fragment that turns out to be an instruction simply yields no ingredient and costs
  * nothing.
+ *
+ * ⛔ It is ALSO the word inside `"one and one-half"`, and that cost real quantities: measured 2026-08-21,
+ * "_One and one-half cups of confectioner's sugar_" (verbatim in the committed corpus slice) was cut into
+ * "One" and "one-half cups of confectioner's sugar" and imported as **0.5 cups**, with `needsReview:
+ * false`. The pattern is unchanged — {@link splitClauses} guards the split POINTS instead, so both
+ * readings survive. See R29.
  */
-const CLAUSE_SPLIT = /[;.]|,\s*(?:and\s+)?|\s+and\s+(?:then\s+)?/;
+const CLAUSE_SPLIT = /[;.]|,\s*(?:and\s+)?|\s+and\s+(?:then\s+)?/g;
+
+/**
+ * Split prose into clauses, refusing any boundary that falls inside a quantity phrase (R29).
+ *
+ * DESIGN PATTERN: the split itself stays a regex; the GUARD is a Scanner
+ * ({@link findQuantityPhrases}) that consults `recipe-import-core`'s number grammar. This module holds no
+ * number vocabulary of its own and must not — the lexicon has one owner, and a copy here would drift the
+ * first time a word is added to it.
+ *
+ * ⚠️ Guarding the boundary rather than pre-normalising the body is deliberate. Rewriting the quantity
+ * phrases to numerals before splitting would work for ingredients and then corrupt `steps`, which is
+ * derived from the SAME body: a reader of this verbatim public-domain import would be shown
+ * "1 1/2 pounds" where the book printed "one and one-half pounds".
+ *
+ * @param body - The recipe body, already whitespace-joined.
+ * @returns The clauses, separators removed, in source order. Pure.
+ */
+function splitClauses(body: string): readonly string[] {
+    const phrases = findQuantityPhrases(body);
+    const clauses: string[] = [];
+    let start = 0;
+
+    for (const boundary of body.matchAll(CLAUSE_SPLIT)) {
+        const at = boundary.index;
+
+        if (phrases.some((phrase) => at >= phrase.start && at < phrase.end)) {
+            continue;
+        }
+
+        clauses.push(body.slice(start, at));
+        start = at + boundary[0].length;
+    }
+
+    clauses.push(body.slice(start));
+
+    return clauses;
+}
 
 /**
  * Step boundary: a period OR a semicolon.
@@ -329,6 +374,47 @@ function statedServings(text: string): number | undefined {
 }
 
 /**
+ * What one clause turned out to be.
+ *
+ * DESIGN PATTERN: explicit outcome (discriminated union), mirroring {@link RecipeCandidateOutcome}. The
+ * previous `ParsedIngredientLine | undefined` could not distinguish "this clause is an instruction" from
+ * "this clause states a quantity we must not trust", and only the second must ALWAYS be reported — the
+ * caller's dropped-line heuristic looks for digits and articles, and "three to two cups of flour" has
+ * neither.
+ */
+type ClauseReading =
+    | { readonly kind: 'ingredient'; readonly line: ParsedIngredientLine }
+    | { readonly kind: 'corrupt' }
+    | { readonly kind: 'none' };
+
+/**
+ * Where the suffix scan is allowed to start reading, in source order.
+ *
+ * Word starts, PLUS the start of every quantity phrase, MINUS any position strictly inside one. The two
+ * adjustments fix opposite halves of the same R29 defect, and both were measured on the committed corpus:
+ *
+ *  - **Removing mid-phrase starts.** Dropping leading words one at a time walks INTO
+ *    "One and one-half", and "one-half cups of confectioner's sugar" parses cleanly to 0.5 — the split
+ *    guard's work undone one layer down, by a scan that was only ever meant to skip past verbs.
+ *  - **Adding phrase starts.** These books run a heading into the first quantity with no space:
+ *    `"*Icing for This Cake.*--One and one-half cups"` makes `*--One` a single whitespace-delimited word,
+ *    so a word-boundary scan can only try the whole thing (which does not parse) or the middle of the
+ *    number (which parses WRONG). The phrase's own start is the only position that reads it correctly.
+ *
+ * @param clause - One trimmed clause.
+ * @returns Ascending, de-duplicated character offsets. Pure.
+ */
+function suffixStarts(clause: string): readonly number[] {
+    const phrases = findQuantityPhrases(clause);
+    const words = [...clause.matchAll(/\S+/g)].map((word) => word.index);
+    const candidates = [...new Set([...words, ...phrases.map((phrase) => phrase.start)])].sort(
+        (left, right) => left - right,
+    );
+
+    return candidates.filter((at) => !phrases.some((phrase) => at > phrase.start && at < phrase.end));
+}
+
+/**
  * Find the ingredient line inside one clause, wherever its quantity happens to sit.
  *
  * Tries the whole clause, then the clause minus its first word, and so on — keeping the LEFTMOST suffix
@@ -338,25 +424,35 @@ function statedServings(text: string): number | undefined {
  * @param clause - One clause of prose.
  * @returns The parsed line, or `undefined` when the clause carries no quantified ingredient. Pure.
  */
-function ingredientInClause(clause: string): ParsedIngredientLine | undefined {
-    const words = clause.trim().split(/\s+/);
+function ingredientInClause(clause: string): ClauseReading {
+    const trimmed = clause.trim();
+    const starts = suffixStarts(trimmed);
 
-    for (let skip = 0; skip < Math.min(MAX_SUFFIX_SKIP, words.length); skip += 1) {
-        const parsed = parseIngredientLine(dropPartitiveOf(words.slice(skip).join(' ')));
+    for (const at of starts.slice(0, MAX_SUFFIX_SKIP)) {
+        const parsed = parseIngredientLine(dropPartitiveOf(trimmed.slice(at)));
+
+        // ⛔ R39 — the FIRST reading that misstates a value ends the clause. It cannot be a `continue`:
+        // measured 2026-08-21, "Take three to two cups of flour" reads at "three" as
+        // `quantity_bounds_inverted` and is correctly refused, and then the very next start, "two cups of
+        // flour", parses CLEANLY to exactly 2 with `needsReview: false`. Dropping one word laundered an
+        // unreadable range into a certain quantity. A clause whose own reading misstates a value is not an
+        // ingredient at any length.
+        if (parsed.reviewReasons.some(corruptsStatedValue)) {
+            return { kind: 'corrupt' };
+        }
 
         if (
-            parsed.quantity !== null &&
-            parsed.quantity > 0 &&
+            parsed.quantity.kind !== 'absent' &&
             parsed.unit !== null &&
             // A DIMENSION is not a measure of an ingredient. "one-quarter inch thick" describes a knife cut.
             !NOT_A_MEASURE.has(parsed.unit.toLowerCase()) &&
             parsed.name.trim() !== ''
         ) {
-            return parsed;
+            return { kind: 'ingredient', line: parsed };
         }
     }
 
-    return undefined;
+    return { kind: 'none' };
 }
 
 /**
@@ -437,16 +533,23 @@ export function toCandidateRecipe(block: CookbookBlock, attribution?: string): R
     const droppedLines: string[] = [];
     const seen = new Set<string>();
 
-    for (const clause of body.split(CLAUSE_SPLIT)) {
-        const text = (clause ?? '').trim();
+    for (const clause of splitClauses(body)) {
+        const text = clause.trim();
 
         if (text.length < 3) {
             continue;
         }
 
-        const parsed = ingredientInClause(text);
+        const reading = ingredientInClause(text);
 
-        if (!parsed) {
+        if (reading.kind === 'corrupt') {
+            // ALWAYS reported, unlike the heuristic below: a clause we refused BECAUSE it misstates a
+            // value is the single most important thing a reader of the report needs to see (R39).
+            droppedLines.push(text);
+            continue;
+        }
+
+        if (reading.kind === 'none') {
             // Only clauses that LOOK like they name a quantity are worth reporting as dropped; every other
             // clause is an instruction, and listing those would bury the signal.
             if (/\d|\b(?:a|an|some|little|few)\b/i.test(text)) {
@@ -456,6 +559,7 @@ export function toCandidateRecipe(block: CookbookBlock, attribution?: string): R
             continue;
         }
 
+        const parsed = reading.line;
         const name = trimName(parsed.name);
         const key = name.toLowerCase();
 

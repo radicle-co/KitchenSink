@@ -52,6 +52,29 @@ describe('normalizeDurationToMinutes', () => {
             expect(result.needsReview).toBe(false);
         });
 
+        /**
+         * ⛔ NEW BEHAVIOUR (U7, R30). Measured before the fix: `"1½ hours"` returned **60 minutes with
+         * `needsReview: false`** and `"2½ hours"` returned **120** — a third of the stated time silently
+         * dropped and reported as certain. `normalizeQuantity` read the leading `1` and stopped, and
+         * unlike the ingredient line there is no `parse-ingredient` downstream to correct it.
+         *
+         * This matters beyond tidiness: `recipes.cook_time_minutes` is `NOT NULL`, `statedCookTimeMinutes`
+         * feeds it directly, and the recipe is published PUBLIC with that number on it.
+         */
+        it.each([
+            ['1½ hours', 90],
+            ['2½ hours', 150],
+            ['½ hour', 30],
+            ['¾ hour', 45],
+            ['1¼ hours', 75],
+            ['1 ½ hours', 90],
+        ])('reads the vulgar fraction in %j as %d minutes rather than dropping it', (raw, minutes) => {
+            const result = normalizeDurationToMinutes(raw);
+
+            expect(result.minutes).toBe(minutes);
+            expect(result.needsReview).toBe(false);
+        });
+
         it.each([
             ['1 hour 30 minutes', 90],
             ['2 hours 15 minutes', 135],

@@ -25,7 +25,7 @@ networks:
 
 services:
     postgres:
-        image: postgres:16-alpine
+        image: postgres:16
         container_name: commise-postgres
         restart: unless-stopped
         networks:

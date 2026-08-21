@@ -31,9 +31,19 @@ nutrition; unmatched lines are dead text with no calories and no scaling.
 Four defects compound, and research during planning corrected the framing of three of them.
 
 **Ranking loses to substring noise.** `flour` returns `Carob flour`, `milk` returns `Crackers, milk`,
-`sugar` returns a sugar-coated candy — 334 lines to those three attractors alone. The cause is
-`similarity()` dominating `ts_rank` inside a `GREATEST`, so a long name that merely _contains_ the token
-beats the name that _is_ the token.
+`sugar` returns a sugar-coated candy — 334 lines to those three attractors alone.
+
+⛔ **The cause this plan originally gave was MISATTRIBUTED, and U5's design is deferred until it is
+measured.** It read: "`similarity()` dominating `ts_rank` inside a `GREATEST`, so a long name that merely
+_contains_ the token beats the name that _is_ the token." Measured in Postgres 16 with `pg_trgm`
+(2026-08-21): `similarity('Flour','flour') = 1.00` against `similarity('Carob flour','flour') = 0.50` — no
+tie, and the exact-name row wins outright. On the catalog a long USDA name scores **0.16** against a short
+containing name's 0.50, a length **penalty** — the opposite of that sentence, and behaviour KTD-1
+deliberately preserves as a virtue. The 1.0/1.0 tie that actually produces the failure is `word_similarity`,
+which KTD-1 assigns to recipe-service's **local** table, not the catalog `GREATEST` the sentence blamed.
+**Owner ruling 2026-08-21:** U1 attributes each wrong `food_id` in the 2,432-line corpus to its surface
+(local vs catalog) FIRST, and U5 is re-planned against those numbers rather than against this paragraph.
+With 92.8% of lines decided locally, the local table is the likely whole story.
 
 ⚠️ **The measurement instrument and the product do not share a ranker.** Five ranking sites exist, not two.
 `rankIngredientSuggestions` and `rankIngredientResults` re-sort the server's output client-side
@@ -343,8 +353,19 @@ from known-miss to hit.
 `.../dal/ingredients.dal.ts`, `.../ingredients.controller.ts`.
 
 **Approach:** `refreshStatus` writes `status.food.name` onto the local row when a food transitions to
-`RESOLVED`, replacing whatever prose the caller supplied at add time. A `PENDING` row carries the sanitized
-caller text until then — that is honest, because no canonical name exists yet.
+`RESOLVED`, replacing whatever prose the caller supplied at add time.
+
+⚠️ **A `PENDING` local row is NOT sanitized** — `addByName` writes `name: trimmed`, i.e. `.trim()` and
+nothing else. Food-service's `sanitizeFoodName` is the repo's one canonical form for a shared display name
+(it exists because that catalog is "ownerless, globally unique-named and shared by every user"), and
+recipe-service's local `ingredients` table does not use it. Route local writes through the same form.
+
+⚠️ **The prose comes from the IMPORTER, not the picker.** From the picker `addByName` receives the user's
+search term ("butter"); from the importer it receives a parsed fragment of recipe prose. Same function, two
+very different inputs — which is why the local table fills with strings no user would type, and it matches
+the 92.8%-decided-locally measurement. **Owner ruling 2026-08-21: `PENDING` rows STAY VISIBLE in search** —
+a food being acquired is something a searcher wants to see, and the demand signal is useful. The fix is on
+the WRITE path, not by hiding rows.
 
 ⛔ **`ingredients` has NO `search_vector` trigger** — `0001_initial.sql` creates exactly one,
 `trg_recipes_search_vector`, and it is on `recipes`. `ingredients.dal.ts` says so in its own header: the DAL
@@ -373,7 +394,9 @@ label, not acquiring real foods on demand. Define what an unresolved line persis
 - An unresolved line persists without violating the foreign key.
 - Integration: two users submitting different prose for the same food converge on one row, one name.
 
-**Verification:** after a re-import, no `RESOLVED` row in `ingredients` has a name that is a prose fragment.
+**Verification:** after a re-import, **no row** in `ingredients` — at any `food_resolution_status` — has a
+name that is a prose fragment. ⚠️ Scoping this to `RESOLVED` let a row whose poll never completed pass while
+still serving caller prose to every other user's search.
 
 ### U4. _(merged into U3)_
 
@@ -599,6 +622,12 @@ applied and the gate fails closed on every call),
 `packages/services/recipe-service/src/ingredients/resolutionMetrics.ts` (new),
 `packages/services/recipe-workers/infra/`.
 
+⛔ **U11 owns tier 4 as well** (owner ruling 2026-08-21). The cascade's tier-4 LLM rewrite sat in the design
+diagram and in no unit's scope. It runs under the **same execution role** and takes a reservation from the
+**same counter** as the verification gate — a second `bedrock:InvokeModel` grantee would break layer 4b's
+exact-set guard — and its call volume is added to KTD-4's cost basis, which today assumes the gate's ~8,000
+calls alone.
+
 **Approach:** the provider client validates the raw upstream shape with zod at the boundary and declares
 its own types — GR-015 §15-d names LLM providers explicitly, and no OpenAPI document is written for an API
 we do not serve. Runs in `recipe-workers`, off the synchronous path, behind the shipped
@@ -794,7 +823,15 @@ In-place, in a scheduled window.
 
 ⚠️ `applyImmediately` defaults to immediate in CDK, so `cdk deploy` **is** the maintenance action.
 ⚠️ The instance carries `kitchensink_identity` — live production user data. Snapshot first, against a
-resolved physical instance id; suppress CI auto-deploy for the window; fix forward only.
+resolved physical instance id; suppress CI auto-deploy for the window.
+
+⛔ **"Fix forward only" is not available and must not be written as if it were** (owner ruling 2026-08-21).
+PostgreSQL 18 cannot be downgraded in place, so the only recovery is restoring the pre-upgrade snapshot into
+a NEW physical instance — which CDK does not own, and which ADR-0002 warns is precisely how the prod data
+stack gets replaced (`removalPolicy: DESTROY`, `deletionProtection: false`, no safety snapshot).
+`docs/runbooks/pg18-upgrade.md` MUST carry a rehearsed restore leg: restore to a new instance identifier,
+repoint the stack via explicit `instanceIdentifier`/`snapshotIdentifier`, and re-verify `cdk diff` against
+ADR-0002. The dry run on the snapshot-restored clone exercises the RESTORE, not only the upgrade window.
 
 Write the template-diff gate first: `cdkNagTemplateParity` compares the same source against itself and
 **cannot fire** on an engine-version change, so the upgrade would otherwise land invisibly green against
@@ -910,8 +947,9 @@ protocol; the run is reproducible from a committed corpus manifest.
 
 ## Risks and dependencies
 
-- **One-way doors:** the quantity _response_ widening (landing whole in U8 per KTD-6, which supersedes the
-  earlier mobile-adoption gate); the reseed's fresh ULIDs;
+- **One-way doors:** ⛔ **the PostgreSQL 16 → 18 major upgrade on the shared instance carrying
+  `kitchensink_identity`** — the largest in this plan, and previously absent from this list; the quantity
+  _response_ widening (landing whole in U8 per KTD-6, which supersedes the earlier mobile-adoption gate); the reseed's fresh ULIDs;
   the published mapping wire shape and its scope value; the correction grant identifier; whatever ingredient
   text reaches the provider.
 - **`ingredients.food_id` has no foreign key.** Nothing in the database prevents U12 orphaning recipe rows

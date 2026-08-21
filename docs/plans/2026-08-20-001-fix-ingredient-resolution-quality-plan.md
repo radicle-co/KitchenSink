@@ -211,13 +211,13 @@ already ships. No `addResponseSchema` change, no deploy ordering, one unit inste
 
 ### KTD-9 — The gate is core platform capability, not a BYOK or tiered feature
 
-Feature 005's plan states "BYOK-first: the platform never pays for AI API calls. Users bring their own
-keys." **Owner ruling (2026-08-20): resolving ingredient, quantity and measurement text we cannot parse
-confidently is a core capability serving every user, not a tier feature.** It is platform-paid and
-platform-keyed. 005's BYOK principle is scoped to user-facing generation and does not reach here — an
-unattended import has no user and therefore no key, so BYOK could not have covered this path anyway.
+**Owner ruling (2026-08-20): there is no collision with feature 005.** 005's BYOK-first principle governs
+its own subject — the MCP and AI-integration feature — and does not reach ingredient, quantity or
+measurement resolution. Those are a core capability serving every user, platform-paid and platform-keyed,
+neither BYOK nor tier-gated.
 
-That closes both the free-versus-premium question and the 005 collision.
+The corroborating detail, had the two ever overlapped: an unattended import has no user and therefore no
+key, so BYOK could not have covered this path regardless.
 
 ### KTD-8 — The gate amends the origin's fallthrough model, by owner ruling
 
@@ -368,8 +368,12 @@ once, as a conformance contract in `service-test-harness`, run by both services 
 shared rule, never shared SQL.
 
 ⛔ **Retire `rankIngredientSuggestions` and `rankIngredientResults` in this same release.** Retiring them
-first makes `flour` worse in the product, because the client re-sort currently masks the defect. This
-amends REQ-057, traced through the V-Model matrix — a spec amendment, not a refactor.
+first makes `flour` worse in the product, because the client re-sort currently masks the defect.
+
+**Owner ruling (2026-08-20): the server determines order, on best-quality match.** REQ-057's _intent_ —
+best match first — is preserved and better served; what is retired is its _mechanism_, a client-side
+prefix-over-substring-over-fuzzy heuristic that approximated relevance from string shape rather than
+scoring it. The V-Model amendment records the requirement as satisfied server-side, not deleted.
 ⛔ Change only the sort key. Do not touch the trigram indexes: GIN and GiST are both load-bearing and
 deliberately non-partial.
 
@@ -576,12 +580,32 @@ assigned within it.
 **R23's cost ceiling — $100/month, enforced, configurable.** Owner-set. At a measured $0.27/month this is
 ~370× headroom, so it is a runaway guard rather than a budget, and it should never bind in normal running.
 
-Enforcement needs an **authoritative counter read before the call** — CloudWatch metrics lag by minutes,
-which is adequate for alerting and useless for a hard stop. The ceiling lives in **SSM** so it changes
-without a redeploy; spend accrues in an **atomic DynamoDB counter** on the substrate table this branch
-already ships. When the month's ceiling is exhausted the cascade returns unresolved **without calling the
-provider**, and those lines follow the same path as provider-unavailable: nutrition withheld, surfaced for
-correction. A per-run cap at 3× expected corpus size bounds a single pathological import.
+⛔ **Enforced by rate, not by a spend counter.** An application counter estimates cost from token counts
+(drifting from actual billing) and introduces a failure mode with no good answer — if the counter is
+unavailable, the gate either fails open and spends uncontrolled, or fails closed and withholds nutrition
+from everyone. AWS Budgets avoid both, but cannot gate: AWS documents budget data as refreshing **"up to three times a
+day,"** with updates **"typically 8–12 hours after the previous update,"** and states outright that "you
+might incur additional costs or usage that exceed your budget notification threshold before AWS Budgets can
+notify you." And **Bedrock itself has no dollar-denominated quota** — its quotas are on tokens and requests
+only, with the sole documented adjustment path being a request for an _increase_. There is no spend cap to
+buy at the provider.
+
+The control that actually binds is **Lambda reserved concurrency on the verification worker, set to 1**. At
+~$0.0000343 per verification, one concurrent invocation caps burn at roughly **$90/month at 100%
+saturation** — so the $100 ceiling is structurally unreachable rather than policed. It costs nothing: the
+expected load is ~8,000 calls/month on a queue-driven async worker, or 0.003 calls per second.
+
+Layered behind it: an **AWS Budget at ~$20 with an alarm**, watching real dollars and reporting if reality
+diverges from this model; and the worker catching `AccessDeniedException` and throttling, returning
+unresolved down the same path as provider-unavailable. That error path is required anyway.
+
+Verified 2026-08-20 against AWS documentation: Bedrock exposes no native spend cap, and Budgets are
+explicitly best-effort with an 8–12 hour lag. Reserved concurrency is therefore not merely the simpler
+control — it is the only one of the three that enforces anything.
+
+⚠️ Bedrock now exposes two endpoints, `bedrock-runtime` and `bedrock-mantle`, tracked against **separate
+quota allocations**. The VPC interface endpoint above targets `bedrock-runtime`, which is the Converse and
+InvokeModel surface.
 
 The gate receives the raw source line, our parse, and the shortlist; it never retrieves, so it cannot invent
 a `food_id`. Constrained decoding, ordinal enum for certainty, **abstention as a schema branch** rather than
@@ -786,13 +810,16 @@ protocol; the run is reproducible from a committed corpus manifest.
 
 **Resolve before implementation**
 
-1. Is REQ-057's prefix-over-substring ordering an owner-held product requirement, or a proxy for relevance?
-   U5 retires it, which amends a V-Model traced requirement. **This is the only open blocker.**
+**None.** All blockers closed by owner ruling, 2026-08-20:
 
-_Closed by owner ruling, 2026-08-20:_ the gate is core platform capability, platform-paid, neither BYOK nor
-tier-gated (KTD-9); the cost ceiling is $100/month, SSM-configurable, enforced against a Dynamo counter
-before the call; the bake-off selects a winner and ships it rather than gating on a floor; and quantity is
-nullable on both the column and the wire.
+- The gate is core platform capability — platform-paid, neither BYOK nor tier-gated. Feature 005's
+  BYOK-first principle governs the MCP and AI-integration feature and does not reach here (KTD-9).
+- The server determines result order on best-quality match. REQ-057's intent is preserved server-side; its
+  client-side mechanism is retired (U5).
+- The cost ceiling is $100/month, made structurally unreachable by reserved concurrency rather than policed
+  by a counter, with an AWS budget alarm as backstop (U11).
+- The bake-off selects a winner and ships it; the false-disagree rate triggers a rethink (U11).
+- Quantity is nullable on both the column and the wire (KTD-6).
 
 **Deferred to implementation**
 

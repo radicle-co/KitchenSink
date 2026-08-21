@@ -36,7 +36,7 @@
  * the comment explaining why one is not created, and every `vpc` mention in a docstring would count as an
  * attachment. Same reasoning as `serviceSources.ts`: parsing means comments are comments.
  *
- * ⚠️ Shorthand properties are read here, unlike {@link objectProperties}. `recipe-workers` writes `vpc,` and
+ * ⚠️ Shorthand properties are read here, unlike `serviceSources.ts`'s `objectProperties`. `recipe-workers` writes `vpc,` and
  * `vpcSubnets,` rather than `vpc: vpc` — a gate that skipped shorthand would find zero consumers in the
  * stack that owns seven of them and pass vacuously, which is the exact failure mode this file exists to
  * prevent.

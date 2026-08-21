@@ -589,6 +589,10 @@ assigned within it.
 **R23's cost ceiling — $100/month, enforced, configurable.** Owner-set. At a measured $0.27/month this is
 ~370× headroom, so it is a runaway guard rather than a budget, and it should never bind in normal running.
 
+⛔ **The counter's store is the recipe PostgreSQL database, not DynamoDB** — the worker already ships `pg`
+and is VPC-attached solely to reach that RDS, so the counter adds no dependency, no IAM surface and no new
+failure domain.
+
 ⛔ **The design lives in [ADR-0024](../architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)
 — read it before touching this.** Summary of what it settles, not a restatement of it:
 
@@ -599,31 +603,41 @@ and alert-only. So the gate is our code — which is also AWS's own published po
 The gate is **RESERVE-THEN-SETTLE**, not read-then-increment. ⚠️ The obvious shape has a durability defect
 that `reservedConcurrency = 1` does **not** fix: a crash between a successful response and the increment
 spends money the counter never learns about, and crashes are _correlated_ with the runaway this ceiling
-exists to stop — so it under-reports exactly when it matters. One atomic conditional `UpdateItem` charges
-worst case before the call; a second refunds the difference after. `ConditionalCheckFailedException` **is**
-the budget denial. Overshoot is provably bounded at ceiling + one worst-case call under arbitrary
-concurrency, so the bound does not depend on the concurrency setting.
+exists to stop — so it under-reports exactly when it matters. One atomic conditional statement against the
+recipe **Postgres** charges worst case before the call; a second refunds the difference after. Zero rows
+returned **is**
+the budget denial. Reserved spend never exceeds the ceiling under arbitrary concurrency — the row lock
+serializes callers and the headroom subtracts the worst case before comparing — so the bound does not depend
+on the concurrency setting.
 
-**Five layers, each with its enforcement latency:**
+**Six layers, each with its enforcement latency:**
 
 | #   | Layer                                            | Stops                          | Latency            |
 | --- | ------------------------------------------------ | ------------------------------ | ------------------ |
 | 0   | SQS `maxReceiveCount` + DLQ                      | A retry loop before it is cost | Real-time          |
 | 1   | Explicit `maxTokens` + input-token cap           | Worst-case cost of one call    | Real-time          |
 | 2   | `reservedConcurrency = 1`                        | Burst rate — **not** the cap   | Real-time          |
-| 3   | **Reserve-then-settle counter, monthly + daily** | The owner's ceiling            | ~5–10 ms, pre-call |
-| 4   | EMF dollar metric → alarm                        | Counter bugs and bypass        | ~2–6 min           |
+| 3   | **Reserve-then-settle counter, one monthly cap** | The owner's ceiling (prod)     | ~5–10 ms, pre-call |
+| 4   | EMF dollar metric → alarm → notification         | Counter bugs — **not** bypass  | ~2–6 min           |
+| 4b  | `bedrock:InvokeModel` on one role, guard-tested  | Counter bypass                 | Build-time         |
 | 5   | AWS Budget (~$20, Bedrock-filtered)              | Drift from the invoice         | 8–12h — audit only |
 
-Layer 0 is the cheapest and highest-value control and this plan previously omitted it. Layer 3 gains a
-**daily sub-ceiling (~$5)** on the same code path: a monthly counter is the slowest possible detector of a
-runaway that completes inside a day, which is the only event this system defends against.
+Layer 0 is the cheapest and highest-value control and this plan previously omitted it. Layer 3 is a
+**single monthly ceiling and nothing more** — the daily sub-ceiling an earlier draft added was removed: a
+monthly ceiling is a hard cap rather than a slow detector, it never enforced the monthly figure it sat under
+(31 × $5 = $155), and it denied legitimate bulk work. The ceiling is **prod-only**; sandbox and every
+`pr-{N}` call the provider ungated, bounded by layers 0–2 at ≈$88/month/stage on Nova.
 
 **Two preconditions that ship with the counter, not after it:** `maxTokens` is set explicitly and input
 length is capped before the call — the raw source line is untrusted _and_ unbounded, and without a bound the
-reservation is a lie. And an unreadable counter **fails closed** to unresolved, which is correct here
-because the gate is a quality enhancement on an async path; note the published precedents fail _open_ for
-interactive workloads, and that default must not be imported.
+reservation is a lie. An over-cap line is **REJECTED, never truncated**: a truncated line asks the model to
+judge text the user did not write. And an unreadable counter **fails closed** — the call is not made — but
+that is not the same as resolving the line: a ceiling denial and an unreadable counter are **transient**, so
+the message returns to the queue under layer 0's `maxReceiveCount` + DLQ rather than terminating as
+`unresolved`. Resolving a billing denial as `unresolved` would manufacture the wrong-**disagree** outcome
+this unit ranks as the unacceptable one, in bulk, for reasons unrelated to the line's quality. Failing closed
+on the call itself is still correct — the gate is a quality enhancement on an async path — but note the
+published precedents fail _open_ for interactive workloads, and that default must not be imported.
 
 ⚠️ Bedrock now exposes two endpoints, `bedrock-runtime` and `bedrock-mantle`, tracked against **separate
 quota allocations**. Both bake-off candidates run against `bedrock-runtime`, which is the Converse and
@@ -659,13 +673,18 @@ at −31.5 points) and position bias with swap augmentation (10–15 points).
   throttling (`ThrottlingException`, 429) each terminate as unresolved rather than falling back to a
   rejected candidate.
 - The monthly ceiling terminates the cascade as unresolved **before** the provider is invoked.
-- An unreadable spend counter fails closed to unresolved, not open.
-- A reserve that trips `ConditionalCheckFailedException` denies the call without invoking the provider.
+- An unreadable spend counter fails closed — the provider is not invoked — and the message is retried
+  rather than resolved as unresolved.
+- A reserve whose conditional statement returns zero rows denies the call without invoking the provider.
+- An over-cap input line is rejected and never sent; it is not truncated.
+- A settle is never retried; a failed settle leaves the reservation standing and emits a metric.
+- A call that fails with no billed response (`ThrottlingException`, timeout) refunds the reservation in
+  full.
+- Only one Lambda execution role holds `bedrock:InvokeModel`; a guard test fails on any additional grantee.
 - A crash after a successful response leaves the worst-case reservation standing — the counter over-counts,
   never under-counts.
 - The period key captured at reserve is carried into settle; a call spanning midnight UTC does not settle
   against the following period.
-- The daily sub-ceiling denies on the same code path as the monthly ceiling.
 - The counter costs cache-read and cache-write tokens at their own rates, defaulting both to zero — they are
   `Required: No` on the wire and unreachable at this prompt size. A non-zero value raises an alert rather
   than being assumed correct.

@@ -22,13 +22,19 @@
   [ADR-0014](0014-service-owned-api-contracts.md) / `GR-015 §15-d` — Bedrock is a third-party API we do not
   serve, so `packages/clients/bedrock/` validates the raw upstream shape with zod and declares its own
   types; no OpenAPI document is written for it;
-  [ADR-0022](0022-in-stack-migration-trigger.md) — the counter's table is the DynamoDB substrate
-  `RecipeWorkersStack` already owns, so it is inside the same deploy barrier.
+  [ADR-0022](0022-in-stack-migration-trigger.md) — the counter is a NEW table in the recipe database,
+  so it ships as a migration and arrives through that ADR's in-stack Trigger like any other schema change;
+  [ADR-0006](0006-per-pr-feature-service-deploys.md) — per-PR deploys get their own LOGICAL database on the
+  shared sandbox instance, which is why the ceiling is prod-only (§3).
 - **Supersedes within the plan**: `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`
-  §U11 layer 2 and §KTD-4's bake-off roster. Where this ADR and that plan disagree, this ADR wins and the
-  plan is to be corrected.
+  §U11's layer table, its egress paragraph and §KTD-4's bake-off roster. Where this ADR and that plan
+  disagree, this ADR wins and the plan is to be corrected.
+- **Amended 2026-08-21** after a seven-persona document review (30 findings). The store moved from DynamoDB
+  to the recipe Postgres (§2), the daily sub-ceiling was removed (§3), enforcement narrowed to prod (§3),
+  layer 4's bypass claim was corrected and IAM added as layer 4b (§3), and billing denials were separated
+  from verification disagreements (§2). Owner rulings, all dated 2026-08-21.
 
-## ⚠️ Before you change this — five "improvements" that are all wrong
+## ⚠️ Before you change this — seven "improvements" that are all wrong
 
 1. **Do not replace the counter with an AWS Budget, and do not add a Budget _Action_ thinking it closes the
    gap.** It does not. A budget action fires off the same threshold evaluation as the notification, so it
@@ -42,7 +48,15 @@
    difference between a ceiling and a ceiling-shaped hope.
 4. **Do not put Gemini Flash-Lite in the Bedrock bake-off.** It is not available on Amazon Bedrock. Only
    Google's **Gemma** models are. See Decision §4 — this is the "looks fine, isn't".
-5. **Do not write cost logic for `cacheReadInputTokens` / `cacheWriteInputTokens` and assume it runs.** Both
+5. **Do not move the counter to DynamoDB "because a counter belongs in a key-value store".** The store is
+   the recipe Postgres the worker is already bound to. An earlier draft did specify DynamoDB, on a claim
+   that `RecipeWorkersStack` already owned a table — it owns none. A separate store buys a dependency, an
+   IAM surface and an independent failure domain whose outage closes the gate while everything else is fine.
+   See Decision §2.
+6. **Do not reintroduce a daily (or weekly) sub-ceiling.** A monthly ceiling is a hard cap, not a slow
+   detector — a same-day runaway still stops at $100. A second ceiling denies legitimate bulk work, never
+   enforced the monthly one (31 × $5 = $155), and turns §2's single-row invariant into two. See Decision §3.
+7. **Do not write cost logic for `cacheReadInputTokens` / `cacheWriteInputTokens` and assume it runs.** Both
    are `Required: No` on the wire, and at ~660 input tokens prompt caching **cannot engage on any
    candidate**. See Decision §5.
 
@@ -116,43 +130,64 @@ The repair is to charge **before** the call and refund **after**, which is exact
 system works — it deducts `Total input tokens + max_tokens` at request start and, at the end, _"any unused
 tokens are replenished to your quota."_ We mirror the mechanism we are metering.
 
-One item per period, **one atomic conditional write per call, with no prior read**:
+⛔ **The store is the recipe PostgreSQL database, not DynamoDB.** An earlier draft specified DynamoDB and
+never argued for it — the only justification was a claim that `RecipeWorkersStack` already owned a DynamoDB
+table, which is false (it owns none, and carries no DynamoDB client). Removing the false premise left the
+choice unargued, and the honest answer is the database the worker is already bound to: `recipe-workers`
+already ships `drizzle-orm`, `pg` and `@aws-sdk/rds-signer`, and every one of its Lambdas is VPC-attached
+for the sole purpose of reaching that RDS. Using it adds **no dependency, no IAM surface, no CDK construct,
+and — decisively — no new failure domain**. A separate store's outage would close the gate while everything
+else is healthy; Postgres going down stops the worker regardless.
 
-```
-// RESERVE — checks the ceiling and charges worst case in a single round trip.
-UpdateItem
-  Key:                 { pk: "verification-spend#2026-08" }
-  UpdateExpression:    "ADD reservedMicros :worst SET expiresAt = if_not_exists(expiresAt, :ttl)"
-  ConditionExpression: "attribute_not_exists(pk) OR reservedMicros <= :headroom"
-  Values:  :worst    = worstCaseMicros(modelId, MAX_INPUT_TOKENS, maxTokens)
-           :headroom = CEILING_MICROS - :worst
+One row per period, **one atomic conditional statement per call, with no prior read**:
+
+```sql
+-- RESERVE — checks the ceiling and charges worst case in a single round trip.
+INSERT INTO verification_spend (period, reserved_micros)
+VALUES ($period, $worst)
+ON CONFLICT (period) DO UPDATE
+   SET reserved_micros = verification_spend.reserved_micros + $worst
+ WHERE verification_spend.reserved_micros <= $headroom
+RETURNING reserved_micros;
+--   $worst    = worstCaseMicros(modelId, MAX_INPUT_TOKENS, maxTokens)
+--   $headroom = CEILING_MICROS - $worst
 ```
 
-`ConditionalCheckFailedException` **is** the budget denial. The cascade terminates as `unresolved` without
-invoking the provider — the same defined, safe path as provider-unavailable.
+**Zero rows returned IS the budget denial** — the row exists and the `WHERE` failed. `UPDATE`/`INSERT … ON
+CONFLICT` takes a row lock, so concurrent callers serialize on the one row and each sees the latest value;
+the bound therefore does not depend on `reservedConcurrency`.
 
-```
-// SETTLE — refund the difference. :delta is normally negative.
-UpdateItem
-  Key:              { pk: <the SAME key captured at RESERVE time — never recomputed> }
-  UpdateExpression: "ADD reservedMicros :delta, settledMicros :actual, calls :one"
-  Values:  :actual = costMicros(usage.inputTokens, usage.outputTokens, rateTable[modelId])
-           :delta  = :actual - :worst
+```sql
+-- SETTLE — refund the difference. $delta is normally negative.
+UPDATE verification_spend
+   SET reserved_micros = reserved_micros + $delta,
+       settled_micros  = settled_micros  + $actual,
+       calls           = calls + 1
+ WHERE period = $period;   -- the SAME period captured at RESERVE — never recomputed
+--   $actual = costMicros(usage.inputTokens, usage.outputTokens, rateTable[modelId])
+--   $delta  = $actual - $worst
 ```
 
 Why this is correct where the obvious shape is not:
 
-- **Overshoot is provably bounded at `CEILING + one worst-case call`**, under arbitrary concurrency.
-  DynamoDB conditional writes _"check their conditions against the most recently updated version of the
-  item"_ and writes to a single item are serialized. The bound therefore does **not** depend on
-  `reservedConcurrency = 1` — which means the concurrency setting is free to change later for throughput
-  reasons without silently breaking the ceiling. That decoupling is the main reason to prefer this shape.
-- **Every failure mode is fail-safe.** Crash after reserve → the worst-case charge stands (over-count).
-  Crash after the Bedrock response → same, and because `worst ≥ actual` we can never under-count. An SDK
-  retry of the reserve double-charges — also conservative. Set `maxAttempts: 1` on the reserve call to keep
-  that rare.
-- **`TransactWriteItems` is NOT warranted.** One item, one invariant. Transactions cost 2× and buy nothing.
-  Do not "harden" this into a transaction.
+- **Reserved spend never exceeds the ceiling**, under arbitrary concurrency, because the row lock serializes
+  callers and `$headroom` already subtracts the worst case before the comparison. The bound does **not**
+  depend on `reservedConcurrency = 1`, so that setting is free to change later for throughput without
+  silently breaking the ceiling.
+- **One row, one invariant.** There is a single ceiling (§3) and therefore a single counter. Do not add a
+  second keyed counter without re-deriving this section: two rows would be two invariants, and the reserve
+  pair would then have to be one transaction so a denial on the second cannot leave the first charged.
+- **Every failure mode is fail-safe, and settle is NEVER retried.** Crash after reserve → the worst-case
+  charge stands (over-count). Crash after the Bedrock response → same, and because `worst ≥ actual` we can
+  never under-count. ⚠️ A **retried settle is the one way to break that guarantee**: `reserved_micros +
+$delta` is not idempotent with a negative delta, so a lost response that is auto-retried double-refunds
+  most of the reservation — reintroducing exactly the silent under-count this shape exists to prevent. Pin
+  `maxAttempts: 1` on **both** statements, and emit a metric when settle fails so unrefunded reservations
+  are observable rather than silent.
+- **Any outcome with no billed response refunds in full.** `ThrottlingException`,
+  `ServiceUnavailableException`, `AccessDeniedException`, `ValidationException` and client timeouts settle
+  with `$actual = 0`. Without this a throttling episode consumes the ceiling at **zero actual spend** and
+  then closes the gate for the rest of the month.
 - **The period key is captured once, at reserve, and carried into settle.** Recomputing it at settle time is
   a real bug: a call spanning midnight UTC on the 1st reserves against month M and settles against M+1,
   leaving M permanently over-reserved and M+1 permanently over-charged. Compute in **UTC** — that is what AWS
@@ -165,35 +200,77 @@ Why this is correct where the obvious shape is not:
 - **`maxTokens` MUST be set explicitly, and input tokens MUST be capped before the call.** Worst-case cost is
   `MAX_INPUT_TOKENS × inRate + maxTokens × outRate`. If prompt length is unbounded, the reservation is a
   lie and the ceiling does not hold. The raw source line is already untrusted input (U11); it is also
-  unbounded length. Truncate or reject at the boundary.
-- **An unreadable counter fails CLOSED**, to `unresolved`. Correct for this workload specifically: the gate
-  is a quality enhancement on an async queue path, so failing closed degrades resolution quality rather than
-  causing an outage, and a hard ceiling is the component's entire purpose. (Note that the published
-  precedents default the _other_ way — the Claude apps gateway fails open, because blocking a developer's
-  IDE is worse than overspending. Different workload, different trade. Do not import their default.)
+  unbounded length. **REJECT at the boundary — never truncate.** A truncated line asks the model to judge
+  text the user did not write, and that verdict gates whether nutrition publishes; an over-cap line resolves
+  as `unresolved` and is surfaced for correction, which is true.
+- **An unreadable counter fails CLOSED** — the call is never made. ⛔ But failing closed is NOT the same as
+  resolving the line: a ceiling denial and an unreadable counter are **transient**, so the message returns
+  to the queue and retries under layer 0's `maxReceiveCount` + DLQ. It does not terminate as `unresolved`.
+  This distinction is load-bearing. `unresolved` means _verified and disagreed_ — withheld and surfaced for
+  correction — and U11 ranks a wrong **disagree** as the unacceptable error direction, the one whose rate
+  triggers a rethink. Resolving billing denials as `unresolved` would manufacture that outcome in bulk, for
+  reasons that have nothing to do with the line's quality, and invite the user to correct something we
+  simply declined to check. An exhausted ceiling drains to the DLQ, where it is visible as queue depth
+  instead of as silently degraded recipes. (The published precedents fail _open_ — the Claude apps gateway
+  does, because blocking a developer's IDE is worse than overspending. Different workload. Do not import
+  their default.)
 
-### 3. Five layers, each stated with its enforcement latency
+### 3. Six layers, each stated with its enforcement latency
 
-| #   | Layer                                                                  | Stops                                      | Latency                                           | Scope                                                   |
-| --- | ---------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------- |
-| 0   | SQS `maxReceiveCount` + DLQ                                            | A retry loop **before it becomes cost**    | **Real-time**, enforced by SQS                    | Per-queue. Cheapest, highest-value control in the stack |
-| 1   | Explicit `maxTokens` + input-token cap                                 | Worst-case cost of one call                | **Real-time**, in-process                         | Per-call. Precondition for layer 3                      |
-| 2   | `reservedConcurrency = 1`                                              | Burst _rate_                               | **Real-time**                                     | Per-function. **Blast radius, not the ceiling**         |
-| 3   | **Reserve-then-settle counter — monthly ($100) and daily sub-ceiling** | The owner's ceiling                        | **~5–10 ms, before the call.** Overshoot ≤ 1 call | Per-application. **This is the gate**                   |
-| 4   | EMF dollar metric → CloudWatch alarm → SNS → Lambda                    | Counter bugs, counter bypass               | **~2–6 min**                                      | Per-application, **dollar-denominated**                 |
-| 5   | AWS Budget (~$20, filtered to Bedrock), actual + forecasted            | Drift between our estimate and the invoice | **8–12h**                                         | Account. **Audit, never the gate**                      |
+| #   | Layer                                                           | Stops                                      | Latency                                       | Scope                                                   |
+| --- | --------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------- | ------------------------------------------------------- |
+| 0   | SQS `maxReceiveCount` + DLQ                                     | A retry loop **before it becomes cost**    | **Real-time**, enforced by SQS                | Per-queue. Cheapest, highest-value control in the stack |
+| 1   | Explicit `maxTokens` + input-token cap                          | Worst-case cost of one call                | **Real-time**, in-process                     | Per-call. Precondition for layer 3                      |
+| 2   | `reservedConcurrency = 1`                                       | Burst _rate_                               | **Real-time**                                 | Per-function. **Blast radius, not the ceiling**         |
+| 3   | **Reserve-then-settle counter — one monthly ceiling ($100)**    | The owner's ceiling                        | **~5–10 ms, before the call.** Never exceeded | **Prod only.** **This is the gate**                     |
+| 4   | EMF dollar metric → CloudWatch alarm → SNS → notification       | Counter **bugs** (not bypass — see below)  | **~2–6 min**                                  | Per-application, **dollar-denominated**                 |
+| 4b  | `bedrock:InvokeModel` granted to exactly ONE role, guard-tested | Counter **bypass**                         | **Build-time**                                | Account. Authorization, not observation                 |
+| 5   | AWS Budget (~$20, filtered to Bedrock), actual + forecasted     | Drift between our estimate and the invoice | **8–12h**                                     | Account. **Audit, never the gate**                      |
 
-**Layer 3 gains a DAILY sub-ceiling** (~$5) on the same mechanism and the same code path, keyed
-`verification-spend#YYYY-MM-DD`. Rationale: the monthly ceiling cannot detect a runaway that completes
-inside the month it happens, and §Context establishes that a same-day runaway is the _only_ event this
-system is defending against. The daily ceiling costs one extra conditional write and is the layer most
-likely to actually fire.
+⛔ **There is exactly ONE ceiling: $100 per calendar month, reset at the month boundary.** An earlier draft
+added a ~$5 daily sub-ceiling, justified as detection speed. That reasoning does not survive: a monthly
+ceiling is a **hard cap, not a detector** — a runaway completing inside a day still hits $100 and stops. The
+daily ceiling did not stop it harder, it stopped it at a lower figure than the owner authorized, while
+manufacturing false denials on legitimate bulk work. It also never enforced the monthly ceiling it sat under
+(31 × $5 = $155 > $100), and its own Residual risk conceded it was "the same code with different keys."
+Genuine detection latency is layer 4's job, at ~2–6 minutes. **Owner ruling, 2026-08-21: one monthly cap.
+Do not reintroduce a second ceiling without re-deriving §2's single-row invariant.**
+
+⛔ **The ceiling is enforced in PROD ONLY** (owner ruling, 2026-08-21). Sandbox and every `pr-{N}` call the
+provider ungated, because ADR-0006 gives each PR its own **logical** database on the shared sandbox
+instance — Postgres cannot read across logical databases, so a shared counter would mean either a second
+connection to the base database or a store outside both VPCs, and neither is worth the machinery for
+non-prod. "Ungated" is not "unlimited": layers 0–2 still bound the rate at `reservedConcurrency = 1` and
+~1 s per call, i.e. **86,400 calls/day ≈ $2.90/day ≈ $88/month per stage on Nova Micro** (~30× that on
+Haiku 4.5, which is only reachable while the bake-off runs). Raising `reservedConcurrency` in a non-prod
+stage raises that bound proportionally and is the one change that makes this ruling unsafe.
+
+⚠️ **Both the ceiling value and the model live in SSM parameters, read at Lambda cold start** — R23 requires
+the ceiling be _configurable_, and baking it into the function's environment would mean redeploying the
+worker stack to change it mid-incident. A lowered ceiling applies to subsequent reserves only; it never
+rewrites reservations already taken, and it can deny immediately if the period's accumulated reservations
+already exceed the new headroom.
+
+⚠️ **The arithmetic here assumes Nova Micro** (`KTD-4`'s pick, on both measured correctness and cost). If the
+bake-off picks Claude Haiku 4.5 instead, per-call cost rises ~30× and every figure in this section must be
+re-derived — including whether $100 is still ~370× headroom, and whether the 80,000-line re-import scenario
+(~$2.74 on Nova, ~$85 on Haiku) can complete inside one month's budget.
 
 **Layer 4 emits our OWN metric, and that is deliberate.** A CloudWatch alarm on `AWS/Bedrock`
-`InputTokenCount` / `OutputTokenCount` is available and is kept as a bypass detector, but it is
-account + Region + `ModelId` scoped and **token**-denominated — so anything else in the account calling the
-same model corrupts it, and its dollar threshold must be re-derived whenever the model changes. An EMF
-metric from the Lambda we are already logging from is app-scoped, dollar-denominated, and free.
+`InputTokenCount` / `OutputTokenCount` is available but is account + Region + `ModelId` scoped and
+**token**-denominated — so anything else in the account calling the same model corrupts it, and its dollar
+threshold must be re-derived whenever the model changes. An EMF metric from the Lambda we are already
+logging from is app-scoped, dollar-denominated, and free. It alarms at **$50 — half the ceiling** — and
+routes to a notification. It does **not** invoke a kill switch: at $100 maximum exposure an automated
+remediation Lambda costs more to build and carry than the loss it prevents.
+
+⛔ **Layer 4 cannot detect a bypass, and an earlier draft claimed it could.** The EMF metric is emitted BY
+the gated code path, so a caller that skips the gate emits **nothing**. Its "Stops" column now reads counter
+bugs only. The real control is authorization, not observation: **`bedrock:InvokeModel` / `bedrock:Converse`
+is granted to exactly one Lambda execution role** (layer 4b), asserted by a discovery-based guard test over
+the infra tree that fails on any additional grantee — the exact-set-equality shape
+`packages/infra/global/__tests__/natEgressConsumers.test.ts` already uses for NAT membership. A permission
+nobody else holds cannot be bypassed; a metric nobody else emits cannot notice.
 
 **Layer 5's job is to disagree with layer 3.** It is not a smaller ceiling; it is an independent
 observation. If the counter says $3 and AWS says $40, the **rate table is wrong** and that is what we need
@@ -261,6 +338,15 @@ endpoint exists anywhere in the tree — so re-adding one has to come back throu
 still needs from ADR-0004 is unchanged: a non-Bedrock provider is structurally expensive because it brings a
 vendor relationship, a secret, and an egress question of its own.
 
+⚠️ Two things the ruling depends on, recorded so the reopening path is priced honestly. First, the guard
+does more than assert the endpoint's absence: `natEgressConsumers.test.ts` derives its NAT-consumer list
+from the inference that **with no interface endpoint anywhere in the tree, VPC-attached and NAT-consuming
+are the same set**. Legitimately adding an endpoint after reopening ADR-0004 therefore invalidates that
+derivation too, and the guard's consumer assertion must be re-argued alongside it. Second, the arithmetic
+above is per-service-stack placement; a shared-stack placement (the ADR-0003 pattern, one per stage rather
+than one per service) removes the per-open-PR multiplication from the objection, so it is the shape to
+evaluate if the volume ever justifies revisiting.
+
 ⚠️ Accepted consequence: the gate now shares a single-AZ NAT instance with 16 other Lambdas, so an AZ
 failure takes it down with them. At `reservedConcurrency = 1` and ~1 KB per call, throughput is not the
 concern; availability is, and the answer is that this is an async off-queue path whose messages wait.
@@ -290,10 +376,18 @@ proves only that the arithmetic compiles.
 - **The counter is a circuit breaker, not an invoice.** It is estimated from token counts at list-price
   rates held in our own table. It will drift from CUR — negotiated rates, credits and rounding are not
   modelled. Layer 5 exists to measure that drift, not to eliminate it.
-- **Overshoot of up to one worst-case call above the ceiling is permitted, by design.** Eliminating it would
-  require holding a lock across the Bedrock call.
+- **Reserved spend never exceeds the ceiling**, because `$headroom` subtracts the worst case before the
+  comparison. Actual spend is always at or below reserved. ⚠️ Do not "simplify" the comparison to
+  `reserved_micros <= CEILING_MICROS` to make it read more naturally — that is the edit that would create
+  real overshoot.
 - **Crashes over-count.** A reservation whose settle never runs is never refunded within the period. At 370×
   headroom this is invisible; it is recorded because the arithmetic is deliberately biased one way.
+- **The ceiling protects PROD only.** Sandbox and every open PR call the provider ungated, bounded solely by
+  layers 0–2 at ≈$88/month/stage on Nova. A non-prod runaway is billed, not denied — which is also where a
+  runaway is most likely to originate.
+- **On Nova Micro the ceiling will essentially never fire.** The runaway §Context names — 8,000 calls
+  becoming 800,000 — costs ~$27, well under $100. The ceiling is a backstop against a `maxTokens` mistake
+  and against a model change, not against call volume alone.
 - **`reservedConcurrency = 1` serializes the workload.** ~1s per call means a 2,432-line bake-off is ~40
   minutes and `KTD-4`'s 80,000-line re-import scenario would be ~22 hours. Acceptable for an async
   off-queue path. §2's bound does not depend on this value, so it can be raised for throughput without
@@ -322,10 +416,14 @@ proves only that the arithmetic compiles.
 
 - **The rate table is a hand-maintained copy of Bedrock's price list.** A stale entry silently under-counts.
   It carries an effective date; layer 5 is the detector.
-- **Nothing prevents a _second_ caller from invoking Bedrock without going through the gate.** The counter
-  guards one code path, not the IAM permission. Layer 4's `AWS/Bedrock` alarm is the only bypass detector.
-- **The daily sub-ceiling and the monthly ceiling are the same code with different keys.** A bug in the
-  shared path disables both. They are not independent layers; layers 4 and 5 are.
+- **A second caller invoking Bedrock outside the gate is prevented by IAM, not by the counter** (layer 4b).
+  The guard test is what keeps that true; without it the grantee set drifts silently and nothing notices.
+- **Layer 5's counter-vs-invoice comparison assumes this gate is the account's only Bedrock consumer.** That
+  holds today — feature 005's AI work is BYOK against the user's own provider and never touches this
+  account — but a future in-account consumer would make the budget aggregate a wider scope than the counter
+  measures, and the disagreement diagnostic would start false-alarming. The fix at that point is a
+  cost-allocation tag on an application inference profile, which is the one job §1 correctly identifies
+  those profiles as fit for.
 - **Prompt-cache minimums are model-specific and were confirmed for Claude Haiku 4.5 only.** Nova Micro's
   threshold was not verified. §5's guidance (defensive reads, alert on non-zero) is correct either way.
 
@@ -334,22 +432,22 @@ proves only that the arithmetic compiles.
 Checked against primary AWS documentation on **2026-08-20**. Blogs were used only to establish prior art,
 never to establish a fact.
 
-| Claim                                                                                           | Source                                                                                                                                                                                                 |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Quotas are on tokens/requests; no dollar quota                                                  | [Quotas for Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html), [bedrock-runtime quotas](https://docs.aws.amazon.com/bedrock/latest/userguide/quotas-runtime.html)      |
-| TPD exists; reserve-then-settle mirrors Bedrock's own burndown                                  | [How tokens are counted](https://docs.aws.amazon.com/bedrock/latest/userguide/quotas-token-burndown.html)                                                                                              |
-| Service Quotas is increase-only                                                                 | [Requesting a quota increase](https://docs.aws.amazon.com/servicequotas/latest/userguide/request-quota-increase.html)                                                                                  |
-| Inference profiles are attribution, not enforcement                                             | [Inference profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html), [Track usage and costs](https://docs.aws.amazon.com/bedrock/latest/userguide/cost-management.html) |
-| `usage` field requiredness                                                                      | [TokenUsage](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_TokenUsage.html)                                                                                                      |
-| No per-request cost parameter                                                                   | [Converse](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html)                                                                                                          |
-| Budgets refresh 8–12h; overshoot warning                                                        | [Managing your costs with AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html)                                                                       |
-| Budget actions fire off the same evaluation                                                     | [Configuring budget actions](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-controls.html)                                                                                       |
-| Anomaly detection up to 24h, alert-only                                                         | [Cost Anomaly Detection](https://docs.aws.amazon.com/cost-management/latest/userguide/manage-ad.html)                                                                                                  |
-| Bedrock metrics + `ModelId` dimension                                                           | [bedrock-runtime CloudWatch metrics](https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring-runtime-metrics.html)                                                                             |
-| Alarm actions cannot invoke Lambda directly                                                     | [Using CloudWatch alarms](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)                                                                                     |
-| Conditional writes evaluate against the latest item version; atomic counters are not idempotent | [Working with items](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html)                                                                                           |
-| Only Gemma, no Gemini, on Bedrock                                                               | [Google models in Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-google.html)                                                                                        |
-| Pre-invocation budget checks are the recommended shape                                          | [AGENTCOST07-BP01](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentcost07-bp01.html)                                                                                           |
+| Claim                                                                                                 | Source                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Quotas are on tokens/requests; no dollar quota                                                        | [Quotas for Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html), [bedrock-runtime quotas](https://docs.aws.amazon.com/bedrock/latest/userguide/quotas-runtime.html)      |
+| TPD exists; reserve-then-settle mirrors Bedrock's own burndown                                        | [How tokens are counted](https://docs.aws.amazon.com/bedrock/latest/userguide/quotas-token-burndown.html)                                                                                              |
+| Service Quotas is increase-only                                                                       | [Requesting a quota increase](https://docs.aws.amazon.com/servicequotas/latest/userguide/request-quota-increase.html)                                                                                  |
+| Inference profiles are attribution, not enforcement                                                   | [Inference profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html), [Track usage and costs](https://docs.aws.amazon.com/bedrock/latest/userguide/cost-management.html) |
+| `usage` field requiredness                                                                            | [TokenUsage](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_TokenUsage.html)                                                                                                      |
+| No per-request cost parameter                                                                         | [Converse](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html)                                                                                                          |
+| Budgets refresh 8–12h; overshoot warning                                                              | [Managing your costs with AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html)                                                                       |
+| Budget actions fire off the same evaluation                                                           | [Configuring budget actions](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-controls.html)                                                                                       |
+| Anomaly detection up to 24h, alert-only                                                               | [Cost Anomaly Detection](https://docs.aws.amazon.com/cost-management/latest/userguide/manage-ad.html)                                                                                                  |
+| Bedrock metrics + `ModelId` dimension                                                                 | [bedrock-runtime CloudWatch metrics](https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring-runtime-metrics.html)                                                                             |
+| Alarm actions cannot invoke Lambda directly                                                           | [Using CloudWatch alarms](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)                                                                                     |
+| A row-level lock serializes concurrent writers on the counter row; `SET x = x + $d` is not idempotent | [PostgreSQL — Row-level locks](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS)                                                                                             |
+| Only Gemma, no Gemini, on Bedrock                                                                     | [Google models in Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-google.html)                                                                                        |
+| Pre-invocation budget checks are the recommended shape                                                | [AGENTCOST07-BP01](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentcost07-bp01.html)                                                                                           |
 
 **Prior art** (pattern precedent, not authority):
 [Build a proactive AI cost management system for Amazon Bedrock](https://aws.amazon.com/blogs/machine-learning/build-a-proactive-ai-cost-management-system-for-amazon-bedrock-part-1/) ·

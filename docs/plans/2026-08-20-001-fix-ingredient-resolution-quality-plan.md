@@ -43,7 +43,9 @@ API. The mechanism is a **tiebreak, not a score inversion**: `word_similarity('f
 therefore sit inside the server's page, the client re-sort sees both, and PREFIX beats SUBSTRING — so the
 picker likely resolves `flour` correctly today while the importer does not.
 
-⚠️ "Likely" is doing work in that sentence. The server truncates at `DEFAULT_SEARCH_LIMIT = 10` before the
+⚠️ "Likely" is doing work in that sentence. The two surfaces page differently — the local ingredient table
+at `DEFAULT_SEARCH_LIMIT = 10` (`ingredients.dal.ts`) and the food catalog at `SEARCH_LIMIT = 20`
+(`foodSearch.dao.ts`), which `foodCatalog.gateway.search` calls with no limit at all. The server truncates before the
 client sorts anything, so the client re-sort can only reorder a page the broken sort key already selected.
 U1 measures whether the true match survives that page rather than leaving this reasoned. The server defect
 is real either way; what is unmeasured is how much of it users currently see.
@@ -265,9 +267,16 @@ see today. U5 gates on both, because "zero regressions" against server output al
 server against itself while the picker silently got worse.
 
 **Execution note:** every entry is written red, before any fix.
+⛔ **Commit the BEFORE-baseline as an artifact, not a memory.** The 448-recipe run's report, per-line
+resolved `food_id`, unmatched count and the three attractor tallies live nowhere in the repo — the figures
+"2,432" and "~900" appear only in this plan and ADR-0024. U15 requires its after-run be reproducible from a
+committed corpus manifest while imposing no such requirement on the run every success criterion is
+denominated in, so a post-release disagreement about whether the numbers moved cannot be settled.
 **Patterns to follow:** `foodSearchAccessPath.integration.test.ts` — equivalence of the `(id, name, score)`
-sequence with access paths disabled and enabled, plus a vacuity guard. Seed at 50,000 rows; the planner
-flips between 6k and 50k. ⛔ Do **not** re-add a query-plan cost gate — one was written, measured and
+sequence with access paths disabled and enabled, plus a vacuity guard. Seed at **100,000** rows — that
+file's own header records why it abandoned 50,000: the guard "FIRED in CI — twice, on commits identical in
+every relevant respect to two that passed", because 50,000 sits on the planner crossover at a 1.53x margin
+against 2.36x at 100,000. (SC-007's k6 population is a different corpus and stays at 50,000.) ⛔ Do **not** re-add a query-plan cost gate — one was written, measured and
 removed for cause.
 
 **Test scenarios:**
@@ -281,7 +290,7 @@ removed for cause.
 - Known-miss entries assert they still miss, including word-order inversions the tiers do not solve.
 - Collation: `name ASC` ordering identical between the local image and a CI-shaped instance.
 - Truncation: for `flour`, `milk` and `sugar`, record whether the true match survives the server's
-  `DEFAULT_SEARCH_LIMIT = 10` page on both surfaces — the measurement the Problem frame's severity claim
+  page on both surfaces — each at its own limit (local 10, catalog 20) — the measurement the Problem frame's severity claim
   rests on.
 
 **Verification:** the suite is red for every known defect and green for every case already correct.
@@ -299,6 +308,12 @@ removed for cause.
 **Approach:** parse `additionalDescriptions` in the USDA client (validating the raw upstream shape at the
 boundary per GR-015 §15-d) and persist it. ~1.8 curated aliases per row, carrying brands and regional
 synonyms we were otherwise going to rediscover by hand.
+
+⚠️ The k6 re-measurement U5 gates on is only meaningful once the perf fixture populates aliases at
+production-like density (~1.8 per row): `packages/services/food-service/tests/load/preparePerfFixture.ts`
+seeds names, descriptions and crosswalk rows and nothing else, so with `additionalDescriptions` null on
+every row the second tsvector, its GIN index and the OR'd `ts_rank` all cost nothing and the gate passes on
+the speed of doing no work.
 
 ⛔ Aliases get their **own** `STORED` generated tsvector and their own GIN index — they are **not** folded
 into `search_vector`. Folding them in would need `ALTER COLUMN ... SET EXPRESSION`, which arrived in
@@ -329,8 +344,18 @@ from known-miss to hit.
 
 **Approach:** `refreshStatus` writes `status.food.name` onto the local row when a food transitions to
 `RESOLVED`, replacing whatever prose the caller supplied at add time. A `PENDING` row carries the sanitized
-caller text until then — that is honest, because no canonical name exists yet. The existing `0001` trigger
-refreshes `search_vector` on the update, so the ranking surface picks it up without extra work.
+caller text until then — that is honest, because no canonical name exists yet.
+
+⛔ **`ingredients` has NO `search_vector` trigger** — `0001_initial.sql` creates exactly one,
+`trg_recipes_search_vector`, and it is on `recipes`. `ingredients.dal.ts` says so in its own header: the DAL
+populates the vector on write via `to_tsvector('english', name)`. So the rename UPDATE must recompute
+`search_vector` in the SAME statement, mirroring `createFoodBacked`/`createFreeform`. A plain
+`UPDATE … SET name` leaves the ranker matching the original prose forever — the exact defect this unit
+exists to close.
+
+⚠️ **A `RESOLVED` status may carry no usable name.** `foodResponseSchema.name` is `z.string().nullable()`
+and `statusResponseSchema.food` is optional, while `ingredients.name` is `NOT NULL`. When `food` is absent
+or `food.name` is null, leave the existing sanitized caller text in place and record the status only.
 
 ⛔ Preserve the `by-name` USDA acquisition path — 202 `PENDING` → `RESOLVED` — which is how a food absent
 from the seed legitimately enters the catalog. What is forbidden is minting caller prose as a permanent
@@ -388,7 +413,7 @@ deliberately non-partial.
 - The replacement DAO test asserts the tier expression itself — the existing one passes a tiered key
   unchanged, so nothing else forces the rewrite.
 - Tier gap proven by an executable test, so a later weight edit cannot silently break it.
-- Equivalence + vacuity at 50,000 rows for both surfaces.
+- Equivalence + vacuity at 100,000 rows for both surfaces (the k6 SC-007 corpus stays 50,000).
 - Conformance contract passes for both policies.
 - Component tests assert the picker renders the server's order unmodified.
 
@@ -401,7 +426,7 @@ widens the searchable text underneath it.
 ### U6. Match strategy, `raw` injection, and word-order handling
 
 **Goal:** retrieve the right candidates before ranking them.
-**Requirements:** R6–R8, R10. **Dependencies:** U1, U5.
+**Requirements:** R6–R8, R10. **Dependencies:** U1, U5, U12a (the cleared table its verification reads).
 **Files:** `packages/services/recipe-service/src/ingredients/selectIngredientMatchStrategy.ts` (new),
 `.../dal/ingredients.dal.ts`.
 
@@ -563,8 +588,14 @@ is that promotions are reviewable after the fact, not that collusion is prevente
 **Goal:** nothing publishes nutrition we have not checked against the source.
 **Requirements:** R15–R18, R21–R24, R61. **Dependencies:** U5, U7, U10.
 **Files:** `packages/clients/bedrock/` (new), `packages/services/recipe-workers/src/handlers/verifyLine.ts`
-(new), `packages/services/recipe-workers/src/migrations/` (new — the `verification_spend` table),
-`packages/services/recipe-service/src/ingredients/resolution/confidence.ts` (new),
+(new), `packages/services/recipe-workers/src/common/messages.schema.ts` (the verification message shape,
+beside the shipped archive and handle-sync schemas) plus the recipe-service producer that enqueues it, and
+the queue + DLQ pair in `recipe-workers/infra/` following the archive/erasure pattern already there, `packages/services/recipe-service/src/database/migrations/0022_verification_spend.sql` (new — the counter
+table; ⛔ NOT under `recipe-workers`, which ships no migration SQL and no runner: `RecipeWorkersStack`'s
+barrier deploys **recipe-service's** runner via `migrationBundlePath`, so SQL filed anywhere else is never
+applied and the gate fails closed on every call),
+`packages/shared/recipe-core/src/resolution/confidence.ts` (new — ⛔ NOT under recipe-service, which
+`recipe-workers` cannot import: its dependencies are `@kitchensink/recipe-core`, `pg` and `zod`),
 `packages/services/recipe-service/src/ingredients/resolutionMetrics.ts` (new),
 `packages/services/recipe-workers/infra/`.
 
@@ -627,7 +658,11 @@ Layer 0 is the cheapest and highest-value control and this plan previously omitt
 **single monthly ceiling and nothing more** — the daily sub-ceiling an earlier draft added was removed: a
 monthly ceiling is a hard cap rather than a slow detector, it never enforced the monthly figure it sat under
 (31 × $5 = $155), and it denied legitimate bulk work. The ceiling is **prod-only**; sandbox and every
-`pr-{N}` call the provider ungated, bounded by layers 0–2 at ≈$88/month/stage on Nova.
+`pr-{N}` call the provider ungated, bounded by layers 0–2 at ≈$88/month/stage on Nova. ⚠️ That figure is
+**per stage, not an aggregate** — sandbox plus one stage per open PR, measured against the account-wide
+$300 monthly budget in `CostGuardrailsStack.ts`, which notifies rather than denies. And it is derived for
+**Nova Micro**: a Haiku 4.5 winner makes it roughly 30× higher, so shipping any non-Nova model requires
+re-deriving this bound before the model SSM parameter changes.
 
 **Two preconditions that ship with the counter, not after it:** `maxTokens` is set explicitly and input
 length is capped before the call — the raw source line is untrusted _and_ unbounded, and without a bound the
@@ -690,7 +725,13 @@ at −31.5 points) and position bias with swap augmentation (10–15 points).
   `Required: No` on the wire and unreachable at this prompt size. A non-zero value raises an alert rather
   than being assumed correct.
 - A `stopReason` of `malformed_model_output` or `malformed_tool_use` is recorded as a structured-output
-  failure for the bake-off, not silently retried.
+  failure for the bake-off, not silently retried. ⛔ In the SHIPPED path it takes the same fail-closed route
+  as `ServiceUnavailableException` — never a default of "agree", which would publish nutrition from a line
+  nothing verified.
+- A guard test asserts the verifier Lambda declares `reservedConcurrentExecutions = 1` in every stage.
+  ⚠️ This is not decoration: with the ceiling prod-only, that single constant is the ONLY thing bounding
+  non-prod spend, and ADR-0024 names raising it as "the one change that makes this ruling unsafe" while
+  supplying no control for it. Same discovery-and-set-equality shape as `natEgressConsumers.test.ts`.
 - An unattended caller records unresolved into dropped-lines and does not block.
 - An ingredient line containing an embedded instruction does not change the verdict shape.
 - Every verification stores the model identifier; the high band emits the same telemetry as the middle.
@@ -699,7 +740,8 @@ at −31.5 points) and position bias with swap augmentation (10–15 points).
 ### U12. Catalog clear and reseed
 
 **Goal:** a clean starting state for the measurement.
-**Requirements:** R44–R47. **Dependencies:** U4, U7 — ⚠️ **after** the write-path fix, or the
+**Requirements:** R44–R47. **Dependencies:** U12a (clear + recipe-side unlink) — U3; U12b (reseed) — U2,
+U12a; the re-import — U7. ⚠️ **after** the write-path fix, or the
 next import re-pollutes it.
 **Files:** `packages/services/food-service/src/foods/seed/clearCli.ts` (new), `.../seedCli.ts`,
 `packages/services/recipe-service/src/ingredients/unlinkCli.ts` (new).
@@ -736,8 +778,12 @@ rebuild.
 `.github/workflows/_ci-heavy.yml`.
 
 ⚠️ U1 makes "local tracks the RDS major version and collation provider" a continuous invariant, and this
-unit breaks it unless the 16 places pinning `postgres:16` move too — both compose files and 14 CI service
-containers. Verification includes: no `postgres:16` pin remains anywhere in the repo.
+unit breaks it unless every place pinning `postgres:16` moves too — **12 CI service containers** (8 in
+`_ci.yml`, 4 in `_ci-heavy.yml`) and **four** compose files, two of which this unit did not list:
+`infra/localstack/docker-compose.yml` and `packages/services/identity/infra/docker/docker-compose.yml`.
+`packages/services/food-service/tests/foodSearchAccessPath.integration.test.ts` carries three more, and
+`.github/workflows/zizmor.yml`'s header rationale ("`postgres:16` deliberately tracks the prod RDS engine
+minor") must move with it. Verification includes: no `postgres:16` pin remains anywhere in the repo.
 
 **Approach:** `VER_16` → `VER_18` (major-only, preserving the `autoMinorVersionUpgrade` behaviour) with
 `allowMajorVersionUpgrade`. 16.13 → 18 is a **verified one-hop** upgrade.
@@ -771,8 +817,10 @@ all thresholds unchanged, extension stays at 1.6, so the `flor` case at 0.600 su
 ⚠️ Statistics carryover is **contradictory** between the PG 18 docs and the RDS user guide. Plan as if
 `ANALYZE` is required; the dry run settles it.
 
-**Test scenarios:** the new gate fails on an engine-version change and passes when the template is
-unchanged; every `generatedAlwaysAs` declares `STORED`; no `postgres:16` pin survives; post-upgrade the
+**Test scenarios:** the gate asserts the synthesized engine version equals a committed expected constant —
+⚠️ NOT "fails on any engine-version change", which this very unit makes, leaving CI permanently red with no
+way to land and inviting deletion to go green; U13 updates the constant and `VER_16` → `VER_18` in the same
+PR, so drift still fails while an intended move is reviewable; every `generatedAlwaysAs` declares `STORED`; no `postgres:16` pin survives; post-upgrade the
 judgement set re-runs.
 
 ⚠️ A post-upgrade judgement-set difference traceable to a **tiebreak or planner change** is re-baselined and
@@ -790,7 +838,13 @@ user can reach and the learning loop never fires.
 `.native.tsx` sibling, `.../form/messages.ts`,
 `packages/apps/commise/web/src/components/recipes/IngredientPicker.tsx`,
 `packages/apps/commise/mobile/src/components/IngredientPicker.tsx`,
-`packages/services/recipe-service/src/ingredients/ingredients.schema.ts`.
+`packages/shared/recipe-core/src/recipe.types.ts` (the `foodResolutionStatusSchema` member),
+`packages/services/recipe-service/src/recipes/recipes.schema.ts` and `.../recipes/domain/nutritionState.ts`
+(the fourth `unaccounted` reason — ⛔ NOT `ingredients.schema.ts`, where it does not live),
+`packages/schemas/recipe/` (regenerated, moving `CONTRACT_HASH`),
+`packages/apps/commise/features/recipes/src/nutrition/model.ts` (the exhaustive switch a widened union will
+NOT fail to compile) and `.../nutrition/messages.ts` (its localized copy — without it a withheld line renders
+blank).
 
 **Approach:** a low-band resolution renders as an ingredient-line state the user can act on, polled through
 the same `PENDING → RESOLVED` lifecycle the picker already drives. Selecting a replacement food issues the
@@ -834,31 +888,43 @@ protocol; the run is reproducible from a committed corpus manifest.
 2. **U2** — aliases: the cheapest large win, and it needs its own generated vector rather than folding into
    `search_vector` (PG 17 syntax is unavailable until U13).
 3. **U3** — the write path stops minting prose. One unit, one service.
-4. **U12 (clear step only)** — ⚠️ moved **before** the ranking work. U6 verifies the local-decides share
-   against a clean table, and U5's baselines must not be anchored to rows U12 later deletes. The reseed and
-   the re-import stay at the end.
-5. **U5 + U6** — ranking and matching. Client re-sorts retired in the **same release** as U5, never before.
-6. **U7 → U8 → U9** — parser, then the quantity model whole, then UI on both platforms.
-7. **U10 → U14** — mappings and the affordance that writes them, together. U10 alone ships a write path
-   nobody can reach.
-8. **U11** — verification gate and bake-off.
-9. **U15** — re-import and measure: resolution rate, adjudicated accuracy, correction-surfacing share.
-10. **U13** — PG 18, alone, with its own gate and runbook.
+4. **U12a — clear + recipe-side unlink.** ⚠️ moved **before** the ranking work. U6 verifies the
+   local-decides share against a clean table, and U5's baselines must not be anchored to rows U12 later
+   deletes. ⛔ The recipe-side unlink runs FIRST and must complete before the food-side clear: reversed, every
+   recipe carries a `food_id` pointing at a deleted row for the length of the window, and `ingredients.food_id`
+   has no foreign key to catch it. A non-zero remaining linked count aborts before any food row is deleted.
+5. **U12b — reseed with aliases.** ⚠️ It cannot wait for the end. U2's alias verification is unobservable
+   until rows carry `additionalDescriptions`, and U5's judgement-set gate at the next step would otherwise
+   measure an EMPTY catalog. Only the re-import stays at the end.
+6. **U5 + U6** — ranking and matching. Client re-sorts retired in the **same release** as U5, never before.
+7. **U7 → U8 → U9** — parser, then the quantity model whole, then UI on both platforms.
+8. **U10** — curated mappings. Its write path is unreachable until U14 lands in the same release.
+9. **U11** — verification gate and bake-off.
+10. **U14** — the correction surface. ⚠️ It follows U11, which it declares as a dependency: its whole content
+    is the surface for the gate's verdicts (the fourth `unaccounted` reason, the withheld-line state), and
+    none of those exist until U11 ships. Pairing it with U10 put it two steps ahead of its own prerequisite.
+11. **U15** — re-import and measure: resolution rate, adjudicated accuracy, correction-surfacing share.
+12. **U13** — PG 18, alone, with its own gate and runbook.
 
 ---
 
 ## Risks and dependencies
 
-- **One-way doors:** the quantity _response_ widening (gated on mobile adoption); the reseed's fresh ULIDs;
+- **One-way doors:** the quantity _response_ widening (landing whole in U8 per KTD-6, which supersedes the
+  earlier mobile-adoption gate); the reseed's fresh ULIDs;
   the published mapping wire shape and its scope value; the correction grant identifier; whatever ingredient
   text reaches the provider.
 - **`ingredients.food_id` has no foreign key.** Nothing in the database prevents U12 orphaning recipe rows
   across a service boundary.
 - **The RDS instance is `multiAz: false`, `removalPolicy: DESTROY`, no automatic safety snapshot**, with
   `deletionProtection` described in-code as the only thing between accidental replacement and total loss.
-- **Leg 2 has zero coverage at any tier** — nothing has ever booted food-service and recipe-service
-  together, deliberately, in three places. The cascade is leg 2. Either build the environment or state the
-  gap plainly rather than reporting a mocked unit suite as verification.
+- **Leg 2 IS covered — extend the existing tier, do not rebuild it.**
+  `packages/tools/cross-service-e2e/tests/e2e/recipeFoodLinkage.e2e.test.ts` boots food-service and
+  recipe-service together against one Postgres with a real signed Clerk bearer and asserts
+  `catalogAvailability: 'ok'`, an ingredient reaching `RESOLVED` with a real `foodId`, and nutrition derived
+  from food's own response; `.github/workflows/_ci.yml` runs it as `e2e-cross-service-linkage`. U3's
+  cross-service rename, U12's two-service clear/unlink and U15's re-import extend THAT suite. (The three
+  places pointing `FOOD_SERVICE_URL` at a dead port remain deliberate, and no longer imply zero coverage.)
 - **Stale guidance:** `0019_drop_duplicated_nutrition.sql` still says "Production deploys CODE BEFORE
   MIGRATING," which ADR-0022 inverted. Fix the header while here.
 

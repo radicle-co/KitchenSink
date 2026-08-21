@@ -26,7 +26,7 @@
  * VERBATIM, with no stemming and no case folding, so a stored `Tillamook` would never match a typed
  * `tillamook`.
  */
-import { sanitizeFoodName } from './foodName.js';
+import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
 
 /**
  * The delimiter separating aliases inside the stored `food.aliases` text.

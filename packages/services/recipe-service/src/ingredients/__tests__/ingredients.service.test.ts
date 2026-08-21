@@ -9,6 +9,7 @@ import { IngredientsService } from '../ingredients.service.js';
 import {
     CALLER_TOKEN as CALLER,
     makeAddResult,
+    makeCanonicalName,
     makeCandidateView,
     makeFoodClients,
     makeFoodView,
@@ -56,7 +57,7 @@ describe('IngredientsService', () => {
             dalMocks['findByFoodId']!.mockResolvedValue(undefined);
             dalMocks['createFoodBacked']!.mockResolvedValue(makeIngredient({ id: 'i1', foodId: 'F1' }));
 
-            await service.addByName(CALLER, 'Quinoa');
+            await service.addByName(CALLER, makeCanonicalName('Quinoa'));
 
             // The credential the user presented is the one the food call is made under — not a service token,
             // and not an ambient value: the factory is asked for a client for exactly this caller.
@@ -68,7 +69,7 @@ describe('IngredientsService', () => {
             dalMocks['createFreeform']!.mockResolvedValue(makeIngredient({ id: 'f1' }));
 
             await service.search('flour');
-            await service.createFreeform('Grandma spice');
+            await service.createFreeform(makeCanonicalName('Grandma spice'));
 
             expect(standard).not.toHaveBeenCalled();
         });
@@ -102,7 +103,7 @@ describe('IngredientsService', () => {
             });
             dalMocks['createFoodBacked']!.mockResolvedValue(created);
 
-            const result = await service.addByName(CALLER, '  Quinoa  ');
+            const result = await service.addByName(CALLER, makeCanonicalName('  Quinoa  '));
 
             expect(clientMocks['addByName']).toHaveBeenCalledWith('Quinoa');
             expect(dalMocks['createFoodBacked']).toHaveBeenCalledWith({
@@ -118,7 +119,7 @@ describe('IngredientsService', () => {
             const existing = makeIngredient({ id: 'dup', foodId: 'F1' });
             dalMocks['findByFoodId']!.mockResolvedValue(existing);
 
-            const result = await service.addByName(CALLER, 'Quinoa');
+            const result = await service.addByName(CALLER, makeCanonicalName('Quinoa'));
 
             expect(result).toBe(existing);
             expect(dalMocks['createFoodBacked']).not.toHaveBeenCalled();
@@ -133,22 +134,124 @@ describe('IngredientsService', () => {
                 Promise.resolve(makeIngredient(input as object)),
             );
 
-            const result = await service.addByName(CALLER, 'Ambiguous thing');
+            const result = await service.addByName(CALLER, makeCanonicalName('Ambiguous thing'));
 
             expect(result.foodResolutionStatus).toBe(FoodResolutionStatus.UNRESOLVED);
+        });
+
+        /**
+         * ⛔ THE BRANCH THAT MADE CALLER PROSE PERMANENT, and the one that is easiest to believe cannot happen.
+         *
+         * `addResponseSchema.status` is the FULL six-value lifecycle, not the two pending states — `202` is
+         * about the ASYNC contract, not about the status — and `FoodsService.addByName` enqueues only when it
+         * CREATES or REACTIVATES a row, returning the food's real status otherwise. So a name food already
+         * holds comes back `RESOLVED` on the very first add, and the row minted here would be born terminal
+         * with the caller's own text as its permanent label: `refreshStatus` is only reached by a client
+         * polling a NON-terminal row, the importer's settle pass re-reads only `PENDING`/`UNRESOLVED`,
+         * `addByFoodId` short-circuits on `RESOLVED`, and `resolve` is converge-only. Nothing would ever
+         * rename it — and this is the DOMINANT branch once the catalog is warm, which is exactly the state
+         * U12's reseed leaves for U15's re-import to run against.
+         */
+        describe('a food the catalog ALREADY holds comes back RESOLVED on the add itself', () => {
+            beforeEach(() => {
+                dalMocks['findByFoodId']!.mockResolvedValue(undefined);
+                dalMocks['createFoodBacked']!.mockImplementation((input: unknown) =>
+                    Promise.resolve(makeIngredient(input as object)),
+                );
+            });
+
+            it('spends ONE more read to name the row from the catalog, not from the caller', async () => {
+                clientMocks['addByName']!.mockResolvedValue(
+                    makeAddResult({ id: 'F3', status: FoodResolutionStatus.RESOLVED }),
+                );
+                clientMocks['getStatus']!.mockResolvedValue(
+                    makeStatusResult({
+                        id: 'F3',
+                        status: FoodResolutionStatus.RESOLVED,
+                        food: makeFoodView({ id: 'F3', name: 'Sugars, granulated' }),
+                    }),
+                );
+
+                const result = await service.addByName(
+                    CALLER,
+                    makeCanonicalName('two heaping teaspoonfuls of powdered white sugar'),
+                );
+
+                expect(clientMocks['getStatus']).toHaveBeenCalledWith('F3');
+                expect(dalMocks['createFoodBacked']).toHaveBeenCalledWith({
+                    name: 'Sugars, granulated',
+                    foodId: 'F3',
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                });
+                expect(result.name).toBe('Sugars, granulated');
+            });
+
+            it('⛔ does NOT spend that read on a non-terminal add (the common path stays one round-trip)', async () => {
+                clientMocks['addByName']!.mockResolvedValue(
+                    makeAddResult({ id: 'F4', status: FoodResolutionStatus.PENDING }),
+                );
+
+                await service.addByName(CALLER, makeCanonicalName('sweet herbs, a small bunch'));
+
+                // A `PENDING` food has no golden record to name it from, so a read here would buy nothing and
+                // put a second cross-service round-trip on the picker's primary action.
+                expect(clientMocks['getStatus']).not.toHaveBeenCalled();
+                expect(dalMocks['createFoodBacked']).toHaveBeenCalledWith({
+                    name: 'sweet herbs, a small bunch',
+                    foodId: 'F4',
+                    foodResolutionStatus: FoodResolutionStatus.PENDING,
+                });
+            });
+
+            it('falls back to the caller`s name if the food goes terminal between the add and the read', async () => {
+                // A narrow race, and NOT a failure of the add: the row is legitimate and the caller's own name
+                // is a valid placeholder for it. Naming is a quality improvement on a path whose job is to
+                // persist the ingredient, so it degrades rather than propagating a 404 to the user.
+                clientMocks['addByName']!.mockResolvedValue(
+                    makeAddResult({ id: 'F5', status: FoodResolutionStatus.RESOLVED }),
+                );
+                clientMocks['getStatus']!.mockRejectedValue(new NotFoundError('F5', FoodResolutionStatus.NOT_FOUND));
+
+                const result = await service.addByName(CALLER, makeCanonicalName('a nameless thing'));
+
+                expect(result.name).toBe('a nameless thing');
+                expect(dalMocks['createFoodBacked']).toHaveBeenCalledWith({
+                    name: 'a nameless thing',
+                    foodId: 'F5',
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                });
+            });
         });
     });
 
     describe('refreshStatus (poll)', () => {
-        it('persists the RESOLVED status ONLY — nutrition is food`s, read live (U10)', async () => {
+        /**
+         * ⚠️ REWRITTEN for plan U3, not weakened. It asserted "STATUS ONLY", which was the whole truth under
+         * U10 and is no longer: the resolution now also adopts the golden record's canonical NAME, because the
+         * caller's own text — a fragment of recipe prose when the caller is the importer — was otherwise the
+         * permanent label of a row in an ownerless catalog every user searches. The U10 half it was written to
+         * protect is still asserted, and more strictly: the call is matched EXACTLY, so nutrition creeping back
+         * into this table still fails here.
+         */
+        it('persists the RESOLVED status AND adopts food`s canonical name — never nutrition (U3 + U10)', async () => {
             dalMocks['findById']!.mockResolvedValue(
-                makeIngredient({ id: 'i1', foodId: 'F1', foodResolutionStatus: FoodResolutionStatus.PENDING }),
+                makeIngredient({
+                    id: 'i1',
+                    name: '1 cup of sifted pastry flour',
+                    foodId: 'F1',
+                    foodResolutionStatus: FoodResolutionStatus.PENDING,
+                }),
             );
             clientMocks['getStatus']!.mockResolvedValue(
-                makeStatusResult({ id: 'F1', status: FoodResolutionStatus.RESOLVED, food: makeFoodView() }),
+                makeStatusResult({
+                    id: 'F1',
+                    status: FoodResolutionStatus.RESOLVED,
+                    food: makeFoodView({ name: 'Flour, wheat, all-purpose' }),
+                }),
             );
             const resolved = makeIngredient({
                 id: 'i1',
+                name: 'Flour, wheat, all-purpose',
                 foodId: 'F1',
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             });
@@ -156,13 +259,39 @@ describe('IngredientsService', () => {
 
             const result = await service.refreshStatus(CALLER, 'i1');
 
-            // ⛔ STATUS ONLY. Copying the golden record's nutrition into this table is exactly what U10
-            // deleted: a snapshot with no invalidation, so a food corrected upstream left every recipe
-            // quoting the old number. The numbers are read live from food now.
+            // ⛔ STATUS + NAME, and NOTHING ELSE. Copying the golden record's nutrition into this table is
+            // exactly what U10 deleted: a snapshot with no invalidation, so a food corrected upstream left
+            // every recipe quoting the old number. The numbers are read live from food now.
+            expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                canonicalName: 'Flour, wheat, all-purpose',
+            });
+            expect(result).toBe(resolved);
+        });
+
+        it('⛔ does NOT rename when a RESOLVED food carries no usable name (the column is NOT NULL)', async () => {
+            // The three ways the wire contract permits a nameless resolution are enumerated against the pure
+            // decision in `canonicalNameFrom.test.ts`; this asserts the SERVICE honours it — a rename request
+            // must not reach the DAL at all, or `COALESCE` would still be asked to blank a `NOT NULL` column.
+            dalMocks['findById']!.mockResolvedValue(
+                makeIngredient({ id: 'i1', name: 'butter the size of a walnut', foodId: 'F1' }),
+            );
+            clientMocks['getStatus']!.mockResolvedValue(
+                makeStatusResult({
+                    id: 'F1',
+                    status: FoodResolutionStatus.RESOLVED,
+                    food: makeFoodView({ name: null }),
+                }),
+            );
+            dalMocks['updateResolution']!.mockResolvedValue(
+                makeIngredient({ id: 'i1', name: 'butter the size of a walnut', foodId: 'F1' }),
+            );
+
+            await service.refreshStatus(CALLER, 'i1');
+
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             });
-            expect(result).toBe(resolved);
         });
 
         it('advances a still-PENDING status with no nutrition write', async () => {
@@ -285,7 +414,7 @@ describe('IngredientsService', () => {
             const created = makeIngredient({ id: 'f1', isUserEntered: true });
             dalMocks['createFreeform']!.mockResolvedValue(created);
 
-            const result = await service.createFreeform('  Grandma spice  ');
+            const result = await service.createFreeform(makeCanonicalName('  Grandma spice  '));
 
             expect(dalMocks['createFreeform']).toHaveBeenCalledWith('Grandma spice');
             expect(result).toBe(created);

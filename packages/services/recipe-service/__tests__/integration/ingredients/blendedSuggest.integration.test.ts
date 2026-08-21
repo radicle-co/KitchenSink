@@ -29,6 +29,7 @@ import { FoodCatalogGateway } from '../../../src/ingredients/foodCatalog.gateway
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import {
     CALLER_TOKEN as CALLER,
+    makeCanonicalName,
     foodClientsOf,
     makeFoodView,
     makeStatusResult,
@@ -146,7 +147,7 @@ describe.skipIf(!hasDatabaseUrl)(
             it('deduplicates through REAL SQL: a food with a persisted row appears once, as `local`', async () => {
                 // A real food-backed row exists and the recipe-local FTS query WILL match it on the stem.
                 await dal.createFoodBacked({
-                    name: `${STEM} already used`,
+                    name: makeCanonicalName(`${STEM} already used`),
                     foodId: SEEDED_FOOD_ID,
                     foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 });
@@ -165,7 +166,7 @@ describe.skipIf(!hasDatabaseUrl)(
                 // Name deliberately shares NO stem with the query, so the recipe-local FTS/trgm search cannot
                 // match it — only the `food_id` crosswalk can find it.
                 const promoted = await dal.createFoodBacked({
-                    name: 'Wholly unrelated label',
+                    name: makeCanonicalName('Wholly unrelated label'),
                     foodId: PROMOTED_FOOD_ID,
                     foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 });
@@ -180,7 +181,7 @@ describe.skipIf(!hasDatabaseUrl)(
             });
 
             it('F2 — a degraded catalog still returns the recipe-local section from the real DAL', async () => {
-                const local = await dal.createFreeform(`${STEM} my own ingredient`);
+                const local = await dal.createFreeform(makeCanonicalName(`${STEM} my own ingredient`));
                 vi.mocked(catalog.search).mockResolvedValue({ hits: [], availability: 'unavailable' });
 
                 const result = await service.suggest(CALLER, STEM);
@@ -211,7 +212,7 @@ describe.skipIf(!hasDatabaseUrl)(
                     ),
                     { enabled: true },
                 );
-                const local = await dal.createFreeform(`${STEM} survives the timeout`);
+                const local = await dal.createFreeform(makeCanonicalName(`${STEM} survives the timeout`));
 
                 const startedAt = Date.now();
                 const result = await new IngredientsService(dal, foodClientsOf(food), realGateway).suggest(
@@ -283,7 +284,7 @@ describe.skipIf(!hasDatabaseUrl)(
 
             it('BACKFILLS an existing nutrition-less row (an unpolled by-name row) rather than duplicating it', async () => {
                 const stale = await dal.createFoodBacked({
-                    name: `${STEM} pending row`,
+                    name: makeCanonicalName(`${STEM} pending row`),
                     foodId: SEEDED_FOOD_ID,
                     foodResolutionStatus: FoodResolutionStatus.PENDING,
                 });

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../../database/database.module.js';
-import { makeRawIngredientRow } from '../../__fixtures__/ingredients.fixtures.js';
+import { makeCanonicalName, makeRawIngredientRow } from '../../__fixtures__/ingredients.fixtures.js';
 import {
     IngredientsDal,
     rowToIngredient,
@@ -181,7 +181,7 @@ describe('IngredientsDal', () => {
         it('dedups: returns the existing freeform row without inserting', async () => {
             execute.mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'dup', is_user_entered: true })] });
 
-            const result = await dal.createFreeform('All-purpose flour');
+            const result = await dal.createFreeform(makeCanonicalName('All-purpose flour'));
 
             expect(result.id).toBe('dup');
             expect(execute).toHaveBeenCalledTimes(1); // dedup lookup only, no insert
@@ -192,7 +192,7 @@ describe('IngredientsDal', () => {
                 .mockResolvedValueOnce({ rows: [] }) // dedup lookup: miss
                 .mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'new', is_user_entered: true })] });
 
-            const result = await dal.createFreeform('Nonna secret spice');
+            const result = await dal.createFreeform(makeCanonicalName('Nonna secret spice'));
 
             expect(execute).toHaveBeenCalledTimes(2);
             expect(result.id).toBe('new');
@@ -205,7 +205,7 @@ describe('IngredientsDal', () => {
                 .mockResolvedValueOnce({ rows: [] }) // INSERT … ON CONFLICT DO NOTHING → conflicted, no row
                 .mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'winner', is_user_entered: true })] });
 
-            const result = await dal.createFreeform('Contested name');
+            const result = await dal.createFreeform(makeCanonicalName('Contested name'));
 
             expect(execute).toHaveBeenCalledTimes(3); // dedup miss → insert no-op → re-read winner
             expect(result.id).toBe('winner');
@@ -217,7 +217,7 @@ describe('IngredientsDal', () => {
             execute.mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'dup', food_id: 'F9' })] });
 
             const result = await dal.createFoodBacked({
-                name: 'Flour',
+                name: makeCanonicalName('Flour'),
                 foodId: 'F9',
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
             });
@@ -232,7 +232,7 @@ describe('IngredientsDal', () => {
             });
 
             const result = await dal.createFoodBacked({
-                name: 'Flour',
+                name: makeCanonicalName('Flour'),
                 foodId: 'F9',
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
             });
@@ -250,7 +250,7 @@ describe('IngredientsDal', () => {
                 .mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'winner', food_id: 'F9' })] });
 
             const result = await dal.createFoodBacked({
-                name: 'Flour',
+                name: makeCanonicalName('Flour'),
                 foodId: 'F9',
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
             });

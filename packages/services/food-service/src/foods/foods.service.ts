@@ -13,6 +13,7 @@
  * @implements FR-002 FR-003 FR-004 FR-005 FR-007 FR-008 FR-012 FR-013 FR-028a FR-045 FR-RES-1 FR-RES-2
  */
 import { Injectable } from '@nestjs/common';
+import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
 
 import { AdmissionService } from './admission.service.js';
 import { CandidateStore, FoodDao, FoodSourcesDao, type FoodStatus, type GoldenFoodRecord } from './dao/index.js';
@@ -25,7 +26,7 @@ import {
     FoodPendingError,
     NotResolvableError,
 } from './foods.errors.js';
-import { normalizeName, sanitizeFoodName } from './foodName.js';
+import { normalizeName } from './foodName.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { normalizePortions } from './nutrition/portionNormalization.js';
 import { projectNutrition } from './nutrition/nutrientSelection.js';

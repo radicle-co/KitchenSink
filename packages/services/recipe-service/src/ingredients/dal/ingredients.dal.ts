@@ -26,6 +26,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/database.module.js';
+import type { CanonicalIngredientName } from '../domain/ingredientName.js';
 
 /** Default number of search hits returned when the caller does not specify a limit. */
 export const DEFAULT_SEARCH_LIMIT = 10;
@@ -46,7 +47,7 @@ const RETURNING = sql`id, name, food_id, food_resolution_status, is_user_entered
 /** Input to {@link IngredientsDal.createFoodBacked}. */
 export interface CreateFoodBackedInput {
     /** Display name of the ingredient. */
-    readonly name: string;
+    readonly name: CanonicalIngredientName;
     /** Opaque food-service internal id (ULID) backing this ingredient. */
     readonly foodId: string;
     /** The async resolution status returned by the food service. */
@@ -57,7 +58,14 @@ export interface CreateFoodBackedInput {
 export interface UpdateResolutionInput {
     /** The new resolution status. */
     readonly foodResolutionStatus: FoodResolutionStatus;
-    /** Golden-record nutrition to persist (only when `RESOLVED`); omitted values are left untouched. */
+    /**
+     * The golden record's canonical display name, to ADOPT as this shared catalog row's name (plan U3).
+     *
+     * Omitted means "leave the name exactly as it is" — which is the answer whenever the food did not resolve
+     * to a record carrying a usable name, since `ingredients.name` is `NOT NULL` and the caller's own text is
+     * the only label the row has. The decision is not made here; it is made once, by `canonicalNameFrom`.
+     */
+    readonly canonicalName?: CanonicalIngredientName;
 }
 
 /**
@@ -251,7 +259,7 @@ export class IngredientsDal {
      * @returns The created or pre-existing freeform ingredient.
      * @sideEffect Reads, then conditionally inserts into `ingredients`.
      */
-    public async createFreeform(name: string): Promise<Ingredient> {
+    public async createFreeform(name: CanonicalIngredientName): Promise<Ingredient> {
         const existing = await this.findFreeformByName(name);
 
         if (existing) {
@@ -327,21 +335,41 @@ export class IngredientsDal {
     }
 
     /**
-     * Update a food-backed ingredient's resolution STATUS.
+     * Update a food-backed ingredient's resolution STATUS, and — when the food resolved to a golden record
+     * with a usable name — adopt that name as the shared catalog row's display name (plan U3).
      *
      * ⛔ It no longer persists nutrition (plan U10). It used to copy the golden record's per-100g values and
      * portions into this table at resolution time, which is precisely the duplicate KTD-3 removes: a copy
      * with no invalidation, so a food corrected upstream left every recipe quoting the old number forever.
      * The status still lives here because it is about THIS ingredient's link to a food, not about the food.
      *
+     * ⛔ **The rename RECOMPUTES `search_vector` in the SAME statement, and that is load-bearing.** There is
+     * no trigger maintaining `ingredients.search_vector` — `0001_initial.sql` creates exactly one and it is on
+     * `recipes` — so this DAL owns the vector on every write (see the file header). A plain `SET name` would
+     * leave the FTS index still spelling whatever prose the caller originally supplied, so the row would
+     * DISPLAY the golden name and be FOUND by text no user ever typed. `COALESCE(…::text, name)` is what makes
+     * an omitted `canonicalName` a true no-op on both columns rather than a blanking write; the explicit
+     * `::text` is required because a `null` parameter has no inferrable type inside `to_tsvector`. Note the
+     * vector is recomputed even in that no-op case, deliberately: it costs one expression and makes
+     * `search_vector = to_tsvector('english', name)` an invariant this statement RESTORES rather than merely
+     * preserves.
+     *
+     * ⚠️ `recipe_ingredients.ingredient_name` is deliberately NOT touched. That column is the denormalized
+     * display text of one line of one user's recipe — what the cook wrote — and is a different fact from the
+     * catalog's shared label.
+     *
      * @param id - The `ingredients.id`.
-     * @param input - The new resolution status.
+     * @param input - The new resolution status, and optionally the canonical name to adopt.
      * @returns The updated ingredient, or `undefined` when no row exists.
      * @sideEffect Updates `ingredients`.
      */
     public async updateResolution(id: string, input: UpdateResolutionInput): Promise<Ingredient | undefined> {
+        const canonicalName = input.canonicalName ?? null;
         const result = await this.db.execute<RawIngredientRow>(sql`
-            UPDATE ingredients SET food_resolution_status = ${input.foodResolutionStatus}
+            UPDATE ingredients SET
+                food_resolution_status = ${input.foodResolutionStatus},
+                name          = COALESCE(${canonicalName}::text, name),
+                search_vector = to_tsvector('english', COALESCE(${canonicalName}::text, name))
             WHERE id = ${id}
             RETURNING ${RETURNING}
         `);

@@ -392,7 +392,7 @@ export function perfFoodDescriptionSql(
     );
 }
 
-/** `normalizeName` (src/foods/merge/mergeEngine.ts) applied to a fixture name. Pure. */
+/** `normalizeName` (src/foods/foodName.ts) applied to a fixture name. Pure. */
 export function perfNormalizedName(kind: PerfFoodKind, index: number): string {
     return perfFoodName(kind, index).trim().replace(/\s+/g, ' ').toLowerCase();
 }

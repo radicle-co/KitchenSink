@@ -246,12 +246,15 @@ describe('IngredientsService.addByFoodId', () => {
             // Exactly ONE cross-service read for the whole pick.
             expect(getStatus).toHaveBeenCalledTimes(1);
             expect(getStatus).toHaveBeenCalledWith(FOOD_ID);
-            // ⛔ STATUS ONLY (U10). This suite used to assert the golden record's nutrition was COPIED into
-            // the ingredient row — the snapshot-with-no-invalidation KTD-3 deletes. What must still hold is
-            // that the pick lands RESOLVED in one cross-service read; the numbers come from food at read
-            // time, and `FoodNutritionGateway`'s suite covers them.
+            // ⛔ STATUS + NAME (U10 + U3). This suite used to assert the golden record's nutrition was COPIED
+            // into the ingredient row — the snapshot-with-no-invalidation KTD-3 deletes — and then asserted
+            // "status only". The nutrition half still holds and is matched EXACTLY. What plan U3 added is the
+            // canonical NAME: the pick may land on a row the importer already minted under recipe prose, and
+            // an admission that advanced only the status would leave that prose serving every other user's
+            // search. The numbers still come from food at read time (`FoodNutritionGateway`'s suite).
             expect(mocks['updateResolution']).toHaveBeenCalledWith('ing-new', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                canonicalName: 'Chicken breast, raw',
             });
             expect(ingredient.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
             expect(ingredient).not.toHaveProperty('caloriesPer100g');

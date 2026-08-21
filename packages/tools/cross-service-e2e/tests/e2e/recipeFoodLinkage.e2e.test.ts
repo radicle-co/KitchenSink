@@ -249,6 +249,38 @@ describe('an ingredient RESOLVES to a real food record, not a freeform row', () 
         ingredientId = ingredient.id;
     });
 
+    /**
+     * ⛔ U3, ACROSS THE REAL BOUNDARY: the shared catalog's display name is FOOD-SERVICE's, not the caller's.
+     *
+     * `ingredients` has no `owner_id`, so whatever name a row carries is served to every user's typeahead. The
+     * 448-recipe import wrote the caller's own string there — from the picker a search term, from the importer
+     * a fragment of recipe prose — and ~900 of 2,432 lines then resolved against that polluted corpus. U3 moves
+     * the decision to the only party that can settle it.
+     *
+     * The name is fetched from FOOD here rather than reused from the earlier spec's `results`, so this compares
+     * two services' live answers rather than a recipe row against a value this file already holds — which is
+     * the difference between proving the linkage and restating a local variable.
+     */
+    it('takes its display name from FOOD-SERVICE, verified against food`s own live answer', async () => {
+        expect(ingredientId, 'the previous spec did not admit an ingredient').not.toBe('');
+
+        const fromFood = await call(`${FOOD_URL}/api/v1/foods/${probe.id}`);
+
+        expect(fromFood.status, `food read failed: ${JSON.stringify(fromFood.body)}`).toBe(200);
+
+        const goldenName = (fromFood.body as { name: string | null }).name;
+
+        expect(goldenName, 'food-service published no name for the probe row').not.toBeNull();
+
+        const fromRecipe = await call(`${RECIPE_URL}/api/v1/ingredients/${ingredientId}/status`);
+
+        expect(fromRecipe.status).toBe(200);
+        expect(
+            ingredientSchema.parse(fromRecipe.body).name,
+            'the recipe-side catalog row is not carrying food-service`s canonical name',
+        ).toBe(goldenName);
+    });
+
     // ⛔ THE OWNER'S QUESTION, answered on the wire: the numbers a user sees come from the live lookup.
     it("derives the recipe's nutrition figures from food-service's own per-100 g values", async () => {
         expect(ingredientId, 'the previous spec did not admit an ingredient').not.toBe('');

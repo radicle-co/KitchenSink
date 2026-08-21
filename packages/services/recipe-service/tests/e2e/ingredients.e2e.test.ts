@@ -22,6 +22,13 @@ const CALLER = '01JINGE2E00000CALLER00000A';
 const FREEFORM_NAME = 'E2E disambiguation freeform spice';
 const MISSING_ID = '00000000-0000-4000-8000-0000000000ff';
 
+/**
+ * U+200B ZERO WIDTH SPACE and U+FEFF BOM — escapes rather than pasted characters, because a reviewer cannot
+ * check a case they cannot see.
+ */
+const ZWSP = '\u200B';
+const BOM = '\uFEFF';
+
 describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, assembled app)', () => {
     let booted: BootedRecipeApp;
     let pool: pg.Pool;
@@ -108,6 +115,42 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
         });
 
         expect(res.status).toBe(400);
+    });
+
+    /**
+     * ⛔ U3 — an INVISIBLE-only name is the same rejection as a blank one, in the same envelope.
+     *
+     * Only this tier can prove it. A U+200B ZERO WIDTH SPACE survives `String#trim` (format characters are not ECMAScript
+     * whitespace), so it passes the published schema's `min(1)` and reaches the handler — where the canonical
+     * parse now rejects it. Before U3 it was persisted, giving the ownerless catalog a row named nothing at
+     * all. The two bodies are compared FIELD BY FIELD rather than only by status, because the point is that a
+     * caller cannot tell the two conditions apart from the response either.
+     */
+    it('POST /ingredients with an invisible-only name is the SAME 400 envelope as an empty one', async () => {
+        const post = async (name: string): Promise<{ status: number; body: unknown }> => {
+            const res = await fetch(`${booted.baseUrl}/api/v1/ingredients`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+
+            return { status: res.status, body: await res.json() };
+        };
+
+        const empty = await post('');
+        const invisible = await post(`${ZWSP}${BOM}`);
+
+        expect(invisible.status).toBe(400);
+        expect(invisible.status).toBe(empty.status);
+        expect((invisible.body as { code?: string }).code).toBe('VALIDATION_FAILED');
+        expect((invisible.body as { code?: string }).code).toBe((empty.body as { code?: string }).code);
+
+        // …and nothing was written under either spelling.
+        const { rows } = await pool.query<{ n: string }>(
+            `SELECT count(*)::int AS n FROM ingredients WHERE name = ANY($1)`,
+            [['', `${ZWSP}${BOM}`]],
+        );
+        expect(Number(rows[0]!.n)).toBe(0);
     });
 
     // ── Search Stage 2 — the blended typeahead + the catalog pick ─────────────────────────────────────

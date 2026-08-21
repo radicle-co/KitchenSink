@@ -45,6 +45,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
+import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
 
 import {
     FOOD_ADMIN_SCOPE,
@@ -55,7 +56,6 @@ import {
     type AuthenticatedRequest,
 } from '../auth/authenticatedPrincipal.js';
 import { apiError } from '../common/apiError.js';
-import { sanitizeFoodName } from './foodName.js';
 import {
     canonicalizeNutritionIds,
     isNutritionIdListError,

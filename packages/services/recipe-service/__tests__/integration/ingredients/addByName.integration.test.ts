@@ -25,6 +25,7 @@ import {
     CALLER_TOKEN as CALLER,
     foodClientsOf,
     makeAddResult,
+    makeCanonicalName,
 } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -86,7 +87,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + r
             makeAddResult({ id: PENDING_FOOD_ID, status: FoodResolutionStatus.PENDING }),
         );
 
-        const ingredient = await service.addByName(CALLER, '  Quinoa integration  ');
+        const ingredient = await service.addByName(CALLER, makeCanonicalName('  Quinoa integration  '));
 
         // The food client saw the TRIMMED name; the returned row is the non-terminal, food-linked catalog row.
         expect(food.addByName).toHaveBeenCalledWith('Quinoa integration');
@@ -103,7 +104,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + r
             makeAddResult({ id: UNRESOLVED_FOOD_ID, status: FoodResolutionStatus.UNRESOLVED }),
         );
 
-        const ingredient = await service.addByName(CALLER, 'Ambiguous integration');
+        const ingredient = await service.addByName(CALLER, makeCanonicalName('Ambiguous integration'));
 
         expect(ingredient.foodResolutionStatus).toBe(FoodResolutionStatus.UNRESOLVED);
         expect(await readRow(UNRESOLVED_FOOD_ID)).toEqual({ status: 'UNRESOLVED', is_user_entered: false });
@@ -114,8 +115,8 @@ describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + r
             makeAddResult({ id: PENDING_FOOD_ID, status: FoodResolutionStatus.PENDING }),
         );
 
-        const first = await service.addByName(CALLER, 'Quinoa integration');
-        const second = await service.addByName(CALLER, 'Quinoa integration again');
+        const first = await service.addByName(CALLER, makeCanonicalName('Quinoa integration'));
+        const second = await service.addByName(CALLER, makeCanonicalName('Quinoa integration again'));
 
         expect(second.id).toBe(first.id);
         const { rows } = await pool.query<{ n: string }>(

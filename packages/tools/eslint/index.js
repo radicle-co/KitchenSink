@@ -377,13 +377,17 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/*/database-name',
                                     // `recipe-core` publishes three modules as their own entry points,
                                     // deliberately kept OFF its barrel: `scaling` (display-only serving
-                                    // scaling), `external-url` (the outbound-link trust boundary), and
-                                    // `ingredient-quantity` (the exact|range|absent quantity value object,
-                                    // which U8 promotes to the barrel in the commit that puts it on the wire).
-                                    // The barrel is inside the recipe service's contract corpus, so anything
-                                    // re-exported from it lands in `CONTRACT_HASH` — see that barrel's note.
+                                    // scaling), `external-url` (the outbound-link trust boundary),
+                                    // `food-name` (the canonical form of a shared catalog name, used by BOTH
+                                    // services) and `ingredient-quantity` (the exact|range|absent quantity
+                                    // value object, which U8 promotes to the barrel in the commit that puts
+                                    // it on the wire). The barrel is inside the recipe service's contract
+                                    // corpus, so anything re-exported from it lands in `CONTRACT_HASH` — see
+                                    // that barrel's note, and `food-name`'s own header for why a
+                                    // Unicode-hygiene fix must not move a wire fingerprint.
                                     '!@kitchensink/*/scaling',
                                     '!@kitchensink/*/external-url',
+                                    '!@kitchensink/*/food-name',
                                     '!@kitchensink/*/ingredient-quantity',
                                     // `food-service` spells the same barrel `db/schema`, not `database/*`. It
                                     // has no importer yet, which is exactly why the omission was invisible.
@@ -409,7 +413,7 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/vitest/*',
                                 ],
                                 message:
-                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, infra, types/*, hooks, testing, users/handle-sync-publisher, or any subpath of the shared tooling packages) — don't reach into other internals.",
+                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, or any subpath of the shared tooling packages) — don't reach into other internals.",
                             },
                         ],
                     },

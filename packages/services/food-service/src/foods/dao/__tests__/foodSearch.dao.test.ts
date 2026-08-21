@@ -271,6 +271,64 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
     });
 
     /**
+     * THE CURATED-ALIAS BRANCH (plan U2 / KTD-2).
+     *
+     * USDA publishes 9,648 additional descriptions across 5,432 FNDDS main descriptions — brands, regional
+     * synonyms and alternate forms (`Tillamook`, `Longhorn`, `sharp cheese` for `Cheese, Cheddar`). They now
+     * land in `food.aliases`, with their OWN stored generated tsvector `aliases_search_vector` and its own
+     * GIN index.
+     *
+     * ⛔ They are deliberately NOT folded into `search_vector`. Doing so needs
+     * `ALTER COLUMN … SET EXPRESSION`, which is PostgreSQL 17, and the PG 16 equivalent is DROP + ADD
+     * COLUMN — an ACCESS EXCLUSIVE lock, a full rewrite of `food`, and the dependent GIN index dropped.
+     * So the statement ORs the two vectors and takes the better of the two `ts_rank`s.
+     *
+     * Mutation lens: these fail if the alias predicate is dropped from the WHERE (an alias-only query would
+     * return nothing), if it is added to the WHERE but not to the score (an alias hit would rank at 0 and
+     * be truncated out of the 20-row page — the failure mode a "does it match?" test cannot see), if the
+     * second vector is folded into the first, or if the alias branch leaks into the 1–2 character statement.
+     */
+    describe('the curated-alias branch (U2)', () => {
+        it('matches the second vector as well as the first', async () => {
+            const statement = await soleStatementFor('tillamook');
+
+            expect(statement.text).toMatch(/aliases_search_vector @@ plainto_tsquery\('english', \$\d+\)/);
+            expect(statement.text).toMatch(
+                /search_vector @@ plainto_tsquery\('english', \$\d+\)\s+OR aliases_search_vector/,
+            );
+        });
+
+        it('RANKS an alias hit — matching without scoring would leave it unreachable past the LIMIT', async () => {
+            const statement = await soleStatementFor('tillamook');
+            const score = statement.text.slice(0, statement.text.indexOf('AS score'));
+
+            expect(score).toContain('ts_rank(aliases_search_vector,');
+            // Both vectors and the trigram similarity are combined by ONE expression, which is also the sort
+            // key: a second GREATEST or a separate ORDER BY term would give the ranking two authorities.
+            expect(score.match(/GREATEST\(/g)).toHaveLength(1);
+            expect(score).toContain('ts_rank(search_vector,');
+            expect(score).toContain('similarity(name,');
+        });
+
+        it('keeps aliases OUT of the 1–2 character statement, which ranks by name-initial position', async () => {
+            const statement = await soleStatementFor('ch');
+
+            expect(statement.text).not.toContain('aliases_search_vector');
+        });
+
+        it('does not add a second trigram or ILIKE branch over the alias text', async () => {
+            // The alias column gets a tsvector and nothing else. `name %` already cost 30.5ms of a 45.8ms
+            // statement before 0004 gave it a GiST index; a fourth `ILIKE '%q%'` over a second free-text
+            // column is exactly the per-row cost SC-007's budget has no room for.
+            const statement = await soleStatementFor('tillamook');
+
+            expect(statement.text).not.toContain('aliases ILIKE');
+            expect(statement.text).not.toContain('aliases %');
+            expect(statement.text).not.toContain('similarity(aliases');
+        });
+    });
+
+    /**
      * LIKE-METACHARACTER ESCAPING — the security half of the relevance statement.
      *
      * `%` and `_` are wildcards to `ILIKE`, not literals, and the pattern is built by wrapping the user's

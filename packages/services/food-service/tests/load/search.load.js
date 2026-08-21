@@ -15,6 +15,8 @@
 //   phrase   preparation + ingredient       ~n/161 rows — a two-lexeme AND
 //   narrow   preparation + ingredient + cut a three-lexeme AND, the cheapest FTS shape
 //   brand    a brand token                  ~n/17 rows on an axis independent of the ingredient
+//   alias    a curated-alias phrase (U2)    matches ONLY via `aliases_search_vector` — no name or
+//                                           description carries the alias vocabulary
 //   miss     a nonsense token               ZERO matches: every branch runs to completion, and the limit
 //                                           can never short-circuit the scan
 //   short    two characters                 the 1-2 character path (T-198): word-initial prefix matching
@@ -69,6 +71,10 @@ const SHAPES = [
     { name: 'phrase', probes: new SharedArray('probes-phrase', () => fixture.search.phrase), expectHits: true },
     { name: 'narrow', probes: new SharedArray('probes-narrow', () => fixture.search.narrow), expectHits: true },
     { name: 'brand', probes: new SharedArray('probes-brand', () => fixture.search.brand), expectHits: true },
+    // U2: matches only through the curated-alias tsvector. Seeding aliases without ever QUERYING one
+    // leaves the branch's retrieval unmeasured, which is the same "speed of doing no work" defect the
+    // `expectHits` assertion above exists to catch.
+    { name: 'alias', probes: new SharedArray('probes-alias', () => fixture.search.alias), expectHits: true },
     { name: 'miss', probes: new SharedArray('probes-miss', () => fixture.search.miss), expectHits: false },
     { name: 'short', probes: new SharedArray('probes-short', () => fixture.search.short), expectHits: true },
     { name: 'barcode', probes: new SharedArray('probes-barcode', () => fixture.search.barcode), expectHits: true },

@@ -39,12 +39,14 @@ function foodRow(overrides: Partial<FoodRow> = {}): FoodRow {
         brandOwner: null,
         brandName: null,
         barcode: null,
+        aliases: null,
         status: 'PENDING',
         origin: 'live',
         tombstonedAt: null,
         createdAt: new Date('2026-07-26T00:00:00.000Z'),
         updatedAt: new Date('2026-07-26T00:00:00.000Z'),
         searchVector: '',
+        aliasesSearchVector: '',
         ...overrides,
     };
 }

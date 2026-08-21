@@ -166,6 +166,15 @@ export function mapBulkFoodToCanonical(bundle: BulkFoodBundle, lookups: BulkLook
         brandName: null,
         description: name,
         barcode: null,
+        // ⚠️ ALWAYS EMPTY, and that is a property of the SEEDED DATASETS, not an omission. USDA publishes
+        // "additional descriptions" only for Survey (FNDDS) foods; the two data types Stage 1 seeds
+        // (`foundation_food`, `sr_legacy_food`) return `additionalDescriptions: ''` on the API and carry
+        // no alias attribute — verified live against FDC on 2026-08-21 for `Cheese, cheddar` (Foundation,
+        // 328637) and eight SR Legacy flours. Aliases therefore reach the catalog through the LIVE
+        // acquisition path (`UsdaSourceAdapter`), which does see FNDDS rows. Seeding FNDDS would change
+        // what the catalog CONTAINS (composite prepared dishes competing with ingredient rows) and is a
+        // product decision, not part of this mapping.
+        aliases: [],
         nutrients,
         portions,
         itemVersion: bulkItemVersion({ name, description: name, nutrients, portions }),

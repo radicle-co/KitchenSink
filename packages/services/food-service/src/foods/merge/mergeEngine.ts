@@ -49,6 +49,24 @@ export interface MergedScalar<S extends string = FoodSourceId> {
     readonly externalKey: string;
 }
 
+/**
+ * The merged curated-alias list plus the contributor that supplied it.
+ *
+ * ⛔ A LIST from ONE contributor, never a union across them. `food.aliases` is one column with one
+ * `food_field_provenance` row, so exactly one source can own it: unioning two lists would assert a set no
+ * source published and leave the provenance row naming only one of the two. Portions solve the same
+ * problem the other way (their own table, per-row `source_id`) — aliases feed a generated tsvector on
+ * `food`, so they must live on `food`.
+ */
+export interface MergedAliases<S extends string = FoodSourceId> {
+    /** The winning contributor's alias values, in its own significance order. */
+    readonly values: readonly string[];
+    /** The winning source. */
+    readonly source: S;
+    /** The winning contributor's opaque key (maps to the `food_sources` crosswalk row for provenance). */
+    readonly externalKey: string;
+}
+
 /** A merged, per-100g-normalized golden nutrient value tagged with its winning contributor. */
 export interface MergedNutrient<S extends string = FoodSourceId> {
     /** Stable external code (INFOODS tagname) when known, else `null`. */
@@ -103,6 +121,8 @@ export interface GoldenRecordDraft<S extends string = FoodSourceId> {
     readonly brandName: MergedScalar<S> | null;
     /** Product barcode (identity → higher-priority source). */
     readonly barcode: MergedScalar<S> | null;
+    /** Curated alternate names (richest list wins; ties → higher priority), or `null` when none. */
+    readonly aliases: MergedAliases<S> | null;
     /** Per-100g golden nutrients (one winner per nutrient dedup key). */
     readonly nutrients: readonly MergedNutrient<S>[];
     /** Unioned portions across contributors. */
@@ -197,6 +217,22 @@ export function blendCandidates<S extends string = FoodSourceId>(
         return winner;
     };
 
+    // Curated aliases: the RICHEST list wins, ties keeping the higher-priority contributor (`ranked` is
+    // already priority-ordered, so `>` rather than `>=` preserves the tie). This mirrors `longestWith`'s
+    // "richer free text wins" rule applied to a list, and for the same reason: a longer alias list is
+    // strictly more retrieval signal, and there is no basis on which to prefer a shorter one.
+    let aliases: MergedAliases<S> | null = null;
+
+    for (const candidate of ranked) {
+        if (candidate.aliases.length > 0 && (aliases === null || candidate.aliases.length > aliases.values.length)) {
+            aliases = {
+                values: candidate.aliases,
+                source: candidate.source,
+                externalKey: candidate.externalKey,
+            };
+        }
+    }
+
     // Nutrients: keep each value on the basis the adapter emitted (per_100g where derivable, else
     // per_serving — never dropped). The highest-priority value wins per dedup key, except a per_100g
     // value upgrades over an already-recorded per_serving one (per_100g wins a basis conflict).
@@ -254,6 +290,7 @@ export function blendCandidates<S extends string = FoodSourceId>(
         brandOwner: highestPriorityWith((candidate) => candidate.brandOwner),
         brandName: highestPriorityWith((candidate) => candidate.brandName),
         barcode: highestPriorityWith((candidate) => candidate.barcode),
+        aliases,
         nutrients: [...nutrientWinners.values()],
         portions,
         contributingSources,

@@ -197,6 +197,8 @@ export interface GoldenScalars {
     brandOwner?: string | null;
     brandName?: string | null;
     barcode?: string | null;
+    /** The flattened curated-alias text (`foodAliases.joinAliases`), or `null` for a food with none. */
+    aliases?: string | null;
 }
 
 /** Two-int advisory-lock classid for per-name dedup (DSN-15) — distinct from the drainer/limiter classes. */
@@ -415,6 +417,10 @@ export class FoodDao {
 
         if (scalars.barcode !== undefined) {
             patch.barcode = scalars.barcode;
+        }
+
+        if (scalars.aliases !== undefined) {
+            patch.aliases = scalars.aliases;
         }
 
         const rows = await this.db.update(food).set(patch).where(eq(food.id, scalars.id)).returning();

@@ -33,6 +33,7 @@ import {
     type MergeCandidate,
     type MergeOutcome,
 } from './mergeEngine.js';
+import { joinAliases } from '../foodAliases.js';
 import { sanitizeCandidates } from './mergeSanitize.js';
 
 /** An open Drizzle transaction handle (the argument the `transaction` callback receives). */
@@ -78,6 +79,9 @@ const SCALAR_FIELDS: readonly { field: FoodField; key: keyof GoldenRecordDraft }
     { field: 'brand_owner', key: 'brandOwner' },
     { field: 'brand_name', key: 'brandName' },
     { field: 'barcode', key: 'barcode' },
+    // Aliases are a merge winner like any other scalar (0007 adds the `food_field` value), so "which
+    // fields came from source X" still answers from one query.
+    { field: 'aliases', key: 'aliases' },
 ];
 
 /**
@@ -206,6 +210,7 @@ export class MergeAndPersistService {
                 brandOwner: golden.brandOwner?.value ?? undefined,
                 brandName: golden.brandName?.value ?? undefined,
                 barcode: golden.barcode?.value ?? undefined,
+                aliases: golden.aliases ? joinAliases(golden.aliases.values) : undefined,
             });
 
             // 3. Scalar-field provenance for the re-pulled winners.
@@ -311,6 +316,9 @@ export class MergeAndPersistService {
             brandOwner: golden.brandOwner?.value ?? undefined,
             brandName: golden.brandName?.value ?? undefined,
             barcode: golden.barcode?.value ?? undefined,
+            // `undefined` (no winner) leaves the column untouched, exactly as an absent name or description
+            // does — a source that stops publishing aliases must not silently erase the ones we hold.
+            aliases: golden.aliases ? joinAliases(golden.aliases.values) : undefined,
         });
 
         // 3. Scalar-field provenance.

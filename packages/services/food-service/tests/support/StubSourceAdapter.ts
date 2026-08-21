@@ -36,6 +36,8 @@ export interface StubCandidateParts {
     readonly barcode?: string | null;
     /** Free-text description (defaults to `null`). */
     readonly description?: string | null;
+    /** The source's curated alternate names (defaults to none). */
+    readonly aliases?: readonly string[];
     /** Per-item version/etag/hash for change-driven refresh (FR-032); defaults to `null`. */
     readonly itemVersion?: string | null;
 }
@@ -77,6 +79,7 @@ function toCanonical(parts: StubCandidateParts): CanonicalCandidate {
         kind: 'generic',
         brandOwner: null,
         brandName: null,
+        aliases: parts.aliases ?? [],
         description: parts.description ?? null,
         barcode: parts.barcode ?? null,
         nutrients: parts.nutrients ?? DEFAULT_NUTRIENTS,

@@ -426,6 +426,11 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
                      ON f.status = 'RESOLVED' AND f.name IS NOT NULL
                     AND f.name % p.probe
                     AND NOT (f.search_vector @@ plainto_tsquery('english', p.probe))
+                    -- Mirrors the DAO's predicate branch for branch. U2 added the curated-alias vector, and
+                    -- an exclusion clause that omits one branch stops proving "matched by name % ALONE".
+                    -- This fixture writes no aliases, so the clause is a no-op today -- which is precisely
+                    -- when a missing mirror goes unnoticed.
+                    AND NOT (f.aliases_search_vector @@ plainto_tsquery('english', p.probe))
                     AND f.name NOT ILIKE '%' || p.probe || '%'
                     AND f.description NOT ILIKE '%' || p.probe || '%'
                   GROUP BY p.probe

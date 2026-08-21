@@ -216,6 +216,88 @@ export const BRANDS = [
     'thornbury',
 ] as const;
 
+// ── Curated-alias vocabulary (U2) ───────────────────────────────────────────────────────────────
+//
+// `food.aliases` is a SECOND free-text column with a SECOND STORED generated tsvector and a SECOND GIN
+// index, and `FoodSearchDao.relevanceQuery` now ORs that vector into its predicate and its `GREATEST`.
+// If the fixture left `aliases` NULL on every row — as it did before U2 — the vector would be empty, the
+// index would hold nothing, and the SC-007 measurement would report the speed of DOING NO WORK while the
+// deployed store carried ~1.8 aliases per row (USDA FNDDS: 9,648 additional descriptions across 5,432
+// main descriptions). The gate would pass for the wrong reason, which is worse than failing.
+//
+// ⛔ The vocabulary is its OWN axis, sharing no token with the name/description vocabularies above. If an
+// alias reused an ingredient word, an alias probe would match through `search_vector` anyway and the new
+// branch would still never be exercised.
+
+/** Alias head token (13) — brand-ish/regional synonyms, disjoint from every other vocabulary. */
+export const ALIAS_TERMS = [
+    'tillamook',
+    'longhorn',
+    'coonridge',
+    'hoopwell',
+    'marbledale',
+    'kettlebrook',
+    'pinecliff',
+    'ambergate',
+    'foxwater',
+    'briarmill',
+    'saltmarsh',
+    'copperfen',
+    'yarrowdale',
+] as const;
+
+/**
+ * How many aliases each fixture food carries, by index — 2 for four rows in five and 1 for the fifth,
+ * i.e. a mean of exactly **1.8**, USDA's measured density (9,648 / 5,432 = 1.776). The cycle is 5 and the
+ * vocabularies are 13/17, so alias assignment spreads evenly across the population instead of clustering.
+ *
+ * @param index - Zero-based index within the population.
+ * @returns 1 or 2.
+ */
+export function perfAliasCount(index: number): number {
+    return index % 5 === 0 ? 1 : 2;
+}
+
+/**
+ * The stored `food.aliases` text for a fixture food — the flattened form `foodAliases.joinAliases`
+ * produces, `'; '`-separated. Pure.
+ *
+ * Each alias is `<aliasTerm> <brand>`, which makes it two lexemes (so `ts_rank` has something to rank)
+ * and unique enough across 50,000 rows that the alias GIN index holds a realistic number of distinct
+ * postings rather than 13 enormous ones.
+ *
+ * @param index - Zero-based index within the population.
+ * @returns The stored alias text.
+ */
+export function perfFoodAliases(index: number): string {
+    const brand = BRANDS[index % BRANDS.length];
+
+    return Array.from(
+        { length: perfAliasCount(index) },
+        (_unused, slot) => `${ALIAS_TERMS[(index + slot) % ALIAS_TERMS.length]} ${brand}`,
+    ).join('; ');
+}
+
+/**
+ * The SQL expression rendering {@link perfFoodAliases}; the seeder asserts the two agree.
+ *
+ * The 1-vs-2 alias split is a `CASE`, not an `array_agg` loop, because the count is only ever 1 or 2 —
+ * spelling it out keeps the rendering readable and provably identical to the TypeScript above.
+ *
+ * @param column - The series column holding the index.
+ * @param aliasTermsParam - 1-based placeholder number for the {@link ALIAS_TERMS} array.
+ * @param brandsParam - 1-based placeholder number for the {@link BRANDS} array.
+ * @returns A SQL scalar expression producing the stored alias text.
+ */
+export function perfFoodAliasesSql(column: string, aliasTermsParam: number, brandsParam: number): string {
+    const brand = `($${brandsParam}::text[])[(${column} % ${BRANDS.length}) + 1]`;
+    const term = (slot: number): string =>
+        `($${aliasTermsParam}::text[])[((${column} + ${slot}) % ${ALIAS_TERMS.length}) + 1]`;
+    const alias = (slot: number): string => `${term(slot)} || ' ' || ${brand}`;
+
+    return `CASE WHEN ${column} % 5 = 0 THEN ${alias(0)} ELSE ${alias(0)} || '; ' || ${alias(1)} END`;
+}
+
 /** Width of the zero-padded serial embedded in a name (its uniqueness discriminator). */
 const SERIAL_PAD = 6;
 
@@ -457,6 +539,12 @@ export interface PerfSearchProbes {
     readonly narrow: readonly string[];
     /** A brand token: broad match on the independent brand axis. */
     readonly brand: readonly string[];
+    /**
+     * A curated-alias token (U2): matches ONLY through `aliases_search_vector`, because the alias
+     * vocabulary shares no word with any name or description. Without this shape the alias branch's
+     * RETRIEVAL is never measured — every other probe scans its GIN index and gets zero rows back.
+     */
+    readonly alias: readonly string[];
     /** Matches ZERO rows: the predicate is evaluated in full and cannot short-circuit on the limit. */
     readonly miss: readonly string[];
     /** A 2-character prefix: too short for trigram extraction, so `ILIKE '%..%'` cannot use the GIN index. */
@@ -499,6 +587,10 @@ export function buildSearchProbes(count: number): PerfSearchProbes {
         phrase: range.map((index) => `${at(PREPARATIONS, index)} ${at(INGREDIENTS, index)}`),
         narrow: range.map((index) => `${at(PREPARATIONS, index)} ${at(INGREDIENTS, index)} ${at(CUTS, index)}`),
         brand: range.map((index) => at(BRANDS, index)),
+        // Two lexemes, both of which only ever appear in `aliases`: the alias term itself and the brand
+        // token that is glued to it there. `<term> <brand>` is a two-lexeme AND that no name or
+        // description can satisfy, so a hit proves the alias vector answered.
+        alias: range.map((index) => `${at(ALIAS_TERMS, index)} ${at(BRANDS, index)}`),
         // Nonsense tokens: no lexeme, no trigram and no substring in any seeded name or description, so
         // every branch of the search predicate runs to completion and returns nothing.
         miss: range.map((index) => `zqxjkvwf${index}`),

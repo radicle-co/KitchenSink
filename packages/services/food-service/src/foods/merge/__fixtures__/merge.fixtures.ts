@@ -29,6 +29,7 @@ export function makeMergeCandidate<S extends string = FoodSourceId>(
         brandName: null,
         description: null,
         barcode: null,
+        aliases: [],
         nutrients: [],
         portions: [],
         itemVersion: null,

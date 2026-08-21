@@ -167,8 +167,13 @@ the import corpus; at 80,000 lines it is $2.74. Swap augmentation for position b
 and is included.
 
 Open risk: Nova's structured-output enforcement strength is unverified. Our schema is a three-way enum plus
-a short string, and U11 bakes off Nova Micro against Haiku 4.5 and Gemini Flash-Lite on our own corpus for
-**under $6 total** at doubled call count. Model identifier is stored on every verification; the ID lives in SSM, never a constant.
+a short string, and U11 bakes off Nova Micro against Claude Haiku 4.5 on our own corpus.
+
+⛔ **Gemini Flash-Lite is not available on Amazon Bedrock** — only Gemma models are (verified 2026-08-20,
+ADR-0024 §4). An earlier draft named it, which would have quietly reintroduced a Google Cloud relationship,
+a Secrets Manager key, an egress path the `bedrock-runtime` VPC endpoint cannot carry, and a separate R24
+review. If a third candidate is wanted the in-boundary option is a **Gemma** model; adding Gemini is its own
+ADR, not a bake-off line item. Model identifier is stored on every verification; the ID lives in SSM, never a constant.
 
 Rejected: DeepSeek (trains by default, PRC residency); z.ai (ambiguous training clause, no grammar-enforced
 schema); always-on local (~$9/month electricity against $0.27 hosted, plus production traffic on the
@@ -580,37 +585,41 @@ assigned within it.
 **R23's cost ceiling — $100/month, enforced, configurable.** Owner-set. At a measured $0.27/month this is
 ~370× headroom, so it is a runaway guard rather than a budget, and it should never bind in normal running.
 
-⛔ **Neither AWS mechanism can gate this.** Verified against AWS documentation, 2026-08-20:
+⛔ **The design lives in [ADR-0024](../architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)
+— read it before touching this.** Summary of what it settles, not a restatement of it:
 
-- **Bedrock has no dollar-denominated quota.** Its quotas are on tokens and requests only, and the sole
-  documented adjustment path is a request for an _increase_. There is no spend cap to buy at the provider.
-- **AWS Budgets cannot enforce in time.** Budget data refreshes **"up to three times a day,"** typically
-  **8–12 hours apart**, and AWS states outright that "you might incur additional costs or usage that exceed
-  your budget notification threshold before AWS Budgets can notify you."
+No AWS mechanism gates spend in near-real-time. Bedrock has no dollar quota; Budgets and Budget **Actions**
+both fire off the same evaluation with an **8–12 hour** detection lag; Cost Anomaly Detection is up to 24h
+and alert-only. So the gate is our code — which is also AWS's own published position.
 
-⚠️ **Reserved concurrency alone is also insufficient, and an earlier draft of this plan wrongly relied on
-it.** It caps burn _rate_, not cumulative spend, and the rate-to-dollars conversion is **model-dependent**.
-One concurrent invocation at ~1s per call is ~2.6M calls/month: $89 at Nova Micro's rate, **$2,756 at Claude
-Haiku 4.5's**. Since U11's bake-off has not yet chosen a model, a concurrency-derived ceiling guarantees
-nothing.
+The gate is **RESERVE-THEN-SETTLE**, not read-then-increment. ⚠️ The obvious shape has a durability defect
+that `reservedConcurrency = 1` does **not** fix: a crash between a successful response and the increment
+spends money the counter never learns about, and crashes are _correlated_ with the runaway this ceiling
+exists to stop — so it under-reports exactly when it matters. One atomic conditional `UpdateItem` charges
+worst case before the call; a second refunds the difference after. `ConditionalCheckFailedException` **is**
+the budget denial. Overshoot is provably bounded at ceiling + one worst-case call under arbitrary
+concurrency, so the bound does not depend on the concurrency setting.
 
-**Three layers, each doing the job it is actually good at.**
+**Five layers, each with its enforcement latency:**
 
-1. **Reserved concurrency = 1** — bounds burst rate so a hot retry loop cannot do damage in minutes. Not
-   the spend cap. Second benefit: with one invocation at a time there is no read-modify-write race, so
-   layer 2 is trivially correct.
-2. **Cumulative spend counter — the actual gate.** Read before each call; over ceiling returns unresolved
-   **without invoking the provider**. Incremented after each call from the Converse response's **actual**
-   `usage`: `inputTokens`, `outputTokens`, and `cacheReadInputTokens` / `cacheWriteInputTokens` costed at
-   their own rates. Billed usage, not an estimate from assumed prompt sizes. Keyed
-   `verification-spend#YYYY-MM` on the DynamoDB substrate table this branch already ships, and
-   **model-aware** — the rate table is keyed by the same model identifier R21 already stores — so it
-   survives the bake-off choosing any candidate. If the counter is unreadable the gate **fails closed** to
-   unresolved: the same defined, safe path as provider-unavailable.
-3. **AWS Budget at ~$20 with an alarm** — an _independent_ audit that our accounting matches reality. If
-   the counter says $3 and AWS says $40, the rate table is wrong and we need to know.
+| #   | Layer                                            | Stops                          | Latency            |
+| --- | ------------------------------------------------ | ------------------------------ | ------------------ |
+| 0   | SQS `maxReceiveCount` + DLQ                      | A retry loop before it is cost | Real-time          |
+| 1   | Explicit `maxTokens` + input-token cap           | Worst-case cost of one call    | Real-time          |
+| 2   | `reservedConcurrency = 1`                        | Burst rate — **not** the cap   | Real-time          |
+| 3   | **Reserve-then-settle counter, monthly + daily** | The owner's ceiling            | ~5–10 ms, pre-call |
+| 4   | EMF dollar metric → alarm                        | Counter bugs and bypass        | ~2–6 min           |
+| 5   | AWS Budget (~$20, Bedrock-filtered)              | Drift from the invoice         | 8–12h — audit only |
 
-The counter is the gate, concurrency bounds the blast radius, the budget audits the gate.
+Layer 0 is the cheapest and highest-value control and this plan previously omitted it. Layer 3 gains a
+**daily sub-ceiling (~$5)** on the same code path: a monthly counter is the slowest possible detector of a
+runaway that completes inside a day, which is the only event this system defends against.
+
+**Two preconditions that ship with the counter, not after it:** `maxTokens` is set explicitly and input
+length is capped before the call — the raw source line is untrusted _and_ unbounded, and without a bound the
+reservation is a lie. And an unreadable counter **fails closed** to unresolved, which is correct here
+because the gate is a quality enhancement on an async path; note the published precedents fail _open_ for
+interactive workloads, and that default must not be imported.
 
 ⚠️ Bedrock now exposes two endpoints, `bedrock-runtime` and `bedrock-mantle`, tracked against **separate
 quota allocations**. The VPC interface endpoint above targets `bedrock-runtime`, which is the Converse and
@@ -621,8 +630,8 @@ a `food_id`. Constrained decoding, ordinal enum for certainty, **abstention as a
 a low number. Skip conditions are narrow: exact tier-1 hit, wide tier-2 margin, or candidates agreeing
 within 10% on nutrients.
 
-**Bake off Nova Micro against Haiku 4.5 and Gemini Flash-Lite on our own 2,432 lines — under $6 total** —
-and pick the best performer. **Owner ruling: ship the winner and improve from there — a working gate beats
+**Bake off Nova Micro against Claude Haiku 4.5 on our own 2,432 lines**, both on `bedrock-runtime` — and
+pick the best performer. (Gemini Flash-Lite is not on Bedrock; see KTD-4 and ADR-0024 §4.) **Owner ruling: ship the winner and improve from there — a working gate beats
 no gate.** So the bake-off selects rather than gates.
 
 ⚠️ The two error directions are not symmetric, and only one is safe to ship past. A wrong **agree** passes
@@ -647,8 +656,15 @@ at −31.5 points) and position bias with swap augmentation (10–15 points).
   rejected candidate.
 - The monthly ceiling terminates the cascade as unresolved **before** the provider is invoked.
 - An unreadable spend counter fails closed to unresolved, not open.
-- The counter increments from the response's actual `usage`, with cache-read and cache-write tokens costed
-  at their own rates rather than as fresh input.
+- A reserve that trips `ConditionalCheckFailedException` denies the call without invoking the provider.
+- A crash after a successful response leaves the worst-case reservation standing — the counter over-counts,
+  never under-counts.
+- The period key captured at reserve is carried into settle; a call spanning midnight UTC does not settle
+  against the following period.
+- The daily sub-ceiling denies on the same code path as the monthly ceiling.
+- The counter costs cache-read and cache-write tokens at their own rates, defaulting both to zero — they are
+  `Required: No` on the wire and unreachable at this prompt size. A non-zero value raises an alert rather
+  than being assumed correct.
 - A `stopReason` of `malformed_model_output` or `malformed_tool_use` is recorded as a structured-output
   failure for the bake-off, not silently retried.
 - An unattended caller records unresolved into dropped-lines and does not block.
@@ -857,5 +873,7 @@ gate cannot run without it. Its generability is a precondition, not a deferral.
   on lexical/rule → embedding → LLM adjudication for this exact task.
 - Vectara HHEM leaderboard — grounded hallucination, exact-SKU scores behind KTD-4.
 - USDA FNDDS documentation and the FDC OpenAPI spec — `additionalDescriptions`.
+- ADR-0024 — the LLM spend ceiling: why no AWS mechanism gates it, and why the counter is
+  reserve-then-settle rather than read-then-increment.
 - ADR-0002 (prod no-diff), ADR-0006 (per-PR logical DB), ADR-0014 (service-owned contracts),
   ADR-0021 (deferred nutrition), ADR-0022 (in-stack migration trigger), ADR-0023 (curator provenance).

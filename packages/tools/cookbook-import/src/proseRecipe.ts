@@ -379,7 +379,13 @@ function ingredientInClause(clause: string): ParsedIngredientLine | undefined {
 function dropPartitiveOf(text: string): string {
     const { line } = normalizeQuantity(text);
 
-    return line.replace(/^([\d]+(?:[\s/.][\d/.]*)*)\s+of\s+an?\s+/i, '$1 ');
+    // ⚠️ The repeated group's separator class and its tail must stay DISJOINT. An earlier form ran
+    // `(?:[\s/.][\d/.]*)*`, where `/` and `.` belonged to both — so a run of n separators had 2^n parses
+    // and a failed match backtracked exponentially (CodeQL `js/redos`; one 200-character paragraph took
+    // 81 s). Admitting only digits after the separator makes each iteration consume exactly one
+    // separator, which is a single parse and linear time. The language matched is unchanged: a `/` or
+    // `.` that sat inside the old tail simply opens the next iteration here.
+    return line.replace(/^(\d+(?:[\s/.]\d*)*)\s+of\s+an?\s+/i, '$1 ');
 }
 
 /**

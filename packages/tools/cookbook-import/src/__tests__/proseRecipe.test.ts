@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { segmentCookbook } from '../gutenbergBook.adapter.js';
+import { segmentCookbook, type CookbookBlock } from '../gutenbergBook.adapter.js';
 import { toCandidateRecipe, type RecipeCandidateOutcome } from '../proseRecipe.js';
 
 const FIXTURE = readFileSync(join(import.meta.dirname, '../../fixtures/cookbookExcerpts.txt'), 'utf-8');
@@ -226,5 +226,41 @@ describe('toCandidateRecipe — what it refuses, and why', () => {
         for (const dropped of droppedLines) {
             expect(dropped.trim().length).toBeGreaterThan(0);
         }
+    });
+});
+
+/**
+ * The mapper's input is UNTRUSTED prose from a downloaded book, so a pathological line is an input the
+ * importer will eventually be handed — not a hypothetical. CodeQL `js/redos` flagged the partitive strip
+ * (`dropPartitiveOf`) on PR 91: its inner group admitted `.` and `/` as BOTH the separator and the tail
+ * content, which makes the parse of _n_ separators 2^n-ambiguous and the failed match exponential.
+ *
+ * Measured on the old pattern in isolation: 28 separators took 95 ms, 30 took 421 ms, 32 took 1,785 ms —
+ * roughly 2.2x per added character. Through the mapper, where every clause and every suffix-skip retries
+ * it, the single 200-character paragraph below took **81.5 seconds**; after the fix the whole file's 37
+ * tests run in 31 ms. The probe uses `/` rather than `.` because clauses split on sentence punctuation,
+ * which would defuse a run of dots before it reached the strip, and it is one unbroken WORD so the run
+ * survives whitespace normalization.
+ */
+describe('adversarial input', () => {
+    it('strips the partitive in linear time, so a run of separators cannot hang the import', () => {
+        const block: CookbookBlock = {
+            title: 'REDOS PROBE',
+            paragraphs: [
+                `Take 0${'/'.repeat(34)} of the best sweet butter into a clean saucepan set over a gentle` +
+                    ' fire until it is quite melted through, stirring it well the while so that it does' +
+                    ' not catch upon the bottom of the pan.',
+            ],
+        };
+
+        const started = performance.now();
+        const outcome = toCandidateRecipe(block);
+        const elapsed = performance.now() - started;
+
+        // The line carries no quantified ingredient, so the block is REPORTED as skipped, not accepted.
+        expect(outcome.kind).toBe('skipped');
+        // Generous by orders of magnitude against the linear implementation, and 1/80th of the exponential
+        // one's measured cost for this exact input — so neither side of the gate is a close call.
+        expect(elapsed).toBeLessThan(1000);
     });
 });

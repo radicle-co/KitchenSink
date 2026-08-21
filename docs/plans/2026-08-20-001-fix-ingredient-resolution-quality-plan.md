@@ -848,8 +848,9 @@ protocol; the run is reproducible from a committed corpus manifest.
   BYOK-first principle governs the MCP and AI-integration feature and does not reach here (KTD-9).
 - The server determines result order on best-quality match. REQ-057's intent is preserved server-side; its
   client-side mechanism is retired (U5).
-- The cost ceiling is $100/month, made structurally unreachable by reserved concurrency rather than policed
-  by a counter, with an AWS budget alarm as backstop (U11).
+- The cost ceiling is $100/month, enforced by a reserve-then-settle counter in our own code — no AWS
+  mechanism gates Bedrock spend in near-real-time, and `reservedConcurrency` caps burn rate, not dollars.
+  An AWS budget alarm audits the counter rather than backstopping it (U11, ADR-0024).
 - The bake-off selects a winner and ships it; the false-disagree rate triggers a rethink (U11).
 - Quantity is nullable on both the column and the wire (KTD-6).
 

@@ -580,28 +580,37 @@ assigned within it.
 **R23's cost ceiling — $100/month, enforced, configurable.** Owner-set. At a measured $0.27/month this is
 ~370× headroom, so it is a runaway guard rather than a budget, and it should never bind in normal running.
 
-⛔ **Enforced by rate, not by a spend counter.** An application counter estimates cost from token counts
-(drifting from actual billing) and introduces a failure mode with no good answer — if the counter is
-unavailable, the gate either fails open and spends uncontrolled, or fails closed and withholds nutrition
-from everyone. AWS Budgets avoid both, but cannot gate: AWS documents budget data as refreshing **"up to three times a
-day,"** with updates **"typically 8–12 hours after the previous update,"** and states outright that "you
-might incur additional costs or usage that exceed your budget notification threshold before AWS Budgets can
-notify you." And **Bedrock itself has no dollar-denominated quota** — its quotas are on tokens and requests
-only, with the sole documented adjustment path being a request for an _increase_. There is no spend cap to
-buy at the provider.
+⛔ **Neither AWS mechanism can gate this.** Verified against AWS documentation, 2026-08-20:
 
-The control that actually binds is **Lambda reserved concurrency on the verification worker, set to 1**. At
-~$0.0000343 per verification, one concurrent invocation caps burn at roughly **$90/month at 100%
-saturation** — so the $100 ceiling is structurally unreachable rather than policed. It costs nothing: the
-expected load is ~8,000 calls/month on a queue-driven async worker, or 0.003 calls per second.
+- **Bedrock has no dollar-denominated quota.** Its quotas are on tokens and requests only, and the sole
+  documented adjustment path is a request for an _increase_. There is no spend cap to buy at the provider.
+- **AWS Budgets cannot enforce in time.** Budget data refreshes **"up to three times a day,"** typically
+  **8–12 hours apart**, and AWS states outright that "you might incur additional costs or usage that exceed
+  your budget notification threshold before AWS Budgets can notify you."
 
-Layered behind it: an **AWS Budget at ~$20 with an alarm**, watching real dollars and reporting if reality
-diverges from this model; and the worker catching `AccessDeniedException` and throttling, returning
-unresolved down the same path as provider-unavailable. That error path is required anyway.
+⚠️ **Reserved concurrency alone is also insufficient, and an earlier draft of this plan wrongly relied on
+it.** It caps burn _rate_, not cumulative spend, and the rate-to-dollars conversion is **model-dependent**.
+One concurrent invocation at ~1s per call is ~2.6M calls/month: $89 at Nova Micro's rate, **$2,756 at Claude
+Haiku 4.5's**. Since U11's bake-off has not yet chosen a model, a concurrency-derived ceiling guarantees
+nothing.
 
-Verified 2026-08-20 against AWS documentation: Bedrock exposes no native spend cap, and Budgets are
-explicitly best-effort with an 8–12 hour lag. Reserved concurrency is therefore not merely the simpler
-control — it is the only one of the three that enforces anything.
+**Three layers, each doing the job it is actually good at.**
+
+1. **Reserved concurrency = 1** — bounds burst rate so a hot retry loop cannot do damage in minutes. Not
+   the spend cap. Second benefit: with one invocation at a time there is no read-modify-write race, so
+   layer 2 is trivially correct.
+2. **Cumulative spend counter — the actual gate.** Read before each call; over ceiling returns unresolved
+   **without invoking the provider**. Incremented after each call from the Converse response's **actual**
+   `usage`: `inputTokens`, `outputTokens`, and `cacheReadInputTokens` / `cacheWriteInputTokens` costed at
+   their own rates. Billed usage, not an estimate from assumed prompt sizes. Keyed
+   `verification-spend#YYYY-MM` on the DynamoDB substrate table this branch already ships, and
+   **model-aware** — the rate table is keyed by the same model identifier R21 already stores — so it
+   survives the bake-off choosing any candidate. If the counter is unreadable the gate **fails closed** to
+   unresolved: the same defined, safe path as provider-unavailable.
+3. **AWS Budget at ~$20 with an alarm** — an _independent_ audit that our accounting matches reality. If
+   the counter says $3 and AWS says $40, the rate table is wrong and we need to know.
+
+The counter is the gate, concurrency bounds the blast radius, the budget audits the gate.
 
 ⚠️ Bedrock now exposes two endpoints, `bedrock-runtime` and `bedrock-mantle`, tracked against **separate
 quota allocations**. The VPC interface endpoint above targets `bedrock-runtime`, which is the Converse and
@@ -633,8 +642,15 @@ at −31.5 points) and position bias with swap augmentation (10–15 points).
 - A singleton shortlist reaches the verifier regardless of its score (KTD-3's margin guard).
 - A tier-1 identity hit carrying a corrupted quantity is still flagged.
 - A wrong-but-mutually-agreeing shortlist still reaches the verifier.
-- Provider unavailable terminates as unresolved rather than falling back to a rejected candidate.
-- The per-run cost ceiling terminates the cascade as unresolved when reached.
+- Provider unavailable (`ServiceUnavailableException`), access denied (`AccessDeniedException`, 403) and
+  throttling (`ThrottlingException`, 429) each terminate as unresolved rather than falling back to a
+  rejected candidate.
+- The monthly ceiling terminates the cascade as unresolved **before** the provider is invoked.
+- An unreadable spend counter fails closed to unresolved, not open.
+- The counter increments from the response's actual `usage`, with cache-read and cache-write tokens costed
+  at their own rates rather than as fresh input.
+- A `stopReason` of `malformed_model_output` or `malformed_tool_use` is recorded as a structured-output
+  failure for the bake-off, not silently retried.
 - An unattended caller records unresolved into dropped-lines and does not block.
 - An ingredient line containing an embedded instruction does not change the verdict shape.
 - Every verification stores the model identifier; the high band emits the same telemetry as the middle.

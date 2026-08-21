@@ -18,8 +18,9 @@
  * default every other package uses. A file whose imports fail to resolve reports every imported link target as
  * dangling, so getting this wrong manufactures false positives by the hundred.
  *
- * Subjects are DISCOVERED from `git ls-files`, never enumerated (`docs/CODING_STANDARDS.md` §16.3), so a new
- * package is covered the day it lands. The only filter is a text pre-scan for the `@link` opener: a link node
+ * Subjects are DISCOVERED from `git ls-files --cached --others --exclude-standard`, never enumerated
+ * (`docs/CODING_STANDARDS.md` §16.3), so a new package is covered the moment it lands — before its first
+ * commit, not after it ({@link presentFiles} explains why that distinction mattered). The only filter is a text pre-scan for the `@link` opener: a link node
  * cannot exist in a file whose text does not contain the sequence, and skipping the rest keeps the walk to the
  * ~45% of sources that carry one.
  *
@@ -122,23 +123,41 @@ export interface DocLinkUnit {
 }
 
 /**
- * Every tracked path matching the given git pathspecs that is ALSO present in the working tree.
+ * Every path matching the given git pathspecs that is present in the working tree — committed or not.
  *
- * `git ls-files` reports the INDEX, which disagrees with the working tree during an unstaged deletion or a
- * half-finished rebase; a guard that throws in those states fails for reasons unrelated to what it checks.
+ * ⚠️ `--others --exclude-standard` is load-bearing, not defensive. Plain `git ls-files` reports the INDEX, so
+ * a source that exists on disk but has never been committed is not a subject at all — and that is exactly
+ * the window in which a docstring is being written. Measured: `natEgressConsumers.test.ts` shipped a TSDoc
+ * link at a symbol it never imported, passed the full suite while untracked, and failed on the run
+ * immediately after its first commit. The gate reported green during the only window in which the author
+ * was still looking at the file.
+ *
+ * `--exclude-standard` keeps `.gitignore` honoured, so `dist/`, build output and local scratch files stay
+ * out. `--cached` and `--others` are disjoint by definition (others = not in the index), but the result is
+ * de-duplicated anyway so a future flag change cannot silently double-analyse a file.
+ *
+ * The working-tree `existsSync` filter stays: `git ls-files` disagrees with the working tree during an
+ * unstaged deletion or a half-finished rebase, and a guard that throws in those states fails for reasons
+ * unrelated to what it checks.
  *
  * @param pathspecs - Git pathspecs to list.
- * @returns Repo-relative paths, `node_modules` excluded.
+ * @returns Repo-relative paths, `node_modules` excluded, each once.
  * @sideEffect Shells out to git and stats the working tree.
  */
-function trackedFiles(pathspecs: readonly string[]): readonly string[] {
-    return execFileSync('git', ['ls-files', '--', ...pathspecs], {
+function presentFiles(pathspecs: readonly string[]): readonly string[] {
+    const listed = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...pathspecs], {
         cwd: repoRoot,
         encoding: 'utf8',
         maxBuffer: 1 << 28,
-    })
-        .split('\n')
-        .filter((file) => file.length > 0 && !file.includes('node_modules/') && existsSync(path.join(repoRoot, file)));
+    }).split('\n');
+
+    return [
+        ...new Set(
+            listed.filter(
+                (file) => file.length > 0 && !file.includes('node_modules/') && existsSync(path.join(repoRoot, file)),
+            ),
+        ),
+    ];
 }
 
 /**
@@ -148,13 +167,13 @@ function trackedFiles(pathspecs: readonly string[]): readonly string[] {
  * @sideEffect Shells out to git and reads every candidate source.
  */
 export function discoverDocLinkUnits(): readonly DocLinkUnit[] {
-    const configs = ['tsconfig.json', ...trackedFiles(['*/tsconfig.json'])];
+    const configs = ['tsconfig.json', ...presentFiles(['*/tsconfig.json'])];
     const owners = configs
         .map((config) => ({ config, dir: path.posix.dirname(config) === '.' ? '' : path.posix.dirname(config) }))
         .sort((left, right) => right.dir.length - left.dir.length);
     const units = new Map<string, string[]>(configs.map((config) => [config, []]));
 
-    for (const file of trackedFiles(SUBJECT_PATHSPECS)) {
+    for (const file of presentFiles(SUBJECT_PATHSPECS)) {
         if (!readFileSync(path.join(repoRoot, file), 'utf8').includes(LINK_OPENER)) {
             continue;
         }

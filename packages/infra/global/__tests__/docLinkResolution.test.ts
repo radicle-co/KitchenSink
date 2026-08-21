@@ -27,7 +27,7 @@
  * a string literal is not a comment, so the fixture is invisible to the check it proves. That is asserted, not
  * assumed: `the fixture cannot be reported` pins it, and non-vacuity is asserted BEFORE the invariant.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -190,5 +190,36 @@ describe('doc links across the repository', () => {
             'A TSDoc link must resolve to a declaration. Use backticks (never an import added for the docstring — ' +
                 'it fails lint) or fix the target.',
         ).toEqual([]);
+    }, 600_000);
+});
+
+describe('subject discovery', () => {
+    /**
+     * A brand-new file's docstrings are exactly when this gate is most useful, and for a while it could not
+     * see them: `git ls-files` reports the INDEX, so a source that existed in the working tree but had never
+     * been committed was not a subject at all.
+     *
+     * Measured, not hypothesised. `natEgressConsumers.test.ts` was written with a TSDoc link pointing at
+     * `objectProperties`, a symbol it never imported. It passed the full suite while untracked, and failed on the
+     * very next run — after its first commit — on a dangling link that had been there the whole time. The
+     * gate reported green precisely during the window when the author was still able to fix it cheaply.
+     *
+     * The probe carries a link that RESOLVES, so its presence cannot change any verdict; the assertion is
+     * about coverage, not about the link. It is removed in `finally` so a failure cannot leave it behind.
+     */
+    it('covers a link-bearing source that is present but not yet committed', () => {
+        const relative = 'packages/infra/global/__tests__/untrackedProbe.generated.ts';
+        const probe = path.join(repoRoot, relative);
+
+        writeFileSync(
+            probe,
+            '/** Sentinel for the discovery guard: {@link probeTarget}. */\nexport function probeTarget(): void {}\n',
+        );
+
+        try {
+            expect(discoverDocLinkUnits().flatMap((unit) => unit.files)).toContain(relative);
+        } finally {
+            rmSync(probe, { force: true });
+        }
     }, 600_000);
 });

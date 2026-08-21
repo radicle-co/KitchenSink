@@ -24,6 +24,7 @@ import type { FoodCatalogGateway } from '../../../src/ingredients/foodCatalog.ga
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import {
     CALLER_TOKEN as CALLER,
+    makeCanonicalName,
     foodClientsOf,
     makeCandidateView,
     makeFoodView,
@@ -79,7 +80,7 @@ describe.skipIf(!hasDatabaseUrl)(
         /** Seed a food-backed catalog row in the given non-terminal status and return its 001 id. */
         async function seedFoodBacked(status: FoodResolutionStatus): Promise<string> {
             const row = await dal.createFoodBacked({
-                name: 'Ambiguous quinoa',
+                name: makeCanonicalName('Ambiguous quinoa'),
                 foodId: FOOD_ID,
                 foodResolutionStatus: status,
             });

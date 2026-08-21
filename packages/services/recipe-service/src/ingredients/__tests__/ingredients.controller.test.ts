@@ -11,7 +11,7 @@
  * validated inputs to the right service method verbatim.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, HttpStatus } from '@nestjs/common';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
@@ -24,6 +24,14 @@ import { CALLER_TOKEN as TOKEN, makeCandidateView, makeIngredient } from '../__f
 
 /** The verified caller ULID the `@OwnerId()` decorator would inject (an auth assertion; unused downstream). */
 const CALLER = '01J0USER';
+
+/**
+ * U+200B ZERO WIDTH SPACE, U+00A0 NO-BREAK SPACE and U+FEFF BOM — escapes rather than pasted characters,
+ * because a reviewer cannot check a case they cannot see.
+ */
+const ZWSP = '\u200B';
+const NBSP = '\u00A0';
+const BOM = '\uFEFF';
 
 describe('IngredientsController', () => {
     let controller: IngredientsController;
@@ -198,6 +206,50 @@ describe('IngredientsController', () => {
             expect(mocks.createFreeform).toHaveBeenCalledWith('Grandma spice');
             expect(result).toBe(created);
         });
+    });
+
+    /**
+     * ⛔ THE PARSE BOUNDARY (plan U3). `visibleName` is the ONE place a caller's string becomes a name the
+     * shared, ownerless `ingredients` catalog will store and display, and it lives here rather than in the
+     * published request schema — see the method's own docstring for the three reasons. These cases are what
+     * make that placement safe rather than merely defensible.
+     */
+    describe('the canonical-name parse boundary', () => {
+        it('canonicalizes before delegating, on BOTH name-taking routes', async () => {
+            mocks.createFreeform.mockResolvedValue(makeIngredient({ id: 'f1' }));
+            mocks.addByName.mockResolvedValue(makeIngredient({ id: 'i1' }));
+
+            // `String#trim` leaves every one of these in place: `Cf` format characters are not ECMAScript
+            // whitespace, and NBSP survives NFKC as a separator rather than being folded by trim.
+            await controller.create(CALLER, { name: `Bro${ZWSP}wn${NBSP} sugar${BOM}` } as CreateIngredientDto);
+            await controller.addByName(CALLER, TOKEN, {
+                name: `Bro${ZWSP}wn${NBSP} sugar${BOM}`,
+            } as CreateIngredientDto);
+
+            expect(mocks.createFreeform).toHaveBeenCalledWith('Brown sugar');
+            expect(mocks.addByName).toHaveBeenCalledWith(TOKEN, 'Brown sugar');
+        });
+
+        it.each([
+            ['create', (dto: CreateIngredientDto) => controller.create(CALLER, dto)],
+            ['addByName', (dto: CreateIngredientDto) => controller.addByName(CALLER, TOKEN, dto)],
+        ])(
+            'rejects an invisible-only name on %s with the pipe`s own VALIDATION_FAILED envelope',
+            async (_route, invoke) => {
+                // The DTO's `min(1)` PASSES this — a lone U+200B survives `String#trim`, length 1 — so before U3 it
+                // reached the DAL and stored a row named nothing at all, in a catalog every user searches. The
+                // envelope must be the SAME shape the pipe raises for `""`, because it is the same condition
+                // written in characters the caller cannot see.
+                const rejected = invoke({ name: `${ZWSP}${BOM}` } as CreateIngredientDto);
+
+                await expect(rejected).rejects.toMatchObject({
+                    response: { code: 'VALIDATION_FAILED' },
+                    status: HttpStatus.BAD_REQUEST,
+                });
+                expect(mocks.createFreeform).not.toHaveBeenCalled();
+                expect(mocks.addByName).not.toHaveBeenCalled();
+            },
+        );
     });
 
     describe('POST /api/v1/ingredients/by-name (async food resolution — the vertical entry point)', () => {

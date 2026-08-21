@@ -10,6 +10,7 @@
         ".": "./src/index.ts",
         "./testing": "./src/testing/index.ts",
         "./database-name": "./src/recipeDatabaseName.ts",
+        "./food-name": "./src/foodName.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"
     },

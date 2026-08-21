@@ -15,6 +15,7 @@ import type {
 } from '@kitchensink/food-service-client';
 
 import { CallerToken } from '../../auth/CallerToken.js';
+import { canonicalIngredientName, type CanonicalIngredientName } from '../domain/ingredientName.js';
 import type { FoodServiceClients } from '../FoodServiceClients.factory.js';
 
 /**
@@ -60,6 +61,27 @@ export function makeFoodClients(): {
  */
 export function foodClientsOf(client: FoodServiceClient): FoodServiceClients {
     return { standard: () => client, typeahead: () => client } as unknown as FoodServiceClients;
+}
+
+/**
+ * Parse a test literal into a {@link CanonicalIngredientName}.
+ *
+ * ⚠️ It runs the REAL smart constructor rather than casting, so a test can never hand the DAL a brand the
+ * production parser would have refused — which would make the type's guarantee a fiction exactly where it is
+ * being verified. A literal that does not survive canonicalization is a broken fixture, so it throws.
+ *
+ * @param raw - The literal name a test wants to write.
+ * @returns The branded canonical name.
+ * @throws {Error} When the literal carries no visible content.
+ */
+export function makeCanonicalName(raw: string): CanonicalIngredientName {
+    const name = canonicalIngredientName(raw);
+
+    if (name === undefined) {
+        throw new Error(`Test fixture name ${JSON.stringify(raw)} carries no visible content.`);
+    }
+
+    return name;
 }
 
 /** A canonical `Ingredient` domain object with overridable fields. */

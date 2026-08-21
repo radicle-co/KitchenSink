@@ -33,7 +33,7 @@ import { describe, expect, it } from 'vitest';
 import { foodStatusSchema, type FoodStatus } from '@kitchensink/schema-food';
 import { foodResolutionStatusSchema } from '@kitchensink/recipe-core';
 
-import { toResolutionStatus } from '../ingredients.service.js';
+import { toResolutionStatus } from '../foodStatusTranslation.js';
 
 describe('toResolutionStatus', () => {
     it('⛔ maps EVERY status food can emit to one recipe can persist', () => {

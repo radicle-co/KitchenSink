@@ -20,6 +20,7 @@ import pg from 'pg';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
+import { makeCanonicalName } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
 import { seed } from '../../../src/database/seed.js';
 
 /** The harness Postgres connection string. Unset → the suite skips entirely. */
@@ -66,9 +67,9 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     it('full-text matches a lexeme query regardless of word order', async () => {
-        await dal.createFreeform('All-purpose flour');
-        await dal.createFreeform('Almond flour');
-        await dal.createFreeform('Unsalted butter');
+        await dal.createFreeform(makeCanonicalName('All-purpose flour'));
+        await dal.createFreeform(makeCanonicalName('Almond flour'));
+        await dal.createFreeform(makeCanonicalName('Unsalted butter'));
 
         const results = await dal.search('flour');
         const names = results.map((r) => r.name);
@@ -79,8 +80,8 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     it('fuzzy-matches a misspelled query via pg_trgm similarity', async () => {
-        await dal.createFreeform('All-purpose flour');
-        await dal.createFreeform('Unsalted butter');
+        await dal.createFreeform(makeCanonicalName('All-purpose flour'));
+        await dal.createFreeform(makeCanonicalName('Unsalted butter'));
 
         // 'flor' shares no exact lexeme with 'flour' — only the trigram/ILIKE fallback can match it.
         const results = await dal.search('flor');
@@ -89,9 +90,9 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     it('honors the limit and returns rows ranked by relevance', async () => {
-        await dal.createFreeform('Bread flour');
-        await dal.createFreeform('Cake flour');
-        await dal.createFreeform('Pastry flour');
+        await dal.createFreeform(makeCanonicalName('Bread flour'));
+        await dal.createFreeform(makeCanonicalName('Cake flour'));
+        await dal.createFreeform(makeCanonicalName('Pastry flour'));
 
         const results = await dal.search('flour', 2);
 
@@ -100,7 +101,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
 
     it('surfaces food-backed catalog rows with their resolution status', async () => {
         const created = await dal.createFoodBacked({
-            name: 'Basmati rice',
+            name: makeCanonicalName('Basmati rice'),
             foodId: '01J0000000000000000000RICE',
             foodResolutionStatus: FoodResolutionStatus.PENDING,
         });
@@ -112,8 +113,8 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
     });
 
     it('dedups a freeform ingredient on case-insensitive name (no catalog bloat)', async () => {
-        const first = await dal.createFreeform('Saffron threads');
-        const second = await dal.createFreeform('saffron THREADS');
+        const first = await dal.createFreeform(makeCanonicalName('Saffron threads'));
+        const second = await dal.createFreeform(makeCanonicalName('saffron THREADS'));
 
         expect(second.id).toBe(first.id);
 

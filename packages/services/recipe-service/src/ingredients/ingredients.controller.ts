@@ -69,6 +69,8 @@ import type { Ingredient } from '@kitchensink/recipe-core';
 import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import { OwnerId } from '../auth/currentPrincipal.decorator.js';
+import { apiError } from '../common/apiError.js';
+import { canonicalIngredientName, type CanonicalIngredientName } from './domain/ingredientName.js';
 import { IngredientsService } from './ingredients.service.js';
 import type { IngredientSuggestions } from './ingredientSuggestion.js';
 import type { IngredientCandidate } from './ingredients.schema.js';
@@ -183,7 +185,7 @@ export class IngredientsController {
     @HttpCode(HttpStatus.CREATED)
     @WriteRateLimit()
     public async create(@OwnerId() _ownerId: string, @Body() body: CreateIngredientDto): Promise<Ingredient> {
-        return this.ingredients.createFreeform(body.name);
+        return this.ingredients.createFreeform(this.visibleName(body.name));
     }
 
     /**
@@ -212,7 +214,7 @@ export class IngredientsController {
         @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: CreateIngredientDto,
     ): Promise<Ingredient> {
-        return this.ingredients.addByName(caller, body.name);
+        return this.ingredients.addByName(caller, this.visibleName(body.name));
     }
 
     /**
@@ -313,5 +315,37 @@ export class IngredientsController {
         @Body() body: ResolveIngredientDto,
     ): Promise<Ingredient> {
         return this.ingredients.resolve(caller, id, body.candidateIds);
+    }
+
+    /**
+     * Reduce a caller's name to the canonical form the shared catalog stores, or reject it. THE parse
+     * boundary for every name this API accepts (plan U3).
+     *
+     * ⛔ **HERE rather than in the published contract**, mirroring `foods.controller.ts`'s sibling method for
+     * the sibling ownerless catalog. This is server-side NORMALIZATION, and `contract-gen` states the rule
+     * directly: it "is not part of the shape a caller must satisfy — move it out of the published schema and
+     * into the handler." Two further reasons this is not a style preference: an authored `*.schema.ts` that
+     * imported the rule would drag the whole text of `recipe-core/src/foodName.ts` into the contract
+     * fingerprint, so a future Unicode-hygiene fix with no wire projection would move `CONTRACT_HASH`; and
+     * unlike `.trim()`, NFKC can EXPAND a string, so the published `maxLength: 120` would begin rejecting
+     * bodies it documents as valid.
+     *
+     * The `400` is the SAME `VALIDATION_FAILED` envelope the validation pipe raises for `""`, because a name
+     * of U+200B ZERO WIDTH SPACEs is the same condition written in characters a caller cannot see —
+     * `String#trim` does not remove format characters, so the pipe's `min(1)` passes it and, before this, a
+     * blank name was stored in a catalog every user searches.
+     *
+     * @param raw - The name from the validated request body (already trimmed and length-bounded).
+     * @returns The parsed, branded canonical name.
+     * @throws {HttpException} `VALIDATION_FAILED` (→ 400) when nothing visible survives canonicalization.
+     */
+    private visibleName(raw: string): CanonicalIngredientName {
+        const name = canonicalIngredientName(raw);
+
+        if (name === undefined) {
+            throw apiError('VALIDATION_FAILED', 'name must contain at least one visible character');
+        }
+
+        return name;
     }
 }

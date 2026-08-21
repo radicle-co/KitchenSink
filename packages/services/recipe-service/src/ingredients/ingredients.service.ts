@@ -15,13 +15,26 @@
  *   - **addByName** — `foodClient.addByName` returns `202` (`PENDING` / `UNRESOLVED`); we persist a
  *     food-backed catalog row (deduped on the opaque `food_id`) and return it immediately with its
  *     non-terminal status, so the picker can render a "nutrition pending" state.
- *   - **poll** — {@link IngredientsService.refreshStatus} re-reads `foodClient.getStatus`; on `RESOLVED`
- *     it persists the golden-record per-100g nutrition, otherwise it just advances the stored status.
+ *   - **poll** — {@link IngredientsService.refreshStatus} re-reads `foodClient.getStatus` and advances the
+ *     stored status; on `RESOLVED` it also ADOPTS the golden record's canonical name (plan U3).
+ *
  *   - **disambiguation** — {@link IngredientsService.getCandidates} + {@link IngredientsService.resolve}
  *     drive an `UNRESOLVED` food through `getCandidates` / `resolve(id, candidateIds)`.
  *   - **terminal** — a `NOT_FOUND` / `FAILED` food is written back as the ingredient's terminal status;
  *     the caller surfaces an error, offers a freeform fallback ({@link IngredientsService.createFreeform},
  *     `is_user_entered = true`), and allows removal. A terminal food never throws out of the poll.
+ *
+ * ⛔ **THE NAME ON A ROW IS SHARED STATE, AND ONLY FOOD-SERVICE MAY SETTLE IT** (plan U3). `ingredients` has
+ * no `owner_id`: whoever adds a food names it for everyone who later searches. `addByName` must persist the
+ * caller's own text when the food is not yet resolved — that text is the only label a `PENDING` food has, and
+ * the owner ruling is that such a row stays VISIBLE in search so the demand signal is not lost — but it is a
+ * PLACEHOLDER, not a label. From the picker that placeholder is a search term ("butter"); from the cookbook
+ * importer it is a fragment of recipe prose ("1 cup of sifted pastry flour, well packed"), and ~92.8% of the
+ * 448-recipe import's lines were decided against this table, so the placeholders became the corpus the ranker
+ * searched. The repair is the WRITE path: every transition to `RESOLVED` — the poll, the pick, and an add
+ * whose food food-service ALREADY holds — takes the canonical name, decided once by `canonicalNameFrom`. Do
+ * not fix this by filtering non-terminal rows out of the read, and do not add a fourth name-writing path
+ * without a {@link CanonicalIngredientName} (the DAL will not compile if you try).
  *
  * **Every food call is made AS THE CALLER** (issue #120). Food-service verifies a Clerk token, so the only
  * credential that can satisfy it is the requesting user's own. It is therefore threaded explicitly through
@@ -37,54 +50,18 @@ import { Injectable } from '@nestjs/common';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
 import { isNotFoundError } from '@kitchensink/food-service-client';
-import type { CandidateView, FoodStatus, StatusResult } from '@kitchensink/food-service-client';
+import type { CandidateView, StatusResult } from '@kitchensink/food-service-client';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import { clampLimit, IngredientsDal } from './dal/ingredients.dal.js';
+import type { CanonicalIngredientName } from './domain/ingredientName.js';
+import { canonicalNameFrom, toResolutionStatus } from './foodStatusTranslation.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
 import { blendIngredientSuggestions } from './ingredientSuggestion.js';
 import type { IngredientSuggestions } from './ingredientSuggestion.js';
 import type { IngredientCandidate } from './ingredients.schema.js';
 import { foodNotAdmissible, ingredientNotFound } from '../recipes/recipe.error.js';
-
-/**
- * Translate food's lifecycle status into recipe's persisted resolution status. Pure and total.
- *
- * ⛔ **This was a CAST, and the cast shipped a production `500`.** It read
- * `return status as FoodResolutionStatus`, above a comment asserting the two unions "are the SAME
- * UPPER_SNAKE union by design (they mirror each other)". True when written; falsified by plan U9, which
- * added `AWAITING_RETRY` to FOOD's enum and left recipe's five-value CHECK constraint
- * (`0001_initial.sql`) untouched. Because a cast asks the compiler to stop checking, `tsc` stayed silent
- * and the failure surfaced only as a check-constraint violation on write, for any ingredient whose food
- * was mid-retry.
- *
- * The `switch` is the point: it is exhaustive over food's union, so the next status food adds is a
- * COMPILE error here rather than a runtime one in production. Do not replace it with a cast, a lookup
- * with a default, or a `Record` that TypeScript cannot prove total.
- *
- * ⚠️ `AWAITING_RETRY` maps to `PENDING`, deliberately. Recipe's union is a UX vocabulary — "not ready
- * yet, will transition" versus "terminal, offer the freeform fallback" — and a scheduled retry is the
- * former: food's own transition table makes `AWAITING_RETRY` a legal prior for `RESOLVED`, and it becomes
- * `FAILED` only once the retry budget is exhausted, which recipe then sees as the terminal state it
- * already handles. Reporting failure here would strand the ingredient in the picker's terminal branch
- * while food was still working on it.
- *
- * @param status - The status food published.
- * @returns The status recipe persists and renders.
- */
-export function toResolutionStatus(status: FoodStatus): FoodResolutionStatus {
-    switch (status) {
-        case 'PENDING':
-        case 'UNRESOLVED':
-        case 'RESOLVED':
-        case 'NOT_FOUND':
-        case 'FAILED':
-            return status;
-        case 'AWAITING_RETRY':
-            return 'PENDING';
-    }
-}
 
 /*
  * ⛔ DELETED HERE (KTD-3 / plan U10): `nutrientPer100g`, `extractNutrition`, `parsePortionAmount`,
@@ -253,13 +230,16 @@ export class IngredientsService {
         }
 
         const status = await this.readFoodStatus(caller, id, existing);
-        const resolved = status.status === 'RESOLVED' ? status.food : undefined;
-        const name = resolved?.name?.trim();
+        // ⚠️ ONE decision, made once. This used to be an inline `status.food?.name?.trim()` — a second, weaker
+        // copy of the same "may this name be used?" rule that `refreshStatus` now asks of
+        // {@link canonicalNameFrom}, differing precisely in that `.trim()` admits a name of zero-width
+        // characters into an ownerless catalog (plan U3).
+        const name = canonicalNameFrom(status);
 
-        if (resolved === undefined || name === undefined || name.length === 0) {
+        if (name === undefined) {
             // Nothing admissible. An existing row still advances to the status we just observed, so the picker
             // can poll/disambiguate/fall back exactly as it does elsewhere; a brand-new pick is rejected
-            // rather than half-admitted as a nameless, nutrition-less row.
+            // rather than half-admitted as a nameless row.
             if (existing !== undefined) {
                 const advanced = await this.dal.updateResolution(existing.id, {
                     foodResolutionStatus: toResolutionStatus(status.status),
@@ -270,7 +250,9 @@ export class IngredientsService {
 
             throw foodNotAdmissible(
                 id,
-                resolved === undefined ? `status is ${status.status}, not RESOLVED` : 'the golden record has no name',
+                status.status === 'RESOLVED'
+                    ? 'the golden record has no usable name'
+                    : `status is ${status.status}, not RESOLVED`,
             );
         }
 
@@ -281,9 +263,12 @@ export class IngredientsService {
                 foodId: id,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             }));
-        // Status only — nutrition is no longer copied into this table (U10).
+        // Status + name — nutrition is no longer copied into this table (U10). The name matters even when the
+        // row already existed: the pick may be landing on a row the importer minted under prose, and leaving
+        // that alone would keep serving prose to every other user's search (plan U3).
         const backfilled = await this.dal.updateResolution(row.id, {
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+            canonicalName: name,
         });
 
         return backfilled ?? row;
@@ -328,24 +313,72 @@ export class IngredientsService {
      * and return it immediately so the picker renders a "nutrition pending" state and polls later.
      *
      * @param caller - The requesting user's credential, forwarded to food-service.
-     * @param name - The display name (trimmed here).
+     * ⛔ **`202` does NOT imply a non-terminal status, and assuming it did is what made caller prose
+     * PERMANENT** (plan U3). `FoodsService.addByName` enqueues only when it CREATES or REACTIVATES a row;
+     * for a food the catalog already holds it returns that food's real status — which is `RESOLVED` whenever
+     * the name is already known. On that branch the row created here would be born terminal, and nothing
+     * would ever rename it: `refreshStatus` is only reached by a client polling a non-terminal row, the
+     * importer's settle pass re-reads only `PENDING`/`UNRESOLVED`, `addByFoodId` short-circuits on `RESOLVED`
+     * and `resolve` is converge-only. It is also the DOMINANT branch once the catalog is warm — i.e. exactly
+     * the state U12's reseed leaves for U15's re-import. So a `RESOLVED` add spends one more read to learn
+     * the canonical name; every other status keeps the caller's placeholder, as it must.
+     *
+     * ⚠️ It does NOT delegate to {@link IngredientsService.addByFoodId}, which throws `UNKNOWN_INGREDIENT`
+     * for a resolved-but-nameless golden record. That is the right answer for a PICK (the caller chose a row
+     * that cannot back an ingredient) and the wrong one here, where the caller supplied a perfectly good name
+     * of their own and a `400` would strand a legitimate add.
+     *
+     * @param caller - The requesting user's credential, forwarded to food-service.
+     * @param name - The display name, already parsed to its canonical form by the controller.
      * @returns The created (or deduped) food-backed ingredient with its current resolution status.
-     * @sideEffect Calls the food service, then reads/writes `ingredients`.
+     * @sideEffect Calls the food service (twice on the `RESOLVED` branch), then reads/writes `ingredients`.
      */
-    public async addByName(caller: CallerToken | undefined, name: string): Promise<Ingredient> {
-        const trimmed = name.trim();
-        const added = await this.foodClients.standard(caller).addByName(trimmed);
+    public async addByName(caller: CallerToken | undefined, name: CanonicalIngredientName): Promise<Ingredient> {
+        const client = this.foodClients.standard(caller);
+        const added = await client.addByName(name);
         const existing = await this.dal.findByFoodId(added.id);
 
         if (existing) {
             return existing;
         }
 
+        const status = toResolutionStatus(added.status);
+        const canonical =
+            status === FoodResolutionStatus.RESOLVED ? await this.canonicalNameOf(client, added.id) : undefined;
+
         return this.dal.createFoodBacked({
-            name: trimmed,
+            name: canonical ?? name,
             foodId: added.id,
-            foodResolutionStatus: toResolutionStatus(added.status),
+            foodResolutionStatus: status,
         });
+    }
+
+    /**
+     * Read a just-added food's canonical name, tolerating the narrow race in which it went terminal between
+     * the add and this read.
+     *
+     * A `404` here is not a failure of the ADD — the row is legitimate and the caller's own name is a valid
+     * placeholder for it — so it degrades to "no canonical name" rather than propagating. Naming is a quality
+     * improvement on a path whose purpose is to persist the ingredient.
+     *
+     * @param client - The per-request food client, already minted for this caller.
+     * @param foodId - The opaque food id just returned by add-by-name.
+     * @returns The canonical name, or `undefined` when the food is terminal or carries no usable name.
+     * @sideEffect One authenticated food-service read.
+     */
+    private async canonicalNameOf(
+        client: ReturnType<FoodServiceClients['standard']>,
+        foodId: string,
+    ): Promise<CanonicalIngredientName | undefined> {
+        try {
+            return canonicalNameFrom(await client.getStatus(foodId));
+        } catch (error) {
+            if (isNotFoundError(error)) {
+                return undefined;
+            }
+
+            throw error;
+        }
     }
 
     /**
@@ -369,10 +402,14 @@ export class IngredientsService {
 
         try {
             const status = await this.foodClients.standard(caller).getStatus(ingredient.foodId);
-            // Status only (U10): whether the food resolved is a fact about THIS ingredient's link. What the
-            // food CONTAINS is food's, read live rather than copied here.
+            // Status + NAME (U3), and nothing else. Whether the food resolved is a fact about THIS
+            // ingredient's link, and so is the label the shared row should now carry; what the food CONTAINS
+            // is food's, read live rather than copied here (U10). `canonicalNameFrom` returns `undefined`
+            // for every status that does not license a rename, which the DAL treats as "leave the name".
+            const canonicalName = canonicalNameFrom(status);
             const updated = await this.dal.updateResolution(id, {
                 foodResolutionStatus: toResolutionStatus(status.status),
+                ...(canonicalName !== undefined ? { canonicalName } : {}),
             });
 
             return updated ?? ingredient;
@@ -460,12 +497,16 @@ export class IngredientsService {
      * `POST /api/v1/ingredients` fallback — a name with no linked food record. Its nutrition, when supplied,
      * lives per-line on `recipe_ingredients`, not here.
      *
-     * @param name - The display name (trimmed here).
+     * ⚠️ The name is already in canonical form, not merely trimmed (plan U3). A freeform row is still a row in
+     * the ownerless shared catalog, and its dedup key is the partial unique index on `lower(name)` — so an
+     * invisible character in the name mints a second row that renders identically to the first.
+     *
+     * @param name - The display name, already parsed to its canonical form by the controller.
      * @returns The created or pre-existing freeform ingredient.
      * @sideEffect Reads, then conditionally inserts into `ingredients`.
      */
-    public async createFreeform(name: string): Promise<Ingredient> {
-        return this.dal.createFreeform(name.trim());
+    public async createFreeform(name: CanonicalIngredientName): Promise<Ingredient> {
+        return this.dal.createFreeform(name);
     }
 
     /** Load an ingredient or throw the shared `RECIPE_NOT_FOUND` domain error (mapped to 404 by the filter). */

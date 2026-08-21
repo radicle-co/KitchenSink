@@ -4,7 +4,7 @@
  * USDA publishes a curated alias table nobody had to build: 9,648 "additional descriptions" across 5,432
  * FNDDS main descriptions — brands, regional synonyms and alternate forms (`Tillamook`, `Longhorn`,
  * `sharp cheese` for `Cheese, Cheddar`). This module owns how that list becomes the single `food.aliases`
- * text the search vector is generated from, and it is the sibling of {@link ../foods/foodName.js} for the
+ * text the search vector is generated from, and it is the sibling of `foodName.ts` for the
  * same reason: an alias is shared, ownerless, searched catalog text, so it carries the same Unicode
  * hazards a display name does and gets the same hygiene.
  *

@@ -8,7 +8,7 @@
  * raw `string` reaching a write is indistinguishable from a parsed one — which is exactly how plan U3's defect
  * arose, with three separate write paths each applying their own weaker `.trim()`.
  *
- * The brand closes that by construction. {@link IngredientsDal}'s inputs are typed to it, so a new write path
+ * The brand closes that by construction. `IngredientsDal`'s inputs are typed to it, so a new write path
  * that has not parsed its name is a COMPILE error rather than a row of recipe prose in everybody's typeahead.
  *
  * ⚠️ The constructor is TOTAL and returns `undefined` rather than throwing, unlike `recipeId`/`userId`. A name

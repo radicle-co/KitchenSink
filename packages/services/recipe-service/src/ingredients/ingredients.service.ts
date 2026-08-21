@@ -232,7 +232,7 @@ export class IngredientsService {
         const status = await this.readFoodStatus(caller, id, existing);
         // ⚠️ ONE decision, made once. This used to be an inline `status.food?.name?.trim()` — a second, weaker
         // copy of the same "may this name be used?" rule that `refreshStatus` now asks of
-        // {@link canonicalNameFrom}, differing precisely in that `.trim()` admits a name of zero-width
+        // `canonicalNameFrom`, differing precisely in that `.trim()` admits a name of zero-width
         // characters into an ownerless catalog (plan U3).
         const name = canonicalNameFrom(status);
 

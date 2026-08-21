@@ -171,8 +171,7 @@ a short string, and U11 bakes off Nova Micro against Claude Haiku 4.5 on our own
 
 ⛔ **Gemini Flash-Lite is not available on Amazon Bedrock** — only Gemma models are (verified 2026-08-20,
 ADR-0024 §4). An earlier draft named it, which would have quietly reintroduced a Google Cloud relationship,
-a Secrets Manager key, an egress path the `bedrock-runtime` VPC endpoint cannot carry, and a separate R24
-review. If a third candidate is wanted the in-boundary option is a **Gemma** model; adding Gemini is its own
+a Secrets Manager key, an egress path of its own to review against ADR-0004, and a separate R24 review. If a third candidate is wanted the in-boundary option is a **Gemma** model; adding Gemini is its own
 ADR, not a bake-off line item. Model identifier is stored on every verification; the ID lives in SSM, never a constant.
 
 Rejected: DeepSeek (trains by default, PRC residency); z.ai (ambiguous training clause, no grammar-enforced
@@ -573,10 +572,15 @@ its own types — GR-015 §15-d names LLM providers explicitly, and no OpenAPI d
 we do not serve. Runs in `recipe-workers`, off the synchronous path, behind the shipped
 `PENDING → RESOLVED` lifecycle.
 
-⚠️ **Egress.** recipe-workers Lambdas are `PRIVATE_WITH_EGRESS`, so a Bedrock call would otherwise leave
-through the single shared `t4g.nano` NAT instance whose consumer list ADR-0004 closes to four DB-bound
-webhook Lambdas. This unit adds a `com.amazonaws.<region>.bedrock-runtime` **VPC interface endpoint** to
-`RecipeWorkersStack` instead of widening NAT usage.
+⚠️ **Egress — no VPC endpoint; the call rides the NAT.** An earlier draft added a
+`com.amazonaws.<region>.bedrock-runtime` **VPC interface endpoint** to `RecipeWorkersStack` so the call
+would not widen ADR-0004's four-consumer NAT list. Both halves were wrong: recipe-workers' seven Lambdas are
+`PRIVATE_WITH_EGRESS` and have been NAT consumers since they shipped (the real list is 17 across six
+stacks), and the endpoint bills **$0.01 per AZ-hour** — $14.60/month/stage at `maxAzs: 2`, per open PR if
+declared in a per-service stack — to carry $0.27/month of inference, against a NAT instance costing ~$3–4.
+This unit adds **no** endpoint. See ADR-0024 §4a and ADR-0004's 2026-08-20 update; a guard
+(`natEgressConsumers.test.ts`) now asserts both the consumer list and the absence of any interface endpoint,
+so re-adding one reopens the ADR first.
 
 **The raw source line is untrusted input.** It is delimited explicitly in the prompt and the model is
 instructed to disregard directives inside it. Constrained decoding bounds the output shape, not the meaning
@@ -622,7 +626,7 @@ because the gate is a quality enhancement on an async path; note the published p
 interactive workloads, and that default must not be imported.
 
 ⚠️ Bedrock now exposes two endpoints, `bedrock-runtime` and `bedrock-mantle`, tracked against **separate
-quota allocations**. The VPC interface endpoint above targets `bedrock-runtime`, which is the Converse and
+quota allocations**. Both bake-off candidates run against `bedrock-runtime`, which is the Converse and
 InvokeModel surface.
 
 The gate receives the raw source line, our parse, and the shortlist; it never retrieves, so it cannot invent

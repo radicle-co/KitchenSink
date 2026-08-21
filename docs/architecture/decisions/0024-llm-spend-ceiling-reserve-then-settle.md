@@ -12,8 +12,9 @@
       loses money it has already spent.)
     - Which models can the bake-off actually reach from Bedrock? (Not the three the plan named.)
 - **Relates to**:
-  [ADR-0004](0004-minimize-nat-egress.md) — U11 adds a `bedrock-runtime` **VPC interface endpoint** rather
-  than widening the four-consumer NAT list, and that constraint is what makes a non-Bedrock provider
+  [ADR-0004](0004-minimize-nat-egress.md) — the call egresses through the shared `t4g.nano` NAT instance
+  that `recipe-workers` already uses; the `bedrock-runtime` **VPC interface endpoint** this ADR originally
+  specified was DROPPED on 2026-08-20 (see §4a), though ADR-0004's rule still makes a non-Bedrock provider
   structurally expensive (§4);
   [ADR-0008](0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md) — the account-scoped
   `kitchensink-cost-guardrails` budget is `Environment=global` and audits the whole account; the budget in
@@ -210,11 +211,10 @@ This is not a naming quibble — it invalidates the premises `KTD-4` used to _ch
 
 - **"Bedrock adds no vendor relationship and no secret."** A Gemini candidate needs a Google Cloud
   relationship and an API key in Secrets Manager.
-- **The egress design breaks.** U11 adds a `com.amazonaws.<region>.bedrock-runtime` **VPC interface
-  endpoint** specifically so the call does not leave through the single shared `t4g.nano` NAT instance whose
-  consumer list ADR-0004 closes to four DB-bound Lambdas. A Vertex AI call cannot use that endpoint; it
-  either widens the NAT consumer list — reopening a decision ADR-0004 deliberately closed — or needs its own
-  egress path.
+- **The egress design breaks.** The Bedrock call leaves through the shared `t4g.nano` NAT instance that
+  `recipe-workers` is already attached to (§4a), so it costs nothing and reopens nothing. A Vertex AI call
+  would need a Google endpoint, a credential in Secrets Manager and its own review of what that adds to the
+  NAT — a decision ADR-0004 asks to be made deliberately rather than as a side effect of picking a model.
 - **Every enforcement layer above except 0–3 evaporates for it.** No `AWS/Bedrock` metrics (layer 4's
   backstop), no Bedrock CUR line (layer 5). Only our own counter would remain.
 - **`R24`'s no-retention/no-training commitment** was argued from _"AWS's no-training commitment applies
@@ -226,6 +226,44 @@ candidate is wanted, the in-boundary option is a **Gemma** model. Adding Gemini 
 its own ADR covering the vendor relationship, the secret, the egress path, and `R24` — not a line item in a
 bake-off. `KTD-4`'s cost framing is unaffected: it already turns on the ~$8/month Nova-vs-Haiku spread,
 which it calls immaterial, and the owner ruling _"ship the winner and improve from there"_ stands.
+
+### 4a. The `bedrock-runtime` VPC interface endpoint is DROPPED — added 2026-08-20 ⚠️ reverses this ADR
+
+This ADR and `U11` both specified a `com.amazonaws.<region>.bedrock-runtime` **VPC interface endpoint** in
+`RecipeWorkersStack`, justified as keeping the Bedrock call from widening ADR-0004's four-consumer NAT list.
+**Both halves of that justification were wrong.**
+
+**The premise was already false.** `RecipeWorkersStack` places all seven of its Lambdas in
+`PRIVATE_WITH_EGRESS`, which routes `0.0.0.0/0` to that NAT instance — they have been NAT consumers since
+they shipped. ADR-0004's list said four because it was written in June and never re-checked; the real figure
+is 17 across six stacks. The endpoint would not have prevented a widening. It would have bought a second
+egress path for a consumer already on the first one.
+
+**And it is expensive for what it carries.** Priced from the AWS Pricing API on 2026-08-20 (us-east-1,
+`USE1-VpcEndpoint-Hours`): **$0.01 per VPC endpoint hour**, billed _per Availability Zone the endpoint is
+provisioned in_. This VPC is `maxAzs: 2`, so:
+
+|                                                         | Monthly    |
+| ------------------------------------------------------- | ---------- |
+| Interface endpoint, 2 AZs (2 × 730 h × $0.01)           | **$14.60** |
+| Data processed ($0.01/GB; ~8,000 calls × ~3 KB ≈ 24 MB) | $0.0002    |
+| The Nova Micro inference it would carry                 | **$0.27**  |
+| The entire `t4g.nano` NAT instance it would be avoiding | ~$3–4      |
+
+54× the traffic, ~4× the NAT, per stage — and declared in a per-service stack it would have been created
+once per open PR against the shared sandbox VPC, at $14.60/month each. Nor does privacy rescue it: AWS's
+PrivateLink documentation says of the NAT→IGW path to an AWS service that _"while this traffic traverses the
+internet gateway, it does not leave the AWS network."_
+
+**Ruling: no endpoint. The call egresses through the existing NAT.** ADR-0004's 2026-08-20 update carries
+the corrected consumer list and the guard that now asserts it, including an assertion that no interface VPC
+endpoint exists anywhere in the tree — so re-adding one has to come back through that ADR. What §4 above
+still needs from ADR-0004 is unchanged: a non-Bedrock provider is structurally expensive because it brings a
+vendor relationship, a secret, and an egress question of its own.
+
+⚠️ Accepted consequence: the gate now shares a single-AZ NAT instance with 16 other Lambdas, so an AZ
+failure takes it down with them. At `reservedConcurrency = 1` and ~1 KB per call, throughput is not the
+concern; availability is, and the answer is that this is an async off-queue path whose messages wait.
 
 ### 5. Cache-token accounting must be defensive, not expectant
 
@@ -260,10 +298,11 @@ proves only that the arithmetic compiles.
   minutes and `KTD-4`'s 80,000-line re-import scenario would be ~22 hours. Acceptable for an async
   off-queue path. §2's bound does not depend on this value, so it can be raised for throughput without
   reopening the ceiling.
-- **The `bedrock-runtime` VPC interface endpoint may cost more per month than the inference it carries**
-  ($0.27/month measured for Nova Micro). It is still correct — ADR-0004's NAT consumer list is the
-  constraint being honoured, and that is a blast-radius decision, not a cost one. ⚠️ The endpoint's actual
-  hourly + per-AZ price is **not verified here** and must be priced before U11 builds.
+- **The call shares the NAT instance with 16 other VPC Lambdas** (§4a). At `reservedConcurrency = 1` and
+  roughly 1 KB each way this is invisible against the instance's throughput, but it is a shared resource
+  rather than a dedicated path, and the NAT is a documented single-AZ SPOF: an AZ failure stops the
+  verification gate along with every other DB-bound Lambda. That is the accepted trade for not paying
+  $14.60/month/stage to carry $0.27/month of inference.
 
 **Rejected, with reasons:**
 
@@ -322,7 +361,9 @@ never to establish a fact.
 - Whether AWS Support will lower a Bedrock TPM/TPD quota.
 - CloudWatch publication lag for `AWS/Bedrock` metrics (undocumented; the ~2–6 min figures for layer 4/5 are
   inferred from standard-resolution behaviour, not an SLA). **Measure before relying on it.**
-- Current per-token prices for Nova Micro and Claude Haiku 4.5 — the Bedrock pricing page rendered
-  incompletely during this review. Read them live when building the rate table.
-- The `bedrock-runtime` VPC interface endpoint's monthly cost.
+- Claude Haiku 4.5's per-token price **on Bedrock** — the pricing page renders client-side and the AWS
+  Pricing API's Bedrock `model` attribute does not list it. The plan's $8.48/month figure computes exactly
+  from Anthropic's FIRST-PARTY rates ($1.00/$5.00 per 1M), which is an assumption, not a reading. Nova Micro
+  IS settled: $0.035/1M input and $0.14/1M output in us-east-1, read from the Pricing API on 2026-08-20,
+  which reproduces the $0.27/month figure exactly.
 - Nova Micro's prompt-cache minimum token threshold.

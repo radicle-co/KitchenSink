@@ -83,6 +83,39 @@ export function trackedFiles(relativeDir: string): readonly string[] {
 }
 
 /**
+ * Every path matching the given git pathspecs that is present in the working tree — committed or NOT.
+ *
+ * ⚠️ The `--others --exclude-standard` half is load-bearing. Plain `git ls-files` reports the INDEX, so a
+ * file that exists on disk but has never been committed is invisible to a guard built on it — and that is
+ * exactly the window in which someone is still writing it. Measured: a guard test shipped with a TSDoc link
+ * at a symbol it never imported, passed the full suite while untracked, and failed on the run immediately
+ * after its first commit. `--exclude-standard` keeps `.gitignore` honoured so build output stays out, and
+ * the result is de-duplicated so a future flag change cannot silently double-analyse a file.
+ *
+ * Use this when a guard should cover work in progress. Use {@link trackedFiles} only when the INDEX is
+ * genuinely the subject.
+ *
+ * @param pathspecs - Git pathspecs to list.
+ * @returns Repo-relative paths of files present on disk, `node_modules` excluded, each once.
+ * @sideEffect Shells out to git and stats the working tree.
+ */
+export function presentFiles(pathspecs: readonly string[]): readonly string[] {
+    const listed = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...pathspecs], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        maxBuffer: 1 << 28,
+    }).split('\n');
+
+    return [
+        ...new Set(
+            listed.filter(
+                (file) => file.length > 0 && !file.includes('node_modules/') && existsSync(path.join(repoRoot, file)),
+            ),
+        ),
+    ];
+}
+
+/**
  * Discover every deployable service and read its sources.
  *
  * @returns One entry per `packages/services/*` directory carrying a manifest.

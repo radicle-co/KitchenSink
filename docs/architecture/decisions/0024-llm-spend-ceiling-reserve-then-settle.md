@@ -24,7 +24,7 @@
   types; no OpenAPI document is written for it;
   [ADR-0022](0022-in-stack-migration-trigger.md) — the counter is a NEW table in the recipe database,
   so it ships as a migration and arrives through that ADR's in-stack Trigger like any other schema change;
-  [ADR-0006](0006-per-pr-feature-service-deploys.md) — per-PR deploys get their own LOGICAL database on the
+  [ADR-0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md) — per-PR deploys get their own LOGICAL database on the
   shared sandbox instance, which is why the ceiling is prod-only (§3).
 - **Supersedes within the plan**: `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`
   §U11's layer table, its egress paragraph and §KTD-4's bake-off roster. Where this ADR and that plan

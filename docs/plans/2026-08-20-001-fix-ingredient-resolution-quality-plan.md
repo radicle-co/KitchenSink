@@ -213,6 +213,15 @@ already ships. No `addResponseSchema` change, no deploy ordering, one unit inste
 `packages/clients/food-service/src/contractSkew.ts` states in its own docstring that it
 **"WARNS, IT DOES NOT REFUSE."**
 
+### KTD-8 — The gate amends the origin's fallthrough model, by owner ruling
+
+Origin R12 describes a cascade where a confident hit is terminal. The gate re-checks confidently-resolved
+tier-1 and tier-2 lines, which is a different model. That change is an **owner ruling** — the LLM as
+fail-safe, with skip conditions narrowed by a stated low tolerance for bad food data — recorded here
+because a plan should not amend a requirement silently.
+
+---
+
 ### KTD-9 — The gate is core platform capability, not a BYOK or tiered feature
 
 **Owner ruling (2026-08-20): there is no collision with feature 005.** 005's BYOK-first principle governs
@@ -222,15 +231,6 @@ neither BYOK nor tier-gated.
 
 The corroborating detail, had the two ever overlapped: an unattended import has no user and therefore no
 key, so BYOK could not have covered this path regardless.
-
-### KTD-8 — The gate amends the origin's fallthrough model, by owner ruling
-
-Origin R12 describes a cascade where a confident hit is terminal. The gate re-checks confidently-resolved
-tier-1 and tier-2 lines, which is a different model. That change is an **owner ruling** — the LLM as
-fail-safe, with skip conditions narrowed by a stated low tolerance for bad food data — recorded here
-because a plan should not amend a requirement silently.
-
----
 
 ## Implementation units
 

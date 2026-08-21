@@ -36,12 +36,13 @@
  * and {@link unresolvedDocLinks} is the pure verdict over them, so the DECISION is testable against a
  * synthetic in-memory program instead of the working tree.
  */
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import ts from 'typescript';
+
+import { presentFiles } from './serviceSources.js';
 
 /** Repo root — this file sits at `packages/infra/global/__tests__`, so the root is four levels up. */
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -120,44 +121,6 @@ export interface DocLinkUnit {
     readonly config: string;
     /** Repo-relative paths of the files it owns that contain at least one link opener. */
     readonly files: readonly string[];
-}
-
-/**
- * Every path matching the given git pathspecs that is present in the working tree — committed or not.
- *
- * ⚠️ `--others --exclude-standard` is load-bearing, not defensive. Plain `git ls-files` reports the INDEX, so
- * a source that exists on disk but has never been committed is not a subject at all — and that is exactly
- * the window in which a docstring is being written. Measured: `natEgressConsumers.test.ts` shipped a TSDoc
- * link at a symbol it never imported, passed the full suite while untracked, and failed on the run
- * immediately after its first commit. The gate reported green during the only window in which the author
- * was still looking at the file.
- *
- * `--exclude-standard` keeps `.gitignore` honoured, so `dist/`, build output and local scratch files stay
- * out. `--cached` and `--others` are disjoint by definition (others = not in the index), but the result is
- * de-duplicated anyway so a future flag change cannot silently double-analyse a file.
- *
- * The working-tree `existsSync` filter stays: `git ls-files` disagrees with the working tree during an
- * unstaged deletion or a half-finished rebase, and a guard that throws in those states fails for reasons
- * unrelated to what it checks.
- *
- * @param pathspecs - Git pathspecs to list.
- * @returns Repo-relative paths, `node_modules` excluded, each once.
- * @sideEffect Shells out to git and stats the working tree.
- */
-function presentFiles(pathspecs: readonly string[]): readonly string[] {
-    const listed = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...pathspecs], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        maxBuffer: 1 << 28,
-    }).split('\n');
-
-    return [
-        ...new Set(
-            listed.filter(
-                (file) => file.length > 0 && !file.includes('node_modules/') && existsSync(path.join(repoRoot, file)),
-            ),
-        ),
-    ];
 }
 
 /**

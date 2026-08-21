@@ -1,7 +1,7 @@
 import { recipeMinutesSchema, recipeServingsSchema } from '@kitchensink/recipe-core';
 import Fraction from 'fraction.js';
 
-import { normalizeQuantity } from './normalizeQuantity.js';
+import { normalizeQuantity, RANGE_SEPARATOR } from './normalizeQuantity.js';
 
 /**
  * Why a scalar field is empty or suspect.
@@ -61,9 +61,6 @@ const DURATION_UNIT_MINUTES: ReadonlyMap<string, Fraction> = new Map([
     ['day', new Fraction(1440)],
     ['days', new Fraction(1440)],
 ]);
-
-/** The separators that make two adjacent quantities a range rather than two terms. */
-const RANGE_SEPARATOR = /^\s*(?:to|or|through|[-–—])\s*/i;
 
 /**
  * A conjunction joining two terms of ONE duration (`"1 hour and 30 minutes"`).

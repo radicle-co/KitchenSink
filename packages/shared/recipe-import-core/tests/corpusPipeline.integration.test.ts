@@ -31,6 +31,7 @@ import {
     recipeMinutesSchema,
     recipeServingsSchema,
 } from '@kitchensink/recipe-core';
+import { quantityLowerBound, quantityUpperBound } from '@kitchensink/recipe-core/ingredient-quantity';
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -107,7 +108,11 @@ describe('the sanitize -> parse pipeline over the corpus', () => {
             const field = sanitizeToPlainText(asExtractedField(expected.phrase));
             const result = parseIngredientLine(field);
 
-            expect(result.quantity).toBe(expected.quantity);
+            // Asserted as BOUNDS rather than as the value object, so the golden keeps stating what the
+            // source SAYS. Every phrase in the committed slice states one amount, so both bounds are it —
+            // and a range slipping in unnoticed would fail here rather than pass silently.
+            expect(quantityLowerBound(result.quantity)).toBe(expected.quantity);
+            expect(quantityUpperBound(result.quantity)).toBe(expected.quantity);
             expect(result.unit).toBe(expected.unit);
             expect(result.name).toBe(expected.name);
             expect(result.needsReview).toBe(expected.needsReview);
@@ -120,7 +125,7 @@ describe('the sanitize -> parse pipeline over the corpus', () => {
         const result = parseIngredientLine(field);
 
         expect(field).not.toMatch(/<[a-zA-Z]/);
-        expect(result.quantity).toBe(0.5);
+        expect(result.quantity).toEqual({ kind: 'exact', value: 0.5 });
         expect(result.unit).toBe('cup');
         expect(result.name).toBe('butter');
     });
@@ -130,7 +135,7 @@ describe('the sanitize -> parse pipeline over the corpus', () => {
         const result = parseIngredientLine(sanitizeToPlainText(sentence));
 
         expect(result.raw).toBe(sentence);
-        expect(result.quantity).toBeNull();
+        expect(result.quantity).toEqual({ kind: 'absent' });
         expect(result.needsReview).toBe(true);
     });
 });
@@ -160,12 +165,26 @@ describe('the yield pipeline over the corpus', () => {
 });
 
 describe('downstream contract — every resolved value is storable by recipe-core', () => {
-    it('emits only quantities recipeIngredientQuantitySchema accepts', () => {
+    it('emits only quantity BOUNDS recipeIngredientQuantitySchema accepts', () => {
         for (const line of everyCorpusLine()) {
             const { quantity } = parseIngredientLine(line);
 
-            if (quantity !== null) {
-                expect(recipeIngredientQuantitySchema.safeParse(quantity).success).toBe(true);
+            // Both bounds, not just the lower one: U7 made the upper bound reachable, so checking only
+            // the low bound would leave the newly-storable half of the model unguarded against the column.
+            for (const bound of [quantityLowerBound(quantity), quantityUpperBound(quantity)]) {
+                if (bound !== null) {
+                    expect(recipeIngredientQuantitySchema.safeParse(bound).success).toBe(true);
+                }
+            }
+        }
+    });
+
+    it('never emits a range whose upper bound sits below its lower one', () => {
+        for (const line of everyCorpusLine()) {
+            const { quantity } = parseIngredientLine(line);
+
+            if (quantity.kind === 'range') {
+                expect(quantity.high).toBeGreaterThan(quantity.low);
             }
         }
     });

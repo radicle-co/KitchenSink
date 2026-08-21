@@ -34,6 +34,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { quantityLowerBound } from '@kitchensink/recipe-core/ingredient-quantity';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { COOKBOOKS } from '../src/cookbooks.js';
@@ -90,12 +91,22 @@ describe.skipIf(!configured)('cookbook import against a live recipe service', ()
         const lines: CreateRecipeBody['ingredients'][number][] = [];
 
         for (const parsed of outcome.recipe.ingredients) {
+            // ⚠️ REWRITTEN for U7. This was `parsed.quantity ?? 0`, mirroring `runImport`; the `0` it
+            // produced for an unquantified line sits below the wire's `0.001` floor, so the service
+            // answered `400` and refused the WHOLE recipe. The line is dropped here for the same reason
+            // the run drops it, and the tier asserts below that a real recipe still reaches the service.
+            const quantity = quantityLowerBound(parsed.quantity);
+
+            if (quantity === null) {
+                continue;
+            }
+
             const resolution = await resolveIngredientLikeAUser(client, parsed.name);
 
             lines.push({
                 ingredientId: resolution.ingredient.id,
                 name: resolution.ingredient.name,
-                quantity: parsed.quantity ?? 0,
+                quantity,
                 ...(parsed.unit === null ? {} : { unit: parsed.unit }),
                 notes: parsed.raw,
             });

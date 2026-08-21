@@ -47,6 +47,16 @@ const UNIT_ALIASES: Readonly<Record<string, string>> = {
     teaspoon: 'teaspoon',
     teaspoons: 'teaspoon',
     tsp: 'teaspoon',
+    // R31 — the `*ful` family. A 1900s cookbook writes `teaspoonful`, and the de-pluralization fallback
+    // below cannot reach it (no trailing `s`), so it normalized to itself, matched no portion, and cost
+    // the line its gram conversion. Exactly these three measures take the suffix; `handful`, `spoonful`
+    // and `glassful` name no defined amount and are deliberately absent.
+    teaspoonful: 'teaspoon',
+    teaspoonfuls: 'teaspoon',
+    tablespoonful: 'tablespoon',
+    tablespoonfuls: 'tablespoon',
+    cupful: 'cup',
+    cupfuls: 'cup',
     clove: 'clove',
     cloves: 'clove',
     slice: 'slice',

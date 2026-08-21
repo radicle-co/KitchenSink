@@ -3,29 +3,92 @@ import {
     normalizeUnit,
     recipeIngredientQuantitySchema,
 } from '@kitchensink/recipe-core';
-import { parseIngredient } from 'parse-ingredient';
+import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core/ingredient-quantity';
+import { parseIngredient, unitsOfMeasure, type UnitOfMeasureDefinitions } from 'parse-ingredient';
 
-import { normalizeQuantity } from './normalizeQuantity.js';
+import { normalizeQuantityRange } from './normalizeQuantity.js';
+
+/**
+ * The `*ful` spellings `parse-ingredient` does not RECOGNISE, taught through its own extension point.
+ *
+ * R31 has two halves and they live in different places, which is not the duplication it looks like.
+ * Canonicalising `teaspoonful` -> `teaspoon` is recipe-core's `UNIT_ALIASES`, and it serves gram
+ * conversion for a unit a USER typed. Recognising the word as a unit rather than as the first noun of the
+ * description is `parse-ingredient`'s tokenizer, and no table of ours can do it. The two change for
+ * different reasons — one tracks our wire's unit strings, the other tracks this library's vocabulary —
+ * and recipe-core cannot reach for the library at all: it ships in the Expo bundle, which is the boundary
+ * `corpusPipeline.integration.test.ts` asserts this package stays outside of.
+ *
+ * Measured 2026-08-21 against `parse-ingredient@2.2.0`: `teaspoonful` and `tablespoonful` are already
+ * alternates, but `identifyUnit` returns `null` for `teaspoonfuls`, `tablespoonfuls`, `cupful` and
+ * `cupfuls` — and `"Drop in tablespoonfuls"` occurs verbatim in the committed corpus slice.
+ *
+ * Each entry SPREADS the library's own definition rather than restating it, so the conversion factors and
+ * existing alternates (`tsp`, `T`, `c.`) cannot drift out from under us.
+ */
+const IMPORT_UNITS: UnitOfMeasureDefinitions = {
+    teaspoon: withAlternates('teaspoon', ['teaspoonfuls']),
+    tablespoon: withAlternates('tablespoon', ['tablespoonfuls']),
+    cup: withAlternates('cup', ['cupful', 'cupfuls']),
+};
+
+/** One library unit definition with extra spellings appended. Throws at module load if the id is gone. */
+function withAlternates(id: string, extra: readonly string[]): UnitOfMeasureDefinitions[string] {
+    const base = unitsOfMeasure[id];
+
+    if (base === undefined) {
+        throw new Error(`recipe-import-core: parse-ingredient no longer defines the unit "${id}".`);
+    }
+
+    return { ...base, alternates: [...base.alternates, ...extra] };
+}
 
 /**
  * Why a parsed line still wants a human's eye. A boolean says "something is off"; the draft review has to
- * tell a user "we took the lower bound of 2-3" apart from "we could not read this line at all".
+ * tell a user "the two bounds this line states disagree" apart from "we could not read this line at all".
  */
 export type IngredientReviewReason =
     /** The line was blank. */
     | 'empty_input'
-    /** No quantity could be read. The quantity is `null` — it is NEVER guessed. */
+    /** No quantity could be read. The quantity is `absent` — it is NEVER guessed. */
     | 'no_quantity'
-    /** A quantity was read but is not storable (non-positive, or outside recipe-core's window). */
+    /** A bound was read but is not storable (non-positive, or outside recipe-core's window). */
     | 'quantity_out_of_storage_range'
-    /** The line stated a range (`"2 to 3 cups"`); the LOWER bound was taken. */
-    | 'quantity_range_narrowed'
+    /** The line stated an upper bound BELOW its lower one (`"3 to 2 cups"`); neither can be trusted. */
+    | 'quantity_bounds_inverted'
     /** The line is a section heading (`"For the sauce:"`), not an ingredient. */
     | 'group_header'
     /** More than one line was passed in, so content beyond the first would be dropped. */
     | 'multiline_input'
     /** The name exceeds what recipe-core will store. It is returned UNCUT; truncation is not this module's. */
     | 'name_too_long';
+
+/**
+ * Reasons meaning "the value we would persist is not the value the source stated" (R39).
+ *
+ * DESIGN PATTERN: Specification, as data. A caller deciding whether to publish a line needs this
+ * distinction and cannot derive it from `needsReview`; re-deriving the list at the call site would be a
+ * second representation of this module's own taxonomy, drifting the moment a reason is added here.
+ *
+ * ⚠️ Membership is "a stated number would be wrong", not "something is missing". `no_quantity` and
+ * `empty_input` name an ABSENCE, which the quantity model now represents honestly; `group_header` and
+ * `name_too_long` say nothing about a number; `multiline_input` loses trailing lines but does not corrupt
+ * the value of the line it returns.
+ */
+const VALUE_CORRUPTING_REVIEW_REASONS: ReadonlySet<IngredientReviewReason> = new Set([
+    'quantity_out_of_storage_range',
+    'quantity_bounds_inverted',
+]);
+
+/**
+ * Whether a review reason means a persisted value would misstate the source.
+ *
+ * @param reason - One reason from a parsed line.
+ * @returns `true` when publishing the line would assert a number the source did not state. Pure.
+ */
+export function corruptsStatedValue(reason: IngredientReviewReason): boolean {
+    return VALUE_CORRUPTING_REVIEW_REASONS.has(reason);
+}
 
 /**
  * One free-text ingredient line, parsed.
@@ -40,13 +103,13 @@ export interface ParsedIngredientLine {
      */
     readonly raw: string;
     /**
-     * The quantity, already inside the window `recipeIngredientQuantitySchema` accepts, or `null`.
+     * How much the line calls for: an exact amount, a two-bound range, or nothing the source stated.
      *
-     * ⛔ `null` is NEVER a fabricated `1`. The destination column is `numeric(10,3) NOT NULL
-     * CHECK (quantity > 0)`, which would accept an invented `1` in silence — that acceptance is the whole
-     * reason this module exists.
+     * ⛔ `absent` is NEVER a fabricated `1` and never a `0`. Modelling it as a member rather than as a
+     * nullable number is what stopped the upper bound of `"2 to 3 cups"` being discarded at one line —
+     * `number | null` had nowhere to put it (KTD-6, R36, R40).
      */
-    readonly quantity: number | null;
+    readonly quantity: IngredientQuantity;
     /** The unit, canonicalised by recipe-core's `normalizeUnit`, or `null` when the line states none. */
     readonly unit: string | null;
     /** The ingredient name. Never truncated; see `name_too_long`. */
@@ -72,17 +135,41 @@ function roundToStorageScale(value: number): number {
     return Math.round(value * factor) / factor;
 }
 
+/** A bound rounded to what the column keeps, or `null` when there is no readable number here. */
+function toStorableBound(value: number | null): number | null {
+    return value === null || !Number.isFinite(value) ? null : roundToStorageScale(value);
+}
+
+/**
+ * Both bounds, taken from ONE source.
+ *
+ * ⚠️ Never a bound from each. `normalizeQuantityRange` and `parse-ingredient` disagree about notations by
+ * design — this module exists because the latter TRUNCATES a numeral at six digits — so pairing our lower
+ * bound with its upper would produce a range neither reader ever saw.
+ */
+function readBounds(
+    range: ReturnType<typeof normalizeQuantityRange>,
+    entry: { readonly quantity: number | null; readonly quantity2: number | null },
+): { readonly low: number | null; readonly high: number | null } {
+    if (range.low !== null) {
+        return { low: range.low.valueOf(), high: range.high?.valueOf() ?? null };
+    }
+
+    return { low: entry.quantity, high: entry.quantity2 };
+}
+
 /**
  * Parse one free-text ingredient line into a quantity, unit and name (MOD-019, FR-020).
  *
- * DESIGN PATTERN: Facade over a three-stage pipeline — `normalizeQuantity` (prose to numeral) ->
+ * DESIGN PATTERN: Facade over a three-stage pipeline — `normalizeQuantityRange` (prose to numeral) ->
  * `parse-ingredient` (unit + description) -> recipe-core's schema (what is storable).
  *
- * ⚠️ The quantity is taken from `normalizeQuantity` whenever it read one, and only falls back to
- * `parse-ingredient` for notations that module deliberately leaves alone (unicode vulgar fractions).
- * That order is not a preference: `parse-ingredient@2.2.0` was measured on 2026-08-19 to TRUNCATE a
- * numeral at six digits — `"1000001 cups water"` comes back as `quantity: 100000`, a plausible wrong
- * number that is inside the storable window and would therefore be persisted without a flag.
+ * ⚠️ The quantity is taken from `normalizeQuantityRange` whenever it read ANYTHING, and falls back to
+ * `parse-ingredient` only for notations this package's grammar does not cover at all — a quantity that is
+ * not at the head of the line (`"Juice of 3 lemons"`). That order is not a preference:
+ * `parse-ingredient@2.2.0` was measured on 2026-08-19 to TRUNCATE a numeral at six digits —
+ * `"1000001 cups water"` comes back as `quantity: 100000`, a plausible wrong number that is inside the
+ * storable window and would therefore be persisted without a flag.
  *
  * Pure and TOTAL. Never throws; there is no error channel, because an unparseable line is DATA the draft
  * carries forward, not a failure that aborts the import.
@@ -94,15 +181,29 @@ export function parseIngredientLine(raw: string): ParsedIngredientLine {
     const reasons: IngredientReviewReason[] = [];
 
     if (raw.trim() === '') {
-        return { raw, quantity: null, unit: null, name: '', needsReview: true, reviewReasons: ['empty_input'] };
+        return {
+            raw,
+            quantity: ABSENT_QUANTITY,
+            unit: null,
+            name: '',
+            needsReview: true,
+            reviewReasons: ['empty_input'],
+        };
     }
 
-    const normalized = normalizeQuantity(raw);
-    const entries = parseIngredient(normalized.line);
+    const range = normalizeQuantityRange(raw);
+    const entries = parseIngredient(range.line, { additionalUOMs: IMPORT_UNITS });
     const entry = entries[0];
 
     if (entry === undefined) {
-        return { raw, quantity: null, unit: null, name: '', needsReview: true, reviewReasons: ['empty_input'] };
+        return {
+            raw,
+            quantity: ABSENT_QUANTITY,
+            unit: null,
+            name: '',
+            needsReview: true,
+            reviewReasons: ['empty_input'],
+        };
     }
 
     if (entries.length > 1) {
@@ -113,25 +214,7 @@ export function parseIngredientLine(raw: string): ParsedIngredientLine {
         reasons.push('group_header');
     }
 
-    const exact = normalized.quantity?.valueOf() ?? entry.quantity;
-    let quantity: number | null = null;
-
-    if (exact === null || !Number.isFinite(exact)) {
-        reasons.push('no_quantity');
-    } else {
-        if (entry.quantity2 !== null && entry.quantity2 !== entry.quantity) {
-            reasons.push('quantity_range_narrowed');
-        }
-
-        const storable = roundToStorageScale(exact);
-
-        if (recipeIngredientQuantitySchema.safeParse(storable).success) {
-            quantity = storable;
-        } else {
-            reasons.push('quantity_out_of_storage_range');
-        }
-    }
-
+    const quantity = readQuantity(readBounds(range, entry), reasons);
     const unit = entry.unitOfMeasure === null ? null : normalizeUnit(entry.unitOfMeasure) || null;
     const name = entry.description;
 
@@ -140,4 +223,50 @@ export function parseIngredientLine(raw: string): ParsedIngredientLine {
     }
 
     return { raw, quantity, unit, name, needsReview: reasons.length > 0, reviewReasons: reasons };
+}
+
+/**
+ * Turn two read bounds into the quantity, naming every way they fail to be storable.
+ *
+ * ⛔ A bound outside the column's window makes the WHOLE line unquantified rather than silently narrowing
+ * it to the bound that happened to fit. Keeping `2` out of `"2 to 1000001 cups"` would publish a number
+ * the source states only half of, and this import's standing rule is that a dropped line costs one
+ * ingredient while a wrong number is a plausible lie in a public recipe's nutrition.
+ *
+ * @param bounds - The lower and upper bounds, from one reader.
+ * @param reasons - Accumulator, appended to in place.
+ * @returns The quantity value object. Impure only in appending to `reasons`, which is the caller's own.
+ */
+function readQuantity(
+    bounds: { readonly low: number | null; readonly high: number | null },
+    reasons: IngredientReviewReason[],
+): IngredientQuantity {
+    const low = toStorableBound(bounds.low);
+    const high = toStorableBound(bounds.high);
+
+    if (low === null) {
+        reasons.push('no_quantity');
+
+        return ABSENT_QUANTITY;
+    }
+
+    const unstorable = [low, high].some(
+        (bound) => bound !== null && !recipeIngredientQuantitySchema.safeParse(bound).success,
+    );
+
+    if (unstorable) {
+        reasons.push('quantity_out_of_storage_range');
+
+        return ABSENT_QUANTITY;
+    }
+
+    const quantity = statedQuantity(low, high);
+
+    if (quantity === null) {
+        reasons.push('quantity_bounds_inverted');
+
+        return ABSENT_QUANTITY;
+    }
+
+    return quantity;
 }

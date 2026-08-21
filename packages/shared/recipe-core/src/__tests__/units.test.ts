@@ -20,6 +20,37 @@ describe('normalizeUnit', () => {
         expect(normalizeUnit('carrots')).toBe('carrot');
         expect(normalizeUnit('cup')).toBe('cup');
     });
+
+    /**
+     * R31 — the `*ful` family. A 1900s cookbook writes `teaspoonful` where a modern one writes `teaspoon`,
+     * and the de-pluralization fallback above cannot reach it: `teaspoonful` has no trailing `s`, so it
+     * normalized to ITSELF and matched no portion, silently costing the line its gram conversion.
+     */
+    describe('the *ful family (R31)', () => {
+        it.each([
+            ['teaspoonful', 'teaspoon'],
+            ['teaspoonfuls', 'teaspoon'],
+            ['Teaspoonful.', 'teaspoon'],
+            ['tablespoonful', 'tablespoon'],
+            ['tablespoonfuls', 'tablespoon'],
+            ['cupful', 'cup'],
+            ['cupfuls', 'cup'],
+        ])('normalizes %j to %j', (raw, canonical) => {
+            expect(normalizeUnit(raw)).toBe(canonical);
+        });
+
+        it('converts a *ful line to grams through the SAME portion table a modern unit uses (R31)', () => {
+            const portions = [{ unit: 'teaspoon', gramsPerUnit: 6 }];
+
+            expect(unitToGrams(1, 'teaspoonful', portions)).toBe(6);
+            expect(unitToGrams(2, 'tablespoonfuls', [{ unit: 'tablespoon', gramsPerUnit: 8 }])).toBe(16);
+        });
+
+        it('leaves a word that merely ENDS in "ful" alone, because it is not a measure', () => {
+            expect(normalizeUnit('handful')).toBe('handful');
+            expect(normalizeUnit('careful')).toBe('careful');
+        });
+    });
 });
 
 describe('unitToGrams', () => {

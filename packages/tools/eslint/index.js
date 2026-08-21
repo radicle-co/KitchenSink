@@ -375,13 +375,16 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/*/database',
                                     '!@kitchensink/*/database/*',
                                     '!@kitchensink/*/database-name',
-                                    // `recipe-core` publishes two DISPLAY-layer modules as their own entry
-                                    // points, deliberately kept OFF its barrel: `scaling` (display-only
-                                    // serving scaling) and `external-url` (the outbound-link trust boundary).
+                                    // `recipe-core` publishes three modules as their own entry points,
+                                    // deliberately kept OFF its barrel: `scaling` (display-only serving
+                                    // scaling), `external-url` (the outbound-link trust boundary), and
+                                    // `ingredient-quantity` (the exact|range|absent quantity value object,
+                                    // which U8 promotes to the barrel in the commit that puts it on the wire).
                                     // The barrel is inside the recipe service's contract corpus, so anything
                                     // re-exported from it lands in `CONTRACT_HASH` — see that barrel's note.
                                     '!@kitchensink/*/scaling',
                                     '!@kitchensink/*/external-url',
+                                    '!@kitchensink/*/ingredient-quantity',
                                     // `food-service` spells the same barrel `db/schema`, not `database/*`. It
                                     // has no importer yet, which is exactly why the omission was invisible.
                                     '!@kitchensink/*/db',

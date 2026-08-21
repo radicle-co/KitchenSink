@@ -13,6 +13,7 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@kitchensink/recipe-core": "*",
         "@kitchensink/recipe-import-core": "*",
         "@kitchensink/schema-recipe": "*",
         "p-retry": "^7.0.0",

@@ -300,8 +300,17 @@ removed for cause.
 - Known-miss entries assert they still miss, including word-order inversions the tiers do not solve.
 - Collation: `name ASC` ordering identical between the local image and a CI-shaped instance.
 - Truncation: for `flour`, `milk` and `sugar`, record whether the true match survives the server's
-  page on both surfaces — each at its own limit (local 10, catalog 20) — the measurement the Problem frame's severity claim
-  rests on.
+  page on both surfaces — each at its own limit (local 10, catalog 20) — the measurement the Problem frame's
+  severity claim rests on.
+- ⛔ **Every recorded top-1 and true match carries its PROVENANCE SECTION** (local vs catalog). Without it
+  this measurement cannot settle the question it exists to settle: `rankIngredientSuggestions` re-ranks
+  _within_ each section and deliberately preserves the server's local-before-catalog order ("a global sort
+  would interleave them and re-create exactly the reorder/layout-shift jank the sectioned design exists to
+  prevent"), so a wrong `local` suggestion outranks a correct `catalog` one **regardless of match quality**.
+  The picker-vs-importer divergence claim therefore holds only for same-section cases, and with 92.8% of
+  lines decided locally the cross-section case is the one that dominates.
+- ⛔ **Attribute each wrong `food_id` in the 2,432-line corpus to its surface** — this is the measurement the
+  owner's 2026-08-21 ruling makes U5 wait on. See the Problem frame.
 
 **Verification:** the suite is red for every known defect and green for every case already correct.
 
@@ -558,8 +567,16 @@ scenario asserting the range-derived nutrition caveat (R38) renders on both plat
 ### U10. Knowledge base and curated mappings
 
 **Goal:** learn from corrections, and authorize who a correction binds.
-**Requirements:** R11, R14, R19, R20. **Dependencies:** U4.
+**Requirements:** R11, R14, R19, R20. **Dependencies:** U3.
 **Files:** `packages/services/recipe-service/src/ingredients/resolution/` (new),
+`.../resolution/resolutionCascade.ts` (new — ⛔ **the object no unit previously owned.** U5, U6, U10 and U11
+each build a tier, and nothing ran them in order, decided when a tier is "confident", or terminated the
+chain — yet U11 already speaks of "terminating the cascade" as though it exists. Design pattern: **Chain of
+Responsibility over ordered tier Strategies**, each tier a pure `(query, context) => TierOutcome` with I/O
+behind the existing gateways. Ownership, stated once: **recipe-service owns the cascade**, food-service owns
+only the catalog-side Scoring Policy it is queried through, and recipe-workers owns only gate execution
+behind the shipped `PENDING → RESOLVED` lifecycle — a process boundary the tiers straddle and the plan had
+never named as a seam),
 `.../domain/mappingScopePolicy.ts` (new),
 `packages/services/recipe-service/src/database/migrations/0021_resolution_mappings.sql` (new),
 `.../ingredients.schema.ts`.
@@ -621,6 +638,23 @@ applied and the gate fails closed on every call),
 `recipe-workers` cannot import: its dependencies are `@kitchensink/recipe-core`, `pg` and `zod`),
 `packages/services/recipe-service/src/ingredients/resolutionMetrics.ts` (new),
 `packages/services/recipe-workers/infra/`.
+
+⛔ **The decision logic is a PURE POLICY MODULE; only the I/O lives in the handler.** Specified as two
+statements against the database and one provider call, every judgement in this unit — the skip conditions,
+KTD-3's three guards, the margin arithmetic, the nutrient-equivalence comparison, the rate table,
+`worstCaseMicros`, `headroomMicros`, `periodKey(nowUtc)` and the settle delta — lands inline at the call
+site, testable only against live Bedrock and Postgres, and KTD-3's guards get no truth table. Two pure,
+I/O-free modules in `@kitchensink/recipe-core` (reachable from recipe-service AND recipe-workers, unlike
+recipe-service):
+
+- `resolution/verificationGatePolicy.ts` — a total `(shortlist, tier, parse) => 'skip' | 'verify'` owning the
+  guards and the confidence bands, docstring-named as a Specification/Policy module in the shape of
+  `recipes/domain/provenancePolicy.ts`.
+- `spend/spendArithmetic.ts` — the rate table, worst case, headroom, period key and settle delta.
+
+`verifyLine.ts` reduces to reserve → call → settle. This is the repo's established split — the same shape as
+`deploy-gate.sh`'s pure `deploy_gate_decide` against its impure `deploy_gate_evaluate` — and it is what makes
+the gate's behaviour provable by table test rather than by deploying it.
 
 ⛔ **U11 owns tier 4 as well** (owner ruling 2026-08-21). The cascade's tier-4 LLM rewrite sat in the design
 diagram and in no unit's scope. It runs under the **same execution role** and takes a reservation from the
@@ -687,7 +721,11 @@ Layer 0 is the cheapest and highest-value control and this plan previously omitt
 **single monthly ceiling and nothing more** — the daily sub-ceiling an earlier draft added was removed: a
 monthly ceiling is a hard cap rather than a slow detector, it never enforced the monthly figure it sat under
 (31 × $5 = $155), and it denied legitimate bulk work. The ceiling is **prod-only**; sandbox and every
-`pr-{N}` call the provider ungated, bounded by layers 0–2 at ≈$88/month/stage on Nova. ⚠️ That figure is
+`pr-{N}` call the provider ungated, bounded by layers 0–2 at ≈$88/month/stage on Nova. ⚠️ **No per-caller accounting, deliberately.** The counter is a single monthly aggregate, so one
+high-volume caller in prod can exhaust the ceiling and deny verification for everyone until the reset. Named
+and ACCEPTED rather than solved: the owner's 2026-08-21 framing is a last-resort parser guard, not a metered
+product feature, and at Nova's $0.27/month a single caller needs ~370× normal volume to reach $100. Revisit
+if the gate ever becomes user-triggered at scale or if a non-Nova model ships. ⚠️ That figure is
 **per stage, not an aggregate** — sandbox plus one stage per open PR, measured against the account-wide
 $300 monthly budget in `CostGuardrailsStack.ts`, which notifies rather than denies. And it is derived for
 **Nova Micro**: a Haiku 4.5 winner makes it roughly 30× higher, so shipping any non-Nova model requires
@@ -915,7 +953,11 @@ raises it.
 **Test scenarios:** the report emits all three figures; the adjudicated sample follows U1's annotation
 protocol; the run is reproducible from a committed corpus manifest.
 
-**Verification:** the three numbers are committed alongside the plan as the release's evidence.
+**Verification:** the three numbers are committed alongside the plan as the release's evidence. ⚠️ U13
+changes the engine underneath them, and U1 measured that **99.7% of `name ASC` tiebreak positions move with
+collation** — so the committed figures must be RE-MEASURED on the sandbox soak after the PG 18 upgrade, and
+the post-upgrade numbers are the ones that stand as evidence. Committing PG 16 figures for a release that
+ends on PG 18 describes a database prod no longer runs.
 
 ---
 

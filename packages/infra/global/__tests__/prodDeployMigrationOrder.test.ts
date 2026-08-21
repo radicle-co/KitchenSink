@@ -242,6 +242,39 @@ function cdkDeployPosition(steps: readonly IndexedStep[], serviceDir: string): C
  * @returns The service directory names, sorted.
  * @sideEffect Shells out to git and stats the results.
  */
+/**
+ * A migration runner's source path, under a service's `src/`.
+ *
+ * ⚠️ An earlier form read `/\/src\/.*(^|\/)migrate(\/handler)?\.ts$/`. The `^` branch is unmatchable
+ * mid-pattern without the `m` flag (CodeQL `js/regex/unmatchable-caret`), which collapsed the alternation to
+ * a REQUIRED `/` — so `src/migrate.ts` did not match at all and a service placing its runner one level up
+ * from the `src/lambdas/migrate/handler.ts` shape the three current services happen to share would be
+ * silently invisible to this guard, and no pipeline step would be demanded for it. That is precisely the
+ * under-discovery this file exists to prevent, so the pattern is asserted directly below.
+ */
+const RUNNER_SOURCE = /\/src\/(?:.*\/)?migrate(?:\/handler)?\.ts$/;
+
+describe('migration runner discovery', () => {
+    it('matches a runner wherever a service puts it, and never a test beside one', () => {
+        expect(
+            [
+                'packages/services/food-service/src/lambdas/migrate/handler.ts',
+                'packages/services/a/src/migrate.ts',
+                'packages/services/b/src/lambdas/migrate.ts',
+                'packages/services/c/src/deep/nested/migrate/handler.ts',
+            ].every((file) => RUNNER_SOURCE.test(file)),
+        ).toBe(true);
+
+        expect(
+            [
+                'packages/services/food-service/src/lambdas/migrate/__tests__/handler.test.ts',
+                'packages/services/d/src/migrations/0001_initial.sql',
+                'packages/services/e/src/lambdas/migrateSomethingElse.ts',
+            ].some((file) => RUNNER_SOURCE.test(file)),
+        ).toBe(false);
+    });
+});
+
 function runnerPackages(): readonly string[] {
     const tracked = execFileSync(
         'git',
@@ -254,7 +287,7 @@ function runnerPackages(): readonly string[] {
     return [
         ...new Set(
             tracked
-                .filter((file) => /\/src\/.*(^|\/)migrate(\/handler)?\.ts$/.test(file))
+                .filter((file) => RUNNER_SOURCE.test(file))
                 // `git ls-files` reads the INDEX, which still lists a file that has been deleted in the
                 // working tree but not yet staged. Without this the guard would demand a pipeline step for a
                 // runner that no longer exists — which is exactly the state a change that MOVES a runner

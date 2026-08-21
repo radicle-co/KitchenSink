@@ -563,7 +563,8 @@ is that promotions are reviewable after the fact, not that collusion is prevente
 **Goal:** nothing publishes nutrition we have not checked against the source.
 **Requirements:** R15–R18, R21–R24, R61. **Dependencies:** U5, U7, U10.
 **Files:** `packages/clients/bedrock/` (new), `packages/services/recipe-workers/src/handlers/verifyLine.ts`
-(new), `packages/services/recipe-service/src/ingredients/resolution/confidence.ts` (new),
+(new), `packages/services/recipe-workers/src/migrations/` (new — the `verification_spend` table),
+`packages/services/recipe-service/src/ingredients/resolution/confidence.ts` (new),
 `packages/services/recipe-service/src/ingredients/resolutionMetrics.ts` (new),
 `packages/services/recipe-workers/infra/`.
 
@@ -874,6 +875,14 @@ protocol; the run is reproducible from a committed corpus manifest.
 - The cost ceiling is $100/month, enforced by a reserve-then-settle counter in our own code — no AWS
   mechanism gates Bedrock spend in near-real-time, and `reservedConcurrency` caps burn rate, not dollars.
   An AWS budget alarm audits the counter rather than backstopping it (U11, ADR-0024).
+- **Ruled 2026-08-21, after the seven-persona review of ADR-0024:** the counter's store is the recipe
+  **Postgres**, not DynamoDB (the worker is already bound to that RDS; `RecipeWorkersStack` owns no DynamoDB
+  substrate, contrary to an earlier claim). There is **one** ceiling — $100/month, reset monthly; the daily
+  sub-ceiling is removed. Enforcement is **prod only**; sandbox and every `pr-{N}` call the provider ungated,
+  bounded by layers 0–2 at ≈$88/month/stage on Nova. An over-cap input line is **rejected, never truncated**.
+  A ceiling denial or unreadable counter is **transient** — the message retries under the DLQ — and never
+  resolves the line as `unresolved`. Settle is never retried. Bypass is prevented by IAM (one grantee,
+  guard-tested), not by layer 4's metric.
 - The bake-off selects a winner and ships it; the false-disagree rate triggers a rethink (U11).
 - Quantity is nullable on both the column and the wire (KTD-6).
 

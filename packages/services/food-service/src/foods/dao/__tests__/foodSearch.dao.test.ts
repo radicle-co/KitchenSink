@@ -299,15 +299,34 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
         });
 
         it('RANKS an alias hit — matching without scoring would leave it unreachable past the LIMIT', async () => {
+            // ⚠️ REWRITTEN for U5, not weakened. It used to assert `GREATEST(` appears exactly ONCE, as a
+            // proxy for "the ranking has one authority". The tiered sort key adds a second `GREATEST` — the
+            // clamp that keeps the base metric inside [0, 1] so a rung can never be crossed — so counting
+            // the token now measures the wrong thing. The invariant it was protecting is unchanged and is
+            // asserted directly below: each of the three relevance branches appears exactly once, all three
+            // are combined by ONE base-metric expression, and that expression is fed into the ONE score the
+            // `ORDER BY` sorts on. The tier ladder itself is asserted in `foodRelevance.test.ts`.
             const statement = await soleStatementFor('tillamook');
             const score = statement.text.slice(0, statement.text.indexOf('AS score'));
 
-            expect(score).toContain('ts_rank(aliases_search_vector,');
-            // Both vectors and the trigram similarity are combined by ONE expression, which is also the sort
-            // key: a second GREATEST or a separate ORDER BY term would give the ranking two authorities.
-            expect(score.match(/GREATEST\(/g)).toHaveLength(1);
-            expect(score).toContain('ts_rank(search_vector,');
-            expect(score).toContain('similarity(name,');
+            expect(score.match(/ts_rank\(aliases_search_vector,/g)).toHaveLength(1);
+            expect(score.match(/ts_rank\(search_vector,/g)).toHaveLength(1);
+            expect(score.match(/similarity\(name,/g)).toHaveLength(1);
+            expect(statement.text).toContain('ORDER BY score DESC, name ASC');
+            expect(statement.text.slice(statement.text.indexOf('AS score'))).not.toContain('ts_rank(');
+        });
+
+        it('layers the tier ladder ABOVE that expression rather than replacing it (U5 / KTD-1)', async () => {
+            // The catalog keeps `similarity` — swapping it for `word_similarity` measured 4 regressions and
+            // 0 fixes — so the ladder must be additive. This case fails if the ladder is ever removed to
+            // "simplify" the statement back to its pre-U5 shape.
+            const statement = await soleStatementFor('tillamook');
+            const score = statement.text.slice(0, statement.text.indexOf('AS score'));
+
+            expect(score).toContain('CASE');
+            expect(score).toContain('rank_terms.folded');
+            expect(score).toContain('ELSE 0');
+            expect(statement.text).toContain('CROSS JOIN LATERAL');
         });
 
         it('keeps aliases OUT of the 1–2 character statement, which ranks by name-initial position', async () => {

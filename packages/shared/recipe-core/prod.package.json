@@ -6,15 +6,29 @@
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
-        ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
         "./database-name": {
             "types": "./dist/recipeDatabaseName.d.ts",
             "default": "./dist/recipeDatabaseName.js"
         },
-        "./food-name": { "types": "./dist/foodName.d.ts", "default": "./dist/foodName.js" },
+        "./food-name": {
+            "types": "./dist/foodName.d.ts",
+            "default": "./dist/foodName.js"
+        },
         "./resolution/normalized-key": {
             "types": "./dist/resolution/normalizedKey.d.ts",
             "default": "./dist/resolution/normalizedKey.js"
+        },
+        "./resolution/ranking-terms": {
+            "types": "./dist/resolution/rankingTerms.d.ts",
+            "default": "./dist/resolution/rankingTerms.js"
+        },
+        "./resolution/ranking-tiers": {
+            "types": "./dist/resolution/rankingTiers.d.ts",
+            "default": "./dist/resolution/rankingTiers.js"
         },
         "./resolution/verification-gate-policy": {
             "types": "./dist/resolution/verificationGatePolicy.d.ts",
@@ -33,6 +47,10 @@
             "default": "./dist/spend/spendArithmetic.js"
         }
     },
-    "dependencies": { "zod": "^4.4.3" },
-    "engines": { "node": "24.x" }
+    "dependencies": {
+        "zod": "^4.4.3"
+    },
+    "engines": {
+        "node": "24.x"
+    }
 }

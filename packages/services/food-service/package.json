@@ -68,6 +68,7 @@
         "@kitchensink/infra-messaging": "*",
         "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
+        "@kitchensink/service-test-harness": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@nestjs/cli": "^11.0.0",

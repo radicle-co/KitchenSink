@@ -8,9 +8,12 @@
  * exhaustively by {@link FoodSearchDao.search} — the exhaustive switch over the union tag IS the Visitor, so
  * no class hierarchy is added for it. Two statements, selected by query LENGTH (T-198):
  *
- * - **3+ characters → `relevance`** (unchanged): ranked FTS over the stored generated `food.search_vector`
+ * - **3+ characters → `relevance`**: ranked FTS over the stored generated `food.search_vector`
  *   (`food_search_vector_idx` GIN, `ts_rank`, word-order-independent) OR'd with the `pg_trgm` GIN indexes as
- *   the fuzzy/substring/typo fallback.
+ *   the fuzzy/substring/typo fallback, and — since plan U5 — ordered by a TIERED sort key layered above that
+ *   base metric. The tier ladder is {@link catalogTieredSortKey}'s; see `foodRelevance.ts` for what each rung
+ *   means and for the measurements that chose it. ⛔ The ladder changed only the ORDER BY expression: which
+ *   rows MATCH is untouched, and the trigram indexes are load-bearing and deliberately non-partial.
  * - **1–2 characters → `wordInitialPrefix`** — NEW, and a DELIBERATE SEMANTIC CHANGE: word-initial prefix
  *   matching over the same vector via `to_tsquery('simple', '<token>:*')`.
  *
@@ -55,6 +58,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
+import { catalogTieredSortKey } from './foodRelevance.js';
 
 /** Max search rows returned (FR-010). */
 const SEARCH_LIMIT = 20;
@@ -227,8 +231,9 @@ export class FoodSearchDao {
     }
 
     /**
-     * The pre-existing 3+ character statement, unchanged — including by T-202, whose fix was the ACCESS
-     * PATH the `name %` branch gets (`food_name_trgm_gist_idx`, 0004) and not one character of this SQL.
+     * The 3+ character statement. T-202 left it untouched — its fix was the ACCESS PATH the `name %` branch
+     * gets (`food_name_trgm_gist_idx`, 0004) and not one character of this SQL — and plan U5 changed only
+     * the SORT KEY.
      * See the class doc for the per-branch cost table and for why neither `name %` nor `description ILIKE`
      * may be removed here. A row matches when EITHER the ranked FTS path
      * hits (`search_vector @@ plainto_tsquery('english', query)` — word-order-independent lexeme match
@@ -247,6 +252,17 @@ export class FoodSearchDao {
      * of a 45.8ms statement before 0004 gave it a GiST index; a fourth substring branch over a second
      * free-text column is per-row cost SC-007's 250ms budget has no room for.
      *
+     * ⚠️ **U5 wraps that `GREATEST` rather than replacing it.** It becomes the BASE METRIC of a tiered sort
+     * key (`foodRelevance.ts`): `score = (TIER_GAP x tier + clamp(base)) / SCORE_CEILING`. Two consequences
+     * worth knowing before editing this statement. First, the tier is computed by a `CROSS JOIN LATERAL`
+     * that folds and tokenizes `food.name` once per row — the `WHERE` is unchanged and still restricts
+     * `food` alone, so the planner keeps pushing it down to the index scan (asserted at 100,000 rows by
+     * `tests/foodSearchAccessPath.integration.test.ts`, which captures this very statement). Second, the
+     * score is NORMALIZED into `[0, 1)` on purpose: `FoodsService.search` unshifts a barcode /
+     * external-key crosswalk hit at score exactly `1`, and recipe-service's `FoodCatalogGateway` re-sorts
+     * the page by score — an un-normalized tiered score would reach 9 and silently demote an exact
+     * identifier match below a lexical one.
+     *
      * @param query - The trimmed user query.
      * @param limit - Max rows.
      * @returns The composable statement.
@@ -256,14 +272,19 @@ export class FoodSearchDao {
         // (the same `query` is bound raw below, where it is a value rather than a pattern).
         const pattern = toIlikePattern(query);
 
-        return sql`
-            SELECT id, name,
-                   GREATEST(
+        // The BASE metric, unchanged by U5: the strongest of full-text relevance, curated-alias relevance
+        // and trigram similarity. The tier ladder is layered ABOVE it, never in place of it (KTD-1).
+        const baseMetric = sql`GREATEST(
                        ts_rank(search_vector, plainto_tsquery('english', ${query})),
                        ts_rank(aliases_search_vector, plainto_tsquery('english', ${query})),
                        similarity(name, ${query})
-                   )::float8 AS score
+                   )`;
+        const sortKey = catalogTieredSortKey(query, baseMetric);
+
+        return sql`
+            SELECT id, name, ${sortKey.score} AS score
             FROM food
+            ${sortKey.lateral}
             WHERE status = 'RESOLVED'
               AND name IS NOT NULL
               AND (

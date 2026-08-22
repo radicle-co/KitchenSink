@@ -201,7 +201,13 @@ export class IngredientsController {
      * (distinct from the synchronous `201` freeform create); the body's `foodResolutionStatus` is authoritative.
      * A mutation (food-service add + DB write) → the write rate limit.
      *
-     * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * ⚠️ **`ownerId` is no longer an auth assertion ALONE on this route** (plan U10). It is passed to the
+     * service, where the resolution cascade uses it so a curated mapping the CALLER wrote outranks the global
+     * one for them. Every other route here still takes it purely as the "this request is authenticated"
+     * proof the shared, ownerless catalog otherwise has no use for.
+     *
+     * @param ownerId - The verified caller ULID: the authentication assertion, AND the identity whose own
+     *   curated mappings take precedence in the cascade.
      * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param body - `{ name }` (non-blank, ≤120 chars), validated by {@link CreateIngredientDto}.
      * @returns The created (or deduped) food-backed ingredient with its current non-terminal resolution status.
@@ -210,11 +216,11 @@ export class IngredientsController {
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
     public async addByName(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: CreateIngredientDto,
     ): Promise<Ingredient> {
-        return this.ingredients.addByName(caller, this.visibleName(body.name));
+        return this.ingredients.addByName(caller, this.visibleName(body.name), ownerId);
     }
 
     /**

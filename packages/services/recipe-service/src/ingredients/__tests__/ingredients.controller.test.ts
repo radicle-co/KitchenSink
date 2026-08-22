@@ -227,7 +227,11 @@ describe('IngredientsController', () => {
             } as CreateIngredientDto);
 
             expect(mocks.createFreeform).toHaveBeenCalledWith('Brown sugar');
-            expect(mocks.addByName).toHaveBeenCalledWith(TOKEN, 'Brown sugar');
+            // ⚠️ THREE arguments since plan U10, and the third is not incidental: `by-name` now passes the
+            // verified caller ULID down so the resolution cascade can let a curated mapping the CALLER wrote
+            // outrank the global one for them. A two-argument call would silently demote every user to the
+            // unattended-import view of the knowledge base (R22), which no response assertion would notice.
+            expect(mocks.addByName).toHaveBeenCalledWith(TOKEN, 'Brown sugar', CALLER);
         });
 
         it.each([
@@ -265,7 +269,8 @@ describe('IngredientsController', () => {
 
             // Mutation guard: the ADD path must delegate to addByName — a regression routing it to the plain
             // freeform create would fail here (createFreeform must stay untouched).
-            expect(mocks.addByName).toHaveBeenCalledWith(TOKEN, 'Quinoa');
+            // The caller ULID is the third argument since plan U10 — see the parse-boundary spec for why.
+            expect(mocks.addByName).toHaveBeenCalledWith(TOKEN, 'Quinoa', CALLER);
             expect(mocks.createFreeform).not.toHaveBeenCalled();
             expect(result).toBe(added);
         });

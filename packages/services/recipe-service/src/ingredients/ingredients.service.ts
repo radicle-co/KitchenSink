@@ -12,7 +12,9 @@
  *     `food_id` and sectioned by provenance. This is the picker's read.
  *   - **addByFoodId (Stage 2 pick)** — {@link IngredientsService.addByFoodId} admits a catalog suggestion as a
  *     food-backed row AND backfills its golden-record nutrition in one round-trip (F1).
- *   - **addByName** — `foodClient.addByName` returns `202` (`PENDING` / `UNRESOLVED`); we persist a
+ *   - **addByName** — consults the RESOLUTION CASCADE first (plan U10 / R11: curated mappings, then
+ *     remembered resolutions), and admits the mapped food directly on a hit. On a miss —
+ *     `foodClient.addByName` returns `202` (`PENDING` / `UNRESOLVED`); we persist a
  *     food-backed catalog row (deduped on the opaque `food_id`) and return it immediately with its
  *     non-terminal status, so the picker can render a "nutrition pending" state.
  *   - **poll** — {@link IngredientsService.refreshStatus} re-reads `foodClient.getStatus` and advances the
@@ -46,9 +48,10 @@
  *
  * @implements FR-007 FR-007a FR-047
  */
-import { Injectable } from '@nestjs/common';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { Injectable, Logger } from '@nestjs/common';
+import { FoodResolutionStatus, RecipeErrorCode } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
+import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, StatusResult } from '@kitchensink/food-service-client';
 
@@ -56,12 +59,13 @@ import type { CallerToken } from '../auth/CallerToken.js';
 import { clampLimit, IngredientsDal } from './dal/ingredients.dal.js';
 import type { CanonicalIngredientName } from './domain/ingredientName.js';
 import { canonicalNameFrom, toResolutionStatus } from './foodStatusTranslation.js';
+import { runResolutionCascade, type ResolutionTier } from './resolution/resolutionCascade.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
 import { blendIngredientSuggestions } from './ingredientSuggestion.js';
 import type { IngredientSuggestions } from './ingredientSuggestion.js';
 import type { IngredientCandidate } from './ingredients.schema.js';
-import { foodNotAdmissible, ingredientNotFound } from '../recipes/recipe.error.js';
+import { foodNotAdmissible, ingredientNotFound, isRecipeDomainError } from '../recipes/recipe.error.js';
 
 /*
  * ⛔ DELETED HERE (KTD-3 / plan U10): `nutrientPer100g`, `extractNutrition`, `parsePortionAmount`,
@@ -105,10 +109,23 @@ function toIngredientCandidate(view: CandidateView): IngredientCandidate {
 
 @Injectable()
 export class IngredientsService {
+    /** One logger for the cascade's tier failures — a degraded tier must be visible, never silent. */
+    private readonly logger = new Logger(IngredientsService.name);
+
+    /**
+     * @param dal - The shared `ingredients` catalog.
+     * @param foodClients - The per-caller food-service client factory.
+     * @param catalog - The typeahead blend's short-timeout, no-throw gateway.
+     * @param resolutionTiers - The ORDERED resolution cascade (plan U10). The order IS the configuration
+     *   (R11), so it is injected as a registry rather than assembled here: today it holds tiers 1 and 3, U5/U6
+     *   insert the lexical tier between them, and U11 appends the LLM tier. An EMPTY array is a valid and
+     *   fully-supported state — it leaves `addByName` behaving exactly as it did before the cascade existed.
+     */
     public constructor(
         private readonly dal: IngredientsDal,
         private readonly foodClients: FoodServiceClients,
         private readonly catalog: FoodCatalogGateway,
+        private readonly resolutionTiers: readonly ResolutionTier[] = [],
     ) {}
 
     /**
@@ -275,6 +292,74 @@ export class IngredientsService {
     }
 
     /**
+     * Consult the resolution cascade and, on a hit, admit the mapped food.
+     *
+     * ⛔ TOTAL AND NON-THROWING BY CONSTRUCTION. Every failure mode here — an unusable phrase, an exhausted
+     * cascade, a tier whose database read failed, a mapping naming a food that no longer resolves — returns
+     * `undefined`, which the caller reads as "carry on down the ordinary path". The cascade is a shortcut to a
+     * better answer; it must never be able to WITHHOLD the ordinary one. The only error deliberately swallowed
+     * is `UNKNOWN_INGREDIENT` from the admission, which is the stale-mapping case; anything else (a
+     * food-service outage, a database failure on the `ingredients` write) still propagates, because those are
+     * failures of the ordinary path too and hiding them would report success for an ingredient never created.
+     *
+     * @param caller - The requesting user's credential, forwarded to food-service on admission.
+     * @param name - The phrase the caller supplied, already in canonical display form.
+     * @param authorId - The requesting user, or `undefined` for an unattended import (R22).
+     * @returns The admitted ingredient, or `undefined` when the cascade could not (or should not) answer.
+     * @sideEffect Runs the cascade's tiers, then admits a food (one food-service read + an `ingredients` write).
+     */
+    private async resolveThroughCascade(
+        caller: CallerToken | undefined,
+        name: CanonicalIngredientName,
+        authorId: string | undefined,
+    ): Promise<Ingredient | undefined> {
+        if (this.resolutionTiers.length === 0) {
+            return undefined;
+        }
+
+        const key = normalizedIngredientKey(name);
+
+        if (key === undefined) {
+            return undefined;
+        }
+
+        const outcome = await runResolutionCascade(
+            this.resolutionTiers,
+            { key, phrase: name },
+            { authorId },
+            {
+                onTierFailure: (tier, error) =>
+                    this.logger.warn(
+                        `Resolution tier '${tier}' failed; falling through to the food service.`,
+                        error instanceof Error ? error.stack : String(error),
+                    ),
+            },
+        );
+
+        if (outcome.kind !== 'resolved') {
+            return undefined;
+        }
+
+        try {
+            return await this.addByFoodId(caller, outcome.foodId);
+        } catch (error) {
+            if (isRecipeDomainError(error) && error.code === RecipeErrorCode.UNKNOWN_INGREDIENT) {
+                // The stale-mapping case. `food_id` has no foreign key and U12's reseed mints fresh ULIDs, so
+                // this is expected traffic rather than an incident — logged at `warn` so a SUSTAINED rate is
+                // still visible as the "the knowledge base is pointing at a dead catalog" signal it would be.
+                this.logger.warn(
+                    `Curated mapping for '${name}' names food '${outcome.foodId}', which is not admissible; ` +
+                        'falling through to the food service.',
+                );
+
+                return undefined;
+            }
+
+            throw error;
+        }
+    }
+
+    /**
      * Read a food's status for the pick path, translating a food-service `404` (unknown row, or a terminal
      * `NOT_FOUND`/`FAILED`) into the terminal status the caller then records or rejects on.
      *
@@ -328,12 +413,40 @@ export class IngredientsService {
      * that cannot back an ingredient) and the wrong one here, where the caller supplied a perfectly good name
      * of their own and a `400` would strand a legitimate add.
      *
+     * ⛔ **THE RESOLUTION CASCADE IS CONSULTED FIRST** (plan U10 / R11, R19). This route is where BOTH the
+     * picker and the cookbook importer land, so it is the one place a curated mapping written by one cook can
+     * resolve another cook's — and every future import's — line without a food-service round trip. That is
+     * AE6's whole content, and it is what makes the learning loop close. A cascade hit is admitted by
+     * `food_id`, which also means the row is named from food-service's CANONICAL record rather than from the
+     * caller's phrase, so this is the one add path that structurally cannot mint prose into the shared
+     * catalog (plan U3).
+     *
+     * ⛔ A cascade hit is an OPTIMISATION, never an obligation: if the mapped food is not admissible, this
+     * falls through to the ordinary path and never raises. `ingredients.food_id` has no foreign key and U12's
+     * reseed mints fresh food ULIDs, so a mapping naming a food that no longer resolves is a certainty rather
+     * than a hazard — and `UNKNOWN_INGREDIENT` is the right answer for a PICK (the caller chose that row) and
+     * the wrong one here, where the caller chose a NAME and knows nothing about the mapping. Turning a stale
+     * mapping into a `400` would take a whole class of ingredient adds down the day the catalog is reseeded.
+     *
      * @param caller - The requesting user's credential, forwarded to food-service.
      * @param name - The display name, already parsed to its canonical form by the controller.
+     * @param authorId - The requesting user's ULID, so a curated mapping THEY wrote outranks the global one.
+     *   `undefined` means an unattended import (R22): the cascade then sees global mappings and nobody's
+     *   personal ones, because one user's private correction must never silently rewrite an import.
      * @returns The created (or deduped) food-backed ingredient with its current resolution status.
-     * @sideEffect Calls the food service (twice on the `RESOLVED` branch), then reads/writes `ingredients`.
+     * @sideEffect Consults the cascade, then calls the food service and reads/writes `ingredients`.
      */
-    public async addByName(caller: CallerToken | undefined, name: CanonicalIngredientName): Promise<Ingredient> {
+    public async addByName(
+        caller: CallerToken | undefined,
+        name: CanonicalIngredientName,
+        authorId?: string,
+    ): Promise<Ingredient> {
+        const mapped = await this.resolveThroughCascade(caller, name, authorId);
+
+        if (mapped !== undefined) {
+            return mapped;
+        }
+
         const client = this.foodClients.standard(caller);
         const added = await client.addByName(name);
         const existing = await this.dal.findByFoodId(added.id);

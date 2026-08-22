@@ -1,0 +1,228 @@
+/**
+ * THE RESOLUTION CASCADE — the object no unit previously owned (plan U10 / R11, R12, R22).
+ *
+ * DESIGN PATTERN: **Chain of Responsibility over ordered tier Strategies.** U5, U6, U10 and U11 each build a
+ * TIER; until this module nothing ran them in order, decided when a tier had answered, or terminated the
+ * chain — while U11's plan already spoke of "terminating the cascade" as though it existed. This is that
+ * object, and it owns exactly ONE rule: **consult the tiers in order; the first tier that resolves wins, and
+ * nothing after it is consulted at all.**
+ *
+ * ## ⛔ STATE OWNERSHIP, stated once because three packages straddle this seam
+ *
+ *  - **recipe-service owns THE CASCADE** — this module, its order, its termination rule, and tiers 1 and 3.
+ *  - **food-service owns only the catalog-side Scoring Policy** it is queried through. The lexical tier is an
+ *    adapter over a query to food-service and to this service's own `ingredients` table; the RANKING inside
+ *    that query is food's and U5/U6's, never this module's.
+ *  - **recipe-workers owns only GATE EXECUTION**, behind the shipped `PENDING → RESOLVED` lifecycle. The
+ *    verification gate runs in a Lambda because ADR-0024 grants `bedrock:InvokeModel` to exactly one
+ *    execution role, and recipe-service is not it. ⚠️ That makes tier 4, from this chain's side, an ENQUEUE
+ *    rather than a synchronous answer — see {@link TierOutcome} for the member U11 will need.
+ *
+ * ## Why a tier reports a VERDICT and not a confidence number
+ *
+ * R16 says "an ordinal ranking score is not a confidence value until the document says how it becomes one",
+ * and R17 says the bands are MEASURED, not chosen. A numeric scale invented here would therefore be a second
+ * authoritative representation of a value the requirements insist has exactly one — derived from evidence
+ * U10 does not have. So the chain does not carry a metric: each tier compares against its OWN threshold,
+ * which it is the only thing that understands (exact key equality; trigram distance; a lexical margin; an
+ * LLM band), and reports `resolved` or `pass`. That is Chain of Responsibility's actual contract — "handle,
+ * or pass on" — and it is what lets U11 add a measured `confidence` to the `resolved` member without
+ * reshaping the chain or any tier that does not use it.
+ *
+ * ## Failure is CONTAINED, and is never equated with a miss
+ *
+ * A tier that throws does not take the cascade down: the chain records it, reports it, and consults the next
+ * one — a database blip on the mappings table must not make every ingredient unresolvable. But an exhausted
+ * cascade carries `unavailable` separately from `consulted`, because "we could not look" and "we looked and
+ * found nothing" lead a caller to opposite actions: one is retried, the other is written as a terminal
+ * status. Collapsing them is how a transient degradation becomes a permanent fact about an ingredient.
+ */
+import type { NormalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
+
+/**
+ * The four tiers R11 names, in the order R11 names them.
+ *
+ * The identifier is a value, not a position: the registry that orders them is the module wiring, so a tier
+ * that has not shipped is simply absent from the array rather than a hole in it.
+ */
+export const RESOLUTION_TIER_IDS = ['curated', 'lexical', 'memo', 'llm'] as const;
+
+/** Which tier produced an outcome. */
+export type ResolutionTierId = (typeof RESOLUTION_TIER_IDS)[number];
+
+/**
+ * What one tier reports.
+ *
+ * ⚠️ FOR U11, so the shape is not discovered by collision: the `resolved` member is where a measured
+ * `confidence` belongs (additive, and no tier that ignores it needs to change), and a THIRD member —
+ * `deferred` — is the one tier 4 actually needs. recipe-service cannot invoke Bedrock (ADR-0024 layer 4b),
+ * so from this chain's side the LLM tier hands the line to a queue and the answer arrives later through the
+ * existing `PENDING → RESOLVED` lifecycle. It is not built here because nothing can produce it yet.
+ */
+export type TierOutcome =
+    | {
+          readonly kind: 'resolved';
+          readonly tier: ResolutionTierId;
+          /** The opaque food-service id this phrase resolves to. */
+          readonly foodId: string;
+          /** Why this tier answered — carried into telemetry and into a reviewer's read of a resolution. */
+          readonly evidence: string;
+      }
+    | {
+          readonly kind: 'pass';
+          readonly tier: ResolutionTierId;
+          /** Why this tier declined: a miss, or a hit it did not trust enough to answer with. */
+          readonly reason: string;
+      };
+
+/** The phrase being resolved, parsed once at the boundary and passed down. */
+export interface ResolutionQuery {
+    /** The match grain every tier keys on. */
+    readonly key: NormalizedIngredientKey;
+    /** The raw phrase, for tiers that retrieve on text rather than on the key. */
+    readonly phrase: string;
+}
+
+/** Per-request facts a tier may need, distinct from the collaborators a tier is constructed with. */
+export interface ResolutionContext {
+    /**
+     * The requesting user, or `undefined` for an unattended import (R22).
+     *
+     * ⛔ `undefined` is not "some user we did not bother to look up" — it means NOBODY is present, and tiers
+     * treat it as such: the curated tier shows an unattended caller global mappings and nobody's personal
+     * ones, because one user's private correction must never silently rewrite an import.
+     */
+    readonly authorId: string | undefined;
+}
+
+/**
+ * One tier of the cascade.
+ *
+ * DESIGN PATTERN: **Strategy**, and also the **Port** through which U5/U6 and U11 attach their tiers without
+ * this module knowing anything about ranking or inference. A tier is constructed with its own collaborators
+ * (a DAL, a gateway) and receives only per-request facts here.
+ *
+ * ⚠️ `resolve` is IMPURE by nature — every tier reads something. The judgement each tier makes is kept in a
+ * separate pure `decide*` function beside it (the pure-`decide` / impure-`evaluate` split this repository
+ * already uses in `deploy-gate.sh` and in `evaluateProvenance` vs `RecipesService.create`), so the rule is
+ * unit-testable as a truth table and the adapter has nothing left in it to get wrong but the query.
+ */
+export interface ResolutionTier {
+    readonly id: ResolutionTierId;
+    /**
+     * Attempt to resolve the query.
+     *
+     * @param query - The phrase and its key.
+     * @param context - Per-request facts (the requesting user, or its absence).
+     * @returns This tier's verdict.
+     * @sideEffect Performs this tier's own I/O.
+     */
+    resolve(query: ResolutionQuery, context: ResolutionContext): Promise<TierOutcome>;
+}
+
+/** What the cascade as a whole concluded. */
+export type CascadeOutcome =
+    | {
+          readonly kind: 'resolved';
+          readonly tier: ResolutionTierId;
+          readonly foodId: string;
+          readonly evidence: string;
+          /** The tiers consulted, in order, up to and including the one that answered. */
+          readonly consulted: readonly ResolutionTierId[];
+          /** The consulted tiers whose I/O FAILED. Never overlaps with the tier that answered. */
+          readonly unavailable: readonly ResolutionTierId[];
+      }
+    | {
+          readonly kind: 'exhausted';
+          readonly consulted: readonly ResolutionTierId[];
+          /**
+           * The consulted tiers whose I/O FAILED.
+           *
+           * ⛔ NON-EMPTY MEANS "WE COULD NOT LOOK", not "we looked and found nothing". A caller writing a
+           * terminal status on an exhausted cascade must check this first, or a database blip becomes a
+           * permanent fact about an ingredient.
+           */
+          readonly unavailable: readonly ResolutionTierId[];
+      };
+
+/** How the cascade reports a tier whose I/O failed. */
+export interface CascadeObservers {
+    /**
+     * Called once per tier failure.
+     *
+     * Required rather than optional and defaulted, so a caller cannot acquire a silently-degrading cascade by
+     * omission. Its own failure is swallowed: observability must not become an availability dependency.
+     */
+    readonly onTierFailure: (tier: ResolutionTierId, error: unknown) => void;
+}
+
+/**
+ * Run the tiers in order and return the first resolution, or exhaustion.
+ *
+ * The loop is deliberately sequential rather than concurrent, and that is the requirement rather than a
+ * simplification: R11 makes the tiers a PRECEDENCE, so consulting a later one before an earlier one has
+ * declined would let a machine guess outrank a curated mapping — and R12's "falls through only on a miss"
+ * means a later tier must not even be CALLED, which is the entire content of AE6's and AE8's "without an LLM
+ * call". It is also the cheaper order: the tiers are ordered by cost, so the common case stops at the
+ * cheapest one that knows the answer.
+ *
+ * @param tiers - The ordered registry. An empty chain is exhaustion, not an error.
+ * @param query - The phrase and its key.
+ * @param context - Per-request facts (the requesting user, or its absence).
+ * @param observers - Where a tier failure is reported.
+ * @returns The first resolution, or exhaustion with what was consulted and what was unavailable.
+ * @sideEffect Delegates to tiers, which perform I/O.
+ */
+export async function runResolutionCascade(
+    tiers: readonly ResolutionTier[],
+    query: ResolutionQuery,
+    context: ResolutionContext,
+    observers: CascadeObservers,
+): Promise<CascadeOutcome> {
+    const consulted: ResolutionTierId[] = [];
+    const unavailable: ResolutionTierId[] = [];
+
+    for (const tier of tiers) {
+        consulted.push(tier.id);
+
+        let outcome: TierOutcome;
+
+        try {
+            outcome = await tier.resolve(query, context);
+        } catch (error) {
+            unavailable.push(tier.id);
+            report(observers, tier.id, error);
+            continue;
+        }
+
+        if (outcome.kind === 'resolved') {
+            return {
+                kind: 'resolved',
+                tier: outcome.tier,
+                foodId: outcome.foodId,
+                evidence: outcome.evidence,
+                consulted,
+                unavailable,
+            };
+        }
+    }
+
+    return { kind: 'exhausted', consulted, unavailable };
+}
+
+/**
+ * Report a tier failure without letting the report itself fail the cascade.
+ *
+ * @param observers - The observer bundle.
+ * @param tier - The tier that failed.
+ * @param error - What it threw.
+ * @sideEffect Calls the caller-supplied sink.
+ */
+function report(observers: CascadeObservers, tier: ResolutionTierId, error: unknown): void {
+    try {
+        observers.onTierFailure(tier, error);
+    } catch {
+        // Deliberately empty. A broken logger degrades the signal; it must never degrade the resolution, and
+        // there is nowhere left to report a reporting failure to.
+    }
+}

@@ -389,6 +389,17 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/*/external-url',
                                     '!@kitchensink/*/food-name',
                                     '!@kitchensink/*/ingredient-quantity',
+                                    // `resolution/normalized-key` (plan U10) — the PERSISTED match grain of
+                                    // the ingredient-resolution knowledge base. It is a subpath for the same
+                                    // reason `food-name` is, and the reason is stronger here: TWO processes
+                                    // derive it (recipe-service's correction write and tier-1 read, and from
+                                    // U11 the verification gate inside recipe-workers, which cannot import
+                                    // recipe-service's `src`), and a one-character divergence between two
+                                    // copies would partition the tables into key-spaces that never intersect
+                                    // with nothing failing anywhere. Kept OUT of the barrel because the
+                                    // barrel is inside the recipe service's contract corpus.
+                                    '!@kitchensink/*/resolution',
+                                    '!@kitchensink/*/resolution/normalized-key',
                                     // `food-service` spells the same barrel `db/schema`, not `database/*`. It
                                     // has no importer yet, which is exactly why the omission was invisible.
                                     '!@kitchensink/*/db',

@@ -208,6 +208,12 @@ const accounts: readonly ColumnAccount[] = [
     { table: 'collections', column: 'owner_id', why: PRINCIPAL_DERIVED },
     { table: 'author_handles', column: 'user_id', why: PRINCIPAL_DERIVED },
     { table: 'account_erasure_jobs', column: 'owner_id', why: PRINCIPAL_DERIVED },
+
+    // ── ingredient resolution knowledge base (plan U10, 0021) ─────────────────────────────────────
+    // The caller-supplied halves of a correction — the phrase and the food id — are `text`, deliberately:
+    // `normalized_key` is DERIVED from a bounded wire field rather than being one, and bounding it here would
+    // pin the key's length to the phrase's, which the derivation is free to change.
+    { table: 'ingredient_resolution_mappings', column: 'author_id', why: PRINCIPAL_DERIVED },
     { table: 'account_erasure_jobs', column: 'actor', why: PRINCIPAL_DERIVED },
     {
         table: 'account_erasure_jobs',

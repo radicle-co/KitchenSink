@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../../database/database.module.js';
@@ -102,6 +104,87 @@ describe('IngredientsDal', () => {
             await dal.search('flour', 5);
 
             expect(execute).toHaveBeenCalledTimes(1);
+        });
+
+        it('short-circuits a query holding nothing searchable, not just an empty string', async () => {
+            // `selectIngredientMatchStrategy` decides this now, and it counts TOKENS. `%%%` used to reach
+            // the database and match nothing at a full statement's cost.
+            expect(await dal.search('%%%')).toEqual([]);
+            expect(await dal.search('   ')).toEqual([]);
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        /**
+         * ⚠️ THE STATEMENT, not the call count.
+         *
+         * The plan says of this suite: it "is mock-only and asserts call counts; it passes with the `WHERE`
+         * clause arbitrarily broken." That was true, and it is why the cases below render the statement the
+         * DAL actually built. They are the unit-tier half of the guard — the semantic half is
+         * `__tests__/integration/ingredients/ingredientRanking.integration.test.ts`, against a real Postgres,
+         * because nothing here can tell you PostgreSQL agrees with `classifyRankTier`.
+         */
+        describe('the statement it actually executes (U5/U6)', () => {
+            /** Render the single statement `search` handed to the driver, whitespace collapsed. */
+            async function statementFor(query: string): Promise<{ text: string; params: readonly unknown[] }> {
+                execute.mockResolvedValue({ rows: [] });
+                await dal.search(query);
+
+                const rendered = new PgDialect().sqlToQuery(execute.mock.calls[0]![0] as SQL);
+
+                return { text: rendered.sql.replace(/\s+/g, ' '), params: rendered.params };
+            }
+
+            it('orders by the tiered score ALIAS, so the ranking has ONE authority', async () => {
+                const statement = await statementFor('flour');
+
+                expect(statement.text).toContain('AS score');
+                expect(statement.text).toContain('ORDER BY score DESC, ingredients.name ASC');
+            });
+
+            it('carries the tier ladder and the per-row terms lateral', async () => {
+                const statement = await statementFor('flour');
+
+                expect(statement.text).toContain('CROSS JOIN LATERAL');
+                expect(statement.text).toContain('rank_terms.folded');
+                expect(statement.text).toContain('ELSE 0');
+            });
+
+            it('keeps `word_similarity` as the base metric — the `flor` case needs 0.600 (KTD-1)', async () => {
+                const statement = await statementFor('flour');
+
+                expect(statement.text).toContain('word_similarity(');
+            });
+
+            it('leaves a SINGLE-token query with the pre-U6 retrieval predicate, byte for byte', async () => {
+                const statement = await statementFor('flour');
+
+                expect(statement.text).toContain("search_vector @@ plainto_tsquery('english',");
+                expect(statement.text).toContain('<% ingredients.name');
+                expect(statement.text).toContain('ingredients.name ILIKE');
+                // Exactly ONE tsquery in the predicate: a head-term branch here would be a duplicate of the
+                // single lexeme `plainto_tsquery` already produces, and pure cost for the planner.
+                // lastIndexOf, deliberately: the terms LATERAL carries its own WHERE and ORDER BY, so the
+                // first of each belongs to the subquery and not to the statement.
+                const where = statement.text.slice(
+                    statement.text.lastIndexOf('WHERE'),
+                    statement.text.lastIndexOf('ORDER BY'),
+                );
+
+                expect(where.match(/plainto_tsquery/g)).toHaveLength(1);
+            });
+
+            it('gives a MULTI-token query a head-term retrieval branch (the 268 unmatched lines)', async () => {
+                const statement = await statementFor('sifted flour');
+                // lastIndexOf, deliberately: the terms LATERAL carries its own WHERE and ORDER BY, so the
+                // first of each belongs to the subquery and not to the statement.
+                const where = statement.text.slice(
+                    statement.text.lastIndexOf('WHERE'),
+                    statement.text.lastIndexOf('ORDER BY'),
+                );
+
+                expect(where.match(/plainto_tsquery/g)).toHaveLength(2);
+                expect(statement.params).toContain('flour');
+            });
         });
     });
 

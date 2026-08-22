@@ -4,8 +4,10 @@
  * Owns three responsibilities (data-model.md `ingredients` section):
  *   1. **Fuzzy + full-text search** — a single ranked read combining the `pg_trgm` GIN index
  *      (`idx_ingredients_name_trgm`, typo/substring tolerant) with the tsvector FTS index
- *      (`idx_ingredients_search_vector`). Score is `GREATEST(ts_rank, similarity(name))` so a strong
- *      lexeme match OR a strong fuzzy/typo match both rank a row up; ties break on name.
+ *      (`idx_ingredients_search_vector`). Since plan U5/U6 the WHICH is chosen by the pure
+ *      {@link selectIngredientMatchStrategy} and the ORDER by the Scoring Policy in
+ *      `ingredientRelevance.ts` — a tier ladder layered above `word_similarity`, which is what breaks the
+ *      1.00/1.00 tie that let `Carob flour` win `flour` alphabetically. See {@link IngredientsDal.search}.
  *   2. **Creation** — freeform (user-entered) rows (`is_user_entered = true`, no `food_id`) and
  *      food-service-backed rows (`food_id` + `food_resolution_status`, `is_user_entered = false`).
  *      There is **no** DB trigger maintaining `ingredients.search_vector` (unlike `recipes`), so the DAL
@@ -27,6 +29,8 @@ import type { Ingredient } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/database.module.js';
 import type { CanonicalIngredientName } from '../domain/ingredientName.js';
+import { selectIngredientMatchStrategy } from '../selectIngredientMatchStrategy.js';
+import { localTieredSortKey } from './ingredientRelevance.js';
 
 /** Default number of search hits returned when the caller does not specify a limit. */
 export const DEFAULT_SEARCH_LIMIT = 10;
@@ -115,14 +119,34 @@ export class IngredientsDal {
     public constructor(private readonly db: RecipeDrizzle) {}
 
     /**
-     * Ranked fuzzy + full-text search over the shared ingredient catalog. A row matches when EITHER the
-     * tsvector FTS path hits (`search_vector @@ plainto_tsquery`, word-order-independent) OR the
-     * `pg_trgm` fuzzy fallback hits (`query <% name` word-similarity, or a substring `ILIKE`). Word
-     * similarity (not full-string `similarity`/`%`) is used so a short typo query still matches a long
-     * multi-word name — e.g. `'flor'` vs `'All-purpose flour'` scores 0.60 by word similarity but only
-     * 0.15 full-string, which would fall below the 0.3 `%` threshold. Ranked by
-     * `GREATEST(ts_rank, word_similarity(query, name))` so both strong lexeme relevance and strong typo
-     * tolerance float a row up; ties break on name.
+     * Ranked fuzzy + full-text search over the shared ingredient catalog.
+     *
+     * DESIGN PATTERN: **Strategy**, chosen by the pure, database-free
+     * {@link selectIngredientMatchStrategy} and dispatched exhaustively below — the switch over the union
+     * tag IS the Visitor — plus the **Scoring Policy** in `ingredientRelevance.ts`, which owns the sort key.
+     * Neither decision is made here; this method binds them to a statement.
+     *
+     * **What matches (retrieval).** The pre-existing predicate, unchanged: the tsvector FTS path
+     * (`search_vector @@ plainto_tsquery`, word-order-independent), OR the `pg_trgm` fuzzy fallback
+     * (`query <% name` word-similarity, or a substring `ILIKE`). A MULTI-TOKEN query additionally
+     * retrieves rows carrying its HEAD TERM (plan U6) — see below for why that is not optional.
+     *
+     * **What wins (ranking).** `word_similarity`, not full-string `similarity`/`%`, so a short typo query
+     * still matches a long multi-word name: `'flor'` vs `'All-purpose flour'` scores 0.600 by word
+     * similarity and only 0.15 full-string, which falls below the 0.3 `%` threshold (KTD-1). Since plan U5
+     * that metric is the BASE of a tiered sort key rather than the whole of it.
+     *
+     * ⛔ **The tie the ladder exists to break.** Measured on `postgres:16`, 2026-08-22:
+     * `word_similarity('flour', 'Flour')` and `word_similarity('flour', 'Carob flour')` BOTH return 1.00 —
+     * word similarity scores the best matching word extent and does not penalise extra words — so
+     * `name ASC` decided, and `'Carob flour' < 'Flour'`. The attractor won by the alphabet, on the surface
+     * that decided 92.8% of the import's lines. `ingredientRelevance.ts` documents the ladder.
+     *
+     * ⛔ **Widening retrieval and tiering the sort key ship TOGETHER.** `plainto_tsquery` is a conjunction
+     * of every lexeme, so `sifted flour` asks for `sift & flour` and never retrieves `Flour, wheat,
+     * all-purpose` at all — that is the shape of the import's 268 unmatched lines. Retrieving on the head
+     * term alone fixes it, but only because the ladder then puts the extra candidates on the rung they
+     * deserve; against the OLD sort key the same widening would just add noise to the page.
      *
      * @param query - The (already trimmed) user query. An empty query returns no rows.
      * @param limit - Max hits (clamped to `[1, MAX_SEARCH_LIMIT]`; defaults to `DEFAULT_SEARCH_LIMIT`).
@@ -130,22 +154,35 @@ export class IngredientsDal {
      * @sideEffect Reads `ingredients`.
      */
     public async search(query: string, limit?: number): Promise<Ingredient[]> {
-        if (query.length === 0) {
+        const strategy = selectIngredientMatchStrategy(query);
+
+        if (strategy.kind === 'none') {
             return [];
         }
 
         const pattern = `%${query}%`;
+        const sortKey = localTieredSortKey(strategy, sql`word_similarity(${query}, ingredients.name)`);
+        // The head-term branch, or nothing. A single-token query's predicate stays byte-identical to the
+        // pre-U6 one — `plainto_tsquery` on one lexeme already IS the head-term retrieval, so OR'ing it in
+        // would be a duplicate branch for the planner to cost.
+        const headRetrieval =
+            strategy.kind === 'multiToken'
+                ? sql` OR search_vector @@ plainto_tsquery('english', ${strategy.headTerm})`
+                : sql``;
+
+        // ⚠️ The score is PROJECTED and the `ORDER BY` references its alias, exactly as food-service's
+        // statement does — so the ranking has ONE authoritative definition and cannot drift from the order
+        // rows come back in. It is not part of {@link RETURNING} and never reaches the domain shape:
+        // `rowToIngredient` reads named fields only, and `Ingredient` carries no score.
         const result = await this.db.execute<RawIngredientRow>(sql`
-            SELECT ${RETURNING}
+            SELECT ${RETURNING}, ${sortKey.score} AS score
             FROM ingredients
+            ${sortKey.lateral}
             WHERE search_vector @@ plainto_tsquery('english', ${query})
-               OR ${query} <% name
-               OR name ILIKE ${pattern}
-            ORDER BY GREATEST(
-                         ts_rank(search_vector, plainto_tsquery('english', ${query})),
-                         word_similarity(${query}, name)
-                     ) DESC,
-                     name ASC
+               OR ${query} <% ingredients.name
+               OR ingredients.name ILIKE ${pattern}${headRetrieval}
+            ORDER BY score DESC,
+                     ingredients.name ASC
             LIMIT ${clampLimit(limit)}
         `);
 

@@ -130,7 +130,10 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - scrollUntilVisible:
-      element: 'Whisk the olive oil'
+      # Maestro matches the node's WHOLE text; the step reads "Whisk the olive oil, crushed garlic,
+      # chopped oregano and the juice of the lemon into a marinade." The bare prefix matched nothing, so
+      # this scrolled to the end of the page looking for an element that could not exist.
+      element: 'Whisk the olive oil.*'
       direction: DOWN
       timeout: 20000
 

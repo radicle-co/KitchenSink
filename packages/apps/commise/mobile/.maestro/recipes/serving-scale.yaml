@@ -46,7 +46,12 @@ appId: io.commise.mobile
 - assertVisible: 'Serves'
 - assertVisible:
       text: '^2$'
-- assertNotVisible: 'Adjusted from 2 servings'
+# ⛔ `.*` IS REQUIRED, not decoration. Maestro matches a text selector as a regex against the node's WHOLE
+# text, and the notice reads "Adjusted from 2 servings — ingredient amounts and prep time are scaled."
+# (`recipeMessages.scaledNotice`). The bare prefix matched nothing, so the assertVisible below failed AND
+# both assertNotVisible passed vacuously — the flow was broken in both directions at once. The trailing copy
+# is deliberately not pinned: what is load-bearing is that the notice appears and names the ORIGINAL count.
+- assertNotVisible: 'Adjusted from 2 servings.*'
 - assertVisible: '20 min'
 
 # Scale UP by two taps: 2 -> 4 servings.
@@ -57,7 +62,7 @@ appId: io.commise.mobile
 
 - assertVisible:
       text: '^4$'
-- assertVisible: 'Adjusted from 2 servings'
+- assertVisible: 'Adjusted from 2 servings.*'
 # Hands-on prep DOUBLES (10 -> 20) and the total moves by exactly that delta (20 -> 30).
 - assertVisible: '30 min'
 # ⛔ THE LOAD-BEARING ASSERTION: cook time is STILL 10 minutes. A "scale every timing" implementation renders
@@ -74,7 +79,7 @@ appId: io.commise.mobile
 
 - assertVisible:
       text: '^2$'
-- assertNotVisible: 'Adjusted from 2 servings'
+- assertNotVisible: 'Adjusted from 2 servings.*'
 - assertVisible: '20 min'
 
 - tapOn: 'Back'

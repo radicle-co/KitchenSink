@@ -241,8 +241,30 @@ function visualBaselinesExist(): boolean {
  *   - `recipes/source-tabs` — the My recipes ⇄ Discover round trip (L5). Its web pair caught a one-way trip
  *     that no per-surface test could see, so the mobile half is worth having. Belongs to the `discovery`
  *     vertical when promoted.
+ *   - `recipes/ingredient-correction` — U14's teach-the-resolver control. ⛔ UNSATISFIABLE in the Maestro
+ *     job as that job is configured, which is a different thing from "not written yet", so it is recorded
+ *     here rather than left failing. The control only appears on a FOOD-CATALOG suggestion, and
+ *     `FoodCatalogGateway.search` degrades to `unavailable` with NO request issued when there is no caller
+ *     credential to forward — deliberately, and its docstring says the credential "is never substituted
+ *     with another one". The Maestro job authenticates via `RECIPE_DEV_AUTH_USER_ID`, which supplies no
+ *     bearer, so the catalog half of the blend is structurally absent: measured on the CI emulator
+ *     2026-08-22, the picker rendered "Showing your ingredients only — the food catalog is unavailable
+ *     right now" and the flow could not find its control. Reproduced locally against a REAL food service
+ *     holding 1,200 foods: `catalogAvailability` was still `unavailable`, so booting food would not fix it.
+ *     Promoting it needs the job to verify the app's real Clerk token and forward it to a food service
+ *     trusting the same issuer — an auth change affecting all 29 flows (the seeded owner ULID would have to
+ *     equal the Clerk test user's `external_id`), which belongs in its own PR with the tier watched.
+ *     ⚠️ COVERAGE THAT REMAINS: `IngredientPickerCorrection.native.test.tsx` (10 tests: the typed phrase is
+ *     what is sent, both reaches read differently, "nothing written" is a success) and the web Playwright
+ *     `ingredientCorrection.spec.ts`, which drives the real typed client through the published schema. What
+ *     is genuinely uncovered is the mobile control against a LIVE catalog. Belongs to the `recipes` vertical
+ *     when promoted.
  */
-const KNOWN_UNRUN_FLOWS: readonly string[] = ['homeRecentRecipeTap', 'recipes/source-tabs'];
+const KNOWN_UNRUN_FLOWS: readonly string[] = [
+    'homeRecentRecipeTap',
+    'recipes/source-tabs',
+    'recipes/ingredient-correction',
+];
 
 // ---------------------------------------------------------------------------------------------------------
 // The workflow side of the thread

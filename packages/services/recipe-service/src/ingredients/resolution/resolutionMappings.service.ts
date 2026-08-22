@@ -16,17 +16,18 @@
  * branch). This service sees both and decides neither — that separation is the seam, and it is what makes an
  * unauthorized write impossible to express rather than merely absent.
  *
- * ⚠️ NOTHING CALLS THIS YET, and that is expected at this step. The correction affordance is U14's, and U10
- * cannot publish a route: adding one would mean adding a request schema, which `contract-gen` copies into
- * `@kitchensink/schema-recipe` and which moves the recipe service's `CONTRACT_HASH` — a change U14 owns this
- * cycle. So U10 ships the write path and U14 exposes it. The path is proved end to end at the integration
- * tier instead, by calling this service directly.
+ * ✅ REACHABLE SINCE U14. This module's earlier note recorded that nothing called it, because U10 could not
+ * publish a route without moving `CONTRACT_HASH`. U14 owns that move and publishes
+ * `POST /api/v1/ingredients/corrections`, whose controller is now this service's caller. The seam is
+ * unchanged: the controller parses and authenticates, this service holds the Unit of Work, the pure policy
+ * decides, the DAL writes.
  */
 import { Injectable } from '@nestjs/common';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 
 import type { Principal } from '../../auth/principal.js';
-import { evaluateMappingWrite } from '../domain/mappingScopePolicy.js';
+import { evaluateMappingWrite, type MappingScope } from '../domain/mappingScopePolicy.js';
+import type { MappingWriteNoOutcome } from './resolutionMappings.dal.js';
 import { MappingPromotionAudit } from './mappingPromotionAudit.js';
 import { ResolutionMappingsDal } from './resolutionMappings.dal.js';
 
@@ -42,13 +43,39 @@ export interface RecordCorrectionInput {
     readonly surfacing: string;
 }
 
+/**
+ * Why a correction produced no mapping row.
+ *
+ * WIDER than the DAL's {@link MappingWriteNoOutcome} by exactly one member, and the extra one is a
+ * DIFFERENT KIND of answer. `already_in_force` and `superseded` are non-events — the knowledge base already
+ * says this, so there is nothing to add — whereas `phrase_not_usable` is a bad REQUEST: the caller sent a
+ * phrase that reduces to nothing (zero-width characters, or punctuation alone), which passes a `min(1)`
+ * length check and is still not a phrase. The controller answers the first two `200` and the third `400`,
+ * which is why they are one union here and two different things at the boundary.
+ */
+export type RecordCorrectionNoOutcome = MappingWriteNoOutcome | 'phrase_not_usable';
+
 /** What a correction did. */
 export type RecordCorrectionResult =
-    | { readonly written: false; readonly reason: string }
+    | { readonly written: false; readonly outcome: RecordCorrectionNoOutcome; readonly reason: string }
     | {
           readonly written: true;
           /** The mapping row created. */
           readonly mappingId: string;
+          /**
+           * HOW FAR the correction reaches — added by U14, because the caller cannot derive it.
+           *
+           * ⛔ Reach is decided from the caller's SIGNED grants and from what the knowledge base already
+           * holds, neither of which the client can see. Without this field a surface can only say "saved",
+           * and would say it identically for a correction that bound one person's own recipes and one that
+           * bound the phrase for every user of the installation — misreporting the consequence of an
+           * authorization-significant act.
+           *
+           * `global` covers BOTH ways a correction binds everyone: a grant holder's own ruling, and a
+           * promotion earned when a second independent author agrees. From the caller's side the two have
+           * the same consequence.
+           */
+          readonly scope: MappingScope;
           /** Whether this correction also bound the phrase for everyone, by corroboration. */
           readonly promotedToGlobal: boolean;
       };
@@ -63,6 +90,15 @@ export class ResolutionMappingsService {
     /**
      * Record a user's correction of what an ingredient phrase means.
      *
+     * ⚠️ THE PHRASE IS NOT CANONICALIZED FIRST, and it does not need to be — a fact worth stating because the
+     * opposite looks safer. `addByName` hands the cascade a `CanonicalIngredientName` and the cascade keys on
+     * `normalizedIngredientKey` of it; both `canonicalIngredientName` and `normalizedIngredientKey` compose
+     * the SAME idempotent `sanitizeFoodName`, the second one lowercasing after it. So
+     * `normalizedIngredientKey(canonicalIngredientName(x))` and `normalizedIngredientKey(x)` are the same key
+     * for every `x`, and a correction lands under exactly the key a later resolution of that phrase queries.
+     * If either derivation ever stops composing `sanitizeFoodName`, that identity breaks silently — which is
+     * why both modules pin it with a golden table.
+     *
      * @param input - The correcting principal, the raw phrase, the food, and the surfacing.
      * @returns What was written, or why nothing was. A no-op is NOT an error: re-asserting a mapping already
      *   in force for the caller changes nothing, and minting a churn row for it would inflate the very
@@ -75,7 +111,11 @@ export class ResolutionMappingsService {
         if (normalizedKey === undefined) {
             // Nothing is read and nothing is written. The alternative — keying a row on the empty string —
             // would collide every contentless phrase in the installation onto one mapping.
-            return { written: false, reason: 'The corrected phrase carried no visible content.' };
+            return {
+                written: false,
+                outcome: 'phrase_not_usable',
+                reason: 'The corrected phrase carried no visible content.',
+            };
         }
 
         const authorId = input.principal.userId;
@@ -83,11 +123,15 @@ export class ResolutionMappingsService {
         // EITHER list. Both come from the token's SIGNED `public_metadata`; a top-level claim is never a grant.
         const grantedScopes = [...input.principal.scopes, ...input.principal.permissions];
 
-        const { result, corroboratingAuthorIds } = await this.dal.runInTransaction(async (tx) => {
+        const { result, decidedScope, corroboratingAuthorIds } = await this.dal.runInTransaction(async (tx) => {
             const facts = await this.dal.findWriteFacts(normalizedKey, authorId, input.foodId, tx);
             const decision = evaluateMappingWrite({ correctedFoodId: input.foodId, grantedScopes, ...facts });
 
             return {
+                // The reach the POLICY decided, captured here rather than re-derived from the result: the
+                // result records what rows were written, and `write: 'global'` (a curator's own ruling) is
+                // indistinguishable from an ordinary author write in that record.
+                decidedScope: decision.write === 'none' ? undefined : decision.scope,
                 result: await this.dal.applyWrite(
                     {
                         decision,
@@ -106,7 +150,7 @@ export class ResolutionMappingsService {
         });
 
         if (!result.written) {
-            return { written: false, reason: result.reason };
+            return { written: false, outcome: result.outcome, reason: result.reason };
         }
 
         if (result.promotion !== undefined) {
@@ -120,6 +164,18 @@ export class ResolutionMappingsService {
             });
         }
 
-        return { written: true, mappingId: result.mappingId, promotedToGlobal: result.promotion !== undefined };
+        const promotedToGlobal = result.promotion !== undefined;
+
+        return {
+            written: true,
+            mappingId: result.mappingId,
+            // A promotion binds the phrase for everyone even though the row THIS caller wrote is
+            // author-scoped, so the reach the caller is told about is the reach that now applies — not the
+            // scope column of one row. `decidedScope` cannot be `undefined` on a written result (the policy
+            // only omits it for `write: 'none'`), and the fallback states the safer of the two rather than
+            // asserting a reach nothing decided.
+            scope: promotedToGlobal ? 'global' : (decidedScope ?? 'author'),
+            promotedToGlobal,
+        };
     }
 }

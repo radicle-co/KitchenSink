@@ -576,10 +576,14 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'apple');
 
         const list = await screen.findByRole('list');
-        await vi.waitFor(() => expect(within(list).getAllByRole('button')).toHaveLength(4));
+        await vi.waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(4));
+        // ⚠️ THE FIRST button of each row, not every button in the list. Since U14 a food-backed row also
+        // carries a correction control ("Always use this for …"), so a flat `getAllByRole('button')` returns
+        // two per row. Narrowing to the row's PICK button keeps this assertion about what it has always been
+        // about — the RANKING ORDER — rather than about how many controls a row happens to have.
         const names = within(list)
-            .getAllByRole('button')
-            .map((button) => button.textContent);
+            .getAllByRole('listitem')
+            .map((row) => within(row).getAllByRole('button')[0]?.textContent);
 
         expect(names).toEqual(['Aplpe', 'Zucchini apple', 'Apple pie spice', 'Banana apple']);
     });

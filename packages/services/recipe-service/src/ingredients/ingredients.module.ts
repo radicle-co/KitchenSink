@@ -34,6 +34,12 @@
  * **Gateway (`FoodCatalogGateway`)** still owns the availability discipline for the blend, and is now the
  * place a caller with NO credential degrades honestly instead of issuing a call that could only 401.
  *
+ * **U14 — the correction route's collaborator.** `IngredientsController` now takes
+ * {@link ResolutionMappingsService} alongside {@link IngredientsService}. It is a second collaborator rather
+ * than a method on the first because it owns its own Unit of Work over a different table and answers a
+ * different question: what a PHRASE means, not which ingredient row exists. Both are provided here, and the
+ * service stays exported so `RecipesModule` and the integration tier reach the same instance.
+ *
  * Configuration comes from the Zod-validated config (`foodServiceConfigSchema`) rather than raw
  * `process.env`, so boot-time validation governs the values used: `FOOD_SERVICE_URL` (origin — REQUIRED, with
  * no default anywhere, so a stage that was not told the food origin fails the boot instead of silently

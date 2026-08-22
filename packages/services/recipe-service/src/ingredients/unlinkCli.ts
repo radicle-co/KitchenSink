@@ -53,6 +53,13 @@ import { ingredients, recipeIngredients } from '../database/schema/index.js';
 import { IngredientUnlinkIncompleteError, UnlinkRefusedError } from './unlinkCli.errors.js';
 
 /**
+ * ⚠️ This guard is a THIRD copy of one policy, and the duplication is deliberate. food-service extracted
+ * its two copies into `foods/seed/operatorIntent.ts` when the third appeared; this one stays separate
+ * because sharing across the service boundary needs a home neither service owns (`recipe-core` is the
+ * recipe domain's types, and an operator-CLI policy does not belong in it), and a package for ~20 lines
+ * buys less than it costs. The drift also fails SAFE: the reset is ordered so the food-side clear aborts
+ * when this unlink refused, so a guard relaxed on one side alone cannot open a path. Change one, read both.
+ *
  * The stage name that means production. Matches `STAGE === 'prod'` as used by both services' env schemas
  * (`config/env.schema.ts`) and by the CDK apps, so there is no second spelling to keep in step.
  */

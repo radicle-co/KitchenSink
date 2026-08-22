@@ -63,6 +63,26 @@ export const MAX_RECIPE_INGREDIENTS = 100;
 export const MAX_RECIPE_TAGS = 50;
 
 /**
+ * Longest raw source line one ingredient line may carry (plan U11/U14).
+ *
+ * ⛔ A PAYLOAD bound, and deliberately NOT equal to either of the two numbers it sits between. The gate's
+ * `MAX_VERIFICATION_SOURCE_LINE_LENGTH` (400) is a TRANSPORT bound protecting ADR-0024's spend reservation,
+ * and `PROVISIONAL_VERIFICATION_THRESHOLDS.maxSourceLineChars` (400 today) is a CALIBRATION bound the bake-off
+ * is expected to move. This third number answers a third question: how long a line may a cook's source
+ * plausibly have stated?
+ *
+ * It is LOOSER than both on purpose. Were it 400 as well, two things would follow that neither of the other
+ * two numbers intends: the gate's terminal `reject: 'source-line-over-cap'` branch would become unreachable by
+ * construction — dead code guarding a case the wire already refused — and an honest 420-character line in a
+ * transcribed cookbook would `400` the WHOLE recipe create rather than resolving as unresolved and being
+ * surfaced for correction, which is precisely the outcome that branch exists to produce.
+ *
+ * 1000 is sized off the corpus: the longest line in the 2,432-line public-domain corpus is a small fraction of
+ * it, so this refuses prose pasted into an ingredient field without refusing any real ingredient line.
+ */
+export const MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH = 1000;
+
+/**
  * Longest `sourceUrl` a declared provenance may carry (004-FR-024).
  *
  * The column is `text` and has no ceiling of its own, so this is a PAYLOAD bound rather than a storage one.
@@ -238,6 +258,24 @@ export const recipeIngredientUnitSchema = z.string().min(1);
  * `notes: ''`, which `recipeIngredientViewSchema.notes` (`min(1)`) rejects.
  */
 export const recipeIngredientNotesSchema = z.string().min(1);
+
+/**
+ * The raw line a cook's SOURCE stated for one ingredient — the transcription, never our rendering of it.
+ *
+ * ⛔ This is what U11's verification gate checks OUR PARSE AGAINST, which is the only reason it exists. It is
+ * therefore never the ingredient's name and never {@link recipeIngredientNotesSchema}: verifying a parse
+ * against a string we ourselves produced from that parse is circular and always agrees, which is a gate that
+ * reports success by construction. `2 cups all-purpose flour, sifted` is a source line; `Flour` is not.
+ *
+ * `.trim()` before the bounds, then `.min(1)`, so a whitespace-only line is REFUSED rather than stored as a
+ * source line with no content — "this line was authored, not transcribed" has exactly one representation on
+ * the wire, and it is omitting the key. `decideVerification` reads an absent line as `skip: 'no-source-text'`,
+ * a stated non-conclusion; a blank one would have been read as a line whose source said nothing.
+ */
+export const recipeIngredientSourceLineSchema = z
+    .string()
+    .transform((value) => value.trim())
+    .pipe(z.string().min(1).max(MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH));
 
 /** A per-line nutrition override (FR-007a) — absolute for the line's quantity, bounded by `numeric(8, 2)`. */
 export const recipeLineNutritionSchema = z.number().nonnegative().max(NUMERIC_8_2_CEILING);

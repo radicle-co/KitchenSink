@@ -27,6 +27,7 @@ import {
     useCreateIngredient,
     useIngredientCandidates,
     useIngredientStatus,
+    useRecordIngredientCorrection,
     useResolveIngredient,
     useAddIngredientByFood,
     useSuggestIngredients,
@@ -43,6 +44,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useIngredientStatus: vi.fn(),
     useIngredientCandidates: vi.fn(),
     useResolveIngredient: vi.fn(),
+    // U14 — see the sibling screen suites: the picker in this tree now mounts the correction command too.
+    useRecordIngredientCorrection: vi.fn(),
 }));
 
 const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);
@@ -52,6 +55,7 @@ const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 const useIngredientStatusMock = vi.mocked(useIngredientStatus);
 const useIngredientCandidatesMock = vi.mocked(useIngredientCandidates);
 const useResolveIngredientMock = vi.mocked(useResolveIngredient);
+const useRecordIngredientCorrectionMock = vi.mocked(useRecordIngredientCorrection);
 
 /** An add-by-name mutation whose `mutate` invokes `onSuccess` with `added`. */
 function addByNameMutation(added: ReturnType<typeof makeIngredient>): ReturnType<typeof useAddIngredientByName> {
@@ -75,6 +79,14 @@ beforeEach(() => {
     useIngredientStatusMock.mockReset();
     useIngredientCandidatesMock.mockReset();
     useResolveIngredientMock.mockReset();
+    useRecordIngredientCorrectionMock.mockReset();
+    useRecordIngredientCorrectionMock.mockReturnValue({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+        data: undefined,
+    } as unknown as ReturnType<typeof useRecordIngredientCorrection>);
 
     // Search Stage 2: the picker reads the BLENDED envelope, not a bare array. These screen suites do not
     // exercise the typeahead, so an empty, healthy-catalog envelope plus an inert admit mutation is enough.

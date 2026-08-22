@@ -50,6 +50,8 @@ import { isRecipeViewableBy } from './domain/recipeVisibility.js';
 import { recipeRowToDomain } from './mappers/recipeRowToDomain.js';
 import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/createRecipe.dto.js';
+import type { CreateRecipeIngredientInput } from './recipes.schema.js';
+import { carryForwardSourceLines } from './domain/sourceLineCarryForward.js';
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipeResponse.dto.js';
@@ -747,7 +749,9 @@ export class RecipesService {
      * S-R6: a SINGLE batch `findByIds` over the deduped ids — not one `findById` per line — so a recipe
      * with M lines costs one catalog round-trip regardless of M (mirrors {@link assembleNutritionLines}).
      */
-    private async resolveIngredientLines(lines: RecipeIngredientInputDto[]): Promise<ResolvedIngredientLine[]> {
+    private async resolveIngredientLines(
+        lines: readonly CreateRecipeIngredientInput[],
+    ): Promise<ResolvedIngredientLine[]> {
         const ids = [...new Set(lines.map((line) => line.ingredientId))];
         const catalog = new Map((await this.ingredientsDal.findByIds(ids)).map((ing) => [ing.id, ing]));
 
@@ -764,6 +768,12 @@ export class RecipesService {
                 quantity: line.quantity,
                 unit: line.unit ?? '',
                 ...(line.notes !== undefined ? { displayText: line.notes } : {}),
+                // U11/U14 — carried only when the CALLER transcribed one, which only a create can do (the
+                // field is on the create element schema alone, ADR-0023's shape). An UPDATE's lines arrive
+                // here without one and are handed the stored transcription afterwards, by
+                // `withCarriedSourceLines` — see `domain/sourceLineCarryForward.ts` for why that is a
+                // carry-forward rather than a wire field.
+                ...(line.sourceLine !== undefined ? { sourceLine: line.sourceLine } : {}),
                 sortOrder: index,
                 isUserEntered: ingredient.isUserEntered,
                 // Per-line user-entered nutrition override (FR-007a) — carried through to persistence.
@@ -772,6 +782,40 @@ export class RecipesService {
                 ...(line.userCarbsG !== undefined ? { userCarbsG: line.userCarbsG } : {}),
                 ...(line.userFatG !== undefined ? { userFatG: line.userFatG } : {}),
             };
+        });
+    }
+
+    /**
+     * Re-attach each resolved line's raw source line from the currently-stored lines, per the pure
+     * {@link carryForwardSourceLines} rule.
+     *
+     * The stored rows are adapted here rather than in the policy: `quantity`/`quantity_high` arrive from
+     * Drizzle as two nullable strings, and `quantityFromColumns` is the ONE adapter that turns them back into
+     * the value object — the same one the read projection and `ingredientsChanged` use, so all three agree on
+     * what a stored quantity IS.
+     *
+     * @param stored - The recipe's currently persisted ingredient rows.
+     * @param resolved - The lines the update is about to persist, in final order.
+     * @returns The same lines, each carrying the transcription it inherits (if any). Pure.
+     */
+    private withCarriedSourceLines(
+        stored: readonly RecipeIngredientRow[],
+        resolved: readonly ResolvedIngredientLine[],
+    ): ResolvedIngredientLine[] {
+        const carried = carryForwardSourceLines(
+            stored.map((row) => ({
+                ingredientId: row.ingredientId,
+                quantity: quantityFromColumns(row),
+                unit: row.unit,
+                sourceLine: row.sourceLine ?? undefined,
+            })),
+            resolved,
+        );
+
+        return resolved.map((line, index) => {
+            const sourceLine = carried[index];
+
+            return sourceLine === undefined ? { ...line } : { ...line, sourceLine };
         });
     }
 
@@ -852,8 +896,17 @@ export class RecipesService {
         }
 
         // Resolve replacement ingredient links only when the patch carries them (absent → links untouched).
+        // ⛔ The resolved lines are then handed the TRANSCRIPTION the stored lines already hold. `PATCH`
+        //    cannot carry a `sourceLine` (create-only, ADR-0023's shape) and `replaceForRecipe` swaps the
+        //    whole set, so without this a title edit would destroy every source line on an imported recipe —
+        //    and BOTH shipped clients send `ingredients` on every save (`toUpdateRecipeInput` spreads
+        //    `toCreateRecipeInput`, which always emits the array), so "a metadata-only PATCH preserves them"
+        //    describes a request no app makes. The rule is `domain/sourceLineCarryForward.ts`; it is applied
+        //    HERE because this is the only layer holding both the stored aggregate and the resolved lines.
         const ingredients =
-            dto.ingredients !== undefined ? await this.resolveIngredientLines(dto.ingredients) : undefined;
+            dto.ingredients !== undefined
+                ? this.withCarriedSourceLines(existing.ingredients, await this.resolveIngredientLines(dto.ingredients))
+                : undefined;
 
         // ⛔ No lead-calorie recompute here any more (plan U10). This block existed to keep a denormalized
         // column in step with the lines and the serving count; with the column dropped there is nothing to

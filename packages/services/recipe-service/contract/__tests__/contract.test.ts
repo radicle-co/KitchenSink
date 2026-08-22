@@ -661,6 +661,11 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         CreateIngredientRequest: 'createIngredientRequestSchema',
         AddIngredientByFoodRequest: 'addIngredientByFoodRequestSchema',
         ResolveIngredientRequest: 'resolveIngredientRequestSchema',
+        // U14 — the correction write path's two bodies. The response is a DISCRIMINATED UNION so the
+        // published document emits a real `oneOf` + discriminator rather than an opaque object: a client
+        // must be able to branch on `recorded` to tell a written correction from an idempotent no-op.
+        RecordCorrectionRequest: 'recordCorrectionRequestSchema',
+        RecordCorrectionResponse: 'recordCorrectionResponseSchema',
         RecipeVersion: 'recipeVersionSchema',
         RecipeVersionList: 'recipeVersionSchema',
         RestoreVersionResponse: 'restoreVersionResponseSchema',

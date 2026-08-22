@@ -99,9 +99,20 @@ export interface PromotionRecord {
     readonly citesNew: string;
 }
 
+/**
+ * Why a write decision produced no row.
+ *
+ * ⛔ A CLOSED SET beside the prose `reason`, added by U14 when the outcome first had to cross the wire. The
+ * prose is written for a reviewer reading the module and is free to change; a CLIENT cannot branch on a
+ * sentence, and publishing the sentence would freeze this module's internal wording into the contract.
+ * `already_in_force` is the idempotent case the policy decides; `superseded` is the concurrent-writer race
+ * the DAL discovers. Neither is an error.
+ */
+export type MappingWriteNoOutcome = 'already_in_force' | 'superseded';
+
 /** The result of executing a write decision. */
 export type MappingWriteResult =
-    | { readonly written: false; readonly reason: string }
+    | { readonly written: false; readonly outcome: MappingWriteNoOutcome; readonly reason: string }
     | {
           readonly written: true;
           /** The row this write created. */
@@ -465,7 +476,9 @@ export class ResolutionMappingsDal {
         const { decision } = request;
 
         if (decision.write === 'none') {
-            return { written: false, reason: decision.reason };
+            // The policy's only `none` cases are both "the binding that applies to this caller already says
+            // exactly this" — re-asserting it would mint a churn row and inflate the corroboration count.
+            return { written: false, outcome: 'already_in_force', reason: decision.reason };
         }
 
         const retired = await this.retirePredecessor(decision, request.authorId, tx);
@@ -475,7 +488,11 @@ export class ResolutionMappingsDal {
             // Another writer holds the live slot this row needed. Nothing was retired that this write is
             // responsible for replacing (the retirement above is conditional on its own predicate), so the
             // honest answer is "somebody else got there", not an error thrown at a user fixing a recipe line.
-            return { written: false, reason: 'Another correction for this phrase committed first.' };
+            return {
+                written: false,
+                outcome: 'superseded',
+                reason: 'Another correction for this phrase committed first.',
+            };
         }
 
         if (retired !== undefined) {

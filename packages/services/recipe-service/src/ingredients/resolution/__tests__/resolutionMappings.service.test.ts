@@ -184,7 +184,11 @@ describe('ResolutionMappingsService — the audit fires exactly on a real promot
 
     it('does NOT emit when nothing was written at all', async () => {
         const { service, recordPromotion } = build({
-            result: { written: false, reason: 'The caller already holds this exact mapping.' },
+            result: {
+                written: false,
+                outcome: 'already_in_force',
+                reason: 'The caller already holds this exact mapping.',
+            },
         });
 
         await service.recordCorrection({

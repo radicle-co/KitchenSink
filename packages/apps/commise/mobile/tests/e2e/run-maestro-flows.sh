@@ -71,6 +71,15 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     mutates nothing, so it is order-independent).
 #   - `recipes/quantity-range` sits with the other CREATE-wizard flows and immediately after `create`: it
 #     publishes (twice), so it mutates the library, and it shares `create`'s freeform-resolve prelude.
+#   - `recipes/ingredient-correction` (U14) sits with the other CREATE-wizard flows and immediately after
+#     `ingredient-catalog-blend`, because it drives the SAME typeahead one intent further on. It is the
+#     least-mutating member of that cluster: it publishes nothing and resolves no ingredient line — the whole
+#     point of the flow is that TEACHING is not PICKING — so the only state it leaves behind is a row in
+#     `ingredient_resolution_mappings`, which the per-flow truncate/re-seed reset clears like any other. Note
+#     what it can prove here: this job runs NO food service, so the correction's `foodId` comes from a
+#     recipe-service-local catalog row rather than a live catalog — which is fine precisely because a
+#     correction's `foodId` is deliberately never verified against the food service (migration 0021 requires
+#     every reader to treat an unresolvable mapping as a MISS).
 #   - `recipes/ingredient-catalog-blend` sits with the other CREATE-wizard flows: it publishes a recipe, so it
 #     belongs in the mutating cluster rather than among the read-only ones. It is the F2 (degraded-catalog)
 #     contract — this job boots recipe-service and deliberately NOT the food service, so the blended
@@ -126,6 +135,7 @@ collections:recipes/collections-pull
 recipes:recipes/create
 recipes:recipes/quantity-range
 recipes:recipes/ingredient-catalog-blend
+recipes:recipes/ingredient-correction
 recipes:recipes/photos
 recipes:recipes/accessibility
 auth:account-danger-zone

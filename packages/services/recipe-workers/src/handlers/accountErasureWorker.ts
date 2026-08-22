@@ -388,6 +388,21 @@ export interface EraseRecipeRowsResult {
  *     ownerId` — user-keyed, no FK, nothing cascades it. Deleting it removes the cleartext read-model row
  *     entirely; kept recipes no longer need it because their author renders from the scrubbed denormalized
  *     column (verified: no read path joins `author_handles`).
+ * 10. **Curated resolution mappings (plan U10 → U14), RETIRED rather than deleted.**
+ *     `ingredient_resolution_mappings` carries the erased user's ULID (`author_id`) and the phrase they
+ *     typed (`source_phrase`), and NO sweep reached it until U14 published the correction route that can
+ *     create such a row. ⛔ A hard delete is the wrong repair: a `corroboration` binding cites the two author
+ *     rows whose agreement produced it (`corroborated_a/b`, a self-FK), so deleting them would break those
+ *     citations or — worse — silently un-resolve an ingredient for every OTHER user of the installation. The
+ *     row is retired (`superseded_at = now()`) and stripped of both identifying columns instead, which is
+ *     exactly the shape migration 0021 was written for. Scoped to LIVE rows, so a previously-swept row is
+ *     left alone.
+ *
+ * ⚠️ `ingredient_resolution_memos` is deliberately NOT swept here, and that is a stated residual rather than
+ * an omission. It carries a `source_phrase` but NO author column at all — a memo is machine-derived and
+ * nobody asserted it — so there is no per-user predicate a sweep could key on. See the module-level note in
+ * `0021_resolution_mappings.sql`; closing it needs an owner column on that table, which is a schema decision
+ * this worker cannot make.
  *
  * `recipe_versions.created_by` is not swept independently: mutations are owner-only and `created_by`
  * cannot diverge from its recipe's `owner_id`, so the cascade covers it, and a "defensive" delete would
@@ -472,6 +487,23 @@ export const eraseRecipeRows = async (
 
         // 9. author_handles read-model root (W8-a.10) — user-keyed, no cascade; delete removes the cleartext.
         await tx.execute(sql`DELETE FROM author_handles WHERE user_id = ${ownerId}`);
+
+        // 10. Curated resolution mappings (plan U10 → U14) — RETIRED and DE-IDENTIFIED, never deleted.
+        //     `author_id` is an app-user ULID and `source_phrase` is text this user typed, so these rows are
+        //     personal data that no sweep reached until U14 published the correction route. ⛔ A DELETE would
+        //     be wrong for a reason the schema makes structural: a `corroboration` binding CITES the two
+        //     author rows whose agreement produced it (`corroborated_a/b`, FK to this same table), so
+        //     removing them either violates those references or silently un-resolves an ingredient for every
+        //     OTHER user. Retiring the row keeps the binding and its citation intact while leaving nothing
+        //     identifying behind — which is why `author_id` is NULLABLE and why `superseded_by` may stay NULL
+        //     while `superseded_at` is set. Scoped to LIVE rows: an already-superseded row was swept the
+        //     first time this ran, and re-writing it would disturb the historical record a global ruling's
+        //     audit trail is made of.
+        await tx.execute(sql`
+            UPDATE ingredient_resolution_mappings
+            SET superseded_at = now(), author_id = NULL, source_phrase = NULL
+            WHERE author_id = ${ownerId} AND superseded_at IS NULL
+        `);
 
         return { removedRecipeIds };
     });

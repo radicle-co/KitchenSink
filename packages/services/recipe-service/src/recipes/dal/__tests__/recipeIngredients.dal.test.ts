@@ -54,6 +54,10 @@ describe('RecipeIngredientsDal.replaceForRecipe', () => {
             quantityHigh: null,
             unit: 'cup',
             displayText: 'diced',
+            // U11/U14 — written on EVERY insert, `null` when the line carried no transcription. Part of the
+            // whole-row `toEqual` for the reason stated above: a column the mapper forgets to emit is a row
+            // that silently keeps a previous value, and this is the column a verification verdict joins on.
+            sourceLine: null,
             sortOrder: 0,
             isUserEntered: false,
             // No per-line nutrition override supplied → the numeric columns are null.

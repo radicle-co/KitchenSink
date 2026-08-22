@@ -490,6 +490,70 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(del?.params).toEqual([OWNER]);
     });
 
+    /**
+     * ⛔ THE KNOWLEDGE BASE, WHICH NO SWEEP REACHED UNTIL U14 (plan U10 → U14; migration 0021's header).
+     *
+     * `ingredient_resolution_mappings` carries `author_id` (an app-user ULID) and `source_phrase` (text a
+     * user typed), so its rows are personal data. U10 shipped the table and the write path but NO route, so
+     * no production row could exist and the gap was tolerable; U14 publishes the correction route, which
+     * ends that grace in the same release.
+     *
+     * ⛔ A HARD DELETE IS THE WRONG ANSWER, and the schema is shaped so that it does not have to be one. A
+     * `corroboration` binding CITES the two author rows whose agreement produced it (`corroborated_a/b`, FK
+     * to this same table), so deleting them either violates those references or — if the FKs were relaxed —
+     * silently un-resolves an ingredient for EVERY OTHER USER of the installation. The erased author's
+     * contribution is retired and stripped of its identifiers instead: the binding they helped produce
+     * survives with its citation intact, and nothing about them survives with it.
+     */
+    it('retires and de-identifies the erased author’s curated mappings, WITHOUT deleting them', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const sweep = statements.find((s) => /ingredient_resolution_mappings/i.test(s.text));
+
+        expect(sweep).toBeDefined();
+        // An UPDATE, never a DELETE — see the docstring above for what a delete would break.
+        expect(sweep?.text).toMatch(/update\s+ingredient_resolution_mappings/i);
+        expect(statements.some((s) => /delete\s+from\s+ingredient_resolution_mappings/i.test(s.text))).toBe(false);
+        // All three of the prescribed assignments: retired, and both identifying columns nulled. A sweep
+        // that only set `superseded_at` would leave the ULID and the typed phrase in place — still personal
+        // data, now merely inactive.
+        expect(sweep?.text).toMatch(/superseded_at\s*=\s*now\(\)/i);
+        expect(sweep?.text).toMatch(/author_id\s*=\s*null/i);
+        expect(sweep?.text).toMatch(/source_phrase\s*=\s*null/i);
+    });
+
+    it('sweeps ONLY the erased author’s LIVE mappings — never another author’s, never a superseded one', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const sweep = control.statements().find((s) => /ingredient_resolution_mappings/i.test(s.text));
+
+        // Parameterized on the owner, and scoped to rows still in force. Re-writing an ALREADY-superseded
+        // row would touch the historical record a global ruling's audit trail is made of, for no gain: the
+        // identifiers on a retired row are swept by the same statement the first time it runs.
+        expect(sweep?.text).toMatch(/where\s+author_id\s*=\s*\$\d/i);
+        expect(sweep?.text).toMatch(/superseded_at\s+is\s+null/i);
+        expect(sweep?.params).toEqual([OWNER]);
+    });
+
+    it('runs the mapping sweep INSIDE the one erasure transaction', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        // Not a separate statement outside the unit of work: a crash between the recipe delete and an
+        // out-of-transaction sweep would report the account erased while the phrases the user typed
+        // survived, which is the false-success this whole worker is designed against.
+        expect(control.txStatements().some((s) => /ingredient_resolution_mappings/i.test(s.text))).toBe(true);
+    });
+
     it('never deletes from the shared global ingredients table', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
@@ -823,8 +887,10 @@ describe('handler', () => {
         db.enqueue({ rows: [] }); // flip
         db.enqueue({ rows: removedIds.map((id) => ({ id })) }); // removed-SELECT
 
-        // persist, ratings, detach, delete, collections, scrub, author_handles, completed, + caller trailing.
-        for (let i = 0; i < 8 + trailing; i += 1) {
+        // persist, ratings, detach, delete, collections, scrub, author_handles, resolution-mapping sweep,
+        // completed, + caller trailing. ⚠️ The count moved from 8 to 9 when U14 added the knowledge-base
+        // sweep — the FakeDb serves ONE positional queue, so a stale count silently starves the NEXT record.
+        for (let i = 0; i < 9 + trailing; i += 1) {
             db.enqueue({ rows: [] });
         }
     };
@@ -1107,10 +1173,10 @@ describe('handler', () => {
     it('processes every record in a multi-record batch, sweeping each owner’s removed recipe', async () => {
         const multi = createFakeDb();
         // The FakeDb serves ONE global results queue, so seed both records in order. Each record consumes:
-        // claim + eraseRecipeRows' 9 statements + mark-completed = 11 executes; the removed-SELECT (execute
+        // claim + eraseRecipeRows' 10 statements + mark-completed = 12 executes; the removed-SELECT (execute
         // 2 within the record) must return that record's removed recipe.
-        seedRecord(multi, claimRow({ id: 'job-1' }), [REMOVED_1]); // record 1 (11 executes)
-        seedRecord(multi, claimRow({ id: 'job-2' }), [REMOVED_2]); // record 2 (11 executes)
+        seedRecord(multi, claimRow({ id: 'job-1' }), [REMOVED_1]); // record 1 (12 executes)
+        seedRecord(multi, claimRow({ id: 'job-2' }), [REMOVED_2]); // record 2 (12 executes)
         vi.mocked(getRecipeDbMock).mockReturnValue(multi.db as never);
 
         await runHandler(makeErasureEvent({ ownerId: OWNER }, { ownerId: OWNER_2 }));

@@ -21,6 +21,10 @@ import type { AddIngredientByFoodDto } from '../dto/addIngredientByFood.dto.js';
 import type { CreateIngredientDto } from '../dto/createIngredient.dto.js';
 import type { ResolveIngredientDto } from '../dto/resolveIngredient.dto.js';
 import { CALLER_TOKEN as TOKEN, makeCandidateView, makeIngredient } from '../__fixtures__/ingredients.fixtures.js';
+import { CURATOR_MAPPING_SCOPE } from '../ingredients.schema.js';
+import type { Principal } from '../../auth/principal.js';
+import type { RecordCorrectionDto } from '../dto/recordCorrection.dto.js';
+import type { ResolutionMappingsService } from '../resolution/resolutionMappings.service.js';
 
 /** The verified caller ULID the `@OwnerId()` decorator would inject (an auth assertion; unused downstream). */
 const CALLER = '01J0USER';
@@ -35,6 +39,8 @@ const BOM = '\uFEFF';
 
 describe('IngredientsController', () => {
     let controller: IngredientsController;
+    /** The U14 correction write path, faked separately: it is a second collaborator, not a service method. */
+    let recordCorrection: ReturnType<typeof vi.fn>;
     let mocks: {
         search: ReturnType<typeof vi.fn>;
         suggest: ReturnType<typeof vi.fn>;
@@ -60,7 +66,13 @@ describe('IngredientsController', () => {
             getCandidates: vi.fn(),
             resolve: vi.fn(),
         };
-        controller = new IngredientsController(mocks as unknown as IngredientsService);
+        recordCorrection = vi.fn();
+        controller = new IngredientsController(
+            mocks as unknown as IngredientsService,
+            {
+                recordCorrection,
+            } as unknown as ResolutionMappingsService,
+        );
     });
 
     describe('GET /api/v1/ingredients/search', () => {
@@ -254,6 +266,124 @@ describe('IngredientsController', () => {
                 expect(mocks.addByName).not.toHaveBeenCalled();
             },
         );
+    });
+
+    /**
+     * `POST /api/v1/ingredients/corrections` (plan U14 / R19, R20) — the route that makes U10's write path
+     * reachable, and the FIRST route in this service to consume `Principal` rather than only `@OwnerId()`.
+     *
+     * ⛔ THE PRINCIPAL, NOT THE OWNER ID, and that difference is the authorization. How far a correction reaches
+     * is decided by `evaluateMappingWrite` from the caller's SIGNED grants (`scopes` ∪ `permissions`), so a
+     * controller that forwarded only a ULID would silently make every correction author-scoped — the curator
+     * grant would be decorative, and nothing would fail. `@CurrentPrincipal()` is what carries the grants.
+     *
+     * ⛔ AND NOT A ROUTE GUARD. The route stays open to every authenticated user: a cook fixing their own
+     * ingredient line is the ordinary case and the entire point of the learning loop. What is authorized is the
+     * FIELD VALUE `scope`, which is ADR-0023's shape and its second instance in this codebase.
+     */
+    describe('POST /api/v1/ingredients/corrections (U14 — the correction write path)', () => {
+        const PHRASE = 'plain flour';
+        const FOOD_ID = '01JU14FOOD00000000000000AA';
+        const MAPPING_ID = '00000000-0000-4000-8000-00000000c001';
+
+        /** A principal carrying the grants under test. */
+        const principal = (grants: { scopes?: string[]; permissions?: string[] } = {}): Principal =>
+            ({
+                userId: CALLER,
+                clerkUserId: 'user_test',
+                scopes: grants.scopes ?? [],
+                permissions: grants.permissions ?? [],
+            }) as unknown as Principal;
+
+        const body = (over: Partial<RecordCorrectionDto> = {}): RecordCorrectionDto =>
+            ({ phrase: PHRASE, foodId: FOOD_ID, surfacing: 'ingredient_picker', ...over }) as RecordCorrectionDto;
+
+        it('forwards the PRINCIPAL, the phrase, the food and the surfacing verbatim', async () => {
+            recordCorrection.mockResolvedValue({
+                written: true,
+                mappingId: MAPPING_ID,
+                scope: 'author',
+                promotedToGlobal: false,
+            });
+
+            await controller.recordCorrection(principal(), body());
+
+            expect(recordCorrection).toHaveBeenCalledWith({
+                principal: expect.objectContaining({ userId: CALLER }),
+                phrase: PHRASE,
+                foodId: FOOD_ID,
+                surfacing: 'ingredient_picker',
+            });
+        });
+
+        // ⛔ The grants must arrive UNTOUCHED. The controller does not read them, combine them or check them —
+        // the pure policy does, from `scopes` ∪ `permissions`. A controller that pre-filtered would put half an
+        // authorization decision in a layer whose tests are not a truth table.
+        it('does not inspect or narrow the caller’s grants — it hands the whole principal down', async () => {
+            recordCorrection.mockResolvedValue({
+                written: true,
+                mappingId: MAPPING_ID,
+                scope: 'global',
+                promotedToGlobal: false,
+            });
+
+            await controller.recordCorrection(principal({ scopes: [CURATOR_MAPPING_SCOPE] }), body());
+
+            const forwarded = recordCorrection.mock.calls[0]?.[0] as { principal: Principal };
+
+            expect(forwarded.principal.scopes).toEqual([CURATOR_MAPPING_SCOPE]);
+        });
+
+        it('publishes the REACH the service decided, so a global binding is never reported as a personal one', async () => {
+            recordCorrection.mockResolvedValue({
+                written: true,
+                mappingId: MAPPING_ID,
+                scope: 'global',
+                promotedToGlobal: true,
+            });
+
+            await expect(controller.recordCorrection(principal(), body())).resolves.toEqual({
+                recorded: true,
+                mappingId: MAPPING_ID,
+                scope: 'global',
+            });
+        });
+
+        // ⚠️ A no-op is a 200, not an error. Re-asserting a binding already in force changes nothing, and
+        // answering 4xx would have a surface render "something went wrong" for the idempotent happy path.
+        it.each([['already_in_force' as const], ['superseded' as const]])(
+            'answers 200 with outcome %s when nothing was written',
+            async (outcome) => {
+                recordCorrection.mockResolvedValue({ written: false, outcome, reason: 'because' });
+
+                await expect(controller.recordCorrection(principal(), body())).resolves.toEqual({
+                    recorded: false,
+                    outcome,
+                });
+            },
+        );
+
+        // ⛔ …but a phrase that REDUCES to nothing is a bad request, not a no-op. `min(1)` passes for a phrase of
+        // zero-width characters or punctuation alone, and `normalizedIngredientKey` then yields nothing to key
+        // on. Reporting that as "already in force" would tell the caller their correction was redundant when it
+        // was never usable.
+        it('⛔ answers 400 for a phrase that carries no visible content, not a silent no-op', async () => {
+            recordCorrection.mockResolvedValue({ written: false, outcome: 'phrase_not_usable', reason: 'no content' });
+
+            await expect(controller.recordCorrection(principal(), body({ phrase: ZWSP }))).rejects.toThrow();
+        });
+
+        it('never leaks the policy’s internal reason prose onto the wire', async () => {
+            recordCorrection.mockResolvedValue({
+                written: false,
+                outcome: 'already_in_force',
+                reason: 'The caller already holds this exact mapping.',
+            });
+
+            const response = await controller.recordCorrection(principal(), body());
+
+            expect(JSON.stringify(response)).not.toContain('The caller already holds');
+        });
     });
 
     describe('POST /api/v1/ingredients/by-name (async food resolution — the vertical entry point)', () => {

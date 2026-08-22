@@ -20,6 +20,20 @@
  * `role="status"` notice says so and the local section still renders in full (F2) — nothing failed for the
  * user, so it is deliberately not an `alert`.
  *
+ * **U14 — the correction affordance (R19/R20).** Each food-backed suggestion row carries a second control:
+ * "Always use this for '{query}'". It writes a curated mapping through `useIngredientCorrection`, which is
+ * what makes U10's knowledge base reachable at all — before it, that table had a writer and no caller, so the
+ * learning loop never fired. Three things about it are deliberate and easy to break:
+ *
+ *  1. ⛔ **The phrase sent is the TYPED query, never the suggestion's name.** A mapping is only ever consulted
+ *     under the key the resolution cascade looks up, and that key derives from the phrase `addByName`
+ *     received. Sending the catalog's rendering of the food would write rows nothing queries — and would be a
+ *     system checking its own output against itself.
+ *  2. ⛔ **A FREEFORM row gets no control.** A mapping's whole content is a `food_id`, and a user-entered
+ *     ingredient has no food behind it, so there would be nothing to bind the phrase to.
+ *  3. ⚠️ **It is a SEPARATE intent from picking.** Teaching does not resolve a line, and a failed correction
+ *     never disturbs one — the notice says so explicitly.
+ *
  * **Every progress region carries its label as CONTENT, not only as `aria-label`.** A `role="status"` node
  * rendered EMPTY is doubly broken: it is zero-height (nothing for a sighted viewer to see, and Playwright
  * resolves it as `hidden`) and it is silent — a live region announces content CHANGES, and a region with no
@@ -27,9 +41,20 @@
  * freeform-create, catalog-admit, disambiguation-loading, resolving) renders its contextual, localized label
  * as its visible caption. Same doctrine as `RecipePhotoManager`'s upload status and the mobile `LoadingState`.
  */
-import { fillTemplate, recipeFormMessages, resolutionStatusLabel } from '@commise/features-recipes';
+import {
+    fillTemplate,
+    recipeCorrectionMessages,
+    recipeFormMessages,
+    resolutionStatusLabel,
+    toCorrectionNoticeModel,
+} from '@commise/features-recipes';
 import type { RecipeFormIngredient } from '@commise/features-recipes';
-import { isTerminalStatus, suggestionKey, useIngredientResolver } from '@commise/features-recipes/hooks';
+import {
+    isTerminalStatus,
+    suggestionKey,
+    useIngredientCorrection,
+    useIngredientResolver,
+} from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { Ingredient } from '@kitchensink/recipe-core';
 import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
@@ -71,6 +96,33 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
         addFreeform,
         cancelDisambiguation,
     } = useIngredientResolver(onSelect);
+    const correctionMessages = useMessages(recipeCorrectionMessages);
+    // `ingredient_picker` is a CLOSED wire enum, so this surface cannot invent an audit value (R20).
+    const correction = useIngredientCorrection('ingredient_picker');
+    const correctionNotice = toCorrectionNoticeModel(correction.viewState, correctionMessages);
+
+    /**
+     * The "teach the resolver" control for one suggestion row, or `null` when the row has no food behind it.
+     *
+     * ⛔ `trimmed` is the phrase sent — the text the cook actually typed. See the module doc, point 1.
+     */
+    const correctionControl = (foodId: string | undefined): JSX.Element | null => {
+        if (foodId === undefined || trimmed === '') {
+            return null;
+        }
+
+        return (
+            <button
+                type="button"
+                onClick={() => correction.correct(trimmed, foodId)}
+                disabled={correction.isSaving}
+                aria-busy={correction.isSaving}
+                className="shrink-0 rounded-full border border-border px-2 py-0.5 text-caption text-slate transition hover:bg-pearl disabled:opacity-60"
+            >
+                {fillTemplate(correctionMessages.teachAction, { phrase: trimmed })}
+            </button>
+        );
+    };
 
     /** One row of the caller's OWN ingredients: the clickable match, its status badge, and a terminal notice. */
     const ownRow = (ingredient: Ingredient, terminal: boolean, onPick: () => void): JSX.Element => (
@@ -92,6 +144,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                     {picker.terminalNotice}
                 </span>
             )}
+            {correctionControl(ingredient.foodId)}
         </li>
     );
 
@@ -114,6 +167,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
             <span className="shrink-0 rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-ocean-dark">
                 {picker.catalogBadge}
             </span>
+            {correctionControl(suggestion.foodId)}
         </li>
     );
 
@@ -365,6 +419,22 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                     )}
 
                     {suggestionSections(viewState.suggestions)}
+
+                    {/* ⚠️ `alert` ONLY for a genuine failure. A no-op correction ("already saved") is a
+                        SUCCESS — re-asserting a binding already in force is idempotent by design — and an
+                        alert there would interrupt a screen-reader user to report a fault that did not
+                        happen. The tone that decides this is computed once, in the shared pure model. */}
+                    {correctionNotice !== undefined && (
+                        <p
+                            role={correctionNotice.tone === 'error' ? 'alert' : 'status'}
+                            aria-label={correctionNotice.tone === 'error' ? undefined : correctionMessages.regionLabel}
+                            className={`px-2 py-1 text-body-sm ${
+                                correctionNotice.tone === 'error' ? 'text-error-dark' : 'text-slate'
+                            }`}
+                        >
+                            {correctionNotice.text}
+                        </p>
+                    )}
 
                     {/* F2: the food catalog degraded, so only the caller's own ingredients rendered. A quiet
                         `role="status"` notice, NOT an `alert` — nothing failed from the user's point of view

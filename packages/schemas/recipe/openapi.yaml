@@ -1925,6 +1925,72 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/AddIngredientByFoodRequest"
+  /api/v1/ingredients/corrections:
+    post:
+      operationId: recordIngredientCorrection
+      summary: Record what an ingredient phrase means, in the resolution knowledge base.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: What the correction did, and how far it reaches.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordCorrectionResponse"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "Teaches the resolver: “this phrase means this food” (R19/R20). Open to every authenticated caller — what
+        is authorized is the FIELD VALUE `scope`, decided server-side from the caller’s signed grants, never declared on
+        the request. A caller holding `recipes:mappings:global` binds the phrase for every user on their first
+        correction; everyone else’s binding stays author-scoped until a second independent author agrees. `200` with
+        `recorded: false` is the IDEMPOTENT answer, not an error: re-asserting a binding already in force writes
+        nothing."
+      requestBody:
+        description: The phrase the caller searched, the food it should mean, and the surfacing.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordCorrectionRequest"
   /api/v1/ingredients/{id}/status:
     get:
       operationId: getIngredientStatus
@@ -4366,6 +4432,10 @@ components:
                 type: number
                 minimum: 0
                 maximum: 999999.99
+              sourceLine:
+                type: string
+                minLength: 1
+                maxLength: 1000
             required:
               - ingredientId
               - name
@@ -4987,6 +5057,64 @@ components:
       required:
         - foodId
       additionalProperties: false
+    RecordCorrectionRequest:
+      type: object
+      properties:
+        phrase:
+          type: string
+          minLength: 1
+          maxLength: 120
+        foodId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        surfacing:
+          type: string
+          enum:
+            - ingredient_picker
+            - recipe_line
+      required:
+        - phrase
+        - foodId
+        - surfacing
+      additionalProperties: false
+    RecordCorrectionResponse:
+      oneOf:
+        - type: object
+          properties:
+            recorded:
+              type: boolean
+              enum:
+                - true
+            mappingId:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            scope:
+              type: string
+              enum:
+                - author
+                - global
+          required:
+            - recorded
+            - mappingId
+            - scope
+          additionalProperties: false
+        - type: object
+          properties:
+            recorded:
+              type: boolean
+              enum:
+                - false
+            outcome:
+              type: string
+              enum:
+                - already_in_force
+                - superseded
+          required:
+            - recorded
+            - outcome
+          additionalProperties: false
     ResolveIngredientRequest:
       type: object
       properties:

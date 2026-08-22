@@ -38,6 +38,18 @@
  *     candidate pick, then re-poll so the newly-`RESOLVED` nutrition is persisted (`200` → `Ingredient`).
  *     A missing/empty/oversized `candidateIds` is a `400`; a missing ingredient is a `404`.
  *
+ *   - `POST /api/v1/ingredients/corrections` `{ phrase, foodId, surfacing }` — record "this phrase means
+ *     this food" in the resolution knowledge base (`200` → `RecordCorrectionResponse`, plan U14 / R19, R20).
+ *     ⛔ The ONE route here that takes `@CurrentPrincipal()` rather than only `@OwnerId()`, and the reason is
+ *     the authorization: how far a correction reaches is decided by the pure `evaluateMappingWrite` from the
+ *     caller's SIGNED grants, so a controller forwarding only a ULID would silently make every correction
+ *     author-scoped and the curator grant decorative — with nothing failing. ⛔ It is NOT behind a scopes
+ *     Guard: the route must stay open to every authenticated user, because a cook fixing their own
+ *     ingredient line is the ordinary case and the entire point of the learning loop. What is authorized is
+ *     the FIELD VALUE `scope` (ADR-0023's shape, second instance). A `recorded: false` answer is a `200` —
+ *     re-asserting a binding already in force is idempotent, not an error — while a phrase that reduces to
+ *     nothing is a `400`.
+ *
  * Input is validated at the boundary and delegated to {@link IngredientsService}; domain errors are
  * surfaced via thrown `RecipeError`s mapped by the global `ApiExceptionFilter`.
  *
@@ -68,14 +80,17 @@ import type { Ingredient } from '@kitchensink/recipe-core';
 
 import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
 import type { CallerToken } from '../auth/CallerToken.js';
-import { OwnerId } from '../auth/currentPrincipal.decorator.js';
+import { CurrentPrincipal, OwnerId } from '../auth/currentPrincipal.decorator.js';
+import type { Principal } from '../auth/principal.js';
 import { apiError } from '../common/apiError.js';
 import { canonicalIngredientName, type CanonicalIngredientName } from './domain/ingredientName.js';
 import { IngredientsService } from './ingredients.service.js';
 import type { IngredientSuggestions } from './ingredientSuggestion.js';
-import type { IngredientCandidate } from './ingredients.schema.js';
+import type { IngredientCandidate, RecordCorrectionResponse } from './ingredients.schema.js';
+import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
 import { AddIngredientByFoodDto } from './dto/addIngredientByFood.dto.js';
 import { CreateIngredientDto } from './dto/createIngredient.dto.js';
+import { RecordCorrectionDto } from './dto/recordCorrection.dto.js';
 import { ResolveIngredientDto } from './dto/resolveIngredient.dto.js';
 import { SearchRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
@@ -101,7 +116,15 @@ function parseLimit(raw: string | undefined): number | undefined {
 @Controller(['api/v1/ingredients', 'v1/ingredients'])
 @UsePipes(ZodValidationPipe)
 export class IngredientsController {
-    public constructor(private readonly ingredients: IngredientsService) {}
+    public constructor(
+        private readonly ingredients: IngredientsService,
+        /**
+         * The U14 correction write path (plan U10 / R19, R20) — a SECOND collaborator rather than a method on
+         * {@link IngredientsService}, because it owns its own Unit of Work over a different table and answers
+         * a different question (what a phrase MEANS, not which ingredient row exists).
+         */
+        private readonly corrections: ResolutionMappingsService,
+    ) {}
 
     /**
      * `GET /api/v1/ingredients/search` — fuzzy + FTS autocomplete over the shared ingredient catalog.
@@ -321,6 +344,61 @@ export class IngredientsController {
         @Body() body: ResolveIngredientDto,
     ): Promise<Ingredient> {
         return this.ingredients.resolve(caller, id, body.candidateIds);
+    }
+
+    /**
+     * `POST /api/v1/ingredients/corrections` — record what an ingredient phrase MEANS (plan U14 / R19, R20).
+     *
+     * The affordance that makes U10's write path reachable: without it the knowledge base has a writer and
+     * no caller, and the learning loop never fires. A mutation → the write rate limit.
+     *
+     * ⚠️ `200`, not `201`, and the choice carries information. The honest answer is often that NOTHING was
+     * created — the caller re-asserted a binding already in force, or a concurrent correction committed
+     * first — and `201 Created` would assert a resource that does not exist. The response body's `recorded`
+     * discriminant is what says which happened.
+     *
+     * ⚠️ NO route Guard, deliberately — see the class doc. And no `foodId` verification against the food
+     * service: migration 0021 requires every reader to treat an unresolvable mapping as a MISS and fall
+     * through (U12's reseed mints fresh food ULIDs, so a dangling id is a certainty), and a cross-service
+     * round-trip here would put a network dependency on a write whose entire value is that it is cheap.
+     *
+     * @param principal - The verified caller. Passed WHOLE: its signed `scopes`/`permissions` are what the
+     *   pure scope policy reads, and this controller neither inspects nor narrows them.
+     * @param body - `{ phrase, foodId, surfacing }`, validated by {@link RecordCorrectionDto}.
+     * @returns What the correction did, and HOW FAR it reaches.
+     * @throws {HttpException} `VALIDATION_FAILED` (→ 400) when the phrase carries no content the knowledge
+     *   base can key on — the same condition, written in characters a caller cannot see, that
+     *   {@link IngredientsController.visibleName} answers `400` for on a name.
+     */
+    @Post('corrections')
+    @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
+    public async recordCorrection(
+        @CurrentPrincipal() principal: Principal,
+        @Body() body: RecordCorrectionDto,
+    ): Promise<RecordCorrectionResponse> {
+        const result = await this.corrections.recordCorrection({
+            principal,
+            phrase: body.phrase,
+            foodId: body.foodId,
+            surfacing: body.surfacing,
+        });
+
+        if (result.written) {
+            return { recorded: true, mappingId: result.mappingId, scope: result.scope };
+        }
+
+        if (result.outcome === 'phrase_not_usable') {
+            // ⛔ NOT a `recorded: false` answer. `min(1)` passes for zero-width characters and for
+            // punctuation alone, and the normalized key is then empty — reporting that as "already in force"
+            // would tell the caller their correction was redundant when it was never usable at all.
+            throw apiError('VALIDATION_FAILED', 'phrase must contain at least one visible character');
+        }
+
+        // ⛔ `result.reason` is NOT forwarded. It is prose written for a reviewer reading the policy module;
+        // publishing it would freeze that wording into the contract, and a client cannot branch on a
+        // sentence. The closed `outcome` is what crosses.
+        return { recorded: false, outcome: result.outcome };
     }
 
     /**

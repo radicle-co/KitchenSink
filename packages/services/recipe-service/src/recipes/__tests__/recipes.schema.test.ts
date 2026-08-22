@@ -43,6 +43,7 @@ import {
     MAX_RECIPE_INGREDIENTS,
     MAX_RECIPE_INGREDIENT_NAME_LENGTH,
     MAX_RECIPE_INGREDIENT_QUANTITY,
+    MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH,
     MAX_RECIPE_LIST_PAGE_SIZE,
     MAX_RECIPE_SOURCE_ATTRIBUTION_LENGTH,
     MAX_RECIPE_SOURCE_URL_LENGTH,
@@ -56,6 +57,7 @@ import {
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
     recipeIngredientNotesSchema,
+    recipeIngredientSourceLineSchema,
     ingredientQuantitySchema,
     recipeIngredientUnitSchema,
     recipeLineNutritionSchema,
@@ -66,8 +68,11 @@ import {
     recipeTitleSchema,
 } from '@kitchensink/recipe-core';
 
+import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
+
 import {
     cloneRecipeRequestSchema,
+    createRecipeIngredientInputSchema,
     createRecipeRequestSchema,
     listRecipesQuerySchema,
     recipeIngredientInputSchema,
@@ -745,3 +750,84 @@ function makeRecipeResponse(): Record<string, unknown> {
         updatedAt: '2026-08-11T00:00:00.000Z',
     };
 }
+
+/**
+ * ⛔ THE SOURCE LINE IS A TRANSCRIPTION FACT, AND TRANSCRIPTION HAPPENS ONCE — AT CREATE (plan U11/U14).
+ *
+ * `recipe_ingredients.display_text` is a DISPLAY override and the importer's `ParsedIngredientLine.raw` never
+ * left its own memory, so until this field the raw line a cook's source actually stated did not exist inside
+ * recipe-service at all. `0023_line_verifications.sql`'s header names that gap as the single reason U11's
+ * verification gate ships observe-only: with no source line there is nothing for the gate's parse to be
+ * checked AGAINST, and `decideVerification` skips every line with `reason: 'no-source-text'`.
+ *
+ * It rides the CREATE element schema and never the base, for the reason `recipeSourceInputSchema` states and
+ * ADR-0023 records. The escalation here is not merely re-classification, it is worse: the gate's verdicts are
+ * memoized ACROSS USERS (`ingredient_resolution_memos`, migration 0021), so a caller who could re-assert a
+ * source line on `PATCH` could steer a line's judgement — assert a source line that agrees with a wrong parse,
+ * collect an `agree` verdict, and have the memo bind that resolution for everyone. Create-only means the fact
+ * the gate judged is the fact that was transcribed.
+ *
+ * ⚠️ THE WIRE BOUND IS DELIBERATELY LOOSER THAN THE GATE'S 400. `MAX_VERIFICATION_SOURCE_LINE_LENGTH` is a
+ * TRANSPORT bound and `PROVISIONAL_VERIFICATION_THRESHOLDS.maxSourceLineChars` is a CALIBRATION bound; this is
+ * a third thing — a PAYLOAD bound on what a cook may transcribe. Were it also 400, the gate's
+ * `reject: 'source-line-over-cap'` branch would be unreachable by construction and an honest long line would
+ * `400` a whole recipe create instead of resolving as unresolved and being surfaced for correction, which is
+ * the behaviour that branch exists to produce.
+ */
+describe('ingredient sourceLine — create-only, and the gate’s only source of truth', () => {
+    it('the field IS the recipe-core Value Object, not a bound restated here', () => {
+        // `.optional()` returns a wrapper, so identity is asserted one level in — see suite 0.
+        expect(createRecipeIngredientInputSchema.shape.sourceLine.unwrap()).toBe(recipeIngredientSourceLineSchema);
+    });
+
+    it('the CREATE body accepts a line carrying a source line', () => {
+        expect(createAccepts({ ingredients: [{ ...A_LINE, sourceLine: '2 cups all-purpose flour, sifted' }] })).toBe(
+            true,
+        );
+    });
+
+    it('is OPTIONAL — an authored line has no source to transcribe, and that is not an error', () => {
+        expect(createAccepts({ ingredients: [A_LINE] })).toBe(true);
+    });
+
+    it('rejects `""` and a whitespace-only line, so "no source" has ONE representation — omitting the key', () => {
+        expect(createAccepts({ ingredients: [{ ...A_LINE, sourceLine: '' }] })).toBe(false);
+        expect(createAccepts({ ingredients: [{ ...A_LINE, sourceLine: '   ' }] })).toBe(false);
+    });
+
+    it('accepts a line AT the cap and rejects one past it', () => {
+        const at = 'a'.repeat(MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH);
+
+        expect(createAccepts({ ingredients: [{ ...A_LINE, sourceLine: at }] })).toBe(true);
+        expect(createAccepts({ ingredients: [{ ...A_LINE, sourceLine: `${at}a` }] })).toBe(false);
+    });
+
+    it('ACCEPTS a line the verification gate will refuse to judge — the cap is the gate’s, not the wire’s', () => {
+        expect(MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH).toBeGreaterThan(
+            PROVISIONAL_VERIFICATION_THRESHOLDS.maxSourceLineChars,
+        );
+        expect(
+            createAccepts({
+                ingredients: [
+                    {
+                        ...A_LINE,
+                        sourceLine: 'b'.repeat(PROVISIONAL_VERIFICATION_THRESHOLDS.maxSourceLineChars + 1),
+                    },
+                ],
+            }),
+        ).toBe(true);
+    });
+
+    it('⛔ is ABSENT from the BASE element schema, which is what `PATCH` derives from', () => {
+        expect(Object.keys(recipeIngredientInputSchema.shape)).not.toContain('sourceLine');
+    });
+
+    it('⛔ answers 400 for a PATCH that tries to assert a source line', () => {
+        const parsed = updateRecipeRequestSchema.safeParse({
+            expectedVersion: 1,
+            ingredients: [{ ...A_LINE, sourceLine: '2 cups all-purpose flour' }],
+        });
+
+        expect(parsed.success).toBe(false);
+    });
+});

@@ -1,0 +1,157 @@
+# Technical Plan: 015 Publishing Rewards
+
+**Created**: 2026-08-22
+**Spec**: [`spec.md`](./spec.md) (47 FRs, 15 SCs, 6 user stories — authoritative, NOT regenerated)
+**Evidence**: [`research/reward-psychology.md`](./research/reward-psychology.md)
+**Status**: Plan only. ⛔ **Implementation is BLOCKED** — see §9.
+
+---
+
+## 1. The one-sentence architecture
+
+Publishing rewards is a **pure-policy + append-only-ledger** feature bolted onto the existing
+`recipe-service`: four new pure evaluators join `evaluateVisibility`/`evaluateProvenance` in
+`recipes/domain/`, a new `rewards/` module owns a monotonic grant ledger, and **exactly one existing line of
+business logic changes** — the C-004 rule that today makes free-tier privacy impossible.
+
+## 2. The change that matters most
+
+`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts` currently encodes:
+
+```
+requested `private` + `user_created` → ALLOW iff isPremium
+```
+
+That single branch **is** `001-FR-003`, the free-tier privacy prohibition. 015 replaces it:
+
+```
+requested `private` + `user_created` → ALLOW iff (isPremium OR the account holds an unconsumed earned slot)
+```
+
+Three consequences that shape the whole plan:
+
+1. **`evaluateVisibility` must stay pure.** It takes `isPremium: boolean` today and does no I/O. Slots are
+   DB state that changes on every publication, so the balance MUST be resolved by the **caller** and passed
+   in — never fetched inside the policy. The input type gains a field; the function stays a pure fold over
+   its arguments.
+2. **`isPremium` comes from the Clerk token** (`principal.permissions.includes(PREMIUM_PERMISSION)`,
+   `recipes.service.ts:687,1032`) — it is _not_ DB-derived. Slot balance is the opposite: DB-derived and
+   read-at-decision-time. The two entitlement sources must not be conflated behind one boolean.
+3. **This is D4a.** If the un-gating does not land, 015 inverts from a fix to an aggravation (spec
+   Assumptions). The plan therefore sequences the policy amendment **first**, behind a flag, so it is
+   independently shippable and independently revertible.
+
+## 3. Pattern register
+
+| Pattern                                  | Where                                                                                                    | Why                                                                                                                                                                           |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Policy / Specification module** (pure) | `recipes/domain/publicationEligibility.ts`, `rewardSchedule.ts`, `earnRateLimit.ts`, `standingLadder.ts` | Siblings of the shipped `evaluateVisibility`/`evaluateProvenance`. Pure `input → decision`, no I/O, exhaustively testable. Matches the codebase's existing and correct shape. |
+| **Append-only ledger**                   | `reward_grants` table                                                                                    | `FR-009` requires an inspectable append-only record; `FR-007i`'s ratchet requires no destructive update. Reversal (`FR-016`) is a **new row**, never a delete.                |
+| **Table-driven strategy**                | `rewardSchedule.ts` bands                                                                                | `FR-007a`'s schedule is _data_ (3 bands), not branching logic. Changing the schedule must never mean editing control flow.                                                    |
+| **Read-model projection**                | `recipe_impact_signals`                                                                                  | Aggregate-only by `012-FR-024`. Cook/save counts are projected, never joined to viewer identity.                                                                              |
+| **Adapter (outbound)**                   | `rewards/standing.port.ts`                                                                               | `FR-032`: 015 emits standing facts; `012` renders them. One-way, so 012 can ship later without changing 015.                                                                  |
+| **Guard clause / invariant test**        | `__tests__/ratchet.test.ts`                                                                              | `FR-007i` is a cross-cutting invariant. Asserted once, over every reward surface, like `natEgressConsumers.test.ts` does for NAT.                                             |
+
+## 4. Data model
+
+Four new tables. Migration `0024_publishing_rewards.sql` (latest shipped is `0023_line_verifications.sql`).
+
+| Table                   | Purpose                                       | Key columns                                                                                                                    | Notes                                                                                                                                     |
+| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `recipe_publications`   | `FR-002`, Key Entity _Publication_            | `id`, `recipe_id`, `user_id`, `published_at`, `attestation_accepted_at`, `eligibility_decision`, `eligibility_reason`, `state` | One row per publication act. Attestation is **on this row**, not on the recipe (`FR-022` retention).                                      |
+| `reward_grants`         | `FR-007a`/`FR-009`, Key Entity _Reward Grant_ | `id`, `publication_id`, `user_id`, `kind` (`slot`\|`milestone`), `amount`, `granted_at`, `reversed_at`, `reversal_reason`      | **Append-only.** Reversal sets `reversed_at` on the original row — the only permitted mutation, and the only one `FR-007i` allows.        |
+| `recipe_impact_signals` | `FR-007f`/`FR-007g`                           | `recipe_id`, `cook_count`, `save_count`, `rating_count`, `rating_sum`, `updated_at`                                            | Aggregate-only. **No viewer column may ever exist here** (`012-FR-024`) — enforced by a schema guard test.                                |
+| `contributor_standing`  | `FR-007h`                                     | `user_id`, `tier`, `highest_tier_reached`, `updated_at`                                                                        | `highest_tier_reached` is the ratchet: `tier` may only ever be `>= highest_tier_reached`. **DB CHECK constraint**, not application logic. |
+
+**Slot balance is derived, never stored as a mutable counter**: `SUM(amount) FILTER (kind='slot' AND reversed_at IS NULL)`. A stored counter can drift; a
+derived sum cannot, and it makes `FR-007b`'s permanence structural rather than disciplined.
+
+**Migration is EXPAND-ONLY** (ADR-0022 precondition) — four `CREATE TABLE`s, one nullable column on
+`recipes`. No contraction ships in this release.
+
+## 5. Pure domain modules
+
+All in `packages/services/recipe-service/src/recipes/domain/`, all `input → decision`, no I/O:
+
+| Module                      | Signature                                                                                                             | Implements                                                                                           |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `publicationEligibility.ts` | `evaluateEligibility({sourceType, completeness, isNearDuplicate, hasPriorGrant, openTakedown}) → EligibilityDecision` | `FR-001`, `FR-003`–`FR-006`, `FR-011`, `FR-017` — the **single authoritative rule** `FR-003` demands |
+| `rewardSchedule.ts`         | `slotsForPublication(ordinal: number) → number` + `cumulativeSlots(ordinal)`                                          | `FR-007a` banded table; terminates at 50                                                             |
+| `earnRateLimit.ts`          | `evaluateEarnRate({grantsLast24h, grantsLast7d}) → RateDecision`                                                      | `FR-010` (3/day, 10/week)                                                                            |
+| `standingLadder.ts`         | `deriveStanding({cookCount, ratingCount, ratingAvg}) → Tier`                                                          | `FR-007g`, `FR-007h` — impact-keyed, coarse, monotonic                                               |
+
+`visibilityPolicy.ts` is **amended, not replaced**: `VisibilityPolicyInput` gains
+`hasAvailablePrivateSlot: boolean`, and the `user_created` + `private` branch becomes
+`isPremium || hasAvailablePrivateSlot`. Every existing test in
+`recipes/domain/__tests__/` must be re-run; the C-004 matrix docstring must be updated in the same commit or
+it becomes a lie.
+
+## 6. Service, API, and frontend
+
+**Backend** (`recipe-service`):
+
+- New `rewards/` module (controller, service, dal, schema) mirroring the existing `ratings/` module layout.
+- `POST /api/v1/recipes/:id/publish` — attestation + eligibility re-evaluation at confirm (`FR-004`) + grant.
+- `DELETE /api/v1/recipes/:id/publish` — unpublish, **no grant reversal** (`FR-012`).
+- `GET /api/v1/rewards/me` — balance, schedule position, grant ledger (`FR-009`, `FR-007a-i`).
+- Wire contract authored in-service as zod, copied to `packages/schemas/recipe` per ADR-0014.
+
+**Frontend** (web + mobile, same release per `FR-023`):
+
+- Publish sheet: states what will be earned, what publishing means, attestation checkbox (`FR-008`, `FR-028`).
+- Unpublish: **step-count parity with publish** (`FR-029`) — asserted by test, not by review.
+- Slot meter showing position + next grant (`FR-007a-i`, `SC-009`).
+- Cook signal on the author's own recipe, **hidden at zero** (`FR-007f`, `C-015-019`).
+- All strings localized (`FR-024`).
+
+## 7. Test strategy (per CLAUDE.md §7.1 — every tier, written first)
+
+| Tier                                    | Covers                                                                                                                                                           |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit                                    | All four pure policies, exhaustively over the C-004 × slot matrix. Mutation lens: schedule band boundaries (10/11, 30/31, 70) must fail if off-by-one.           |
+| Integration (real DB)                   | Migration applied; ratchet CHECK constraint actually rejects a tier decrease; grant reversal leaves unrelated grants untouched; slot sum excludes reversed rows. |
+| Component (RTL)                         | Every publish-sheet state: eligible, ineligible-with-reason, at-ceiling, rate-limited, attestation-declined.                                                     |
+| E2E Playwright (web) + Maestro (mobile) | US1 publish-and-earn; US2 unpublish-without-loss.                                                                                                                |
+| **Invariant guard**                     | `ratchet.test.ts` — asserts no reward surface renders an expiring/at-risk/decaying/ranked state (`SC-008`), by set equality over reward view models.             |
+| k6                                      | `GET /rewards/me` under load — it renders on every recipe view.                                                                                                  |
+
+## 8. Constitution compliance
+
+| Area           | Verdict                                                                                                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resilience     | ✅ No new external service. Reward read degrades to "unavailable", never to "zero" — showing 0 slots on a read failure would silently deny privacy.                                    |
+| Data & privacy | ✅ `FR-021` erasure cascade covers all four tables; aggregate-only impact signals (`012-FR-024`). ⚠️ Erasure must be added to the existing recipe-service erasure path, not a new one. |
+| Testing        | ✅ Every tier specified above, TDD red-first.                                                                                                                                          |
+| EDA            | ⚠️ Cook/save signals will need events once 008 exists; none emitted in this release.                                                                                                   |
+| Code quality   | ✅ Pure policies, no circular deps, mirrors `ratings/` layout.                                                                                                                         |
+
+## 9. ⛔ Blocking dependencies — what must be implemented first
+
+Verified against the codebase, not assumed:
+
+| #   | Blocker                                                                                 | Status in code                                                         | Blocks                                                                                                                                       | Severity                               |
+| --- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| B1  | **016 Legal Compliance Framework** — ToS content licence + portfolio-wide DMCA/takedown | Spec drafted 2026-08-22, **no code**                                   | `FR-015`–`FR-019` (US4) and the _entire_ right to display/clone a user's recipe                                                              | 🔴 **Hard — nothing ships without it** |
+| B2  | **001-FR-003 amendment (D4a)** — un-gate free-tier privacy in `visibilityPolicy.ts`     | Code exists, gate is `isPremium`                                       | Everything. The reward is meaningless while privacy is also paywalled                                                                        | 🔴 **Hard**                            |
+| B3  | **008 Cooking Mode** — the producer of cook events                                      | **Not implemented** (only a mockup e2e reference)                      | `FR-007f` cook signal, `FR-007g` milestones, `FR-007h` standing → all of **US5**                                                             | 🟠 **Hard for US5, not for US1–3**     |
+| B4  | **012 Creator Profiles** — the public surface for standing                              | **Not implemented** (no code)                                          | `FR-007h` public visibility (`C-015-018`), `FR-032`                                                                                          | 🟠 **Hard for public standing**        |
+| B5  | **010 Subscriptions (D5)** — re-pricing after the privacy lever is removed              | Entitlement _read_ path exists (`PREMIUM_PERMISSION`); billing partial | Not technically blocking, but removing the free tier's only paywall lever without re-pricing is a business decision that must precede launch | 🟡 **Business gate**                   |
+
+**What this means for sequencing.** US1–US3 (publish, unpublish, ineligible-cannot-earn) are buildable
+today against B2 alone. **US5 is not buildable at all** — its data source does not exist. And `FR-007j`'s
+handoff makes that structural, not cosmetic: slots are a finite bootstrap that must hand off to recognition
+before the ceiling, and recognition cannot exist until B3 and B4 land. **Shipping US1–US3 without a dated
+plan for B3/B4 builds the cliff recorded in the spec's overjustification risk.**
+
+## 10. Risks
+
+1. **The cliff (highest severity).** Per §9, slots without recognition is exactly the failure the spec
+   records. Mitigation: do not ship the slot economy to a broad cohort until B3/B4 have dates.
+2. **`evaluateVisibility` is load-bearing and widely called** — create, update, clone-default, and
+   set-visibility all route through it. A wrong amendment silently changes clone and import behaviour.
+   Mitigation: amend the input type (compile error at every call site) rather than defaulting the new field.
+3. **Slot balance read on a hot path.** `/rewards/me` renders on recipe views; a `SUM` over the ledger per
+   request will not hold. Mitigation: materialized balance with the ledger as the source of truth, refreshed
+   on grant — and reconciliation asserted in the integration tier.
+4. **Two concurrent sessions are editing this repo** (016 specs, PG18 upgrade). Any implementation must
+   re-check `visibilityPolicy.ts` against `main` before starting.

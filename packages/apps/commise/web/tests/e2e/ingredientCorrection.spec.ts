@@ -53,6 +53,10 @@ test.describe('ingredient correction — teaching the resolver what a phrase mea
         const correctionRequest = page.waitForRequest(
             (request) => request.url().includes('/api/v1/ingredients/corrections') && request.method() === 'POST',
         );
+        const correctionResponse = page.waitForResponse(
+            (response) =>
+                response.url().includes('/api/v1/ingredients/corrections') && response.request().method() === 'POST',
+        );
 
         await catalogSection.getByRole('button', { name: `Always use this for “${phrase}”` }).click();
 
@@ -67,9 +71,16 @@ test.describe('ingredient correction — teaching the resolver what a phrase mea
         // server-side from grants the client cannot read.
         await expect(page.getByText('Saved. We’ll use this match for you from now on.')).toBeVisible();
 
-        // The mock derives the mapping id from the phrase it received, so a green notice off the WRONG
-        // phrase is not reachable — the id proves which string crossed the boundary.
-        expect(correctionMappingIdFor(phrase)).toBe('mapping-for-cracked-pepper');
+        // The double derives the mapping id from the phrase it RECEIVED, so reading the id back off the wire
+        // is what proves which string crossed the boundary.
+        //
+        // ⚠️ This used to assert `correctionMappingIdFor(phrase)` against a literal — the helper called with
+        // the same constant the test declared, touching neither the page nor the response. It was a tautology
+        // that would have passed with the control unwired entirely. The response is the observable.
+        const answered = (await (await correctionResponse).json()) as { mappingId?: string };
+
+        expect(answered.mappingId).toBe(correctionMappingIdFor(phrase));
+        expect(answered.mappingId).not.toBe(correctionMappingIdFor('Pepper, black, ground'));
     });
 
     // ⚠️ Teaching and picking are two intents. A correction must not append an ingredient the cook did not

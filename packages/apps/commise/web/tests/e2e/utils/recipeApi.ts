@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { v5 as uuidv5 } from 'uuid';
 import {
     FoodResolutionStatus,
     ingredientQuantitySchema,
@@ -595,6 +596,9 @@ const catalogIngredient: Ingredient = {
 const catalogSuggestionFoodId = 'food_black_pepper';
 const catalogSuggestionName = 'Pepper, black, ground';
 
+/** Namespace for {@link correctionMappingIdFor}. Arbitrary, fixed, and local to this double. */
+const CORRECTION_MAPPING_NAMESPACE = '6b3f0d5e-6c1a-4f7a-9a5e-2c0f9d3b7a41';
+
 /**
  * A deterministic mapping id derived from the corrected PHRASE (U14).
  *
@@ -603,12 +607,16 @@ const catalogSuggestionName = 'Pepper, black, ground';
  * client had sent the CATALOG'S NAME instead of the typed query — the exact defect that would make every
  * curated mapping unreachable by the resolution cascade. Encoding the phrase into the id makes the wrong
  * phrase a visible, failing difference.
+ *
+ * ⚠️ IT MUST BE A UUID, and a readable slug is what this double shipped with until the spec was first
+ * EXECUTED on 2026-08-22. `ingredient_resolution_mappings.id` is `uuid PRIMARY KEY DEFAULT gen_random_uuid()`
+ * (migration 0021) and `recordCorrectionResponseSchema` publishes `mappingId: z.uuid()`, so the typed client
+ * PARSED the double's `mapping-for-cracked-pepper`, rejected it, and the wizard rendered the failure notice —
+ * a body the real service could never have produced, asserted against for two units. Deterministic-from-a-name
+ * and valid-UUID is exactly UUIDv5, so it is the library's job rather than a slug with dashes in it.
  */
 export const correctionMappingIdFor = (phrase: string): string =>
-    `mapping-for-${phrase
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/gu, '-')}`;
+    uuidv5(phrase.trim().toLowerCase(), CORRECTION_MAPPING_NAMESPACE);
 
 /** The `ingredients` row `POST /api/v1/ingredients/by-food` creates for {@link catalogSuggestionFoodId}. */
 const admittedCatalogIngredient: Ingredient = {

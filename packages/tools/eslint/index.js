@@ -399,6 +399,26 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     // barrel is inside the recipe service's contract corpus.
                                     '!@kitchensink/*/resolution',
                                     '!@kitchensink/*/resolution/normalized-key',
+                                    // The verification gate's three pure modules (plan U11, ADR-0024). Same
+                                    // reasoning one step further: the gate's DECISION runs at both ends — the
+                                    // recipe service decides whether to enqueue at all (ADR-0024 layer 0: the
+                                    // cheapest control is the message never sent) and the worker re-runs it on
+                                    // the parsed message, because a producer bug must not be able to skip an
+                                    // identity check silently. `confidence` is the verdict-to-publish mapping
+                                    // the worker WRITES and the service READS, and `verification-key` is a
+                                    // PERSISTED key derivation, so a second copy of either drifts exactly as
+                                    // `normalized-key` would. All three stay OUT of the barrel because the
+                                    // barrel is inside the recipe service's contract corpus.
+                                    '!@kitchensink/*/resolution/verification-gate-policy',
+                                    '!@kitchensink/*/resolution/verification-key',
+                                    '!@kitchensink/*/resolution/confidence',
+                                    // `spend/spend-arithmetic` (ADR-0024 §2) — the rate table, worst case,
+                                    // headroom, period key and settle delta. Arithmetic over MONEY with no I/O
+                                    // in it, i.e. exactly the kind of thing that gets quietly re-derived at a
+                                    // second call site, and where a second derivation means a ceiling that
+                                    // does not hold.
+                                    '!@kitchensink/*/spend',
+                                    '!@kitchensink/*/spend/spend-arithmetic',
                                     // `food-service` spells the same barrel `db/schema`, not `database/*`. It
                                     // has no importer yet, which is exactly why the omission was invisible.
                                     '!@kitchensink/*/db',

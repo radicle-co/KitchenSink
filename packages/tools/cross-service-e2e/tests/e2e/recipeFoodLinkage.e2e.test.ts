@@ -291,7 +291,16 @@ describe('an ingredient RESOLVES to a real food record, not a freeform row', () 
             method: 'POST',
             body: JSON.stringify({
                 title: 'Cross-service linkage proof',
-                ingredients: [{ ingredientId, name: 'linkage probe', quantity: grams, unit: 'g' }],
+                // ⛔ The WIRE shape, spelled out rather than built through `statedQuantity` — this suite
+                // exists to prove what actually crosses the boundary, so routing the body through a helper
+                // that could itself be wrong would defeat it. U8 made `quantity` a discriminated union
+                // (`exact | range | absent`); this line still sent a bare number and the service answered
+                // `400 ingredients.0.quantity: expected object, received number`. It went unnoticed because
+                // this whole job had never executed — `ci-pr` produced zero jobs from 2026-08-19 until the
+                // `runner`-context fix earlier on this branch.
+                ingredients: [
+                    { ingredientId, name: 'linkage probe', quantity: { kind: 'exact', value: grams }, unit: 'g' },
+                ],
                 steps: [{ instruction: 'Prove the two services are wired together.' }],
                 servings,
                 prepTimeMinutes: 1,

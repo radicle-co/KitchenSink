@@ -115,6 +115,8 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 5, components: 0 },
+            { file: 'packages/services/food-service/src/foods/seed/clearCli.errors.ts', classes: 4, components: 0 },
+            { file: 'packages/services/recipe-service/src/ingredients/unlinkCli.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/food-service/src/sources/foodSource.errors.ts', classes: 4, components: 0 },
         ],
     },

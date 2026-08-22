@@ -1,6 +1,5 @@
 /**
- * Unit tests for the LOCAL Scoring Policy (plan U5) — the SQL mirror of `@kitchensink/recipe-core`'s ranking
- * vocabulary for recipe-service's own `ingredients` table.
+ * Unit tests for the LOCAL Scoring Policy (plan U5/U6) — the sort key `IngredientsDal.search` orders by.
  *
  * ## The defect on THIS surface is a TIE, not a penalty
  *
@@ -13,18 +12,22 @@
  *
  * Both score 1.00 — `word_similarity` measures the best matching word EXTENT and does not penalise extra
  * words — so `name ASC` decides, and `'Carob flour' < 'Flour'`. The attractor wins by the alphabet. That is
- * a different failure from the catalog's, on a surface that decided **92.8%** of the import's lines, and it
- * is the one the plan's corrected Problem frame identifies as the likely whole story.
+ * a different failure from the catalog's, on the surface that decided **92.8%** of the import's lines.
  *
  * ⛔ The base metric still has to be `word_similarity`: KTD-1's `flor` → `All-purpose flour` case scores
  * 0.600 by word similarity and only **0.15** by `similarity`, below the `%` operator's 0.3 threshold. So the
- * fix is a rung above it, not a different metric — the same structure the catalog gets, over a different
- * base.
+ * fix is a rung above it, not a different metric.
+ *
+ * ⚠️ **The fold, the tokenizer and the plural rule are NOT asserted here**, because they are no longer in
+ * the statement — they are two STORED generated columns from `0024_ingredient_rank_terms.sql`. The only
+ * honest place to assert that PostgreSQL computes them the way `@kitchensink/recipe-core` does is against a
+ * real database: `__tests__/integration/ingredients/rankingTerms.integration.test.ts` compares every column
+ * value with the TypeScript reference, row by row.
  *
  * ## Mutation lens
  *
  * Every case fails if the ladder is dropped, if the base metric is swapped for `similarity`, if the raw
- * affinity escapes its rung, if the fold stops mirroring `rankingTerms.ts`, or if a query term is
+ * affinity escapes its rung, if the policy stops reading the materialized columns, or if a query term is
  * interpolated instead of bound.
  */
 import { sql } from 'drizzle-orm';
@@ -40,7 +43,7 @@ import {
 } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 import { selectIngredientMatchStrategy } from '../../selectIngredientMatchStrategy.js';
-import { LOCAL_RANK_TERMS_ALIAS, localTieredSortKey } from '../ingredientRelevance.js';
+import { LOCAL_RANK_TERM_COLUMNS, localTieredSortKey } from '../ingredientRelevance.js';
 
 const dialect = new PgDialect();
 
@@ -51,50 +54,19 @@ function render(fragment: SQL): { readonly text: string; readonly params: readon
     return { text: query.sql.replace(/\s+/g, ' '), params: query.params };
 }
 
-/** Build the sort key the DAL would build for a query. */
-function keyFor(query: string): { readonly lateral: SQL; readonly score: SQL } {
+/** Build and render the sort key the DAL would build for a query. */
+function keyFor(query: string): { readonly text: string; readonly params: readonly unknown[] } {
     const strategy = selectIngredientMatchStrategy(query);
 
     if (strategy.kind === 'none') {
         throw new Error(`"${query}" has no searchable token`);
     }
 
-    return localTieredSortKey(strategy, sql`word_similarity(${query}, name)`);
+    return render(localTieredSortKey(strategy, sql`word_similarity(${query}, ingredients.name)`));
 }
 
-describe('localTieredSortKey — the per-row terms lateral', () => {
-    const lateral = render(keyFor('brown sugar').lateral);
-
-    it('mirrors `foldForRanking` — case, NFD, combining marks, ASCII whitespace, trim', () => {
-        expect(lateral.text).toContain('lower(');
-        expect(lateral.text).toContain('normalize(');
-        expect(lateral.text).toContain('NFD');
-        expect(lateral.text).toContain('btrim(');
-        expect(lateral.params).toContain('[\\u0300-\\u036f]');
-        expect(lateral.params).toContain('[ \\t\\n\\r\\f\\v]+');
-        expect(lateral.params).not.toContain('[[:space:]]+');
-    });
-
-    it("folds the LOCAL table's name column, not the catalog's", () => {
-        expect(lateral.text).toContain('ingredients.name');
-        expect(lateral.text).not.toContain('food.name');
-    });
-
-    it('tokenizes in order and applies both arms of the plural rule', () => {
-        expect(lateral.text).toContain('WITH ORDINALITY');
-        expect(lateral.text).toContain('ORDER BY');
-        expect(lateral.params).toContain('(s|x|z|ch|sh)es$');
-        expect(lateral.params).toContain('[^s]s$');
-    });
-
-    it('computes the row terms ONCE, under a named alias the score refers to', () => {
-        expect(lateral.text).toContain(LOCAL_RANK_TERMS_ALIAS);
-        expect(render(keyFor('brown sugar').score).text).toContain(`${LOCAL_RANK_TERMS_ALIAS}.`);
-    });
-});
-
 describe('localTieredSortKey — the tier expression itself', () => {
-    const score = render(keyFor('brown sugar').score);
+    const score = keyFor('brown sugar');
 
     it('renders one rung per tier, highest first, with `base` as the ELSE', () => {
         for (let ordinal = RANK_TIERS.length - 1; ordinal >= 1; ordinal -= 1) {
@@ -123,22 +95,46 @@ describe('localTieredSortKey — the tier expression itself', () => {
     });
 });
 
+describe('localTieredSortKey — it reads the MATERIALIZED terms, and that is load-bearing', () => {
+    const score = keyFor('brown sugar');
+
+    it('names both generated columns rather than folding the name per row', () => {
+        // ⛔ The regression this guards is a performance cliff, not a wrong answer: computing the fold and
+        // the token array inside the statement measured 253ms and 357ms at 50,000 rows against SC-007's
+        // 200ms budget, where reading these columns costs +0.8ms and +5.2ms. A rewrite that "inlines" them
+        // to avoid a migration would pass every ordering test in this repository.
+        for (const column of LOCAL_RANK_TERM_COLUMNS) {
+            expect(score.text).toContain(column);
+        }
+    });
+
+    it('does no per-row text processing at all — no fold, no tokenizer, no lateral', () => {
+        for (const banned of ['normalize(', 'regexp_split_to_table', 'regexp_replace', 'CROSS JOIN LATERAL']) {
+            expect(score.text).not.toContain(banned);
+        }
+    });
+
+    it('reads the head term as element 1 of the materialized array', () => {
+        expect(score.text).toContain('ingredients.rank_tokens[1]');
+    });
+});
+
 describe('localTieredSortKey — the `raw` affinity (U6)', () => {
     it('adds the bonus for a query the strategy injected `raw` into', () => {
-        const score = render(keyFor('chives').score);
+        const score = keyFor('chives');
 
         expect(score.params).toContain(RAW_AFFINITY_BONUS);
         // The token itself is a BOUND PARAMETER, like every other value in the key.
         expect(score.params).toContain('raw');
-        expect(score.text).toContain('= ANY(rank_terms.tokens)');
+        expect(score.text).toContain('= ANY(ingredients.rank_tokens)');
     });
 
     it('omits it entirely for a food that is never raw, rather than adding a zero', () => {
         // A `+ 0` term would still be a term: it would put a `raw` comparison into a statement that has
         // nothing to do with it, and the next reader would have to work out that it is inert.
-        const score = render(keyFor('butter').score);
+        const score = keyFor('butter');
 
-        expect(score.text).not.toContain('= ANY(rank_terms.tokens)');
+        expect(score.text).not.toContain('= ANY(ingredients.rank_tokens)');
         expect(score.params).not.toContain('raw');
         expect(score.params).not.toContain(RAW_AFFINITY_BONUS);
     });

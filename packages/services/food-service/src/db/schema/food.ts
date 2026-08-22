@@ -129,6 +129,24 @@ export const food = pgTable(
         aliasesSearchVector: tsvector('aliases_search_vector').generatedAlwaysAs(
             sql`to_tsvector('english', coalesce(aliases, ''))`,
         ),
+        // ⛔ TWO MORE STORED generated columns (0008 migration, plan U5): the ranking terms the tier ladder
+        // sorts on — the SQL mirror of `foldForRanking(name)` and `rankingTokens(name)` in
+        // `@kitchensink/recipe-core/resolution/ranking-terms`. They are MATERIALIZED because computing them
+        // per row measured 253ms (`broad`) and 357ms (`brand`) at 50,000 rows against SC-007's 200ms budget,
+        // where reading them costs +0.8ms and +5.2ms.
+        //
+        // ⚠️ **`0008_food_rank_terms.sql` is authoritative**; these declarations exist so Drizzle knows the
+        // columns and so a reader sees them here. The expressions are asserted against the TypeScript
+        // reference, value by value, by `tests/rankingTerms.integration.test.ts` — which is the guard that
+        // actually catches drift between the two implementations, in either direction.
+        rankFolded: text('rank_folded').generatedAlwaysAs(
+            sql`btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' ')`,
+        ),
+        rankTokens: text('rank_tokens')
+            .array()
+            .generatedAlwaysAs(
+                sql`array_remove(regexp_split_to_array(regexp_replace(regexp_replace(btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' '), '([[:alnum:]]{2}(s|x|z|ch|sh))es(?![[:alnum:]])', '\1', 'g'), '([[:alnum:]]{2}(?!s)[[:alnum:]])s(?![[:alnum:]])', '\1', 'g'), '[^[:alnum:]]+'), '')`,
+            ),
     },
     (table) => [
         uniqueIndex('food_normalized_name_unique').on(table.normalizedName),

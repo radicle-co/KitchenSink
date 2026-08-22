@@ -25,6 +25,7 @@ import {
     describeRankingName,
     foldForRanking,
     rankingTokens,
+    singularizeRankingText,
     singularizeRankingToken,
 } from '../rankingTerms.js';
 
@@ -79,6 +80,23 @@ describe('singularizeRankingToken', () => {
     it('is idempotent, so applying it to an already-singular catalog token is safe', () => {
         for (const token of ['egg', 'sugar', 'flour', 'glass', 'peach']) {
             expect(singularizeRankingToken(singularizeRankingToken(token))).toBe(singularizeRankingToken(token));
+        }
+    });
+
+    it('⛔ never reaches ACROSS a word boundary, which a naive `[^s]` would', () => {
+        // The rule is applied to whole TEXT (it has to be — its SQL mirror is a generated column, and those
+        // may not contain a subquery). A `[^s]` before the final `s` would also match a SPACE, so `ab s`
+        // would fold to `ab` — one word eating the next. The negative lookahead is what forbids it.
+        expect(singularizeRankingText('ab s')).toBe('ab s');
+        expect(singularizeRankingText('eggs and butter')).toBe('egg and butter');
+        expect(singularizeRankingText('boxes of peaches')).toBe('box of peach');
+    });
+
+    it('is the SAME rule whether applied to one token or to a whole phrase', () => {
+        for (const phrase of ['eggs', 'sugars brown', 'peaches and glass', 'raw chives']) {
+            const perWord = phrase.split(' ').map(singularizeRankingToken).join(' ');
+
+            expect(singularizeRankingText(phrase)).toBe(perWord);
         }
     });
 

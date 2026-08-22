@@ -141,12 +141,24 @@ describe('IngredientsDal', () => {
                 expect(statement.text).toContain('ORDER BY score DESC, ingredients.name ASC');
             });
 
-            it('carries the tier ladder and the per-row terms lateral', async () => {
+            it('carries the tier ladder, over the MATERIALIZED ranking columns', async () => {
                 const statement = await statementFor('flour');
 
-                expect(statement.text).toContain('CROSS JOIN LATERAL');
-                expect(statement.text).toContain('rank_terms.folded');
+                expect(statement.text).toContain('ingredients.rank_folded');
+                expect(statement.text).toContain('ingredients.rank_tokens');
                 expect(statement.text).toContain('ELSE 0');
+            });
+
+            it('⛔ does NO per-row text processing — the fold is a generated column, not a lateral', async () => {
+                // The regression this guards is a performance cliff, not a wrong answer. Computing the fold
+                // and the token array in the statement measured 253ms/357ms at 50,000 rows against SC-007's
+                // 200ms budget; reading `0024_ingredient_rank_terms.sql`'s columns costs +0.8ms/+5.2ms. An
+                // "inline it and skip the migration" rewrite passes every ordering test in this repository.
+                const statement = await statementFor('flour');
+
+                expect(statement.text).not.toContain('CROSS JOIN LATERAL');
+                expect(statement.text).not.toContain('regexp_split_to_table');
+                expect(statement.text).not.toContain('normalize(');
             });
 
             it('keeps `word_similarity` as the base metric — the `flor` case needs 0.600 (KTD-1)', async () => {

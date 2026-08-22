@@ -154,6 +154,10 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             food_resolution_status: { type: 'text', notNull: false },
             is_user_entered: { type: 'boolean', notNull: true },
             search_vector: { type: 'tsvector', notNull: false },
+            // U5/U6 (migration 0024): the materialized ranking terms the tier ladder sorts on. Nullable
+            // because they are GENERATED from `name` — Postgres owns the value and no writer supplies it.
+            rank_folded: { type: 'text', notNull: false },
+            rank_tokens: { type: 'text[]', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });
     });

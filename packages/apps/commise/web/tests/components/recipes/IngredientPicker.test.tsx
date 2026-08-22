@@ -542,22 +542,31 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         expect(searchSpy).toHaveBeenCalledWith('spin', undefined);
     });
 
-    // Real timers (no `vi.useFakeTimers()`) for this one — it asserts the RENDERED ranking order, not the
-    // debounce timing itself (already pinned above), and mixing fake timers with TanStack Query's own
-    // internal (micro)task scheduling for a full fetch→render round trip is exactly the kind of brittle
-    // interaction the rest of this file avoids by using real timers + `findBy*`.
-    it('renders results ranked prefix > substring > fuzzy, ties broken alphabetically', async () => {
+    // Real timers (no `vi.useFakeTimers()`) for this one — it asserts the RENDERED order, not the debounce
+    // timing itself (already pinned above), and mixing fake timers with TanStack Query's own internal
+    // (micro)task scheduling for a full fetch→render round trip is exactly the kind of brittle interaction
+    // the rest of this file avoids by using real timers + `findBy*`.
+    //
+    // ⚠️ REWRITTEN for plan U5 — the SAME case, asserting the opposite. It used to assert the picker
+    // re-ranked the server's page `prefix > substring > fuzzy`. That client-side mechanism is retired (owner
+    // ruling 2026-08-20: the server determines order, on best-quality match), so this asserts the property
+    // that replaced it — the picker is a faithful renderer of the server's order. Where the retired coverage
+    // went is recorded in `@commise/features-recipes`'s
+    // `src/hooks/__tests__/ingredientResolver.model.test.ts`; the ordering itself is now proven against a
+    // real database by each service's ranking integration suite.
+    it("renders the server's order UNMODIFIED — the picker no longer re-ranks (U5)", async () => {
         vi.useRealTimers(); // override this block's fake timers — see comment above
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        // Deliberately unordered: the picker must re-rank this, not merely display it as returned.
+        // Deliberately the exact order the retired client sort would have INVERTED: the fuzzy match first
+        // and the prefix match third. If any re-ranking creeps back in, this fails.
         vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
             blended(
                 own([
-                    makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }), // fuzzy — neither prefix nor substring
-                    makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }), // substring
-                    makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }), // prefix
-                    makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }), // substring (alphabetically first)
+                    makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }),
+                    makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }),
+                    makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }),
+                    makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }),
                 ]),
             ),
         );
@@ -572,7 +581,7 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
             .getAllByRole('button')
             .map((button) => button.textContent);
 
-        expect(names).toEqual(['Apple pie spice', 'Banana apple', 'Zucchini apple', 'Aplpe']);
+        expect(names).toEqual(['Aplpe', 'Zucchini apple', 'Apple pie spice', 'Banana apple']);
     });
 });
 

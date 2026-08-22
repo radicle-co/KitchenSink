@@ -161,7 +161,7 @@ export class IngredientsDal {
         }
 
         const pattern = `%${query}%`;
-        const sortKey = localTieredSortKey(strategy, sql`word_similarity(${query}, ingredients.name)`);
+        const score = localTieredSortKey(strategy, sql`word_similarity(${query}, ingredients.name)`);
         // The head-term branch, or nothing. A single-token query's predicate stays byte-identical to the
         // pre-U6 one — `plainto_tsquery` on one lexeme already IS the head-term retrieval, so OR'ing it in
         // would be a duplicate branch for the planner to cost.
@@ -172,12 +172,11 @@ export class IngredientsDal {
 
         // ⚠️ The score is PROJECTED and the `ORDER BY` references its alias, exactly as food-service's
         // statement does — so the ranking has ONE authoritative definition and cannot drift from the order
-        // rows come back in. It is not part of {@link RETURNING} and never reaches the domain shape:
+        // rows come back in. It is not part of the `RETURNING` projection and never reaches the domain shape:
         // `rowToIngredient` reads named fields only, and `Ingredient` carries no score.
         const result = await this.db.execute<RawIngredientRow>(sql`
-            SELECT ${RETURNING}, ${sortKey.score} AS score
+            SELECT ${RETURNING}, ${score} AS score
             FROM ingredients
-            ${sortKey.lateral}
             WHERE search_vector @@ plainto_tsquery('english', ${query})
                OR ${query} <% ingredients.name
                OR ingredients.name ILIKE ${pattern}${headRetrieval}

@@ -63,6 +63,26 @@ export const ingredients = pgTable(
         // single writer for a food; this table holds the REFERENCE (`food_id`) and nothing derived from it.
         // Nutrition is read live through `FoodNutritionGateway` (KTD-3b: stale, then absent, never wrong).
         searchVector: tsvector('search_vector'),
+        // ⛔ TWO STORED generated columns (0024 migration, plan U5/U6): the ranking terms the tier ladder
+        // sorts on — the SQL mirror of `foldForRanking(name)` and `rankingTokens(name)` in
+        // `@kitchensink/recipe-core/resolution/ranking-terms`. Unlike `search_vector` above, which this
+        // service's DAL maintains on every write, these are computed by POSTGRES: no writer can forget them,
+        // and `updateResolution`'s U3 rename recomputes them for free along with the name.
+        //
+        // They are MATERIALIZED because computing them per row measured 253ms and 357ms at 50,000 rows
+        // against SC-007's 200ms budget, where reading them costs +0.8ms and +5.2ms.
+        //
+        // ⚠️ **`0024_ingredient_rank_terms.sql` is authoritative**; these declarations exist so Drizzle knows
+        // the columns. The expressions are asserted against the TypeScript reference, value by value, by
+        // `__tests__/integration/ingredients/rankingTerms.integration.test.ts`.
+        rankFolded: text('rank_folded').generatedAlwaysAs(
+            sql`btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' ')`,
+        ),
+        rankTokens: text('rank_tokens')
+            .array()
+            .generatedAlwaysAs(
+                sql`array_remove(regexp_split_to_array(regexp_replace(regexp_replace(btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' '), '([[:alnum:]]{2}(s|x|z|ch|sh))es(?![[:alnum:]])', '\1', 'g'), '([[:alnum:]]{2}(?!s)[[:alnum:]])s(?![[:alnum:]])', '\1', 'g'), '[^[:alnum:]]+'), '')`,
+            ),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [

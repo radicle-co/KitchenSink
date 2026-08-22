@@ -60,6 +60,15 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal tiered ranking (integration)', 
         // This suite wipes `ingredients` per test, which destroys the baseline catalog every other
         // integration spec validates recipe lines against (T043b). `seed` restores the whole seeded world
         // and is idempotent; `fileParallelism: false` makes that enough for any spec running after us.
+        //
+        // ⛔ WIPE FIRST, then seed — the order is load-bearing and getting it wrong took nine other suites
+        // down. The seed's `ON CONFLICT DO NOTHING` is keyed on `id`, but `idx_ingredients_freeform_name` is
+        // a UNIQUE index on `lower(name)`: a fixture row named `Flour` under this suite's own id collides
+        // with the seed's `Flour` under the seed's id, which is a conflict the `ON CONFLICT (id)` clause
+        // does not cover, so the INSERT raises rather than skipping. Leaving ANY fixture row behind here
+        // therefore breaks the seeded world for every spec that runs later.
+        await pool.query('DELETE FROM recipe_ingredients');
+        await pool.query('DELETE FROM ingredients');
         await seed(pool);
         await pool.end();
     });

@@ -55,17 +55,31 @@ const COMBINING_MARKS = /[̀-ͯ]/g;
 /** Every run that is not a letter or a digit — the token separator. */
 const TOKEN_SEPARATOR = /[^\p{L}\p{N}]+/u;
 
-/** Minimum token length before the `-es` arm of the plural rule may fire (`boxes` → `box`). */
-const ES_PLURAL_MIN_LENGTH = 5;
+/**
+ * The `-es` plural after a sibilant stem (`boxes` → `box`, `dishes` → `dish`, `peaches` → `peach`), applied
+ * to WHOLE TEXT rather than to one token.
+ *
+ * ⛔ **Whole-text, and that is a hard requirement, not a style.** The SQL mirror of this rule is a STORED
+ * generated column, and a generated-column expression may not contain a subquery — so a per-token rule (which
+ * needs `regexp_split_to_table` + `ARRAY(...)`) is not expressible there at all. Measured on 50,000
+ * production-shaped foods, 2026-08-22, the per-token form also cost **253–357 ms** on the `broad`/`brand`
+ * shapes against SC-007's 200 ms budget; materialized, the same ladder costs **+0.8–5.2 ms**.
+ *
+ * The two length guards a per-token rule needed are now structural: this pattern is 2 alnum + 1–2 sibilant +
+ * `es`, i.e. 5–6 characters, and {@link S_PLURAL} is 4.
+ */
+const ES_PLURAL = /([\p{L}\p{N}]{2}(?:s|x|z|ch|sh))es(?![\p{L}\p{N}])/gu;
 
-/** Minimum token length before the `-s` arm of the plural rule may fire (`eggs` → `egg`). */
-const S_PLURAL_MIN_LENGTH = 4;
-
-/** A sibilant stem that takes `-es` in the plural. */
-const ES_PLURAL = /(?:s|x|z|ch|sh)es$/;
-
-/** A plain `-s` plural: the character before the final `s` is not itself an `s` (so `glass` is not folded). */
-const S_PLURAL = /[^s]s$/;
+/**
+ * The plain `-s` plural (`eggs` → `egg`, `sugars` → `sugar`), applied to whole text.
+ *
+ * ⚠️ `(?!s)[\p{L}\p{N}]` rather than `[^s]`: the character before the final `s` must be an alphanumeric that
+ * is not itself an `s`. `[^s]` would also match a SPACE, so `ab s` would fold to `ab` — a rule that reaches
+ * across a word boundary, which the per-token form could never do. Postgres has no way to subtract a
+ * character from a bracket expression either, so both engines express it as a negative lookahead and stay
+ * identical.
+ */
+const S_PLURAL = /([\p{L}\p{N}]{2}(?!s)[\p{L}\p{N}])s(?![\p{L}\p{N}])/gu;
 
 /**
  * Fold a name or query to the form the tiers compare on: case-folded, diacritic-stripped, whitespace
@@ -83,40 +97,49 @@ export function foldForRanking(text: string): string {
 }
 
 /**
- * Fold a single folded token to its singular form.
+ * Singularize every word of an already-FOLDED string, in one pass per arm.
  *
  * ⚠️ This buys AGREEMENT between two implementations, not English morphology. `molasses` folds to `molass`,
  * which is wrong as English and harmless as a comparison: the same rule runs on both sides of every
  * comparison, so a query and a name containing that word still meet. What would NOT be harmless is a rule
- * Postgres and JavaScript disagree about, which is why this is two explicit arms rather than the `english`
- * Snowball stemmer the tsvector uses.
+ * Postgres and JavaScript disagree about — which is why this is two explicit arms rather than the `english`
+ * Snowball stemmer the tsvector uses, and why both arms avoid every construct the two regex engines treat
+ * differently. The alternation in {@link ES_PLURAL} cannot diverge under POSIX leftmost-longest vs
+ * JavaScript leftmost-first, because the required `es` suffix makes its branches mutually exclusive at any
+ * given start position.
+ *
+ * @param folded - Text already through {@link foldForRanking}.
+ * @returns The same text with each word's plural suffix removed. Pure.
+ */
+export function singularizeRankingText(folded: string): string {
+    return folded.replace(ES_PLURAL, '$1').replace(S_PLURAL, '$1');
+}
+
+/**
+ * Singularize ONE folded token — {@link singularizeRankingText} applied to a token, which is the same rule
+ * because a lone token is a lone word.
  *
  * @param token - A folded token (no case, no marks, no separators).
  * @returns The singular form, or the token unchanged. Pure.
  */
 export function singularizeRankingToken(token: string): string {
-    if (token.length >= ES_PLURAL_MIN_LENGTH && ES_PLURAL.test(token)) {
-        return token.slice(0, -2);
-    }
-
-    if (token.length >= S_PLURAL_MIN_LENGTH && S_PLURAL.test(token)) {
-        return token.slice(0, -1);
-    }
-
-    return token;
+    return singularizeRankingText(token);
 }
 
 /**
  * Split a name or query into its folded, singularized tokens, in order.
  *
+ * ⚠️ Order is fold → singularize → split, and the SQL mirror uses the same order for the same reason: the
+ * plural arms are anchored on a word boundary (`(?![\p{L}\p{N}]`), which only exists while the words are
+ * still in one string.
+ *
  * @param text - Any name or query.
  * @returns The tokens, never containing an empty string. Pure.
  */
 export function rankingTokens(text: string): readonly string[] {
-    return foldForRanking(text)
+    return singularizeRankingText(foldForRanking(text))
         .split(TOKEN_SEPARATOR)
-        .filter((token) => token.length > 0)
-        .map(singularizeRankingToken);
+        .filter((token) => token.length > 0);
 }
 
 /** A name or query, parsed once into everything the tiers compare on. */

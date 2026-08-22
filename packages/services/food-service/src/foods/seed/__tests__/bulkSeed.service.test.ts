@@ -47,6 +47,10 @@ function foodRow(overrides: Partial<FoodRow> = {}): FoodRow {
         updatedAt: new Date('2026-07-26T00:00:00.000Z'),
         searchVector: '',
         aliasesSearchVector: '',
+        // Generated columns (0008): Postgres computes them, so a fake store row just carries a value of
+        // the right shape. The real ones are asserted in `tests/rankingTerms.integration.test.ts`.
+        rankFolded: null,
+        rankTokens: null,
         ...overrides,
     };
 }

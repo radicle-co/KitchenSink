@@ -40,7 +40,7 @@
  * | `exact`    | the folded name IS the folded query                        | the name that is the token wins outright         |
  *
  * The head rule's asymmetry between a name and a query is the load-bearing part and lives in
- * {@link import('./rankingTerms.js').describeRankingQuery}.
+ * `describeRankingQuery` (`./rankingTerms.ts`).
  *
  * ## The score is the SORT KEY, and it stays inside `[0, 1)`
  *

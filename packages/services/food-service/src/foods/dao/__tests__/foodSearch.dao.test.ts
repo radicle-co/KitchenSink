@@ -324,9 +324,14 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
             const score = statement.text.slice(0, statement.text.indexOf('AS score'));
 
             expect(score).toContain('CASE');
-            expect(score).toContain('rank_terms.folded');
+            expect(score).toContain('food.rank_folded');
+            expect(score).toContain('food.rank_tokens');
             expect(score).toContain('ELSE 0');
-            expect(statement.text).toContain('CROSS JOIN LATERAL');
+            // ⛔ And it does NO per-row text processing: the fold and the tokenizer are two STORED generated
+            // columns (migration 0008), because computing them per row measured 253–357ms at 50,000 rows
+            // against SC-007's 200ms budget. Inlining them back would pass every ordering test here.
+            expect(statement.text).not.toContain('CROSS JOIN LATERAL');
+            expect(score).not.toContain('regexp_split_to_table');
         });
 
         it('keeps aliases OUT of the 1–2 character statement, which ranks by name-initial position', async () => {

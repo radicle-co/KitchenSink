@@ -254,14 +254,15 @@ export class FoodSearchDao {
      *
      * ⚠️ **U5 wraps that `GREATEST` rather than replacing it.** It becomes the BASE METRIC of a tiered sort
      * key (`foodRelevance.ts`): `score = (TIER_GAP x tier + clamp(base)) / SCORE_CEILING`. Two consequences
-     * worth knowing before editing this statement. First, the tier is computed by a `CROSS JOIN LATERAL`
-     * that folds and tokenizes `food.name` once per row — the `WHERE` is unchanged and still restricts
-     * `food` alone, so the planner keeps pushing it down to the index scan (asserted at 100,000 rows by
-     * `tests/foodSearchAccessPath.integration.test.ts`, which captures this very statement). Second, the
-     * score is NORMALIZED into `[0, 1)` on purpose: `FoodsService.search` unshifts a barcode /
-     * external-key crosswalk hit at score exactly `1`, and recipe-service's `FoodCatalogGateway` re-sorts
-     * the page by score — an un-normalized tiered score would reach 9 and silently demote an exact
-     * identifier match below a lexical one.
+     * worth knowing before editing this statement. First, the tier reads `food.rank_folded` and
+     * `food.rank_tokens` — two STORED generated columns migration 0008 adds — so it adds a handful of array
+     * comparisons per matched row and NOT a fold; the per-row form measured 253–357ms at 50,000 rows against
+     * SC-007's 200ms budget and was rejected on that measurement. The `WHERE` and every index it uses are
+     * untouched (asserted at 100,000 rows by `tests/foodSearchAccessPath.integration.test.ts`, which
+     * captures this very statement). Second, the score is NORMALIZED into `[0, 1)` on purpose:
+     * `FoodsService.search` unshifts a barcode / external-key crosswalk hit at score exactly `1`, and
+     * recipe-service's `FoodCatalogGateway` re-sorts the page by score — an un-normalized tiered score would
+     * reach 9 and silently demote an exact identifier match below a lexical one.
      *
      * @param query - The trimmed user query.
      * @param limit - Max rows.
@@ -279,12 +280,11 @@ export class FoodSearchDao {
                        ts_rank(aliases_search_vector, plainto_tsquery('english', ${query})),
                        similarity(name, ${query})
                    )`;
-        const sortKey = catalogTieredSortKey(query, baseMetric);
+        const score = catalogTieredSortKey(query, baseMetric);
 
         return sql`
-            SELECT id, name, ${sortKey.score} AS score
+            SELECT id, name, ${score} AS score
             FROM food
-            ${sortKey.lateral}
             WHERE status = 'RESOLVED'
               AND name IS NOT NULL
               AND (

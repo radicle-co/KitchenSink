@@ -2,24 +2,39 @@
  * The LOCAL Scoring Policy (plan U5, R1–R5) — the one authoritative definition of how recipe-service's own
  * `ingredients` rows are ordered for a text query, rendered as the SQL that `IngredientsDal.search` sorts on.
  *
- * DESIGN PATTERN: **Policy module + Builder**, the sibling of food-service's
- * `foods/dao/foodRelevance.ts`. The *rule* — which rungs exist, what each means, how a rung and a base
- * metric combine into a score — lives once, purely, in `@kitchensink/recipe-core/resolution/ranking-tiers`.
- * This module renders that rule for THIS surface: its own name column, its own base metric, and U6's `raw`
- * affinity.
+ * DESIGN PATTERN: **Policy module + Builder**, the sibling of food-service's `foods/dao/foodRelevance.ts`.
+ * The *rule* — which rungs exist, what each means, how a rung and a base metric combine into a score — lives
+ * once, purely, in `@kitchensink/recipe-core/resolution/ranking-tiers`. This module renders that rule for
+ * THIS surface: its own materialized ranking columns, its own base metric, and U6's `raw` affinity.
  *
- * ## ⛔ The two files are deliberate duplicates, and the duplication is bounded
+ * ## ⛔ The ranking terms are MATERIALIZED, and that was forced by measurement
+ *
+ * The fold, the tokenizer and the plural rule are not in this file. They live in migration
+ * `0024_ingredient_rank_terms.sql` as two STORED generated columns, because computing them per row is
+ * unaffordable. Measured on food-service's identically-shaped statement over 50,000 production-shaped rows
+ * (2026-08-22, p95 over 20 runs), the per-row form cost **253ms** on the `broad` shape and **357ms** on
+ * `brand`, against SC-007's 200ms budget and a pre-U5 baseline of 15ms and 24ms. Materialized, the whole
+ * ladder costs **+0.8ms** and **+5.2ms**.
+ *
+ * That constraint also shaped the RULE, not only its storage: a generated-column expression may not contain
+ * a subquery, so the plural fold is applied to whole text with two global `regexp_replace`s rather than per
+ * token — which is why `rankingTerms.ts` defines `singularizeRankingText` and derives the per-token form
+ * from it rather than the other way round.
+ *
+ * ## ⛔ The two policy files are deliberate duplicates, and the duplication is bounded
  *
  * The plan's rule for U5 is "shared rule, never shared SQL". The alternative — a shared SQL builder — would
  * have to live in a package both services import, which today means `@kitchensink/recipe-core`; that package
  * is also imported by the web and mobile feature packages, so it would pull `drizzle-orm` into a mobile
  * bundle to serve two backend statements. What is shared is the VOCABULARY (`rankingTerms.ts`) and the
- * LADDER (`rankingTiers.ts`) — the knowledge. What is duplicated is the rendering of it into two different
- * dialects of one query language, over two different tables and two different metrics.
+ * LADDER (`rankingTiers.ts`) — the knowledge. What is duplicated is the rendering of it into two dialects of
+ * one query language, over two tables and two metrics.
  *
- * The guard against drift is not review: it is
- * `@kitchensink/service-test-harness`'s `registerRankingConformance`, which BOTH services run against their
- * own DAL and a real database, and which fails on either side if a rule changes and only one mirror follows.
+ * Two guards stand against drift, not review:
+ * `__tests__/integration/ingredients/rankingTerms.integration.test.ts` asserts every materialized column
+ * value equals the TypeScript reference row by row, and `@kitchensink/service-test-harness`'s
+ * `registerRankingConformance` asserts the resulting ORDER on both surfaces. A rule that changes and reaches
+ * only one mirror fails on the other.
  *
  * ## The defect on THIS surface is a TIE, not a penalty
  *
@@ -52,107 +67,39 @@ import {
 
 import type { IngredientMatchStrategy } from '../selectIngredientMatchStrategy.js';
 
-/**
- * The lateral alias the per-row ranking terms are computed under.
- *
- * ⚠️ Written LITERALLY in the fragments below rather than interpolated — `sql.raw` is banned in this
- * repository (it splices its argument into the statement text) and an identifier cannot be a bound
- * parameter. `__tests__/ingredientRelevance.test.ts` asserts that both fragments contain this constant.
- */
-export const LOCAL_RANK_TERMS_ALIAS = 'rank_terms';
-
-/**
- * The regex literals the fold and the tokenizer use, mirroring `rankingTerms.ts` character for character —
- * and, necessarily, food-service's `foodRelevance.ts` too. They travel as BOUND PARAMETERS.
- */
-const REGEX = {
-    /** Unicode combining marks — what NFD splits an accented letter into. */
-    combiningMarks: '[\\u0300-\\u036f]',
-    /**
-     * Whitespace, as the SAME explicit ASCII class `rankingTerms.ts` uses.
-     *
-     * ⛔ NOT `[[:space:]]`, which disagrees with JavaScript's `\s` on NBSP.
-     */
-    asciiWhitespace: String.raw`[ \t\n\r\f\v]+`,
-    /** Every run that is not a letter or a digit — the token separator. */
-    tokenSeparator: String.raw`[^[:alnum:]]+`,
-    /** A sibilant stem that takes `-es` in the plural. */
-    esPlural: String.raw`(s|x|z|ch|sh)es$`,
-    /** A plain `-s` plural whose preceding character is not itself an `s`. */
-    sPlural: String.raw`[^s]s$`,
-} as const;
-
-/** Minimum token length before the `-es` arm of the plural rule may fire — mirrors `rankingTerms.ts`. */
-const ES_PLURAL_MIN_LENGTH = 5;
-
-/** Minimum token length before the `-s` arm of the plural rule may fire — mirrors `rankingTerms.ts`. */
-const S_PLURAL_MIN_LENGTH = 4;
-
 /** The token a `raw` affinity looks for in a row's tokens. Already singular, so the plural rule is a no-op. */
 const RAW_TOKEN = 'raw';
 
-/** A tiered sort key: the lateral that computes a row's terms, and the score expression over it. */
-export interface LocalTieredSortKey {
-    /** The `CROSS JOIN LATERAL … AS rank_terms` clause the statement MUST include. */
-    readonly lateral: SQL;
-    /** The score expression, which is ALSO the sort key. */
-    readonly score: SQL;
-}
-
 /**
- * The SQL mirror of `foldForRanking` over `ingredients.name`.
- *
- * @returns The folded-name expression. Pure.
+ * The columns migration `0024_ingredient_rank_terms.sql` materializes: the SQL mirror of
+ * `foldForRanking(name)` and `rankingTokens(name)`, computed once on write by Postgres. Exported so the unit
+ * test can assert the statement NAMES them rather than folding per row — the regression that guards against
+ * is a performance cliff, not a wrong answer, and it would pass every ordering test in the repository.
  */
-function foldedNameSql(): SQL {
-    return sql`btrim(regexp_replace(
-        regexp_replace(normalize(lower(ingredients.name), NFD), ${REGEX.combiningMarks}, '', 'g'),
-        ${REGEX.asciiWhitespace}, ' ', 'g'
-    ), ' ')`;
-}
+export const LOCAL_RANK_TERM_COLUMNS = ['ingredients.rank_folded', 'ingredients.rank_tokens'] as const;
 
 /**
- * The SQL mirror of `rankingTokens`.
+ * The tier expression: a `CASE` whose branches are the ladder, highest rung first, so the first branch that
+ * holds is the highest rung that holds. The `base` rung is the `ELSE`, which is what makes the ladder TOTAL.
  *
- * ⚠️ `WITH ORDINALITY` + `ORDER BY` is load-bearing: the head rung reads `tokens[1]`, and a set-returning
- * function's output order is not guaranteed by the standard.
- *
- * @returns A `text[]` expression of folded, singularized tokens, in source order. Pure.
- */
-function rankingTokensSql(): SQL {
-    return sql`ARRAY(
-        SELECT CASE
-                   WHEN length(split.token) >= ${ES_PLURAL_MIN_LENGTH}::int
-                        AND split.token ~ ${REGEX.esPlural} THEN left(split.token, -2)
-                   WHEN length(split.token) >= ${S_PLURAL_MIN_LENGTH}::int
-                        AND split.token ~ ${REGEX.sPlural} THEN left(split.token, -1)
-                   ELSE split.token
-               END
-        FROM regexp_split_to_table(folded_name.value, ${REGEX.tokenSeparator})
-             WITH ORDINALITY AS split(token, position)
-        WHERE split.token <> ''
-        ORDER BY split.position
-    )`;
-}
-
-/**
- * The tier expression: a `CASE` whose branches are the ladder, highest rung first. The `base` rung is the
- * `ELSE`, which is what makes the ladder TOTAL.
+ * ⚠️ A query with no tokens never reaches here — `selectIngredientMatchStrategy` routes it to `none` and the
+ * DAL short-circuits without a round trip. That matters, because `'{}' <@ anything` is TRUE: an empty query
+ * would otherwise be promoted to `covered` by a vacuous comparison.
  *
  * @param terms - The query's terms, pre-computed by the match strategy.
  * @returns An integer expression in `[0, RANK_TIERS.length - 1]`. Pure.
  */
 function rankTierSql(terms: RankingTerms): SQL {
-    // ⛔ `sql.param(...)`, NOT a bare `${array}`. Drizzle flattens a plain array interpolation into one
+    // ⛔ `sql.param(...)`, NOT a bare `${array}`. Drizzle FLATTENS a plain array interpolation into one
     // placeholder per element, so `${tokens}::text[]` renders as `($1, $2)::text[]` — a ROW constructor cast
     // to an array, which is a different expression that happens to parse.
     const queryTokens = sql`${sql.param([...terms.tokens])}::text[]`;
 
     return sql`(CASE
-        WHEN rank_terms.folded = ${terms.folded} THEN 4
-        WHEN rank_terms.tokens <@ ${queryTokens} AND ${queryTokens} <@ rank_terms.tokens THEN 3
-        WHEN rank_terms.tokens[1] = ${terms.head ?? null} THEN 2
-        WHEN ${queryTokens} <@ rank_terms.tokens THEN 1
+        WHEN ingredients.rank_folded = ${terms.folded} THEN 4
+        WHEN ingredients.rank_tokens <@ ${queryTokens} AND ${queryTokens} <@ ingredients.rank_tokens THEN 3
+        WHEN ingredients.rank_tokens[1] = ${terms.head ?? null} THEN 2
+        WHEN ${queryTokens} <@ ingredients.rank_tokens THEN 1
         ELSE 0
     END)`;
 }
@@ -161,8 +108,8 @@ function rankTierSql(terms: RankingTerms): SQL {
  * The `raw` affinity term (plan U6), or nothing at all.
  *
  * ⚠️ When the strategy did not inject `raw` this contributes NO SQL, rather than a `+ 0`. An inert term
- * would still put the word `raw` into a statement that has nothing to do with it, and the next reader would
- * have to work out that it does nothing.
+ * would still put a `raw` comparison into a statement that has nothing to do with it, and the next reader
+ * would have to work out that it does nothing.
  *
  * @param strategy - The chosen match strategy.
  * @returns The bonus expression, or `undefined`. Pure.
@@ -172,30 +119,26 @@ function rawAffinitySql(strategy: IngredientMatchStrategy): SQL | undefined {
         return undefined;
     }
 
-    return sql` + (CASE WHEN ${RAW_TOKEN} = ANY(rank_terms.tokens) THEN ${RAW_AFFINITY_BONUS}::float8 ELSE 0::float8 END)`;
+    return sql` + (CASE WHEN ${RAW_TOKEN} = ANY(ingredients.rank_tokens)
+        THEN ${RAW_AFFINITY_BONUS}::float8 ELSE 0::float8 END)`;
 }
 
 /**
  * Build the local table's tiered sort key for one match strategy.
  *
- * @param strategy - The chosen match strategy, carrying the query's pre-parsed terms (never `none` — the
- *   DAL short-circuits that before it needs a sort key).
+ * The result is the score expression AND the sort key: the statement selects it under an alias and orders by
+ * that alias, so the ranking has exactly one authoritative definition and cannot drift from the order rows
+ * come back in.
+ *
+ * @param strategy - The chosen match strategy, carrying the query's pre-parsed terms (never `none` — the DAL
+ *   short-circuits that before it needs a sort key).
  * @param baseMetric - This statement's base metric expression (`word_similarity(query, name)`).
- * @returns The lateral to join, and the score to order by. Pure.
+ * @returns The score to select and order by. Pure.
  */
-export function localTieredSortKey(
-    strategy: Exclude<IngredientMatchStrategy, { kind: 'none' }>,
-    baseMetric: SQL,
-): LocalTieredSortKey {
+export function localTieredSortKey(strategy: Exclude<IngredientMatchStrategy, { kind: 'none' }>, baseMetric: SQL): SQL {
     const rawAffinity = rawAffinitySql(strategy);
 
-    return {
-        lateral: sql`CROSS JOIN LATERAL (
-            SELECT folded_name.value AS folded, ${rankingTokensSql()} AS tokens
-            FROM (SELECT ${foldedNameSql()}) AS folded_name(value)
-        ) AS rank_terms`,
-        score: sql`((${TIER_GAP}::float8 * ${rankTierSql(strategy.terms)}::float8
-            + LEAST(GREATEST(${baseMetric}, 0::float8), ${BASE_METRIC_MAX}::float8)${rawAffinity ?? sql``}
-        ) / ${SCORE_CEILING}::float8)::float8`,
-    };
+    return sql`((${TIER_GAP}::float8 * ${rankTierSql(strategy.terms)}::float8
+        + LEAST(GREATEST(${baseMetric}, 0::float8), ${BASE_METRIC_MAX}::float8)${rawAffinity ?? sql``}
+    ) / ${SCORE_CEILING}::float8)::float8`;
 }

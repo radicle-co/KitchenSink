@@ -115,19 +115,26 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         expect(searchSpy).toHaveBeenCalledWith('spin', undefined);
     });
 
-    // Real timers — asserts the RENDERED ranking order (already pinned at the pure/hook level in
-    // `ingredientResolver.model.test.ts` and `useIngredientResolver.test.tsx`), not the debounce timing.
-    it('renders results ranked prefix > substring > fuzzy, ties broken alphabetically', async () => {
+    // Real timers — asserts the RENDERED order (already pinned at the hook level in
+    // `useIngredientResolver.test.tsx`), not the debounce timing.
+    //
+    // ⚠️ REWRITTEN for plan U5, in lockstep with its web sibling (the enforced cross-platform rule). It used
+    // to assert the picker re-ranked the server's page `prefix > substring > fuzzy`; that client-side
+    // mechanism is retired, and what replaced it is the property below — the picker renders exactly what the
+    // server sent. The ordering itself is now proven against a real database by each service's ranking
+    // integration suite.
+    it("renders the server's order UNMODIFIED — the picker no longer re-ranks (U5)", async () => {
         vi.useRealTimers();
         const client = createFakeRecipeServiceClient();
         const fixtureNames = ['Apple pie spice', 'Banana apple', 'Zucchini apple', 'Aplpe'];
+        // Deliberately the exact order the retired client sort would have INVERTED.
         vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
             blended(
                 own([
-                    makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }), // fuzzy — neither prefix nor substring
-                    makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }), // substring
-                    makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }), // prefix
-                    makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }), // substring (alphabetically first)
+                    makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }),
+                    makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }),
+                    makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }),
+                    makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }),
                 ]),
             ),
         );
@@ -146,6 +153,6 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
             .map((button) => button.textContent)
             .filter((text): text is string => fixtureNames.includes(text ?? ''));
 
-        expect(names).toEqual(['Apple pie spice', 'Banana apple', 'Zucchini apple', 'Aplpe']);
+        expect(names).toEqual(['Aplpe', 'Zucchini apple', 'Apple pie spice', 'Banana apple']);
     });
 });

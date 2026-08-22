@@ -403,9 +403,19 @@ label, not acquiring real foods on demand. Define what an unresolved line persis
 - An unresolved line persists without violating the foreign key.
 - Integration: two users submitting different prose for the same food converge on one row, one name.
 
-**Verification:** after a re-import, **no row** in `ingredients` — at any `food_resolution_status` — has a
-name that is a prose fragment. ⚠️ Scoping this to `RESOLVED` let a row whose poll never completed pass while
-still serving caller prose to every other user's search.
+**Verification:** after a re-import, **no `RESOLVED` row** in `ingredients` has a name that is anything but
+food-service's canonical answer for its `food_id`, and **every row at any status** carries a name in the
+canonical Unicode form.
+
+⛔ **An earlier draft of this line demanded "no row at ANY status is a prose fragment" and that is
+unachievable — do not restore it.** Three reasons, all in this unit's own text: the rename's only trigger is
+a `RESOLVED` transition; a food that never resolves legitimately keeps the caller's text, which the owner
+ruled on 2026-08-21 and the paragraph above mandates; and canonicalization is Unicode hygiene, which cannot
+recognise prose. Detecting prose is the parser's job (U7), not this unit's. The criterion above is the
+invariant U3 can actually guarantee.
+
+⚠️ **U15 therefore COUNTS non-canonical, non-`RESOLVED` rows rather than asserting zero** — that number is a
+measure of how many acquisitions never completed, which is worth watching, not a pass/fail gate U3 can meet.
 
 ### U4. _(merged into U3)_
 

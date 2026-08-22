@@ -39,17 +39,30 @@ export function parseSeedArgs(argv: readonly string[]): SeedCliOptions {
         throw new Error('Missing --dir (or USDA_BULK_DIR): the directory holding the extracted USDA bulk CSVs.');
     }
 
-    if (values.limit === undefined) {
-        return { dir, limit: undefined };
+    return { dir, limit: parseLimit(values.limit) };
+}
+
+/**
+ * Validate a raw `--limit` value. ONE authoritative statement of the rule, shared with the reseed
+ * (`reseedCli.ts`) — a bounded smoke run means the same thing on both tasks, and an operator who
+ * fat-fingers `1O` must get the same immediate error rather than a silent no-op (`Number('1O')` is `NaN`).
+ *
+ * @param raw - The raw flag value, or `undefined` when the flag was not given.
+ * @returns The validated cap, or `undefined` for no cap.
+ * @throws {Error} when the value is present but not a positive integer.
+ */
+export function parseLimit(raw: string | undefined): number | undefined {
+    if (raw === undefined) {
+        return undefined;
     }
 
-    const limit = Number(values.limit);
+    const limit = Number(raw);
 
     if (!Number.isInteger(limit) || limit <= 0) {
-        throw new Error(`Invalid --limit "${values.limit}" — expected a positive integer.`);
+        throw new Error(`Invalid --limit "${raw}" — expected a positive integer.`);
     }
 
-    return { dir, limit };
+    return limit;
 }
 
 /**

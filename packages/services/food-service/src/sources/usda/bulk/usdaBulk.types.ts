@@ -16,7 +16,27 @@
  */
 
 /**
- * The `food.data_type` values Stage 1 seeds: the small, high-quality, lab-analyzed whole-food datasets.
+ * Every `food.data_type` this reader knows how to map — the closed set a selection may name.
+ *
+ * ⚠️ Membership here is "the mapper handles this shape", NOT "the catalog imports it". WHICH of these a
+ * run imports is CONFIGURATION, declared by the catalog roster (`src/foods/seed/catalogDatasets.ts`) and
+ * passed to the reader as `dataTypes` — so adding Survey (FNDDS) to the catalog is a roster flip, not a
+ * rewrite of this filter. `branded_food` is absent on purpose: ~2M manufacturer-submitted rows, and the
+ * parser's `kind: 'generic'` / null brand scalars would be wrong for every one of them.
+ *
+ * ⚠️ `survey_fndds_food` is the ONLY USDA data type carrying curated "additional descriptions" (U2), and
+ * this reader does NOT read them — they live in the bulk zips' `food_attribute.csv` /
+ * `food_attribute_type.csv`, which is not in {@link BulkLookups}. A Survey row read here therefore lands
+ * with `aliases: []`. The reseed's post-condition (`assertCatalogReseeded`) is what stops that landing
+ * silently: a roster that enables an alias-carrying dataset must produce alias-carrying rows.
+ */
+export const BULK_DATA_TYPES = ['foundation_food', 'sr_legacy_food', 'survey_fndds_food'] as const;
+
+/** A bulk `food.data_type` this reader can map. */
+export type BulkDataType = (typeof BULK_DATA_TYPES)[number];
+
+/**
+ * The DEFAULT selection: the small, high-quality, lab-analyzed whole-food datasets (Stage 1).
  *
  * **Branded is deliberately NOT seeded** (~2M rows, manufacturer-submitted, junk risk) — it stays an
  * on-demand concern. This filter is not cosmetic: the published Foundation zip's `food.csv` holds 87,990
@@ -24,10 +44,7 @@
  * / `sample_food` / `agricultural_acquisition` sample-provenance chain. Reading the file wholesale would
  * seed ~187× the intended rows.
  */
-export const SEEDED_BULK_DATA_TYPES = ['foundation_food', 'sr_legacy_food'] as const;
-
-/** A bulk `food.data_type` Stage 1 seeds. */
-export type SeededBulkDataType = (typeof SEEDED_BULK_DATA_TYPES)[number];
+export const SEEDED_BULK_DATA_TYPES: readonly BulkDataType[] = ['foundation_food', 'sr_legacy_food'];
 
 /** One `nutrient.csv` dictionary entry: the source's nutrient name and its RAW bulk unit token. */
 export interface BulkNutrientDefinition {
@@ -74,7 +91,7 @@ export interface BulkFoodBundle {
      *  it becomes the source-agnostic `externalKey` the moment it leaves this boundary (FR-IDN-2). */
     readonly fdcId: string;
     /** The bulk dataset this food came from. */
-    readonly dataType: SeededBulkDataType;
+    readonly dataType: BulkDataType;
     /** The food description — the golden `name` (may be blank; such foods are dropped). */
     readonly description: string;
     /** `food.publication_date` as written (usually ISO `YYYY-MM-DD`; 80 FDC rows use `M/D/YYYY`). */

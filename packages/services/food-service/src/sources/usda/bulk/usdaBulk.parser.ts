@@ -166,14 +166,17 @@ export function mapBulkFoodToCanonical(bundle: BulkFoodBundle, lookups: BulkLook
         brandName: null,
         description: name,
         barcode: null,
-        // ⚠️ ALWAYS EMPTY, and that is a property of the SEEDED DATASETS, not an omission. USDA publishes
-        // "additional descriptions" only for Survey (FNDDS) foods; the two data types Stage 1 seeds
-        // (`foundation_food`, `sr_legacy_food`) return `additionalDescriptions: ''` on the API and carry
-        // no alias attribute — verified live against FDC on 2026-08-21 for `Cheese, cheddar` (Foundation,
-        // 328637) and eight SR Legacy flours. Aliases therefore reach the catalog through the LIVE
-        // acquisition path (`UsdaSourceAdapter`), which does see FNDDS rows. Seeding FNDDS would change
-        // what the catalog CONTAINS (composite prepared dishes competing with ingredient rows) and is a
-        // product decision, not part of this mapping.
+        // ⚠️ ALWAYS EMPTY — a property of the BULK FILE FORMAT, not an omission, and it stays empty even
+        // if a caller selects Survey (FNDDS). USDA publishes "additional descriptions" only for FNDDS
+        // foods; the two data types the default selection seeds (`foundation_food`, `sr_legacy_food`)
+        // return `additionalDescriptions: ''` on the API and carry no alias attribute — verified live
+        // against FDC on 2026-08-21 for `Cheese, cheddar` (Foundation, 328637) and eight SR Legacy
+        // flours. And FNDDS's aliases live in the zips' `food_attribute.csv` + `food_attribute_type.csv`,
+        // which `usdaBulk.reader.ts` does not read, so a bulk FNDDS row arrives alias-less too. Aliases
+        // therefore reach the catalog through the LIVE acquisition path (`UsdaSourceAdapter`), which does
+        // see FNDDS rows. Whether to seed FNDDS at all is a product decision (composite prepared dishes
+        // competing with ingredient rows) recorded in `foods/seed/catalogDatasets.ts`, and the reseed's
+        // post-condition fails a roster that enables it while this stays `[]` (U12b).
         aliases: [],
         nutrients,
         portions,

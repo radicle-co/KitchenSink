@@ -16,11 +16,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 import { FetchUnavailableError, UnauthorizedError } from '@kitchensink/food-service-client';
 import type { FoodServiceClient } from '@kitchensink/food-service-client';
+import { tieredRelevanceScore } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 import { CallerToken } from '../../auth/CallerToken.js';
 import { FoodCatalogGateway } from '../foodCatalog.gateway.js';
 import type { FoodServiceClients } from '../FoodServiceClients.factory.js';
 import { makeSearchResultView } from '../__fixtures__/ingredients.fixtures.js';
+
+/**
+ * The score food-service assigns a barcode / external-key crosswalk hit.
+ *
+ * ⚠️ Duplicated here deliberately, and it is the wire contract that makes that safe rather than sloppy:
+ * `foods.schema.ts` documents the search score as "trigram similarity; `1` for a barcode/external-key
+ * crosswalk hit", and `FoodsService.search` unshifts at exactly that value. This test exists BECAUSE the
+ * invariant spans two services and neither one's own suite can see it.
+ */
+const CROSSWALK_SCORE = 1;
 
 /** The caller credential every non-degenerate case forwards. */
 const CALLER = CallerToken.fromAuthorizationHeader('Bearer caller-session-jwt') as CallerToken;
@@ -83,6 +94,33 @@ describe('FoodCatalogGateway', () => {
             const outcome = await gateway.search(CALLER, 'x', 10);
 
             expect(outcome.hits.map((hit) => hit.foodId)).toEqual(['food-a', 'food-b']);
+        });
+
+        it('⛔ keeps an exact CROSSWALK hit first, ahead of the best possible TIERED score (U5)', async () => {
+            // A cross-service invariant with nothing but arithmetic holding it up. `FoodsService.search`
+            // unshifts a barcode / external-key crosswalk hit — an exact IDENTIFIER match — at score exactly
+            // `1`, and this gateway then re-sorts the page by score, discarding that position. It stays
+            // correct only because U5 normalizes the whole tier ladder into `[0, 1)`. `BEST_TIERED` below is
+            // the largest score `tieredRelevanceScore` can produce; if a future weight edit pushed it past
+            // 1, an exact barcode match would start ranking below a fuzzy name match, and neither service's
+            // own tests would notice because the defect only exists where the two meet.
+            const BEST_TIERED = tieredRelevanceScore({ tier: 'exact', baseMetric: 1, rawAffinity: true });
+
+            expect(BEST_TIERED).toBeLessThan(CROSSWALK_SCORE);
+
+            search.mockResolvedValue({
+                results: [
+                    makeSearchResultView({ id: 'food-crosswalk', name: 'Zebra bar', score: CROSSWALK_SCORE }),
+                    makeSearchResultView({ id: 'food-lexical', name: 'Alpha exact', score: BEST_TIERED }),
+                ],
+            });
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+
+            const outcome = await gateway.search(CALLER, 'x', 10);
+
+            // Named `Zebra bar` on purpose: if the scores ever tie, `name ASC` puts it LAST, so this case
+            // cannot pass by accident on the tiebreak.
+            expect(outcome.hits.map((hit) => hit.foodId)).toEqual(['food-crosswalk', 'food-lexical']);
         });
 
         it('drops hits whose golden name is null or blank (unrenderable, unpickable)', async () => {

@@ -135,6 +135,14 @@ export class FoodCatalogGateway {
             const usable = result.results.map(toCatalogHit).filter((hit): hit is CatalogHit => hit !== null);
             // Highest score first; ties break on name so the ordering is deterministic across calls. Sorted on
             // a copy — `result` belongs to the caller's response, not to us.
+            //
+            // ⛔ **This re-sort is what makes food-service's tiered score's UPPER BOUND load-bearing** (plan
+            // U5). `FoodsService.search` UNSHIFTS a barcode / external-key crosswalk hit at score exactly
+            // `1` — an exact IDENTIFIER match, which must lead — and this line then re-orders the page by
+            // score, discarding that position. It stays correct only because `foodRelevance.ts` normalizes
+            // the whole tier ladder into `[0, 1)`: a lexical hit can never reach 1. If a future change lets
+            // a search score exceed 1, an exact barcode match starts ranking below a fuzzy name match and
+            // nothing here would say so. `rankingTiers.test.ts` asserts the bound at the source.
             const hits = [...usable]
                 .sort((a, b) => (b.score - a.score !== 0 ? b.score - a.score : a.name.localeCompare(b.name)))
                 .slice(0, limit);

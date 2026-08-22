@@ -15,6 +15,22 @@
         "./resolution/normalized-key": {
             "types": "./dist/resolution/normalizedKey.d.ts",
             "default": "./dist/resolution/normalizedKey.js"
+        },
+        "./resolution/verification-gate-policy": {
+            "types": "./dist/resolution/verificationGatePolicy.d.ts",
+            "default": "./dist/resolution/verificationGatePolicy.js"
+        },
+        "./resolution/verification-key": {
+            "types": "./dist/resolution/verificationKey.d.ts",
+            "default": "./dist/resolution/verificationKey.js"
+        },
+        "./resolution/confidence": {
+            "types": "./dist/resolution/confidence.d.ts",
+            "default": "./dist/resolution/confidence.js"
+        },
+        "./spend/spend-arithmetic": {
+            "types": "./dist/spend/spendArithmetic.d.ts",
+            "default": "./dist/spend/spendArithmetic.js"
         }
     },
     "dependencies": { "zod": "^4.4.3" },

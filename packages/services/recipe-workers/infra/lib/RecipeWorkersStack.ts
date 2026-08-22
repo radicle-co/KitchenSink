@@ -32,6 +32,7 @@ import {
     subscribeAlarmEmail,
 } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
+import { DEFAULT_MONTHLY_CEILING_MICROS, NOVA_MICRO_MODEL_ID } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -154,6 +155,37 @@ const ERASURE_WORKER_TIMEOUT = Duration.minutes(5);
  * alarm) from ~30 minutes to ~50 for no safety gain.
  */
 const ERASURE_QUEUE_VISIBILITY_TIMEOUT = Duration.minutes(6);
+
+/**
+ * How long one verification may take: ONE `Converse` call plus two single-row SQL statements.
+ *
+ * Sized against what the call actually is — Bedrock `Converse` on a micro model at ~660 input / ~80 output
+ * tokens is roughly a second — with an order of magnitude of headroom for a cold pool or a slow region.
+ *
+ * ⚠️ IT IS ALSO A SPEND BOUND, which is why it is not generous. The function holds a worst-case reservation
+ * for its whole invocation; a timeout kills it between the response and the settlement, and ADR-0024 accepts
+ * that as an over-count. A long timeout makes that window longer for no benefit — nothing here retries, so
+ * waiting cannot rescue a call.
+ */
+const VERIFICATION_WORKER_TIMEOUT = Duration.seconds(60);
+
+/**
+ * The verification queue's visibility timeout — strictly longer than the worker's, as the archive and erasure
+ * queues are. A message redelivered while its worker is still running would take a SECOND reservation and
+ * make a SECOND billed call for one line.
+ */
+const VERIFICATION_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(90);
+
+/**
+ * The EMF namespace the verification gate publishes under (ADR-0024 layer 4).
+ *
+ * ⛔ MUST EQUAL `VERIFICATION_METRIC_NAMESPACE` in `src/handlers/verifyLine.ts`. The alarms extract by exact
+ * namespace, dimension and metric name, so a divergence here does not fail anything — it leaves every alarm
+ * below in permanent INSUFFICIENT_DATA, watching a metric nobody publishes. That is the same never-fires class
+ * of defect the archive backlog alarm shipped with (its `Stage` dimension did not match the sweeper's env),
+ * and `RecipeWorkersStack.test.ts` pins the pairing.
+ */
+const VERIFICATION_METRIC_NAMESPACE = 'Commise/RecipeVerification';
 
 /**
  * Age at which the oldest outstanding erasure job pages someone.
@@ -725,6 +757,152 @@ export class RecipeWorkersStack extends Stack {
             targets: [new events_targets.LambdaFunction(orphanSweeperFn)],
         });
 
+        // ── verification gate: queue + DLQ + the ONE Bedrock caller (plan U11, ADR-0024) ────────────
+        //
+        // ⛔ LAYER 0 OF ADR-0024's SIX, and the ADR calls it "the cheapest and highest-value control in the
+        // stack": SQS `maxReceiveCount` + a DLQ stop a retry loop BEFORE it becomes cost. Everything else in
+        // this block is a layer above it.
+        //
+        // ⚠️ THIS QUEUE CARRIES A COOK'S RECIPE TEXT. `sourceLine` is user-authored, and neither the erasure
+        // worker nor the orphan sweeper purges SQS — they delete rows and S3 objects. So a message sitting in
+        // this DLQ is a copy of personal data outside every erasure path. Two mitigations, both deliberate:
+        // SSE at rest (as `HandleSyncDlq` does for display names, and for the same stated reason), and a DLQ
+        // retention of THREE DAYS rather than the fourteen every other DLQ here uses. Three days is chosen
+        // against what a redrive is FOR: a verification failure is a quality signal, not a compliance
+        // obligation, and an un-redriven message costs one unverified line — which publishes, exactly as it
+        // did before this gate existed. Fourteen days of recipe text to preserve that is the wrong trade.
+        const verificationDlq = new sqs.Queue(this, 'IngredientVerificationDlq', {
+            enforceSSL: true,
+            queueName: `kitchensink-recipe-verification-dlq-${props.stage}`,
+            encryption: sqs.QueueEncryption.SQS_MANAGED,
+            retentionPeriod: Duration.days(3),
+            visibilityTimeout: VERIFICATION_QUEUE_VISIBILITY_TIMEOUT,
+        });
+
+        const verificationQueue = new sqs.Queue(this, 'IngredientVerificationQueue', {
+            enforceSSL: true,
+            queueName: `kitchensink-recipe-verification-${props.stage}`,
+            encryption: sqs.QueueEncryption.SQS_MANAGED,
+            retentionPeriod: Duration.days(4),
+            visibilityTimeout: VERIFICATION_QUEUE_VISIBILITY_TIMEOUT,
+            // ⛔ 20, NOT the 5 every other queue here uses, and the reason is a Lambda behaviour rather than a
+            // preference. This function runs at `reservedConcurrentExecutions: 1` (below). When the SQS poller
+            // outruns that reservation Lambda THROTTLES the invocation — and a throttled delivery still
+            // increments `ApproximateReceiveCount`. At 5, a backlog would send messages to the DLQ having
+            // NEVER EXECUTED, and the bake-off (2,432 messages, ~40 minutes serialized at ~1s per call) is
+            // exactly that scenario: it would look like a catastrophic model failure and be a queue setting.
+            // The event source's own `maxConcurrency` cannot express 1 (its documented minimum is 2), and
+            // raising the reserved concurrency would break ADR-0024 layer 2 and the guard test that pins it.
+            // `VerificationThrottlesAlarm` below is what makes throttle-induced redelivery visible rather than
+            // a silent drain. ⚠️ Both AWS behaviours here should be re-verified against current documentation
+            // before this number is tuned again.
+            deadLetterQueue: { queue: verificationDlq, maxReceiveCount: 20 },
+        });
+
+        // ⛔ ADR-0024 LAYER 4b — THE BYPASS CONTROL. `bedrock:InvokeModel` is granted to EXACTLY ONE execution
+        // role, and `bedrockInvokeGrantees.test.ts` asserts that by set equality over the whole infra tree.
+        // Layer 4's EMF dollar metric CANNOT detect a bypass: it is emitted BY the gated path, so a caller
+        // that skips the gate emits nothing. A permission nobody else holds cannot be bypassed; a metric
+        // nobody else emits cannot notice. ⛔ Adding a second grantee — for an embedding model, for a
+        // tier-4 rewrite in another service, for a one-off script — puts that spend OUTSIDE the $100 ceiling
+        // and reds the guard by construction. U11's own tier-4 rewrite runs under THIS role for that reason.
+        const verificationRole = makeRole(
+            'IngredientVerificationRole',
+            'Least-privilege role for the ingredient verification gate (the ONLY bedrock:InvokeModel grantee)',
+        );
+        grantRdsIam(verificationRole);
+        verificationQueue.grantConsumeMessages(verificationRole);
+
+        // Scoped to foundation models in this account's region rather than `*`: the gate calls `Converse` on a
+        // model id read from SSM, which cannot be resolved at synth time, so the resource wildcard is
+        // irreducible — but the SERVICE and REGION are not, and neither is the action list. `Converse` is
+        // authorized by `bedrock:InvokeModel`; `InvokeModelWithResponseStream` is deliberately absent because
+        // this gate never streams, and a streamed response would defeat the single-response settlement.
+        verificationRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['bedrock:InvokeModel'],
+                resources: [
+                    Stack.of(this).formatArn({
+                        service: 'bedrock',
+                        account: '',
+                        resource: 'foundation-model',
+                        resourceName: '*',
+                    }),
+                ],
+            }),
+        );
+        acceptNagFindings(verificationRole, AcceptedNagFindings.VERIFICATION_BEDROCK_MODEL_WILDCARD, {
+            applyToChildren: true,
+        });
+
+        // ⛔ TWO EXACT PARAMETER ARNs, not a prefix. The ceiling and the model id are the two values an
+        // operator changes mid-incident, and a `/kitchensink/{stage}/recipe/*` grant would also hand this role
+        // the account-erasure queue URL that lives beside them.
+        const ceilingParameterName = `/kitchensink/${props.stage}/recipe/verification-ceiling-micros`;
+        const modelParameterName = `/kitchensink/${props.stage}/recipe/verification-model-id`;
+
+        verificationRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['ssm:GetParameters'],
+                resources: [ceilingParameterName, modelParameterName].map((name) =>
+                    Stack.of(this).formatArn({ service: 'ssm', resource: 'parameter', resourceName: name.slice(1) }),
+                ),
+            }),
+        );
+
+        // ⚠️ SEEDED HERE, then owned by the OPERATOR. R23 requires the ceiling be configurable, and ADR-0024
+        // §3 requires it be changeable without redeploying this stack — so CDK creates the parameters with
+        // their starting values and the worker re-reads them on a 60-second TTL. A subsequent `cdk deploy`
+        // WILL reset a hand-edited value back to the seed, which is the accepted cost of having them exist on
+        // a fresh stage at all; an operator lowering the ceiling during an incident must also lower the seed,
+        // and the runbook says so.
+        new ssm.StringParameter(this, 'VerificationCeilingParam', {
+            parameterName: ceilingParameterName,
+            stringValue: String(DEFAULT_MONTHLY_CEILING_MICROS),
+            description: 'LLM verification gate: monthly spend ceiling in micro-dollars (ADR-0024). 0 = deny all.',
+        });
+        new ssm.StringParameter(this, 'VerificationModelParam', {
+            parameterName: modelParameterName,
+            stringValue: NOVA_MICRO_MODEL_ID,
+            description: 'LLM verification gate: the Bedrock model id (KTD-4). Must be priced by the rate table.',
+        });
+
+        const verificationFn = new lambda.Function(this, 'IngredientVerificationFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/verifyLine.handler',
+            code: lambda.Code.fromAsset(DIST_PATH),
+            role: verificationRole,
+            vpc,
+            vpcSubnets,
+            securityGroups: [lambdaSecurityGroup],
+            timeout: VERIFICATION_WORKER_TIMEOUT,
+            memorySize: 512,
+            // ⛔ ADR-0024 LAYER 2, AND THE ONLY THING BOUNDING NON-PROD SPEND. The ceiling is prod-only by
+            // owner ruling, so in sandbox and every pr-{N} this single constant is what stands between a
+            // redrive loop and the invoice: at ~1s per call it bounds the burn at ~86,400 calls/day ≈
+            // $2.90/day ≈ $88/month/stage on Nova Micro (~30x that on Haiku 4.5). ADR-0024 names raising it as
+            // "the one change that makes this ruling unsafe". Pinned by
+            // `verificationConcurrencyGuard.test.ts` in EVERY stage.
+            //
+            // ⚠️ It is NOT the ceiling. Burn RATE converts to dollars differently per model — by a factor of
+            // ~30 across the two bake-off candidates — which is precisely why ADR-0024 refuses to let this
+            // stand in for the counter.
+            reservedConcurrentExecutions: 1,
+            environment: {
+                ...commonDbEnv,
+                // REQUIRED by the handler, and load-bearing twice: it selects the prod-only ceiling and it is
+                // the dimension every alarm below watches. A metric published under the wrong stage is a
+                // metric no alarm sees.
+                STAGE: props.stage,
+            },
+            logGroup,
+        });
+
+        // batchSize 1: one message is one ingredient line, so a DLQ message maps to exactly one unverified
+        // line — and a partial-batch failure would otherwise re-call (and re-pay for) lines already verified.
+        verificationFn.addEventSource(new lambda_event_sources.SqsEventSource(verificationQueue, { batchSize: 1 }));
+
         // ── ⛔ SCHEMA BEFORE WORK — the in-deploy migration barrier ─────────────────────────────────
         //
         // Every Lambda above reads `kitchensink_recipes`, and until this existed they were all updated
@@ -964,6 +1142,122 @@ export class RecipeWorkersStack extends Stack {
         });
         orphanAlarm.addAlarmAction(alarmAction);
 
+        // ── verification alarms (ADR-0024 layers 4 and 0) ──────────────────────────────────────────
+        //
+        // ⛔ Layer 4 detects counter BUGS, not a bypass — an earlier draft of the ADR claimed otherwise and
+        // was corrected. The metric is emitted BY the gated path, so it can only ever measure what went
+        // through the gate. The bypass control is the IAM grant above.
+        //
+        // It alarms at HALF the ceiling, is dollar-denominated, and routes to a notification rather than a
+        // kill switch: at $100 maximum exposure an automated remediation Lambda costs more to build and carry
+        // than the loss it prevents.
+        const spendAlarm = new cloudwatch.Alarm(this, 'VerificationSpendAlarm', {
+            alarmName: `kitchensink-recipe-verification-spend-${props.stage}`,
+            alarmDescription:
+                'ADR-0024 layer 4: the LLM verification gate has reserved more than half its monthly ceiling. Dollar-denominated, app-scoped, and emitted by the gated path — so this measures counter bugs and real volume, never a bypass.',
+            metric: new cloudwatch.Metric({
+                namespace: VERIFICATION_METRIC_NAMESPACE,
+                metricName: 'VerificationSpendMicros',
+                dimensionsMap: { Stage: props.stage },
+                statistic: 'Maximum',
+                period: Duration.minutes(5),
+            }),
+            threshold: DEFAULT_MONTHLY_CEILING_MICROS / 2,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        spendAlarm.addAlarmAction(alarmAction);
+
+        // A settle that failed left a reservation unrefunded, so the counter over-reports until the month
+        // rolls. ADR-0024 asks for this metric by name ("emit a metric when settle fails so unrefunded
+        // reservations are observable rather than silent"). Sum, not Maximum: several in a window matter.
+        const settleFailureAlarm = new cloudwatch.Alarm(this, 'VerificationSettleFailureAlarm', {
+            alarmName: `kitchensink-recipe-verification-settle-${props.stage}`,
+            alarmDescription:
+                'A verification settlement failed, so a worst-case reservation stands unrefunded. The counter now over-reports; repeated failures mean the ceiling will bind early.',
+            metric: new cloudwatch.Metric({
+                namespace: VERIFICATION_METRIC_NAMESPACE,
+                metricName: 'VerificationSettleFailures',
+                dimensionsMap: { Stage: props.stage },
+                statistic: 'Sum',
+                period: Duration.minutes(5),
+            }),
+            threshold: 0,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        settleFailureAlarm.addAlarmAction(alarmAction);
+
+        // ⛔ THE ALARM THAT MAKES LAYER 2 SAFE TO KEEP. `reservedConcurrentExecutions: 1` plus an SQS event
+        // source means a backlog produces THROTTLED deliveries, and a throttled delivery still increments a
+        // message's receive count. Without this, the only symptom of an over-tight concurrency setting is
+        // messages arriving in the DLQ having never run — which reads as a model failure. Raised
+        // `maxReceiveCount` buys the headroom; this makes the cause visible.
+        const throttleAlarm = new cloudwatch.Alarm(this, 'VerificationThrottlesAlarm', {
+            alarmName: `kitchensink-recipe-verification-throttles-${props.stage}`,
+            alarmDescription:
+                'The verification gate is being throttled by its own reserved concurrency. Throttled SQS deliveries still burn a message’s receive count, so a sustained backlog drains to the DLQ without ever executing.',
+            metric: verificationFn.metricThrottles({ period: Duration.minutes(5), statistic: 'Sum' }),
+            threshold: 0,
+            evaluationPeriods: 3,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        throttleAlarm.addAlarmAction(alarmAction);
+
+        // A message here is one line the gate never checked. Not a compliance incident (the line publishes
+        // unverified, i.e. today's behaviour) but it is how an exhausted ceiling becomes VISIBLE — ADR-0024:
+        // "an exhausted ceiling drains to the DLQ, where it is visible as queue depth instead of as silently
+        // degraded recipes".
+        const verificationDlqAlarm = new cloudwatch.Alarm(this, 'IngredientVerificationDlqAlarm', {
+            alarmName: `kitchensink-recipe-verification-dlq-${props.stage}`,
+            alarmDescription:
+                'Ingredient lines exhausted their verification retries. Check the spend ceiling, the Bedrock model parameter, and the throttle alarm before assuming a model problem.',
+            metric: verificationDlq.metricApproximateNumberOfMessagesVisible({
+                period: Duration.minutes(5),
+                statistic: 'Maximum',
+            }),
+            threshold: 0,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        verificationDlqAlarm.addAlarmAction(alarmAction);
+
+        // ADR-0024 §5: prompt caching cannot engage at ~660 input tokens on any candidate, so this should be
+        // zero forever. A non-zero value means the prompt grew past a cache threshold and the cost model needs
+        // re-deriving — the counter would still be correct, but the rate table's assumptions would not be.
+        const cacheTokenAlarm = new cloudwatch.Alarm(this, 'VerificationCacheTokensAlarm', {
+            alarmName: `kitchensink-recipe-verification-cache-${props.stage}`,
+            alarmDescription:
+                'A verification response reported prompt-cache tokens, which ADR-0024 §5 says cannot happen at this prompt size. The prompt has grown past a cache threshold and the cost model needs revisiting.',
+            metric: new cloudwatch.Metric({
+                namespace: VERIFICATION_METRIC_NAMESPACE,
+                metricName: 'VerificationCacheTokensObserved',
+                dimensionsMap: { Stage: props.stage },
+                statistic: 'Sum',
+                period: Duration.minutes(5),
+            }),
+            threshold: 0,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        cacheTokenAlarm.addAlarmAction(alarmAction);
+
+        // Cross-stack hand-off to recipe-service's producer, by SSM for the reason the erasure queue is:
+        // an imported CfnOutput export is LOCKED while referenced, and ADR-0005's PR-close cleanup deletes a
+        // PR's stacks in no guaranteed order.
+        new ssm.StringParameter(this, 'IngredientVerificationQueueUrlParam', {
+            parameterName: `/kitchensink/${props.stage}/recipe/verification-queue-url`,
+            stringValue: verificationQueue.queueUrl,
+        });
+        new ssm.StringParameter(this, 'IngredientVerificationQueueArnParam', {
+            parameterName: `/kitchensink/${props.stage}/recipe/verification-queue-arn`,
+            stringValue: verificationQueue.queueArn,
+        });
         // ── cross-stack hand-off: erasure queue → recipe-service (T136b) ───────────────────────────
         // recipe-service's ErasureService REQUIRES ACCOUNT_ERASURE_QUEUE_URL and refuses to boot without
         // it. It reads the URL (and the ARN, to scope its sqs:SendMessage grant) from these per-STAGE SSM

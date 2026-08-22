@@ -419,7 +419,10 @@ describe('RecipeWorkersStack', () => {
         // quietly dropping its database env.
         const bound = databaseBoundFunctions(template);
 
-        expect([...bound.keys()], 'the six workers plus the in-deploy migration runner').toHaveLength(7);
+        // ⚠️ MOVED AGAIN when U11's verification gate landed: seven workers now, plus the runner. The number
+        // is pinned rather than derived on purpose — a Lambda that quietly LOSES its database env would
+        // otherwise leave this subject set silently, which is the drift ADR-0004's own consumer list suffered.
+        expect([...bound.keys()], 'the seven workers plus the in-deploy migration runner').toHaveLength(8);
 
         const functions = template.findResources('AWS::Lambda::Function');
         const unbound = Object.keys(functions).filter((name) => !bound.has(name));
@@ -645,10 +648,13 @@ describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
         const template = synth('pr-73', 'sandbox');
         const names = recipeDbNames(template);
 
-        // Six workers plus the in-deploy migration runner. The runner is the reason the count moved: a
-        // runner pointed at the base database while the workers read the preview's own would migrate the
-        // wrong schema and report success — #119's failure mode arriving through a new door.
-        expect(names).toHaveLength(7);
+        // Seven workers plus the in-deploy migration runner. The runner is the reason the count first moved:
+        // a runner pointed at the base database while the workers read the preview's own would migrate the
+        // wrong schema and report success — #119's failure mode arriving through a new door. U11's
+        // verification gate is the seventh worker, and it MATTERS here specifically: it writes the spend
+        // counter, so a gate reading the shared base database would enforce ONE ceiling across every open
+        // preview and deny them all once any of them exhausted it.
+        expect(names).toHaveLength(8);
         expect(new Set(names)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 
@@ -971,9 +977,9 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         // would both change its trigger semantics and demand a consume grant it deliberately lacks.
         const mappings = Object.values(template.findResources('AWS::Lambda::EventSourceMapping'));
 
-        // The three queue workers (archive + erasure + handle-sync) have event-source mappings; the orphan
-        // sweeper (EventBridge-scheduled) must not have introduced another.
-        expect(mappings).toHaveLength(3);
+        // The FOUR queue workers (archive + erasure + handle-sync + U11's verification gate) have
+        // event-source mappings; the orphan sweeper (EventBridge-scheduled) must not have introduced another.
+        expect(mappings).toHaveLength(4);
     });
 
     it('alarms when the sweeper deletes any orphan — the resurrection race actually fired', () => {
@@ -1030,9 +1036,13 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         expect(topicLogicalId, 'the stack must own an alarm topic').toMatch(/^RecipeWorkersAlarmTopic/);
 
         const alarms = template.findResources('AWS::CloudWatch::Alarm');
-        // All six alarms: archive backlog, archive age (new), archive DLQ, erasure age, erasure DLQ,
-        // orphan-deleted. A regression that drops one — or adds a seventh without an action — trips here.
-        expect(Object.keys(alarms)).toHaveLength(6);
+        // All ELEVEN alarms: archive backlog, archive age, archive DLQ, erasure age, erasure DLQ,
+        // orphan-deleted, and U11's five — verification spend, settle failures, throttles, verification DLQ
+        // and cache tokens. A regression that drops one, or adds a twelfth without an action, trips here.
+        // ⚠️ The verification THROTTLE alarm is the one most likely to look redundant and is not: with
+        // `reservedConcurrentExecutions: 1`, a throttled SQS delivery still burns a message's receive count,
+        // so without it an over-tight concurrency setting drains the DLQ while looking like a model failure.
+        expect(Object.keys(alarms)).toHaveLength(11);
 
         for (const [name, alarm] of Object.entries(alarms)) {
             const actions = alarm.Properties?.AlarmActions as { Ref: string }[] | undefined;

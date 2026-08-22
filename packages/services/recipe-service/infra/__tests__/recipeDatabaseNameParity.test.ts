@@ -149,7 +149,11 @@ describe('recipe database-name parity — API vs workers', () => {
         const apiName = apiDatabaseName(service);
         const workerNames = lambdaDatabaseNames(workers, 'RECIPE_DB_NAME');
 
-        expect(workerNames).toHaveLength(6);
+        // SEVEN workers since U11's verification gate landed (the migration runner reads DB_NAME, not
+        // RECIPE_DB_NAME, so it is not in this set). The count is pinned rather than derived because a worker
+        // that quietly LOSES its RECIPE_DB_NAME would otherwise leave this comparison silently — and #119 was
+        // exactly a worker addressing a different database than the API believed it was.
+        expect(workerNames).toHaveLength(7);
         expect(new Set(workerNames)).toEqual(new Set([apiName]));
 
         // And that the shared value is the ADR-0006 suffix form, not merely "equal to each other" — two

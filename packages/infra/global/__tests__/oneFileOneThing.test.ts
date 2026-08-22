@@ -112,6 +112,7 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/clients/food-service/src/errors.ts', classes: 10, components: 0 },
             { file: 'packages/clients/recipe-service/src/errors.ts', classes: 11, components: 0 },
+            { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 5, components: 0 },

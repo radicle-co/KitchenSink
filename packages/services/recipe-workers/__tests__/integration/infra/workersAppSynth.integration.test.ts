@@ -205,7 +205,11 @@ describe('recipe-workers CDK app — deploy input contract', () => {
         // ships. The runner is now inside this guarantee rather than beside it, which matters more than the
         // count — a runner migrating the BASE database while the workers read the preview's own would
         // reproduce #119 exactly, and report success doing it.
-        expect(dbNames).toHaveLength(7);
+        // Seven workers plus the in-deploy migration runner — U11's verification gate is the seventh, and it
+        // matters here specifically because it WRITES the spend counter: a gate pointed at the shared base
+        // database would enforce ONE monthly ceiling across every open preview and deny them all once any
+        // single preview exhausted it.
+        expect(dbNames).toHaveLength(8);
         expect(new Set(dbNames)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 

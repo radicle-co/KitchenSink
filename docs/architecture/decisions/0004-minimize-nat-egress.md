@@ -52,14 +52,14 @@ still deliberately non-VPC.
 
 <!-- nat-consumers:start -->
 
-| Stack                | VPC-attached Lambdas                                                                                                                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DataStack (global)   | `FoodDbBootstrapFunction`, `RecipeDbBootstrapFunction`                                                                                                                                                        |
-| WebhooksStack        | `WebhookFunction`, `DeletionWorkerFunction`, `ReconciliationFunction`, `TombstoneSweepFunction`, `ErasureReconciliationFunction`                                                                              |
-| IdentityServiceStack | `IdentityMigrationFunction`                                                                                                                                                                                   |
-| FoodServiceStack     | `FoodMigrationFunction`                                                                                                                                                                                       |
-| RecipeServiceStack   | `RecipeMigrationFunction`                                                                                                                                                                                     |
-| RecipeWorkersStack   | `VersionArchiveWorkerFunction`, `ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`, `ErasureOrphanSweeperFunction`, `RecipeSchemaMigrationRunner` |
+| Stack                | VPC-attached Lambdas                                                                                                                                                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DataStack (global)   | `FoodDbBootstrapFunction`, `RecipeDbBootstrapFunction`                                                                                                                                                                                          |
+| WebhooksStack        | `WebhookFunction`, `DeletionWorkerFunction`, `ReconciliationFunction`, `TombstoneSweepFunction`, `ErasureReconciliationFunction`                                                                                                                |
+| IdentityServiceStack | `IdentityMigrationFunction`                                                                                                                                                                                                                     |
+| FoodServiceStack     | `FoodMigrationFunction`                                                                                                                                                                                                                         |
+| RecipeServiceStack   | `RecipeMigrationFunction`                                                                                                                                                                                                                       |
+| RecipeWorkersStack   | `VersionArchiveWorkerFunction`, `ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`, `ErasureOrphanSweeperFunction`, `IngredientVerificationFunction`, `RecipeSchemaMigrationRunner` |
 
 <!-- nat-consumers:end -->
 

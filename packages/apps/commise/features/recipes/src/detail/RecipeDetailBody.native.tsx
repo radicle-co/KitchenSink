@@ -30,7 +30,7 @@ import { fillTemplate, formatDurationMinutes } from '../list/model.js';
 import { PhotoCarousel } from './PhotoCarousel.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
-import { ServingScaleControl } from './ServingScaleControl.native.js';
+import { SERVING_STEPPER_MIN_WIDTH, ServingScaleControl } from './ServingScaleControl.native.js';
 import { formatQuantity, rangeDerivedNotice, type RecipeDetailBodyProps } from './model.js';
 
 /** One label/value cell in the stats or nutrition strip. */
@@ -121,7 +121,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 {/* Rendered inline rather than through `Stat`: the serving cell's value is a CONTROL, and
                     `Stat` wraps its value in a `<Text>` — nesting a `View` inside a `Text` is invalid in
                     React Native. Giving `Stat` a "is this a string?" branch would have hidden that. */}
-                <View style={styles.statCell}>
+                <View style={[styles.statCell, styles.statCellServings]}>
                     <ServingScaleControl
                         servings={servings}
                         baseServings={recipe.servings}
@@ -290,6 +290,15 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     );
 };
 
+/**
+ * Width the Serves cell reserves, so its stepper is never clipped. Taken FROM the control rather than
+ * restated, so raising the 44pt touch floor moves this with it.
+ */
+export const STAT_CELL_SERVINGS_MIN_WIDTH = SERVING_STEPPER_MIN_WIDTH;
+
+/** The strip wraps rather than clipping when its cells cannot fit one line. Published for the guard test. */
+export const STAT_STRIP_WRAPS = 'wrap' as const;
+
 const styles = StyleSheet.create({
     container: {
         gap: nativeTokens.spacing[4],
@@ -341,6 +350,9 @@ const styles = StyleSheet.create({
     scaleNoticeCaveat: { fontWeight: '600' },
     statStrip: {
         flexDirection: 'row',
+        // Belt to the reservation's braces: on a narrower device, or after a copy change, a second line is
+        // legible where a sliced-in-half control is not.
+        flexWrap: STAT_STRIP_WRAPS,
         backgroundColor: palette.white,
         borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
@@ -350,6 +362,10 @@ const styles = StyleSheet.create({
         ...nativeTokens.elevation.sm,
     },
     statCell: { flex: 1, alignItems: 'center', gap: nativeTokens.spacing[1] },
+    // ⛔ The Serves cell is NOT an equal quarter. Its value is a CONTROL with a fixed intrinsic width (two
+    // 44pt touch targets and a value box); an equal share is ~85dp on a 375dp phone, so it overflowed and
+    // the emulator rendered the `−` cut in half by the screen edge. The figure comes FROM the control.
+    statCellServings: { minWidth: STAT_CELL_SERVINGS_MIN_WIDTH },
     statValue: { fontSize: nativeTokens.fontSize.bodyLg, fontWeight: '700', color: palette.charcoal },
     statLabel: {
         fontSize: nativeTokens.fontSize.overline,

@@ -1,7 +1,7 @@
 # Specification Quality Checklist: Publishing Rewards
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
-**Status**: ⏸️ PAUSED — see [`../research-brief.md`](../research-brief.md)
+**Status**: ✅ VALIDATED — ready for `/speckit-plan` (launch still blocked on D4a/D5/D24/ToS licence)
 **Created**: 2026-08-21
 **Feature**: [spec.md](../spec.md)
 
@@ -14,7 +14,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain _(all three resolved 2026-08-22; four new open items are tracked as UNDEFINED markers in the research brief, not as clarifications)_
+- [x] No [NEEDS CLARIFICATION] markers remain _(all three answered by the owner 2026-08-22 — `C-015-017` zero start re-affirmed, `C-015-018` standing public, `C-015-019` cook counter hidden until first cook)_
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -33,6 +33,67 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
+
+### Validation record — iteration 4 (2026-08-22, clarifications + owner correction)
+
+**Three questions answered, three markers cleared.** `C-015-017` (zero start **re-affirmed** with the
+endowed-progress counter-evidence in hand — the argument has been made and declined, and must not be re-opened
+on that basis), `C-015-018` (standing public on the 012 profile, no rank), `C-015-019` (cook counter hidden
+until the first cook, with a view count explicitly rejected as a substitute).
+
+**One substantive defect found by the owner, mid-pass, and fixed.** The spec incentivised users who _need_
+privacy and quietly failed the users who already _have_ it. Recognition was specified to reach both tiers, but
+it is keyed on **impact**, and impact requires an audience a first-time publisher has not got — so a premium
+account had a reward available in principle with no route to it, and the free tier's on-ramp (front-loaded
+slots) is worth nothing to them. The research dossier held the evidence and drew the boundary in the wrong
+place; it is corrected in place rather than quietly patched, with the provenance of the correction recorded.
+
+Closed by `FR-007l` (first-publication milestone — a deliberately narrow carve-out from `FR-007g`, safe only
+because a threshold of one cannot be farmed), `FR-007m` (reciprocity signal, bounded hard against
+debt/deficit/obligation framing), and `FR-007n` (recognition parity across tiers). Covered by **User Story 6**,
+tested by `SC-013`–`SC-015`, recorded as `C-015-020`.
+
+**Final counts**: 47 functional requirements, 15 success criteria, 6 user stories, 20 clarifications, 2
+recorded risks (both accepted with mitigations and tests, neither outstanding).
+
+---
+
+### Validation record — iteration 3 (2026-08-22, research pass)
+
+**All four open sections closed with evidence.** `research/reward-psychology.md` was written from primary and
+well-attributed sources and consumed directly by the spec: the reward schedule (`FR-007a`) and rate limit
+(`FR-010`) are now concrete, `FR-007e` is replaced by four implementable requirements (`FR-007f`–`FR-007i`)
+plus a handoff rule (`FR-007j`), premium reach is answered (`FR-007k`), and seven anti-manipulation
+requirements (`FR-025`–`FR-031`) plus the 012 boundary (`FR-032`) were added. **No UNDEFINED markers remain.**
+
+**Issues found and fixed during this iteration:**
+
+1. **A brief that outlived its accuracy.** `research-brief.md` still presented §1/§2/§4 as open after they were
+   decided. Left in place (it holds the reasoning that produced the questions) but banner-marked SUPERSEDED per
+   section, with the resolution stated inline. A stale entry-point document is worse than no entry point.
+2. **An unverifiable citation caught before it was written down.** A machine summary of the Anderson et al.
+   badge paper produced specific post-badge decay figures and quoted phrases that could not be confirmed
+   against the text. They are **excluded**; only the paper's robust steering-and-substitution result is cited,
+   and the exclusion is noted in the dossier so nobody re-adds them.
+3. **A legal constraint asserted in conversation that does not hold.** EU AI Act Art. 5 was named as binding on
+   this feature. It is scoped to **AI systems** and does not apply. Corrected in `C-015-015`; `FR-025`–`FR-031`
+   are written against DSA Art. 25 and the Digital Fairness Act, which do apply.
+4. **The `FR-007c` ceiling was vestigial again.** Nothing tied the schedule to 50, so the two could drift. The
+   schedule now terminates at exactly 50 — one fact, not two.
+5. **A cliff nobody had named.** The finite slot currency terminates by design, which makes the ceiling a
+   scheduled withdrawal of the free tier's primary incentive. Recorded as a risk, mitigated by `FR-007j`, and
+   tested by `SC-011`.
+
+**Requirements-completeness note.** The three remaining markers are deliberate. Q1 reverses a stated owner
+decision and so cannot be taken unilaterally; Q2 determines a public surface and is expensive to reverse; Q3 is
+small but genuinely has no default that is obviously right. Everything else was decided from evidence and
+documented rather than escalated.
+
+**Still outstanding from iteration 2**: C-015-005 remains derived-not-stated and awaits owner confirmation.
+The inducement gap logged in iteration 2 is now **closed** to the level a spec can carry (`C-015-016`), with
+counsel review recorded as a launch prerequisite.
+
+---
 
 ### Validation record — iteration 2 (2026-08-22)
 

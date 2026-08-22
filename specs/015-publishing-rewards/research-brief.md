@@ -1,7 +1,11 @@
 # 015 Publishing Rewards — Research Brief
 
-**Status**: OPEN — this is the entry point for the next working session on feature 015
-**Created**: 2026-08-22
+**Status**: ⚠️ **SUPERSEDED for §1, §2 and §4 (2026-08-22)** — those sections are closed; the decisions now
+live in [`spec.md`](./spec.md) and the evidence in
+[`research/reward-psychology.md`](./research/reward-psychology.md). §3 is **partly** closed and survives as
+open question **Q1** in the spec. Read this file for the reasoning that led to the questions; read `spec.md`
+for what was decided.
+**Created**: 2026-08-22 · **Superseded**: 2026-08-22
 **Spec**: [`spec.md`](./spec.md) · **Checklist**: [`checklists/requirements.md`](./checklists/requirements.md)
 **Origin**: [`docs/competitive/02-gap-analysis-and-strategy.md`](../../docs/competitive/02-gap-analysis-and-strategy.md) §3 (P2) and the ReciMe teardown
 
@@ -34,7 +38,12 @@ below must be tested against this.
 
 ---
 
-## §1 — The reward schedule (OPEN)
+## §1 — The reward schedule (✅ RESOLVED — `FR-007a`, `FR-010`)
+
+> **Resolved**: front-loaded, mildly diminishing, terminating at the 50-recipe ceiling (2 slots each for
+> publications 1–10, 1 each for 11–30, 1 per 2 for 31–70). Rate limit 3/day and 10/week. The schedule is the
+> motivational instrument, the rate limit is the anti-farming control — deliberately not conflated.
+> Evidence: [`research/reward-psychology.md`](./research/reward-psychology.md) §3. Original framing below.
 
 **Question**: how many private slots does one qualifying publication grant, and how fast may they be earned?
 
@@ -59,7 +68,13 @@ reputation-for-privilege ladder is the closest _behavioural_ one and is well doc
 
 ---
 
-## §2 — What "status and recognition" actually means (OPEN)
+## §2 — What "status and recognition" actually means (✅ RESOLVED — `FR-007e`–`FR-007h`)
+
+> **Resolved**: three mechanics — the **cook signal** (aggregate evidence a real person made your recipe),
+> **impact milestones** keyed on cooks and ratings rather than publication count, and a **coarse permanent
+> standing ladder**. Visibility answered as **option 1, public profile with no rankings**: leaderboards are
+> now forbidden by `FR-026`. Surface ownership goes to `012` (`FR-032`). Evidence:
+> [`research/reward-psychology.md`](./research/reward-psychology.md) §4 and §2.2. Original framing below.
 
 **Question**: `FR-007e` is a placeholder. What is the thing?
 
@@ -99,7 +114,14 @@ not decided. **Decide this before writing `FR-007e`** — it determines the enti
 
 ---
 
-## §3 — The zero-slot start (OPEN)
+## §3 — The zero-slot start (⚠️ PARTLY RESOLVED — survives as spec question **Q1**)
+
+> **Priced, not decided.** The mitigation "a small starting grant (1–3 slots)" now has direct evidence behind
+> it: the endowed-progress effect roughly doubled completion in the canonical study (34% vs 19%) purely by
+> pre-filling progress. That makes a head start the _higher-performing_ design as well as the fix for the
+> first-publication toll — but it reverses the owner's explicit "start with 0" decision, so it is put back as
+> **Q1** rather than taken unilaterally. Evidence:
+> [`research/reward-psychology.md`](./research/reward-psychology.md) §1.2. Original framing below.
 
 **The problem, recorded in the spec's risk note.** A free user's first authored recipe cannot be private. To
 get any privacy they must first publish. That is far better than the paywall it replaces — the price is one
@@ -124,7 +146,14 @@ than inherits it silently.
 
 ---
 
-## §4 — Do two currencies reach far enough? (OPEN)
+## §4 — Do two currencies reach far enough? (✅ RESOLVED — `FR-007k`)
+
+> **Resolved, against the instinct.** Not by adding levers: recognition (which reaches everyone) plus early
+> access and a contributor input channel. Discovery placement, premium trial time and anything monetary are
+> **rejected** — discovery placement on two independent grounds, behavioural and legal. Stacking extrinsic
+> rewards onto intrinsically motivated behaviour is what triggers the crowding-out now recorded as a risk in
+> the spec. Evidence: [`research/reward-psychology.md`](./research/reward-psychology.md) §5 and §2.5.
+> Original framing below.
 
 **The owner's words: "I feel like we also might need more incentives — and not just for free tier people."**
 
@@ -155,7 +184,16 @@ recipes, more likely to be serious cooks).
 
 ---
 
-## Research agenda for the next session
+## Research agenda — ✅ COMPLETED 2026-08-22
+
+> Items 1, 3, 4 and 5 are done and written up in
+> [`research/reward-psychology.md`](./research/reward-psychology.md). Item 2 (recipe/UGC platforms) was
+> covered for **Cookpad**, which turned out to be the most valuable single find — its contributor culture rests
+> on impact feedback rather than points, and that became `FR-007f`. Allrecipes, Food.com and Tasty were not
+> reached and remain the one genuine gap; they are unlikely to change any decision above, since the mechanism
+> question they would inform is already answered by stronger evidence.
+
+### Original agenda
 
 1. **Contribution-incentive mechanics that actually worked**, with evidence: Stack Overflow reputation,
    GitHub profile/graph, Dropbox refer-for-space, Wikipedia barnstars, Strava segments, Duolingo streaks. What
@@ -187,7 +225,10 @@ recipes, more likely to be serious cooks).
 
 ---
 
-## Session-restart checklist
+## Session-restart checklist — superseded
+
+> The restart path is now: read [`spec.md`](./spec.md) **Status**, answer **Q1–Q3**, then `/speckit-plan`.
+> The original checklist follows for the record.
 
 1. Read this file, then `spec.md`'s **Clarifications** and **Status** sections.
 2. Confirm C-015-005 with the owner (derived by the spec, not stated by them).

@@ -90,7 +90,7 @@ test.describe('recipe CRUD (T079)', () => {
 
         // W2/D1 — the detail is no longer a dead end: the owner's version-history entry point is reachable,
         // behind the "More" overflow menu (C4 — Edit stays the sole primary header control).
-        await page.getByRole('button', { name: 'More' }).click();
+        await page.getByRole('button', { name: 'More', exact: true }).click();
         await expect(page.getByRole('link', { name: 'Version history' })).toBeVisible();
         // W2/D5 — ingredient checkboxes are real, trackable controls (not decorative).
         const saltCheckbox = page.getByRole('checkbox', { name: /Salt/ });
@@ -130,7 +130,7 @@ test.describe('recipe CRUD (T079)', () => {
         // first; it is behind the "More" overflow menu (C4). Confirm the destructive dialog, then land back
         // on the list without the recipe.
         await page.goto(route(`/recipes/${createdId}`));
-        await page.getByRole('button', { name: 'More' }).click();
+        await page.getByRole('button', { name: 'More', exact: true }).click();
         await page.getByRole('button', { name: 'Delete recipe' }).click();
         await page.getByRole('button', { name: 'Delete', exact: true }).click();
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);

@@ -106,7 +106,7 @@ test.describe('recipe detail — configurable serving size', () => {
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Scalable Stew' })).toBeVisible();
 
-        const servings = page.getByLabel('Servings');
+        const servings = page.getByLabel('Servings', { exact: true });
         // DEFAULT: the count the recipe was created with, and nothing announced as adjusted.
         await expect(servings).toHaveValue('4');
         await expect(page.getByText(/Adjusted from/)).toHaveCount(0);
@@ -153,7 +153,7 @@ test.describe('recipe detail — configurable serving size', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [scalable(viewerId)] });
 
         await page.goto(route(`/recipes/${RECIPE_ID.scalable}`));
-        const servings = page.getByLabel('Servings');
+        const servings = page.getByLabel('Servings', { exact: true });
         await expect(servings).toHaveValue('4');
 
         await page.getByRole('button', { name: 'More servings' }).click();

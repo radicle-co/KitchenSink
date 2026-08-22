@@ -1269,7 +1269,6 @@ jobs:
             LINKAGE_FOOD_URL: http://localhost:3002
             LINKAGE_RECIPE_URL: http://localhost:3000
             LINKAGE_AZP: http://localhost:3000
-            LINKAGE_CREDENTIALS: ${{ runner.temp }}/linkage/linkage-credentials.json
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -1341,7 +1340,17 @@ jobs:
             - name: Mint the ONE Clerk credential both services will trust
               # `$RUNNER_TEMP`, not `${{ runner.temp }}` — an expression is substituted into the script
               # TEXT before bash parses it, which zizmor's template-injection audit correctly rejects.
-              run: npx tsx packages/tools/cross-service-e2e/scripts/mintLinkageCredentials.ts "${RUNNER_TEMP}/linkage"
+              #
+              # ⛔ `LINKAGE_CREDENTIALS` is exported HERE rather than in this job's `env:` block, and that is
+              # not a style choice. The `runner` context does not exist until a runner has been assigned, so
+              # referencing it at job level does not warn and does not skip the job — GitHub refuses to LOAD
+              # the workflow, and the run reports "a workflow file issue" with ZERO jobs. This branch ran
+              # that way for three days and fifteen units, publishing no checks at all. Exporting it from the
+              # step that creates the directory also keeps ONE definition of the path.
+              # `packages/infra/global/__tests__/workflowContextAvailability.test.ts` fails if it comes back.
+              run: |
+                  npx tsx packages/tools/cross-service-e2e/scripts/mintLinkageCredentials.ts "${RUNNER_TEMP}/linkage"
+                  echo "LINKAGE_CREDENTIALS=${RUNNER_TEMP}/linkage/linkage-credentials.json" >> "$GITHUB_ENV"
             - name: Build both services
               run: npx turbo run build --filter=@kitchensink/food-service --filter=@kitchensink/recipe-service
             - name: Boot food-service

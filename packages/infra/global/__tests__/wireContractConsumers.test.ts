@@ -236,6 +236,7 @@ describe("the repository's clients and apps", () => {
             'packages/apps/commise/mobile',
             'packages/apps/commise/ui',
             'packages/apps/commise/web',
+            'packages/clients/bedrock',
             'packages/clients/food-service',
             'packages/clients/recipe-service',
             'packages/clients/usda',

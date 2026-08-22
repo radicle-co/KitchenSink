@@ -2,9 +2,8 @@
  * The Bedrock `Converse` boundary for the ingredient verification gate (plan U11, ADR-0024).
  *
  * DESIGN PATTERN: **Adapter over a narrow Port**, with the pure/impure split this repository already uses in
- * `deploy-gate.sh` and in `evaluateProvenance` vs `RecipesService.create`. {@link createBedrockTransport} is
- * the only impure thing in the package — it constructs the SDK client and sends. {@link
- * createBedrockConverseClient} is a pure function of a transport, so every failure mode below is exercised by
+ * `deploy-gate.sh` and in `evaluateProvenance` vs `RecipesService.create`. `createBedrockTransport` is
+ * the only impure thing in the package — it constructs the SDK client and sends. `createBedrockConverseClient` is a pure function of a transport, so every failure mode below is exercised by
  * handing it a transport that fails that way, with no network, no credentials and no spend.
  *
  * ## ⛔ THE RETURN TYPE ENCODES ADR-0024'S REFUND RULE

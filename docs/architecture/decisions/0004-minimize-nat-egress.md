@@ -59,7 +59,7 @@ still deliberately non-VPC.
 | IdentityServiceStack | `IdentityMigrationFunction`                                                                                                                                                                                   |
 | FoodServiceStack     | `FoodMigrationFunction`                                                                                                                                                                                       |
 | RecipeServiceStack   | `RecipeMigrationFunction`                                                                                                                                                                                     |
-| RecipeWorkersStack   | `VersionArchiveWorkerFunction`, `ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`, `ErasureOrphanSweeperFunction`, `RecipeSchemaMigrationRunner` |
+| RecipeWorkersStack   | `VersionArchiveWorkerFunction`, `ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`, `ErasureOrphanSweeperFunction`, `IngredientVerificationFunction`, `RecipeSchemaMigrationRunner` |
 
 <!-- nat-consumers:end -->
 

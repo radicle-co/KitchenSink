@@ -12,7 +12,7 @@
  *    [Inference using the Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html),
  *    including its real token counts (30 / 628 / 658) and latency (1275 ms). Retrieved 2026-08-21.
  *  - The `stopReason` values come from the SDK's OWN `StopReason` enum (`@aws-sdk/client-bedrock-runtime`),
- *    which is why {@link ../schemas.js} does not restate them.
+ *    which is why `schemas.ts` does not restate them.
  *
  * ⚠️ NOTHING HERE FABRICATES A CACHE HIT. ADR-0024 §5 is explicit that `cacheReadInputTokens` /
  * `cacheWriteInputTokens` cannot be produced at this prompt size on any candidate model, so a fixture

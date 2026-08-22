@@ -99,8 +99,14 @@ CREATE TABLE "recipe_ingredient_verifications" (
         CHECK ("band" IN ('verified', 'contradicted', 'inconclusive')),
     -- A verdict that checked nothing is not a verdict. The policy makes this unrepresentable in TypeScript
     -- (a non-empty tuple); the database is the other writer's floor.
+    --
+    -- ⛔ `cardinality`, NOT `array_length(…, 1)`. `array_length('{}', 1)` returns **NULL**, not 0, and a CHECK
+    -- constraint treats NULL as PASSING — so the obvious spelling admits exactly the empty array it was
+    -- written to forbid, silently. Caught by `verificationSchema.integration.test.ts` on the first run, which
+    -- is the same way migration 0021's `IS DISTINCT FROM` trap was caught, and the reason a constraint is not
+    -- believed until a real database has refused something.
     CONSTRAINT "recipe_ingredient_verifications_aspects_nonempty"
-        CHECK (array_length("aspects", 1) >= 1)
+        CHECK (cardinality("aspects") >= 1)
 );
 
 -- The operational read: "what has the gate contradicted?". Partial, because `contradicted` is the rare band —

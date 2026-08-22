@@ -34,6 +34,40 @@
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
 
+### Validation record — iteration 6 (2026-08-22, second `/speckit-clarify` pass)
+
+**1 question asked, 1 answered** (session total 4 of 5). The second pass was run deliberately rather than
+declared unnecessary, and re-examined the categories iteration 5 had marked **Clear** — which is where the
+finding was.
+
+- `C-015-024` — **new `FR-010b`: an owed grant must survive a transient failure.** This was an
+  **unrecoverable** hole and iteration 5 rated Edge Cases & Failure Handling "Clear" on the strength of the
+  Edge Cases list. `FR-005` permits one grant per recipe lifetime, so a grant lost when the publication
+  committed but the grant write failed was lost **permanently** — republishing cannot re-trigger it and
+  `FR-012` forbids re-issue. Publication now always commits; the obligation plus its frozen eligibility
+  decision is durable and retried idempotently.
+  **Atomicity was rejected on the spec's own evidence**: `FR-007c`, `FR-010` and `FR-011` each state that
+  publication succeeds even when no grant is made, so binding the grant into the publication transaction
+  would let a reward outage block publishing outright.
+- `C-015-025` — **`FR-010c`, DERIVED not asked**: a failed read of reward state surfaces as _unavailable_,
+  never as a zero balance, because "0 slots" is a false denial of an earned benefit. Taken from `plan.md` §8.
+  **Flagged for owner confirmation**, same standing as `C-015-005`.
+- **New edge case**: erasure cancels any pending `FR-010b` obligation. A retry landing after erasure would
+  recreate records for an erased user and breach `FR-021` — durability must not outlive the account. Recorded
+  rather than asked, because resurrecting erased data has no defensible alternative.
+
+**Downstream propagation done**: `TC042b` (fault-injection durability test), `TC042c` (read-failure render),
+`SC-017`, and both new FRs in `traceability.yml`. Counts now 50 FRs, 17 SCs, 52 tasks.
+
+**Checklist state: 16/16 → 16/16.** No item changed state.
+
+⚠️ **Two requirements are now derived rather than owner-stated** and both are flagged in the spec:
+`C-015-005` (provenance-mandated privacy never consumes a slot) and `C-015-025` (`FR-010c`). Neither is a
+checklist failure — they are recorded, attributed, and awaiting confirmation — but they should be confirmed
+before implementation, not discovered during it.
+
+---
+
 ### Validation record — iteration 5 (2026-08-22, `/speckit-clarify` pass)
 
 **Run out of order, deliberately.** Clarify is designed to precede `/speckit-plan`; here it ran after plan,

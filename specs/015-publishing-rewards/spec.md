@@ -227,6 +227,9 @@ no difference in recognition from a free account doing the same.
   re-triggers a grant and never reverses one.
 - **A recipe is deleted after it earned.** The grant stands (deletion is not a violation); the recipe leaves
   the corpus.
+- **A grant obligation is still pending when the user erases their account.** Erasure MUST cancel any
+  outstanding `FR-010b` obligation. A retry that lands after erasure would recreate publication and grant
+  records for an erased user, breaching `FR-021` — durability MUST NOT outlive the account it belongs to.
 - **A user erases their account.** Every publication record and grant record for that user is erased with it;
   benefits are not transferable and simply cease.
 - **The benefit being granted is one the user already holds** (e.g. they are already premium). The grant is
@@ -430,6 +433,26 @@ no difference in recognition from a free account doing the same.
   single conditional write whose zero-rows result IS the denial, where the row lock is what makes the bound
   independent of the concurrency setting.)_
 
+- **FR-010b** _(added 2026-08-22)_: A grant that is **owed** MUST NOT be lost to a transient failure.
+  Publication MUST always commit independently of whether the grant write succeeds, and the obligation to
+  grant — together with the eligibility decision evaluated at confirmation (`FR-004`) — MUST be recorded
+  durably at the moment of publication and satisfied thereafter, retrying until it succeeds. The retry MUST
+  NOT re-evaluate eligibility, because the decision was already made against the state the user confirmed
+  against; and it MUST be idempotent, so that a retry cannot produce a second grant in violation of `FR-005`.
+
+    **Why publication must not simply roll back**: `FR-005` permits **one grant per recipe lifetime**, so a
+    grant lost to a momentary error is lost **permanently** — republishing cannot re-trigger it and `FR-012`
+    forbids reversing or re-issuing grants. Binding the grant into the publication transaction instead would
+    make a reward-system outage block publishing outright, contradicting `FR-007c`, `FR-010` and `FR-011`, each
+    of which states that publication succeeds even when no grant is made. The obligation is therefore durable
+    and the act is not.
+
+- **FR-010c** _(derived 2026-08-22 — NOT asked, flagged for confirmation)_: A failure to **read** reward state
+  MUST surface as _unavailable_, and MUST NOT be rendered as a zero balance. Showing "0 slots" on a read error
+  silently tells a user they cannot make a recipe private when in fact they can, which is a false denial of a
+  benefit they have already earned. _(Derived from `plan.md` §8's resilience row rather than stated by the
+  owner — the same status as `C-015-005`.)_
+
 - **FR-011**: A recipe MUST meet a stated **completeness floor** to be eligible. A recipe below the floor MUST
   still be publishable, MUST NOT earn, and the user MUST be told which fields would make it eligible.
 
@@ -572,6 +595,8 @@ no difference in recognition from a free account doing the same.
   and none recurs after dismissal.
 - **SC-016**: Under concurrent publication by the same account, granted slots never exceed the `FR-010` rate
   limit or the `FR-007c` ceiling — verified by a concurrency test, not by inspection.
+- **SC-017**: 0% of grants owed are lost. Injecting a failure into the grant write after a successful
+  publication results in the grant being made on retry, exactly once.
 
 ## Assumptions
 
@@ -748,6 +773,17 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
   `FR-010a`. The spec previously said nothing about concurrency, so a read-then-write implementation would
   have been conforming and wrong. Downstream: `E043`/`E048` gain a hard constraint, and a new integration test
   is needed — `tasks.md` updated.)_
+
+- **Q: What happens when a publication commits but the grant write fails?** → **A: Durable retry.**
+  Publication always commits; the grant obligation plus its frozen eligibility decision is recorded durably and
+  retried until it lands, idempotently. _(`C-015-024`, new `FR-010b`. This was an **unrecoverable** hole:
+  `FR-005` allows one grant per recipe lifetime, so a grant lost to a transient error was lost forever, and
+  `FR-012` blocks any re-issue. Atomicity was rejected because it would let a reward outage block publishing,
+  contradicting `FR-007c`, `FR-010` and `FR-011`. Downstream: `E043`/`E044` gain a durable-obligation
+  boundary; `tasks.md` updated.)_
+- **`C-015-025` — derived, not asked**: a failed **read** of reward state surfaces as _unavailable_, never as
+  a zero balance (`FR-010c`). Taken from `plan.md` §8 rather than from the owner — **flagged for
+  confirmation**, same standing as `C-015-005`.
 
 ### ⚠️ Recorded risk — the zero-slot start re-introduces a first-publication toll
 

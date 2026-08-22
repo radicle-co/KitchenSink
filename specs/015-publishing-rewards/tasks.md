@@ -121,6 +121,14 @@
       Paths: packages/services/recipe-service/tests/publishRewardConcurrency.integration.test.ts
       Test-first: true
       Size: M
+- [ ] TC042b — Integration: inject a failure into the grant write AFTER the publication commits; assert the publication stands, the obligation is durable, the retry grants exactly once, and eligibility is NOT re-evaluated (FR-010b, SC-017)
+      Paths: packages/services/recipe-service/tests/publishRewardDurability.integration.test.ts
+      Test-first: true
+      Size: M
+- [ ] TC042c — Component: a failed reward read renders "unavailable", never "0 slots" (FR-010c)
+      Paths: packages/apps/commise/web/src/features/rewards/**tests**/SlotMeter.test.tsx
+      Test-first: true
+      Size: S
 - [ ] E043 — `rewards/` module scaffold mirroring the shipped `ratings/` layout
       Paths: packages/services/recipe-service/src/rewards/rewards.module.ts, packages/services/recipe-service/src/rewards/rewards.service.ts, packages/services/recipe-service/src/rewards/dal/rewards.dao.ts
       Size: M

@@ -92,6 +92,12 @@ requirements:
     - id: 'FR-010a'
       title: 'Atomic, serialized grant issuance'
       tasks: ['TC042a', 'E048']
+    - id: 'FR-010b'
+      title: 'Owed grants survive transient failure'
+      tasks: ['TC042b', 'E043', 'E044']
+    - id: 'FR-010c'
+      title: 'Failed reward read shows unavailable, never zero'
+      tasks: ['TC042c', 'F062']
     - id: 'FR-011'
       title: 'Completeness floor'
       tasks: ['TC020', 'C021']

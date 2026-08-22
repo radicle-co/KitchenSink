@@ -72,7 +72,7 @@ export const ingredients = pgTable(
         // They are MATERIALIZED because computing them per row measured 253ms and 357ms at 50,000 rows
         // against SC-007's 200ms budget, where reading them costs +0.8ms and +5.2ms.
         //
-        // ⚠️ **`0024_ingredient_rank_terms.sql` is authoritative**; these declarations exist so Drizzle knows
+        // ⚠️ **`0025_ingredient_rank_terms.sql` is authoritative**; these declarations exist so Drizzle knows
         // the columns. The expressions are asserted against the TypeScript reference, value by value, by
         // `__tests__/integration/ingredients/rankingTerms.integration.test.ts`.
         rankFolded: text('rank_folded').generatedAlwaysAs(

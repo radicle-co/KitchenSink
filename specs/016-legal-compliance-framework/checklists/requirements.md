@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -45,24 +45,70 @@
 
 ### Iteration 2 — re-validation
 
-All Content Quality, Feature Readiness and Requirement Completeness items pass **except** the
-[NEEDS CLARIFICATION] item, which is the designed state of the specification rather than a defect.
+All items passed except `No [NEEDS CLARIFICATION] markers remain`. Three markers were presented as questions:
+Q1 market scope (`FR-048`), Q2 import photographs (`FR-027`), Q3 clone survival (`FR-012a`). None had a
+defensible default — a market-entry decision, a visible product regression traded against an indefensible
+reproduction, and a term users react strongly to in both directions.
 
-Three markers remain, each with a question presented to the owner:
+### Iteration 3 — clarifications resolved, re-validated
 
-| Marker | Requirement                                                                        | Question                                                                                                                 |
-| ------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Q1     | `FR-048` — per-market variation of publication, discovery and feature availability | Which markets are served at launch? Determines whether roughly a third of the obligations here are live at v1 or dormant |
-| Q2     | `FR-027` — third-party photographs obtained on import                              | Reference the source image, omit images entirely, or reference-with-replace?                                             |
-| Q3     | `FR-012a` — what already-distributed copies do when the author deletes or erases   | Do clones survive? Determines the licence's duration clause and the erasure promise                                      |
+All three answered one at a time by the owner on 2026-08-22. **All 16 checklist items now pass.**
 
-None can be resolved by a reasonable default: Q1 is a market-entry decision, Q2 trades a visible product
-regression against a reproduction we cannot defend, and Q3 sets a term users react to strongly in both
-directions.
+| Marker         | Resolution                                                                                                                                                                                 | Requirements added or changed                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1 → C-016-001 | US-only at v1, **global is the target** — which makes other markets a _known_ requirement, not a presumed one. Build the boundary to the strictest regime; build the capability for nobody | `FR-048` resolved; `FR-048a`–`FR-048c` added (fail-closed unserved markets; the seam-vs-capability rule; the deferred list)                          |
+| Q2 → C-016-002 | Reference the source photograph, offer a one-tap replacement                                                                                                                               | `FR-027` resolved; `FR-027a`–`FR-027e` added; `SC-005` widened, `SC-005a` added                                                                      |
+| Q3 → C-016-003 | The owner **replaced the model** rather than choosing: a clone must be modified and references its source, so it is not a carbon copy and survives the original's deletion                 | `FR-012a` resolved; `FR-015a`–`FR-015f` added; `SC-012`, `SC-013` added; three edge cases added; a new **Cross-spec amendments** section (A-1 … A-8) |
+
+**One correction was made to the owner's framing rather than transcribed.** `FR-015d` states explicitly that
+requiring a modification is **not** a copyright defence — a derivative of a protected work still infringes.
+The rule is kept for corpus quality and its secondary evidentiary value; what actually makes cloning
+defensible is `FR-015a` (provenance-gated cloneability) and the user licence. Recording the rule without this
+would have left a false defence in the spec.
+
+**Two decisions in C-016-003 are derived, not stated**, and are flagged in place for confirmation:
+
+- `FR-015b` — the enforcement shape of "modify before you clone": an unmodified clone exists as a private,
+  unpublishable draft, because a thing must exist before it can be edited.
+- `FR-015f` — erasure strips identity from surviving clones and keeps a non-identifying lineage marker,
+  reasoning that the recipe text is generally not personal data while the attribution is.
+
+**One accepted risk is recorded, not solved**: a clone of a public recipe defaulting to public repeats the
+public-by-default pattern `FR-038` and feature `015` exist to remove. Weaker here — the content was already
+public, so what is newly exposed is the cloner's association with it — but not nothing.
+
+### Iteration 4 — governance de-duplication (2026-08-22)
+
+Applying the cross-spec amendments surfaced that **two governance rules already owned ground this feature was
+restating**, which `GR-014` `AC-014-b` and the project's DRY rule both forbid.
+
+| Was in 016                                                          | Moved to                           | Result                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FR-015a`–`FR-015f` — cloning, derived copies, deletion and erasure | **`GR-014` AC-014-g/h/i** (v3.5.0) | GR-014 owns the audience and sharing model. 016 keeps only two requirements that are legal posture rather than sharing model: the licence must cover surviving derived copies, and the modification rule must never be cited as a copyright defence   |
+| `FR-045`–`FR-047` — AI transparency                                 | **`GR-010` AC-010-e/f** (v3.5.0)   | GR-010 already mandated the disclosure and put the component in Feature 005. 016 now cites it and contributes what GR-010 predated — Art. 50(2) machine-readable marking, and the correction that Art. 50 has been applicable since **2 August 2026** |
+
+Consequences: 69 FRs → **65**; two new amendments **A-9** and **A-10**; every `FR-015x` citation in 016, 001
+and 004 repointed, because those IDs now mean different things.
+
+**A correction to iteration 3's blocker #1.** It claimed `001-FR-005a` was unimplementable because no field
+records that a source restricts redistribution. That was wrong: `GR-014` AC-014-e already governs sources
+licensed against "redistribution **or derivatives**" and expresses it by classifying them into a private-only
+`sourceType` at ingestion, after which AC-014-h makes them unclonable. The real gap is one narrow case — a
+source that is public and freely available but forbids **derivatives** specifically, which a modified clone is.
+Corrected in both `016/spec.md` and `001/spec.md`.
+
+`GR-003` `AC-003-b` discharged: `specs/cross-feature-FR-index.md` updated to v0.2.0 with the seven new
+cross-feature citation rows.
 
 ## Notes
 
-- **The three markers block `/speckit-plan`, not the spec.** Everything else is settled.
+- **The spec is READY for `/speckit-plan`.** Zero markers remain; **65** functional requirements, 7
+  non-functional, 14 success criteria — four fewer than iteration 3, because the cloning rules moved to
+  `GR-014`.
+- ⚠️ **The cross-spec amendments A-1 … A-10 are APPLIED (documents only; code untouched).** `001-FR-005`, the C-004 matrix in
+  `001/data-model.md`, and `evaluateVisibility(sourceType, isPremium, hasSubstantiveEdit, requested)` encode
+  the same rule in three places. Amending one and not the others is the drift failure the project's DRY rule
+  exists to prevent, so they are a single unit of work.
 - **Two prerequisites live outside software** and no requirement here can satisfy them: a registered
   designated agent (`FR-025`) and counsel-drafted documents. `FR-050` carries the list of items needing
   counsel's confirmation, each naming what breaks if the assumption is wrong.

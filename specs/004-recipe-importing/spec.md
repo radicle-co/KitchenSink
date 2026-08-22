@@ -40,9 +40,16 @@ was originally written to create. 004 **consumes** the following and MUST NOT re
 | `recipes.source_url`, `recipes.source_attribution`, `recipes.cloned_from_id`, `recipes.has_substantive_edit` | `database/schema/recipes.ts` (since `0001_initial.sql`) |
 | The C-004 visibility policy over `(sourceType, isPremium, hasSubstantiveEdit, requested)`                    | `evaluateVisibility` in `@kitchensink/recipe-core`      |
 | Clone with attribution retention, `POST /api/v1/recipes/{id}/clone`                                          | `recipes.service.ts` `clone()`, `recipes.controller.ts` |
-| `canClone` / `canGoPrivate` access policy                                                                    | `recipeAccessPolicy.ts` in `@kitchensink/recipe-core`   |
-| Single error envelope `{ code, message, details? }`, `RecipeErrorCode` → HTTP mapping                        | `common/filters/apiException.filter.ts`                 |
-| Per-user rate limiting                                                                                       | `common/throttle/` (`@nestjs/throttler`)                |
+
+> **⚠️ Amendment note (2026-08-22, C-016-003 / A-6).** `has_substantive_edit` keeps its meaning and its
+> definition exactly — any modification to ingredients or instructions; title, description, tags and photos
+> do not qualify. **Only the gate it feeds moves**: under [`GR-014`](../governance-rules.md#gr-014-audience-and-sharing-model)
+> AC-014-g and the amended `001-FR-005b` it gates **publication of a clone** rather than **making a clone
+> private**. No column changes, and nothing here is to be re-added — the shipped-columns table above stands
+> as written.
+> | `canClone` / `canGoPrivate` access policy | `recipeAccessPolicy.ts` in `@kitchensink/recipe-core` |
+> | Single error envelope `{ code, message, details? }`, `RecipeErrorCode` → HTTP mapping | `common/filters/apiException.filter.ts` |
+> | Per-user rate limiting | `common/throttle/` (`@nestjs/throttler`) |
 
 **004's scope is ingestion**: fetching, extracting, normalising, classifying, de-duplicating, and policy-checking
 external recipe content, then handing a complete, valid recipe to 001's write path. Attribution _display_

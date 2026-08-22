@@ -30,7 +30,7 @@
 
 ## Group B — Data model + migration (US1, US2, US4)
 
-- [ ] TC010 — Integration test: migration 0024 applies against a real DB and creates all four tables
+- [ ] TC010 — Integration test: migration 0025 applies against a real DB and creates all four tables
       Paths: packages/services/recipe-service/tests/rewardsMigration.integration.test.ts
       Test-first: true
       Size: S
@@ -42,8 +42,8 @@
       Paths: packages/services/recipe-service/tests/rewardLedger.integration.test.ts
       Test-first: true
       Size: M
-- [ ] B013 — Write migration `0024_publishing_rewards.sql` — EXPAND-ONLY: 4 CREATE TABLEs + ratchet CHECK
-      Paths: packages/services/recipe-service/src/database/migrations/0024_publishing_rewards.sql
+- [ ] B013 — Write migration `0025_publishing_rewards.sql` — EXPAND-ONLY: 4 CREATE TABLEs + ratchet CHECK
+      Paths: packages/services/recipe-service/src/database/migrations/0025_publishing_rewards.sql
       Size: M
 - [ ] B014 — Drizzle schema for `recipe_publications`, `reward_grants`, `recipe_impact_signals`, `contributor_standing`
       Paths: packages/services/recipe-service/src/database/schema/rewards.ts, packages/services/recipe-service/src/database/schema/index.ts

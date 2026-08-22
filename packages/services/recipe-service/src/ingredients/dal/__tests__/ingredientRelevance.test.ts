@@ -19,7 +19,7 @@
  * fix is a rung above it, not a different metric.
  *
  * ⚠️ **The fold, the tokenizer and the plural rule are NOT asserted here**, because they are no longer in
- * the statement — they are two STORED generated columns from `0024_ingredient_rank_terms.sql`. The only
+ * the statement — they are two STORED generated columns from `0025_ingredient_rank_terms.sql`. The only
  * honest place to assert that PostgreSQL computes them the way `@kitchensink/recipe-core` does is against a
  * real database: `__tests__/integration/ingredients/rankingTerms.integration.test.ts` compares every column
  * value with the TypeScript reference, row by row.

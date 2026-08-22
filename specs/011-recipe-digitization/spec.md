@@ -248,6 +248,13 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 >
 > 001 owns the visibility field; 011 owns the Circle primitive and the `circle` scope.
 >
+> **Load-bearing elsewhere (2026-08-22, C-016-003 / A-7).** No change is required here, but the `circle`
+> scope's read-only member access is what satisfies 016's rule that _a private recipe shared with friends
+> becomes invisible to them when the owner deletes it_ — the tombstone in `001-FR-002` does the hiding, and
+> this scope is what they were seeing it through. Do not replace circle sharing with a copy-on-share model:
+> that would make the shared copy survive the owner's deletion, which is the opposite of the specified
+> behaviour (`001-FR-005d`).
+>
 > **Where 011 lands**: a photo-digitized recipe is `sourceType: 'imported_physical'`, which the shipped
 > policy makes **private-only**. 011 MUST call `evaluateVisibility`
 > (`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts`) rather than deciding

@@ -1,4 +1,4 @@
--- 0024: materialize the ranking terms the U5 tier ladder sorts on (plan U5/U6, R1-R8)
+-- 0025: materialize the ranking terms the U5 tier ladder sorts on (plan U5/U6, R1-R8)
 --
 -- Additive, hand-authored migration applied AFTER 0023 by the in-stack migration runner (ADR-0022) and by
 -- the test harness (tests/globalSetup.ts applies every *.sql in filename order). Two STORED generated

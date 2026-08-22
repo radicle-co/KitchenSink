@@ -80,6 +80,7 @@ describe('the AcceptedNagFindings register is closed and justified', () => {
             'PUBLIC_ALB_INGRESS_IS_THE_INGRESS_BOUNDARY',
             'REST_API_EDGE_CONTROLS_NOT_PROPORTIONATE',
             'TASK_ENVIRONMENT_HOLDS_NO_SECRET',
+            'VERIFICATION_BEDROCK_MODEL_WILDCARD',
         ]);
     });
 

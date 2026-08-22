@@ -54,7 +54,15 @@ Three consequences that shape the whole plan:
 
 ## 4. Data model
 
-Four new tables. Migration `0024_publishing_rewards.sql` (latest shipped is `0023_line_verifications.sql`).
+Four new tables. Migration **`0025_publishing_rewards.sql`**.
+
+> ⚠️ **Corrected 2026-08-22.** An earlier draft of this plan said `0024`, and said the latest shipped was
+> `0023`. Both were wrong: **`0024` is already taken twice** — `0024_ingredient_rank_terms.sql` (`9545447c`)
+> and `0024_ingredient_source_line.sql` (`6a3bf118`), both committed. That duplication is _tolerated by
+> design_ and is not a live bug: `src/lambdas/migrate/handler.ts` discovers `*.sql`, sorts by **filename**,
+> and journals applied migrations into `schema_migrations` keyed on the **full filename**
+> (`name TEXT PRIMARY KEY`) — so the numeric prefix is a sort key, not an identity, and both files apply in a
+> stable lexicographic order. 015 takes `0025` for legibility, not correctness.
 
 | Table                   | Purpose                                       | Key columns                                                                                                                    | Notes                                                                                                                                     |
 | ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |

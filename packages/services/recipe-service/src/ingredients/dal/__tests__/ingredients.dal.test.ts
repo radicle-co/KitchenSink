@@ -152,7 +152,7 @@ describe('IngredientsDal', () => {
             it('⛔ does NO per-row text processing — the fold is a generated column, not a lateral', async () => {
                 // The regression this guards is a performance cliff, not a wrong answer. Computing the fold
                 // and the token array in the statement measured 253ms/357ms at 50,000 rows against SC-007's
-                // 200ms budget; reading `0024_ingredient_rank_terms.sql`'s columns costs +0.8ms/+5.2ms. An
+                // 200ms budget; reading `0025_ingredient_rank_terms.sql`'s columns costs +0.8ms/+5.2ms. An
                 // "inline it and skip the migration" rewrite passes every ordering test in this repository.
                 const statement = await statementFor('flour');
 

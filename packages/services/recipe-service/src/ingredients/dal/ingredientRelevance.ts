@@ -10,7 +10,7 @@
  * ## ⛔ The ranking terms are MATERIALIZED, and that was forced by measurement
  *
  * The fold, the tokenizer and the plural rule are not in this file. They live in migration
- * `0024_ingredient_rank_terms.sql` as two STORED generated columns, because computing them per row is
+ * `0025_ingredient_rank_terms.sql` as two STORED generated columns, because computing them per row is
  * unaffordable. Measured on food-service's identically-shaped statement over 50,000 production-shaped rows
  * (2026-08-22, p95 over 20 runs), the per-row form cost **253ms** on the `broad` shape and **357ms** on
  * `brand`, against SC-007's 200ms budget and a pre-U5 baseline of 15ms and 24ms. Materialized, the whole
@@ -71,7 +71,7 @@ import type { IngredientMatchStrategy } from '../selectIngredientMatchStrategy.j
 const RAW_TOKEN = 'raw';
 
 /**
- * The columns migration `0024_ingredient_rank_terms.sql` materializes: the SQL mirror of
+ * The columns migration `0025_ingredient_rank_terms.sql` materializes: the SQL mirror of
  * `foldForRanking(name)` and `rankingTokens(name)`, computed once on write by Postgres. Exported so the unit
  * test can assert the statement NAMES them rather than folding per row — the regression that guards against
  * is a performance cliff, not a wrong answer, and it would pass every ordering test in the repository.

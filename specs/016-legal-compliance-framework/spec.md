@@ -367,8 +367,12 @@ AI-generated recipe content and verify both the human-visible label and the mach
   used as a denial-of-service against a creator. Rate limiting must not become a refusal to receive notices.
 - **A takedown lands on a recipe that has been cloned N times.** `001-FR-005` means removal of the original
   does not remove the clones. The notice must be actionable against the derived set, or we have not complied.
-- **Erasure collides with the licence.** A user erases their account; their published recipe has clones. Q3
-  decides whether the clones survive.
+- **Erasure collides with the licence.** A user erases their account; their published recipe has clones. The
+  clones survive as the cloners' own modified works, de-identified (`GR-014` AC-014-i, `001-FR-005d`).
+- **A clone is created and never edited.** It sits private and unpublishable indefinitely. That is the
+  designed resting state, not a stuck one, and the surface must say so rather than appearing broken.
+- **A recipe becomes non-clonable after clones already exist** — a source restriction is discovered later.
+  Existing clones are not retroactively destroyed; the notice-and-action path (`FR-022`) is what reaches them.
 - **A user in one market is served content lawful in another.** If markets are gated (Q1), the gate must be
   evaluated at read time, not only at publish time.
 - **The registered agent registration lapses.** It expires every three years and a lapse is a lapse in safe
@@ -418,8 +422,9 @@ AI-generated recipe content and verify both the human-visible label and the mach
 - **FR-012**: The system MUST NOT display, syndicate or permit cloning of any content whose author has not
   granted the licence.
 - **FR-012a**: The licence MUST state what happens to copies already distributed when the author deletes the
-  content or erases the account, and the product MUST behave the way the licence says. [NEEDS CLARIFICATION:
-  see Q3 — do clones survive deletion and erasure]
+  content or erases the account, and the product MUST behave the way the licence says. **Derived copies
+  survive both** (C-016-003): a clone is a modified work in the cloner's own collection, not a carbon copy of
+  the original, and destroying it would take content from a user who did nothing wrong.
 - **FR-013**: The terms MUST include a representation that the user has the rights necessary to upload the
   content and to grant the licence, recorded per-account at acceptance.
 - **FR-014**: For content classified as **not authored by the uploader**, the per-item attestation of
@@ -427,6 +432,24 @@ AI-generated recipe content and verify both the human-visible label and the mach
   terms-level representation MUST NOT be relied on in its place.
 - **FR-015**: Any indemnity taken from a consumer MUST be limited to what is proportionate and MUST NOT
   purport to make the user liable for the operator's own acts.
+
+**Cloning and derived copies** — _ratified as governance, not owned here_
+
+C-016-003's ruling is now **`GR-014` AC-014-g/h/i** (Audience and Sharing Model, v3.5.0) and is implemented by
+**`001-FR-005a`–`001-FR-005d`**. GR-014's `AC-014-b` prohibits a feature from declaring its own sharing
+primitive, so this feature does **not** restate the rules — it carries only the two things that are legal
+posture rather than sharing model:
+
+- **FR-015a**: The user content licence (`FR-010`) MUST be sufficient to cover a derived copy that survives
+  the author's deletion or erasure, and the licence MUST say so in terms a non-lawyer can read at the point of
+  publication. Without that, `GR-014` AC-014-i describes behaviour we have no permission for.
+- **FR-015b**: ⛔ The requirement to modify a clone (`GR-014` AC-014-g) MUST NOT be presented, internally or
+  externally, as a **copyright defence**. A modified copy is a **derivative work**, and a derivative of a
+  protected work still infringes. What makes cloning defensible is `GR-014` AC-014-e's provenance rule and the
+  licence in `FR-010`. This requirement exists because the rule reads like a defence and is not one.
+
+_Rationale, the owner's ruling in full, and the three blockers it surfaced are in
+[Clarifications](#clarifications) C-016-003 and in [Cross-spec amendments](#cross-spec-amendments-this-feature-requires)._
 
 #### C. Notice, action, redress and repeat infringement
 
@@ -530,14 +553,20 @@ AI-generated recipe content and verify both the human-visible label and the mach
   regime in any market served. An over-aggressive risk-shift is itself a violation in at least one market
   where our other protections are weakest.
 
-#### H. AI transparency
+#### H. AI transparency — _governed by `GR-010`_
+
+`GR-010` (EU AI Act Compliance Propagation, amended to v3.5.0 from this feature) owns the obligation and
+Feature 005 owns the shared disclosure component. These requirements name what the legal surfaces must show;
+they do not create a second mechanism.
 
 - **FR-045**: Where a user interacts directly with an AI system, the system MUST inform them unless it is
-  obvious from the context.
-- **FR-046**: Content generated or materially altered by AI MUST carry a machine-readable marking at rest and
-  a human-legible label where displayed, and the label MUST reflect the content's **current** state after
-  human editing.
-- **FR-047**: AI-derived fields MUST be distinguishable from user-authored ones by more than colour.
+  obvious from the context (Art. 50(1); `GR-010` AC-010-a…d).
+- **FR-046**: Content generated or materially altered by AI MUST carry a machine-readable marking **at
+  generation time** and a human-legible label where displayed, and the label MUST reflect the content's
+  **current** state after human editing (Art. 50(2); `GR-010` AC-010-e). Marking cannot be retrofitted onto
+  content already produced, which is why it is a generation-time obligation and not a display concern.
+- **FR-047**: AI-derived fields MUST be distinguishable from user-authored ones by more than colour
+  (`NFR-004`).
 
 #### I. Per-market posture and governance
 
@@ -640,6 +669,10 @@ AI-generated recipe content and verify both the human-visible label and the mach
   display time.
 - **SC-011**: Zero product surfaces, documents or marketing claims assert ownership of users' recipes or a
   database right the operator does not hold, and the corpus is under no open content licence.
+- **SC-012**: Zero published clones exist without a substantive edit, and zero clones exist of a recipe whose
+  provenance forbids redistribution. Both are defects, not data-quality issues.
+- **SC-013**: After an account erasure, no surviving derived copy names the erased user, and 100% of them
+  still resolve and remain readable by the user who cloned them.
 
 ## Assumptions
 
@@ -679,6 +712,61 @@ AI-generated recipe content and verify both the human-visible label and the mach
 - Insurance, contractual arrangements with counsel, or any process that lives outside the product.
 - Payment-card and tax compliance (owned by `010` and its processor).
 
+## Cross-spec amendments this feature requires
+
+C-016-003 lands on specs other than this one. Each is stated exactly, so the edit is mechanical and nothing
+drifts. **All ten were applied on 2026-08-22** — A-9 and A-10 were added _during_ application, when GR-014 and GR-010 turned out to already own ground this feature was restating — see the application record below the table.
+
+| #    | Spec                                                                                                             | Change                                                                                                                                                                                                                                                                                                                                                      |
+| ---- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-1  | `001-FR-005`                                                                                                     | Cloning itself now requires a substantive edit before publication, and the premium gate on making a clone private goes away (it is D4a's to remove). Today the requirement reads that a clone "can only be made private by a premium user AND only after making a substantive edit" — the substantive-edit condition moves from _privacy_ to _publication_. |
+| A-2  | `001-FR-005`                                                                                                     | Add: a public recipe is clonable only where its provenance carries no restriction incompatible with redistribution (`001-FR-005a`). Today any authenticated user may clone any public recipe.                                                                                                                                                               |
+| A-3  | `001-FR-005`                                                                                                     | Add: a private recipe is copyable only by its owner, and the copy is private (`001-FR-005c`). No cross-user private cloning exists today.                                                                                                                                                                                                                   |
+| A-4  | `001/data-model.md` §C-004 matrix and `evaluateVisibility(sourceType, isPremium, hasSubstantiveEdit, requested)` | The matrix row "Any user, `imported_public` → `public` only — unless premium AND `has_substantive_edit = true`" must change with A-1. The policy signature may need a provenance-restriction input for A-2.                                                                                                                                                 |
+| A-5  | `001-FR-002`                                                                                                     | No change, but cite it: the tombstone is what makes a deleted private recipe disappear for the circle it was shared with. That behaviour is load-bearing for C-016-003 and currently incidental.                                                                                                                                                            |
+| A-6  | `004`                                                                                                            | `has_substantive_edit` keeps its meaning; only the gate it feeds moves. The shipped-columns table needs no change — record that explicitly so nobody re-adds a column.                                                                                                                                                                                      |
+| A-7  | `011`                                                                                                            | No change. The `circle` primitive and `circle` audience scope already provide read-only sharing of a private recipe; C-016-003's rule 5 is satisfied by it plus A-5.                                                                                                                                                                                        |
+| A-8  | `015`                                                                                                            | Unaffected in substance, but its assumption that D4a lands is now shared with A-1.                                                                                                                                                                                                                                                                          |
+| A-9  | `governance-rules.md` `GR-014`                                                                                   | **AC-014-g/h/i added** (v3.5.0) — the clone model is ratified as governance. GR-014 owns the audience and sharing model and `AC-014-b` forbids a feature declaring its own, so this feature must not restate it. Carries the normative prohibition on citing the modification rule as a copyright defence                                                   |
+| A-10 | `governance-rules.md` `GR-010`                                                                                   | **AC-010-e/f added** (v3.5.0) — Art. 50 corrected to _applicable since 2 August 2026_, split into 50(1) interaction disclosure and 50(2) machine-readable marking, with marking stated as a **generation-time** obligation because it cannot be retrofitted                                                                                                 |
+
+**These are a coherent unit of work and were applied together** — `001-FR-005`, the C-004 matrix, and the
+policy function encode the same rule in three places, and amending one would leave the other two lying.
+
+### Application record (2026-08-22)
+
+| Amendment     | Applied to            | Result                                                                                                                                                                                                                                     |
+| ------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A-1, A-2, A-3 | `001/spec.md`         | `FR-005` rewritten; `FR-005a` (provenance-gated cloneability), `FR-005b` (substantive edit gates publication, premium gate removed), `FR-005c` (owner-only private copy), `FR-005d` (clones survive deletion; erasure de-identifies) added |
+| A-4           | `001/data-model.md`   | C-004 matrix `imported_public` row rewritten; the two `visibilityPolicy.ts` deltas specified in place                                                                                                                                      |
+| A-5           | `001/spec.md`         | `FR-002`'s tombstone cited from `FR-005d` — the behaviour is now load-bearing rather than incidental                                                                                                                                       |
+| A-6           | `004/spec.md`         | Amendment note: `has_substantive_edit` keeps its meaning and its column; only the gate it feeds moves                                                                                                                                      |
+| A-7           | `011/spec.md`         | Note that the `circle` scope is load-bearing for C-016-003, and that copy-on-share would invert the specified behaviour                                                                                                                    |
+| A-8           | `015/spec.md`         | Cross-reference recording the shared D4a dependency, 016's ownership of the takedown process, and `FR-029a`'s answer to the inducement gap                                                                                                 |
+| A-9           | `governance-rules.md` | `GR-014` amended to v3.5.0: AC-014-g/h/i added, plus the copyright-defence prohibition                                                                                                                                                     |
+| A-10          | `governance-rules.md` | `GR-010` amended to v3.5.0: AC-010-e/f added, Art. 50 applicability corrected to 2 Aug 2026                                                                                                                                                |
+
+⛔ **The code was deliberately NOT changed.** `evaluateVisibility` and `defaultCloneVisibility`
+(`recipe-service/src/recipes/domain/visibilityPolicy.ts`) still implement the pre-amendment rule. Both deltas
+are specified in `001/data-model.md`, and both are implementation work requiring failing tests first.
+
+### Three blockers surfaced by applying the amendments
+
+1. **`001-FR-005a`'s gap is narrow, not total.** ⚠️ Corrected — the first statement of this blocker was
+   wrong. `GR-014` AC-014-e **already** governs sources "marked or licensed against republication … or a
+   licence forbidding redistribution **or derivatives**", and expresses it by classifying such a source into a
+   private-only `sourceType` at ingestion; a private recipe is then unclonable under AC-014-h. The concept
+   exists and has a mechanism. The residual gap is one case: a source that is genuinely public and freely
+   available but whose licence forbids **derivatives** specifically — which a modified clone is. That case has
+   no `sourceType` behind it today.
+2. **`001-FR-005b` collides with `001-FR-003`.** FR-003 still says free-tier users' recipes are always public,
+   so "not yet publishable" is unrepresentable for a free-tier user as a `private` visibility. It needs either
+   D4a to land or a distinct **unpublished-draft** state that is not `visibility = private`. **Unresolved.**
+3. **`001-FR-003a`'s PRO-badge derivation is invalidated.** It infers "uses a premium capability" from
+   _private AND `user_created`/`imported_public`_. Once a clone can be private without premium, privacy stops
+   implying premium. FR-003a promises exactly one authoritative derivation, so it is a single-site fix — but it
+   MUST land with FR-005b, not after.
+
 ## Clarifications
 
 ### Session 2026-08-22 — RESOLVED by owner
@@ -702,9 +790,32 @@ AI-generated recipe content and verify both the human-visible label and the mach
   do not work offline and MUST NOT be cached to make them work, which is a standing conflict with offline cook
   mode that the replace affordance is the intended answer to (`FR-027e`).
 
+- **C-016-003 — Q3 answered, and the model replaced the question.** The owner did not pick from the options;
+  they changed what a clone _is_. **A clone must be modified, references its source, and is therefore not a
+  carbon copy — so clones survive the deletion or erasure of the original.** The full ruling, verified against
+  PR 91: cloning requires a modification (`001-FR-005b`); the clone references the original source (already
+  shipped — `cloned_from_id` plus retained attribution); deleting the original leaves clones standing
+  (`001-FR-005d`); this holds for public and private recipes alike; a private recipe shared read-only and then
+  deleted becomes invisible to the people it was shared with (already satisfied by `001-FR-002`'s immediate
+  tombstone over 011's `circle` audience scope); a private recipe may be copied **only by its owner** and the
+  copy is private (`001-FR-005c`), publishable later only where no restriction applies; a clone of a public recipe
+  is public by default and may be made private where no restriction applies; and **a public recipe may be
+  cloned only where its source carries no legal restriction** (`001-FR-005a`).
+
+    Two things are recorded as derived rather than stated, and both need confirmation: **(a)** the enforcement
+    shape of "modify before you clone" — an unmodified clone exists as a private, unpublishable draft, because
+    a thing must exist before it can be edited (`001-FR-005b`); and **(b)** what erasure does to a surviving clone's
+    attribution — identity stripped, non-identifying lineage kept (`001-FR-005d`), reasoning that the recipe text is
+    generally not personal data while the attribution is.
+
+    ⚠️ **One accepted risk.** A clone of a public recipe defaulting to public is the same
+    public-by-default pattern `FR-038` and feature `015` exist to remove. It is materially weaker here — the
+    content was already public, so what is newly exposed is the _cloner's association_ with it rather than the
+    content — but it is not nothing, and it is recorded rather than re-litigated.
+
 ## Owner decisions required
 
-Distinct from the three clarifications below, these change the work but are not blocking the spec:
+All three clarifications are resolved (C-016-001 … C-016-003). These remain open, and change the work without blocking the spec:
 
 1. **Do we create an EU establishment to hold a database right?** It is the only route to the one right that
    would protect the corpus against extraction, and it carries tax, data-protection and corporate consequences
@@ -718,25 +829,15 @@ Distinct from the three clarifications below, these change the work but are not 
 
 ---
 
-## Clarifications needed
+## Status: READY for `/speckit-plan`
 
-One question remains open. Q1 (market scope) and Q2 (import photographs) are resolved — see C-016-001 and C-016-002.
+All three clarifications are resolved. Two items are carried forward and neither blocks planning:
 
-## Question 3: What survives deletion — the licence's duration
-
-**Context**: `FR-012a` and the interaction between the content licence, `001-FR-005`'s clone chain, and
-`001-C-007`'s erasure. A user publishes a recipe; it is cloned by ten people; the user then deletes it, or
-erases their account.
-
-**What we need to know**: Do the clones survive?
-
-**Suggested Answers**:
-
-| Option | Answer                                                                         | Implications                                                                                                                                                                                                                                                                                                                       |
-| ------ | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A      | **Clones survive; the licence for already-distributed copies is irrevocable**  | Standard platform posture and the only one that makes cloning safe to offer — a clone the author can destroy is not a copy the cloner can rely on. Costs: it is the term users most object to, and it sits awkwardly against an erasure promise. Requires saying so plainly at the point of publication, not only in the document. |
-| B      | **Erasure removes the clones too**                                             | The strongest privacy promise in the category and a real differentiator. Costs: it breaks other users' collections through no act of theirs, and the cascade is expensive to build and to reason about.                                                                                                                            |
-| C      | **Clones survive but are de-attributed and de-linked from the erased account** | Keeps the cloner's copy working while removing the erased user's identity from it. Middle cost. The content itself still exists, so it is not full erasure and must not be described as such.                                                                                                                                      |
-| Custom | Provide your own answer                                                        | Including a split: deletion (author's choice) behaves one way, erasure (a right) behaves another.                                                                                                                                                                                                                                  |
-
-**Your choice**: _[Wait for user response]_
+1. **Two derived decisions await owner confirmation** — `001-FR-005b`'s enforcement shape (an unmodified clone is a
+   private, unpublishable draft) and `001-FR-005d`'s erasure behaviour (identity stripped, non-identifying lineage
+   kept). Both are marked in place and in C-016-003.
+2. **The cross-spec amendments A-1 … A-8 are applied** (documents only — the code is untouched by design), and
+   applying them surfaced **three blockers** recorded in the Cross-spec amendments section: no provenance-
+   restriction signal exists for `001-FR-005a`; `001-FR-005b` collides with `001-FR-003` until D4a lands or an
+   unpublished-draft state is introduced; and `001-FR-003a`'s PRO-badge derivation is invalidated and must be
+   fixed in the same change as `FR-005b`.

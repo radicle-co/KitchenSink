@@ -1,5 +1,5 @@
 /**
- * Migration `0024_ingredient_rank_terms.sql`, and the ONE assertion that keeps two implementations of one
+ * Migration `0025_ingredient_rank_terms.sql`, and the ONE assertion that keeps two implementations of one
  * rule honest (plan U5/U6).
  *
  * ## ⛔ Why this tier is mandatory, and why nothing else can stand in for it

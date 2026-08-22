@@ -36,6 +36,7 @@ phases:
     plan:
         status: 'completed'
         digest_path: 'specs/015-publishing-rewards/plan/digest.md'
+        note: 'Re-run 2026-08-22 after two clarify passes. setup-plan.sh was NOT used — it cp-overwrites plan.md unconditionally (line 44) and would have destroyed three rounds of corrections; it fails safe here only because the branch check exits first. plan.md patched in place. Phase 0/1 artifacts generated: research.md, data-model.md, contracts/, quickstart.md.'
     tasks:
         status: 'completed'
         digest_path: 'specs/015-publishing-rewards/tasks/digest.md'

@@ -81,12 +81,18 @@ derived sum cannot, and it makes `FR-007b`'s permanence structural rather than d
 
 All in `packages/services/recipe-service/src/recipes/domain/`, all `input → decision`, no I/O:
 
-| Module                      | Signature                                                                                                             | Implements                                                                                           |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `publicationEligibility.ts` | `evaluateEligibility({sourceType, completeness, isNearDuplicate, hasPriorGrant, openTakedown}) → EligibilityDecision` | `FR-001`, `FR-003`–`FR-006`, `FR-011`, `FR-017` — the **single authoritative rule** `FR-003` demands |
-| `rewardSchedule.ts`         | `slotsForPublication(ordinal: number) → number` + `cumulativeSlots(ordinal)`                                          | `FR-007a` banded table; terminates at 50                                                             |
-| `earnRateLimit.ts`          | `evaluateEarnRate({grantsLast24h, grantsLast7d}) → RateDecision`                                                      | `FR-010` (3/day, 10/week)                                                                            |
-| `standingLadder.ts`         | `deriveStanding({cookCount, ratingCount, ratingAvg}) → Tier`                                                          | `FR-007g`, `FR-007h` — impact-keyed, coarse, monotonic                                               |
+| Module                      | Signature                                                                                                             | Implements                                                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `publicationEligibility.ts` | `evaluateEligibility({sourceType, completeness, isNearDuplicate, hasPriorGrant, openTakedown}) → EligibilityDecision` | `FR-001`, `FR-003`–`FR-006`, `FR-011`, `FR-017` — the **single authoritative rule** `FR-003` demands                             |
+| `rewardSchedule.ts`         | `slotsForPublication(ordinal: number) → number` + `cumulativeSlots(ordinal)`                                          | `FR-007a` banded table; terminates at 50                                                                                         |
+| `earnRateLimit.ts`          | `evaluateEarnRate({grantsLast24h, grantsLast7d}) → RateDecision`                                                      | `FR-010` (3/day, 10/week)                                                                                                        |
+| `nearDuplicate.ts`          | `isNearDuplicate({titleA,titleB,ingredientsA,ingredientsB}) → boolean`                                                | `FR-006` — normalized-title equality OR identical resolved-ingredient set. **Deterministic only**; fuzzy similarity is forbidden |
+| `standingLadder.ts`         | `deriveStanding({cookCount, ratingCount, ratingAvg}) → Tier`                                                          | `FR-007g`, `FR-007h` — impact-keyed, coarse, monotonic                                                                           |
+
+> **`FR-007c` gates the TRANSITION, not the holding** (`C-015-022`). A lapsed premium account may
+> legitimately hold more than 50 private recipes; it keeps every one and simply cannot make new ones private.
+> The ceiling is therefore an input to the _transition_ decision and MUST NOT drive any sweep, migration or
+> backfill over existing rows.
 
 `visibilityPolicy.ts` is **amended, not replaced**: `VisibilityPolicyInput` gains
 `hasAvailablePrivateSlot: boolean`, and the `user_created` + `private` branch becomes
@@ -112,6 +118,34 @@ it becomes a lie.
 - Cook signal on the author's own recipe, **hidden at zero** (`FR-007f`, `C-015-019`).
 - All strings localized (`FR-024`).
 
+## 6a. Grant issuance: atomicity and durability _(added 2026-08-22 from clarify)_
+
+Two requirements added after this plan was first written change the service boundary materially.
+
+**`FR-010a` — the decision and the record are one act.** The rate-limit and ceiling checks MUST be evaluated
+atomically with recording the grant; the bound must hold under arbitrary concurrency, independent of worker
+count. Read-then-write is forbidden: two simultaneous publications observe the same pre-write count, both
+pass, both grant — and `FR-007b` makes the over-grant permanent and uncorrectable. The shape that satisfies
+this is the ADR-0024 reserve pattern: one conditional write whose **zero-rows result IS the denial**.
+
+**`FR-010b` — the obligation is durable, the act is not.** Publication MUST commit regardless of whether the
+grant write succeeds, and the obligation — carrying the eligibility decision **frozen at confirmation** — is
+recorded durably and retried idempotently until it lands.
+
+⚠️ **These two pull in opposite directions, and the resolution is not obvious.** `FR-010a` wants the grant
+decided in one atomic write; `FR-010b` wants publication to commit even when that write cannot happen. They
+reconcile by separating the **obligation** from the **grant**: publication and obligation commit together, and
+the grant is the later conditional write where `FR-010a`'s condition is evaluated. So the retry is not "retry
+the decision" — it is "retry the conditional write" — and a denial (rate limit reached, ceiling reached) is a
+**terminal** outcome that resolves the obligation _without_ granting, not a failure to be retried forever.
+Getting this wrong in either direction produces a lost grant or a permanent over-grant.
+
+**`FR-010c`** — a failed _read_ of reward state renders _unavailable_, never `0`. A zero is a false denial of
+an already-earned benefit.
+
+**Erasure interaction**: erasure MUST cancel any outstanding obligation, or a retry landing afterwards
+recreates records for an erased user and breaches `FR-021`.
+
 ## 7. Test strategy (per CLAUDE.md §7.1 — every tier, written first)
 
 | Tier                                    | Covers                                                                                                                                                           |
@@ -123,15 +157,27 @@ it becomes a lie.
 | **Invariant guard**                     | `ratchet.test.ts` — asserts no reward surface renders an expiring/at-risk/decaying/ranked state (`SC-008`), by set equality over reward view models.             |
 | k6                                      | `GET /rewards/me` under load — it renders on every recipe view.                                                                                                  |
 
-## 8. Constitution compliance
+## 8. Constitution check — re-evaluated post-design (2026-08-22)
 
-| Area           | Verdict                                                                                                                                                                                |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Resilience     | ✅ No new external service. Reward read degrades to "unavailable", never to "zero" — showing 0 slots on a read failure would silently deny privacy.                                    |
-| Data & privacy | ✅ `FR-021` erasure cascade covers all four tables; aggregate-only impact signals (`012-FR-024`). ⚠️ Erasure must be added to the existing recipe-service erasure path, not a new one. |
-| Testing        | ✅ Every tier specified above, TDD red-first.                                                                                                                                          |
-| EDA            | ⚠️ Cook/save signals will need events once 008 exists; none emitted in this release.                                                                                                   |
-| Code quality   | ✅ Pure policies, no circular deps, mirrors `ratings/` layout.                                                                                                                         |
+| #    | Principle                       | Verdict | Evidence / residual                                                                                                                                                               |
+| ---- | ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I    | Correctness & type safety       | ✅      | `NFR-001` strict, zero `any`. The `hasAvailablePrivateSlot` field is **required**, so the compiler audits all four `evaluateVisibility` call sites                                |
+| II   | Readability & JSDoc             | ✅      | `NFR-002`. Pure policies carry the pattern name; `visibilityPolicy.ts`'s C-004 docstring MUST be updated in the same commit as the branch change                                  |
+| III  | Organization & imports          | ✅      | New `rewards/` module mirrors the shipped `ratings/` layout; no `helpers/`; domain policies sit beside their existing siblings                                                    |
+| IV   | Testing discipline (pyramid)    | ✅      | §7 specifies every tier; 23 of 52 tasks are `Test-first: true`. Two cases cannot be met by a sequential test — `TC042a` needs genuine parallelism, `TC042b` needs fault injection |
+| V    | Monorepo & workspace governance | ✅      | ADR-0014 honoured: zod authored in-service, copied to `packages/schemas/recipe`; `openapi.yaml` is derived output, never a codegen input                                          |
+| VI   | Formatting & tooling            | ✅      | Prettier via lint-staged on every commit                                                                                                                                          |
+| VII  | Accessibility & UX consistency  | ✅      | `NFR-003` accessible names; `NFR-004` no colour-only state (milestones carry text labels); `NFR-005` attestation legible to assistive tech and not dismissible unread             |
+| VIII | Cross-platform parity           | ✅      | `FR-023`; task groups F (web) and G (mobile) ship in the same release, with Playwright **and** Maestro coverage                                                                   |
+
+**Gate: PASS — no unjustified violations.**
+
+Two residuals, both recorded rather than waived:
+
+- **Erasure must extend the existing recipe-service path**, not add a second one (`E047`). A parallel erasure
+  path is how a table gets missed.
+- **Cook/save events are deferred to 008.** No EDA surface ships in this release, so Principle IV's integration
+  expectations for events do not yet apply — and cannot, since the producer does not exist.
 
 ## 9. ⛔ Blocking dependencies — what must be implemented first
 
@@ -162,4 +208,7 @@ plan for B3/B4 builds the cliff recorded in the spec's overjustification risk.**
    request will not hold. Mitigation: materialized balance with the ledger as the source of truth, refreshed
    on grant — and reconciliation asserted in the integration tier.
 4. **Two concurrent sessions are editing this repo** (016 specs, PG18 upgrade). Any implementation must
+5. **The `FR-010a`/`FR-010b` reconciliation is the subtlest thing in this plan.** An implementer who reads
+   only one of them builds either a lost-grant path or an over-grant path. §6a exists to stop that, and
+   `TC042a`/`TC042b` assert both directions.
    re-check `visibilityPolicy.ts` against `main` before starting.

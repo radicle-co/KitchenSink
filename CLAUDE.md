@@ -323,3 +323,54 @@ Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 - **Fixture factories**: `make*` functions in `__fixtures__/` accepting `Partial<T>`.
 - **TypeScript**: strict mode, zero `any`, no `@ts-ignore`/`@ts-expect-error`.
 - **Folder structure**: organize by feature domain (not type); `helpers/` dirs are banned — use `utils/` co-located with consumers or `common/` for cross-cutting concerns.
+
+<!-- SPECKIT START -->
+
+## Active Spec Kit features
+
+**017 ReciMe Parity** — plan: [`specs/017-recime-parity/plan.md`](specs/017-recime-parity/plan.md)
+
+A **delta spec**: 47 FRs that merge into eight owner specs (001, 004, 005, 006, 007, 008, 010, 014) rather than
+standing alone. Phase 0 overturned three gap-analysis premises — `ABSENT_QUANTITY`, the GDPR library export,
+and the Bedrock client all already ship (R-01…R-03).
+
+Four rules that are easy to get wrong here:
+
+- **Design the household boundary (D18) first.** It is the one-way door; priority orders delivery, data-model
+  risk orders design.
+- **Household role checks go in `household/domain/householdPolicy.ts`, never a route Guard** — the layer
+  ADR-0023 ruled on. Three sibling policy modules already establish the shape.
+- **The capture waterfall is not idempotent-by-replay.** Each tier commits before the next; a retry resumes at
+  the first tier with no row, because ADR-0024's settle is never retried.
+- **Retrieval is user-directed only** — no crawl, batch, address rotation or UA spoofing; the extension gets
+  `activeTab` and nothing more.
+
+⚠️ `.specify/feature.json` is a shared singleton and another session is working `016`. Spec Kit resolves
+features from a numeric **branch** prefix, which this repo's single-branch directive defeats — so pass the
+feature directory explicitly, or re-point `feature.json` immediately before each Spec Kit command.
+
+---
+
+**015 Publishing Rewards** — plan: [`specs/015-publishing-rewards/plan.md`](specs/015-publishing-rewards/plan.md)
+
+Reward publication instead of compelling it. **Specced, planned, tasked — implementation deliberately STOPPED**
+(`.forge-status.yml` carries a `stop_line`). 50 FRs, 52 tasks, 0 open markers.
+
+Four things that are easy to get wrong here:
+
+- **The whole feature turns on ONE existing line.** `visibilityPolicy.ts` allows `user_created` + private
+  `iff isPremium` — that branch **is** `001-FR-003`. It becomes `isPremium || hasAvailablePrivateSlot`, and the
+  new field is **required** so all four call sites become compile errors rather than silently keeping the old
+  behaviour.
+- **`FR-010a` and `FR-010b` pull in opposite directions.** Atomic grant decision vs. publication that must
+  never be blocked. They reconcile by separating the _obligation_ from the _grant_ — read `plan.md` §6a before
+  touching the service, or you will build a lost-grant path or a permanent over-grant path.
+- **The ratchet is a TRIGGER, not a CHECK.** The CHECK version was tested against a live database and
+  defeated by lowering two columns in one statement. Any "never decreases" invariant needs OLD-vs-NEW.
+- **Recognition (US5/US6) is NOT buildable.** No cook/save telemetry exists anywhere in recipe-service; 008 and
+  012 have no code. Only the `standing.port.ts` seam may be built.
+
+⛔ Blocked on: **016** (ToS content licence + DMCA — we have no stated right to display or permit cloning of a
+user's recipe), **D4a** (un-gate free-tier privacy), and 008/012 for the recognition half.
+
+<!-- SPECKIT END -->

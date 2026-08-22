@@ -63,14 +63,22 @@ export const styles = StyleSheet.create({
     // The flexible field yields width (the web leaf's `min-w-0 flex-1`); the action never does, so its label
     // and its 44pt touch target can never be clipped (the web leaf's `shrink-0` idiom).
     //
-    // ⛔ `minWidth` IS LOAD-BEARING — without it the ingredient NAME renders as "oil", "lic", "no", "on".
-    // U9 gave each line a second bound, so this row is `[name][low][–][high][unit]`: three `rowNarrow`
-    // boxes at 88 plus four gaps claim ~306dp of a ~340dp content box on a 390dp phone, and a shrinkable
-    // child with no floor simply yields the remaining ~34dp. `listRow` already sets `flexWrap: 'wrap'` —
-    // this floor is what makes the row actually REACH that wrap instead of crushing the one field the cook
-    // reads. Asserted, with the arithmetic, by `__tests__/formSectionStyles.native.test.tsx`.
-    rowGrow: { flexGrow: 1, flexShrink: 1, flexBasis: '60%', minWidth: 120 },
-    rowNarrow: { width: 88 },
+    // ⛔ `flexBasis: '100%'` IS LOAD-BEARING — at 60% the ingredient NAME rendered as "oil", "lic", "no",
+    // "on". U9 gave each line a second bound, so this row is `[name][low][–][high][unit]`: three
+    // `rowNarrow` boxes plus four gaps claim ~306dp of the ~311dp a 375dp phone leaves after the screen's
+    // 16pt and the card's 16pt of horizontal padding. A shrinkable name with no floor simply yielded what
+    // was left, which was ~34dp.
+    //
+    // Giving the name its OWN line is what fixes it, rather than a floor that merely stops the crush: at
+    // 60% + a floor the row wraps as `[name][low][–]` / `[high][unit]`, splitting a range across two lines
+    // with the dash orphaned. `listRow` already sets `flexWrap: 'wrap'`; this makes the wrap land in the
+    // one place that reads correctly — the name above, the whole quantity group below it.
+    rowGrow: { flexGrow: 1, flexShrink: 1, flexBasis: '100%' },
+    // The quantity boxes may COMPRESS so the group is never itself split. React Native defaults
+    // `flexShrink` to 0 (unlike the web), so `width` alone is rigid: at full width the group needs ~304dp
+    // against the ~311 a 375dp phone leaves — seven points, which is inside the error bar on the separator
+    // glyph and gone entirely on a 360dp device. The shrink makes the fit robust rather than lucky.
+    rowNarrow: { width: 88, flexShrink: 1, minWidth: 64 },
     // The EN DASH between an ingredient's two quantity bounds (U9/R42) — decorative punctuation, so it
     // never yields width and never grows the row.
     rangeSeparator: { flexShrink: 0, color: palette.slate, fontSize: 13 },

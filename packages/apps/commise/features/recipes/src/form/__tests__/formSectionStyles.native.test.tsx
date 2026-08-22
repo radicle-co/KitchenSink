@@ -32,31 +32,43 @@ import { describe, expect, it } from 'vitest';
 import { styles } from '../formSectionStyles.native.js';
 
 /**
- * The narrowest phone this app supports, in dp — a 390×844 device (the viewport
- * `recipeHomeResponsive.spec.ts` already uses as the touch-target floor), minus the screen and card padding
- * the row sits inside.
+ * The row width the narrowest supported phone leaves, in dp.
+ *
+ * 375 (the viewport `recipeHomeResponsive.spec.ts` already treats as the floor) minus the scroll content's
+ * 16pt each side and the card's 16pt each side — the two paddings the row actually sits inside.
  */
-const NARROWEST_ROW_WIDTH_DP = 340;
+const NARROWEST_ROW_WIDTH_DP = 375 - 2 * 16 - 2 * 16;
 
-/** What a name field must be able to show. "Flat-leaf parsley" is the longest seeded ingredient name. */
-const NAME_FLOOR_DP = 120;
+/** Rough width of the en-dash separator at its 13pt size. Over-estimated on purpose. */
+const SEPARATOR_DP = 16;
 
 describe('ingredient row geometry', () => {
-    it('gives the name field a floor it cannot shrink below', () => {
-        // Without this the name is whatever the fixed boxes leave over — ~34dp, which renders as "oil".
-        expect(styles.rowGrow.minWidth).toBeGreaterThanOrEqual(NAME_FLOOR_DP);
+    it('gives the name its OWN line', () => {
+        // At 60% the name shared line 1 with the low bound and the dash, which both crushed the name AND
+        // split the range across two lines. A full basis puts the name above and the whole quantity group
+        // below, which is the only wrap position that reads correctly.
+        expect(styles.rowGrow.flexBasis).toBe('100%');
     });
 
-    it('lets the row wrap, which is what the floor turns the overflow into', () => {
+    it('lets the row wrap, which is what the full basis turns the overflow into', () => {
         expect(styles.listRow.flexWrap).toBe('wrap');
     });
 
-    it('⛔ the fixed boxes plus the name floor EXCEED one line, so the wrap is reached, not decorative', () => {
-        // This is the arithmetic that makes the pair meaningful rather than two unrelated constants: on the
-        // narrowest supported row the five children cannot co-exist on one line, so `flexWrap` must engage.
-        // If a future change made them fit, the wrap would be dead code and this test says so.
-        const fixed = 3 * styles.rowNarrow.width + 4 * styles.listRow.gap;
+    it('⛔ keeps the whole quantity group on ONE line at the narrowest supported width', () => {
+        // The group is `[low][–][high][unit]`. If it cannot fit even at the boxes' minimum, the unit wraps
+        // onto a third line and a range reads as two unrelated numbers. This is the arithmetic that makes
+        // `flexShrink` on `rowNarrow` load-bearing rather than decorative.
+        const compressed = 3 * styles.rowNarrow.minWidth + 3 * styles.listRow.gap + SEPARATOR_DP;
 
-        expect(fixed + NAME_FLOOR_DP).toBeGreaterThan(NARROWEST_ROW_WIDTH_DP);
+        expect(compressed).toBeLessThanOrEqual(NARROWEST_ROW_WIDTH_DP);
+    });
+
+    it('⛔ lets the quantity boxes compress at all — React Native does not shrink by default', () => {
+        // `flexShrink` defaults to 0 in React Native (unlike the web), so `width: 88` is otherwise rigid.
+        // At their full width the group needs 3×88 + 3×8 + ~16 = ~304dp against the 311 available here —
+        // seven points of margin, which is inside the error bar on the separator glyph's real width and
+        // gone entirely on a 360dp device. The shrink is what makes the fit robust rather than lucky.
+        expect(styles.rowNarrow.flexShrink).toBeGreaterThan(0);
+        expect(styles.rowNarrow.minWidth).toBeLessThan(styles.rowNarrow.width);
     });
 });

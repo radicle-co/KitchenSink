@@ -5,7 +5,7 @@
     "type": "module",
     "main": "./src/main.ts",
     "scripts": {
-        "dev": "NODE_ENV=development tsx watch src/main.ts",
+        "dev": "NODE_ENV=development vite-node --watch src/main.ts",
         "build": "tsc -p tsconfig.build.json",
         "docker:prepare": "node ../../../scripts/prepareProdManifest.mjs",
         "start": "node dist/src/main.js",
@@ -79,6 +79,7 @@
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "^4.23.12",
+        "vite-node": "^6.0.0",
         "typescript": "^5.9.3",
         "vitest": "^4.0.0",
         "yaml": "^2.8.1"

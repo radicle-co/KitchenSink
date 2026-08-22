@@ -8,7 +8,7 @@
         "./db/schema": "./src/db/schema/index.ts"
     },
     "scripts": {
-        "dev": "nest start --watch",
+        "dev": "vite-node --watch src/main.ts",
         "build": "nest build",
         "docker:prepare": "node ../../../scripts/prepareProdManifest.mjs",
         "infra:build": "tsc -p infra/tsconfig.json",
@@ -82,6 +82,7 @@
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "^4.23.12",
+        "vite-node": "^6.0.0",
         "typescript": "^5.9.3",
         "undici": "^6.27.0",
         "vitest": "^4.0.0",

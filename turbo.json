@@ -171,7 +171,7 @@
         "format:check": {
             "outputs": []
         },
-        "dev:local": {
+        "dev": {
             "cache": false,
             "persistent": true,
             "outputs": []

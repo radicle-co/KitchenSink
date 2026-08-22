@@ -38,7 +38,7 @@
         "contract:generate": "node scripts/contractGenerate.mjs",
         "contract:verify": "npm run contract:generate && node scripts/contractDriftGate.mjs",
         "typecheck": "turbo run typecheck",
-        "dev:local": "turbo run dev:local",
+        "dev:local": "turbo run dev",
         "localstack:up": "docker compose -f infra/localstack/docker-compose.yml up -d --wait",
         "localstack:down": "docker compose -f infra/localstack/docker-compose.yml down -v",
         "format": "turbo run format",

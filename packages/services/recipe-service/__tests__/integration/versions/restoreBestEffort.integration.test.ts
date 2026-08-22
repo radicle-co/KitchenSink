@@ -36,7 +36,7 @@ const CREATE_BODY = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
+    ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: { kind: 'exact', value: 2 }, unit: 'cup' }],
     steps: [{ instruction: 'Mix the batter.' }],
 };
 

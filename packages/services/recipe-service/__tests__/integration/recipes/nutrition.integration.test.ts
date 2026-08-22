@@ -172,7 +172,14 @@ describe.skipIf(!hasDatabaseUrl)('per-serving nutrition from the food service (i
                 // 2 cups × 125 g/cup = 250 g at 350 cal/100 g → 875 cal; ÷ 2 servings → 437.5.
                 // Identical arithmetic to the pre-U10 test — the SOURCE of the inputs changed, the numbers
                 // a user sees must not.
-                ingredients: [{ ingredientId: FLOUR_CATALOG_ID, name: 'Nutrition Flour', quantity: 2, unit: 'cups' }],
+                ingredients: [
+                    {
+                        ingredientId: FLOUR_CATALOG_ID,
+                        name: 'Nutrition Flour',
+                        quantity: { kind: 'exact', value: 2 },
+                        unit: 'cups',
+                    },
+                ],
                 steps: [{ instruction: 'Mix.' }],
             }),
         });
@@ -232,7 +239,14 @@ describe.skipIf(!hasDatabaseUrl)('per-serving nutrition from the food service (i
                 totalTimeMinutes: 15,
                 tags: [],
                 dietaryFlags: [],
-                ingredients: [{ ingredientId: UNCACHED_CATALOG_ID, name: 'Uncached Flour', quantity: 2, unit: 'cups' }],
+                ingredients: [
+                    {
+                        ingredientId: UNCACHED_CATALOG_ID,
+                        name: 'Uncached Flour',
+                        quantity: { kind: 'exact', value: 2 },
+                        unit: 'cups',
+                    },
+                ],
                 steps: [{ instruction: 'Mix.' }],
             }),
         });

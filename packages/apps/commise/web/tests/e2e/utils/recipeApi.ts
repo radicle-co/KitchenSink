@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import {
     FoodResolutionStatus,
+    ingredientQuantitySchema,
     usesPremiumCapability,
     type Ingredient,
     type PaginatedResponse,
@@ -101,7 +102,12 @@ function toIngredientProjection(
         return {
             ingredientId,
             name: String(line['name']),
-            quantity: Number(line['quantity']),
+            // U8 — the request carries the `exact | range | absent` value object, and the real service
+            // projects it through unchanged. ⛔ NOT `Number(...)`: that produced `NaN` from the object and
+            // would make this double answer with a shape the read schema rejects, turning a contract change
+            // into a mysterious e2e failure instead of a type error. Parsed rather than cast, so a body this
+            // double could not really have received fails loudly here.
+            quantity: ingredientQuantitySchema.parse(line['quantity']),
             ...(line['unit'] === undefined ? {} : { unit: String(line['unit']) }),
             ...(line['notes'] === undefined ? {} : { notes: String(line['notes']) }),
             isUserEntered: resolveUserEntered(ingredientId),
@@ -229,7 +235,13 @@ export function makeRecipeDetail(over: Partial<RecipeDetail> = {}): RecipeDetail
     return {
         ...makeRecipe(over),
         ingredients: over.ingredients ?? [
-            { ingredientId: E2E_INGREDIENT_IDS.salt, name: 'Salt', quantity: 1, unit: 'tsp', isUserEntered: false },
+            {
+                ingredientId: E2E_INGREDIENT_IDS.salt,
+                name: 'Salt',
+                quantity: { kind: 'exact', value: 1 } as const,
+                unit: 'tsp',
+                isUserEntered: false,
+            },
         ],
         steps: over.steps ?? [{ stepNumber: 1, instruction: 'Combine and cook.' }],
         photos: over.photos ?? [],
@@ -250,7 +262,7 @@ function makeVersionSnapshot(over: Partial<RecipeSnapshot> = {}): RecipeSnapshot
                 id: 'ri_seed_1',
                 recipeId: 'rec_seed',
                 ingredientId: E2E_INGREDIENT_IDS.salt,
-                quantity: 1,
+                quantity: { kind: 'exact', value: 1 },
                 unit: 'tsp',
                 sortOrder: 1,
                 ingredientName: 'Salt',

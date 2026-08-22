@@ -48,7 +48,14 @@ const RECIPE_PAYLOAD = {
     totalTimeMinutes: 15,
     tags: [],
     dietaryFlags: [],
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 1, unit: 'cup' }],
+    ingredients: [
+        {
+            ingredientId: '00000000-0000-4000-8000-0000000000aa',
+            name: 'Flour',
+            quantity: { kind: 'exact', value: 1 },
+            unit: 'cup',
+        },
+    ],
     steps: [{ instruction: 'Mix.' }],
 };
 

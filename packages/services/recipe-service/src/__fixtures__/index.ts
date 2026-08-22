@@ -76,6 +76,8 @@ export function makeRecipeIngredientRow(overrides: Partial<RecipeIngredientRow> 
         recipeId: '00000000-0000-4000-8000-00000000a001',
         ingredientId: '00000000-0000-4000-8000-0000000000ff',
         quantity: '1',
+        /** `null` = "this line states one value, not two" — the shape of every row 0020 did not touch. */
+        quantityHigh: null,
         unit: 'unit',
         displayText: null,
         sortOrder: 0,

@@ -105,7 +105,9 @@ const CREATE_DTO: CreateRecipeDto = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced' }],
+    ingredients: [
+        { ingredientId: ONION_ID, name: 'Onion', quantity: { kind: 'exact', value: 2 }, unit: 'cup', notes: 'diced' },
+    ],
     steps: [{ instruction: 'Mix' }],
 };
 
@@ -136,7 +138,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
                     expect.objectContaining({
                         ingredientId: ONION_ID,
                         ingredientName: 'Onion',
-                        quantity: 2,
+                        quantity: { kind: 'exact', value: 2 },
                         unit: 'cup',
                         displayText: 'diced',
                         sortOrder: 0,
@@ -147,7 +149,14 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
         );
         // The response is composed from the persisted junction (no longer an empty array).
         expect(response.ingredients).toEqual([
-            { ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced', isUserEntered: false },
+            {
+                ingredientId: ONION_ID,
+                name: 'Onion',
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'cup',
+                notes: 'diced',
+                isUserEntered: false,
+            },
         ]);
     });
 
@@ -169,7 +178,14 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
 
         const poisoned: CreateRecipeDto = {
             ...CREATE_DTO,
-            ingredients: [{ ingredientId: ONION_ID, name: 'zzz-not-a-real-name', quantity: 2, unit: 'cup' }],
+            ingredients: [
+                {
+                    ingredientId: ONION_ID,
+                    name: 'zzz-not-a-real-name',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                },
+            ],
         };
         await service.create(OWNER_PRINCIPAL, poisoned);
 
@@ -212,7 +228,14 @@ describe('RecipesService.getById — ingredient composition (T043b)', () => {
         const response = await service.getById(OWNER, 'r-1');
 
         expect(response.ingredients).toEqual([
-            { ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced', isUserEntered: false },
+            {
+                ingredientId: ONION_ID,
+                name: 'Onion',
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'cup',
+                notes: 'diced',
+                isUserEntered: false,
+            },
         ]);
     });
 });
@@ -236,7 +259,15 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
 
         const patch: UpdateRecipeDto = {
             expectedVersion: 1,
-            ingredients: [{ ingredientId: ONION_ID, name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced' }],
+            ingredients: [
+                {
+                    ingredientId: ONION_ID,
+                    name: 'Onion',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    notes: 'diced',
+                },
+            ],
         };
         await service.update(OWNER_PRINCIPAL, 'r-1', patch);
 

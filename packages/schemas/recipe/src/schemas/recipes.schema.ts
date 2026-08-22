@@ -46,6 +46,7 @@
 import { z } from 'zod';
 
 import {
+    ingredientQuantitySchema,
     paginatedResponseSchema,
     recipeCuisineSchema,
     recipeDescriptionSchema,
@@ -56,7 +57,6 @@ import {
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
     recipeIngredientNotesSchema,
-    recipeIngredientQuantitySchema,
     recipeIngredientUnitSchema,
     recipeLineNutritionSchema,
     recipeListMemberSchema,
@@ -82,7 +82,11 @@ import {
 export const recipeIngredientInputSchema = z.strictObject({
     ingredientId: recipeIngredientIdSchema,
     name: recipeIngredientNameSchema,
-    quantity: recipeIngredientQuantitySchema,
+    /**
+     * What the source states — one value, two bounds, or nothing (U8/KTD-6). ⛔ Not a bare number and not a
+     * number plus a loose `quantityHigh`: see `ingredientQuantitySchema`'s own docs for why the union.
+     */
+    quantity: ingredientQuantitySchema,
     /** Omit for a unitless line; `''` is rejected so "unitless" has ONE representation. */
     unit: recipeIngredientUnitSchema.optional(),
     /** Free-form display override (persisted as `displayText`). */

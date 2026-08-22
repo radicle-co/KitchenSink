@@ -21,6 +21,7 @@ import { formatCalories } from '../card/model.js';
 import { formatQuantity } from '../detail/model.js';
 import {
     computeTotalTime,
+    draftQuantity,
     type RecipeFormIngredient,
     type RecipeFormStep,
     type RecipeFormValues,
@@ -651,7 +652,7 @@ export const draftToSnapshot = (values: RecipeFormValues, version: number): Reci
                 id: `draft-ingredient-${index}`,
                 recipeId: '',
                 ingredientId: line.ingredientId,
-                quantity: line.quantity,
+                quantity: draftQuantity(line),
                 unit: line.unit ?? '',
                 ...(line.notes === undefined || line.notes === '' ? {} : { displayText: line.notes }),
                 sortOrder: index,
@@ -987,7 +988,9 @@ export const toVersionPreviewIngredientLines = (
 
         return {
             key: ingredient.id,
-            text: `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`,
+            // `.trim()`: an ABSENT quantity with no unit formats to `''` (R40), which would otherwise leave
+            // this preview line starting with a space.
+            text: `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`.trim(),
             ...(ingredient.userCalories !== undefined
                 ? {
                       calories: fillTemplate(messages.caloriesLabel, {

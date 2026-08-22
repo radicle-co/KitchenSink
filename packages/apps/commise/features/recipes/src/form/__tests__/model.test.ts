@@ -22,6 +22,7 @@ import {
     canAdvanceFromStep,
     computeTotalTime,
     defaultRecipeFormValues,
+    draftQuantity,
     DESCRIPTION_MAX_LENGTH,
     TITLE_MAX_LENGTH,
     lineCalories,
@@ -36,6 +37,49 @@ import {
     type RecipeFormIngredient,
     type RecipeFormValues,
 } from '../model.js';
+
+/**
+ * U8 — the ONE parse from the loose form draft to the wire's `exact | range | absent` value object.
+ *
+ * The draft is deliberately loose (a half-typed numeric input is a real state); the value object is what a
+ * coherent draft PARSES to at the wire boundary. Everything a caller could get wrong lives in this one
+ * function, so these cases are the whole story for four call sites.
+ */
+describe('draftQuantity', () => {
+    const line = (over: Partial<RecipeFormIngredient>): RecipeFormIngredient => ({
+        ingredientId: '00000000-0000-4000-8000-0000000000aa',
+        name: 'Flour',
+        quantity: 2,
+        ...over,
+    });
+
+    it('parses a stated amount with no upper bound as `exact`', () => {
+        expect(draftQuantity(line({ quantity: 2 }))).toEqual({ kind: 'exact', value: 2 });
+    });
+
+    it('parses a stated pair as a `range`, preserving BOTH bounds (R36)', () => {
+        expect(draftQuantity(line({ quantity: 2, quantityHigh: 3 }))).toEqual({ kind: 'range', low: 2, high: 3 });
+    });
+
+    // ⛔ R40. An emptied numeric input parses to `NaN`; the honest reading is that the line states no
+    // amount, NOT that it states zero and not that it states one.
+    it('parses an emptied field as `absent`, never as a zero or a fabricated one', () => {
+        expect(draftQuantity(line({ quantity: Number.NaN }))).toEqual({ kind: 'absent' });
+        expect(draftQuantity(line({ quantity: 0 }))).toEqual({ kind: 'absent' });
+    });
+
+    // An incoherent draft is a REAL intermediate state (the user is mid-edit) that the inline validator
+    // reports; this parse reports it as "no amount stated" rather than inventing one, and submission is
+    // blocked separately by `validateRecipeForm`.
+    it('parses an incoherent pair as `absent` rather than guessing which bound was meant', () => {
+        expect(draftQuantity(line({ quantity: 3, quantityHigh: 2 }))).toEqual({ kind: 'absent' });
+        expect(draftQuantity(line({ quantity: Number.NaN, quantityHigh: 3 }))).toEqual({ kind: 'absent' });
+    });
+
+    it('collapses coincident bounds to `exact`, so one amount has one representation', () => {
+        expect(draftQuantity(line({ quantity: 2, quantityHigh: 2 }))).toEqual({ kind: 'exact', value: 2 });
+    });
+});
 
 const filledValues = (over: Partial<RecipeFormValues> = {}): RecipeFormValues => ({
     ...defaultRecipeFormValues(),
@@ -78,7 +122,12 @@ describe('toCreateRecipeInput', () => {
         expect(input.tags).toEqual(['dinner']);
         expect(input.totalTimeMinutes).toBe(35);
         expect(input.ingredients).toEqual([
-            { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Arborio rice', quantity: 300, unit: 'g' },
+            {
+                ingredientId: '00000000-0000-4000-8000-000000000001',
+                name: 'Arborio rice',
+                quantity: { kind: 'exact', value: 300 },
+                unit: 'g',
+            },
         ]);
         expect(input.steps).toEqual([{ instruction: 'Toast the rice.' }]);
     });
@@ -395,7 +444,7 @@ describe('toNutritionLine (E3 plumbing — form line -> the aggregator Nutrition
         });
 
         expect(toNutritionLine(line)).toEqual({
-            quantity: 300,
+            quantity: { kind: 'exact', value: 300 },
             unit: 'g',
             caloriesPer100g: 130,
             proteinGPer100g: 2.7,
@@ -440,7 +489,7 @@ describe('toNutritionLine (E3 plumbing — form line -> the aggregator Nutrition
         });
 
         expect(toNutritionLine(line)).toEqual({
-            quantity: 1,
+            quantity: { kind: 'exact', value: 1 },
             unit: 'batch',
             userCalories: 45,
             userProteinG: 1,
@@ -460,7 +509,7 @@ describe('toNutritionLine (E3 plumbing — form line -> the aggregator Nutrition
         // A freshly-picked line still PENDING catalog resolution, or a freeform line with no user nutrition yet.
         const line = baseLine({ resolutionStatus: 'PENDING' });
 
-        expect(toNutritionLine(line)).toEqual({ quantity: 2, unit: 'tbsp' });
+        expect(toNutritionLine(line)).toEqual({ quantity: { kind: 'exact', value: 2 }, unit: 'tbsp' });
         expect(computeRecipeNutrition([toNutritionLine(line)], 1).isComplete).toBe(false);
     });
 

@@ -11,6 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity } from '../ingredientQuantity.js';
 import { computeRecipeNutrition } from '../nutrition.js';
 import type { NutritionLine } from '../nutrition.js';
 import {
@@ -26,6 +27,31 @@ import {
 } from '../scaling.js';
 import type { RecipeIngredientView } from '../recipe.types.js';
 
+/**
+ * A quantity the source stated exactly. Narrowing local, so the specs below read as amounts rather than as
+ * assertions about the smart constructor (which has its own suite).
+ */
+function exact(value: number): IngredientQuantity {
+    const quantity = statedQuantity(value);
+
+    if (quantity === null) {
+        throw new Error(`test fixture: ${value} is not a statable amount`);
+    }
+
+    return quantity;
+}
+
+/** A quantity the source stated as two bounds. */
+function range(low: number, high: number): IngredientQuantity {
+    const quantity = statedQuantity(low, high);
+
+    if (quantity === null) {
+        throw new Error(`test fixture: ${low}..${high} is not a statable range`);
+    }
+
+    return quantity;
+}
+
 /** A four-serving recipe: 15 min prep, 30 min cook, 50 min total (5 minutes of it inactive resting). */
 function makeScalable(overrides: Partial<ScalableRecipe> = {}): ScalableRecipe {
     return {
@@ -34,11 +60,11 @@ function makeScalable(overrides: Partial<ScalableRecipe> = {}): ScalableRecipe {
         cookTimeMinutes: 30,
         totalTimeMinutes: 50,
         ingredients: [
-            { ingredientId: 'ing_1', name: 'Lamb shoulder', quantity: 1.5, unit: 'lb', isUserEntered: false },
+            { ingredientId: 'ing_1', name: 'Lamb shoulder', quantity: exact(1.5), unit: 'lb', isUserEntered: false },
             {
                 ingredientId: 'ing_2',
                 name: 'Garlic',
-                quantity: 3,
+                quantity: exact(3),
                 unit: 'cloves',
                 notes: 'minced',
                 isUserEntered: true,
@@ -153,30 +179,51 @@ describe('scaleQuantity', () => {
     it('returns the stored quantity unchanged at 1x', () => {
         const scaling = makeRecipeScaling(4, 4);
 
-        expect(scaleQuantity(1.5, scaling)).toBe(1.5);
-        expect(scaleQuantity(0.125, scaling)).toBe(0.125);
+        expect(scaleQuantity(exact(1.5), scaling)).toEqual(exact(1.5));
+        expect(scaleQuantity(exact(0.125), scaling)).toEqual(exact(0.125));
     });
 
     it('scales linearly', () => {
-        expect(scaleQuantity(1.5, makeRecipeScaling(4, 8))).toBe(3);
-        expect(scaleQuantity(3, makeRecipeScaling(4, 2))).toBe(1.5);
-        expect(scaleQuantity(2, makeRecipeScaling(4, 3))).toBe(1.5);
+        expect(scaleQuantity(exact(1.5), makeRecipeScaling(4, 8))).toEqual(exact(3));
+        expect(scaleQuantity(exact(3), makeRecipeScaling(4, 2))).toEqual(exact(1.5));
+        expect(scaleQuantity(exact(2), makeRecipeScaling(4, 3))).toEqual(exact(1.5));
     });
 
     it('erases IEEE-754 artifacts without destroying genuine culinary precision', () => {
         // 0.3 * (1/3) is 0.09999999999999999 in binary floating point; a cook must not read "0.099999…".
-        expect(scaleQuantity(0.3, makeRecipeScaling(3, 1))).toBe(0.1);
+        expect(scaleQuantity(exact(0.3), makeRecipeScaling(3, 1))).toEqual(exact(0.1));
         // …but an eighth of a teaspoon at 1x is a real quantity and must survive: rounding for DISPLAY is
         // the render layer's job, and rounding here to 2 places would silently erase it.
-        expect(scaleQuantity(0.125, makeRecipeScaling(2, 1))).toBe(0.0625);
+        expect(scaleQuantity(exact(0.125), makeRecipeScaling(2, 1))).toEqual(exact(0.0625));
     });
 
-    it('refuses a quantity that is not a finite, non-negative number', () => {
+    // R37 — the half a scalar could not express. Scaling only the lower bound would quietly narrow every
+    // ranged line the moment a cook touched the serving control.
+    it('scales BOTH bounds of a range (R37): 4→6 servings turns 2 to 3 into 3 to 4.5', () => {
+        expect(scaleQuantity(range(2, 3), makeRecipeScaling(4, 6))).toEqual(range(3, 4.5));
+    });
+
+    it('leaves a range untouched at the recipe’s own serving count', () => {
+        expect(scaleQuantity(range(2, 3), makeRecipeScaling(4, 4))).toEqual(range(2, 3));
+    });
+
+    // ⛔ R40. Scaling has no number to multiply here, and every wrong answer fabricates one: `0`, `1`, or
+    // the ratio itself. The only honest projection of "the source stated no amount" is itself.
+    it('carries an ABSENT quantity through without fabricating a number', () => {
+        expect(scaleQuantity(ABSENT_QUANTITY, makeRecipeScaling(4, 8))).toEqual(ABSENT_QUANTITY);
+        expect(scaleQuantity(ABSENT_QUANTITY, makeRecipeScaling(4, 4))).toEqual(ABSENT_QUANTITY);
+    });
+
+    // The value object's smart constructor is the only door into a well-formed quantity, but `scaleQuantity`
+    // is exported and TypeScript cannot prove its argument came through that door. A cast-in bound must
+    // still be refused rather than silently producing `NaN` on a cook's screen.
+    it('refuses a bound that is not a finite, positive number', () => {
         const scaling = makeRecipeScaling(4, 8);
 
-        expect(() => scaleQuantity(-1, scaling)).toThrow();
-        expect(() => scaleQuantity(Number.NaN, scaling)).toThrow();
-        expect(() => scaleQuantity(Number.POSITIVE_INFINITY, scaling)).toThrow();
+        expect(() => scaleQuantity({ kind: 'exact', value: -1 }, scaling)).toThrow();
+        expect(() => scaleQuantity({ kind: 'exact', value: Number.NaN }, scaling)).toThrow();
+        expect(() => scaleQuantity({ kind: 'exact', value: Number.POSITIVE_INFINITY }, scaling)).toThrow();
+        expect(() => scaleQuantity({ kind: 'range', low: 2, high: Number.NaN }, scaling)).toThrow();
     });
 });
 
@@ -185,25 +232,42 @@ describe('scaleRecipeForServings — quantities', () => {
         const recipe = makeScalable();
         const scaled = scaleRecipeForServings(recipe, 4);
 
-        expect(scaled.ingredients.map((line) => line.quantity)).toEqual([1.5, 3]);
+        expect(scaled.ingredients.map((line) => line.quantity)).toEqual([exact(1.5), exact(3)]);
         expect(scaled.scaling.isScaled).toBe(false);
     });
 
     it('scales every quantity by the serving ratio', () => {
         const scaled = scaleRecipeForServings(makeScalable(), 6);
 
-        expect(scaled.ingredients.map((line) => line.quantity)).toEqual([2.25, 4.5]);
+        expect(scaled.ingredients.map((line) => line.quantity)).toEqual([exact(2.25), exact(4.5)]);
+    });
+
+    // R36/R37 end-to-end through the projection every detail view reads: a mixed recipe keeps its exact
+    // line exact, its ranged line ranged with BOTH bounds moved, and its unquantified line unquantified.
+    it('scales a mixed recipe of exact, ranged and absent quantities without collapsing any of them', () => {
+        const scaled = scaleRecipeForServings(
+            makeScalable({
+                ingredients: [
+                    { ingredientId: 'a', name: 'Flour', quantity: range(2, 3), unit: 'cup', isUserEntered: false },
+                    { ingredientId: 'b', name: 'Salt', quantity: exact(1), unit: 'tsp', isUserEntered: false },
+                    { ingredientId: 'c', name: 'Butter', quantity: ABSENT_QUANTITY, isUserEntered: true },
+                ],
+            }),
+            6,
+        );
+
+        expect(scaled.ingredients.map((line) => line.quantity)).toEqual([range(3, 4.5), exact(1.5), ABSENT_QUANTITY]);
     });
 
     it('preserves each line’s identity, unit, notes, order, and user-entered flag', () => {
         const scaled = scaleRecipeForServings(makeScalable(), 8);
 
         expect(scaled.ingredients).toEqual([
-            { ingredientId: 'ing_1', name: 'Lamb shoulder', quantity: 3, unit: 'lb', isUserEntered: false },
+            { ingredientId: 'ing_1', name: 'Lamb shoulder', quantity: exact(3), unit: 'lb', isUserEntered: false },
             {
                 ingredientId: 'ing_2',
                 name: 'Garlic',
-                quantity: 6,
+                quantity: exact(6),
                 unit: 'cloves',
                 notes: 'minced',
                 isUserEntered: true,
@@ -216,7 +280,7 @@ describe('scaleRecipeForServings — quantities', () => {
 
         scaleRecipeForServings(recipe, 12);
 
-        expect(recipe.ingredients[0]?.quantity).toBe(1.5);
+        expect(recipe.ingredients[0]?.quantity).toEqual(exact(1.5));
         expect(recipe.prepTimeMinutes).toBe(15);
         expect(recipe.totalTimeMinutes).toBe(50);
     });
@@ -273,7 +337,7 @@ describe('scaled recipes and PER-SERVING nutrition', () => {
         // per-serving macros are mathematically unchanged. This is the proof behind the detail view NOT
         // recomputing (or re-displaying) nutrition when the cook changes the serving count — and the guard
         // against a future "scale the nutrition too" change, which would double-count the ratio.
-        const line: NutritionLine = { quantity: 200, unit: 'g', caloriesPer100g: 250, proteinGPer100g: 20 };
+        const line: NutritionLine = { quantity: exact(200), unit: 'g', caloriesPer100g: 250, proteinGPer100g: 20 };
         const base = computeRecipeNutrition([line], 4);
 
         for (const servings of [1, 2, 3, 8, MAX_SCALED_SERVINGS]) {
@@ -290,7 +354,7 @@ describe('ScalableRecipe contract', () => {
         // Scaling is a projection over four numbers and the ingredient lines; demanding a full detail (with
         // ids, photos, ratings, visibility…) would couple a pure arithmetic module to the read model.
         const lines: readonly RecipeIngredientView[] = [
-            { ingredientId: 'ing_x', name: 'Salt', quantity: 1, unit: 'tsp', isUserEntered: false },
+            { ingredientId: 'ing_x', name: 'Salt', quantity: exact(1), unit: 'tsp', isUserEntered: false },
         ];
         const minimal: ScalableRecipe = {
             servings: 2,
@@ -300,7 +364,7 @@ describe('ScalableRecipe contract', () => {
             ingredients: lines,
         };
 
-        expect(scaleRecipeForServings(minimal, 4).ingredients[0]?.quantity).toBe(2);
+        expect(scaleRecipeForServings(minimal, 4).ingredients[0]?.quantity).toEqual(exact(2));
     });
 });
 
@@ -311,14 +375,14 @@ describe('scaleQuantity — the UNSCALED default view', () => {
         const scaling = makeRecipeScaling(4, 4);
         const awkward = 0.123456789;
 
-        expect(scaleQuantity(awkward, scaling)).toBe(awkward);
+        expect(scaleQuantity(exact(awkward), scaling)).toEqual(exact(awkward));
         expect(
             scaleRecipeForServings(
                 makeScalable({
-                    ingredients: [{ ingredientId: 'i', name: 'x', quantity: awkward, isUserEntered: false }],
+                    ingredients: [{ ingredientId: 'i', name: 'x', quantity: exact(awkward), isUserEntered: false }],
                 }),
                 4,
             ).ingredients[0]?.quantity,
-        ).toBe(awkward);
+        ).toEqual(exact(awkward));
     });
 });

@@ -45,7 +45,7 @@ const CREATE_DTO: CreateRecipeDto = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 1 }],
+    ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: { kind: 'exact', value: 1 } }],
     steps: [{ instruction: 'Mix' }],
 };
 

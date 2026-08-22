@@ -12,7 +12,6 @@
         "./database-name": "./src/recipeDatabaseName.ts",
         "./food-name": "./src/foodName.ts",
         "./resolution/normalized-key": "./src/resolution/normalizedKey.ts",
-        "./ingredient-quantity": "./src/ingredientQuantity.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"
     },

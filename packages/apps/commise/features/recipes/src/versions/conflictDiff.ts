@@ -132,7 +132,9 @@ const formatIngredient = (ingredient: RecipeIngredient | undefined, locale: Loca
             ? `${ingredient.ingredientName} (${ingredient.displayText})`
             : ingredient.ingredientName;
 
-    return `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`;
+    // `.trim()`: an ABSENT quantity with no unit formats to `''` (R40 — it renders no fabricated number),
+    // which would otherwise leave this row starting with a space.
+    return `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`.trim();
 };
 
 /**

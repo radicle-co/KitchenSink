@@ -26,6 +26,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
+import { quantityLowerBound, type IngredientQuantity } from '@kitchensink/recipe-core';
+
 import {
     seed,
     seedIngredientNamesText,
@@ -44,7 +46,7 @@ const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_U
 interface IngredientLineBody {
     ingredientId: string;
     name: string;
-    quantity: number;
+    quantity: IngredientQuantity;
     unit?: string;
     isUserEntered: boolean;
 }
@@ -110,7 +112,10 @@ describe.skipIf(!hasDatabaseUrl)('the seeded world composes recipes, ingredients
         const expected = SEED_RECIPE_INGREDIENT_LINES.filter((line) => line.recipeId === LAMB.id).map((line) => ({
             ingredientId: line.ingredient.id,
             name: line.ingredient.name,
-            quantity: line.quantity,
+            // U8 — the seed writes a single positive value into `quantity`, so the read projection is the
+            // `exact` member. Building the expectation through the value object rather than restating it
+            // keeps the seed the ONE source of the number.
+            quantity: { kind: 'exact', value: line.quantity },
             // A seeded line is a plain measure with no note, and an empty `unit` is projected as ABSENT.
             ...(line.unit.length > 0 ? { unit: line.unit } : {}),
             // Every seeded catalog row is `is_user_entered = true` — a DB-only fixture has no food service
@@ -165,7 +170,10 @@ describe.skipIf(!hasDatabaseUrl)('the seeded world composes recipes, ingredients
 
             for (const line of detail.ingredients) {
                 expect(line.name.length).toBeGreaterThan(0);
-                expect(line.quantity).toBeGreaterThan(0);
+                // U8 — every SEEDED line states a real amount, so its lower bound is a positive number.
+                // Asserting through the bound accessor rather than on the object keeps the claim ("this
+                // line calls for some of it") the same one the old scalar assertion made.
+                expect(quantityLowerBound(line.quantity)).toBeGreaterThan(0);
             }
         }
     });

@@ -1,9 +1,11 @@
 import {
+    ABSENT_QUANTITY,
     MAX_RECIPE_INGREDIENT_NAME_LENGTH,
     normalizeUnit,
     recipeIngredientQuantitySchema,
+    statedQuantity,
+    type IngredientQuantity,
 } from '@kitchensink/recipe-core';
-import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core/ingredient-quantity';
 import { parseIngredient, unitsOfMeasure, type UnitOfMeasureDefinitions } from 'parse-ingredient';
 
 import { normalizeQuantityRange } from './normalizeQuantity.js';

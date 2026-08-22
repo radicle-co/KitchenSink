@@ -9,6 +9,7 @@
  * ISO 8601 strings, and `version` is the row's `currentVersion`.
  */
 import type {
+    IngredientQuantity,
     RecipeDifficulty,
     RecipeNutrition,
     RecipePhoto,
@@ -28,7 +29,8 @@ export interface RecipeStepResponse {
 export interface RecipeIngredientResponse {
     ingredientId: string;
     name: string;
-    quantity: number;
+    /** What the source stated — one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
+    quantity: IngredientQuantity;
     unit?: string;
     notes?: string;
     /** True for a freeform, user-entered line not backed by the food database (the UI "user-entered" badge). */

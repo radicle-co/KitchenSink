@@ -48,6 +48,7 @@
  *     `contract/__tests__/contract.test.ts`, and so does merely adding a COMMENT to that barrel, because the
  *     fingerprint is over source text.
  */
+import { ABSENT_QUANTITY, type IngredientQuantity } from './ingredientQuantity.js';
 import type { RecipeIngredientView } from './recipe.types.js';
 
 /** The fewest servings the display control offers. A zero-serving recipe is meaningless (per the schema). */
@@ -211,27 +212,51 @@ function roundQuantity(value: number): number {
     return Math.round(value * factor) / factor;
 }
 
+/** Scale one bound, refusing anything that is not a real amount. Pure. */
+function scaleBound(bound: number, ratio: number): number {
+    if (!Number.isFinite(bound) || bound <= 0) {
+        throw new RecipeScalingError('quantity', bound, 'Ingredient quantity must be a finite, positive amount');
+    }
+
+    return roundQuantity(bound * ratio);
+}
+
 /**
- * Scale one ingredient quantity. Pure.
+ * Scale one ingredient quantity, in whichever of its three forms the source stated. Pure.
  *
- * @param quantity - The stored quantity (finite and non-negative; the wire guarantees positive).
+ * ⛔ An `absent` quantity is returned UNCHANGED (R40). There is no number to multiply, and every alternative
+ * fabricates one — `0`, `1`, or the ratio itself — turning "the source stated no amount" into a claim the
+ * source never made. A `range` scales BOTH bounds: moving only the lower one would quietly narrow the range
+ * the instant a cook touched the serving control, which is the corruption U8 exists to end.
+ *
+ * The bound guard survives the value object deliberately. `statedQuantity` is the only door into a
+ * well-formed quantity, but this function is exported and TypeScript cannot prove its argument came through
+ * that door; without the guard a cast-in `NaN` would render as `NaN` on a cook's screen.
+ *
+ * @param quantity - The stored quantity.
  * @param scaling - The active scaling.
- * @returns The quantity to display.
- * @throws {RecipeScalingError} When `quantity` is not a finite, non-negative number.
+ * @returns The quantity to display, same member as the input.
+ * @throws {RecipeScalingError} When a bound is not a finite, positive amount.
  */
-export function scaleQuantity(quantity: number, scaling: RecipeScaling): number {
-    if (!Number.isFinite(quantity) || quantity < 0) {
-        throw new RecipeScalingError('quantity', quantity, 'Ingredient quantity must be finite and non-negative');
+export function scaleQuantity(quantity: IngredientQuantity, scaling: RecipeScaling): IngredientQuantity {
+    if (quantity.kind === 'absent') {
+        return ABSENT_QUANTITY;
     }
 
     // Unscaled is the DEFAULT view, and it must show the recipe exactly as stored. Falling through to the
     // rounding below would silently rewrite any stored quantity carrying more than QUANTITY_PRECISION
-    // decimals — changing data nobody asked to change, on first paint.
-    if (!scaling.isScaled) {
-        return quantity;
+    // decimals — changing data nobody asked to change, on first paint. The bounds are still checked, so an
+    // unrepresentable value is refused at 1x too.
+    if (quantity.kind === 'exact') {
+        const value = scaleBound(quantity.value, scaling.ratio);
+
+        return scaling.isScaled ? { kind: 'exact', value } : quantity;
     }
 
-    return roundQuantity(quantity * scaling.ratio);
+    const low = scaleBound(quantity.low, scaling.ratio);
+    const high = scaleBound(quantity.high, scaling.ratio);
+
+    return scaling.isScaled ? { kind: 'range', low, high } : quantity;
 }
 
 /** Scale a whole number of minutes, staying whole. Pure. */

@@ -15,12 +15,33 @@
  * partial estimate rather than a false-precise number. Volumetric/count units (cup/tbsp/clove) are
  * converted via the ingredient's household-measure `portions` when the food service supplied one (#11).
  */
+import { quantityLowerBound, type IngredientQuantity } from './ingredientQuantity.js';
 import type { IngredientPortion, RecipeIngredientView, RecipeNutrition } from './recipe.types.js';
 import { unitToGrams } from './units.js';
 
+/**
+ * Which bound of a stated range a computed figure was taken from (R38).
+ *
+ * A fact ABOUT a number, in the same shape as R35's historical-unit marker. The domain of "a bound" is the
+ * pair `quantityLowerBound`/`quantityUpperBound` answer, so both members are named here even
+ * though today's policy only ever collapses to `low` — a client renders the bound it is TOLD, rather than
+ * hard-coding the word "lower" against a policy it cannot see.
+ */
+export type RangeDerivedBound = 'low' | 'high';
+
+/**
+ * The bound a collapsed range contributes from.
+ *
+ * ⛔ LOW, not high, and not a midpoint. Understating an ingredient understates the nutrition figure, and of
+ * the two directions to be wrong that is the one a cook is not harmed by trusting. A midpoint would be a
+ * number the source never stated at all. The choice is disclosed rather than hidden — see
+ * {@link RecipeNutrition.rangeDerivedBound}.
+ */
+const COLLAPSE_RANGE_TO: RangeDerivedBound = 'low';
+
 /** One ingredient line's nutrition inputs: its measure, any user override, the catalog per-100g, + portions. */
 export interface NutritionLine {
-    readonly quantity: number;
+    readonly quantity: IngredientQuantity;
     readonly unit: string;
     readonly userCalories?: number;
     readonly userProteinG?: number;
@@ -56,7 +77,7 @@ type SourcedMacros = Macros & { readonly source: LineNutritionSource };
 
 /** One recipe line's measure + per-line user override — its non-catalog nutrition inputs (already normalized). */
 export interface LineMeasure {
-    readonly quantity: number;
+    readonly quantity: IngredientQuantity;
     readonly unit: string;
     readonly userCalories?: number;
     readonly userProteinG?: number;
@@ -112,7 +133,15 @@ function lineMacros(line: NutritionLine): SourcedMacros | null {
     }
 
     if (line.caloriesPer100g !== undefined) {
-        const grams = unitToGrams(line.quantity, line.unit, line.portions);
+        // ⛔ R40. A line the source left unquantified has no mass, so it is UNACCOUNTED — never `0` (which
+        // would report a complete total silently missing an ingredient) and never a fabricated `1`.
+        const amount = quantityLowerBound(line.quantity);
+
+        if (amount === null) {
+            return null;
+        }
+
+        const grams = unitToGrams(amount, line.unit, line.portions);
 
         if (grams === null) {
             return null; // catalog nutrition, but a unit we can't convert (no mass factor, no portion)
@@ -167,6 +196,7 @@ export function computeRecipeNutrition(lines: readonly NutritionLine[], servings
     let carbsG = 0;
     let fatG = 0;
     let isComplete = true;
+    let collapsedARange = false;
 
     for (const line of lines) {
         const macros = lineMacros(line);
@@ -175,6 +205,11 @@ export function computeRecipeNutrition(lines: readonly NutritionLine[], servings
             isComplete = false;
             continue;
         }
+
+        // Only a CATALOG line derives its macros from the quantity. A per-line user override (FR-007a) is
+        // absolute for the line, so a range on it collapses nothing and there is nothing to disclose — and
+        // an unaccounted line never reaches here at all.
+        collapsedARange = collapsedARange || (macros.source === 'catalog' && line.quantity.kind === 'range');
 
         calories += macros.calories;
         proteinG += macros.proteinG;
@@ -188,6 +223,10 @@ export function computeRecipeNutrition(lines: readonly NutritionLine[], servings
         carbsG: round1(carbsG / servings),
         fatG: round1(fatG / servings),
         isComplete,
+        // R38 — present ONLY when a range was actually collapsed, so its presence IS the disclosure and its
+        // value names the bound. An always-present field carrying a "not applicable" would put the burden of
+        // that distinction back on every reader.
+        ...(collapsedARange ? { rangeDerivedBound: COLLAPSE_RANGE_TO } : {}),
     };
 }
 

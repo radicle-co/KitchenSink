@@ -36,6 +36,7 @@ import {
     INT4_MAX,
 } from '@kitchensink/contract-gen';
 import type { ColumnAccount } from '@kitchensink/contract-gen';
+import { recipeIngredientQuantitySchema } from '@kitchensink/recipe-core';
 import { setRatingRequestSchema } from '../../ratings/ratings.schema.js';
 
 import * as schema from '../schema/index.js';
@@ -128,10 +129,25 @@ const accounts: readonly ColumnAccount[] = [
     },
 
     // ── recipe_ingredients ────────────────────────────────────────────────────────────────────────
+    // ⚠️ U8 — `ingredients[].quantity` is a DISCRIMINATED UNION now, so the wire paths that reach these two
+    // columns are `quantity.value`, `quantity.low` and `quantity.high`. The union node itself carries no
+    // `maximum` (the bound lives inside each member's properties), so handing `line.quantity` here would
+    // read as UNBOUNDED and quietly pass — the accounting names the bound schema each member composes
+    // instead. That the union actually applies it at every member is asserted behaviourally, at the
+    // boundary values, by `recipe-core`'s `__tests__/ingredientQuantity.test.ts` and by
+    // `dto/__tests__/numericBounds.dto.test.ts` (which drives the real Nest pipe).
     {
         table: 'recipe_ingredients',
         column: 'quantity',
-        fields: [{ field: 'CreateRecipeRequest.ingredients[].quantity', schema: line.quantity }],
+        fields: [
+            { field: 'CreateRecipeRequest.ingredients[].quantity.value', schema: recipeIngredientQuantitySchema },
+            { field: 'CreateRecipeRequest.ingredients[].quantity.low', schema: recipeIngredientQuantitySchema },
+        ],
+    },
+    {
+        table: 'recipe_ingredients',
+        column: 'quantity_high',
+        fields: [{ field: 'CreateRecipeRequest.ingredients[].quantity.high', schema: recipeIngredientQuantitySchema }],
     },
     {
         table: 'recipe_ingredients',

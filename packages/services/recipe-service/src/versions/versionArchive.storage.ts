@@ -12,6 +12,8 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 
+import { upgradeStoredSnapshot } from './snapshotUpgrade.js';
+
 /** DI token for the {@link VersionArchiveReader}. */
 export const VERSION_ARCHIVE_READER = 'VERSION_ARCHIVE_READER';
 
@@ -58,7 +60,12 @@ export function createS3VersionArchiveReader(config: S3VersionArchiveConfig): Ve
                     return undefined;
                 }
 
-                return JSON.parse(await response.Body.transformToString()) as RecipeVersion;
+                const archived = JSON.parse(await response.Body.transformToString()) as RecipeVersion;
+
+                // An ARCHIVED snapshot is the oldest data in the system by construction — it is only ever
+                // written for versions evicted past the DB retention window — so it is the read path MOST
+                // likely to hold a pre-U8 quantity. Same upgrade as the DB row's; see `snapshotUpgrade.ts`.
+                return { ...archived, snapshot: upgradeStoredSnapshot(archived.snapshot) };
             } catch (error) {
                 if (isNotFound(error)) {
                     return undefined;

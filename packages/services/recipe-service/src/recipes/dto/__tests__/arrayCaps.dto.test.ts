@@ -35,7 +35,13 @@ function createBody(over: Record<string, unknown> = {}): Record<string, unknown>
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
-        ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 1 }],
+        ingredients: [
+            {
+                ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                name: 'Flour',
+                quantity: { kind: 'exact', value: 1 },
+            },
+        ],
         steps: [{ instruction: 'Mix.' }],
         ...over,
     };
@@ -56,7 +62,7 @@ function makeIngredients(count: number): Record<string, unknown>[] {
     return Array.from({ length: count }, (_, index) => ({
         ingredientId: '00000000-0000-4000-8000-000000000001',
         name: `Ingredient ${index}`,
-        quantity: 1,
+        quantity: { kind: 'exact', value: 1 },
     }));
 }
 

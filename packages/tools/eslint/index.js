@@ -377,18 +377,17 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/*/database-name',
                                     // `recipe-core` publishes three modules as their own entry points,
                                     // deliberately kept OFF its barrel: `scaling` (display-only serving
-                                    // scaling), `external-url` (the outbound-link trust boundary),
+                                    // scaling), `external-url` (the outbound-link trust boundary) and
                                     // `food-name` (the canonical form of a shared catalog name, used by BOTH
-                                    // services) and `ingredient-quantity` (the exact|range|absent quantity
-                                    // value object, which U8 promotes to the barrel in the commit that puts
-                                    // it on the wire). The barrel is inside the recipe service's contract
-                                    // corpus, so anything re-exported from it lands in `CONTRACT_HASH` — see
-                                    // that barrel's note, and `food-name`'s own header for why a
-                                    // Unicode-hygiene fix must not move a wire fingerprint.
+                                    // services). The barrel is inside the recipe service's contract corpus,
+                                    // so anything re-exported from it lands in `CONTRACT_HASH` — see that
+                                    // barrel's note, and `food-name`'s own header for why a Unicode-hygiene
+                                    // fix must not move a wire fingerprint. (`ingredient-quantity` was a
+                                    // fourth until U8 promoted it TO the barrel in the same commit that put
+                                    // it on the wire, which is when moving the hash was already the point.)
                                     '!@kitchensink/*/scaling',
                                     '!@kitchensink/*/external-url',
                                     '!@kitchensink/*/food-name',
-                                    '!@kitchensink/*/ingredient-quantity',
                                     // `resolution/normalized-key` (plan U10) — the PERSISTED match grain of
                                     // the ingredient-resolution knowledge base. It is a subpath for the same
                                     // reason `food-name` is, and the reason is stronger here: TWO processes

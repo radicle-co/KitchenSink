@@ -51,7 +51,7 @@ const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngred
     id: 'ri_1',
     recipeId: 'rec_1',
     ingredientId: 'ing_1',
-    quantity: 200,
+    quantity: { kind: 'exact', value: 200 },
     unit: 'g',
     sortOrder: 1,
     ingredientName: 'Pasta',
@@ -575,8 +575,18 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
     it('maps snapshot ingredients to formatted display lines, in order', () => {
         const lines = toVersionPreviewIngredientLines(
             [
-                makeIngredient({ id: 'ri_1', quantity: 200, unit: 'g', ingredientName: 'Pasta' }),
-                makeIngredient({ id: 'ri_2', quantity: 1, unit: 'cup', ingredientName: 'Cherry tomatoes' }),
+                makeIngredient({
+                    id: 'ri_1',
+                    quantity: { kind: 'exact', value: 200 },
+                    unit: 'g',
+                    ingredientName: 'Pasta',
+                }),
+                makeIngredient({
+                    id: 'ri_2',
+                    quantity: { kind: 'exact', value: 1 },
+                    unit: 'cup',
+                    ingredientName: 'Cherry tomatoes',
+                }),
             ],
             preview,
             'en',
@@ -615,7 +625,14 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
 
     it('appends displayText as a parenthesized suffix to the ingredient name', () => {
         const [line] = toVersionPreviewIngredientLines(
-            [makeIngredient({ quantity: 2, unit: 'tbsp', ingredientName: 'Olive oil', displayText: 'extra virgin' })],
+            [
+                makeIngredient({
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'tbsp',
+                    ingredientName: 'Olive oil',
+                    displayText: 'extra virgin',
+                }),
+            ],
             preview,
             'en',
         );
@@ -625,7 +642,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
 
     it('renders the bare ingredient name when displayText is absent', () => {
         const [line] = toVersionPreviewIngredientLines(
-            [makeIngredient({ quantity: 3, unit: 'oz', ingredientName: 'Basil' })],
+            [makeIngredient({ quantity: { kind: 'exact', value: 3 }, unit: 'oz', ingredientName: 'Basil' })],
             preview,
             'en',
         );

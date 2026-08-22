@@ -23,6 +23,7 @@ import type { RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 import { VersionsDal, type CreateSnapshotInput } from './dal/versions.dal.js';
 import { PendingArchivesDal } from './dal/pendingArchives.dal.js';
 import { VERSION_ARCHIVE_READER, type VersionArchiveReader } from './versionArchive.storage.js';
+import { upgradeStoredSnapshot } from './snapshotUpgrade.js';
 import { RecipesService } from '../recipes/recipes.service.js';
 import { notOwner, recipeNotFound } from '../recipes/recipe.error.js';
 import type { Principal } from '../auth/principal.js';
@@ -68,7 +69,9 @@ function toRecipeVersion(row: RecipeVersionRow): RecipeVersion {
         id: row.id,
         recipeId: row.recipeId,
         versionNumber: row.versionNumber,
-        snapshot: row.snapshot as RecipeSnapshot,
+        // ⚠️ NOT a bare cast any more: a snapshot cut before U8 spells its quantities as bare numbers, and
+        // a version is immutable so no migration will ever rewrite one. See `snapshotUpgrade.ts`.
+        snapshot: upgradeStoredSnapshot(row.snapshot),
         ...(row.baseVersion !== null ? { baseVersion: row.baseVersion } : {}),
         ...(row.s3Key !== null ? { s3Key: row.s3Key } : {}),
         createdBy: row.createdBy,

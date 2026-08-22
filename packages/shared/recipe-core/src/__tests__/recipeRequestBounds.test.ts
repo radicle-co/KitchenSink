@@ -50,13 +50,9 @@ import {
     recipeStepInstructionSchema,
     recipeTimerSecondsSchema,
     recipeTitleSchema,
-} from '../recipeRequestBounds.js';
-import {
     MAX_RECIPE_DEVICE_LABEL_LENGTH,
-    recipeIngredientViewSchema,
-    recipeSchema,
-    recipeStepViewSchema,
-} from '../recipe.types.js';
+} from '../recipeRequestBounds.js';
+import { recipeIngredientViewSchema, recipeSchema, recipeStepViewSchema } from '../recipe.types.js';
 
 /**
  * Whether a schema accepts a value.

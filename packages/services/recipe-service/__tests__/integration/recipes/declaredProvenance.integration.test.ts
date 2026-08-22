@@ -57,7 +57,7 @@ function body(over: Record<string, unknown> = {}): Record<string, unknown> {
         prepTimeMinutes: 0,
         cookTimeMinutes: 180,
         totalTimeMinutes: 180,
-        ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
+        ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: { kind: 'exact', value: 2 }, unit: 'cup' }],
         steps: [{ instruction: 'Cut one large beet and put it in the kettle.' }],
         ...over,
     };

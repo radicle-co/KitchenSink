@@ -28,6 +28,7 @@ import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photosDal.fixture.js';
 import { fakeRatingsDal } from '../__fixtures__/ratingsDal.fixture.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
+import type { RecipeIngredientInputDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 
@@ -130,7 +131,9 @@ const CREATE_DTO: CreateRecipeDto = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: 1 }],
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Onion', quantity: { kind: 'exact', value: 1 } },
+    ],
     steps: [{ instruction: 'Mix' }],
 };
 
@@ -325,7 +328,7 @@ describe('RecipesService.create', () => {
                     id: created.ingredients[0]!.id,
                     recipeId: 'r-9',
                     ingredientId: 'ing-1',
-                    quantity: 2.5,
+                    quantity: { kind: 'exact', value: 2.5 },
                     unit: 'cup',
                     displayText: 'diced',
                     sortOrder: 0,
@@ -748,7 +751,13 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
         await newService(dal).update(principal(), 'r-1', {
             expectedVersion: 1,
             status: 'published',
-            ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000ff', name: 'Salt', quantity: 1 }],
+            ingredients: [
+                {
+                    ingredientId: '00000000-0000-4000-8000-0000000000ff',
+                    name: 'Salt',
+                    quantity: { kind: 'exact', value: 1 },
+                },
+            ],
             steps: [{ instruction: 'Mix' }],
         });
 
@@ -1045,7 +1054,7 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
         expect(res.ingredients[0]).toEqual({
             ingredientId: 'ing-A',
             name: 'Onion',
-            quantity: 2,
+            quantity: { kind: 'exact', value: 2 },
             unit: 'cup',
             notes: 'diced',
             isUserEntered: false,
@@ -1128,7 +1137,7 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             id: created.ingredients[0]!.id,
             recipeId: 'r-1',
             ingredientId: 'ing-A',
-            quantity: 3,
+            quantity: { kind: 'exact', value: 3 },
             unit: 'g',
             sortOrder: 0,
             ingredientName: 'Beef',
@@ -1179,9 +1188,25 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
 });
 
 describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2)', () => {
-    /** Run an update against a rich existing aggregate and report whether it was flagged substantive. */
-    async function isSubstantive(patch: Partial<UpdateRecipeDto>): Promise<boolean> {
-        const existing = richAggregate({ hasSubstantiveEdit: false, currentVersion: 1 });
+    /**
+     * Run an update against a rich existing aggregate and report whether it was flagged substantive.
+     *
+     * `storedQuantity` overrides the persisted line's two quantity COLUMNS (strings, as `pg` surfaces
+     * `numeric`), so a case can state what the recipe already said before the patch — needed for the
+     * upper-bound cases, where the interesting comparison is range-against-range.
+     */
+    async function isSubstantive(
+        patch: Partial<UpdateRecipeDto>,
+        storedQuantity: { quantity: string | null; quantityHigh: string | null } = {
+            quantity: '2',
+            quantityHigh: null,
+        },
+    ): Promise<boolean> {
+        const base = richAggregate({ hasSubstantiveEdit: false, currentVersion: 1 });
+        const existing: RecipeAggregate = {
+            ...base,
+            ingredients: base.ingredients.map((line) => ({ ...line, ...storedQuantity })),
+        };
         const dal = fakeDal({
             findById: vi.fn().mockResolvedValue(existing),
             update: vi.fn().mockResolvedValue(existing),
@@ -1196,7 +1221,13 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
 
     // The existing rich aggregate: 1 step (instruction 'Mix', timer 45) + 1 ingredient
     // (ing-A, qty 2, unit 'cup', notes 'diced').
-    const SAME_INGREDIENT = { ingredientId: 'ing-A', name: 'Onion', quantity: 2, unit: 'cup', notes: 'diced' };
+    const SAME_INGREDIENT = {
+        ingredientId: 'ing-A',
+        name: 'Onion',
+        quantity: { kind: 'exact', value: 2 },
+        unit: 'cup',
+        notes: 'diced',
+    } as const satisfies RecipeIngredientInputDto;
     const SAME_STEP = { instruction: 'Mix', timerSeconds: 45 };
 
     it('metadata-only change (title) is NOT substantive', async () => {
@@ -1208,7 +1239,66 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
     });
 
     it('an ingredient QUANTITY-only change is substantive', async () => {
-        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, quantity: 3 }] })).toBe(true);
+        expect(
+            await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'exact', value: 3 } }] }),
+        ).toBe(true);
+    });
+
+    /**
+     * ⚠️ U8 — THE EDIT MOST LIKELY TO GO UNNOTICED, on the server side of the same trap the plan names for
+     * the client diff. `ingredientsChanged` is a positive field-by-field enumeration, so a new bound is
+     * invisible to it BY CONSTRUCTION and no compile error catches the omission. Widening `2 cups` to
+     * `2 to 3 cups` changes what a cook makes; it must mint a version and, under C-004, re-judge visibility.
+     */
+    it('widening an exact quantity into a RANGE is substantive', async () => {
+        expect(
+            await isSubstantive({
+                ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'range', low: 2, high: 3 } }],
+            }),
+        ).toBe(true);
+    });
+
+    it('changing ONLY a range’s upper bound is substantive', async () => {
+        expect(
+            await isSubstantive(
+                { ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'range', low: 2, high: 4 } }] },
+                {
+                    quantity: '2',
+                    quantityHigh: '3',
+                },
+            ),
+        ).toBe(true);
+    });
+
+    // ⛔ THE OTHER HALF, and the one a reference comparison would have broken silently: an identical range
+    // must NOT read as an edit. `!==` against a value object is `true` for every pair of distinct objects,
+    // so without `quantitiesEqual` every metadata-only PATCH would mint a version.
+    it('an identical RANGE patch is NOT substantive — the comparison is by value, not by reference', async () => {
+        expect(
+            await isSubstantive(
+                {
+                    ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'range', low: 2, high: 3 } }],
+                    steps: [SAME_STEP],
+                },
+                { quantity: '2', quantityHigh: '3' },
+            ),
+        ).toBe(false);
+    });
+
+    it('narrowing a RANGE back to an exact quantity is substantive', async () => {
+        expect(
+            await isSubstantive(
+                { ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'exact', value: 2 } }] },
+                {
+                    quantity: '2',
+                    quantityHigh: '3',
+                },
+            ),
+        ).toBe(true);
+    });
+
+    it('dropping a stated quantity to ABSENT is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, quantity: { kind: 'absent' } }] })).toBe(true);
     });
 
     it('an ingredient UNIT-only change is substantive', async () => {
@@ -1364,7 +1454,7 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
                     expect.objectContaining({
                         ingredientId: 'ing-A',
                         ingredientName: 'Flour',
-                        quantity: 2,
+                        quantity: { kind: 'exact', value: 2 },
                         unit: 'cup',
                         displayText: 'sifted',
                         sortOrder: 0,
@@ -1464,9 +1554,9 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
         ingredients: [
-            { ingredientId: ID_A, name: 'Carrot', quantity: 1 },
-            { ingredientId: ID_B, name: 'Potato', quantity: 2 },
-            { ingredientId: ID_A, name: 'Carrot', quantity: 3 },
+            { ingredientId: ID_A, name: 'Carrot', quantity: { kind: 'exact', value: 1 } },
+            { ingredientId: ID_B, name: 'Potato', quantity: { kind: 'exact', value: 2 } },
+            { ingredientId: ID_A, name: 'Carrot', quantity: { kind: 'exact', value: 3 } },
         ],
         steps: [{ instruction: 'Simmer' }],
     };
@@ -1538,10 +1628,10 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
         await service.create(principal(), {
             ...MULTI_LINE_DTO,
             ingredients: [
-                { ingredientId: ID_C, name: 'Onion', quantity: 1 },
-                { ingredientId: ID_A, name: 'Carrot', quantity: 2 },
-                { ingredientId: ID_B, name: 'Potato', quantity: 3 },
-                { ingredientId: ID_A, name: 'Carrot', quantity: 4 },
+                { ingredientId: ID_C, name: 'Onion', quantity: { kind: 'exact', value: 1 } },
+                { ingredientId: ID_A, name: 'Carrot', quantity: { kind: 'exact', value: 2 } },
+                { ingredientId: ID_B, name: 'Potato', quantity: { kind: 'exact', value: 3 } },
+                { ingredientId: ID_A, name: 'Carrot', quantity: { kind: 'exact', value: 4 } },
             ],
         });
 

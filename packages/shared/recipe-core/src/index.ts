@@ -3,7 +3,6 @@ export {
     CUISINES,
     FoodResolutionStatus,
     IDENTITY_SYNC_PENDING_CODE,
-    MAX_RECIPE_DEVICE_LABEL_LENGTH,
     MAX_RECIPE_PHOTOS,
     MAX_RECIPE_PHOTO_UPLOAD_BYTES,
     RecipeCollectionAddedVia,
@@ -80,6 +79,7 @@ export {
     INT4_CEILING,
     MAX_RECIPE_CUISINE_LENGTH,
     MAX_RECIPE_DESCRIPTION_LENGTH,
+    MAX_RECIPE_DEVICE_LABEL_LENGTH,
     MAX_RECIPE_INGREDIENTS,
     MAX_RECIPE_INGREDIENT_NAME_LENGTH,
     MAX_RECIPE_INGREDIENT_QUANTITY,
@@ -161,6 +161,15 @@ export type { FoodId, IngredientId, RecipeId, S3Key, UserId } from './ids.js';
 export { makeViewer, rankTier, tierSchema } from './viewer.js';
 export type { Tier, Viewer } from './viewer.js';
 export { canClone, canGoPrivate, canRate, isOwner } from './recipeAccessPolicy.js';
+export {
+    ABSENT_QUANTITY,
+    ingredientQuantitySchema,
+    quantitiesEqual,
+    quantityLowerBound,
+    quantityUpperBound,
+    statedQuantity,
+} from './ingredientQuantity.js';
+export type { IngredientQuantity } from './ingredientQuantity.js';
 export { MASS_UNIT_TO_GRAMS, normalizeUnit, unitToGrams } from './units.js';
 export {
     computeRecipeNutrition,

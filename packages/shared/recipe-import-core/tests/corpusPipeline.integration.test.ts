@@ -26,12 +26,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+    quantityLowerBound,
+    quantityUpperBound,
     recipeIngredientNameSchema,
     recipeIngredientQuantitySchema,
     recipeMinutesSchema,
     recipeServingsSchema,
 } from '@kitchensink/recipe-core';
-import { quantityLowerBound, quantityUpperBound } from '@kitchensink/recipe-core/ingredient-quantity';
+
 import { describe, it, expect } from 'vitest';
 
 import {

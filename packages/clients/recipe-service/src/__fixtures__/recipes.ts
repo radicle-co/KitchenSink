@@ -86,7 +86,7 @@ export function makeCreateRecipeRequest(overrides: Partial<CreateRecipeRequest> 
     return {
         title: 'Tomato Soup',
         // Non-empty on purpose: both arrays are `.min(1)` on the published request schema.
-        ingredients: [{ ingredientId: FIXTURE_INGREDIENT_UUID, name: 'Tomato', quantity: 6 }],
+        ingredients: [{ ingredientId: FIXTURE_INGREDIENT_UUID, name: 'Tomato', quantity: { kind: 'exact', value: 6 } }],
         steps: [{ instruction: 'Simmer the tomatoes.' }],
         servings: 4,
         prepTimeMinutes: 10,
@@ -130,7 +130,9 @@ export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
 export function makeRecipeDetail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     return {
         ...makeRecipe(),
-        ingredients: [{ ingredientId: 'ing_1', name: 'Tomato', quantity: 6, isUserEntered: false }],
+        ingredients: [
+            { ingredientId: 'ing_1', name: 'Tomato', quantity: { kind: 'exact', value: 6 }, isUserEntered: false },
+        ],
         steps: [{ stepNumber: 1, instruction: 'Simmer the tomatoes.' }],
         photos: [],
         nutrition: { calories: 120, proteinG: 4, carbsG: 20, fatG: 2, isComplete: true },

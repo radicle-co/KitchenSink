@@ -12,17 +12,29 @@
  */
 import { describe, it, expect } from 'vitest';
 
+import { statedQuantity, type IngredientQuantity } from '../ingredientQuantity.js';
 import { computeRecipeNutrition, toNutritionLine } from '../nutrition.js';
+
+/** A quantity the source stated exactly. */
+function exact(value: number): IngredientQuantity {
+    const quantity = statedQuantity(value);
+
+    if (quantity === null) {
+        throw new Error(`test fixture: ${value} is not a statable amount`);
+    }
+
+    return quantity;
+}
 
 /** A resolved line: 200 g of a food at 165 kcal/100 g. */
 const chicken = toNutritionLine(
-    { quantity: 200, unit: 'g' },
+    { quantity: exact(200), unit: 'g' },
     { caloriesPer100g: 165, proteinGPer100g: 31, carbsGPer100g: 0, fatGPer100g: 3.6 },
 );
 
 /** A volumetric line resolved through a normalized portion: 1 cup at 125 g. */
 const flour = toNutritionLine(
-    { quantity: 1, unit: 'cup' },
+    { quantity: exact(1), unit: 'cup' },
     {
         caloriesPer100g: 364,
         proteinGPer100g: 10,
@@ -33,11 +45,11 @@ const flour = toNutritionLine(
 );
 
 /** An unresolved line — no catalog nutrition at all. */
-const unresolved = toNutritionLine({ quantity: 1, unit: 'pinch' }, undefined);
+const unresolved = toNutritionLine({ quantity: exact(1), unit: 'pinch' }, undefined);
 
 /** A line whose user override must survive everything U10 does. */
 const overridden = toNutritionLine(
-    { quantity: 1, unit: 'serving', userCalories: 250, userProteinG: 9 },
+    { quantity: exact(1), unit: 'serving', userCalories: 250, userProteinG: 9 },
     { caloriesPer100g: 999, proteinGPer100g: 99, carbsGPer100g: 99, fatGPer100g: 99 },
 );
 

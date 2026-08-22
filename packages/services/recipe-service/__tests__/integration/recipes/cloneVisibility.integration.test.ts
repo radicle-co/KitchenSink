@@ -289,7 +289,9 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
             prepTimeMinutes: 1,
             cookTimeMinutes: 1,
             totalTimeMinutes: 2,
-            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 1, unit: 'cup' }],
+            ingredients: [
+                { ingredientId: FLOUR_ID, name: 'Flour', quantity: { kind: 'exact', value: 1 }, unit: 'cup' },
+            ],
             steps: [{ instruction: 'Mix' }],
         };
 

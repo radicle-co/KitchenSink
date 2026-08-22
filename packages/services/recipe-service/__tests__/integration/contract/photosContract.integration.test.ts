@@ -51,7 +51,13 @@ describe.skipIf(!hasDatabaseUrl)('photos vertical — client ↔ server contract
             totalTimeMinutes: 15,
             tags: ['contract'],
             dietaryFlags: [],
-            ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: 1 }],
+            ingredients: [
+                {
+                    ingredientId: '00000000-0000-4000-8000-0000000000bb',
+                    name: 'Flour',
+                    quantity: { kind: 'exact', value: 1 },
+                },
+            ],
             steps: [{ instruction: 'Mix.' }],
         });
         recipeId = recipe.id;

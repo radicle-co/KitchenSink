@@ -56,7 +56,7 @@ import {
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
     recipeIngredientNotesSchema,
-    recipeIngredientQuantitySchema,
+    ingredientQuantitySchema,
     recipeIngredientUnitSchema,
     recipeLineNutritionSchema,
     recipeMinutesSchema,
@@ -93,7 +93,7 @@ import { ListRecipesQueryDto } from '../dto/listRecipes.query.dto.js';
 const A_LINE = {
     ingredientId: '00000000-0000-4000-8000-0000000000aa',
     name: 'Flour',
-    quantity: 1,
+    quantity: { kind: 'exact', value: 1 },
 } as const;
 
 /** A minimal-but-valid create body; `over` layers the field under test on top. */
@@ -136,7 +136,7 @@ describe('the request fields ARE the recipe-core Value Objects (identity, not eq
         ['totalTimeMinutes', createRecipeRequestSchema.shape.totalTimeMinutes, recipeMinutesSchema],
         ['ingredients[].ingredientId', recipeIngredientInputSchema.shape.ingredientId, recipeIngredientIdSchema],
         ['ingredients[].name', recipeIngredientInputSchema.shape.name, recipeIngredientNameSchema],
-        ['ingredients[].quantity', recipeIngredientInputSchema.shape.quantity, recipeIngredientQuantitySchema],
+        ['ingredients[].quantity', recipeIngredientInputSchema.shape.quantity, ingredientQuantitySchema],
         ['steps[].instruction', recipeStepInputSchema.shape.instruction, recipeStepInstructionSchema],
         ['expectedVersion', updateRecipeRequestSchema.shape.expectedVersion, recipeExpectedVersionSchema],
     ])('%s is the recipe-core schema object itself', (_field, wireField, valueObject) => {
@@ -324,6 +324,11 @@ describe('ingredient line strings — the name cap and the min(1)s', () => {
     });
 });
 
+/**
+ * REWRITTEN for U8. The window is unchanged; what changed is that the ENVELOPE now carries a value object,
+ * so the same window has to hold at every member the union admits — and the field's required-ness now means
+ * "a line must SAY which of the three it is", not "a line must state a number".
+ */
 describe('ingredient quantity — the numeric(10,3) window carried forward exactly', () => {
     it('the bounds are 0.001 .. 1 000 000', () => {
         expect(MIN_RECIPE_INGREDIENT_QUANTITY).toBe(0.001);
@@ -331,19 +336,39 @@ describe('ingredient quantity — the numeric(10,3) window carried forward exact
     });
 
     it('accepts both endpoints and rejects just outside them', () => {
-        expect(lineAccepts({ quantity: 0.001 })).toBe(true);
-        expect(lineAccepts({ quantity: 1_000_000 })).toBe(true);
-        expect(lineAccepts({ quantity: 0.0009 })).toBe(false);
-        expect(lineAccepts({ quantity: 1_000_000.001 })).toBe(false);
+        expect(lineAccepts({ quantity: { kind: 'exact', value: 0.001 } })).toBe(true);
+        expect(lineAccepts({ quantity: { kind: 'exact', value: 1_000_000 } })).toBe(true);
+        expect(lineAccepts({ quantity: { kind: 'exact', value: 0.0009 } })).toBe(false);
+        expect(lineAccepts({ quantity: { kind: 'exact', value: 1_000_000.001 } })).toBe(false);
+    });
+
+    it('holds the SAME window at both ends of a range', () => {
+        expect(lineAccepts({ quantity: { kind: 'range', low: 0.001, high: 1_000_000 } })).toBe(true);
+        expect(lineAccepts({ quantity: { kind: 'range', low: 0.0009, high: 3 } })).toBe(false);
+        expect(lineAccepts({ quantity: { kind: 'range', low: 2, high: 1_000_000.001 } })).toBe(false);
     });
 
     it('rejects 0 (the column CHECK is `quantity > 0`) and a negative', () => {
-        expect(lineAccepts({ quantity: 0 })).toBe(false);
-        expect(lineAccepts({ quantity: -1 })).toBe(false);
+        expect(lineAccepts({ quantity: { kind: 'exact', value: 0 } })).toBe(false);
+        expect(lineAccepts({ quantity: { kind: 'exact', value: -1 } })).toBe(false);
     });
 
-    it('is REQUIRED', () => {
+    // R40/R41 — the two members the pre-U8 scalar could not express, now part of the envelope.
+    it('accepts a stated RANGE and an ABSENT quantity', () => {
+        expect(lineAccepts({ quantity: { kind: 'range', low: 2, high: 3 } })).toBe(true);
+        expect(lineAccepts({ quantity: { kind: 'absent' } })).toBe(true);
+    });
+
+    it('rejects the pre-U8 bare number outright', () => {
+        expect(lineAccepts({ quantity: 2 })).toBe(false);
+    });
+
+    // Still REQUIRED — but what it requires is now a DECLARATION. `{ kind: 'absent' }` is how a line says
+    // the source stated no amount; omitting the field entirely says nothing at all, and stays a 400.
+    it('is REQUIRED — an absent quantity is DECLARED, never omitted', () => {
         expect(recipeIngredientInputSchema.safeParse({ ...A_LINE, quantity: undefined }).success).toBe(false);
+        const { quantity: _omitted, ...withoutQuantity } = A_LINE;
+        expect(recipeIngredientInputSchema.safeParse(withoutQuantity).success).toBe(false);
     });
 });
 

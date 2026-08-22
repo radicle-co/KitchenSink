@@ -30,6 +30,7 @@
         "format:check": "prettier --check .",
         "db:generate": "drizzle-kit generate",
         "seed:usda-bulk": "tsx src/foods/seed/main.ts",
+        "catalog:clear": "tsx src/foods/seed/clearMain.ts",
         "contract:generate": "tsx contract/generate.ts"
     },
     "dependencies": {

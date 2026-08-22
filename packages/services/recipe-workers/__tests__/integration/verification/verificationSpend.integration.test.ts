@@ -76,6 +76,16 @@ describe.skipIf(!canRun)('verification spend ledger (real Postgres)', () => {
         // outright — correctly, since it splices its argument into the statement text. The ban targets
         // untrusted values; this is a committed DDL file, applied exactly as the deploy's own migration runner
         // applies it, so `pool.query` is the honest spelling rather than an exemption.
+        //
+        // ⛔ DROP FIRST, and not for tidiness. This suite has no vitest `globalSetup`, so the CI job applies
+        // the recipe-service migrations itself before invoking it (see `_ci.yml`'s recipe-workers job) —
+        // which means `0022` has ALREADY run against this database and applying it again is
+        // `42P07 relation "verification_spend" already exists`. That threw out of `beforeAll`, so all 13
+        // tests below reported as SKIPPED rather than failed, and the spend ledger — the piece of U11 that
+        // decides whether the $100 ceiling holds — had no executed integration coverage at all.
+        // Re-creating from the committed DDL is also what keeps assertion 4 honest: the table under test is
+        // the one the deploy ships, not one this file wrote.
+        await pool.query('DROP TABLE IF EXISTS verification_spend');
         await pool.query(readFileSync(MIGRATION, 'utf8'));
     });
 

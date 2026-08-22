@@ -100,11 +100,61 @@ Corrected in both `016/spec.md` and `001/spec.md`.
 `GR-003` `AC-003-b` discharged: `specs/cross-feature-FR-index.md` updated to v0.2.0 with the seven new
 cross-feature citation rows.
 
+### Iteration 5 — the video conflict 017 raised (2026-08-22)
+
+`017-recime-parity` blocked its US1 on a conflict with this feature and was right to. `FR-027c` read "no
+derived renditions … a thumbnail is a copy", and a **sampled video frame is a reproduction of a protected
+audiovisual work** — so read literally, 016 forbade the video-import wedge 017 is built on. C-016-002 had
+reasoned entirely about photographs and never considered video.
+
+**Resolved here, because it is 016's rule.** The line is not photo-versus-video; it is **persisted or served**
+versus **transient and extractive**. `FR-027c` restated on that axis; `FR-027f` permits transient extraction
+under four guardrails; `FR-027g` forbids the tempting shortcut of promoting an extracted frame to the recipe
+image; `FR-027h` forbids retaining the source media. `SC-005` widened to cover frames, stills, audio and
+source media.
+
+**The basis is recorded as TDM, not the transient-copy exception**, and that was a correction to my first
+instinct: InfoSoc Art. 5(1) looks like the fit but _Infopaq_ reads it narrowly and "no independent economic
+significance" fails for a commercial extraction pipeline. DSM Art. 4 TDM is purpose-built and reaches
+commercial actors. Its machine-readable-reservation condition is the **same** open question `004-FR-023`
+already carries — escalated in `FR-050` because it is now load-bearing for video, not just URL import.
+
+FR count 65 → **68**.
+
+### Iteration 6 — `/speckit-clarify` pass (2026-08-22)
+
+Five questions asked, five answered, all integrated. **Checkbox state unchanged: 16/16 → 16/16** — no
+regressions and nothing newly passing, because the spec already passed. What changed is depth, not validity.
+
+| #   | Question                              | Answer                                              | Requirements touched                                      |
+| --- | ------------------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
+| 1   | Statement-of-reasons delivery channel | **Both in-app and email**                           | `FR-018a`, `FR-018b`, `SC-003`                            |
+| 2   | Reviewer surface                      | **Full admin dashboard**                            | **User Story 8 (new)**, `FR-053a`–`FR-053g`, `SC-014`     |
+| 3   | Repeat-infringer threshold            | **3 live strikes / rolling 12 months**              | `FR-020`, `FR-020a`, `FR-020b` — closes Owner decision #2 |
+| 4   | Decision timeliness target            | **24h copyright + illegal, 7d others**              | `FR-017a`–`FR-017c`, `FR-053a`, `SC-015`                  |
+| 5   | Retention of surviving legal records  | **3 years; reporter contact pseudonymised earlier** | `FR-052a`–`FR-052c`, `SC-016`                             |
+
+Counts: 68 → **85** functional requirements, 14 → **17** success criteria, 7 → **8** user stories.
+
+**Two answers created scope this feature did not previously carry, and both are recorded rather than absorbed
+quietly.** Q1 brought a transactional email sender into scope — no notification or email capability exists in
+the tree, and `014-notification-service` is specified but unbuilt. Q2's dashboard is now the single largest
+item in the feature and **reverses `002`'s recorded exclusion of an admin UI**, logged as amendment **A-11**,
+NOT applied.
+
+**One answer removed an unquantified adjective**, which is the class of defect the taxonomy scan exists to
+find: `FR-017` carried the DSA's "timely, diligent" with nothing measurable behind it, and `FR-017a` now
+tiers it.
+
+**Q5 was answered with a question — "what do laws say about this?" — and that was the right challenge.** The
+recommendation had been offered without its basis. The basis: no statute sets a retention minimum; 17 U.S.C.
+§507(b) sets the 3-year floor; GDPR Art. 17(3)(e) is what permits survival past erasure and its scope is the
+claim period, which sets the ceiling; and DSA Art. 24(5)'s database duty does not reach us under Art. 19(1).
+
 ## Notes
 
-- **The spec is READY for `/speckit-plan`.** Zero markers remain; **65** functional requirements, 7
-  non-functional, 14 success criteria — four fewer than iteration 3, because the cloning rules moved to
-  `GR-014`.
+- **The spec is READY for `/speckit-plan`.** Zero markers remain; **85** functional requirements, 7 non-functional,
+  **17** success criteria, **8** user stories.
 - ⚠️ **The cross-spec amendments A-1 … A-10 are APPLIED (documents only; code untouched).** `001-FR-005`, the C-004 matrix in
   `001/data-model.md`, and `evaluateVisibility(sourceType, isPremium, hasSubstantiveEdit, requested)` encode
   the same rule in three places. Amending one and not the others is the drift failure the project's DRY rule

@@ -7,17 +7,21 @@
 
 ## Dependencies
 
-| Spec                                                          | Relationship                                                                                                                                                            |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)   | **Required** — owns recipe visibility (`FR-003`), public read (`FR-004`), the clone chain (`FR-005`), soft-delete/erasure (`C-007`) and the C-004 policy                |
-| [002-user-auth](../002-user-auth/spec.md)                     | **Required** — owns account creation, the only moment an agreement can be presented, and the erasure cascade. **Has no terms-acceptance, consent or age surface today** |
-| [004-recipe-importing](../004-recipe-importing/spec.md)       | **Required** — owns provenance (`FR-011`), attribution (`FR-010`), per-item attestation (`FR-014a`), photo extraction (`FR-008`), robots handling (`FR-023`)            |
-| [010-subscriptions](../010-subscriptions/spec.md)             | **Required** — owns the tier model and billing. **Has no auto-renewal disclosure or cancellation surface today**                                                        |
-| [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Referenced** — owns digitization provenance and its mandatory attribution (`FR-021b`)                                                                                 |
-| [012-creator-profiles](../012-creator-profiles/spec.md)       | **Referenced** — currently the ONLY spec containing a DMCA route (`FR-022`). This feature takes ownership of takedown portfolio-wide; 012 becomes a consumer            |
-| [015-publishing-rewards](../015-publishing-rewards/spec.md)   | **Referenced** — its inducement hazard is a direct input here; 015's `FR-016`–`FR-018` consume the takedown process this feature specifies                              |
-| [005-ai-integration](../005-ai-integration/spec.md)           | **Referenced** — owns AI features; this feature owns the disclosure obligations attached to them                                                                        |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md)   | **Referenced** — already flags GDPR Article 9 special-category data; this feature owns the lawful-basis surface for it                                                  |
+| Spec                                                          | Relationship                                                                                                                                                                   |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)   | **Required** — owns recipe visibility (`FR-003`), public read (`FR-004`), the clone chain (`FR-005`), soft-delete/erasure (`C-007`) and the C-004 policy                       |
+| [002-user-auth](../002-user-auth/spec.md)                     | **Required** — owns account creation, the only moment an agreement can be presented, and the erasure cascade. **Has no terms-acceptance, consent or age surface today**        |
+| [004-recipe-importing](../004-recipe-importing/spec.md)       | **Required** — owns provenance (`FR-011`), attribution (`FR-010`), per-item attestation (`FR-014a`), photo extraction (`FR-008`), robots handling (`FR-023`)                   |
+| [010-subscriptions](../010-subscriptions/spec.md)             | **Required** — owns the tier model and billing. **Has no auto-renewal disclosure or cancellation surface today**                                                               |
+| [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Referenced** — owns digitization provenance and its mandatory attribution (`FR-021b`)                                                                                        |
+| [012-creator-profiles](../012-creator-profiles/spec.md)       | **Referenced** — currently the ONLY spec containing a DMCA route (`FR-022`). This feature takes ownership of takedown portfolio-wide; 012 becomes a consumer                   |
+| [015-publishing-rewards](../015-publishing-rewards/spec.md)   | **Referenced** — its inducement hazard is a direct input here; 015's `FR-016`–`FR-018` consume the takedown process this feature specifies                                     |
+| [005-ai-integration](../005-ai-integration/spec.md)           | **Referenced** — owns AI features **and the shared disclosure component**. `GR-010` owns the obligation; this feature contributes Art. 50(2) marking and cites both            |
+| [017-recime-parity](../017-recime-parity/spec.md)             | **Downstream** — its video-import wedge depends on `FR-027f`'s transient-extraction permission. 017 blocked on this feature and it is resolved (C-016-002, amended 2026-08-22) |
+| `GR-014` Audience and Sharing Model                           | **Governs** — owns cloning, derived copies, deletion and erasure (AC-014-e/g/h/i), amended to v3.5.0 from C-016-003. This feature cites it and MUST NOT restate it             |
+| `GR-010` EU AI Act Compliance Propagation                     | **Governs** — owns the AI disclosure obligation (AC-010-a…f), amended to v3.5.0 from this feature. Group H cites it                                                            |
+| `GR-003` FR Identifier Namespace                              | **Governs** — every cross-feature citation here is qualified `{feature}-FR-{NNN}`, and `cross-feature-FR-index.md` carries this feature's rows                                 |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md)   | **Referenced** — already flags GDPR Article 9 special-category data; this feature owns the lawful-basis surface for it                                                         |
 
 ---
 
@@ -298,7 +302,8 @@ storage; the channel used is recorded on the item; an attestation with a citatio
 **Acceptance Scenarios**:
 
 1. **Given** an import that yields a source photograph, **When** the recipe is created, **Then** no copy of
-   that image is persisted to our storage (Q2 governs whether it is referenced or omitted).
+   that image is persisted to our storage; it is displayed by reference to the original host, and the user can
+   replace it with their own (C-016-002).
 2. **Given** the available import channels, **When** an item is created, **Then** the channel is recorded, and
    any channel classified as server-side reproduction is distinguishable in the record.
 3. **Given** content from an external source, **When** it is created, **Then** an attestation and a citation
@@ -356,6 +361,40 @@ AI-generated recipe content and verify both the human-visible label and the mach
 
 ---
 
+### User Story 8 - A reviewer can adjudicate without leaving one place (Priority: P2)
+
+An operator opens a queue of notices ordered by age and state, reads the reporter's statement and the target
+content, authors a decision with its ground and facts, and sees the statement of reasons go out. From the same
+place they can open the uploader's account, see the strike history, and act on the repeat-infringer policy's
+recommendation.
+
+**Why this priority**: US2's mechanism can ship and be operated through its API, so this does not block P1. But
+every record safe harbour depends on is authored _here_, and a decision written under time pressure through a
+raw API is where incomplete grounds and missing facts come from. The dashboard is what makes `SC-003`'s
+zero-tolerance realistic rather than aspirational.
+
+**Independent Test**: With a queue of notices in mixed states, take one from received to a delivered statement
+of reasons entirely within the dashboard; then open the uploader's account and confirm the strike history and
+the policy's recommendation are both visible.
+
+**Acceptance Scenarios**:
+
+1. **Given** a reviewer with the review scope, **When** they open the dashboard, **Then** they see every
+   notice awaiting action, its age and its state, and nothing that requires a second tool to interpret.
+2. **Given** a decision in progress, **When** the reviewer attempts to save it without an action, a ground or
+   the facts relied on, **Then** it cannot be saved — an incomplete decision is never persisted.
+3. **Given** an actioned decision, **When** the reviewer views it, **Then** the delivery state of the
+   statement of reasons is visible per channel, and an undelivered email is visibly outstanding.
+4. **Given** an account at the repeat-infringer threshold, **When** the reviewer opens it, **Then** the
+   policy's recommendation and the strike history that produced it are both shown, and termination is a
+   deliberate act rather than an automatic one.
+5. **Given** any evidentiary record — an acceptance, a reporter's statement, a delivered statement of reasons
+   — **When** a reviewer views it, **Then** it is read-only and no dashboard path can alter it.
+6. **Given** a signed-in user without the review scope, **When** they request any dashboard route, **Then**
+   they are refused.
+
+---
+
 ### Edge Cases
 
 - **A user declines the new terms.** Their account must not be silently degraded or deleted. They keep read
@@ -373,12 +412,27 @@ AI-generated recipe content and verify both the human-visible label and the mach
   designed resting state, not a stuck one, and the surface must say so rather than appearing broken.
 - **A recipe becomes non-clonable after clones already exist** — a source restriction is discovered later.
   Existing clones are not retroactively destroyed; the notice-and-action path (`FR-022`) is what reaches them.
-- **A user in one market is served content lawful in another.** If markets are gated (Q1), the gate must be
+- **A user in one market is served content lawful in another.** Markets are gated (C-016-001: US at v1), and
+  the gate must be
   evaluated at read time, not only at publish time.
 - **The registered agent registration lapses.** It expires every three years and a lapse is a lapse in safe
   harbour. This must be an owned, alarmed calendar item, not tribal knowledge.
 - **A minor creates an account and publishes.** The age floor must be enforced before the first publication,
   not only at signup, or the floor is decorative.
+- **A record reaches 3 years while its dispute is live.** The legal hold (`FR-052c`) suspends the purge, and
+  the hold itself is recorded — so "why is this still here" always has an answer.
+- **A notice's grounds are reclassified during review.** The final classification sets the tier and the clock
+  still runs from acknowledgement (`FR-017b`), so reclassification can shorten a deadline but never extend it.
+- **A `privacy` report concerns personal data published about someone.** It sits in the 7-day tier by the
+  classification above. Flagged as worth revisiting if such reports turn out to be urgent in practice — it is
+  the one ground where the slow lane may be the wrong call.
+- **A strike ages out between accrual and the next decision.** The window is evaluated at decision time
+  (`FR-020b`), so the account is not terminated. This is the intended behaviour of a rolling window, not a
+  miss.
+- **A third notice is actioned while an earlier strike is still under counter-notice.** The earlier strike is
+  live until reversed, so the threshold is met — and if the counter-notice later succeeds, the strike is
+  reversed but the termination it contributed to is not automatically undone. Reinstatement is a deliberate
+  operator act, and the trail must show both.
 - **A user withdraws special-category consent while a meal plan depends on it.** The plan must degrade, not
   break or silently keep using the data.
 - **AI marking on content later edited by a human.** The label must reflect the current state, not the origin
@@ -458,15 +512,37 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
   issue an acknowledgement with a reference.
 - **FR-017**: Notices MUST be processed in a timely, diligent, non-arbitrary and objective manner, and each
   decision MUST record who decided, when, on what ground, and what action was taken.
+- **FR-017a**: "Timely" is measurable, and tiered by grounds: a notice on **`copyright` or `illegal_content`
+  MUST be decided within 24 hours** of acknowledgement — these are the grounds where "expeditiously" is
+  statutory — and every other ground within **7 days**.
+- **FR-017b**: The tier MUST be derived from the grounds as **finally classified**, and the clock MUST run
+  from **acknowledgement**, never from reclassification. A notice a reporter filed as `other` that turns out
+  to be copyright is judged against the 24-hour target from when it arrived, so a misfiling — honest or
+  deliberate — can never buy an extension.
+- **FR-017c**: A notice past its target MUST be surfaced as overdue and MUST raise an operational alert. An
+  unmet target is visible work, not a silent statistic.
 - **FR-018**: When content is removed, disabled, demoted or restricted, the system MUST deliver the uploader a
   **statement of reasons** identifying the action, the ground relied on (legal provision or terms clause), the
   facts relied on, whether automated means were used, and the redress available.
+- **FR-018a**: The statement MUST be delivered over **both** channels: by **email**, which is the channel that
+  discharges the obligation because it reaches an uploader who never signs in again; and **in-app**, which
+  carries the full detail and the route to the counter-notice. Delivery MUST be recorded **per channel**, so a
+  statement that was surfaced in-app but never emailed is visibly incomplete rather than silently counted.
+- **FR-018b**: A failure to deliver the email MUST NOT be treated as delivery, MUST be retried, and MUST raise
+  an operational alert if it remains undelivered. An uploader who cannot be reached is a compliance exposure,
+  not a dropped notification.
 - **FR-019**: The system MUST provide a counter-notice path, record it, and record the restoration decision
   and its date.
-- **FR-020**: The system MUST maintain a per-account record of actioned notices and MUST terminate accounts
-  that cross a defined repeat-infringer threshold, applying the policy consistently and retaining the trail.
-  The threshold value and window are an owner decision (Owner decisions #2); the requirement is that a single
-  defined threshold is applied to every account without exception.
+- **FR-020**: The system MUST maintain a per-account record of actioned notices and MUST terminate an account
+  on its **third live strike within a rolling 12 months**, applying the policy to every account without
+  exception and retaining the trail. A single threshold, one implementation, no per-case discretion — because
+  inconsistent application is what costs a provider its safe harbour, not a lenient threshold.
+- **FR-020a**: A strike is **live** when it was accrued within the window and has not been reversed. A strike
+  reversed by a successful counter-notice MUST NOT count toward the threshold, and MUST NOT be resurrected by
+  a later notice.
+- **FR-020b**: The window MUST be evaluated at the moment of the decision that would accrue the third strike,
+  not on a schedule. A strike that has aged out before that moment does not count, and no background job may
+  terminate an account on an anniversary.
 - **FR-021**: The repeat-infringer policy MUST be published and users MUST be informed of it; the threshold
   itself MAY remain unpublished.
 - **FR-022**: When a notice is actioned against content that has been cloned, the system MUST identify the
@@ -491,16 +567,34 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
 - **FR-027b**: The user MUST be able to replace a referenced photograph with one of their own from any surface
   the recipe is shown on. A replacement is user content: it is stored by us, covered by the user's licence
   (`FR-010`), and the reference is dropped once it exists.
-- **FR-027c**: ⛔ The system MUST NOT produce any **derived rendition** of a referenced photograph —
-  thumbnail, crop, re-encode, colour sample, cached copy or preview. Producing one requires fetching and
-  copying the image, which is the reproduction `FR-027` exists to prevent. Referenced images are rendered by
-  the client from the original host, at whatever size that host serves.
+- **FR-027c**: ⛔ The system MUST NOT produce any **persisted or served derived rendition** of third-party
+  media — thumbnail, crop, re-encode, colour sample, cached copy or preview. Referenced images are rendered by
+  the client from the original host, at whatever size that host serves. _(Restated 2026-08-22: the prohibition
+  is on reproductions that are **kept or shown**, not on every byte that transits memory — see `FR-027f`.)_
 - **FR-027d**: A request for a referenced photograph MUST NOT carry account identifiers, credentials, cookies
   or a referrer beyond the bare origin, and the fact that viewing an imported recipe discloses the viewer's
   network address to the source host MUST be stated in the privacy notice.
 - **FR-027e**: Referenced photographs MUST be treated as unavailable offline. An offline surface MUST render
   the placeholder; a user-supplied replacement MUST be available offline like any other user content. This is
   a known interaction with offline cook mode and MUST NOT be resolved by caching the referenced image.
+- **FR-027f**: **Transient reproduction for extraction is permitted**, and is the basis on which video and
+  audio import operate. Decoding a video, sampling frames, running OCR or vision over them, and transcribing
+  audio all create reproductions; they are lawful here because their purpose is to **extract facts** — the
+  ingredients, the quantities, the steps — rather than to reproduce expression. Every one of the following
+  MUST hold, and the permission lapses if any fails:
+
+    1. The reproduction exists only for the duration of the extraction operation and is **never persisted**.
+    2. It is **never served** to any user, in any form, at any size.
+    3. Only as much of the work as the extraction requires is sampled — this is sampling, not decode-and-keep.
+    4. What is retained is the **extracted result** (text, quantities, steps, confidence), never the frame, the
+       still, the audio, or the source media file.
+
+- **FR-027g**: ⛔ An extracted frame or still MUST NOT become the recipe's image. It is the most tempting
+  shortcut in the whole import pipeline — a good frame is right there — and taking it converts a permitted
+  transient extraction into exactly the persisted third-party copy `FR-027` prohibits. Recipe images follow
+  `FR-027a`/`FR-027b`: reference the source, or the user supplies their own.
+- **FR-027h**: The **source media file** MUST NOT be retained after extraction completes, whether the
+  extraction succeeded or failed.
 - **FR-028**: Every imported item MUST record the **channel** it arrived through, and channels MUST be
   classified as _user-supplied bytes_ or _operator-performed retrieval_, with the classification queryable.
 - **FR-029**: Where more than one channel can satisfy a user's intent, the product MUST prefer a
@@ -590,18 +684,55 @@ they do not create a second mechanism.
   localization path and MUST NOT be a hard-coded literal.
 - **FR-050**: The specification MUST carry a list of items requiring counsel's confirmation before launch,
   and each MUST name what breaks if the assumption is wrong. At minimum: the availability of any database
-  right claimed; the current scope of Australian safe harbour for commercial platforms; whether recipe
-  extraction is text-and-data-mining for the purposes of the EU reservation, which collides with
-  `004-FR-023`'s deliberate decision to import despite a wildcard `Disallow`; and the drafting of every
-  document surface here.
+  right claimed; the current scope of Australian safe harbour for commercial platforms; **whether recipe
+  extraction is text-and-data mining for the purposes of the EU reservation** — which collides with
+  `004-FR-023`'s deliberate decision to import despite a wildcard `Disallow`, and which `FR-027f` now makes
+  load-bearing for **video and audio import** rather than URL import alone, since TDM is the basis on which
+  frame sampling is permitted at all; and the drafting of every document surface here.
 - **FR-051**: Nutrition figures and allergen-relevant content MUST carry a reachable disclaimer, and the
   product MUST NOT state or imply a medical claim.
+
+#### I2. The reviewer dashboard
+
+- **FR-053a**: The system MUST provide a reviewer dashboard presenting the notice queue with each notice's
+  state, age and target, ordered by **time remaining against its `FR-017a` deadline** rather than by raw age —
+  a 20-hour-old copyright notice is more urgent than a 3-day-old terms report, and an age-sorted queue would
+  hide that.
+- **FR-053b**: A decision MUST be authorable in the dashboard, and MUST NOT be persistable without an action,
+  a ground and the facts relied on. An incomplete decision is never saved as a draft that could be mistaken
+  for a decision.
+- **FR-053c**: The dashboard MUST show the per-channel delivery state of every statement of reasons
+  (`FR-018a`), and MUST surface an undelivered email as outstanding work rather than a completed action.
+- **FR-053d**: The dashboard MUST present an account's strike history and the repeat-infringer policy's
+  recommendation together, and termination MUST remain a deliberate operator act — the policy recommends, it
+  does not execute.
+- **FR-053e**: ⛔ Evidentiary records MUST be **read-only** from the dashboard: an acceptance record, a
+  reporter's statement, and a delivered statement of reasons can be viewed and never edited. A record that an
+  operator can rewrite is not evidence, and this surface is where that would be easiest.
+- **FR-053f**: Every dashboard action MUST be attributed to the individual authenticated operator and
+  recorded. Shared or role credentials MUST NOT be able to reach it, because `FR-017` requires knowing **who**
+  decided.
+- **FR-053g**: The dashboard MUST be gated by a dedicated review scope, distinct from any other administrative
+  capability, so reviewing notices does not confer unrelated administrative power.
 
 #### J. Records and auditability
 
 - **FR-052**: Acceptance records, consent records, attestations, notices, decisions, statements of reasons,
   counter-notices and termination decisions MUST be retained for at least as long as the content or account
   they relate to, and MUST survive the content's deletion where the record is the evidence of a decision.
+- **FR-052a**: Records that survive an account's **erasure** MUST be retained for **3 years from the decision
+  they evidence**, then purged. The period is the US copyright limitation period (17 U.S.C. §507(b)) — these
+  records survive erasure only because GDPR Art. 17(3)(e) permits processing necessary to defend legal claims,
+  and **that basis lapses when the claim period does**. Retaining them longer removes the justification for
+  having retained them at all. Three years also outlasts `FR-020`'s 12-month strike window by a wide margin,
+  so the repeat-infringer policy stays demonstrable.
+- **FR-052b**: A **reporter's name and email** MUST be pseudonymised once the counter-notice window on their
+  notice has closed, leaving the notice, its grounds and its decision intact. The reporter is a third party
+  who never accepted our terms, nothing requires keeping their contact details past the dispute, and the
+  decision record does not need them to remain evidence.
+- **FR-052c**: A record under an active dispute, investigation or legal hold MUST NOT be purged on schedule.
+  The hold MUST be explicit and recorded — a record kept past its period without a recorded reason is a
+  retention defect, not a safety margin.
 - **FR-053**: It MUST be possible to answer, for any published item: who published it, under which terms
   version, with what attestation, through which channel, with what provenance, and whether any notice has
   been actioned against it — without reconstructing it from logs.
@@ -648,13 +779,15 @@ they do not create a second mechanism.
   version in force at the time of each publication. Any published item without one is a defect.
 - **SC-002**: A member of the public with no account can submit a notice and receive an acknowledgement in
   under 3 minutes of first arriving at the app, on web and on mobile.
-- **SC-003**: 100% of removal actions have a delivered statement of reasons; the count of removals without one
-  is zero, not low.
+- **SC-003**: 100% of removal actions have a delivered statement of reasons **on both channels** — email
+  accepted by the provider and an in-app record present. The count of removals missing either is zero, not
+  low.
 - **SC-004**: For any published item, the full compliance history — publisher, terms version, attestation,
   channel, provenance, notices — can be produced on demand as one record, in under 5 seconds.
-- **SC-005**: Zero third-party photographs obtained through import — and zero derived renditions of one — are
-  present in operator-controlled storage, verified by an automated, continuously-run assertion rather than by
-  periodic inspection.
+- **SC-005**: Zero third-party photographs, video frames, stills, audio or source media obtained through
+  import — and zero persisted renditions of any of them — are present in operator-controlled storage, verified
+  by an automated, continuously-run assertion rather than by periodic inspection. A sampled frame that outlives
+  its extraction operation is a defect.
 - **SC-005a**: Every surface that can display an imported recipe offers the replace-photo affordance, and a
   replaced photograph is available offline. Measured on both platforms.
 - **SC-006**: 100% of user-facing legal strings resolve through the localization path in every shipped locale,
@@ -673,6 +806,12 @@ they do not create a second mechanism.
   provenance forbids redistribution. Both are defects, not data-quality issues.
 - **SC-013**: After an account erasure, no surviving derived copy names the erased user, and 100% of them
   still resolve and remain readable by the user who cloned them.
+- **SC-014**: A reviewer can take a notice from the queue to a delivered statement of reasons without leaving
+  the dashboard, and zero decisions exist that were saved without an action, a ground or facts.
+- **SC-015**: 95% of `copyright` and `illegal_content` notices are decided within 24 hours of acknowledgement,
+  and 95% of all others within 7 days. Every breach is visible as overdue rather than discovered later.
+- **SC-016**: Zero records persist past their retention period without a recorded legal hold, and zero
+  reporter contact details survive a closed counter-notice window.
 
 ## Assumptions
 
@@ -689,6 +828,16 @@ they do not create a second mechanism.
   the first; the reproduction controls are materially cheaper under the second.
 - **Erasure, provenance, attribution and billing exist.** This feature adds surfaces and records over them and
   owns none of their mechanics.
+- **Outbound email is in scope for this feature and does not exist yet.** No notification or email capability
+  ships in the tree today — `packages/services/` holds food, food-service, identity, identity-webhooks,
+  recipe-service and recipe-workers, and `014-notification-service` is specified but unbuilt. `FR-018a`
+  therefore brings a transactional email sender (and its domain/DKIM verification) into this feature's scope.
+  When `014` ships it subsumes the channel; the requirement is the channel, not the sender.
+- **The dashboard lives in the existing web app, behind the review scope — not in a new workspace.** The plan
+  commits to no new workspace, and an operator tool does not justify reversing that.
+- **The dashboard is web-only, and this is not a cross-platform violation.** The parity rule governs
+  _user-facing_ features; this is operator tooling. Recorded so nobody "fixes" it by building a mobile
+  adjudication surface.
 - **A human decides notices.** Volume is low; no automated adjudication is specified, and `FR-018`'s
   "whether automated means were used" is therefore expected to read "no" at launch.
 - **The federal US auto-renewal rule is absent, not pending.** It was vacated in July 2025 and re-proposed in
@@ -712,7 +861,7 @@ they do not create a second mechanism.
 - Insurance, contractual arrangements with counsel, or any process that lives outside the product.
 - Payment-card and tax compliance (owned by `010` and its processor).
 
-## Cross-spec amendments this feature requires
+## Cross-spec amendments this feature required — APPLIED
 
 C-016-003 lands on specs other than this one. Each is stated exactly, so the edit is mechanical and nothing
 drifts. **All ten were applied on 2026-08-22** — A-9 and A-10 were added _during_ application, when GR-014 and GR-010 turned out to already own ground this feature was restating — see the application record below the table.
@@ -729,6 +878,7 @@ drifts. **All ten were applied on 2026-08-22** — A-9 and A-10 were added _duri
 | A-8  | `015`                                                                                                            | Unaffected in substance, but its assumption that D4a lands is now shared with A-1.                                                                                                                                                                                                                                                                          |
 | A-9  | `governance-rules.md` `GR-014`                                                                                   | **AC-014-g/h/i added** (v3.5.0) — the clone model is ratified as governance. GR-014 owns the audience and sharing model and `AC-014-b` forbids a feature declaring its own, so this feature must not restate it. Carries the normative prohibition on citing the modification rule as a copyright defence                                                   |
 | A-10 | `governance-rules.md` `GR-010`                                                                                   | **AC-010-e/f added** (v3.5.0) — Art. 50 corrected to _applicable since 2 August 2026_, split into 50(1) interaction disclosure and 50(2) machine-readable marking, with marking stated as a **generation-time** obligation because it cannot be retrofitted                                                                                                 |
+| A-11 | `002-user-auth`                                                                                                  | **NOT APPLIED — needs an owner decision in `002`.** Its Out of Scope says "No admin UI for viewing, searching, editing, or bulk-managing users"; `FR-053a`–`FR-053g` introduce exactly such a UI for notice review and account termination. Either `002` narrows the exclusion to _user management_, or this feature's dashboard contradicts it             |
 
 **These are a coherent unit of work and were applied together** — `001-FR-005`, the C-004 matrix, and the
 policy function encode the same rule in three places, and amending one would leave the other two lying.
@@ -769,6 +919,35 @@ are specified in `001/data-model.md`, and both are implementation work requiring
 
 ## Clarifications
 
+### Session 2026-08-22 — `/speckit-clarify`
+
+- Q: How is the statement of reasons delivered to the uploader? → A: **Both in-app and email** — email
+  discharges the obligation, in-app carries the detail and the counter-notice route (`FR-018a`, `FR-018b`,
+  `SC-003`). Surfaced that no email capability exists in the tree, so a transactional sender enters this
+  feature's scope.
+
+- Q: What surface does the notice reviewer use? → A: **A full admin dashboard** — triage queue, decision
+  authoring, account view with strike history and termination. Added as User Story 8 (P2) and `FR-053a`–`FR-053g`,
+  with `SC-014`. ⚠️ **This reverses `002`'s recorded exclusion of an admin UI** ("No admin UI for viewing,
+  searching, editing, or bulk-managing users… backend/API operations"), which needs a corresponding amendment
+  in `002` — recorded below under Cross-spec amendments, not applied here.
+
+- Q: What is the repeat-infringer threshold and window? → A: **Three live strikes in a rolling 12 months**
+  (`FR-020`), with a reversed strike never counting (`FR-020a`) and the window evaluated at decision time
+  rather than on a schedule (`FR-020b`). Closes Owner decision #2.
+
+- Q: What is the target time from acknowledgement to decision? → A: **24 hours for `copyright` and
+  `illegal_content`, 7 days for every other ground** (`FR-017a`), with the clock running from acknowledgement
+  regardless of reclassification (`FR-017b`), overdue notices alerting (`FR-017c`), the dashboard queue sorted
+  by time-to-deadline rather than age (`FR-053a`), and `SC-015` measuring it.
+
+- Q: How long do legal records that survive account erasure persist? → A: **3 years from the decision**
+  (`FR-052a`), tied to 17 U.S.C. §507(b) because GDPR Art. 17(3)(e) is what permits their survival and its
+  basis lapses with the claim period; **reporter contact pseudonymised once the counter-notice window closes**
+  (`FR-052b`); explicit recorded legal holds suspend the purge (`FR-052c`). Measured by `SC-016`. Confirmed in
+  the same pass: no statute sets a retention minimum, and DSA Art. 24(5)'s database duty does not reach us
+  (Art. 19(1) micro/small exemption).
+
 ### Session 2026-08-22 — RESOLVED by owner
 
 - **C-016-001 — Q1 answered: US-only at v1, and global is the target.** This is deliberately _not_ the same as
@@ -789,6 +968,27 @@ are specified in `001/data-model.md`, and both are implementation work requiring
   address to the source host, which is a privacy-notice item, not a bug (`FR-027d`). **(c)** Referenced images
   do not work offline and MUST NOT be cached to make them work, which is a standing conflict with offline cook
   mode that the replace affordance is the intended answer to (`FR-027e`).
+
+    ⚠️ **Amended 2026-08-22 — video was not considered when this was ruled.** C-016-002 reasoned entirely about
+    photographs, and `FR-027c`'s original "no derived renditions" wording, read literally, forbade **sampling
+    frames from a video** — which would have killed the video-import wedge
+    [`017-recime-parity`](../017-recime-parity/spec.md) is built on, since a sampled frame is a reproduction of
+    a protected audiovisual work. Raised by 017, settled here, because it is 016's rule.
+
+    **The line is not photo-versus-video. It is _persisted or served_ versus _transient and extractive_.** A
+    thumbnail is prohibited because it is kept, is shown, and stands in for the source. A sampled frame is
+    permitted because it is discarded, never shown, and exists to extract facts the copyright does not cover.
+    `FR-027c` is restated on that axis; `FR-027f`–`FR-027h` carry the guardrails.
+
+    **The legal basis is text-and-data mining, not the transient-copy exception** — and the distinction matters
+    enough to record rather than leave to whoever plans this. The EU transient-copy exception (InfoSoc
+    Art. 5(1)) looks like the obvious fit and is the weaker argument: _Infopaq_ reads its conditions narrowly,
+    and "no independent economic significance" sits badly with a commercial pipeline whose entire value is the
+    extraction. TDM (DSM Art. 4) is purpose-built for reproductions made to derive facts, expressly reaches
+    commercial actors, and matches what we are actually doing. ⚠️ Its condition is a **machine-readable
+    reservation** by the rightsholder — the _same_ open question `004-FR-023` already carries, so this inherits
+    an existing risk rather than creating a new one. It is now load-bearing for the video wedge and not only for
+    URL import, and is escalated in `FR-050`.
 
 - **C-016-003 — Q3 answered, and the model replaced the question.** The owner did not pick from the options;
   they changed what a clone _is_. **A clone must be modified, references its source, and is therefore not a
@@ -821,8 +1021,8 @@ All three clarifications are resolved (C-016-001 … C-016-003). These remain op
    would protect the corpus against extraction, and it carries tax, data-protection and corporate consequences
    far outside this feature. Recommendation: **no, not for this reason alone** — Layer 4's contractual fence
    is what actually gets enforced.
-2. **Repeat-infringer threshold.** A number and a window. It must be consistently applied; the value is a
-   policy call.
+2. ~~**Repeat-infringer threshold.**~~ **RESOLVED 2026-08-22** — three live strikes in a rolling 12 months
+   (`FR-020`).
 3. **Do we publish transparency numbers voluntarily?** Cheap, differentiating against a competitor whose
    documents contradict their marketing, and it commits us to keeping the numbers clean.
 4. **Who owns the registered-agent renewal?** A named human, not a team.
@@ -831,13 +1031,30 @@ All three clarifications are resolved (C-016-001 … C-016-003). These remain op
 
 ## Status: READY for `/speckit-plan`
 
-All three clarifications are resolved. Two items are carried forward and neither blocks planning:
+All three clarifications are resolved, all ten cross-spec amendments are applied, and the one conflict another
+feature raised against this one is settled. Nothing here blocks planning.
 
-1. **Two derived decisions await owner confirmation** — `001-FR-005b`'s enforcement shape (an unmodified clone is a
-   private, unpublishable draft) and `001-FR-005d`'s erasure behaviour (identity stripped, non-identifying lineage
-   kept). Both are marked in place and in C-016-003.
-2. **The cross-spec amendments A-1 … A-8 are applied** (documents only — the code is untouched by design), and
-   applying them surfaced **three blockers** recorded in the Cross-spec amendments section: no provenance-
-   restriction signal exists for `001-FR-005a`; `001-FR-005b` collides with `001-FR-003` until D4a lands or an
-   unpublished-draft state is introduced; and `001-FR-003a`'s PRO-badge derivation is invalidated and must be
-   fixed in the same change as `FR-005b`.
+**Carried forward — four items, none blocking:**
+
+1. **Two derived decisions await owner confirmation.** `001-FR-005b`'s enforcement shape (an unmodified clone
+   is a private, unpublishable draft) and `001-FR-005d`'s erasure behaviour (identity stripped, non-identifying
+   lineage kept). Both are flagged in place and in C-016-003, and both now live in `GR-014` AC-014-g/i —
+   outside this feature.
+2. **The amendments A-1 … A-10 are applied — documents only.** `evaluateVisibility` and
+   `defaultCloneVisibility` still implement the pre-amendment rule by design; both code deltas are specified in
+   `001/data-model.md` and are implementation work requiring failing tests first.
+3. **Two blockers remain in `001`, and they are `001`'s to clear, not this feature's.** `001-FR-005b` is
+   unrepresentable for a free-tier user while `001-FR-003` says free-tier recipes are always public — it needs
+   D4a or an unpublished-draft state distinct from `visibility = private`; and `001-FR-003a`'s PRO-badge
+   derivation infers premium from privacy and must be fixed in the **same** change. _(A third — "no
+   provenance-restriction signal exists" — was withdrawn: `GR-014` AC-014-e already covers it. The residual is
+   one narrow case, a public and freely-available source whose licence forbids **derivatives** specifically.)_
+4. **`017-recime-parity` is unblocked.** Its video wedge conflicted with `FR-027c`'s original wording;
+   `FR-027f`–`FR-027h` resolve it on the persisted-or-served versus transient-and-extractive line, with the
+   basis recorded as TDM rather than the transient-copy exception.
+
+**Two prerequisites live outside software and no requirement here can satisfy them**: a registered designated
+agent (`FR-025`) and counsel-drafted documents. `FR-050` carries the items needing counsel's confirmation, each
+naming what breaks if the assumption is wrong.
+
+**85 functional requirements · 7 non-functional · 17 success criteria · 8 user stories · 0 clarification markers.**

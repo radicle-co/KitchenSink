@@ -126,6 +126,17 @@ export const food = pgTable(
         // folded into `search_vector`: changing that column's expression needs PG 17's
         // `ALTER COLUMN ... SET EXPRESSION`, and the PG 16 equivalent is DROP + ADD COLUMN — an ACCESS
         // EXCLUSIVE lock, a rewrite of `food`, and `food_search_vector_idx` dropped with it. See 0007.
+        //
+        // ⚠️ THE CONSTRAINT ABOVE IS LIFTED. The engine moved to PostgreSQL 18 (plan U13), so
+        // `ALTER COLUMN ... SET EXPRESSION` is now available and folding aliases into `search_vector` is no
+        // longer gated on the engine. That does NOT make the fold automatically correct — `SET EXPRESSION`
+        // still rewrites the table under ACCESS EXCLUSIVE, and the two-vector shape lets the ranker weight
+        // an alias hit differently from a name hit, which is a ranking decision (U2/U5), not a schema one.
+        // Recorded so nobody re-derives the old blocker and treats it as still binding.
+        //
+        // ⛔ Whatever shape wins, `STORED` stays EXPLICIT. PG 18 defaults an omitted keyword to VIRTUAL and
+        // a virtual column cannot carry the GIN index this exists for; `generatedColumnStorage.test.ts`
+        // fails any migration that omits it.
         aliasesSearchVector: tsvector('aliases_search_vector').generatedAlwaysAs(
             sql`to_tsvector('english', coalesce(aliases, ''))`,
         ),

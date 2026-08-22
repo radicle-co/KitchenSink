@@ -145,7 +145,7 @@ jobs:
         if: ${{ inputs.run_mobile_maestro }}
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -461,7 +461,7 @@ jobs:
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -783,7 +783,7 @@ jobs:
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -1121,7 +1121,7 @@ jobs:
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres

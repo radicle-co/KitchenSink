@@ -3,3 +3,5 @@ dist
 cdk.out
 cdk.context.json
 *.tsbuildinfo
+dist-edge
+dist-lambda

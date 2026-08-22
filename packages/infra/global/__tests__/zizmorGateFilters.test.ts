@@ -222,7 +222,7 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     'prod-deploy.yml:artipacked': 1,
     'sandbox-identity-deploy.yml:artipacked': 1,
     // Deferred: pinning `services:` images by digest needs an owner for the bumps — dependabot.yml
-    // declares no `docker` ecosystem, and `postgres:16` deliberately tracks the prod RDS engine minor.
+    // declares no `docker` ecosystem, and `postgres:18` deliberately tracks the prod RDS engine minor.
     //
     // 11 → 12 (PR 91, plan U5/U6): `integration-food` gained a LocalStack service so the message
     // substrate's integration tier can exercise a real DynamoDB — the tier that caught a marshaller
@@ -231,7 +231,7 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     //
     // 12 → 14: `e2e-cross-service-linkage` — the job that finally boots recipe-service and food-service
     // TOGETHER and proves a recipe's nutrition figures come from a live food lookup. It needs the same
-    // two service containers every other tier here uses (`postgres:16` for the two logical databases,
+    // two service containers every other tier here uses (`postgres:18` for the two logical databases,
     // `localstack/localstack:4.4.0` for the buckets and queue recipe boots against), so it inherits the
     // same two tag-tracked images and the same deferral. No new image, no new reason — two more sites.
     '_ci.yml:unpinned-images': 14,

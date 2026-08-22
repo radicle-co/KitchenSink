@@ -176,9 +176,41 @@ export class DataStack extends Stack {
             // 003). The master `identity_app` keeps password auth — enabling IAM auth is additive and
             // non-disruptive. See `FoodDbBootstrap` for the role/database provisioning.
             iamAuthentication: true,
+            // ⛔ ONE-WAY DOOR. A PostgreSQL MAJOR version cannot be downgraded in place; AWS states that
+            // "after an upgrade is complete, you can't revert to the previous version of the DB engine" and
+            // the only recovery is restoring the pre-upgrade snapshot into a NEW instance — which
+            // CloudFormation does not own. ADR-0002's standing "fix forward only" posture for this stack
+            // therefore does NOT apply to this one property. Before moving it, execute
+            // `docs/runbooks/pg18-upgrade.md`: it carries the pre-flight checks, the window, and the
+            // rehearsed restore leg.
+            //
+            // ⚠️ MAJOR-ONLY on purpose. `VER_18` synthesizes `EngineVersion: '18'`, and with
+            // `autoMinorVersionUpgrade` below RDS tracks the 18 series' patch releases rather than freezing
+            // the instance on whichever minor it landed on. Pinning a minor here would make every security
+            // patch a code change. The cost of the prefix form is that RDS resolves it at deploy time, so
+            // the runbook's pre-flight asserts the resolved target is in this instance's `ValidUpgradeTarget`
+            // list — not every 16.x minor can reach every 18.x minor.
+            //
+            // ⚠️ NO `parameterGroup` is set, DELIBERATELY, and that is what makes this bump a one-property
+            // change. Parameter-group families are version-pinned (`postgres16` vs `postgres18`) and
+            // `ModifyDBInstance` requires the group to be "in the same DB parameter group family as the DB
+            // instance" — so a custom group would have to be REPLACED in the same change set as the version,
+            // and getting that wrong fails the deploy AFTER the outage has begun. Without one, RDS uses the
+            // default group for the engine version and moves it with the engine. Adding a custom parameter
+            // group here is a decision that must handle the family swap; `engineVersionDiff.test.ts` fails
+            // if one appears.
+            //
+            // The reviewed version is RESTATED in `engineVersionDiff.test.ts`, on purpose — a gate that read
+            // it from here would agree with it by construction. `localPostgresParity.test.ts` reads it from
+            // here for the opposite reason, so every Docker Postgres pin in the repo follows this line.
             engine: rds.DatabaseInstanceEngine.postgres({
-                version: rds.PostgresEngineVersion.VER_16,
+                version: rds.PostgresEngineVersion.VER_18,
             }),
+            // Required IN THE SAME deployment that changes `engine` above: AWS rejects a major-version
+            // change without it. It only PERMITS an upgrade, it never triggers one — the trigger is the
+            // version, which `engineVersionDiff.test.ts` pins to a reviewed constant. Left on afterwards so
+            // the next major hop is not a two-deploy dance during a maintenance window.
+            allowMajorVersionUpgrade: true,
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, dbInstanceSize),
             allocatedStorage: 100,
             storageType: dbStorageType,

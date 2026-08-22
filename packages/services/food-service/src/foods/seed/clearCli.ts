@@ -62,6 +62,7 @@ import {
     foodPortions,
     foodSources,
 } from '../../db/schema/index.js';
+import { decideConfirmation, refuseMisplacedProdFlag } from './operatorIntent.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import {
     CatalogClearIncompleteError,
@@ -74,7 +75,7 @@ import {
  * The stage name that means production. Matches `STAGE === 'prod'` as used by this service's env schema
  * (`config/env.schema.ts`) and by the CDK apps, so there is no second spelling to keep in step.
  */
-export const PRODUCTION_STAGE = 'prod';
+export { PRODUCTION_STAGE } from './operatorIntent.js';
 
 /**
  * `food` plus every table that hangs off it with `ON DELETE CASCADE`. Enumerated for the runtime
@@ -233,29 +234,19 @@ export function parseClearArgs(argv: readonly string[]): ClearCliOptions {
  * @returns The decision.
  */
 export function decideClear(options: ClearCliOptions): ClearDecision {
-    const isProduction = options.stage === PRODUCTION_STAGE;
+    const misplacedFlag = refuseMisplacedProdFlag(options);
 
-    if (options.allowProd && !isProduction) {
-        return { kind: 'refused', reason: 'production-flag-off-production' };
+    if (misplacedFlag !== undefined) {
+        return { kind: 'refused', reason: misplacedFlag };
     }
 
-    if (options.dryRun) {
+    const confirmation = decideConfirmation(options);
+
+    if (confirmation === 'report') {
         return { kind: 'report' };
     }
 
-    if (options.confirm === undefined) {
-        return { kind: 'refused', reason: 'confirmation-missing' };
-    }
-
-    if (options.confirm !== options.stage) {
-        return { kind: 'refused', reason: 'confirmation-mismatch' };
-    }
-
-    if (isProduction && !options.allowProd) {
-        return { kind: 'refused', reason: 'production-requires-flag' };
-    }
-
-    return { kind: 'clear' };
+    return confirmation === 'proceed' ? { kind: 'clear' } : { kind: 'refused', reason: confirmation };
 }
 
 /**

@@ -60,11 +60,12 @@ import { CATALOG_DATASETS, enabledDataTypes, expectsAliases, type CatalogDataset
 import { CatalogReseedRefusedError, CatalogReseedUnverifiedError } from './reseedCli.errors.js';
 import { parseLimit, take } from './seedCli.js';
 
-import { PRODUCTION_STAGE } from './clearCli.js';
+import { decideConfirmation, refuseMisplacedProdFlag } from './operatorIntent.js';
 
 // Re-exported rather than redeclared: "which stage name means production" is ONE piece of knowledge, and
-// U12a's clear already owns it. A second spelling is exactly how the two halves of one reset drift apart.
-export { PRODUCTION_STAGE };
+// `operatorIntent.ts` owns it alongside the rest of the prove-your-intent policy. A second spelling is
+// exactly how the two halves of one reset drift apart.
+export { PRODUCTION_STAGE } from './operatorIntent.js';
 
 /** The validated CLI options for one reseed run. */
 export interface ReseedCliOptions {
@@ -265,33 +266,26 @@ export function parseReseedArgs(
  * @returns The decision.
  */
 export function decideReseed(options: ReseedCliOptions): ReseedDecision {
-    const isProduction = options.stage === PRODUCTION_STAGE;
+    const misplacedFlag = refuseMisplacedProdFlag(options);
 
-    if (options.allowProd && !isProduction) {
-        return { kind: 'refused', reason: 'production-flag-off-production' };
+    if (misplacedFlag !== undefined) {
+        return { kind: 'refused', reason: misplacedFlag };
     }
 
+    // ⚠️ This sits BETWEEN the two shared checks, which is why the policy is split into two functions
+    // rather than one chain — see `operatorIntent.ts`. A roster enabling nothing is refused before the
+    // dry-run branch, so `--dry-run` reports a real plan rather than an empty one.
     if (enabledDataTypes(options.datasets).length === 0) {
         return { kind: 'refused', reason: 'no-dataset-enabled' };
     }
 
-    if (options.dryRun) {
+    const confirmation = decideConfirmation(options);
+
+    if (confirmation === 'report') {
         return { kind: 'report' };
     }
 
-    if (options.confirm === undefined) {
-        return { kind: 'refused', reason: 'confirmation-missing' };
-    }
-
-    if (options.confirm !== options.stage) {
-        return { kind: 'refused', reason: 'confirmation-mismatch' };
-    }
-
-    if (isProduction && !options.allowProd) {
-        return { kind: 'refused', reason: 'production-requires-flag' };
-    }
-
-    return { kind: 'reseed' };
+    return confirmation === 'proceed' ? { kind: 'reseed' } : { kind: 'refused', reason: confirmation };
 }
 
 /**

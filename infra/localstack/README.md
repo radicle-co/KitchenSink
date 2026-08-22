@@ -6,7 +6,7 @@ and in CI, and stands up two containers (see `docker-compose.yml`):
 | Container    | Image                         | Purpose                                                                                                                                                       |
 | ------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `localstack` | `localstack/localstack:4.4.0` | Emulates the AWS services KitchenSink uses: Secrets Manager, EventBridge (`events`), SQS, SNS, STS, IAM, CloudWatch Logs, CloudWatch, SSM. Port `4566`.       |
-| `postgres`   | `postgres:16`                 | The database the services connect to — a **plain Postgres** container ("Docker for RDS"), **not** LocalStack RDS. Hosts the `food_e2e` database. Port `5432`. |
+| `postgres`   | `postgres:18`                 | The database the services connect to — a **plain Postgres** container ("Docker for RDS"), **not** LocalStack RDS. Hosts the `food_e2e` database. Port `5432`. |
 
 KitchenSink services are **NestJS apps on ECS** (not Lambda + API Gateway), so the harness boots a
 service's Nest app as a process and runs E2E against its real HTTP API. It does **not** deploy CDK

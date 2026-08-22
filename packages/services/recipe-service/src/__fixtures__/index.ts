@@ -80,6 +80,8 @@ export function makeRecipeIngredientRow(overrides: Partial<RecipeIngredientRow> 
         quantityHigh: null,
         unit: 'unit',
         displayText: null,
+        /** `null` = "this line was AUTHORED, not transcribed" — the shape of every row 0024 did not touch. */
+        sourceLine: null,
         sortOrder: 0,
         ingredientName: 'Test Ingredient',
         isUserEntered: false,

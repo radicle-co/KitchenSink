@@ -26,10 +26,27 @@
  * reflow can move a row out from under a thumb mid-tap. Catalog rows carry a provenance badge and cost one
  * admit round-trip on pick (hence disabled while `addByFoodStatus.isPending`). When the food catalog is
  * unreachable, a muted notice says so and the local section still renders in full (F2).
+ *
+ * **U14 — the correction affordance (R19/R20).** Every FOOD-BACKED result row carries a second control,
+ * "Always use this for '{query}'", which writes a curated mapping through the shared
+ * `useIngredientCorrection`. It is what makes U10's knowledge base reachable: before it, that table had a
+ * writer and no caller, so the learning loop never fired. Three deliberate properties, mirrored exactly on
+ * the web leaf and each easy to break:
+ *
+ *  1. ⛔ **The phrase sent is the TYPED query, never the row's name.** A mapping is consulted only under the
+ *     key the resolution cascade looks up, which derives from the phrase `addByName` received; sending our
+ *     own rendering of the food would write rows nothing queries.
+ *  2. ⛔ **A FREEFORM row gets no control** — a mapping's whole content is a `food_id`, and a user-entered
+ *     ingredient has no food to bind the phrase to.
+ *  3. ⚠️ **Teaching is a SEPARATE intent from picking.** It resolves no line, and a failed correction leaves
+ *     the ingredient alone — which the failure copy states outright.
+ *
+ * The decision of WHAT to say is the shared, pure `toCorrectionNoticeModel`; only the RN markup is here, so
+ * the two platforms cannot drift on what a cook is told a correction did.
  */
-import { fillTemplate } from '@commise/features-recipes';
-import type { RecipeFormIngredient } from '@commise/features-recipes';
-import { useIngredientResolver } from '@commise/features-recipes/hooks';
+import { fillTemplate, recipeCorrectionMessages, toCorrectionNoticeModel } from '@commise/features-recipes';
+import type { RecipeCorrectionMessages, RecipeFormIngredient } from '@commise/features-recipes';
+import { useIngredientCorrection, useIngredientResolver } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { palette, tint } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
@@ -69,13 +86,70 @@ function toResolvedIngredient(line: RecipeFormIngredient): ResolvedIngredient | 
     };
 }
 
-/** One search-result row: the clickable match. No terminal notice — matches this leaf's prior behavior. */
-function ResultRow({ ingredient, onPress }: { ingredient: Ingredient; onPress: () => void }): JSX.Element {
+/**
+ * One search-result row: the clickable match. No terminal notice — matches this leaf's prior behavior.
+ *
+ * ⚠️ The U14 correction control is rendered as a SIBLING of the pressable, never inside it: nesting one
+ * pressable in another makes the inner one's tap target ambiguous on device, and a cook aiming at "teach"
+ * would resolve the line instead — the exact confusion between the two intents this feature must avoid.
+ */
+function ResultRow({
+    ingredient,
+    onPress,
+    correction,
+}: {
+    ingredient: Ingredient;
+    onPress: () => void;
+    correction: JSX.Element | null;
+}): JSX.Element {
     return (
-        <PressScale accessibilityRole="button" accessibilityLabel={ingredient.name} onPress={onPress}>
-            <View style={styles.row}>
-                <Text style={styles.rowText}>{ingredient.name}</Text>
-                <Feather name="chevron-right" size={18} color={palette.slate} />
+        <View style={styles.rowGroup}>
+            <PressScale accessibilityRole="button" accessibilityLabel={ingredient.name} onPress={onPress}>
+                <View style={styles.row}>
+                    <Text style={styles.rowText}>{ingredient.name}</Text>
+                    <Feather name="chevron-right" size={18} color={palette.slate} />
+                </View>
+            </PressScale>
+            {correction}
+        </View>
+    );
+}
+
+/**
+ * The "teach the resolver" control for one row (U14 / R19), or `null` when the row has no food behind it.
+ *
+ * A component rather than an inline fragment so the two call sites below cannot render it differently — the
+ * disabled state and the busy state must agree, on both rows.
+ */
+function CorrectionControl({
+    phrase,
+    foodId,
+    isSaving,
+    messages,
+    onPress,
+}: {
+    phrase: string;
+    foodId: string | undefined;
+    isSaving: boolean;
+    messages: RecipeCorrectionMessages;
+    onPress: (foodId: string) => void;
+}): JSX.Element | null {
+    if (foodId === undefined || phrase === '') {
+        return null;
+    }
+
+    const label = fillTemplate(messages.teachAction, { phrase });
+
+    return (
+        <PressScale
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            disabled={isSaving}
+            busy={isSaving}
+            onPress={() => onPress(foodId)}
+        >
+            <View style={[styles.correctionAction, isSaving && styles.actionDisabled]}>
+                <Text style={styles.correctionActionLabel}>{label}</Text>
             </View>
         </PressScale>
     );
@@ -91,27 +165,32 @@ function CatalogRow({
     badge,
     disabled,
     onPress,
+    correction,
 }: {
     name: string;
     badge: string;
     disabled: boolean;
     onPress: () => void;
+    correction: JSX.Element | null;
 }): JSX.Element {
     return (
-        <PressScale
-            accessibilityRole="button"
-            accessibilityLabel={name}
-            disabled={disabled}
-            busy={disabled}
-            onPress={onPress}
-        >
-            <View style={[styles.row, disabled && styles.actionDisabled]}>
-                <Text style={styles.rowText}>{name}</Text>
-                <View style={styles.badge}>
-                    <Text style={styles.badgeLabel}>{badge}</Text>
+        <View style={styles.rowGroup}>
+            <PressScale
+                accessibilityRole="button"
+                accessibilityLabel={name}
+                disabled={disabled}
+                busy={disabled}
+                onPress={onPress}
+            >
+                <View style={[styles.row, disabled && styles.actionDisabled]}>
+                    <Text style={styles.rowText}>{name}</Text>
+                    <View style={styles.badge}>
+                        <Text style={styles.badgeLabel}>{badge}</Text>
+                    </View>
                 </View>
-            </View>
-        </PressScale>
+            </PressScale>
+            {correction}
+        </View>
     );
 }
 
@@ -150,6 +229,9 @@ function CandidateRow({
  */
 export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Element {
     const { ingredientPicker: t } = useMessages(mobileMessages);
+    const correctionMessages = useMessages(recipeCorrectionMessages);
+    // `ingredient_picker` is a CLOSED wire enum, so this surface cannot invent an audit value (R20).
+    const correction = useIngredientCorrection('ingredient_picker');
     const {
         query,
         setQuery,
@@ -267,6 +349,18 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
     // F2: the food catalog degraded, so only the caller's own ingredients rendered. `disabled` (an operator
     // switch) deliberately shows nothing — it is not an incident to report to the user.
     const showCatalogUnavailable = viewState.kind === 'results' && viewState.catalogAvailability === 'unavailable';
+    const correctionNotice = toCorrectionNoticeModel(correction.viewState, correctionMessages);
+
+    /** The correction control for one row, bound to the phrase the cook actually typed. */
+    const correctionFor = (foodId: string | undefined): JSX.Element | null => (
+        <CorrectionControl
+            phrase={trimmed}
+            foodId={foodId}
+            isSaving={correction.isSaving}
+            messages={correctionMessages}
+            onPress={(food) => correction.correct(trimmed, food)}
+        />
+    );
 
     return (
         <View accessibilityLabel={t.heading} style={styles.card}>
@@ -310,6 +404,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                                 key={ingredient.id}
                                 ingredient={ingredient}
                                 onPress={() => selectMatch(ingredient)}
+                                correction={correctionFor(ingredient.foodId)}
                             />
                         ))}
                     </View>
@@ -329,6 +424,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                                 badge={t.catalogBadge}
                                 disabled={addByFoodStatus.isPending}
                                 onPress={() => selectSuggestion(suggestion)}
+                                correction={correctionFor(suggestion.foodId)}
                             />
                         ))}
                     </View>
@@ -337,6 +433,19 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
 
             {showEmpty && <Text style={styles.muted}>{t.empty}</Text>}
             {showCatalogUnavailable && <Text style={styles.muted}>{t.catalogUnavailable}</Text>}
+
+            {/* ⚠️ `alert` ONLY for a genuine failure. A no-op correction ("already saved") is a SUCCESS —
+                re-asserting a binding already in force is idempotent by design — and an alert there would
+                interrupt a screen-reader user about a fault that did not happen. The tone is computed once,
+                in the shared pure model, so both platforms make the same call. */}
+            {correctionNotice !== undefined && (
+                <Text
+                    accessibilityRole={correctionNotice.tone === 'error' ? 'alert' : 'text'}
+                    style={correctionNotice.tone === 'error' ? styles.error : styles.muted}
+                >
+                    {correctionNotice.text}
+                </Text>
+            )}
 
             {showQueryActions && (
                 <>
@@ -472,6 +581,13 @@ const styles = StyleSheet.create({
     ghostAction: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
     ghostActionLabel: { fontSize: 14, fontWeight: '500', color: palette.slate },
     actionDisabled: { opacity: 0.6 },
+    // U14 — the row and its correction control stack as ONE group, so the control reads as belonging to the
+    // row above it rather than to the next one down.
+    rowGroup: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: border },
+    // Visually SUBORDINATE to the row's own tap target: teaching is the secondary intent, and a control with
+    // equal weight would compete with picking for a thumb.
+    correctionAction: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: palette.white },
+    correctionActionLabel: { fontSize: 12, fontWeight: '500', color: palette['ocean-dark'] },
     usdaSeam: {
         flexDirection: 'row',
         alignItems: 'center',

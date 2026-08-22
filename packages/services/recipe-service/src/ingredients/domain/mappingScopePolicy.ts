@@ -35,9 +35,10 @@
  * An earlier draft of this policy took a `declaredScope: 'global' | undefined` and DENIED it without the
  * grant, to mirror `evaluateProvenance`'s allow/deny union exactly. It was cut, for three reasons:
  *
- *  1. **Nothing can send it.** U10 ships no route (U14 owns the correction surface and the `CONTRACT_HASH`
- *     move that comes with publishing one), and U14's specified content is a needs-review line state plus a
- *     food picker — no scope control. A wire field, a persisted value and a deny branch for an input nothing
+ *  1. **Nothing can send it.** U10 shipped no route (U14 owns the correction surface and the `CONTRACT_HASH`
+ *     move that comes with publishing one), and the route U14 DID ship
+ *     (`POST /api/v1/ingredients/corrections`) carries no scope control either — its body is
+ *     `{ phrase, foodId, surfacing }`. A wire field, a persisted value and a deny branch for an input nothing
  *     produces is YAGNI in Fowler's strict sense.
  *  2. **It is the wrong axis.** The authorization decision that actually exists is
  *     `grants × what the knowledge base already holds` — a correction on a phrase already carrying a live
@@ -72,20 +73,16 @@
  * for its grant and the same answer: promotions are reviewable after the fact. This policy does not claim to
  * prevent collusion and must not be read as if it did.
  */
+import { CURATOR_MAPPING_SCOPE } from '../ingredients.schema.js';
 
-/**
- * The scope a principal must hold in its token's SIGNED `public_metadata` to bind an ingredient phrase for
- * every user.
- *
- * ⚠️ Sited here rather than on the wire contract ONLY because U10 ships no contract change. When U14
- * publishes the correction route it MUST move this constant to `ingredients.schema.ts`, where
- * `CURATOR_IMPORT_SCOPE` sits on `recipes.schema.ts` and for the same reason: the tooling that grants it must
- * READ the value rather than restate it, since a second copy of an authorization identifier fails OPEN.
- * Nothing may re-declare it.
- *
- * The GRANT itself is administered out of band, in Clerk, on the signing key's authority (ADR-0023).
+/*
+ * ✅ MOVED, as this module's earlier note required. `CURATOR_MAPPING_SCOPE` was sited here only because U10
+ * shipped no contract change; U14 publishes `POST /api/v1/ingredients/corrections`, so the constant now lives
+ * on the wire contract (`../ingredients.schema.ts`) and is IMPORTED above. It is re-exported so this module's
+ * existing importers — and its truth-table suite — keep addressing it where the policy is, while exactly ONE
+ * declaration of it exists anywhere: a second copy of an authorization identifier fails OPEN.
  */
-export const CURATOR_MAPPING_SCOPE = 'recipes:mappings:global';
+export { CURATOR_MAPPING_SCOPE };
 
 /** The two reaches a mapping can hold. `global` binds every user; `author` binds only its writer. */
 export const MAPPING_SCOPES = ['author', 'global'] as const;

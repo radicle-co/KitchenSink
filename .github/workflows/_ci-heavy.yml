@@ -664,6 +664,14 @@ jobs:
             #
             # `nutrition-batch` is NOT in this block — it needs a reachable food origin and a forwarded
             # bearer, and it gets both in its own step below.
+            #
+            # `ingredient-correction` (U14) belongs in this block for the same reason the others do: it makes
+            # no cross-service call at all (a correction's `foodId` is deliberately NOT verified against the
+            # food service — migration 0021 requires every reader to treat an unresolvable mapping as a miss),
+            # so an unreachable food origin is irrelevant to it. What it measures is CONTENTION: two of its
+            # scenarios pile concurrent writers onto the same phrase's row lock, and its `http_req_failed`
+            # threshold is the assertion that a LOSER of that race gets a `200 recorded:false` rather than a
+            # unique-index violation leaking out as a 5xx.
             - name: Run k6 load scripts
               working-directory: packages/services/recipe-service
               env:
@@ -675,6 +683,7 @@ jobs:
                   k6 run --summary-export=k6-save-summary.json tests/load/saveUnderArchive.load.js
                   k6 run --summary-export=k6-pull-summary.json tests/load/pullFromSource.load.js
                   k6 run --summary-export=k6-version-archive-summary.json tests/load/versionArchiveRead.load.js
+                  k6 run --summary-export=k6-correction-summary.json tests/load/ingredientCorrection.load.js
             # ── The deferred-nutrition batch (ADR-0021 §4 + its residual-risk note) ────────────────────
             #
             # This scenario is the ONE that needs food to ANSWER, and it is why it has its own steps. Its

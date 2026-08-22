@@ -111,6 +111,11 @@ export const recipeIngredients = pgTable(
         quantityHigh: numeric('quantity_high', { precision: 10, scale: 3 }),
         unit: text('unit').notNull(),
         displayText: text('display_text'),
+        // U11/U14 — the raw line the cook's SOURCE stated, verbatim. ⛔ NOT `displayText`, which is a display
+        // OVERRIDE the author chose, and NOT `ingredientName`, which is OUR rendering: the verification gate
+        // checks our parse against this, and checking a parse against its own output agrees by construction.
+        // `NULL` means the line was AUTHORED rather than transcribed — see `0024_ingredient_source_line.sql`.
+        sourceLine: text('source_line'),
         sortOrder: integer('sort_order').notNull().default(0),
 
         // Denormalized for display / search_vector assembly (no JOIN needed on write).

@@ -95,6 +95,8 @@ import {
     createIngredientRequestSchema,
     ingredientCandidatesResponseSchema,
     ingredientSuggestionsResponseSchema,
+    recordCorrectionRequestSchema,
+    recordCorrectionResponseSchema,
     resolveIngredientRequestSchema,
 } from '../src/ingredients/ingredients.schema.js';
 import {
@@ -175,6 +177,8 @@ export const openApiComponents = {
     IngredientSuggestions: ingredientSuggestionsResponseSchema,
     CreateIngredientRequest: createIngredientRequestSchema,
     AddIngredientByFoodRequest: addIngredientByFoodRequestSchema,
+    RecordCorrectionRequest: recordCorrectionRequestSchema,
+    RecordCorrectionResponse: recordCorrectionResponseSchema,
     ResolveIngredientRequest: resolveIngredientRequestSchema,
     RecipeVersion: recipeVersionSchema,
     RecipeVersionList: z.array(recipeVersionSchema),
@@ -780,6 +784,30 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             },
             responses: {
                 '200': { description: 'The admitted ingredient.', schema: 'Ingredient' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/ingredients/corrections': {
+        post: {
+            operationId: 'recordIngredientCorrection',
+            summary: 'Record what an ingredient phrase means, in the resolution knowledge base.',
+            description:
+                'Teaches the resolver: “this phrase means this food” (R19/R20). Open to every authenticated caller — what is authorized is the FIELD VALUE `scope`, decided server-side from the caller’s signed grants, never declared on the request. A caller holding `recipes:mappings:global` binds the phrase for every user on their first correction; everyone else’s binding stays author-scoped until a second independent author agrees. `200` with `recorded: false` is the IDEMPOTENT answer, not an error: re-asserting a binding already in force writes nothing.',
+            requestBody: {
+                description: 'The phrase the caller searched, the food it should mean, and the surfacing.',
+                required: true,
+                schema: 'RecordCorrectionRequest',
+            },
+            responses: {
+                '200': {
+                    description: 'What the correction did, and how far it reaches.',
+                    schema: 'RecordCorrectionResponse',
+                },
+                '400': {
+                    description: 'The phrase carries no content the knowledge base can key on.',
+                    schema: 'ErrorResponse',
+                },
                 ...sharedErrorResponses(),
             },
         },

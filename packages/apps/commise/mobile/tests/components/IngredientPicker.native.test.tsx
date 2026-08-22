@@ -14,6 +14,7 @@ import {
     useAddIngredientByName,
     useCreateIngredient,
     useIngredientCandidates,
+    useRecordIngredientCorrection,
     useResolveIngredient,
     useSuggestIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
@@ -33,6 +34,11 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreateIngredient: vi.fn(),
     useIngredientCandidates: vi.fn(),
     useResolveIngredient: vi.fn(),
+    // U14 — the picker now also mounts the CORRECTION command. A module mock that omits a hook the
+    // component calls yields `undefined` at the call site and crashes the whole render, so every suite
+    // mocking this module must list every hook the leaf mounts. Its own states are covered next door, in
+    // `IngredientPickerCorrection.native.test.tsx`.
+    useRecordIngredientCorrection: vi.fn(),
 }));
 
 const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);
@@ -41,6 +47,7 @@ const useAddIngredientByFoodMock = vi.mocked(useAddIngredientByFood);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 const useIngredientCandidatesMock = vi.mocked(useIngredientCandidates);
 const useResolveIngredientMock = vi.mocked(useResolveIngredient);
+const useRecordIngredientCorrectionMock = vi.mocked(useRecordIngredientCorrection);
 
 /** Wrap the caller's own catalog rows as `local` blended suggestions (search Stage 2). */
 function own(ingredients: readonly Ingredient[]): IngredientSuggestion[] {
@@ -144,6 +151,14 @@ beforeEach(() => {
     useCreateIngredientMock.mockReturnValue(createMutation());
     useIngredientCandidatesMock.mockReturnValue(candidatesResult());
     useResolveIngredientMock.mockReturnValue(resolveMutation());
+    useRecordIngredientCorrectionMock.mockReset();
+    useRecordIngredientCorrectionMock.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+        data: undefined,
+    } as unknown as ReturnType<typeof useRecordIngredientCorrection>);
 });
 
 /** Advance past the REQ-057 debounce window so `useDebouncedValue`'s pending `setState` settles. */

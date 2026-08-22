@@ -111,6 +111,8 @@ import {
     pullFromSourceResponseSchema,
     recipeSearchResponseSchema,
     reorderPhotosRequestSchema,
+    recordCorrectionRequestSchema,
+    recordCorrectionResponseSchema,
     resolveIngredientRequestSchema,
     restoreVersionResponseSchema,
     setRatingRequestSchema,
@@ -123,6 +125,8 @@ import type {
     CreateRecipeRequest,
     RecipeApiError,
     RecipeNutritionResponse,
+    RecordCorrectionRequest,
+    RecordCorrectionResponse,
     RecipeSearchQuery,
     RestoreVersionResponse,
     SetRatingRequest,
@@ -681,6 +685,38 @@ export class RecipeServiceClient {
         );
 
         return this.expect(res, 200, ingredientSchema);
+    }
+
+    /**
+     * `POST /api/v1/ingredients/corrections` — teach the resolver what an ingredient phrase MEANS (`200`).
+     *
+     * The R19/R20 learning loop's write side. The `phrase` is the text the CALLER SEARCHED — never a raw
+     * recipe line and never the catalog's rendering of the food — because a mapping is only ever consulted
+     * under the key the resolution cascade looks up, and that key is derived from the phrase `addByName`
+     * received.
+     *
+     * ⚠️ `recorded: false` IS A SUCCESS. Re-asserting a binding already in force writes nothing, and a
+     * concurrent correction for the same phrase may have committed first. Neither is an error, and a caller
+     * that renders them as one will tell a user something went wrong on the idempotent happy path.
+     *
+     * ⛔ The response's `scope` is the REACH the server decided from the caller's signed grants — it is not
+     * derivable from the request, and a surface that reports "saved" without it cannot distinguish a binding
+     * that covers one person's own recipes from one that covers every user of the installation.
+     *
+     * @param correction - The searched phrase, the food it should mean, and which affordance produced it.
+     * @returns What the correction did, and how far it reaches.
+     * @throws {BadRequestError} when the phrase carries no usable content or a field is out of bounds;
+     *   {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request that writes to the resolution knowledge base.
+     */
+    public async recordIngredientCorrection(correction: RecordCorrectionRequest): Promise<RecordCorrectionResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/ingredients/corrections',
+            this.request('recordIngredientCorrection', recordCorrectionRequestSchema, correction),
+        );
+
+        return this.expect(res, 200, recordCorrectionResponseSchema);
     }
 
     // ─── Versions ───────────────────────────────────────────────────────────────────────────────

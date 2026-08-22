@@ -30,6 +30,15 @@ export {
     toStarFills,
 } from './card/index.js';
 export type { DifficultyTone, RatingCountLabels, RecipeCardModel, RecipeCardProps } from './card/index.js';
+export { recipeCorrectionMessages, toCorrectionNoticeModel, toCorrectionViewState } from './correction/index.js';
+export type {
+    CorrectionNoOutcome,
+    CorrectionNoticeModel,
+    CorrectionNoticeTone,
+    CorrectionScope,
+    CorrectionViewState,
+    RecipeCorrectionMessages,
+} from './correction/index.js';
 export {
     NUTRITION_FOOD_UNAVAILABLE,
     RecipeCalorieChip,

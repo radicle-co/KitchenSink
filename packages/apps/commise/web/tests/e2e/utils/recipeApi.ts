@@ -595,6 +595,21 @@ const catalogIngredient: Ingredient = {
 const catalogSuggestionFoodId = 'food_black_pepper';
 const catalogSuggestionName = 'Pepper, black, ground';
 
+/**
+ * A deterministic mapping id derived from the corrected PHRASE (U14).
+ *
+ * ⛔ The derivation is the point. `POST /api/v1/ingredients/corrections` answers with a row id and nothing
+ * that echoes the request, so a spec asserting only "a 200 came back" would pass just as happily if the
+ * client had sent the CATALOG'S NAME instead of the typed query — the exact defect that would make every
+ * curated mapping unreachable by the resolution cascade. Encoding the phrase into the id makes the wrong
+ * phrase a visible, failing difference.
+ */
+export const correctionMappingIdFor = (phrase: string): string =>
+    `mapping-for-${phrase
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/gu, '-')}`;
+
 /** The `ingredients` row `POST /api/v1/ingredients/by-food` creates for {@link catalogSuggestionFoodId}. */
 const admittedCatalogIngredient: Ingredient = {
     id: E2E_INGREDIENT_IDS.blackPepper,
@@ -953,6 +968,29 @@ export async function mockRecipeApi(
                         },
                     ],
                     catalogAvailability: 'ok',
+                },
+            });
+        }
+
+        // U14's correction write path (R19/R20). ⛔ The mock ECHOES the phrase back in `mappingId` so the spec
+        // can prove WHICH phrase the client sent — the single property that decides whether this feature
+        // teaches anything, since a mapping is only ever consulted under the key the cascade looks up.
+        // `scope` is derived from the phrase so one spec can drive both reaches without a second route.
+        if (path.endsWith('/api/v1/ingredients/corrections') && method === 'POST') {
+            const correction = body() as { phrase?: string; foodId?: string; surfacing?: string };
+
+            if (correction.phrase === undefined || correction.phrase.trim() === '') {
+                return route.fulfill({
+                    status: 400,
+                    json: { code: 'VALIDATION_FAILED', message: 'phrase must contain at least one visible character' },
+                });
+            }
+
+            return route.fulfill({
+                json: {
+                    recorded: true,
+                    mappingId: correctionMappingIdFor(correction.phrase),
+                    scope: 'author',
                 },
             });
         }

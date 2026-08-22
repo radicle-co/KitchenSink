@@ -57,6 +57,7 @@ import {
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
     recipeIngredientNotesSchema,
+    recipeIngredientSourceLineSchema,
     recipeIngredientUnitSchema,
     recipeLineNutritionSchema,
     recipeListMemberSchema,
@@ -99,6 +100,45 @@ export const recipeIngredientInputSchema = z.strictObject({
 
 /** One ingredient line on a create/update request. */
 export type RecipeIngredientInput = z.infer<typeof recipeIngredientInputSchema>;
+
+/**
+ * One ingredient line on a CREATE request — the base line plus the raw source line it was transcribed from
+ * (plan U11/U14).
+ *
+ * ⛔ A SEPARATE ELEMENT SCHEMA, and {@link createRecipeRequestSchema} overrides the base's `ingredients` key
+ * with an array of THIS one. It is the same reasoning `recipeSourceInputSchema` states for the recipe-level
+ * `source` field, one level down: `updateRecipeRequestSchema` derives from `createRecipeRequestBaseSchema`,
+ * so an element field placed on {@link recipeIngredientInputSchema} would be inherited by
+ * `PATCH /api/v1/recipes/{id}` — and a source line is a CREATE-time fact for a sharper reason than
+ * provenance is.
+ *
+ * A source line is what U11's gate checks our parse AGAINST, and the gate's verdicts are memoized ACROSS
+ * USERS (`ingredient_resolution_memos`, migration 0021). A caller able to re-assert a source line on `PATCH`
+ * could therefore steer a judgement: state a line that agrees with a wrong parse, collect an `agree` verdict,
+ * and have the resulting memo bind that resolution for everyone else. Create-only keeps the fact the gate
+ * judged identical to the fact that was transcribed.
+ *
+ * ⛔ A CREATE-ONLY WIRE FIELD IS NOT A CREATE-ONLY FACT, and conflating the two was a real defect caught in
+ * review. `replaceForRecipe` deletes and re-inserts the whole line set whenever a `PATCH` supplies
+ * `ingredients` — and BOTH shipped clients supply it on every save (`toUpdateRecipeInput` spreads
+ * `toCreateRecipeInput`, which always emits the array), so there is no metadata-only `PATCH` from any app.
+ * Left alone, fixing a typo in an imported recipe's TITLE would silently destroy every source line on it.
+ * The transcription is therefore carried forward server-side by the pure
+ * `recipes/domain/sourceLineCarryForward.ts`: a line keeps its source line when its identity, both quantity
+ * bounds and its unit are unchanged, and loses it when any of them moves — because that tuple is exactly
+ * what a verdict about the line is keyed on, so a change to it makes the old transcription describe a
+ * different judgement. The wire stays create-only; the FACT survives an edit that did not change it.
+ */
+export const createRecipeIngredientInputSchema = recipeIngredientInputSchema.extend({
+    /**
+     * What the cook's source LINE said, verbatim. Omit for an authored line — there is no source for our
+     * parse to disagree with, which is a stated non-conclusion rather than a gap.
+     */
+    sourceLine: recipeIngredientSourceLineSchema.optional(),
+});
+
+/** One ingredient line on a create request. */
+export type CreateRecipeIngredientInput = z.infer<typeof createRecipeIngredientInputSchema>;
 
 /** One instruction step on a create/update request. The server assigns `stepNumber` from array order. */
 export const recipeStepInputSchema = z.strictObject({
@@ -222,7 +262,14 @@ export const createRecipeRequestSchema = createRecipeRequestBaseSchema
     // ⚠️ `.extend()` on the CREATE schema, never on the BASE — see `recipeSourceInputSchema`'s note. The base
     // is what `updateRecipeRequestSchema` derives from, so a provenance field placed there becomes a
     // provenance field on `PATCH`, and provenance is a create-time fact.
-    .extend({ source: recipeSourceInputSchema.optional() })
+    .extend({
+        source: recipeSourceInputSchema.optional(),
+        // ⚠️ OVERRIDES the base's `ingredients` key with the widened element — see
+        // `createRecipeIngredientInputSchema`. The cardinality bound is restated because `.extend()` replaces
+        // the whole field; `ingredientArrayCap.test.ts`-style identity is preserved by composing the SAME
+        // `MAX_RECIPE_INGREDIENTS` constant rather than a second number.
+        ingredients: z.array(createRecipeIngredientInputSchema).max(MAX_RECIPE_INGREDIENTS),
+    })
     .refine((value) => value.status === 'draft' || value.ingredients.length > 0, {
         message: 'A published recipe needs at least one ingredient.',
         path: ['ingredients'],

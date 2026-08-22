@@ -170,6 +170,12 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             quantity_high: { type: 'numeric(10,3)', notNull: false },
             unit: { type: 'text', notNull: true },
             display_text: { type: 'text', notNull: false },
+            // U11/U14 (migration 0024) — the RAW line the cook's source stated. NULLABLE, and the null is a
+            // STATEMENT rather than missing data: it means the line was AUTHORED, not transcribed, which
+            // `decideVerification` reads as `skip: 'no-source-text'`. ⛔ Distinct from `display_text` (an
+            // author-chosen display override) and from `ingredient_name` (OUR rendering) — the verification
+            // gate checks our parse against this, and checking a parse against its own output always agrees.
+            source_line: { type: 'text', notNull: false },
             sort_order: { type: 'integer', notNull: true },
             ingredient_name: { type: 'text', notNull: true },
             is_user_entered: { type: 'boolean', notNull: true },

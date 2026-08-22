@@ -34,6 +34,8 @@ export type {
     RecipePhotoValidationMessages,
     UseRecipePhotoUploadQueueResult,
 } from './useRecipePhotoUploadQueue.js';
+export { useIngredientCorrection } from './useIngredientCorrection.js';
+export type { IngredientCorrectionController } from './useIngredientCorrection.js';
 export { useIngredientResolver } from './useIngredientResolver.js';
 export type { UseIngredientResolverResult } from './useIngredientResolver.js';
 export { useIngredientFilterSearch } from './useIngredientFilterSearch.js';

@@ -31,6 +31,13 @@ export interface ResolvedIngredientLine {
     quantity: IngredientQuantity;
     unit: string;
     displayText?: string;
+    /**
+     * The raw line the cook's SOURCE stated (U11/U14), when this line was transcribed rather than authored.
+     *
+     * Absent for an authored line, and that absence is a STATEMENT — `decideVerification` reads it as
+     * `skip: 'no-source-text'`, not as missing data.
+     */
+    sourceLine?: string;
     sortOrder: number;
     isUserEntered: boolean;
     /** Per-line user-entered nutrition override (FR-007a) — absolute for this line's quantity. */
@@ -75,6 +82,7 @@ export class RecipeIngredientsDal {
                     ...quantityColumns(line.quantity),
                     unit: line.unit,
                     displayText: line.displayText ?? null,
+                    sourceLine: line.sourceLine ?? null,
                     sortOrder: line.sortOrder,
                     isUserEntered: line.isUserEntered,
                     // Numeric columns take a string; null when the client supplied no per-line override.

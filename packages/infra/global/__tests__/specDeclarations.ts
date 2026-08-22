@@ -411,8 +411,24 @@ export function findMarkdownTableDeclarations(
     return found;
 }
 
-const CHECKBOX_TASK_PATTERN = /^\s*[-*+]\s+\[[ xX~-]\]\s*(?:\*\*|__)?\s*(T-?\d+[A-Za-z]?(?:-[A-Za-z][A-Za-z0-9]*)*)/u;
-const HEADING_TASK_PATTERN = /^#{2,6}\s+(?:\*\*)?\s*(T-?\d+[A-Za-z]?(?:-[A-Za-z][A-Za-z0-9]*)*)/u;
+/**
+ * A task identifier's shape, shared by both forms below so they cannot drift apart.
+ *
+ * ⚠️ The prefix is `[A-Z]{1,3}`, not a literal `T`. Fourteen of the fifteen task files number their tasks
+ * `T001`/`T-001`/`T104-mobile`, and 015 deliberately does not: its prefix IS the group it belongs to
+ * (`## Group A — Unblock`, `## Group B — Data model`), and `TC*` marks the tasks its header declares carry
+ * `Test-first: true`. Against a `T`-only shape all 52 of its checkboxes parsed to nothing, which the
+ * plausible-count assertion in `specTaskIds.test.ts` correctly reported as a file that checked NOTHING.
+ *
+ * ⛔ `TC010` is why the widening had to reach the PREFIX rather than just allow a second character: it
+ * starts with `T`, so a shape of `T\w*\d+` would look like it covered 015 while still skipping every `TC`
+ * task — the test-first ones. The duplicate detection this gate exists for is unaffected; a widened shape
+ * finds MORE identifiers to compare, never fewer.
+ */
+const TASK_ID = String.raw`[A-Z]{1,3}-?\d+[A-Za-z]?(?:-[A-Za-z][A-Za-z0-9]*)*`;
+
+const CHECKBOX_TASK_PATTERN = new RegExp(String.raw`^\s*[-*+]\s+\[[ xX~-]\]\s*(?:\*\*|__)?\s*(${TASK_ID})`, 'u');
+const HEADING_TASK_PATTERN = new RegExp(String.raw`^#{2,6}\s+(?:\*\*)?\s*(${TASK_ID})`, 'u');
 
 /**
  * Find every task identifier DEFINED in a `tasks.md`, ignoring every reference to one.

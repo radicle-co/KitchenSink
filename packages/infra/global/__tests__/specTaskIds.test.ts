@@ -131,6 +131,40 @@ describe('findTaskIdDefinitions — mutation proof', () => {
         expect(duplicates).toStrictEqual([{ id: 'T-004', lines: [5, 10] }]);
     });
 
+    it("reads feature 015's GROUP-PREFIXED identifiers, which are a scheme rather than a typo", () => {
+        // ⛔ 015 is the only task file that does not use `T###`, and that is deliberate: its prefix IS the
+        // group (`## Group A — Unblock`, `## Group B — Data model`), and `TC*` marks the tasks its header
+        // declares carry `Test-first: true`. Fourteen files use `T`; one uses nine prefixes on purpose.
+        //
+        // The parser required `T` followed by a digit, so every one of 015's 52 checkboxes parsed to
+        // NOTHING — which the plausible-count assertion above caught as "this file checked nothing", exactly
+        // as designed. `TC010` is the trap: it starts with `T`, and a lazy widening that kept `T\d` would
+        // still miss it.
+        const scheme = [
+            '# Tasks: 015',
+            '',
+            '## Group A — Unblock',
+            '',
+            '- [ ] A001 — Land 016 Legal Compliance Framework',
+            '- [ ] TC010 — Integration test: migration 0025 applies against a real DB',
+            '- [ ] B013 — Write migration `0026_publishing_rewards.sql`',
+            '',
+        ].join('\n');
+
+        expect(findTaskIdDefinitions(scheme).map((definition) => definition.id)).toStrictEqual([
+            'A001',
+            'TC010',
+            'B013',
+        ]);
+    });
+
+    it('still FAILS a duplicate under a group prefix', () => {
+        // Widening the shape must not cost the duplicate detection that is the point of the gate.
+        const broken = ['# Tasks', '', '- [ ] TC010 — first', '- [ ] TC010 — again', ''].join('\n');
+
+        expect(findDuplicateTaskIds(findTaskIdDefinitions(broken))).toStrictEqual([{ id: 'TC010', lines: [3, 4] }]);
+    });
+
     it('FAILS a duplicate defined in the heading form (feature 004 style)', () => {
         const broken = ['# Tasks', '', '### T-001 · Author the contract', '', '### T-001 · Author it again', ''].join(
             '\n',

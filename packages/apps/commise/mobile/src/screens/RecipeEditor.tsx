@@ -33,6 +33,8 @@ import { palette, tint } from '@commise/ui';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { JSX, ReactNode } from 'react';
 import { useCallback } from 'react';
+
+import { useScrollResetOnChange } from '../hooks/useScrollResetOnChange.js';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { IngredientPicker, type ResolvedIngredient } from '../components/IngredientPicker.js';
@@ -104,6 +106,8 @@ export function RecipeEditor({
     photosSlot,
 }: RecipeEditorProps): JSX.Element {
     const { recipes: t } = useMessages(mobileMessages);
+    // Advancing a step must put the cook at the TOP of the new one — see the ScrollView below.
+    const scroller = useScrollResetOnChange<ScrollView>(step);
 
     // U6 empty-state guidance: a brand-new create drops into a blank Basics form — show first-step guidance
     // until the author has put anything in. Edit mode (seeded from a saved recipe) never shows it.
@@ -164,7 +168,14 @@ export function RecipeEditor({
             >
                 {/* Sticky header: Save Draft / Preview / Cancel / Publish, outside the scrolling step body. */}
                 <Wizard.TopBar />
+                {/*
+                  ⛔ `ref` is not decoration. This ONE ScrollView wraps the rail and all four step bodies, so
+                  advancing a step swaps the body and leaves the scroller where it was — a cook who scrolled
+                  down to reach `Next` lands at the BOTTOM of the next step, with the step heading off-screen.
+                  Four Maestro flows caught it. See `useScrollResetOnChange` for why a ref is the only way.
+                */}
                 <ScrollView
+                    ref={scroller}
                     style={styles.scroll}
                     contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"

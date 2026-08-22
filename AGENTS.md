@@ -18,7 +18,7 @@ storage), `svix` (Clerk webhook signature verification), `jose` (JWT verificatio
 Clerk **session token** themselves via `@clerk/backend` `verifyToken` — networkless, with `azp`
 enforcement. There is deliberately no API Gateway JWT authorizer and no trusted-header path.
 
-**Backend.** NestJS 11, Drizzle ORM 0.45, `pg` 8 (node-postgres), RDS PostgreSQL 16 (`pg_trgm`, JSONB,
+**Backend.** NestJS 11, Drizzle ORM 0.45, `pg` 8 (node-postgres), RDS PostgreSQL 18 (`pg_trgm`, JSONB,
 `tsvector` FTS), **`nestjs-zod` (`createZodDto` + its OWN `ZodValidationPipe`) is the ONE validation
 mechanism per service** — `class-validator` + `class-transformer` are still installed, but exactly **ONE**
 service file still imports them (`recipe-service/src/search/dto/searchRecipes.query.dto.ts`; the "19 files"

@@ -1,6 +1,6 @@
 # docker-compose.yml (T006b) — LOCAL DEVELOPMENT stack for the Commise recipe API.
 #
-# Brings up PostgreSQL 16 (with the pg_trgm + pgcrypto extensions pre-enabled via
+# Brings up PostgreSQL 18 (with the pg_trgm + pgcrypto extensions pre-enabled via
 # infra/docker/postgres-init.sql) and LocalStack for S3 emulation, per
 # specs/001-commise-recipe-app/quickstart.md. Start it from the monorepo root:
 #
@@ -25,7 +25,7 @@ networks:
 
 services:
     postgres:
-        image: postgres:16
+        image: postgres:18
         container_name: commise-postgres
         restart: unless-stopped
         networks:
@@ -37,7 +37,15 @@ services:
             POSTGRES_PASSWORD: commise
             POSTGRES_DB: commise
         volumes:
-            - postgres_data:/var/lib/postgresql/data
+            # ⚠️ `/var/lib/postgresql`, NOT `/var/lib/postgresql/data`. The postgres:18 image moved
+            # `PGDATA` to `/var/lib/postgresql/18/docker` and declares its VOLUME at `/var/lib/postgresql`
+            # (verified against both images: 16 had PGDATA=/var/lib/postgresql/data, VOLUME the same).
+            # Left on the old path, this named volume would hold NOTHING while the real cluster landed in an
+            # anonymous volume — local data silently discarded on every `down`/recreate.
+            # ⛔ An existing `postgres_data` volume from the 16 era holds a PG 16 cluster at its root. The
+            # entrypoint DETECTS that and fails loudly rather than eating it, so on first run after this
+            # change: `docker compose down -v` (or `docker volume rm`) and let it re-initialise.
+            - postgres_data:/var/lib/postgresql
             - ./infra/docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
         healthcheck:
             test: ['CMD-SHELL', 'pg_isready -U commise -d commise']

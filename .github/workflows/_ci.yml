@@ -492,7 +492,7 @@ jobs:
         needs: [install]
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -565,7 +565,7 @@ jobs:
         needs: [install]
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -628,7 +628,7 @@ jobs:
         needs: [install]
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -729,7 +729,7 @@ jobs:
         # its only remaining effect was to make a script RENAME fail silently green. Dropped.
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -831,7 +831,7 @@ jobs:
         # self-provision their S3 buckets via CreateBucket, so no bucket-init step is needed here.
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -1025,7 +1025,7 @@ jobs:
         # container is provisioned now so the Phase 3 AWS-service flows plug straight in.
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -1109,7 +1109,7 @@ jobs:
         needs: [install]
         services:
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -1232,7 +1232,7 @@ jobs:
             # `food_perf` is named for the food seeder's disposable-database allowlist
             # (`tests/load/perfFixture.ts`), which refuses to write anywhere else.
             postgres:
-                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres

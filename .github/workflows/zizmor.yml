@@ -96,15 +96,20 @@
 #         distinct-user pool on a SHARED Clerk instance, and cancelling mid-run is what LEAKS those users
 #         (teardown never executes), so queueing is the correct resolution rather than the reflexive one.
 #     • anonymous-definition      1 → 0  FIXED. food-loadtest.yml's `loadtest` job gained a `name:`.
-#     • unpinned-images          16 → DECLARED, not fixed. Every one is a `services:` container in `_ci.yml`
-#         or `_ci-heavy.yml` (`postgres:16` ×13, `localstack/localstack:4.4.0` ×3), each now carrying a
-#         per-site `# zizmor: ignore[unpinned-images]`. Pinning them by digest is a real hardening step and
-#         a SEPARATE decision, because nothing would own the resulting pins: `.github/dependabot.yml`
-#         declares `npm` and `github-actions` only, with no `docker` ecosystem, and a SHA pin nobody bumps is
-#         the pinned-and-forgotten failure that file's own header warns about. `postgres:16` is also
-#         deliberately a floating MINOR that tracks the production RDS engine. To close this: add a `docker`
-#         ecosystem to dependabot.yml (verify first that it discovers Actions `services:` images at all),
-#         then pin and delete these 16 comments.
+#     • unpinned-images          19 → DECLARED, not fixed. Every one is a `services:` container in `_ci.yml`
+#         or `_ci-heavy.yml` (`postgres:18` ×12 — 8 + 4, `localstack/localstack:4.4.0` ×7 — 6 + 1), each now
+#         carrying a per-site `# zizmor: ignore[unpinned-images]`. Pinning them by digest is a real
+#         hardening step and a SEPARATE decision, because nothing would own the resulting pins:
+#         `.github/dependabot.yml` declares `npm` and `github-actions` only, with no `docker` ecosystem, and
+#         a SHA pin nobody bumps is the pinned-and-forgotten failure that file's own header warns about.
+#         `postgres:18` is also deliberately a floating MINOR that tracks the production RDS engine — the
+#         MAJOR is not free to drift here, because `localPostgresParity.test.ts` reads it out of
+#         `DataStack.ts` and fails every pin that disagrees. To close this: add a `docker` ecosystem to
+#         dependabot.yml (verify first that it discovers Actions `services:` images at all), then pin and
+#         delete these 19 comments.
+#         ⚠️ The counts above were STALE and are corrected here (were "×13, ×3, 16"). The authoritative
+#         record is `zizmorGateFilters.test.ts`'s `DECLARED_IGNORES` ratchet, which already read 14 + 5 = 19;
+#         this prose had drifted from it. The `16` → `18` half is the PG 16 → 18 upgrade (plan U13).
 #
 # CURRENT MEASUREMENT (2026-08-11, offline, after the Environments work below): **22 findings — 18 declared
 #   per-site ignores (16 unpinned-images + 2 artipacked), 4 suppressed, 0 shown at EVERY severity.**

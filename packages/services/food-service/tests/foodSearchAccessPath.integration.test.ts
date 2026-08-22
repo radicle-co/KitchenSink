@@ -96,6 +96,17 @@ import { DATABASE_URL, makeDb, makePool, resetSchema } from './support/db.js';
  * defect, so the fix is the one this note already prescribed: move away from the crossover instead of
  * re-rolling the dice at it.
  *
+ * ⚠️ EVERY cost figure below was measured on PostgreSQL **16**, and the engine has since moved to **18**
+ * (plan U13). The numbers are left as recorded rather than rewritten, because they are observations, not
+ * predictions — but they are no longer measurements of the engine this suite runs against, and a major
+ * version moves the planner.
+ *
+ * The whole file was RE-RUN green against a real `postgres:18` (18.6) on 2026-08-22, so the 100,000-row
+ * margin still holds on the new cost model — that is evidence, not a guarantee, since the margin is a
+ * distance rather than a boundary and prod's statistics are not this fixture's. If this guard starts firing
+ * after the upgrade, the first hypothesis is a changed cost model, not a changed query: re-run the `EXPLAIN`
+ * and re-baseline the table below, do not raise the row count reflexively.
+ *
  * Measured on postgres:16.14 — the top node's estimated total cost for `raw chicken breast`:
  *
  * | rows    | natural (Bitmap Heap Scan) | Seq Scan forced | margin |

@@ -38,6 +38,9 @@ import { describe, expect, it } from 'vitest';
 
 import { sanitizeFoodName } from '../../foodName.js';
 import { normalizedIngredientKey } from '../normalizedKey.js';
+import { describeRankingName, describeRankingQuery } from '../rankingTerms.js';
+import { classifyRankTier } from '../rankingTiers.js';
+import type { RankTier } from '../rankingTiers.js';
 
 /** Which tier is expected to bridge a difference the key deliberately preserves. */
 type BridgedBy = 'key' | 'ranking (U5/U6)' | 'memo k-NN (U10)' | 'nothing yet';
@@ -124,13 +127,55 @@ const CORPUS: readonly TypedInput[] = [
     },
 ];
 
-/** Differences the key deliberately preserves, and who is expected to bridge each. */
-const HANDOFFS: readonly { readonly a: string; readonly b: string; readonly bridgedBy: BridgedBy }[] = [
-    { a: 'all-purpose flour', b: 'all purpose flour', bridgedBy: 'memo k-NN (U10)' },
-    { a: 'eggs', b: 'egg', bridgedBy: 'ranking (U5/U6)' },
-    { a: 'jalapeño', b: 'jalapeno', bridgedBy: 'ranking (U5/U6)' },
-    { a: 'flour, all purpose', b: 'all purpose flour', bridgedBy: 'ranking (U5/U6)' },
-    { a: 'Kerrygold butter', b: 'butter', bridgedBy: 'nothing yet' },
+/** One difference the key deliberately preserves, and who bridges it. */
+interface Handoff {
+    /** What the cook types. */
+    readonly a: string;
+    /** The name the catalog carries. */
+    readonly b: string;
+    /** Which tier bridges it. */
+    readonly bridgedBy: BridgedBy;
+    /**
+     * The rung `classifyRankTier` puts `b` on for the query `a`, now that U5/U6 have landed — `undefined`
+     * when the ranking tiers do NOT bridge it and some later tier must.
+     */
+    readonly bridgedAt: RankTier | undefined;
+}
+
+/**
+ * Differences the key deliberately preserves, and who bridges each.
+ *
+ * ⚠️ **UPDATED BY U5/U6 (2026-08-22), which is the point of the field.** Every row that named
+ * "ranking (U5/U6)" as its intended bridge now records the RUNG it actually lands on, measured rather than
+ * hoped for, so the diff shows exactly what moved:
+ *
+ * | typed                | catalog             | was              | now                |
+ * | -------------------- | ------------------- | ---------------- | ------------------ |
+ * | `all-purpose flour`  | `all purpose flour` | memo k-NN (U10)  | ranking, `tokenSet`|
+ * | `eggs`               | `egg`               | ranking (open)   | ranking, `tokenSet`|
+ * | `jalapeño`           | `jalapeno`          | ranking (open)   | ranking, `exact`   |
+ * | `flour, all purpose` | `all purpose flour` | ranking (open)   | ranking, `tokenSet`|
+ * | `Kerrygold butter`   | `butter`            | nothing yet      | ranking, `head`    |
+ *
+ * Two of those are worth calling out rather than burying in a table.
+ *
+ * **The hyphenation case moved EARLIER in the cascade, not later.** It was assigned to U10's k-NN, and U5's
+ * token-set rung closes it lexically — `all-purpose flour` and `all purpose flour` tokenize identically once
+ * the fold runs. That is a cheaper tier answering a question a more expensive one was reserved for, which is
+ * the cascade working as designed; U10's memo tier keeps the cases the lexical rungs genuinely cannot see.
+ *
+ * ⛔ **The brand case is bridged to the GENERIC food, and that is NOT the same as representing the brand.**
+ * `Kerrygold butter` now reaches `butter` at the `head` rung, which is the right fallback for a cook and is
+ * what the earlier `nothing yet` meant was missing. What is STILL missing is any representation of Kerrygold
+ * as a distinct product — that is U2's `additionalDescriptions` aliases, and no rung can invent it. The two
+ * assertions below hold that distinction: the bridge lands on `head`, deliberately not on `exact`.
+ */
+const HANDOFFS: readonly Handoff[] = [
+    { a: 'all-purpose flour', b: 'all purpose flour', bridgedBy: 'ranking (U5/U6)', bridgedAt: 'tokenSet' },
+    { a: 'eggs', b: 'egg', bridgedBy: 'ranking (U5/U6)', bridgedAt: 'tokenSet' },
+    { a: 'jalapeño', b: 'jalapeno', bridgedBy: 'ranking (U5/U6)', bridgedAt: 'exact' },
+    { a: 'flour, all purpose', b: 'all purpose flour', bridgedBy: 'ranking (U5/U6)', bridgedAt: 'tokenSet' },
+    { a: 'Kerrygold butter', b: 'butter', bridgedBy: 'ranking (U5/U6)', bridgedAt: 'head' },
 ];
 
 describe('representative typed ingredient names', () => {
@@ -142,14 +187,27 @@ describe('representative typed ingredient names', () => {
     it.each(HANDOFFS)('keeps $a and $b on different keys, bridged by $bridgedBy', ({ a, b }) => {
         // The key is an exact-match grain. Collapsing these INTO it would merge foods that are genuinely
         // distinct elsewhere in the catalog, so the difference is preserved and handed to a ranking tier.
+        // ⛔ This stays true AFTER U5/U6: the ranking folds these for COMPARISON, never into the identity.
         expect(normalizedIngredientKey(a)).not.toBe(normalizedIngredientKey(b));
     });
 
-    it('records one difference no tier currently bridges', () => {
-        // A brand a cook types that the catalog does not carry. U2's aliases are the intended mechanism, but
-        // only USDA Survey foods carry them and the bulk seed does not include Survey — so today this
-        // resolves on ranking alone. Named here so it is a known gap rather than a surprise at U15.
-        expect(HANDOFFS.filter((handoff) => handoff.bridgedBy === 'nothing yet')).toHaveLength(1);
+    it.each(HANDOFFS)('ranking bridges $a to $b at the $bridgedAt rung (U5/U6)', ({ a, b, bridgedAt }) => {
+        // The measured half of the handoff. Before U5 this file could only record which tier was EXPECTED
+        // to bridge a difference; now the tiers exist, so the expectation is executable and a regression in
+        // the fold, the plural rule or the head rule fails here as well as in the two services.
+        expect(classifyRankTier(describeRankingName(b), describeRankingQuery(a))).toBe(bridgedAt);
+        expect(bridgedAt).not.toBe('base');
+    });
+
+    it('⛔ bridges the BRAND to the generic food, which is not the same as representing the brand', () => {
+        // `Kerrygold butter` reaching `butter` is the right fallback for a cook and closes what the earlier
+        // `nothing yet` meant. It does NOT make Kerrygold a thing the catalog knows about — that is U2's
+        // `additionalDescriptions` aliases, and no rung can invent it. The bridge landing on `head` rather
+        // than `exact` is what keeps the two facts apart, so this assertion is the residual gap's record.
+        const brand = HANDOFFS.find((handoff) => handoff.a === 'Kerrygold butter');
+
+        expect(brand?.bridgedAt).toBe('head');
+        expect(normalizedIngredientKey('Kerrygold butter')).not.toBe(normalizedIngredientKey('butter'));
     });
 
     it('never lets a typed name become an empty key', () => {

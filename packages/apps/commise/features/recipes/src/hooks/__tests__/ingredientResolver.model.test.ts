@@ -18,8 +18,6 @@ import {
     MIN_INGREDIENT_QUERY_LENGTH,
     meetsIngredientSearchThreshold,
     nextMatchAction,
-    rankIngredientResults,
-    rankIngredientSuggestions,
     suggestionKey,
     suggestionName,
     toIngredientLine,
@@ -457,54 +455,30 @@ describe('meetsIngredientSearchThreshold (REQ-057 — 2-character trigger)', () 
     });
 });
 
-describe('rankIngredientResults (REQ-057 — prefix > substring > fuzzy, alphabetical ties)', () => {
-    it('orders a prefix match before a substring match before a fuzzy (neither) match', () => {
-        const prefix = makeIngredient({ id: 'ing_1', name: 'Apple pie spice' });
-        const substring = makeIngredient({ id: 'ing_2', name: 'Pineapple' });
-        const fuzzy = makeIngredient({ id: 'ing_3', name: 'Aplpe' });
-
-        // Deliberately scrambled input order — the function must re-sort it, not merely preserve input order.
-        const ranked = rankIngredientResults([substring, fuzzy, prefix], 'apple');
-
-        expect(ranked.map((ingredient) => ingredient.id)).toEqual(['ing_1', 'ing_2', 'ing_3']);
-    });
-
-    it('is case-insensitive when classifying prefix/substring matches', () => {
-        const prefix = makeIngredient({ id: 'ing_1', name: 'APPLE PIE' });
-        const substring = makeIngredient({ id: 'ing_2', name: 'pineapple' });
-
-        expect(rankIngredientResults([substring, prefix], 'Apple').map((ingredient) => ingredient.id)).toEqual([
-            'ing_1',
-            'ing_2',
-        ]);
-    });
-
-    it('breaks ties within the same rank alphabetically by display name', () => {
-        const zucchini = makeIngredient({ id: 'ing_z', name: 'Zucchini apple' }); // substring
-        const banana = makeIngredient({ id: 'ing_b', name: 'Banana apple' }); // substring
-
-        expect(rankIngredientResults([zucchini, banana], 'apple').map((ingredient) => ingredient.id)).toEqual([
-            'ing_b',
-            'ing_z',
-        ]);
-    });
-
-    it('does not mutate the input array (pure)', () => {
-        const results = [
-            makeIngredient({ id: 'ing_2', name: 'Pineapple' }),
-            makeIngredient({ id: 'ing_1', name: 'Apple' }),
-        ];
-        const original = [...results];
-
-        rankIngredientResults(results, 'apple');
-
-        expect(results).toEqual(original);
-    });
-
-    it('returns an empty array unchanged', () => {
-        expect(rankIngredientResults([], 'apple')).toEqual([]);
-    });
-});
+/**
+ * ⛔ **DELETED IN PLAN U5: `rankIngredientResults` and `rankIngredientSuggestions`.**
+ *
+ * Two `describe` blocks lived here — 13 cases pinning `PREFIX > SUBSTRING > FUZZY`, alphabetical ties,
+ * purity, and per-section ranking. They are gone because the functions they covered are gone, not because
+ * they were failing. Owner ruling 2026-08-20: the server determines order, on best-quality match.
+ *
+ * **Where the coverage went**, in full:
+ *
+ *  - *Ordering by match quality* → the two Scoring Policies' tier ladder, asserted against a REAL Postgres
+ *    by `recipe-service/__tests__/integration/ingredients/ingredientRanking.integration.test.ts` and
+ *    `food-service/tests/rankingTiers.integration.test.ts`, and as a truth table by
+ *    `recipe-core/src/resolution/__tests__/rankingTiers.test.ts`.
+ *  - *Deterministic tie-breaking* → `compareTieredHits` plus each statement's `ORDER BY score DESC,
+ *    name ASC`, and the conformance contract's determinism case in
+ *    `@kitchensink/service-test-harness`.
+ *  - *Cross-implementation agreement* → `registerRankingConformance`, run by BOTH surfaces.
+ *  - *The picker rendering that order untouched* → the two rewritten cases in
+ *    `useIngredientResolver.test.tsx` and the pass-through case in `useIngredientFilterSearch.test.tsx`.
+ *
+ * The `local`-before-`catalog` SECTIONING those blocks also asserted was never this module's: it is a
+ * property of the server's blend (`ingredientSuggestion.ts`), covered by
+ * `recipe-service/__tests__/integration/ingredients/blendedSuggest.integration.test.ts`.
+ */
 
 describe('suggestionName / suggestionKey (search Stage 2)', () => {
     it('reads the display name from whichever provenance the suggestion has', () => {
@@ -526,61 +500,5 @@ describe('suggestionName / suggestionKey (search Stage 2)', () => {
         const suggestion = catalog('01J0FOOD', 'Apples, raw');
 
         expect(suggestionKey(suggestion)).toBe(suggestionKey(suggestion));
-    });
-});
-
-describe('rankIngredientSuggestions (REQ-057 applied WITHIN each provenance section)', () => {
-    it('ranks each section independently and keeps local before catalog', () => {
-        const prefix = local(makeIngredient({ id: 'ing_1', name: 'Apple pie spice' }));
-        const substring = local(makeIngredient({ id: 'ing_2', name: 'Pineapple' }));
-        const catalogPrefix = catalog('food_1', 'Apples, raw', 0.1);
-        const catalogSubstring = catalog('food_2', 'Crab apple', 0.99);
-
-        // Scrambled, and with catalog scores that would invert the intended order if score were used.
-        const ranked = rankIngredientSuggestions([catalogSubstring, substring, catalogPrefix, prefix], 'apple');
-
-        expect(ranked.map(suggestionKey)).toEqual(['local:ing_1', 'local:ing_2', 'catalog:food_1', 'catalog:food_2']);
-    });
-
-    it('NEVER interleaves the sections, even when a catalog hit is the better match', () => {
-        const fuzzyLocal = local(makeIngredient({ id: 'ing_z', name: 'Zucchini' }));
-        const prefixCatalog = catalog('food_1', 'Apples, raw');
-
-        // The catalog hit is a prefix match and the local row matches not at all — yet local stays first.
-        expect(rankIngredientSuggestions([fuzzyLocal, prefixCatalog], 'apple').map((s) => s.provenance)).toEqual([
-            'local',
-            'catalog',
-        ]);
-    });
-
-    it('breaks ties within a section alphabetically by display name', () => {
-        const zucchini = catalog('food_z', 'Zucchini apple', 0.9);
-        const banana = catalog('food_b', 'Banana apple', 0.9);
-
-        expect(rankIngredientSuggestions([zucchini, banana], 'apple').map(suggestionKey)).toEqual([
-            'catalog:food_b',
-            'catalog:food_z',
-        ]);
-    });
-
-    it('handles a single-section list (all local, or all catalog)', () => {
-        const onlyLocal = [local(makeIngredient({ id: 'ing_1', name: 'Apple' }))];
-        const onlyCatalog = [catalog('food_1', 'Apples, raw')];
-
-        expect(rankIngredientSuggestions(onlyLocal, 'apple')).toEqual(onlyLocal);
-        expect(rankIngredientSuggestions(onlyCatalog, 'apple')).toEqual(onlyCatalog);
-    });
-
-    it('does not mutate the input array (pure)', () => {
-        const suggestions = [catalog('food_2', 'Pineapple'), local(makeIngredient({ id: 'ing_1', name: 'Zucchini' }))];
-        const original = [...suggestions];
-
-        rankIngredientSuggestions(suggestions, 'apple');
-
-        expect(suggestions).toEqual(original);
-    });
-
-    it('returns an empty array unchanged', () => {
-        expect(rankIngredientSuggestions([], 'apple')).toEqual([]);
     });
 });

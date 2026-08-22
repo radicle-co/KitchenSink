@@ -428,12 +428,27 @@ describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () 
         expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('spin', undefined, { enabled: true });
     });
 
-    it('re-ranks the mocked search results by match quality (prefix > substring > fuzzy)', () => {
-        const prefix = makeIngredient({ id: 'ing_1', name: 'Spinach' });
-        const substring = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
-        useSuggestIngredientsMock.mockReturnValue(
-            settledSuggest([localSuggestion(substring), localSuggestion(prefix)]),
-        );
+    /**
+     * ⚠️ REWRITTEN for plan U5, and these are the SAME two cases that used to assert the opposite.
+     *
+     * They asserted that the hook re-ranked the server's page by `prefix > substring > fuzzy`. That
+     * MECHANISM is retired; REQ-057's INTENT — best match first — is now served by the server's tiered sort
+     * key, which scores relevance instead of approximating it from string shape, and which is the only
+     * ranker the IMPORTER (reading `suggestions[0]` straight off the API) ever saw. A client re-sort could
+     * only ever reorder a page the server's sort key had already selected, so keeping it would leave two
+     * rankers disagreeing about one query.
+     *
+     * Where the retired coverage went: server-side ordering is asserted against a real database by
+     * `recipe-service/__tests__/integration/ingredients/ingredientRanking.integration.test.ts` and
+     * `food-service/tests/rankingTiers.integration.test.ts`, and by the shared conformance contract in
+     * `@kitchensink/service-test-harness` on both surfaces.
+     */
+    it("renders the server's order UNMODIFIED — the picker no longer re-ranks (U5)", () => {
+        const first = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
+        const second = makeIngredient({ id: 'ing_1', name: 'Spinach' });
+        // Deliberately the order the retired client sort would have INVERTED: `Baby spinach mix` is a
+        // substring match and `Spinach` a prefix match, so `prefix > substring` used to swap them.
+        useSuggestIngredientsMock.mockReturnValue(settledSuggest([localSuggestion(first), localSuggestion(second)]));
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
         act(() => result.current.setQuery('spin'));
@@ -441,23 +456,27 @@ describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () 
 
         expect(result.current.viewState).toMatchObject({
             kind: 'results',
-            suggestions: [localSuggestion(prefix), localSuggestion(substring)],
+            suggestions: [localSuggestion(first), localSuggestion(second)],
         });
     });
 
-    it('re-ranks WITHIN each provenance section and never interleaves them (search Stage 2)', () => {
-        const fuzzyLocal = makeIngredient({ id: 'ing_z', name: 'Zucchini' });
-        const prefixCatalog = catalogSuggestion('food_1', 'Spinach, raw');
-        useSuggestIngredientsMock.mockReturnValue(settledSuggest([prefixCatalog, localSuggestion(fuzzyLocal)]));
+    it('⛔ does NOT re-impose provenance sections either — the SERVER sections the blend', () => {
+        // The sectioning (`local` before `catalog`) is a property of the server's blend, not of this hook:
+        // `ingredientSuggestion.ts` documents the order as `[local text hits] -> [promoted rows] ->
+        // [catalog hits]`, and `blendedSuggest.integration.test.ts` asserts it end to end. Re-imposing it
+        // here was a second authority for one fact — and it is what MASKED the server's ranking defect,
+        // because a wrong `local` row outranked a correct `catalog` one regardless of match quality.
+        const local = makeIngredient({ id: 'ing_z', name: 'Zucchini' });
+        const catalog = catalogSuggestion('food_1', 'Spinach, raw');
+        useSuggestIngredientsMock.mockReturnValue(settledSuggest([catalog, localSuggestion(local)]));
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
         act(() => result.current.setQuery('spin'));
         settleDebounce();
 
-        // The catalog hit is the far better match, yet the user's own row still leads — the sections hold.
         expect(result.current.viewState).toMatchObject({
             kind: 'results',
-            suggestions: [localSuggestion(fuzzyLocal), prefixCatalog],
+            suggestions: [catalog, localSuggestion(local)],
         });
     });
 });

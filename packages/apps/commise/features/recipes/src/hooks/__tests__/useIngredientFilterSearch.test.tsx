@@ -128,21 +128,33 @@ describe('useIngredientFilterSearch — idle -> searching -> results', () => {
         expect(result.current.viewState).toEqual({ kind: 'idle' });
     });
 
-    it('re-ranks the mocked search results by match quality (prefix > substring)', () => {
-        const substring = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
-        const prefix = makeIngredient({ id: 'ing_1', name: 'Spinach' });
+    /**
+     * ⚠️ REWRITTEN for plan U5 — this is the SAME case, asserting the opposite.
+     *
+     * It asserted that the hook re-ranked the server's results by `prefix > substring`. That mechanism
+     * (`rankIngredientResults`) is retired: the server now owns the order, scoring relevance with a tiered
+     * sort key instead of approximating it from string shape. Retiring it here and not on the server would
+     * have made the filter WORSE, which is why the plan requires both in one release. See the "RETIRED IN
+     * PLAN U5" section of `ingredientResolver.model.ts`, and
+     * `recipe-service/__tests__/integration/ingredients/ingredientRanking.integration.test.ts` for where the
+     * ordering is now proven.
+     */
+    it("renders the server's order UNMODIFIED — the filter no longer re-ranks (U5)", () => {
+        // Deliberately the order the retired client sort would have INVERTED.
+        const first = makeIngredient({ id: 'ing_2', name: 'Baby spinach mix' });
+        const second = makeIngredient({ id: 'ing_1', name: 'Spinach' });
         useSearchIngredientsMock.mockReturnValue({
             isLoading: false,
             isError: false,
             isSuccess: true,
-            data: [substring, prefix],
+            data: [first, second],
         });
         const { result } = renderHook(() => useIngredientFilterSearch());
 
         act(() => result.current.setQuery('spin'));
         settleDebounce();
 
-        expect(result.current.viewState).toMatchObject({ results: [prefix, substring] });
+        expect(result.current.viewState).toMatchObject({ results: [first, second] });
     });
 });
 

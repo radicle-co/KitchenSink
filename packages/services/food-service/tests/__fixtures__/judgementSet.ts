@@ -3,11 +3,20 @@
  *
  * ## What this measures, and what it deliberately does not
  *
- * It measures the SERVER's ranking. U1 requires a second, separate baseline for what a user actually sees —
- * the client-re-sorted top-1 for every distinct query in the import corpus — because `rankIngredientSuggestions`
- * re-ranks within each provenance section and preserves the server's local-before-catalog order. "Zero
- * regressions" against server output alone would measure the server against itself while the picker silently
- * got worse. That second baseline is not here; it needs the import corpus.
+ * It measures the SERVER's ranking.
+ *
+ * ⚠️ **U5 (2026-08-22) COLLAPSED the second baseline U1 asked for, and the reason is worth recording.** U1
+ * required a separate "what a user actually sees" baseline because `rankIngredientSuggestions` re-ranked the
+ * server's page inside the picker, so server output and picker output were two different orderings and
+ * "zero regressions" against the former could hide a regression in the latter. That client re-sort is
+ * **retired** — owner ruling 2026-08-20, the server determines order on best-quality match — so the picker
+ * now renders exactly what the server returns and there is only ONE ordering left to measure.
+ *
+ * What does NOT collapse with it: the `local`-before-`catalog` SECTIONING, which is the server's blend
+ * (`ingredientSuggestion.ts`) and still means a `local` suggestion precedes a `catalog` one regardless of
+ * match quality. A judgement-set entry whose correct answer is a catalog row can therefore still be
+ * out-ranked by a local row, and that is a precedence question (plan deferred question 6, R10), not a
+ * ranking one. Measuring it needs the import corpus, which is not here.
  *
  * ## The annotation protocol, and why the numbers are useless without it
  *

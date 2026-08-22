@@ -13,8 +13,6 @@ export {
     isUnresolvedStatus,
     meetsIngredientSearchThreshold,
     nextMatchAction,
-    rankIngredientResults,
-    rankIngredientSuggestions,
     suggestionKey,
     suggestionName,
     toIngredientLine,

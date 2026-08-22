@@ -2,7 +2,7 @@
  * Headless-hook seam (CP-6/P2 sibling) — the recipe-SEARCH ingredient filter's typeahead (FR-006 gap #3).
  *
  * Composes the SAME shared, unit-tested search primitives `useIngredientResolver`
- * is built from — `useSearchIngredients` (the catalog typeahead query), `rankIngredientResults`,
+ * is built from — `useSearchIngredients` (the catalog typeahead query),
  * `meetsIngredientSearchThreshold`, `INGREDIENT_SEARCH_DEBOUNCE_MS`, and `useDebouncedValue` — rather than
  * the full resolver state machine. Reusing `useIngredientResolver` itself outright would be WRONG here, not
  * just heavier: that hook's `selectMatch`/`resolveLine` branch an `UNRESOLVED` catalog hit into
@@ -10,7 +10,7 @@
  * ingredient row). Filtering never needs any of that — a search result's `id` is already a valid
  * `ingredientIds` filter value regardless of its food-resolution status, and creating a brand-new
  * (zero-recipe) ingredient just to filter by it would be a wasted, confusing mutation with no matching
- * recipes. So this hook is READ-ONLY: search, rank, and hand back matches — the filter bar adds a picked
+ * recipes. So this hook is READ-ONLY: search and hand back the server's ranked matches — the filter bar adds a picked
  * match's `id` + `name` straight to filter state (`filters/model.ts`'s `addIngredientFilter`).
  *
  * Platform-agnostic: no DOM/React Native imports.
@@ -21,11 +21,7 @@ import { useState } from 'react';
 import { deriveIngredientFilterSearchViewState } from '../filters/model.js';
 import type { IngredientFilterSearchViewState } from '../filters/model.js';
 
-import {
-    INGREDIENT_SEARCH_DEBOUNCE_MS,
-    meetsIngredientSearchThreshold,
-    rankIngredientResults,
-} from './ingredientResolver.model.js';
+import { INGREDIENT_SEARCH_DEBOUNCE_MS, meetsIngredientSearchThreshold } from './ingredientResolver.model.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
 
 /** The state + actions {@link useIngredientFilterSearch} exposes to the filter bar's container. */
@@ -54,7 +50,9 @@ export function useIngredientFilterSearch(): UseIngredientFilterSearchResult {
         enabled: meetsIngredientSearchThreshold(debouncedTrimmed),
     });
 
-    const results = rankIngredientResults(search.data ?? [], trimmed);
+    // ⛔ The SERVER's order, unmodified (plan U5) — `rankIngredientResults` is retired. See the
+    // "RETIRED IN PLAN U5" note in `ingredientResolver.model.ts`.
+    const results = search.data ?? [];
 
     const viewState = deriveIngredientFilterSearchViewState({
         trimmed,

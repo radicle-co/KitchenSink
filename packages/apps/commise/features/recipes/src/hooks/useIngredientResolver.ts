@@ -70,7 +70,6 @@ import {
     INGREDIENT_SEARCH_DEBOUNCE_MS,
     meetsIngredientSearchThreshold,
     nextMatchAction,
-    rankIngredientSuggestions,
     toIngredientLine,
 } from './ingredientResolver.model.js';
 import type { IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
@@ -148,9 +147,12 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
     const candidates = useIngredientCandidates(disambiguating?.id ?? '', { enabled: disambiguating !== null });
     const resolveIngredient = useResolveIngredient();
 
-    // REQ-057: re-rank each provenance section by match quality (prefix > substring > fuzzy) so the picker's
-    // order is deterministic regardless of either catalog's own ordering — WITHIN sections, never across them.
-    const suggestions = rankIngredientSuggestions(search.data?.suggestions ?? [], trimmed);
+    // ⛔ The SERVER's order, unmodified (plan U5). This used to call `rankIngredientSuggestions`; that
+    // client re-sort is retired — see the "RETIRED IN PLAN U5" note in `ingredientResolver.model.ts` for
+    // why re-ranking a page the server had already truncated could not fix the ordering, and for where the
+    // replacement ranking now lives. The `local`-before-`catalog` sectioning is unchanged: it is a property
+    // of the server's blend, not of this hook.
+    const suggestions = search.data?.suggestions ?? [];
 
     /** Append a resolved line and reset the picker back to a blank search (drift #2 — see module doc). */
     const resolveLine = (ingredient: Ingredient): void => {

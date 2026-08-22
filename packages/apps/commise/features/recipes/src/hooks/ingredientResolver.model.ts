@@ -8,6 +8,33 @@
  * `web/src/components/recipes/IngredientPicker.tsx`, mobile `mobile/src/components/IngredientPicker.tsx`),
  * which duplicated this exact classification/projection logic — `isTerminalStatus`/`isUnresolvedStatus` were
  * named on web and inlined on mobile; CP-6 unifies both leaves on the named helpers here.
+ *
+ * ⛔ **RETIRED IN PLAN U5 — do not restore.** `rankIngredientResults` and `rankIngredientSuggestions` used
+ * to re-sort the server's page here by `PREFIX > SUBSTRING > FUZZY`, together with the `MatchRank` bucket
+ * classifier behind them.
+ *
+ * **Owner ruling (2026-08-20): the server determines order, on best-quality match.** REQ-057's INTENT —
+ * best match first — is preserved and better served; what was retired is its MECHANISM, a client-side
+ * heuristic that approximated relevance from string shape rather than scoring it. Three reasons it had to
+ * go, not one:
+ *
+ *  1. **It could only ever reorder a page the broken sort key had already selected.** The server truncates
+ *     before the client sees anything — the local table at `DEFAULT_SEARCH_LIMIT = 10`, the catalog at
+ *     `SEARCH_LIMIT = 20` — so a row the server ranked out of the page was unreachable here whatever this
+ *     function did.
+ *  2. **The IMPORTER never ran it.** It reads `suggestions[0]` straight off the API, so the measurement the
+ *     whole plan is denominated in (~900 of 2,432 lines carrying a wrong `food_id`) was taken against the
+ *     SERVER's order. Two rankers meant the product and its own measurement disagreed about every query.
+ *  3. **It masked the defect rather than fixing it.** Re-ranking within each provenance section preserved
+ *     `local` before `catalog`, so a wrong `local` suggestion still outranked a correct `catalog` one
+ *     regardless of match quality — while making the single-token cases look fine in the picker.
+ *
+ * ⚠️ **The sectioning is NOT retired with it**, and it never lived here: `IngredientSuggestion`'s blend on
+ * the server orders `[local text hits] -> [promoted rows] -> [catalog hits]`, and this module now renders
+ * that order untouched. The replacement ranking lives in the two Scoring Policies
+ * (`food-service/src/foods/dao/foodRelevance.ts`, `recipe-service/src/ingredients/dal/ingredientRelevance.ts`)
+ * over the shared ladder in `@kitchensink/recipe-core/resolution/ranking-tiers`, and is proven against a
+ * real database by each service's ranking integration suite plus the shared conformance contract.
  */
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
@@ -36,62 +63,6 @@ export function meetsIngredientSearchThreshold(trimmed: string): boolean {
     return trimmed.length >= MIN_INGREDIENT_QUERY_LENGTH;
 }
 
-/**
- * REQ-057's three match-quality buckets, in descending rank order (0 = best). A plain `as const` object
- * (not a `const enum`) — this codebase's discriminated-union idiom, and it avoids `const enum`'s
- * isolatedModules fragility (a `const enum` cannot be used across a module boundary once each file is
- * transpiled in isolation, which is exactly this monorepo's TS config).
- */
-const MatchRank = {
-    PREFIX: 0,
-    SUBSTRING: 1,
-    FUZZY: 2,
-} as const;
-
-type MatchRank = (typeof MatchRank)[keyof typeof MatchRank];
-
-/** Classify one ingredient name's match quality against the (already lower-cased) query. Pure. */
-function matchRank(name: string, lowerQuery: string): MatchRank {
-    if (lowerQuery.length === 0) {
-        return MatchRank.PREFIX;
-    }
-
-    const lowerName = name.toLowerCase();
-
-    if (lowerName.startsWith(lowerQuery)) {
-        return MatchRank.PREFIX;
-    }
-
-    if (lowerName.includes(lowerQuery)) {
-        return MatchRank.SUBSTRING;
-    }
-
-    return MatchRank.FUZZY;
-}
-
-/**
- * Rank ingredient search results by match quality (REQ-057): a prefix match beats a substring match beats
- * everything else (a "fuzzy" match — whatever the backend's trigram/FTS search deemed relevant but that
- * does not literally contain the query), with ties broken alphabetically by display name. Returns a NEW
- * array — the input is never mutated. Pure.
- *
- * @param results - The unranked search results (in whatever order the backend returned them).
- * @param query - The raw search-box query the results were matched against.
- * @returns A new array, re-ordered per REQ-057.
- */
-export function rankIngredientResults(results: readonly Ingredient[], query: string): Ingredient[] {
-    const lowerQuery = query.toLowerCase();
-
-    return [...results].sort((a, b) => byMatchQuality(a.name, b.name, lowerQuery));
-}
-
-/** Compare two display names by REQ-057 match quality against an already-lower-cased query. Pure. */
-function byMatchQuality(aName: string, bName: string, lowerQuery: string): number {
-    const rankDiff = matchRank(aName, lowerQuery) - matchRank(bName, lowerQuery);
-
-    return rankDiff !== 0 ? rankDiff : aName.localeCompare(bName);
-}
-
 /** The display name of a blended suggestion, whichever provenance it has. Pure. */
 export function suggestionName(suggestion: IngredientSuggestion): string {
     return suggestion.provenance === 'local' ? suggestion.ingredient.name : suggestion.name;
@@ -109,33 +80,6 @@ export function suggestionName(suggestion: IngredientSuggestion): string {
  */
 export function suggestionKey(suggestion: IngredientSuggestion): string {
     return suggestion.provenance === 'local' ? `local:${suggestion.ingredient.id}` : `catalog:${suggestion.foodId}`;
-}
-
-/**
- * Re-rank a blended suggestion list by REQ-057 match quality **WITHIN each provenance section**, preserving
- * the section order the server chose (all `local` before all `catalog`). Returns a NEW array; pure.
- *
- * Ranking per section rather than across the whole list is the point: the server already sections these, and
- * the picker renders them as two labeled lists. A global sort would interleave them and re-create exactly the
- * reorder/layout-shift jank the sectioned design exists to prevent. Within a section, prefix > substring >
- * fuzzy (with alphabetical ties) is applied to BOTH — the catalog's own relevance score is not a match-quality
- * signal, and un-reranked catalog scores are what produce the classic "almonds" → "almond milk" first result.
- *
- * @param suggestions - The blended suggestions as the server returned them.
- * @param query - The raw search-box query they were matched against.
- * @returns A new array, each section internally re-ordered per REQ-057.
- */
-export function rankIngredientSuggestions(
-    suggestions: readonly IngredientSuggestion[],
-    query: string,
-): IngredientSuggestion[] {
-    const lowerQuery = query.toLowerCase();
-    const rankSection = (provenance: IngredientSuggestion['provenance']): IngredientSuggestion[] =>
-        suggestions
-            .filter((suggestion) => suggestion.provenance === provenance)
-            .sort((a, b) => byMatchQuality(suggestionName(a), suggestionName(b), lowerQuery));
-
-    return [...rankSection('local'), ...rankSection('catalog')];
 }
 
 /** Whether a food resolution is terminal — no nutrition will ever arrive (FR-007). */
@@ -254,7 +198,7 @@ export interface DeriveViewStateInput {
      * search itself came back empty) — see the `searching` kind's doc on {@link IngredientResolverViewState}.
      */
     readonly debouncedTrimmed: string;
-    /** The blended suggestions (already section-ranked by {@link rankIngredientSuggestions}). */
+    /** The blended suggestions, in the SERVER's order (sectioned `local` before `catalog`, U5). */
     readonly suggestions: readonly IngredientSuggestion[];
     /** Whether the food catalog contributed to this blend (F2). */
     readonly catalogAvailability: IngredientCatalogAvailability;

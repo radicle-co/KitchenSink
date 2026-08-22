@@ -848,3 +848,63 @@ describe('RecipeDetailView (native) — serving scale', () => {
         expect(screen.getByText('250')).toBeTruthy();
     });
 });
+
+/**
+ * U9 / R42 + R38 — a ranged or absent quantity on the READ surface, native leaf.
+ *
+ * The one-for-one mirror of the web suite's block. The accessible name is composed from the SAME
+ * `formatQuantity` output both platforms share, so an en-dash rendered on one and not the other fails here.
+ */
+describe('RecipeDetailView (native) — ranged and absent quantities (U9)', () => {
+    it('renders a stated range as a span, not as its lower bound alone', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            quantity: { kind: 'range', low: 2, high: 3 },
+                            unit: 'cups',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByLabelText('2–3 cups Flour')).toBeTruthy();
+    });
+
+    it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Butter',
+                            quantity: { kind: 'absent' },
+                            unit: 'the size of an egg',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByLabelText('the size of an egg Butter')).toBeTruthy();
+        expect(screen.queryByLabelText(/^0 /u)).toBeNull();
+        expect(screen.queryByLabelText(/^1 /u)).toBeNull();
+    });
+
+    it('discloses that the nutrition figure came from one bound of a stated range (R38)', () => {
+        render(
+            <RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ rangeDerivedBound: 'low' }) })} />,
+        );
+
+        expect(screen.getByText('Estimated from the lower amount of each stated range')).toBeTruthy();
+    });
+
+    it('shows NO range disclosure when nothing was collapsed', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition() })} />);
+
+        expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
+    });
+});

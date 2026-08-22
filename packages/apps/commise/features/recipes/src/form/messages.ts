@@ -69,8 +69,21 @@ export interface RecipeFormMessages {
     readonly ingredientsHeading: string;
     /** Ingredient-name field label template (contains `{number}`). */
     readonly ingredientNameLabel: string;
-    /** Ingredient-quantity field label template (contains `{number}`). */
+    /**
+     * Ingredient-quantity field label template for the LOWER bound (contains `{number}`).
+     *
+     * Still just "quantity", not "minimum quantity": for the overwhelmingly common line that states one
+     * amount, this field IS the quantity, and naming it after the rarer range case would make every
+     * ordinary row read oddly to a screen-reader user.
+     */
     readonly ingredientQuantityLabel: string;
+    /**
+     * Ingredient-quantity field label template for the optional UPPER bound (contains `{number}`; U9/R42).
+     *
+     * A distinct accessible NAME, not a shared one — two spinbuttons with the same name inside one row are
+     * indistinguishable to anyone navigating by name, which is the whole failure WCAG 3.3.2 addresses.
+     */
+    readonly ingredientQuantityHighLabel: string;
     /** Ingredient-unit field label template (contains `{number}`). */
     readonly ingredientUnitLabel: string;
     /** Accessible label for an ingredient line's resolution-status badge (contains `{number}`). */
@@ -91,6 +104,13 @@ export interface RecipeFormMessages {
     readonly nutritionTotalTemplate: string;
     /** Honest affordance shown alongside the total when it is partial (FR-007 — some lines aren't counted yet). */
     readonly nutritionPartialNotice: string;
+    /**
+     * Disclosure shown alongside the running total when a line states a RANGE and the figure was computed
+     * from its LOWER bound (R38). A whole sentence per bound — see `rangeDerivedNotice`.
+     */
+    readonly nutritionRangeDerivedLow: string;
+    /** The same disclosure for a figure computed from the UPPER bound (R38). */
+    readonly nutritionRangeDerivedHigh: string;
 
     /** Resolution-status badge: awaiting resolution. */
     readonly statusPending: string;
@@ -124,6 +144,7 @@ export interface RecipeFormMessages {
         readonly titleRequired: string;
         readonly ingredientsEmpty: string;
         readonly ingredientsUnresolved: string;
+        readonly ingredientsQuantityInvalid: string;
         readonly stepsRequired: string;
         readonly servingsPositive: string;
         readonly timesNonNegative: string;
@@ -164,6 +185,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         ingredientsHeading: 'Ingredients',
         ingredientNameLabel: 'Ingredient {number} name',
         ingredientQuantityLabel: 'Ingredient {number} quantity',
+        ingredientQuantityHighLabel: 'Ingredient {number} maximum quantity',
         ingredientUnitLabel: 'Ingredient {number} unit',
         ingredientStatusLabel: 'Ingredient {number} status',
         addIngredient: 'Add ingredient',
@@ -172,6 +194,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         ingredientCaloriesTemplate: '{calories} cal',
         nutritionTotalTemplate: 'Total nutrition (per serving): {calories} cal | {protein}g P | {carbs}g C | {fat}g F',
         nutritionPartialNotice: 'Partial — some ingredients aren’t counted yet',
+        nutritionRangeDerivedLow: 'Estimated from the lower amount of each stated range',
+        nutritionRangeDerivedHigh: 'Estimated from the upper amount of each stated range',
 
         statusPending: 'Resolving…',
         statusUnresolved: 'Not resolved',
@@ -191,7 +215,12 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         errors: {
             titleRequired: 'A title is required.',
             ingredientsEmpty: 'Add at least one ingredient.',
-            ingredientsUnresolved: 'Every ingredient needs a resolved item and a quantity greater than zero.',
+            // U9 split this sentence in two. It used to read "...a resolved item AND a quantity greater than
+            // zero", which stopped being true when an absent quantity became legal (R40): a line may now
+            // state no amount at all. Each code names the one field it is about.
+            ingredientsUnresolved: 'Every ingredient needs an item picked from the list.',
+            ingredientsQuantityInvalid:
+                'Check the quantities: an amount must be greater than zero, and a maximum must be above it. Leave both blank if the recipe states no amount.',
             stepsRequired: 'Add at least one instruction step.',
             servingsPositive: 'Servings must be greater than zero.',
             timesNonNegative: 'Times cannot be negative.',

@@ -8,7 +8,7 @@
 import type { ReactNode } from 'react';
 
 import type { Locale } from '@commise/i18n';
-import type { IngredientQuantity, RecipeDetail } from '@kitchensink/recipe-core';
+import type { IngredientQuantity, RecipeDetail, RecipeNutrition } from '@kitchensink/recipe-core';
 
 /**
  * Separates the two bounds of a stated range (`2–3 cups`).
@@ -22,8 +22,11 @@ import type { IngredientQuantity, RecipeDetail } from '@kitchensink/recipe-core'
  * only the glyph between them is fixed.
  *
  * An EN DASH, deliberately: it is the typographic convention for a numeric span in every locale this ships
- * to, and it is punctuation rather than copy, so it does not belong in the message catalogue. U9 owns the
- * final presentation of a ranged quantity on both platforms and may revisit it.
+ * to, and it is punctuation rather than copy, so it does not belong in the message catalogue.
+ *
+ * U9 reviewed this and KEPT it, on the reasoning above rather than by inheritance: `formatRange` would need
+ * a `NumberFormat` polyfill decision before it could be used, and the same glyph is now also what separates
+ * the editor's two numeric inputs, so the read and the write surface use one separator on both platforms.
  */
 const RANGE_SEPARATOR = '–';
 
@@ -67,6 +70,38 @@ export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, uni
 
     return hasUnit ? `${formattedQuantity} ${unit}` : formattedQuantity;
 };
+
+/** Which bound a collapsed range contributed from — DERIVED from the model, never re-declared. */
+type RangeDerivedBound = NonNullable<RecipeNutrition['rangeDerivedBound']>;
+
+/**
+ * The localized sentence for each bound a nutrition figure can have been taken from.
+ *
+ * A `Record` over the union rather than two loose strings: a third bound added to the model is a COMPILE
+ * error at every call site instead of a caveat that silently renders nothing. Each entry is a WHOLE
+ * sentence for the same reason `nutrition/messages.ts` gives — a figure with a qualifier concatenated on
+ * reads as one sentence in English and as nonsense in a language that inflects or fronts the qualifier.
+ */
+export type RangeDerivedNotices = Readonly<Record<RangeDerivedBound, string>>;
+
+/**
+ * The R38 disclosure for a per-serving figure computed from ONE bound of a stated range. Pure — the single
+ * selector both platforms and both surfaces (the detail read view and the editor's running total) use.
+ *
+ * ⛔ Load-bearing honesty, not decoration. A total computed from `2 cups` when the line reads `2 to 3 cups`
+ * is up to a third under and is otherwise indistinguishable from an exact one. The model makes the FIELD's
+ * presence the disclosure (there is no "not applicable" value), and this function keeps that property: no
+ * collapsed range yields `undefined`, and a caller renders nothing rather than a reassuring sentence.
+ *
+ * The bound is READ, never assumed. Today's policy only ever collapses to `low`, so hard-coding the copy
+ * would pass every test and start lying the day the policy changes server-side.
+ *
+ * @param nutrition - The per-serving figures, carrying the bound marker when a range was collapsed.
+ * @param notices - The localized sentence for each bound.
+ * @returns The disclosure to render, or `undefined` when no range was collapsed.
+ */
+export const rangeDerivedNotice = (nutrition: RecipeNutrition, notices: RangeDerivedNotices): string | undefined =>
+    nutrition.rangeDerivedBound === undefined ? undefined : notices[nutrition.rangeDerivedBound];
 
 /**
  * Props for the recipe-detail HERO cover, shared by the web (`RecipeHero.tsx`) and native

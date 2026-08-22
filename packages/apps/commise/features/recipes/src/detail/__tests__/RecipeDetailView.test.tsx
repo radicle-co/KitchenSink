@@ -801,3 +801,65 @@ describe('RecipeDetailView (web) — serving scale', () => {
         expect(screen.getByLabelText('Servings')).toHaveProperty('value', '250');
     });
 });
+
+/**
+ * U9 / R42 + R38 — a ranged or absent quantity on the READ surface.
+ *
+ * The checkbox's accessible name is the assertion that matters: it is composed from the same formatted
+ * quantity the sighted row shows, so a bound dropped from one is dropped from both. The native suite
+ * asserts the identical set.
+ */
+describe('RecipeDetailView (web) — ranged and absent quantities (U9)', () => {
+    it('renders a stated range as a span, not as its lower bound alone', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            quantity: { kind: 'range', low: 2, high: 3 },
+                            unit: 'cups',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByRole('checkbox', { name: '2–3 cups Flour' })).toBeTruthy();
+    });
+
+    it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Butter',
+                            quantity: { kind: 'absent' },
+                            unit: 'the size of an egg',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByRole('checkbox', { name: 'the size of an egg Butter' })).toBeTruthy();
+        // Mutation guard: a `?? 0` or a `?? 1` fallback would put a digit in front of a cook here.
+        expect(screen.queryByRole('checkbox', { name: /^0 /u })).toBeNull();
+        expect(screen.queryByRole('checkbox', { name: /^1 /u })).toBeNull();
+    });
+
+    it('discloses that the nutrition figure came from one bound of a stated range (R38)', () => {
+        render(
+            <RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition({ rangeDerivedBound: 'low' }) })} />,
+        );
+
+        expect(screen.getByText('Estimated from the lower amount of each stated range')).toBeTruthy();
+    });
+
+    it('shows NO range disclosure when nothing was collapsed', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ nutrition: makeNutrition() })} />);
+
+        expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
+    });
+});

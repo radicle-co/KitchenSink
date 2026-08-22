@@ -69,6 +69,8 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     placeholder always comes down. Its own docblock says so; do not "fix" it by asserting a number.
 #   - `recipes/discover-browse` sits with the other read-only discovery flows (it types and clears a query but
 #     mutates nothing, so it is order-independent).
+#   - `recipes/quantity-range` sits with the other CREATE-wizard flows and immediately after `create`: it
+#     publishes (twice), so it mutates the library, and it shares `create`'s freeform-resolve prelude.
 #   - `recipes/ingredient-catalog-blend` sits with the other CREATE-wizard flows: it publishes a recipe, so it
 #     belongs in the mutating cluster rather than among the read-only ones. It is the F2 (degraded-catalog)
 #     contract — this job boots recipe-service and deliberately NOT the food service, so the blended
@@ -122,6 +124,7 @@ collections:recipes/collections-visibility
 collections:recipes/collections-clone
 collections:recipes/collections-pull
 recipes:recipes/create
+recipes:recipes/quantity-range
 recipes:recipes/ingredient-catalog-blend
 recipes:recipes/photos
 recipes:recipes/accessibility

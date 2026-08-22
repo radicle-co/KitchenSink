@@ -10,7 +10,16 @@ import { RecipeDifficulty } from '@kitchensink/recipe-core';
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
 import type { RecipeFormMessages } from '../messages.js';
-import { addChip, difficultyOptions, removeChipAt, setDifficulty } from '../props.js';
+import {
+    addChip,
+    difficultyOptions,
+    parseQuantityBound,
+    quantityInputValue,
+    removeChipAt,
+    setDifficulty,
+    setIngredientQuantityHigh,
+    setIngredientQuantityLow,
+} from '../props.js';
 
 const messages: Pick<
     RecipeFormMessages,
@@ -125,5 +134,102 @@ describe('removeChipAt (U6 tag/dietary chip control)', () => {
         const list = ['a', 'b'];
         removeChipAt(list, 0);
         expect(list).toEqual(['a', 'b']);
+    });
+});
+
+describe('parseQuantityBound (U9 — a quantity field states an amount or states nothing)', () => {
+    it('parses a stated amount', () => {
+        expect(parseQuantityBound('2')).toBe(2);
+    });
+
+    it('parses a fractional amount', () => {
+        expect(parseQuantityBound('0.5')).toBe(0.5);
+    });
+
+    it('reports a BLANK field as no bound at all — never as a zero (R40)', () => {
+        // ⛔ The mutation this pins: `Number('')` is `0`, so the obvious `parseNumericInput` reuse turns an
+        // emptied field into a stated amount of zero. `undefined` is what lets `absent` stay absent.
+        expect(parseQuantityBound('')).toBeUndefined();
+        expect(parseQuantityBound('   ')).toBeUndefined();
+    });
+
+    it('reports unparseable text as no bound', () => {
+        expect(parseQuantityBound('abc')).toBeUndefined();
+    });
+
+    it('keeps a zero or a negative as the STATED number, so validation can refuse it', () => {
+        // Not coerced to `undefined`: the user typed a number, and telling them it is not an amount is a
+        // different message from silently deciding they stated nothing.
+        expect(parseQuantityBound('0')).toBe(0);
+        expect(parseQuantityBound('-1')).toBe(-1);
+    });
+});
+
+describe('quantityInputValue (U9 — what a quantity field DISPLAYS)', () => {
+    it('shows a stated amount', () => {
+        expect(quantityInputValue(2)).toBe('2');
+    });
+
+    it('shows an absent bound as an EMPTY field, not a zero and not "NaN" (R40)', () => {
+        expect(quantityInputValue(undefined)).toBe('');
+        expect(quantityInputValue(Number.NaN)).toBe('');
+    });
+
+    it('shows a zero the user actually typed', () => {
+        expect(quantityInputValue(0)).toBe('0');
+    });
+});
+
+describe('setIngredientQuantityLow (U9)', () => {
+    const values = makeRecipeFormValues();
+
+    it('states the lower bound', () => {
+        expect(setIngredientQuantityLow(values, 0, 3).ingredients[0]?.quantity).toBe(3);
+    });
+
+    it('clears the lower bound to the draft`s absent sentinel', () => {
+        expect(setIngredientQuantityLow(values, 0, undefined).ingredients[0]?.quantity).toBeNaN();
+    });
+
+    it('leaves other fields on the line untouched', () => {
+        const next = setIngredientQuantityLow(values, 0, 3);
+
+        expect(next.ingredients[0]?.unit).toBe('tbsp');
+        expect(next.title).toBe(values.title);
+    });
+});
+
+describe('setIngredientQuantityHigh (U9)', () => {
+    const values = makeRecipeFormValues();
+
+    it('states the upper bound', () => {
+        expect(setIngredientQuantityHigh(values, 0, 3).ingredients[0]?.quantityHigh).toBe(3);
+    });
+
+    it('REMOVES the key when the upper bound is cleared (never an explicit undefined)', () => {
+        // Mirrors `setDifficulty`: `exactOptionalPropertyTypes` forbids storing `undefined`, and an absent
+        // key is what `statedQuantity` reads as "one value, not a range".
+        const stated = setIngredientQuantityHigh(values, 0, 3);
+        const cleared = setIngredientQuantityHigh(stated, 0, undefined);
+
+        expect('quantityHigh' in (cleared.ingredients[0] ?? {})).toBe(false);
+    });
+
+    it('does not touch the lower bound', () => {
+        expect(setIngredientQuantityHigh(values, 0, 3).ingredients[0]?.quantity).toBe(2);
+    });
+
+    it('patches only the addressed line', () => {
+        const twoLines = makeRecipeFormValues({
+            ingredients: [
+                { ingredientId: 'a', name: 'Flour', quantity: 2 },
+                { ingredientId: 'b', name: 'Water', quantity: 1 },
+            ],
+        });
+
+        const next = setIngredientQuantityHigh(twoLines, 1, 2);
+
+        expect(next.ingredients[0]?.quantityHigh).toBeUndefined();
+        expect(next.ingredients[1]?.quantityHigh).toBe(2);
     });
 });

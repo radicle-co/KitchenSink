@@ -55,7 +55,15 @@ export interface RecipeFormSectionProps {
     readonly onChange: (next: RecipeFormValues) => void;
 }
 
-/** A blank ingredient line: unresolved (no catalog id yet), empty name, quantity 1. */
+/**
+ * A blank ingredient line: unresolved (no catalog id yet), empty name, quantity 1.
+ *
+ * ⚠️ STILL `1`, not the absent sentinel, and the asymmetry with {@link parseQuantityBound} is deliberate. A
+ * cook ADDING a line is overwhelmingly stating an amount, and U9 made "no amount" submittable — so seeding
+ * an empty low bound would let a distracted author publish an ingredient with no quantity by doing nothing
+ * at all. Absence has to be something the author states (by clearing the field), exactly as it is something
+ * a SOURCE states; it is not a default anyone falls into.
+ */
 export const blankIngredient = (): RecipeFormIngredient => ({ ingredientId: null, name: '', quantity: 1 });
 
 /** A blank instruction step: empty instruction, no timer. */
@@ -99,6 +107,95 @@ export const updateIngredientAt = (
 ): RecipeFormValues => ({
     ...values,
     ingredients: values.ingredients.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+});
+
+/**
+ * Parse one QUANTITY bound's raw input text (U9). Pure.
+ *
+ * ⛔ NOT {@link parseNumericInput}, and reusing that one here is the single most tempting mistake in this
+ * unit. `Number('')` is `0`, so the shared parser turns an emptied quantity field into a stated amount of
+ * zero — which R40 spent a whole migration removing as a second spelling of "the source stated no amount".
+ * The two parsers answer different questions: servings and times must always hold a number, a quantity
+ * bound may legitimately hold nothing.
+ *
+ * A typed `0` or a negative is returned AS the number the user typed, not folded into `undefined`.
+ * "That is not an amount" and "you stated no amount" are different things to tell someone, and
+ * `draftQuantityVerdict` (`./model.ts`) can only distinguish them if this parser preserves the difference.
+ *
+ * @param text - The raw input text.
+ * @returns The stated number, or `undefined` when the field is blank or holds nothing numeric.
+ */
+export const parseQuantityBound = (text: string): number | undefined => {
+    const trimmed = text.trim();
+
+    if (trimmed === '') {
+        return undefined;
+    }
+
+    const value = Number(trimmed);
+
+    return Number.isFinite(value) ? value : undefined;
+};
+
+/**
+ * The text a quantity input DISPLAYS for one bound (U9). Pure — the single formatter both platform leaves
+ * use, so an absent amount cannot render as an empty field on one platform and as something else on the other.
+ *
+ * ⛔ An absent bound renders as the EMPTY STRING. The draft spells an absent lower bound `NaN`
+ * (`RecipeFormIngredient.quantity` is a required `number`), and `String(Number.NaN)` is the literal text
+ * `"NaN"` — which is what a naive `String(line.quantity)` would have put inside the input.
+ *
+ * @param bound - The stated bound, or `undefined`/`NaN` when the line states none.
+ * @returns The input's value text (`''` when no amount is stated).
+ */
+export const quantityInputValue = (bound?: number): string =>
+    bound === undefined || !Number.isFinite(bound) ? '' : String(bound);
+
+/**
+ * Set (or clear) the LOWER bound of the ingredient line at `index` (U9). Pure.
+ *
+ * Clearing stores the draft's absent sentinel (`NaN`) rather than `0`: `quantity` is a required `number` on
+ * the draft, and `0` is the value R40 exists to stop meaning "unstated".
+ *
+ * @param values - The current form values.
+ * @param index - The zero-based line index.
+ * @param low - The stated lower bound, or `undefined` to state no amount.
+ * @returns The next values with that line's lower bound set or cleared.
+ */
+export const setIngredientQuantityLow = (values: RecipeFormValues, index: number, low?: number): RecipeFormValues =>
+    updateIngredientAt(values, index, { quantity: low ?? Number.NaN });
+
+/**
+ * Set (or clear) the UPPER bound of the ingredient line at `index` (U9). Pure.
+ *
+ * Clearing REMOVES the key, exactly as {@link setDifficulty} does: `exactOptionalPropertyTypes` forbids
+ * storing an explicit `undefined`, and — more importantly — `statedQuantity` reads an absent `quantityHigh`
+ * as "one value, not a range". A stored `undefined` would type-check and mean the same thing today, and
+ * would be the kind of near-miss that survives until something iterates the line's own keys.
+ *
+ * ⛔ Deliberately NOT expressible through {@link updateIngredientAt}: a `Partial` patch can only ADD or
+ * overwrite a key, never delete one, so "clear the upper bound" needs its own transition.
+ *
+ * @param values - The current form values.
+ * @param index - The zero-based line index.
+ * @param high - The stated upper bound, or `undefined` to state a single value.
+ * @returns The next values with that line's upper bound set or removed.
+ */
+export const setIngredientQuantityHigh = (
+    values: RecipeFormValues,
+    index: number,
+    high?: number,
+): RecipeFormValues => ({
+    ...values,
+    ingredients: values.ingredients.map((line, i) => {
+        if (i !== index) {
+            return line;
+        }
+
+        const { quantityHigh: _cleared, ...rest } = line;
+
+        return high === undefined ? rest : { ...rest, quantityHigh: high };
+    }),
 });
 
 /**

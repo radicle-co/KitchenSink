@@ -482,7 +482,18 @@ describe('RecipeForm (web) — B8 error accessibility wiring (aria-invalid + ari
         expect(cook.getAttribute('aria-describedby')).toBe(alert.id);
     });
 
-    it('wires only the offending ingredient line(s) to the ingredients alert, per field (WCAG 3.3.1)', () => {
+    /**
+     * REWRITTEN for U9, and SPLIT in two — one test per error code.
+     *
+     * The original rendered ONE `ingredientsUnresolved` error over a list holding both an unresolved line
+     * and a zero-quantity line, and asserted that each control was marked. That was only ever coherent
+     * because the two failures shared a code and a sentence; U9 gave them their own, so a form showing "every
+     * ingredient needs an item picked from the list" must NOT mark a quantity field — pointing a user at a
+     * control the message is not about is the WCAG 3.3.1 failure this suite exists to catch, not a smaller
+     * version of satisfying it. The property proved is unchanged and now sharper: only the offending
+     * control(s) on the offending line(s) are wired to the alert.
+     */
+    it('wires only the UNRESOLVED lines to an ingredientsUnresolved alert (WCAG 3.3.1)', () => {
         renderForm({
             values: filledValues({
                 ingredients: [
@@ -496,7 +507,7 @@ describe('RecipeForm (web) — B8 error accessibility wiring (aria-invalid + ari
 
         const alert = screen.getByRole('alert');
 
-        // Line 1: unresolved name should be invalid, its quantity (1, valid) should not.
+        // Line 1 — the unresolved name is the offending control.
         expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-invalid')).toBe('true');
         expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-describedby')).toBe(
             alert.id,
@@ -505,19 +516,41 @@ describe('RecipeForm (web) — B8 error accessibility wiring (aria-invalid + ari
             screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' }).getAttribute('aria-invalid'),
         ).toBeNull();
 
-        // Line 2: resolved name should be valid, its zero quantity should be invalid.
+        // Line 2 — resolved, so nothing is marked, INCLUDING its zero quantity: this alert is not about it.
         expect(screen.getByRole('textbox', { name: 'Ingredient 2 name' }).getAttribute('aria-invalid')).toBeNull();
-        expect(screen.getByRole('spinbutton', { name: 'Ingredient 2 quantity' }).getAttribute('aria-invalid')).toBe(
-            'true',
-        );
-        expect(screen.getByRole('spinbutton', { name: 'Ingredient 2 quantity' }).getAttribute('aria-describedby')).toBe(
-            alert.id,
-        );
+        expect(
+            screen.getByRole('spinbutton', { name: 'Ingredient 2 quantity' }).getAttribute('aria-invalid'),
+        ).toBeNull();
 
         // Line 3: fully valid — neither input marked invalid.
         expect(screen.getByRole('textbox', { name: 'Ingredient 3 name' }).getAttribute('aria-invalid')).toBeNull();
         expect(
             screen.getByRole('spinbutton', { name: 'Ingredient 3 quantity' }).getAttribute('aria-invalid'),
+        ).toBeNull();
+    });
+
+    it('wires only the offending QUANTITY lines to an ingredientsQuantityInvalid alert (WCAG 3.3.1)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Salt', quantity: 0 },
+                    { ingredientId: 'ing_2', name: 'Pepper', quantity: 1 },
+                ],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' }).getAttribute('aria-invalid')).toBe(
+            'true',
+        );
+        expect(screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' }).getAttribute('aria-describedby')).toBe(
+            alert.id,
+        );
+        expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-invalid')).toBeNull();
+        expect(
+            screen.getByRole('spinbutton', { name: 'Ingredient 2 quantity' }).getAttribute('aria-invalid'),
         ).toBeNull();
     });
 
@@ -1235,5 +1268,197 @@ describe('RecipeForm (web) — a long tag cannot push its own remove control out
         expect(chip?.className).toContain('min-w-0');
         expect(chip?.className).toContain('break-words');
         expect(remove.className).toContain('shrink-0');
+    });
+});
+
+/**
+ * U9 / R42 — the two-bound quantity field.
+ *
+ * One ingredient line now offers a lower and an upper numeric input sharing a single unit field. Every
+ * state the pair can be in is covered here, not just the exact one: a single value, a stated range, no
+ * amount at all, and each incoherent pair that must block submission. The native suite asserts the same
+ * list, so the two platforms cannot diverge on what a range looks like or on which control is marked.
+ */
+describe('RecipeForm (web) — ranged quantity (U9/R42)', () => {
+    const lowField = (number = 1) =>
+        screen.getByRole<HTMLInputElement>('spinbutton', { name: `Ingredient ${number} quantity` });
+    const highField = (number = 1) =>
+        screen.getByRole<HTMLInputElement>('spinbutton', { name: `Ingredient ${number} maximum quantity` });
+
+    it('renders BOTH bounds of a stated range, sharing one unit field', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3, unit: 'cups' }],
+            }),
+        });
+
+        expect(lowField().value).toBe('2');
+        expect(highField().value).toBe('3');
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 unit' }).value).toBe('cups');
+    });
+
+    it('leaves the upper bound EMPTY for a single stated value', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+        });
+
+        expect(lowField().value).toBe('2');
+        expect(highField().value).toBe('');
+    });
+
+    it('renders an ABSENT quantity as an empty field, never a zero (R40)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Butter', quantity: Number.NaN, unit: 'the size of an egg' },
+                ],
+            }),
+        });
+
+        expect(lowField().value).toBe('');
+        expect(highField().value).toBe('');
+    });
+
+    it('states an upper bound when the user types one', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+            onChange,
+        });
+
+        await user.type(highField(), '3');
+
+        expect(onChange).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+        );
+    });
+
+    it('CLEARS the upper bound back to a single value when the field is emptied', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+            onChange,
+        });
+
+        await user.clear(highField());
+
+        const next = onChange.mock.calls.at(-1)?.[0] as RecipeFormValues;
+        expect('quantityHigh' in (next.ingredients[0] ?? {})).toBe(false);
+    });
+
+    it('clears the LOWER bound to an absent amount when emptied, not to a zero', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+            onChange,
+        });
+
+        await user.clear(lowField());
+
+        const next = onChange.mock.calls.at(-1)?.[0] as RecipeFormValues;
+        expect(next.ingredients[0]?.quantity).toBeNaN();
+    });
+
+    it('marks BOTH bounds invalid and wires them to the alert when the range is incoherent (WCAG 3.3.1)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 3, quantityHigh: 2 }],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(alert.textContent).toContain('above');
+        expect(lowField().getAttribute('aria-invalid')).toBe('true');
+        expect(lowField().getAttribute('aria-describedby')).toBe(alert.id);
+        expect(highField().getAttribute('aria-invalid')).toBe('true');
+        expect(highField().getAttribute('aria-describedby')).toBe(alert.id);
+    });
+
+    it('marks NEITHER bound on a line whose quantity is absent — absence is not an error', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Butter', quantity: Number.NaN },
+                    { ingredientId: 'ing_2', name: 'Flour', quantity: 3, quantityHigh: 2 },
+                ],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        expect(lowField(1).getAttribute('aria-invalid')).toBeNull();
+        expect(highField(1).getAttribute('aria-invalid')).toBeNull();
+        expect(lowField(2).getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('does NOT mark a quantity on an ingredientsUnresolved error — that error is about the picker', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: null, name: 'Flour', quantity: 0 }] }),
+            errors: { ingredients: 'ingredientsUnresolved' },
+        });
+
+        expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-invalid')).toBe('true');
+        expect(lowField().getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('discloses that the running total was computed from one bound of a range (R38)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    {
+                        ingredientId: 'ing_1',
+                        name: 'Flour',
+                        quantity: 100,
+                        quantityHigh: 200,
+                        unit: 'g',
+                        caloriesPer100g: 364,
+                    },
+                ],
+            }),
+        });
+
+        expect(screen.getByText('Estimated from the lower amount of each stated range')).toBeTruthy();
+    });
+
+    it('shows NO range disclosure when no line states a range', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 100, unit: 'g', caloriesPer100g: 364 }],
+            }),
+        });
+
+        expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
+    });
+});
+
+/**
+ * U9 — the glyph between the two bounds is PUNCTUATION, and must not reach assistive tech.
+ *
+ * Its own test on both platforms because the two spell "hidden" differently and the native spelling has a
+ * known trap: react-native-web translates RN's legacy `importantForAccessibility` pair to NO DOM attribute,
+ * so a leaf written that way ships a bare dash into the accessibility tree on the web build while looking
+ * correct in review (see `RecipeWidgetSkeleton.native.tsx`'s note).
+ */
+describe('RecipeForm (web) — the range separator is decorative', () => {
+    it('hides the separator glyph from the accessibility tree', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+        });
+
+        const separators = Array.from(document.body.querySelectorAll('[aria-hidden="true"]')).filter(
+            (element) => element.textContent === '–',
+        );
+
+        expect(separators).toHaveLength(1);
     });
 });

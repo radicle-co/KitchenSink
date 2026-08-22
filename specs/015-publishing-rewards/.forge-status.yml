@@ -45,8 +45,8 @@ phases:
         requirement_coverage: '47/47'
         blocked_requirements: 15
     migration_plan:
-        status: 'pending'
-        note: 'Conditional on plan.md Data Model section. Publication/RewardGrant/ImpactSignal entities make this likely.'
+        status: 'completed'
+        note: 'Triggered by plan.md data model. forward/rollback/validation SQL written and EXECUTED against PG16 and PG18.6 throwaway DBs. Found and fixed a non-working ratchet CHECK; found a table-name collision and a duplicated rating aggregate. Carries one REQUIRED owner decision: §3 grandfathering.'
     pre_impl_review:
         status: 'pending'
     implement:

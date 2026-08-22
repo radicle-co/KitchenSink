@@ -56,6 +56,53 @@ boundary.
 whom, when, and under what attestation. The spec's Key Entity keeps the name _Publication_; only the physical
 table is disambiguated.
 
+### 2.4 The ratchet was enforced by a CHECK, and the CHECK did not work
+
+`plan.md` §4 specified `contributor_standing` with `highest_tier_reached` and
+`CHECK (tier >= highest_tier_reached)`, described as making `FR-007i` "structural rather than disciplined".
+**It was tested against a live Postgres and it failed.**
+
+```
+INSERT INTO contributor_standing (owner_id, tier, highest_tier_reached) VALUES ('u1', 3, 3);
+UPDATE contributor_standing SET tier = 1 WHERE owner_id = 'u1';                          -- rejected ✅
+UPDATE contributor_standing SET tier = 1, highest_tier_reached = 1 WHERE owner_id = 'u1';-- ACCEPTED ❌
+-- result: tier 3 → 1. FR-007i violated.
+```
+
+A row-level `CHECK` only ever sees the candidate row. "Never decreases" compares **OLD to NEW** — it is a
+_transition_ constraint, and in Postgres that means a **trigger**. Lowering both columns in one statement
+satisfies the predicate trivially.
+
+**Corrected**: `highest_tier_reached` is dropped (redundant — if tier can never fall, tier _is_ the highest
+ever reached) and monotonicity is enforced by `trg_contributor_standing_ratchet`, a `BEFORE UPDATE` trigger
+raising `check_violation`. Re-tested: the attack above is now rejected, and legitimate upward transitions
+still succeed.
+
+**The general lesson, worth carrying**: any invariant phrased as "never decreases", "never reverts", "only
+ever grows" cannot be a CHECK. `FR-007i` governs the whole feature, so this shape will recur.
+
+## 2.5 Verification performed
+
+Not reasoned — executed. Applied to throwaway databases on **both** engines, against a minimal `recipes`
+stub so the FKs resolve:
+
+| Check                                           |     PG 16     | PG 18.6 |
+| ----------------------------------------------- | :-----------: | :-----: |
+| `forward.sql` applies clean                     |      ✅       |   ✅    |
+| Ratchet rejects `SET tier = 1`                  |      ✅       |   ✅    |
+| Ratchet rejects the both-columns attack         | ✅ (post-fix) |   ✅    |
+| Legitimate tier raise succeeds                  |      ✅       |   ✅    |
+| `FR-002` eligible-without-attestation rejected  |      ✅       |    —    |
+| `FR-002` ineligible-without-attestation allowed |      ✅       |    —    |
+| `FR-005` duplicate slot grant rejected          |      ✅       |    —    |
+| Reversal-without-reason rejected                |      ✅       |    —    |
+| `Q6` `FR-001` returns 0                         |      ✅       |    —    |
+| `rollback.sql` applies clean                    |       —       |   ✅    |
+
+PG18 was included because the platform is mid-upgrade (`21ddb4d2`, `dfcd1cbd` move RDS to PG 18). Nothing in
+this migration touches a PG18 behaviour change — notably it uses **no generated columns**, so the
+virtual-by-default change does not apply.
+
 ## 3. ⛔ The grandfathering decision — REQUIRED before this migration ships
 
 **Nobody has decided this, and it is not a migration detail — it is a product and privacy decision.**

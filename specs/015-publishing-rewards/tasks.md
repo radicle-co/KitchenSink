@@ -34,7 +34,7 @@
       Paths: packages/services/recipe-service/tests/rewardsMigration.integration.test.ts
       Test-first: true
       Size: S
-- [ ] TC011 — Integration test: `contributor_standing` CHECK rejects a tier decrease (FR-007i ratchet)
+- [ ] TC011 — Integration test: the ratchet TRIGGER rejects a tier decrease — including the both-columns attack that defeated the original CHECK (FR-007i; see migrations/migration-plan.md §2.4)
       Paths: packages/services/recipe-service/tests/rewardsMigration.integration.test.ts
       Test-first: true
       Size: S
@@ -42,10 +42,10 @@
       Paths: packages/services/recipe-service/tests/rewardLedger.integration.test.ts
       Test-first: true
       Size: M
-- [ ] B013 — Write migration `0025_publishing_rewards.sql` — EXPAND-ONLY: 4 CREATE TABLEs + ratchet CHECK
+- [ ] B013 — Write migration `0025_publishing_rewards.sql` — EXPAND-ONLY: 4 CREATE TABLEs + ratchet trigger
       Paths: packages/services/recipe-service/src/database/migrations/0025_publishing_rewards.sql
       Size: M
-- [ ] B014 — Drizzle schema for `recipe_publications`, `reward_grants`, `recipe_impact_signals`, `contributor_standing`
+- [ ] B014 — Drizzle schema for `recipe_public_listings`, `reward_grants`, `recipe_impact_signals`, `contributor_standing`
       Paths: packages/services/recipe-service/src/database/schema/rewards.ts, packages/services/recipe-service/src/database/schema/index.ts
       Size: M
 - [ ] TC015 — Schema guard test: `recipe_impact_signals` has NO viewer/identity column, ever (012-FR-024)

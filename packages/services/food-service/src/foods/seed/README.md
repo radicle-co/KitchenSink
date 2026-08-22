@@ -155,6 +155,53 @@ SELECT count(*) FROM food_sources fs JOIN food f ON f.id = fs.food_id
 
 ---
 
+## Clearing the catalog before a reseed (U12a) — ⛔ TWO SERVICES, ONE ORDER
+
+A reseed mints FRESH ULIDs, so it invalidates every `ingredients.food_id` the recipe service holds. That
+column is an **opaque cross-service reference with NO foreign key**, so nothing in either database catches a
+dangling one: clear the food catalog first and every recipe silently points at a deleted row.
+
+**The recipe-side unlink runs FIRST, and must finish, before one food row is deleted.** The clear enforces
+this itself — it reads the recipe database and aborts on any non-zero linked count — but the order is still
+the operator's to run. (Same discipline as ADR-0001's preview-address teardown, where reversing the two
+steps manufactures a takeover window.)
+
+```bash
+# 1. RECIPE SIDE — look first…
+STAGE=sandbox DATABASE_URL="$RECIPE_DATABASE_URL" \
+    npm run ingredients:unlink --workspace=@kitchensink/recipe-service -- --dry-run
+
+# …then null food_id + food_resolution_status IN PLACE (no row is deleted).
+STAGE=sandbox DATABASE_URL="$RECIPE_DATABASE_URL" \
+    npm run ingredients:unlink --workspace=@kitchensink/recipe-service -- --confirm sandbox
+
+# 2. FOOD SIDE — the dry run answers "would the clear be permitted?", which is a question about (1).
+STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" RECIPE_DATABASE_URL="$RECIPE_DATABASE_URL" \
+    npm run catalog:clear --workspace=packages/services/food-service -- --dry-run
+
+STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" RECIPE_DATABASE_URL="$RECIPE_DATABASE_URL" \
+    npm run catalog:clear --workspace=packages/services/food-service -- --confirm sandbox
+
+# 3. Then re-run the import above (§3). Nothing repopulates the catalog on its own.
+```
+
+Both commands share one guard:
+
+| Flag                    | Meaning                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--stage` / `STAGE`     | Required, no default. A destructive task that guesses its stage has no guard.                                 |
+| `--confirm <stage>`     | Required for a run that writes; must EQUAL the resolved stage. A dry run needs none.                          |
+| `--allow-prod`          | Required on `prod`, and **rejected** on any other stage — a flag that is harmless when wrong becomes habit.   |
+| `--dry-run`             | Reports the counts, writes nothing.                                                                           |
+| `--recipe-database-url` | Clear only. Required always; a probe that cannot answer fails CLOSED rather than reading as "nothing linked". |
+
+Both are idempotent and exit non-zero on any refusal, so a scripted invocation cannot mistake "the guard
+said no" for "there was nothing to do". The clear removes `food` and the eight tables that cascade off it;
+the `nutrient` and `food_category` dictionaries are left, because the reseed finds them rather than
+re-minting them.
+
+---
+
 ## The `origin` column (F-C2)
 
 `food.origin` is `'live'` (default) or `'bulk'`. The live change-refresh scan

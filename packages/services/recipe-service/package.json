@@ -22,6 +22,7 @@
         "format:check": "prettier --check .",
         "test:mutation": "stryker run",
         "seed": "tsx src/database/seed.ts",
+        "ingredients:unlink": "tsx src/ingredients/unlinkMain.ts",
         "contract:generate": "tsx contract/generate.ts"
     },
     "dependencies": {

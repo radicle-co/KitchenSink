@@ -73,21 +73,26 @@ const UNRANKED = Number.MAX_SAFE_INTEGER;
  * @returns The trimmed alias values, ranked first and in input order thereafter.
  */
 export function additionalDescriptionsOf(attributes: readonly RawUsdaFoodAttribute[]): string[] {
-    return attributes
-        .map((attribute, index) => ({ attribute, index }))
-        .filter(
-            ({ attribute }) =>
-                (attribute.foodAttributeType?.name ?? '').trim().toLowerCase() === ADDITIONAL_DESCRIPTION_ATTRIBUTE,
-        )
-        .sort((left, right) => {
-            const byRank = (left.attribute.rank ?? UNRANKED) - (right.attribute.rank ?? UNRANKED);
+    return (
+        attributes
+            .map((attribute, index) => ({ attribute, index }))
+            .filter(
+                ({ attribute }) =>
+                    (attribute.foodAttributeType?.name ?? '').trim().toLowerCase() === ADDITIONAL_DESCRIPTION_ATTRIBUTE,
+            )
+            .sort((left, right) => {
+                const byRank = (left.attribute.rank ?? UNRANKED) - (right.attribute.rank ?? UNRANKED);
 
-            // Input order is the tiebreak, so the sort is total and the output deterministic — `Array.sort`
-            // is stable in modern V8, but relying on that for a wire-derived array is an unstated premise.
-            return byRank !== 0 ? byRank : left.index - right.index;
-        })
-        .map(({ attribute }) => (attribute.value ?? '').trim())
-        .filter((value) => value.length > 0);
+                // Input order is the tiebreak, so the sort is total and the output deterministic — `Array.sort`
+                // is stable in modern V8, but relying on that for a wire-derived array is an unstated premise.
+                return byRank !== 0 ? byRank : left.index - right.index;
+            })
+            // ⛔ String values ONLY. `value` is `string | number` on the wire (see `RawUsdaFoodAttributeSchema`),
+            // and a number is not a name for a food — coercing one would put `9` in the catalog as an alias.
+            // Dropping it here also keeps this pure function total: `.trim()` on a number is a TypeError.
+            .map(({ attribute }) => (typeof attribute.value === 'string' ? attribute.value.trim() : ''))
+            .filter((value) => value.length > 0)
+    );
 }
 
 /** Default USDA FoodData Central API base URL. */

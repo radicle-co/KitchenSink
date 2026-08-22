@@ -81,10 +81,18 @@ export const ADDITIONAL_DESCRIPTION_ATTRIBUTE = 'additional description';
  * `FoodAttributeType`. The LIVE API (probed 2026-08-21) sends a lower-cased `foodAttributeType` and a
  * `rank` instead. This schema follows the live shape — every field optional, `.passthrough()` — because
  * a mismatch here must never fail a food whose nutrients are perfectly good.
+ *
+ * ⛔ `value` IS NOT A STRING, and declaring it one broke exactly the promise above. USDA sends numeric
+ * attribute values — `{ id: 2256462, value: 9, name: 'Added Package Weight' }` sits in the committed
+ * `foods-batch.json` capture — and because `POST /v1/foods` is validated as an ARRAY, one such attribute
+ * on one food failed `fetchByKeys` for every food in the request with `SourceApiError('USDA response
+ * failed schema validation')`. The nutrients were perfectly good; the food carried a package weight.
+ * Widening it is not permission to read a number as a name: `additionalDescriptionsOf` admits string
+ * values only, so a numeric value can never become a catalog alias.
  */
 export const RawUsdaFoodAttributeSchema = z
     .object({
-        value: z.string().optional(),
+        value: z.union([z.string(), z.number()]).optional(),
         rank: z.number().optional(),
         foodAttributeType: z
             .object({ id: z.number().optional(), name: z.string().optional() })

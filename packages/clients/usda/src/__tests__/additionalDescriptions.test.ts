@@ -27,6 +27,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { UsdaApiClient, additionalDescriptionsOf } from '../UsdaApiClient.js';
+import { RawUsdaFoodArraySchema, RawUsdaFoodSchema } from '../schemas.js';
 
 /** Build a minimal `Response`-shaped object the client can consume. */
 function mockResponse(body: unknown): Response {
@@ -153,5 +154,52 @@ describe('UsdaApiClient surfaces the aliases on the typed detail', () => {
         const client = makeClient({ fdcId: 1, description: 'x', foodNutrients: [], foodAttributes: 'nope' });
 
         await expect(client.getFood(1)).rejects.toThrow();
+    });
+});
+
+describe('a numeric foodAttributes value', () => {
+    /**
+     * ⛔ REGRESSION — a real branded food, captured from the live API, failed the WHOLE batch.
+     *
+     * `RawUsdaFoodAttributeSchema` declared `value: z.string()`, and USDA sends attributes whose value is a
+     * NUMBER: `{ id: 2256462, value: 9, name: 'Added Package Weight' }` is in the committed
+     * `foods-batch.json` capture. Because the batch endpoint validates the array as a whole, one numeric
+     * attribute on one food made `fetchByKeys` throw `SourceApiError('USDA response failed schema
+     * validation')` for every food in the request.
+     *
+     * That is precisely what the schema's own docstring says must never happen — "a mismatch here must
+     * never fail a food whose nutrients are perfectly good". The nutrients were perfectly good; the food
+     * carried a package weight.
+     *
+     * ⚠️ The attribute is not an alias and must not become one. Widening the type is not permission to
+     * treat a number as a name — `additionalDescriptionsOf` admits string values only, so a numeric value
+     * on an `Additional Description` attribute is dropped rather than stringified into the catalog.
+     */
+    it('validates rather than failing the food it rides on', () => {
+        const parsed = RawUsdaFoodSchema.safeParse({
+            fdcId: 2057648,
+            description: 'Branded thing',
+            foodAttributes: [{ id: 2256462, value: 9, name: 'Added Package Weight' }],
+        });
+
+        expect(parsed.success).toBe(true);
+    });
+
+    it('fails the whole ARRAY when one food carries it, which is why the batch endpoint broke', () => {
+        const parsed = RawUsdaFoodArraySchema.safeParse([
+            { fdcId: 1, description: 'Fine', foodAttributes: [] },
+            { fdcId: 2, description: 'Branded thing', foodAttributes: [{ value: 9, name: 'Added Package Weight' }] },
+        ]);
+
+        expect(parsed.success).toBe(true);
+    });
+
+    it('is never read as an alias, even on an Additional Description attribute', () => {
+        expect(
+            additionalDescriptionsOf([
+                { value: 9, foodAttributeType: { name: 'Additional Description' } },
+                { value: 'Tillamook', foodAttributeType: { name: 'Additional Description' } },
+            ]),
+        ).toEqual(['Tillamook']);
     });
 });

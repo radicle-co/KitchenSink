@@ -1,6 +1,7 @@
 # Specification Quality Checklist: Publishing Rewards
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
+**Status**: ⏸️ PAUSED — see [`../research-brief.md`](../research-brief.md)
 **Created**: 2026-08-21
 **Feature**: [spec.md](../spec.md)
 
@@ -13,7 +14,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain _(all three resolved 2026-08-22; four new open items are tracked as UNDEFINED markers in the research brief, not as clarifications)_
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -32,6 +33,33 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
+
+### Validation record — iteration 2 (2026-08-22)
+
+**Owner answered all three questions.** Q1 = replace (free users get privacy; both tiers rewarded, never
+monetary). Q2 = structural completeness. Q3 = moot — a slot grant is permanent, so nothing is consumed. Four
+further decisions were added: zero starting slots, permanent grants, a 50-recipe ceiling for free accounts, and
+two reward currencies rather than one.
+
+**Status changed to PAUSED.** The spec is **not** ready for `/speckit-plan`. Resolving the three questions
+opened four new ones, which are recorded in [`../research-brief.md`](../research-brief.md):
+
+| §   | Open question                                                 | Blocks                                       |
+| --- | ------------------------------------------------------------- | -------------------------------------------- |
+| 1   | Reward schedule — slots per publication, earn-rate limit      | `FR-007a`, `FR-010` carry UNDEFINED          |
+| 2   | What status & recognition concretely is, and who sees it      | `FR-007e` is a non-implementable placeholder |
+| 3   | Mitigating the zero-slot start's first-publication toll       | Recorded risk, deliberately unpriced         |
+| 4   | Incentives that reach premium; whether two currencies suffice | Owner: "we might need more incentives"       |
+
+**One derived decision needs owner confirmation.** C-015-005 (privacy mandated by provenance never consumes a
+slot) was reasoned by this spec from C-015-004, not stated by the owner. It is flagged in both documents.
+
+**One gap found in our own prior legal analysis, now logged.** Every legal question examined so far concerned
+_hosting_ third-party content. A reward programme moves the analysis toward **inducement**, and §512(c)(1)(B)'s
+"direct financial benefit … right and ability to control" prong deserves a fresh look now that uploads are
+being deliberately incentivised. This was not considered when the spec was written. Research agenda item 4.
+
+---
 
 ### Validation record — iteration 1 (2026-08-21)
 

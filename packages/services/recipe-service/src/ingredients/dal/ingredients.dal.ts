@@ -148,6 +148,22 @@ export class IngredientsDal {
      * term alone fixes it, but only because the ladder then puts the extra candidates on the rung they
      * deserve; against the OLD sort key the same widening would just add noise to the page.
      *
+     * ⚠️ **What the widening costs, measured** — 50,000 local rows, p95 over 20 runs, 2026-08-22:
+     *
+     * | query                | matched before | matched after | before  | after   |
+     * | -------------------- | -------------- | ------------- | ------- | ------- |
+     * | `sifted flour`       | **0**          | 5,000         |  3.3ms  | 33.4ms  |
+     * | `brown sugar`        | **0**          | 5,000         |  2.0ms  | 19.5ms  |
+     * | `organic whole milk` | **0**          | 5,000         |  1.0ms  | 22.2ms  |
+     * | `raw chicken breast` | 5,000          | 5,000         | 28.9ms  | 35.6ms  |
+     *
+     * Read the first three rows carefully: the "before" numbers are the cost of returning NOTHING. Only the
+     * last row compares like with like, and there the whole ladder costs +6.7ms. The 5,000-row match sets
+     * are a deliberately PESSIMISTIC upper bound — the fixture draws head terms from a ten-word vocabulary,
+     * so every head term matches a tenth of the table, where a real one is far more selective. This surface
+     * carries no SC-007-style budget of its own (that criterion is food-service's), and the typeahead that
+     * drives it is debounced at 300ms.
+     *
      * @param query - The (already trimmed) user query. An empty query returns no rows.
      * @param limit - Max hits (clamped to `[1, MAX_SEARCH_LIMIT]`; defaults to `DEFAULT_SEARCH_LIMIT`).
      * @returns Ranked ingredient hits, or an empty array when nothing matches.

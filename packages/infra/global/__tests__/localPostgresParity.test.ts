@@ -9,7 +9,10 @@
  * against both `Flour` and `Carob flour`. So the tiebreak decides which food a cook gets, and the tiebreak
  * is collation.
  *
- * Measured on 2026-08-21 against the two images this repo actually runs, same rows, same statement:
+ * Measured on 2026-08-21 against the two images the repo ran AT THE TIME, same rows, same statement. The
+ * major has since moved to 18 (plan U13); the measurement is left on its original images because it is a
+ * record of what was observed, and what it demonstrates — musl `C` against glibc — is a property of the
+ * collation provider, not of the major version:
  *
  * ```text
  * postgres:16-alpine (musl, C)   Carob flour, Flour, Milk whole, Sugars brown, …, flour, milk, red wine…
@@ -27,9 +30,16 @@
  * AND must not be an `-alpine` variant. Both halves matter and they fail for different reasons: a version
  * skew changes planner behaviour and available syntax, a provider skew changes sort order.
  *
- * ⚠️ The RDS major is READ from `DataStack.ts`, never restated here. The plan's PG 16 → 18 unit moves that
- * constant, and a guard carrying its own copy of the expected version would either fail spuriously on that
- * change or, worse, keep passing against a version nothing runs.
+ * ⚠️ The RDS major is READ from `DataStack.ts`, never restated here. A guard carrying its own copy of the
+ * expected version would either fail spuriously when the engine moves or, worse, keep passing against a
+ * version nothing runs. That design was EXERCISED by the PG 16 → 18 upgrade (plan U13): moving
+ * `PostgresEngineVersion` turned this gate red and named all 16 stale pins — 12 CI service containers and
+ * four compose files — which is precisely how local Docker was dragged along with the engine.
+ *
+ * ⛔ Do NOT "fix" that by restating the version here. The RESTATING gate is a different file with the
+ * opposite job: `engineVersionDiff.test.ts` pins the reviewed version against the synthesized template, so
+ * the engine cannot move unreviewed. This one FOLLOWS the engine; that one GUARDS it. Collapsing the two
+ * loses one of the guarantees.
  *
  * Pins are DISCOVERED from the tree rather than enumerated, so a compose file or workflow added tomorrow is
  * covered the day it lands — `presentFiles` includes work in progress, before its first commit.

@@ -62,7 +62,14 @@ export const styles = StyleSheet.create({
     listRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
     // The flexible field yields width (the web leaf's `min-w-0 flex-1`); the action never does, so its label
     // and its 44pt touch target can never be clipped (the web leaf's `shrink-0` idiom).
-    rowGrow: { flexGrow: 1, flexShrink: 1, flexBasis: '60%' },
+    //
+    // ⛔ `minWidth` IS LOAD-BEARING — without it the ingredient NAME renders as "oil", "lic", "no", "on".
+    // U9 gave each line a second bound, so this row is `[name][low][–][high][unit]`: three `rowNarrow`
+    // boxes at 88 plus four gaps claim ~306dp of a ~340dp content box on a 390dp phone, and a shrinkable
+    // child with no floor simply yields the remaining ~34dp. `listRow` already sets `flexWrap: 'wrap'` —
+    // this floor is what makes the row actually REACH that wrap instead of crushing the one field the cook
+    // reads. Asserted, with the arithmetic, by `__tests__/formSectionStyles.native.test.tsx`.
+    rowGrow: { flexGrow: 1, flexShrink: 1, flexBasis: '60%', minWidth: 120 },
     rowNarrow: { width: 88 },
     // The EN DASH between an ingredient's two quantity bounds (U9/R42) — decorative punctuation, so it
     // never yields width and never grows the row.

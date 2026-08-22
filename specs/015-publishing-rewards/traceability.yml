@@ -89,6 +89,9 @@ requirements:
     - id: 'FR-010'
       title: 'Earn-rate limit'
       tasks: ['TC024', 'C025']
+    - id: 'FR-010a'
+      title: 'Atomic, serialized grant issuance'
+      tasks: ['TC042a', 'E048']
     - id: 'FR-011'
       title: 'Completeness floor'
       tasks: ['TC020', 'C021']

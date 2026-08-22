@@ -34,6 +34,47 @@
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
 
+### Validation record — iteration 5 (2026-08-22, `/speckit-clarify` pass)
+
+**Run out of order, deliberately.** Clarify is designed to precede `/speckit-plan`; here it ran after plan,
+tasks and the migration plan already existed. Every answer was therefore checked for downstream rework and the
+impact recorded inline in the spec's Clarifications.
+
+**3 questions asked, 3 answered** (quota is 5; stopped early because the remaining candidates — a latency
+target for the reward read, and observability signals — are plan-level and change neither architecture nor
+acceptance tests).
+
+- `C-015-021` — **`FR-006` near-duplicate is now defined**: normalized-title equality OR identical resolved
+  ingredient set, deterministic, explainable. Fuzzy similarity explicitly rejected, because a false positive
+  denies a legitimate grant and cannot be explained to the user.
+- `C-015-022` — **`FR-007c` scope corrected**. This was a genuine **contradiction**, not a gap: "MUST NOT
+  hold more than 50" read literally required force-publishing a downgraded premium user's private recipes.
+  Now gates the _transition_ to private and never touches existing state, matching the shipped C-004 rule.
+- `C-015-023` — **new `FR-010a`**: grant issuance is atomic and serialized per account, and the bound must
+  hold under arbitrary concurrency. The spec previously said nothing about concurrency, so a read-then-write
+  implementation would have been _conforming and wrong_ — and `FR-007b` makes an over-grant permanent and
+  uncorrectable.
+
+**⚠️ An item was wrongly checked in iteration 4.** "Requirements are testable and unambiguous" was marked
+passing, yet this pass found one untestable requirement (`FR-006`), one self-contradictory one (`FR-007c`),
+and one missing entirely (concurrency). It passes **now**; it did not then. Recorded because a checklist that
+is marked green by the same pass that wrote the spec is worth exactly nothing — the failure mode is the
+checklist agreeing with its author.
+
+**One self-correction inside this pass**: `FR-010a` was first written as "evaluated in the same conditional
+write", which prescribes a mechanism and leaks implementation into a spec-level requirement. Reworded to lead
+with the guarantee (atomicity, bound holds under arbitrary concurrency) with the ADR-0024 pattern demoted to
+an explicit implementation note.
+
+**Downstream propagation done, not deferred**: `tasks.md` gained `TC042a` (a real concurrency test — a
+sequential loop cannot detect the race) and `E048` gained the atomicity constraint; `traceability.yml` gained
+`FR-010a`. Counts now 48 FRs, 16 SCs, 50 tasks.
+
+**Checklist state: 16/16 → 16/16.** No item changed state. That is the honest result, and it is also why the
+note above matters.
+
+---
+
 ### Validation record — iteration 4 (2026-08-22, clarifications + owner correction)
 
 **Three questions answered, three markers cleared.** `C-015-017` (zero start **re-affirmed** with the

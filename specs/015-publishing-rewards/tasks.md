@@ -117,6 +117,10 @@
       Paths: packages/services/recipe-service/tests/publishReward.integration.test.ts
       Test-first: true
       Size: S
+- [ ] TC042a — Integration: N concurrent publishes by one account never exceed the FR-010 rate limit or the FR-007c ceiling (FR-010a, SC-016). Must actually run requests in parallel — a sequential loop cannot detect the race.
+      Paths: packages/services/recipe-service/tests/publishRewardConcurrency.integration.test.ts
+      Test-first: true
+      Size: M
 - [ ] E043 — `rewards/` module scaffold mirroring the shipped `ratings/` layout
       Paths: packages/services/recipe-service/src/rewards/rewards.module.ts, packages/services/recipe-service/src/rewards/rewards.service.ts, packages/services/recipe-service/src/rewards/dal/rewards.dao.ts
       Size: M
@@ -132,7 +136,7 @@
 - [ ] E047 — Extend the EXISTING erasure cascade to all four tables — do not create a second erasure path (FR-021, FR-022)
       Paths: packages/services/recipe-service/src/account/domain, packages/services/recipe-service/src/database/schema/rewards.ts
       Size: M
-- [ ] E048 — Materialize slot balance with the ledger as source of truth; reconciliation asserted in integration
+- [ ] E048 — Materialize slot balance with the ledger as source of truth; grant issuance is ONE conditional write re-checking rate limit + ceiling (FR-010a) — never read-then-write; reconciliation asserted in integration
       Paths: packages/services/recipe-service/src/rewards/dal/rewards.dao.ts
       Size: M
 - [ ] E049 — Takedown reversal path: reverse only that recipe's grant; withhold while a notice is open (FR-016, FR-017)

@@ -266,7 +266,13 @@ no difference in recognition from a free account doing the same.
   basis of an earlier evaluation.
 - **FR-005**: A recipe MUST earn **at most one** reward grant in its lifetime, regardless of how many times it
   is published, unpublished or republished.
-- **FR-006**: Near-duplicate recipes published by the same user MUST earn at most one grant between them. The
+- **FR-006** _(defined 2026-08-22)_: Near-duplicate recipes published by the same user MUST earn at most one
+  grant between them. Two recipes by the same user are near-duplicates when **either** their **normalized
+  titles are equal** (case-folded, diacritics folded, punctuation and repeated whitespace stripped) **or**
+  their **resolved ingredient sets are identical** (ingredient identity only — quantities are ignored). The
+  test MUST be **deterministic**, and its outcome MUST be stateable to the user as a concrete reason. A fuzzy
+  similarity score MUST NOT be used: a false positive silently denies a legitimate grant — the coercive
+  direction this feature exists to remove — and cannot be explained to the user in terms they can act on. The
   later publication MUST succeed and MUST state that no grant was made and why.
 
 **Rewards — what is granted**
@@ -301,9 +307,20 @@ no difference in recognition from a free account doing the same.
   time. The **only** reversal permitted is `FR-016`'s takedown path, and it reverses only the grant earned by
   the recipe that was taken down. _(This supersedes the earlier per-period-cap framing: a permanent grant
   cannot be "consumed" or "freed", so the question of whether an unpublished recipe frees cap room is moot.)_
-- **FR-007c**: A free account MUST NOT hold more than **50** private recipes in total, regardless of how many
-  slots it has earned. Once the ceiling is reached, further slot grants MUST NOT be made, publication MUST
-  still succeed, and the user MUST be told the ceiling is reached and what lifts it.
+- **FR-007c** _(scope corrected 2026-08-22)_: A free account MUST NOT **make a recipe private** once it
+  already holds **50** private recipes, regardless of how many slots it has earned. Once the ceiling is
+  reached, further slot grants MUST NOT be made, publication MUST still succeed, and the user MUST be told the
+  ceiling is reached and what lifts it.
+
+    **The ceiling gates the TRANSITION to private; it never acts on existing state.** A recipe that is already
+    private MUST NOT be made public, deleted, or otherwise altered because the account is over the ceiling. This
+    matters for the lapsed-premium case: a premium account may accumulate unlimited private recipes and later
+    downgrade, and will then legitimately hold more than 50. That account keeps every one of them and simply
+    cannot make new ones private until it is back under the ceiling. This mirrors the shipped C-004 rule
+    exactly — _"this gates the transition to private, never existing state; a currently-private recipe is never
+    force-flipped"_ — and any other reading would force-publish content the user chose to keep private, on a
+    billing event, breaching `FR-007b` and `FR-014`.
+
 - **FR-007d**: Privacy that is **mandated by provenance** MUST NOT consume a slot. A recipe that is
   private-only for every tier under C-004 — imported from a physical copy or a paid source — is private
   because policy requires it, not because the user spent an earned slot, and MUST NOT count against `FR-007c`'s
@@ -402,6 +419,17 @@ no difference in recognition from a free account doing the same.
   where sustained contributors live, and is redundant against `FR-006`'s near-duplicate suppression. The daily
   component is deliberately consistent with `004-FR-022`'s existing daily import allowance. Rationale:
   [`research/reward-psychology.md`](./research/reward-psychology.md) §3.
+- **FR-010a** _(added 2026-08-22)_: Grant issuance MUST be **atomic and serialized per account**. The
+  rate-limit check (`FR-010`) and the ceiling check (`FR-007c`) MUST be evaluated **atomically with** the
+  recording of the grant, such that a failed condition yields **no grant** — never a grant made on a stale
+  read. The resulting bound MUST hold under **arbitrary concurrency** — it MUST NOT depend on request
+  serialization, worker count, or any deployment setting. Read-then-write MUST NOT be used: two simultaneous
+  publications would each observe the same pre-write count, both pass, and both grant — and because `FR-007b`
+  makes grants **permanent**, an over-grant can never be corrected afterwards. _(Implementation note, not a
+  requirement: the reserve pattern already established for the spend ceiling in ADR-0024 satisfies this — a
+  single conditional write whose zero-rows result IS the denial, where the row lock is what makes the bound
+  independent of the concurrency setting.)_
+
 - **FR-011**: A recipe MUST meet a stated **completeness floor** to be eligible. A recipe below the floor MUST
   still be publishable, MUST NOT earn, and the user MUST be told which fields would make it eligible.
 
@@ -542,6 +570,8 @@ no difference in recognition from a free account doing the same.
   publications is identical in 100% of cases.
 - **SC-015**: 0% of reciprocity-signal surfaces present corpus usage as a debt, deficit, imbalance or ratio,
   and none recurs after dismissal.
+- **SC-016**: Under concurrent publication by the same account, granted slots never exceed the `FR-010` rate
+  limit or the `FR-007c` ceiling — verified by a concurrency test, not by inspection.
 
 ## Assumptions
 
@@ -695,6 +725,29 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
     - **`FR-007n`** — recognition is identical across tiers, and a premium publisher is never told they earned
       nothing merely because no slot applies.
     - Tested by `SC-013`–`SC-015`; covered by **User Story 6**.
+
+### Session 2026-08-22 (part 5) — clarify pass
+
+> Run **after** `plan.md`, `tasks.md` and the migration plan already existed. Each answer below is checked for
+> downstream rework and the impact is stated.
+
+- **Q: How is `FR-006`'s "near-duplicate" determined?** → **A: Deterministic match** — normalized-title
+  equality OR identical resolved-ingredient set. Fuzzy similarity is explicitly rejected: a false positive
+  denies a legitimate grant and cannot be explained. _(`C-015-021`. Downstream: `C021`/`TC020` gain a testable
+  rule; no plan or migration change — this is pure domain logic in `publicationEligibility.ts`.)_
+
+- **Q: Does `FR-007c`'s 50-recipe ceiling constrain what an account HOLDS, or what it may newly make
+  private?** → **A: Transitions only.** The ceiling gates the transition to private and never touches existing
+  state; a lapsed premium account keeps every private recipe it accumulated. _(`C-015-022`. This resolved a
+  genuine **contradiction**: `FR-007c` said "MUST NOT hold", which read literally required force-flipping a
+  downgraded user's private recipes to public — breaching `FR-007b` and `FR-014` and mirroring nothing in the
+  shipped code. Downstream: `TC030` gains a lapsed-premium case; `D031`'s policy input is unchanged.)_
+
+- **Q: How is grant issuance serialized against concurrent publishes?** → **A: One conditional write** whose
+  WHERE clause re-checks the rate limit and ceiling; zero rows returned is the denial. _(`C-015-023`, new
+  `FR-010a`. The spec previously said nothing about concurrency, so a read-then-write implementation would
+  have been conforming and wrong. Downstream: `E043`/`E048` gain a hard constraint, and a new integration test
+  is needed — `tasks.md` updated.)_
 
 ### ⚠️ Recorded risk — the zero-slot start re-introduces a first-publication toll
 

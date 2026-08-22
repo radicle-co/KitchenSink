@@ -1,0 +1,162 @@
+# Live traceability matrix — 015 Publishing Rewards
+# Seeded at Phase 5B. `tasks` filled now; `code`/`tests`/`events` filled by later phases.
+feature: '015-publishing-rewards'
+seeded: '2026-08-22'
+phase: 'tasks'
+
+requirements:
+    - id: 'FR-001'
+      title: 'Only authored recipes may earn'
+      tasks: ['TC020', 'C021']
+    - id: 'FR-002'
+      title: 'Per-recipe authorship attestation'
+      tasks: ['TC040', 'B013', 'B014', 'F061']
+    - id: 'FR-003'
+      title: 'Single authoritative eligibility rule'
+      tasks: ['TC020', 'C021']
+    - id: 'FR-004'
+      title: 'Re-evaluate eligibility at confirm'
+      tasks: ['TC040', 'E044']
+    - id: 'FR-005'
+      title: 'At most one grant per recipe lifetime'
+      tasks: ['TC042', 'E043']
+    - id: 'FR-006'
+      title: 'Near-duplicates earn at most once'
+      tasks: ['TC020', 'C021']
+    - id: 'FR-007'
+      title: 'Non-monetary, non-transferable'
+      tasks: ['B014']
+    - id: 'FR-007a'
+      title: 'Reward schedule'
+      tasks: ['TC022', 'C023']
+    - id: 'FR-007a-i'
+      title: 'Schedule legible before publishing'
+      tasks: ['F062', 'E045']
+    - id: 'FR-007b'
+      title: 'Grants permanent'
+      tasks: ['TC012', 'B013']
+    - id: 'FR-007c'
+      title: '50-recipe ceiling'
+      tasks: ['TC022', 'C023']
+    - id: 'FR-007d'
+      title: 'Provenance-mandated privacy costs no slot'
+      tasks: ['TC030', 'D031']
+    - id: 'FR-007e'
+      title: 'Status and recognition'
+      tasks: ['I090']
+      blocked_on: ['008-cooking-mode', '012-creator-profiles']
+    - id: 'FR-007f'
+      title: 'Cook signal'
+      tasks: ['I091']
+      blocked_on: ['008-cooking-mode']
+    - id: 'FR-007g'
+      title: 'Impact milestones'
+      tasks: ['I092', 'TC081']
+      blocked_on: ['008-cooking-mode']
+    - id: 'FR-007h'
+      title: 'Contributor standing'
+      tasks: ['I092', 'I093']
+      blocked_on: ['012-creator-profiles']
+    - id: 'FR-007i'
+      title: 'Ratchet principle'
+      tasks: ['TC011', 'TC080', 'B013']
+    - id: 'FR-007j'
+      title: 'The handoff'
+      tasks: ['I092']
+      blocked_on: ['008-cooking-mode', '012-creator-profiles']
+    - id: 'FR-007k'
+      title: 'Reaching premium'
+      tasks: ['I094']
+      blocked_on: ['008-cooking-mode', '012-creator-profiles']
+    - id: 'FR-007l'
+      title: 'First-publication on-ramp'
+      tasks: ['I094', 'TC081']
+      blocked_on: ['008-cooking-mode']
+    - id: 'FR-007m'
+      title: 'Reciprocity signal'
+      tasks: ['I094']
+      blocked_on: ['008-cooking-mode']
+    - id: 'FR-007n'
+      title: 'Recognition parity across tiers'
+      tasks: ['I094']
+      blocked_on: ['008-cooking-mode', '012-creator-profiles']
+    - id: 'FR-008'
+      title: 'State benefit before confirm'
+      tasks: ['TC060', 'F061', 'G071']
+    - id: 'FR-009'
+      title: 'Append-only inspectable record'
+      tasks: ['TC012', 'E045']
+    - id: 'FR-010'
+      title: 'Earn-rate limit'
+      tasks: ['TC024', 'C025']
+    - id: 'FR-011'
+      title: 'Completeness floor'
+      tasks: ['TC020', 'C021']
+    - id: 'FR-012'
+      title: 'Unpublish never reverses a grant'
+      tasks: ['TC041', 'E044']
+    - id: 'FR-013'
+      title: 'No core function gated on publishing'
+      tasks: ['TC030']
+    - id: 'FR-014'
+      title: 'Rewards additive only'
+      tasks: ['TC030', 'D031']
+    - id: 'FR-015'
+      title: 'Attribution carried'
+      tasks: ['A001']
+      blocked_on: ['016-legal-compliance-framework']
+    - id: 'FR-016'
+      title: 'Takedown reverses that grant'
+      tasks: ['TC012', 'E049']
+      blocked_on: ['016-legal-compliance-framework']
+    - id: 'FR-017'
+      title: 'Grant withheld during open notice'
+      tasks: ['TC020', 'E049']
+      blocked_on: ['016-legal-compliance-framework']
+    - id: 'FR-018'
+      title: 'Repeat infringer loses eligibility'
+      tasks: ['E050']
+      blocked_on: ['016-legal-compliance-framework']
+    - id: 'FR-019'
+      title: 'Notify reversal with appeal path'
+      tasks: ['E050']
+      blocked_on: ['016-legal-compliance-framework']
+    - id: 'FR-020'
+      title: 'Publication stays explicit opt-in'
+      tasks: ['TC060', 'F061']
+    - id: 'FR-021'
+      title: 'Erasure cascade'
+      tasks: ['E047']
+    - id: 'FR-022'
+      title: 'Attestation retention'
+      tasks: ['E047', 'B014']
+    - id: 'FR-023'
+      title: 'Web + mobile same release'
+      tasks: ['F061', 'G071', 'TC063', 'TC072']
+    - id: 'FR-024'
+      title: 'Localization'
+      tasks: ['F065', 'G073']
+    - id: 'FR-025'
+      title: 'No streaks'
+      tasks: ['TC080']
+    - id: 'FR-026'
+      title: 'No global rankings'
+      tasks: ['TC080']
+    - id: 'FR-027'
+      title: 'No artificial scarcity / countdowns'
+      tasks: ['TC080']
+    - id: 'FR-028'
+      title: 'Truthful reward messaging'
+      tasks: ['TC060', 'F061']
+    - id: 'FR-029'
+      title: 'Unpublish parity with publish'
+      tasks: ['TC064']
+    - id: 'FR-030'
+      title: 'Recognition not purchasable'
+      tasks: ['TC080']
+    - id: 'FR-031'
+      title: 'No publish-prompting notifications'
+      tasks: ['TC080']
+    - id: 'FR-032'
+      title: '015 owns earning, 012 owns surface'
+      tasks: ['I090']

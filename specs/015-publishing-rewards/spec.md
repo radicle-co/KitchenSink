@@ -746,6 +746,25 @@ resolved above. Their original option tables are retained in git history.
 
 ---
 
+## Related: feature 016 shares this feature's D4a assumption
+
+[016-legal-compliance-framework](../016-legal-compliance-framework/spec.md) was created 2026-08-22 (C-016-003)
+and its amendment to `001-FR-005b` **removes the premium gate on making a clone private**, citing D4a and this
+feature's `C-015-001` as the authority for doing so. Three consequences for 015:
+
+- **D4a is now load-bearing for two features, not one.** If it does not land, 016's amendment to `001-FR-005`
+  is stranded alongside this feature's premise.
+- **016 owns the takedown process this feature's `FR-016`–`FR-018` consume.** That was previously an
+  assumption ("a registered takedown agent and repeat-infringer policy exist by the time User Story 4
+  ships"); it now has a specification behind it — `016-FR-016`–`FR-026` — and `016-FR-023` explicitly
+  propagates an actioned notice into this feature's reward ledger, which is the same coupling from the other
+  side.
+- **The inducement gap this feature's research brief flagged is now recorded.** `016-FR-029a` forbids pricing
+  or gating a paid tier on access to imported third-party content, for exactly the §512(c)(1)(B)
+  direct-financial-benefit reason the brief raised.
+
+---
+
 ## Status: READY FOR `/speckit-plan`
 
 Every open question is closed. The four areas the previous session left open were resolved with evidence

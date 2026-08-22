@@ -62,8 +62,14 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
             body: JSON.stringify({
                 ...BASE_PAYLOAD,
                 ingredients: [
-                    { ingredientId: FLOUR.id, name: FLOUR.name, quantity: 2, unit: 'cup', notes: 'sifted' },
-                    { ingredientId: SUGAR.id, name: SUGAR.name, quantity: 1, unit: 'tbsp' },
+                    {
+                        ingredientId: FLOUR.id,
+                        name: FLOUR.name,
+                        quantity: { kind: 'exact', value: 2 },
+                        unit: 'cup',
+                        notes: 'sifted',
+                    },
+                    { ingredientId: SUGAR.id, name: SUGAR.name, quantity: { kind: 'exact', value: 1 }, unit: 'tbsp' },
                 ],
             }),
         });
@@ -72,8 +78,21 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
 
         // Composed straight off the create response (persisted atomically with the recipe).
         expect(created.ingredients).toEqual([
-            { ingredientId: FLOUR.id, name: 'Flour', quantity: 2, unit: 'cup', notes: 'sifted', isUserEntered: true },
-            { ingredientId: SUGAR.id, name: 'Sugar', quantity: 1, unit: 'tbsp', isUserEntered: true },
+            {
+                ingredientId: FLOUR.id,
+                name: 'Flour',
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'cup',
+                notes: 'sifted',
+                isUserEntered: true,
+            },
+            {
+                ingredientId: SUGAR.id,
+                name: 'Sugar',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'tbsp',
+                isUserEntered: true,
+            },
         ]);
 
         // ...and again on a fresh read (JOIN recipe_ingredients → ingredients).
@@ -90,7 +109,14 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({
                     ...BASE_PAYLOAD,
-                    ingredients: [{ ingredientId: FLOUR.id, name: FLOUR.name, quantity: 2, unit: 'cup' }],
+                    ingredients: [
+                        {
+                            ingredientId: FLOUR.id,
+                            name: FLOUR.name,
+                            quantity: { kind: 'exact', value: 2 },
+                            unit: 'cup',
+                        },
+                    ],
                 }),
             })
         ).json()) as RecipeBody;
@@ -100,14 +126,22 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 expectedVersion: created.currentVersion,
-                ingredients: [{ ingredientId: SUGAR.id, name: SUGAR.name, quantity: 3, unit: 'tsp' }],
+                ingredients: [
+                    { ingredientId: SUGAR.id, name: SUGAR.name, quantity: { kind: 'exact', value: 3 }, unit: 'tsp' },
+                ],
             }),
         });
         expect(patchResponse.status).toBe(200);
 
         const fetched = (await (await fetch(`${baseUrl}/api/v1/recipes/${created.id}`)).json()) as RecipeBody;
         expect(fetched.ingredients).toEqual([
-            { ingredientId: SUGAR.id, name: 'Sugar', quantity: 3, unit: 'tsp', isUserEntered: true },
+            {
+                ingredientId: SUGAR.id,
+                name: 'Sugar',
+                quantity: { kind: 'exact', value: 3 },
+                unit: 'tsp',
+                isUserEntered: true,
+            },
         ]);
     });
 
@@ -118,7 +152,12 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
             body: JSON.stringify({
                 ...BASE_PAYLOAD,
                 ingredients: [
-                    { ingredientId: '00000000-0000-4000-8000-0000000000e9', name: 'Ghost', quantity: 1, unit: 'cup' },
+                    {
+                        ingredientId: '00000000-0000-4000-8000-0000000000e9',
+                        name: 'Ghost',
+                        quantity: { kind: 'exact', value: 1 },
+                        unit: 'cup',
+                    },
                 ],
             }),
         });

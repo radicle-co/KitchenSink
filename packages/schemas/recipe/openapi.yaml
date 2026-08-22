@@ -3213,9 +3213,49 @@ components:
                                 type: string
                                 minLength: 1
                               quantity:
-                                type: number
-                                minimum: 0
-                                exclusiveMinimum: true
+                                oneOf:
+                                  - type: object
+                                    properties:
+                                      kind:
+                                        type: string
+                                        enum:
+                                          - exact
+                                      value:
+                                        type: number
+                                        minimum: 0.001
+                                        maximum: 1000000
+                                    required:
+                                      - kind
+                                      - value
+                                    additionalProperties: false
+                                  - type: object
+                                    properties:
+                                      kind:
+                                        type: string
+                                        enum:
+                                          - range
+                                      low:
+                                        type: number
+                                        minimum: 0.001
+                                        maximum: 1000000
+                                      high:
+                                        type: number
+                                        minimum: 0.001
+                                        maximum: 1000000
+                                    required:
+                                      - kind
+                                      - low
+                                      - high
+                                    additionalProperties: false
+                                  - type: object
+                                    properties:
+                                      kind:
+                                        type: string
+                                        enum:
+                                          - absent
+                                    required:
+                                      - kind
+                                    additionalProperties: false
                               unit:
                                 type: string
                               displayText:
@@ -3342,9 +3382,49 @@ components:
                                 type: string
                                 minLength: 1
                               quantity:
-                                type: number
-                                minimum: 0
-                                exclusiveMinimum: true
+                                oneOf:
+                                  - type: object
+                                    properties:
+                                      kind:
+                                        type: string
+                                        enum:
+                                          - exact
+                                      value:
+                                        type: number
+                                        minimum: 0.001
+                                        maximum: 1000000
+                                    required:
+                                      - kind
+                                      - value
+                                    additionalProperties: false
+                                  - type: object
+                                    properties:
+                                      kind:
+                                        type: string
+                                        enum:
+                                          - range
+                                      low:
+                                        type: number
+                                        minimum: 0.001
+                                        maximum: 1000000
+                                      high:
+                                        type: number
+                                        minimum: 0.001
+                                        maximum: 1000000
+                                    required:
+                                      - kind
+                                      - low
+                                      - high
+                                    additionalProperties: false
+                                  - type: object
+                                    properties:
+                                      kind:
+                                        type: string
+                                        enum:
+                                          - absent
+                                    required:
+                                      - kind
+                                    additionalProperties: false
                               unit:
                                 type: string
                               displayText:
@@ -4011,9 +4091,49 @@ components:
                 type: string
                 minLength: 1
               quantity:
-                type: number
-                minimum: 0
-                exclusiveMinimum: true
+                oneOf:
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - exact
+                      value:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                    required:
+                      - kind
+                      - value
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - range
+                      low:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                      high:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                    required:
+                      - kind
+                      - low
+                      - high
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - absent
+                    required:
+                      - kind
+                    additionalProperties: false
               unit:
                 type: string
                 minLength: 1
@@ -4066,6 +4186,11 @@ components:
               minimum: 0
             isComplete:
               type: boolean
+            rangeDerivedBound:
+              type: string
+              enum:
+                - low
+                - high
           required:
             - calories
             - proteinG
@@ -4176,9 +4301,49 @@ components:
                 minLength: 1
                 maxLength: 120
               quantity:
-                type: number
-                minimum: 0.001
-                maximum: 1000000
+                oneOf:
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - exact
+                      value:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                    required:
+                      - kind
+                      - value
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - range
+                      low:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                      high:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                    required:
+                      - kind
+                      - low
+                      - high
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - absent
+                    required:
+                      - kind
+                    additionalProperties: false
               unit:
                 type: string
                 minLength: 1
@@ -4335,9 +4500,49 @@ components:
                 minLength: 1
                 maxLength: 120
               quantity:
-                type: number
-                minimum: 0.001
-                maximum: 1000000
+                oneOf:
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - exact
+                      value:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                    required:
+                      - kind
+                      - value
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - range
+                      low:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                      high:
+                        type: number
+                        minimum: 0.001
+                        maximum: 1000000
+                    required:
+                      - kind
+                      - low
+                      - high
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - absent
+                    required:
+                      - kind
+                    additionalProperties: false
               unit:
                 type: string
                 minLength: 1
@@ -4862,9 +5067,49 @@ components:
                     type: string
                     minLength: 1
                   quantity:
-                    type: number
-                    minimum: 0
-                    exclusiveMinimum: true
+                    oneOf:
+                      - type: object
+                        properties:
+                          kind:
+                            type: string
+                            enum:
+                              - exact
+                          value:
+                            type: number
+                            minimum: 0.001
+                            maximum: 1000000
+                        required:
+                          - kind
+                          - value
+                        additionalProperties: false
+                      - type: object
+                        properties:
+                          kind:
+                            type: string
+                            enum:
+                              - range
+                          low:
+                            type: number
+                            minimum: 0.001
+                            maximum: 1000000
+                          high:
+                            type: number
+                            minimum: 0.001
+                            maximum: 1000000
+                        required:
+                          - kind
+                          - low
+                          - high
+                        additionalProperties: false
+                      - type: object
+                        properties:
+                          kind:
+                            type: string
+                            enum:
+                              - absent
+                        required:
+                          - kind
+                        additionalProperties: false
                   unit:
                     type: string
                   displayText:

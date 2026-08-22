@@ -41,7 +41,7 @@ const oliveOil = {
     id: 'ri_1',
     recipeId: RECIPE_ID,
     ingredientId: E2E_INGREDIENT_IDS.oliveOil,
-    quantity: 2,
+    quantity: { kind: 'exact', value: 2 } as const,
     unit: 'tbsp',
     sortOrder: 1,
     ingredientName: 'Olive oil',
@@ -68,7 +68,7 @@ const v3Snapshot: RecipeSnapshot = {
     ...v2Snapshot,
     version: 3,
     description: 'A fast, comforting pasta dinner with roasted garlic.',
-    ingredients: [{ ...oliveOil, quantity: 3 }],
+    ingredients: [{ ...oliveOil, quantity: { kind: 'exact', value: 3 } }],
 };
 
 const v1 = makeRecipeVersion({

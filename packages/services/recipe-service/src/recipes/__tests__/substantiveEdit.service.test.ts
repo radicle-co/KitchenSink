@@ -117,7 +117,9 @@ describe('RecipesService.update — substantive-edit detection', () => {
         const { dal, update } = fakeDal(existing, existing);
         const patch: UpdateRecipeDto = {
             expectedVersion: 1,
-            ingredients: [{ ingredientId: INGREDIENT_ID, name: 'Onion', quantity: 3, unit: 'unit' }],
+            ingredients: [
+                { ingredientId: INGREDIENT_ID, name: 'Onion', quantity: { kind: 'exact', value: 3 }, unit: 'unit' },
+            ],
         };
 
         await service(dal).update(OWNER_PRINCIPAL, 'r-1', patch);
@@ -131,7 +133,9 @@ describe('RecipesService.update — substantive-edit detection', () => {
         const patch: UpdateRecipeDto = {
             expectedVersion: 1,
             steps: [{ instruction: 'Mix' }],
-            ingredients: [{ ingredientId: INGREDIENT_ID, name: 'Onion', quantity: 1, unit: 'unit' }],
+            ingredients: [
+                { ingredientId: INGREDIENT_ID, name: 'Onion', quantity: { kind: 'exact', value: 1 }, unit: 'unit' },
+            ],
         };
 
         await service(dal).update(OWNER_PRINCIPAL, 'r-1', patch);

@@ -59,7 +59,7 @@ export function makeIngredientView(overrides: Partial<RecipeIngredientView> = {}
     return {
         ingredientId: '00000000-0000-4000-8000-000000000001',
         name: 'Olive oil',
-        quantity: 2,
+        quantity: { kind: 'exact', value: 2 },
         unit: 'tbsp',
         isUserEntered: false,
         ...overrides,

@@ -34,7 +34,7 @@ const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngred
     id: 'ri_1',
     recipeId: 'rec_1',
     ingredientId: 'ing_a',
-    quantity: 200,
+    quantity: { kind: 'exact', value: 200 },
     unit: 'g',
     sortOrder: 1,
     ingredientName: 'Pasta',
@@ -51,11 +51,17 @@ const makeSnapshot = (overrides: Partial<RecipeSnapshot> = {}): RecipeSnapshot =
     cookTimeMinutes: 30,
     steps: [makeStep()],
     ingredients: [
-        makeIngredient({ id: 'ri_a', ingredientId: 'ing_a', quantity: 200, unit: 'g', ingredientName: 'Pasta' }),
+        makeIngredient({
+            id: 'ri_a',
+            ingredientId: 'ing_a',
+            quantity: { kind: 'exact', value: 200 },
+            unit: 'g',
+            ingredientName: 'Pasta',
+        }),
         makeIngredient({
             id: 'ri_b',
             ingredientId: 'ing_b',
-            quantity: 50,
+            quantity: { kind: 'exact', value: 50 },
             unit: 'g',
             sortOrder: 2,
             ingredientName: 'Parmesan',
@@ -83,11 +89,17 @@ const versionB = makeVersion({
         version: 12,
         description: 'Updated description.',
         ingredients: [
-            makeIngredient({ id: 'ri_a', ingredientId: 'ing_a', quantity: 200, unit: 'g', ingredientName: 'Pasta' }),
+            makeIngredient({
+                id: 'ri_a',
+                ingredientId: 'ing_a',
+                quantity: { kind: 'exact', value: 200 },
+                unit: 'g',
+                ingredientName: 'Pasta',
+            }),
             makeIngredient({
                 id: 'ri_b',
                 ingredientId: 'ing_b',
-                quantity: 75,
+                quantity: { kind: 'exact', value: 75 },
                 unit: 'g',
                 sortOrder: 2,
                 ingredientName: 'Parmesan',
@@ -95,7 +107,7 @@ const versionB = makeVersion({
             makeIngredient({
                 id: 'ri_c',
                 ingredientId: 'ing_c',
-                quantity: 10,
+                quantity: { kind: 'exact', value: 10 },
                 unit: 'g',
                 sortOrder: 3,
                 ingredientName: 'Basil',
@@ -205,11 +217,17 @@ describe('VersionCompareView (native) — reorder-only ingredient diff', () => {
         snapshot: makeSnapshot({
             version: 9,
             ingredients: [
-                makeIngredient({ id: 'ri_a', ingredientId: 'ing_a', quantity: 200, unit: 'g', sortOrder: 2 }),
+                makeIngredient({
+                    id: 'ri_a',
+                    ingredientId: 'ing_a',
+                    quantity: { kind: 'exact', value: 200 },
+                    unit: 'g',
+                    sortOrder: 2,
+                }),
                 makeIngredient({
                     id: 'ri_b',
                     ingredientId: 'ing_b',
-                    quantity: 50,
+                    quantity: { kind: 'exact', value: 50 },
                     unit: 'g',
                     sortOrder: 1,
                     ingredientName: 'Parmesan',
@@ -257,11 +275,17 @@ describe('VersionCompareView (native) — WCAG AA text contrast (SC 1.4.3)', () 
         snapshot: makeSnapshot({
             version: 10,
             ingredients: [
-                makeIngredient({ id: 'ri_a', ingredientId: 'ing_a', quantity: 200, unit: 'g', sortOrder: 2 }),
+                makeIngredient({
+                    id: 'ri_a',
+                    ingredientId: 'ing_a',
+                    quantity: { kind: 'exact', value: 200 },
+                    unit: 'g',
+                    sortOrder: 2,
+                }),
                 makeIngredient({
                     id: 'ri_b',
                     ingredientId: 'ing_b',
-                    quantity: 50,
+                    quantity: { kind: 'exact', value: 50 },
                     unit: 'g',
                     sortOrder: 1,
                     ingredientName: 'Parmesan',

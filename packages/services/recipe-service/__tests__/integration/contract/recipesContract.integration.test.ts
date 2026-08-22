@@ -46,7 +46,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe read shape — client ↔ server contra
                 {
                     ingredientId: FLOUR_ID,
                     name: 'Flour',
-                    quantity: 2,
+                    quantity: { kind: 'exact', value: 2 },
                     unit: 'cup',
                     userCalories: 200,
                     userProteinG: 8,
@@ -87,7 +87,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe read shape — client ↔ server contra
         // Ingredients are the typed view: catalog name, quantity/unit, and the user-entered badge flag.
         expect(recipe.ingredients).toHaveLength(1);
         expect(recipe.ingredients[0]?.name).toBe('Flour');
-        expect(recipe.ingredients[0]?.quantity).toBe(2);
+        expect(recipe.ingredients[0]?.quantity).toEqual({ kind: 'exact', value: 2 });
         expect(recipe.ingredients[0]?.isUserEntered).toBe(true);
 
         // Steps are the typed view: 1-based number + instruction.

@@ -12,19 +12,23 @@
  */
 import { asc, eq, inArray } from 'drizzle-orm';
 
+import type { IngredientQuantity } from '@kitchensink/recipe-core';
+
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeIngredients, type RecipeIngredientRow } from '../../database/schema/index.js';
 import { type Writer } from '../../database/unitOfWork.js';
+import { quantityColumns } from './quantityColumns.js';
 
 /**
- * A recipe ingredient line resolved to a catalog ingredient, ready to persist. `quantity` is a real
- * number here (the DAL serializes it to the `numeric` column); `ingredientName`/`isUserEntered` are the
- * denormalized catalog identity so reads need no JOIN.
+ * A recipe ingredient line resolved to a catalog ingredient, ready to persist. `quantity` is the domain
+ * VALUE OBJECT here (the DAL spreads it across the two `numeric` columns); `ingredientName`/`isUserEntered`
+ * are the denormalized catalog identity so reads need no JOIN.
  */
 export interface ResolvedIngredientLine {
     ingredientId: string;
     ingredientName: string;
-    quantity: number;
+    /** What the source stated — one value, two bounds, or nothing (U8/KTD-6). */
+    quantity: IngredientQuantity;
     unit: string;
     displayText?: string;
     sortOrder: number;
@@ -66,7 +70,9 @@ export class RecipeIngredientsDal {
                     recipeId,
                     ingredientId: line.ingredientId,
                     ingredientName: line.ingredientName,
-                    quantity: line.quantity.toString(),
+                    // Both quantity columns come from the ONE adapter — see `quantityColumns.ts` for why
+                    // this is not `line.quantity.toString()` spelled inline.
+                    ...quantityColumns(line.quantity),
                     unit: line.unit,
                     displayText: line.displayText ?? null,
                     sortOrder: line.sortOrder,

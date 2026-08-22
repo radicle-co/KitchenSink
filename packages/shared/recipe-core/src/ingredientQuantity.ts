@@ -15,7 +15,20 @@
  * ⛔ `absent` is NEVER a zero and never a fabricated `1` (R40). A 1900s cookbook says "butter the size of
  * an egg", and the honest reading of that line is that it states no number — not that it states none of
  * something.
+ *
+ * ## This module is ON the barrel, and that is a deliberate reversal (U8)
+ *
+ * U7 landed it as the subpath-only `@kitchensink/recipe-core/ingredient-quantity`, because the barrel is
+ * inside recipe-service's `CONTRACT_HASH` fingerprint and adding to it — even a comment — moves the hash.
+ * U8 widens the wire to carry this very type, so the hash moves anyway and the type belongs where the rest
+ * of the wire vocabulary lives. The subpath is GONE: two doors into one module is two places to look.
+ *
+ * ⛔ Do not confuse this with `scaling.ts`, which is subpath-only for a reason that still holds — it is
+ * presentation policy the service never composes. This one IS composed by `recipes.schema.ts`.
  */
+import { z } from 'zod';
+
+import { recipeIngredientQuantitySchema } from './recipeRequestBounds.js';
 
 /** A recipe line's stated amount: one value, two bounds, or nothing the source stated. */
 export type IngredientQuantity =
@@ -92,3 +105,63 @@ export function quantityUpperBound(quantity: IngredientQuantity): number | null 
             return null;
     }
 }
+
+/**
+ * Whether two quantities state the same amount — the value object's own identity-by-value. Pure.
+ *
+ * ⚠️ EXISTS BECAUSE `!==` SILENTLY CHANGED MEANING. Both change detectors in this system compared the old
+ * scalar with `!==`: `ingredientContentChanged` (the version diff) and `ingredientsChanged` (the service's
+ * C-004 substantive-edit test). Against an OBJECT that operator is reference identity, so every ingredient
+ * would have read as modified on every diff and every metadata-only PATCH would have minted a new version.
+ * Neither would have failed to compile, and neither would have looked wrong in review.
+ *
+ * @param left - One quantity.
+ * @param right - The other.
+ * @returns `true` when both name the same member with the same bounds.
+ */
+export function quantitiesEqual(left: IngredientQuantity, right: IngredientQuantity): boolean {
+    switch (left.kind) {
+        case 'exact':
+            return right.kind === 'exact' && right.value === left.value;
+        case 'range':
+            return right.kind === 'range' && right.low === left.low && right.high === left.high;
+        case 'absent':
+            return right.kind === 'absent';
+    }
+}
+
+/**
+ * The WIRE form of {@link IngredientQuantity} — a discriminated union, so the request contract can spell
+ * exactly the three states the domain admits and no others.
+ *
+ * ⛔ NOT `quantity?: number` plus `quantityHigh?: number`. That pair type-checks four extra states the
+ * product has no reading for (`high` with no `low`, `high < low`, `high === low`, and a `0` meaning
+ * "unstated"), and a `.refine` rejecting them at the boundary still leaves every downstream consumer
+ * holding a type that admits them. Following ADR-0023's `recipeSourceInputSchema`, which chose a union over
+ * optional fields for the same reason.
+ *
+ * `z.strictObject` members, deliberately: this schema is the REQUEST carrier, and the failure it forecloses
+ * is a client that means `2 to 5`, mis-spells the member, and has its upper bound silently stripped —
+ * persisting an exact `2` with a `200`. Response schemas in this repo are non-strict, but every producer of
+ * this shape is regenerated from this file in lockstep (ADR-0014), so strictness costs nothing on the way
+ * out.
+ *
+ * Each bound is `recipeIngredientQuantitySchema`, so a bound the `numeric(10,3)` column cannot store is
+ * refused in ONE place rather than three.
+ */
+export const ingredientQuantitySchema: z.ZodType<IngredientQuantity> = z
+    .discriminatedUnion('kind', [
+        z.strictObject({ kind: z.literal('exact'), value: recipeIngredientQuantitySchema }),
+        z.strictObject({
+            kind: z.literal('range'),
+            low: recipeIngredientQuantitySchema,
+            high: recipeIngredientQuantitySchema,
+        }),
+        z.strictObject({ kind: z.literal('absent') }),
+    ])
+    // STRICTLY greater, not `>=`: `statedQuantity` collapses coincident bounds to `exact`, so admitting
+    // `low === high` here would give one amount two wire representations — the thing the `''`-is-rejected
+    // unit convention exists to prevent.
+    .refine((quantity) => quantity.kind !== 'range' || quantity.high > quantity.low, {
+        message: 'A quantity range must state an upper bound strictly above its lower bound',
+    });

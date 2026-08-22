@@ -190,7 +190,7 @@ test.describe('recipe search (T110)', () => {
                         {
                             ingredientId: E2E_INGREDIENT_IDS.mango,
                             name: 'Mango',
-                            quantity: 1,
+                            quantity: { kind: 'exact', value: 1 },
                             unit: 'each',
                             isUserEntered: false,
                         },

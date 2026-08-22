@@ -21,7 +21,7 @@ const createFakeDb = (): FakeControl => makeFakeDrizzle<RecipeDrizzle>();
 const LINE: ResolvedIngredientLine = {
     ingredientId: '00000000-0000-4000-8000-0000000000ff',
     ingredientName: 'Onion',
-    quantity: 2,
+    quantity: { kind: 'exact', value: 2 },
     unit: 'cup',
     displayText: 'diced',
     sortOrder: 0,
@@ -48,6 +48,10 @@ describe('RecipeIngredientsDal.replaceForRecipe', () => {
             ingredientId: LINE.ingredientId,
             ingredientName: 'Onion',
             quantity: '2',
+            // U8 — an exact quantity writes NULL to the upper-bound column. Asserted by `toEqual` on the
+            // whole row on purpose: the write must name every column, so a bound the mapper forgot to emit
+            // shows up here rather than as a row that silently keeps its previous value.
+            quantityHigh: null,
             unit: 'cup',
             displayText: 'diced',
             sortOrder: 0,

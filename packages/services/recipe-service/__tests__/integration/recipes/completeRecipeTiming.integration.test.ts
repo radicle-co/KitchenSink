@@ -53,7 +53,14 @@ const COMPLETE_RECIPE_PAYLOAD = {
     totalTimeMinutes: 30,
     tags: ['integration'],
     dietaryFlags: [],
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 2, unit: 'cups' }],
+    ingredients: [
+        {
+            ingredientId: '00000000-0000-4000-8000-0000000000aa',
+            name: 'Flour',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'cups',
+        },
+    ],
     steps: [{ instruction: 'Combine and bake.' }],
 };
 

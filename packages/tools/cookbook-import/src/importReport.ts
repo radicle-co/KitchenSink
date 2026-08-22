@@ -18,6 +18,8 @@
  * rewriting ingredient names before lookup, the number stops describing the product and the report becomes
  * a lie told with real data — see `resolveIngredient.ts`.
  */
+import { quantityLowerBound, quantityUpperBound, type IngredientQuantity } from '@kitchensink/recipe-core';
+
 import type { IngredientResolutionKind } from './resolveIngredient.js';
 import type { RecipeSkipReason } from './proseRecipe.js';
 
@@ -29,9 +31,12 @@ export interface ImportedExample {
     readonly title: string;
     /** Each line: the name from the prose, how it resolved, and the food record it reached (if any). */
     readonly lines: readonly {
-        readonly quantity: number;
-        /** The range's upper bound, when the source stated a range. `undefined` for a single amount. */
-        readonly quantityHigh: number | undefined;
+        /**
+         * What the source stated, in the SAME shape the service now persists (U8) — one value, two bounds,
+         * or nothing. It was a `quantity` scalar plus a loose `quantityHigh` while the wire could only
+         * carry the lower bound and the report had to show what was lost.
+         */
+        readonly quantity: IngredientQuantity;
         readonly unit: string;
         readonly name: string;
         readonly kind: IngredientResolutionKind;
@@ -78,14 +83,17 @@ export interface ImportReportData {
     foodBackedIngredients: number;
     /** Lookups made while the food catalog was unreachable — NOT the same as "no match". */
     catalogUnavailable: number;
-    /**
-     * Lines whose source stated a RANGE that the wire could only carry as its lower bound.
+    /*
+     * ⛔ `rangeNarrowedAtWire` STOOD HERE AND WAS DELETED BY U8. Do not reintroduce it.
      *
-     * Counted because it is a known, temporary loss rather than a parse failure: the parser preserves both
-     * bounds (R36) and `recipe_ingredients.quantity` is a single positive scalar until U8 widens it. A
-     * non-zero figure here is the size of what U8 recovers; it must fall to zero when U8 lands.
+     * It counted lines whose source stated a RANGE that the wire could only carry as its lower bound, and
+     * its own docstring said it "must fall to zero when U8 lands". U8 landed: `recipe_ingredients` holds
+     * `quantity` + `quantity_high` and the contract carries the value object, so nothing between the parser
+     * and the column narrows anything. A counter that is structurally always zero is worse than no counter
+     * — it reads as a measurement while measuring nothing. The property it protected is now enforced by
+     * TYPE (`runImport` hands the parser's own `IngredientQuantity` to the contract's own
+     * `ingredientQuantitySchema`) rather than counted after the fact.
      */
-    rangeNarrowedAtWire: number;
     /** Source clauses that named something but carried no usable quantity, verbatim. */
     readonly droppedLines: string[];
     /** A handful of complete recipes, for a reader who wants to see the output rather than the totals. */
@@ -109,7 +117,6 @@ export function emptyReport(book: string): ImportReportData {
         foodPendingIngredients: 0,
         foodBackedIngredients: 0,
         catalogUnavailable: 0,
-        rangeNarrowedAtWire: 0,
         droppedLines: [],
         examples: [],
     };
@@ -173,7 +180,6 @@ export function renderReport(report: ImportReportData): string {
     );
     lines.push(`    of those, still non-terminal      ${report.foodPendingIngredients}`);
     lines.push(`  lookups during a catalog outage     ${report.catalogUnavailable}`);
-    lines.push(`  stated RANGES narrowed at the wire  ${report.rangeNarrowedAtWire}  (recovered by U8)`);
 
     if (report.failures.length > 0) {
         lines.push('\nAPI REFUSALS');
@@ -199,8 +205,11 @@ export function renderReport(report: ImportReportData): string {
                 line.foodId === undefined
                     ? 'freeform (no food record)'
                     : `food_id=${line.foodId} ${line.foodResolutionStatus ?? ''}`.trim();
-            const amount =
-                line.quantityHigh === undefined ? String(line.quantity) : `${line.quantity}-${line.quantityHigh}`;
+            // A dash for a range, an empty cell for an amount the source did not state (R40) — never a `0`,
+            // which in this column would read as "the recipe calls for none of it".
+            const low = quantityLowerBound(line.quantity);
+            const high = quantityUpperBound(line.quantity);
+            const amount = low === null ? '' : line.quantity.kind === 'range' ? `${low}-${String(high)}` : String(low);
 
             lines.push(
                 `  ${amount.padStart(9)} ${line.unit.padEnd(12)} ${line.name.padEnd(28)} ${line.kind.padEnd(20)} ${food}`,

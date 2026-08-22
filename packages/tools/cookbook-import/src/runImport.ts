@@ -24,8 +24,6 @@
  */
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { quantityLowerBound, quantityUpperBound } from '@kitchensink/recipe-core/ingredient-quantity';
-
 import { assertPublicDomain, type Cookbook } from './cookbooks.js';
 import { segmentCookbook } from './gutenbergBook.adapter.js';
 import { toCandidateRecipe } from './proseRecipe.js';
@@ -107,26 +105,19 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
         const exampleLines: ImportedExample['lines'][number][] = [];
 
         for (const parsed of recipe.ingredients) {
-            // ⛔ THE WIRE BOUNDARY, and the only place in this tool a quantity is narrowed or refused.
+            // ⛔ THE WIRE BOUNDARY — and since U8 there is NOTHING TO DO HERE. Keep it that way.
             //
-            // `recipe_ingredients.quantity` is a required, positive scalar until U8 widens it, so the
-            // three-state domain value has to collapse here — and collapsing it HERE rather than in the
-            // parser is what makes U8 an adapter change instead of a parser change.
+            // This was the one place in the tool a quantity was narrowed or refused, because
+            // `recipe_ingredients.quantity` was a required positive scalar: a stated range lost its upper
+            // bound (counted as `rangeNarrowedAtWire`) and an unquantified line was DROPPED, because the
+            // only number available to send was a `0` the wire's `0.001` floor rejected with a `400` that
+            // refused the whole recipe. The column is now `exact | range | absent` end to end, so the
+            // parser's own reading of the source travels to the service unaltered (R36, R40, R41).
             //
-            // ⛔ NOT `parsed.quantity ?? 0`. That expression could not distinguish "the source stated no
-            // amount" from "the source stated zero", and the `0` it produced was rejected by the wire's
-            // `0.001` floor — a `400` that refused the WHOLE recipe over one unquantified line. An absent
-            // quantity now drops its own line and keeps the rest of the recipe (R40).
-            const bounds = quantityLowerBound(parsed.quantity);
-
-            if (bounds === null) {
-                report.droppedLines.push(parsed.raw);
-                continue;
-            }
-
-            if (parsed.quantity.kind === 'range') {
-                report.rangeNarrowedAtWire += 1;
-            }
+            // ⛔ Do not reintroduce a collapse here "to be safe". Every form the parser can produce is a
+            // form the contract accepts — that is what `ingredientQuantitySchema` being the SAME object on
+            // both sides buys — and a defensive `quantityLowerBound` would silently resume discarding upper
+            // bounds with nothing to signal it.
 
             // ⛔ The name goes to the service EXACTLY as the prose gave it. See `resolveIngredient.ts`.
             const resolution = await resolveIngredientLikeAUser(client, parsed.name);
@@ -150,15 +141,14 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
                 // The wire requires a name; the server overwrites it from the catalog row anyway. Sending
                 // the catalog's own name keeps the request honest about what it is referencing.
                 name: ingredient.name,
-                quantity: bounds,
+                quantity: parsed.quantity,
                 ...(parsed.unit === null ? {} : { unit: parsed.unit }),
                 // The source's own words for this line, kept verbatim beside the structured values.
                 notes: parsed.raw,
             });
 
             exampleLines.push({
-                quantity: bounds,
-                quantityHigh: quantityUpperBound(parsed.quantity) ?? undefined,
+                quantity: parsed.quantity,
                 unit: parsed.unit ?? '',
                 name: parsed.name,
                 kind: resolution.kind,

@@ -15,6 +15,7 @@ import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/com
 import { deriveDisplayName } from '@kitchensink/identity-core';
 import {
     computeRecipeNutrition,
+    quantitiesEqual,
     toNutritionLine,
     type LineCatalogNutrition,
     type LineMeasure,
@@ -34,6 +35,7 @@ import { toRecipeNutritionState } from './domain/nutritionState.js';
 import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipeIngredients.dal.js';
+import { quantityFromColumns } from './dal/quantityColumns.js';
 import {
     invalidVisibility,
     notOwner,
@@ -111,8 +113,8 @@ function toIngredientResponse(row: RecipeIngredientRow): RecipeIngredientRespons
     return {
         ingredientId: row.ingredientId,
         name: row.ingredientName,
-        // `quantity` is a `numeric` column — Drizzle/pg surface it as a string; the contract is a number.
-        quantity: Number(row.quantity),
+        // Both quantity columns, read through the ONE adapter (`dal/quantityColumns.ts`).
+        quantity: quantityFromColumns(row),
         ...(row.unit.length > 0 ? { unit: row.unit } : {}),
         ...(row.displayText !== null ? { notes: row.displayText } : {}),
         isUserEntered: row.isUserEntered,
@@ -202,8 +204,8 @@ function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientL
     return {
         ingredientId: row.ingredientId,
         ingredientName: row.ingredientName,
-        // `quantity` is a `numeric` column surfaced as a string; the DAL re-serializes it on insert.
-        quantity: Number(row.quantity),
+        // Both quantity columns, read through the ONE adapter (`dal/quantityColumns.ts`).
+        quantity: quantityFromColumns(row),
         unit: row.unit,
         ...(row.displayText !== null ? { displayText: row.displayText } : {}),
         sortOrder: row.sortOrder,
@@ -223,7 +225,7 @@ function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientL
 function rowToMeasureInput(row: RecipeIngredientRow): LineMeasure & { ingredientId: string } {
     return {
         ingredientId: row.ingredientId,
-        quantity: Number(row.quantity),
+        quantity: quantityFromColumns(row),
         unit: row.unit,
         ...(row.userCalories !== null ? { userCalories: Number(row.userCalories) } : {}),
         ...(row.userProteinG !== null ? { userProteinG: Number(row.userProteinG) } : {}),
@@ -297,8 +299,8 @@ function aggregateToSnapshot(aggregate: RecipeAggregate): RecipeSnapshot {
             id: line.id,
             recipeId: line.recipeId,
             ingredientId: line.ingredientId,
-            // `quantity` is a numeric column surfaced as a string by pg — the snapshot contract is a number.
-            quantity: Number(line.quantity),
+            // Both quantity columns, read through the ONE adapter (`dal/quantityColumns.ts`).
+            quantity: quantityFromColumns(line),
             unit: line.unit,
             ...(line.displayText !== null ? { displayText: line.displayText } : {}),
             sortOrder: line.sortOrder,
@@ -341,7 +343,10 @@ function ingredientsChanged(existing: RecipeIngredientRow[], incoming: RecipeIng
         return (
             next === undefined ||
             row.ingredientId !== next.ingredientId ||
-            Number(row.quantity) !== next.quantity ||
+            // ⛔ `!==` here would be REFERENCE identity against a value object — every metadata-only PATCH
+            // would read as a substantive edit and mint a new version. `quantitiesEqual` is the value
+            // object's own identity, and it is what makes an upper-bound-only edit substantive (C-004).
+            !quantitiesEqual(quantityFromColumns(row), next.quantity) ||
             (row.unit.length > 0 ? row.unit : '') !== (next.unit ?? '') ||
             (row.displayText ?? null) !== (next.notes ?? null)
         );

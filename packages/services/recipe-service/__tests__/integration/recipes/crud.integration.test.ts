@@ -39,7 +39,14 @@ const CREATE_PAYLOAD = {
     totalTimeMinutes: 30,
     tags: ['integration'],
     dietaryFlags: [],
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 2, unit: 'cup' }],
+    ingredients: [
+        {
+            ingredientId: '00000000-0000-4000-8000-0000000000aa',
+            name: 'Flour',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'cup',
+        },
+    ],
     steps: [{ instruction: 'Combine the dry ingredients.' }, { instruction: 'Bake.', timerSeconds: 1800 }],
 };
 
@@ -111,7 +118,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
                 ingredients: Array.from({ length: 101 }, (_, i) => ({
                     ingredientId: '00000000-0000-4000-8000-0000000000aa',
                     name: `Ingredient ${i}`,
-                    quantity: 1,
+                    quantity: { kind: 'exact', value: 1 },
                 })),
             }),
         });

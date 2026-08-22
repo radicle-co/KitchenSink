@@ -19,11 +19,15 @@
  * published type would have compiled while still sending the field; it is dropped explicitly below instead.
  */
 import {
+    ABSENT_QUANTITY,
     computeRecipeNutrition,
+    quantityLowerBound,
     recipeIngredientQuantitySchema,
     recipeStepInstructionSchema,
     recipeTitleSchema,
+    statedQuantity,
     toNutritionLine as buildNutritionLine,
+    type IngredientQuantity,
 } from '@kitchensink/recipe-core';
 import type {
     FoodResolutionStatus,
@@ -55,7 +59,26 @@ import type { CreateRecipeRequest, UpdateRecipeRequest } from '@kitchensink/sche
 export interface RecipeFormIngredient {
     readonly ingredientId: string | null;
     readonly name: string;
+    /**
+     * The stated amount, or the LOWER bound when the line states a range.
+     *
+     * ⚠️ DELIBERATELY STILL A LOOSE NUMBER, and not `recipe-core`'s `IngredientQuantity` value object, even
+     * though the wire and the column both carry the value object since U8. A DRAFT is the one place an
+     * incoherent quantity is a legitimate state: it is what a half-typed numeric input holds, and it is what
+     * the inline `quantityInvalid` error exists to talk about. The value object is what a coherent quantity
+     * PARSES to, at the wire boundary ({@link toCreateRecipeInput} / {@link toUpdateRecipeInput}) — parse,
+     * don't validate, with the loose shape on the user's side of the parse.
+     */
     readonly quantity: number;
+    /**
+     * The UPPER bound when the line states a range (`2 to 3 cups`); absent for a single stated value.
+     *
+     * ⚠️ Carried by the draft even though no input renders it yet — U9 adds the second numeric field. It is
+     * here NOW because `toRecipeFormValues` has to round-trip it: without it, opening a ranged recipe in the
+     * editor and pressing save would silently narrow `2–3 cups` back to `2 cups`, which is precisely the
+     * value corruption this whole change exists to end.
+     */
+    readonly quantityHigh?: number;
     readonly unit?: string;
     readonly notes?: string;
     readonly resolutionStatus?: FoodResolutionStatus;
@@ -144,9 +167,28 @@ export const computeTotalTime = (prepTimeMinutes: number, cookTimeMinutes: numbe
  * @param line - The form's ingredient line.
  * @returns The {@link NutritionLine} for the recipe-core nutrition aggregator.
  */
+/**
+ * Parse one loose form draft line into the wire's `exact | range | absent` quantity value object (U8). Pure.
+ *
+ * ⛔ THE ONLY PLACE THE DRAFT'S NUMBERS BECOME A QUANTITY. Four call sites need this — the create body, the
+ * update body, the nutrition line, and the optimistic conflict snapshot — and each of them getting it
+ * independently is how three of them would end up disagreeing about what an emptied field means.
+ *
+ * A draft that states no coherent amount parses to `absent`, never to `0` and never to a fabricated `1`
+ * (R40). That covers an emptied numeric input (`NaN`), a zero, and a genuinely incoherent pair the user is
+ * mid-way through typing (`high < low`, or a high with no low). Reporting those as `absent` is a statement
+ * about the DRAFT, not an acceptance of it: `validateRecipeForm` is what blocks submission, and the inline
+ * `quantityInvalid` error is what tells the user which field to fix.
+ *
+ * @param line - The form's ingredient line.
+ * @returns The quantity the line states.
+ */
+export const draftQuantity = (line: RecipeFormIngredient): IngredientQuantity =>
+    statedQuantity(line.quantity, line.quantityHigh) ?? ABSENT_QUANTITY;
+
 export const toNutritionLine = (line: RecipeFormIngredient): NutritionLine => {
     const measure: LineMeasure = {
-        quantity: line.quantity,
+        quantity: draftQuantity(line),
         unit: line.unit ?? '',
         ...(line.userCalories === undefined ? {} : { userCalories: line.userCalories }),
         ...(line.userProteinG === undefined ? {} : { userProteinG: line.userProteinG }),
@@ -250,7 +292,7 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
         .map((line) => ({
             ingredientId: line.ingredientId,
             name: line.name,
-            quantity: line.quantity,
+            quantity: draftQuantity(line),
             ...(line.unit === undefined || line.unit === '' ? {} : { unit: line.unit }),
             ...(line.notes === undefined || line.notes === '' ? {} : { notes: line.notes }),
         })),
@@ -337,7 +379,12 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
     ingredients: detail.ingredients.map((line) => ({
         ingredientId: line.ingredientId,
         name: line.name,
-        quantity: line.quantity,
+        // ⚠️ BOTH bounds, always. `NaN` for an absent quantity is what an emptied numeric input holds, so
+        // the draft says "no amount stated" rather than fabricating a `0` the source never gave (R40) —
+        // and the high bound is carried even though no input renders it yet, because dropping it here is
+        // what would silently narrow `2–3 cups` to `2 cups` on the next save.
+        quantity: quantityLowerBound(line.quantity) ?? Number.NaN,
+        ...(line.quantity.kind === 'range' ? { quantityHigh: line.quantity.high } : {}),
         resolutionStatus: 'RESOLVED',
         ...(line.unit === undefined ? {} : { unit: line.unit }),
         ...(line.notes === undefined ? {} : { notes: line.notes }),

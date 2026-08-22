@@ -44,7 +44,9 @@ describe.skipIf(!hasDatabaseUrl)('versions vertical — client ↔ server contra
             totalTimeMinutes: 15,
             tags: [],
             dietaryFlags: [],
-            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2, unit: 'cup' }],
+            ingredients: [
+                { ingredientId: FLOUR_ID, name: 'Flour', quantity: { kind: 'exact', value: 2 }, unit: 'cup' },
+            ],
             steps: [{ instruction: 'Mix.' }],
         });
         recipeId = recipe.id;
@@ -92,7 +94,7 @@ describe.skipIf(!hasDatabaseUrl)('versions vertical — client ↔ server contra
             totalTimeMinutes: 15,
             tags: [],
             dietaryFlags: [],
-            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2 }],
+            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: { kind: 'exact', value: 2 } }],
             steps: [{ instruction: 'Mix.' }],
         });
 

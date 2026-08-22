@@ -205,7 +205,7 @@ describe('VersionsService.restore', () => {
                 id: 'ri-1',
                 recipeId: RECIPE_ID,
                 ingredientId: '00000000-0000-4000-8000-0000000000aa',
-                quantity: 2,
+                quantity: { kind: 'exact', value: 2 },
                 unit: 'cup',
                 displayText: 'sifted',
                 sortOrder: 0,
@@ -258,7 +258,7 @@ describe('VersionsService.restore', () => {
                     expect.objectContaining({
                         ingredientId: '00000000-0000-4000-8000-0000000000aa',
                         name: 'Flour',
-                        quantity: 2,
+                        quantity: { kind: 'exact', value: 2 },
                         unit: 'cup',
                         notes: 'sifted',
                     }),

@@ -29,7 +29,7 @@ import {
     MAX_RECIPE_INGREDIENT_QUANTITY,
     MIN_RECIPE_INGREDIENT_QUANTITY,
 } from '@kitchensink/recipe-core';
-import { ABSENT_QUANTITY, statedQuantity } from '@kitchensink/recipe-core/ingredient-quantity';
+import { ABSENT_QUANTITY, statedQuantity } from '@kitchensink/recipe-core';
 import { describe, it, expect } from 'vitest';
 
 import { corruptsStatedValue, parseIngredientLine, type IngredientReviewReason } from '../ingredientLine.js';

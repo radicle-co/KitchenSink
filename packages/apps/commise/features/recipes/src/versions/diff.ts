@@ -45,6 +45,7 @@
  *
  * Pure: no I/O, and neither `base` nor `target` (nor their nested arrays) is ever mutated.
  */
+import { quantitiesEqual } from '@kitchensink/recipe-core';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep } from '@kitchensink/recipe-core';
 
 /** The `RecipeSnapshot` fields this module diffs — every field except `version` (see module docs). */
@@ -148,7 +149,13 @@ export const ingredientIdentity = (ingredient: RecipeIngredient): string => ingr
  * Pure. Exported for reuse — see {@link stepContentChanged}.
  */
 export const ingredientContentChanged = (base: RecipeIngredient, target: RecipeIngredient): boolean =>
-    base.quantity !== target.quantity ||
+    // ⛔ NOT `base.quantity !== target.quantity`. Since U8 a quantity is a value OBJECT, and `!==` on an
+    // object is REFERENCE identity — it is `true` for every pair of separately-parsed snapshots, so every
+    // ingredient of every version would have read as modified. `quantitiesEqual` is the value object's own
+    // identity, and it is also what makes an upper-bound-only edit visible: this function is a POSITIVE
+    // field-by-field enumeration, so a newly-modelled part of a quantity is invisible to it by construction
+    // and nothing would fail to compile.
+    !quantitiesEqual(base.quantity, target.quantity) ||
     base.unit !== target.unit ||
     base.displayText !== target.displayText ||
     base.sortOrder !== target.sortOrder ||

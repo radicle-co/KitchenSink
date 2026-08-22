@@ -101,7 +101,9 @@ describe('RecipeDetailView (native)', () => {
         render(
             <RecipeDetailView
                 recipe={makeRecipeDetail({
-                    ingredients: [makeIngredientView({ name: 'Lamb leg', quantity: 1.5, unit: 'lbs' })],
+                    ingredients: [
+                        makeIngredientView({ name: 'Lamb leg', quantity: { kind: 'exact', value: 1.5 }, unit: 'lbs' }),
+                    ],
                 })}
             />,
         );
@@ -764,7 +766,14 @@ describe('RecipeDetailView (native) — serving scale', () => {
             prepTimeMinutes: 15,
             cookTimeMinutes: 25,
             totalTimeMinutes: 45,
-            ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' })],
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: 'ing_1',
+                    name: 'Olive oil',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'tbsp',
+                }),
+            ],
             steps: [makeStepView({ stepNumber: 1, instruction: 'Simmer gently.', timerSeconds: 600 })],
             nutrition: makeNutrition({ calories: 520, isComplete: true }),
         });

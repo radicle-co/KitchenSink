@@ -38,7 +38,13 @@ function createBody(over: Record<string, unknown> = {}): Record<string, unknown>
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
-        ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 1 }],
+        ingredients: [
+            {
+                ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                name: 'Flour',
+                quantity: { kind: 'exact', value: 1 },
+            },
+        ],
         steps: [{ instruction: 'Mix.' }],
         ...over,
     };
@@ -177,28 +183,65 @@ describe('step timerSeconds — bounded above by int4 and below by the column CH
     });
 });
 
+/**
+ * REWRITTEN for U8: `quantity` is no longer a bare number, so every case below now states which MEMBER of
+ * the `exact | range | absent` union it is bounding.
+ *
+ * The property these prove is unchanged and is the whole reason this file exists — a value the
+ * `numeric(10,3)` column cannot store must be a **400 at the pipe**, not a Postgres `22003` collapsed into
+ * a generic 500. What U8 adds is that the column is reached through THREE wire paths now (`exact.value`,
+ * `range.low`, `range.high`), so a bound applied to only one of them would leave the other two open.
+ */
 describe('ingredient quantity — bounded by numeric(10,3) and its CHECK (quantity > 0)', () => {
-    /** Build a single-line ingredients array with the given quantity. */
-    const withQuantity = (quantity: number): Record<string, unknown> => ({
+    /** Build a single-line ingredients array with the given quantity value object. */
+    const withQuantity = (quantity: unknown): Record<string, unknown> => ({
         ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity }],
     });
 
     it('accepts the smallest representable quantity (0.001)', () => {
-        expect(create(withQuantity(0.001)).ingredients[0]?.quantity).toBe(0.001);
+        expect(create(withQuantity({ kind: 'exact', value: 0.001 })).ingredients[0]?.quantity).toEqual({
+            kind: 'exact',
+            value: 0.001,
+        });
     });
 
     it('rejects a quantity below one scale-3 step, which rounds to 0.000 and fails the CHECK', () => {
-        expect(() => create(withQuantity(0.0001))).toThrow();
+        expect(() => create(withQuantity({ kind: 'exact', value: 0.0001 }))).toThrow();
     });
 
     it('rejects a zero and a negative quantity', () => {
-        expect(() => create(withQuantity(0))).toThrow();
-        expect(() => create(withQuantity(-1))).toThrow();
+        expect(() => create(withQuantity({ kind: 'exact', value: 0 }))).toThrow();
+        expect(() => create(withQuantity({ kind: 'exact', value: -1 }))).toThrow();
     });
 
     it('accepts the maximum quantity and rejects one past it', () => {
-        expect(create(withQuantity(1_000_000)).ingredients[0]?.quantity).toBe(1_000_000);
-        expect(() => create(withQuantity(1_000_001))).toThrow();
+        expect(create(withQuantity({ kind: 'exact', value: 1_000_000 })).ingredients[0]?.quantity).toEqual({
+            kind: 'exact',
+            value: 1_000_000,
+        });
+        expect(() => create(withQuantity({ kind: 'exact', value: 1_000_001 }))).toThrow();
+    });
+
+    // ⚠️ BOTH bounds of a range land in a `numeric(10,3)` column, so both need the ceiling. A bound applied
+    // only to `low` would let `high` through to the INSERT and produce the very `22003`-as-500 this file
+    // was created to eliminate.
+    it('bounds BOTH ends of a range, not just the lower one', () => {
+        expect(create(withQuantity({ kind: 'range', low: 2, high: 1_000_000 })).ingredients[0]?.quantity).toEqual({
+            kind: 'range',
+            low: 2,
+            high: 1_000_000,
+        });
+        expect(() => create(withQuantity({ kind: 'range', low: 2, high: 1_000_001 }))).toThrow();
+        expect(() => create(withQuantity({ kind: 'range', low: 0.0001, high: 3 }))).toThrow();
+    });
+
+    // R40/R41 — the state the column now admits, and the pipe must let through.
+    it('accepts an ABSENT quantity, which no longer needs a fabricated number', () => {
+        expect(create(withQuantity({ kind: 'absent' })).ingredients[0]?.quantity).toEqual({ kind: 'absent' });
+    });
+
+    it('rejects the pre-U8 bare number, so no caller can go on sending the old shape unnoticed', () => {
+        expect(() => create(withQuantity(1))).toThrow();
     });
 });
 
@@ -209,7 +252,12 @@ describe('per-line nutrition overrides — bounded by numeric(8,2) (FR-007a)', (
     /** Build a single-line ingredients array carrying one nutrition override. */
     const withOverride = (field: string, value: number): Record<string, unknown> => ({
         ingredients: [
-            { ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 1, [field]: value },
+            {
+                ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                name: 'Flour',
+                quantity: { kind: 'exact', value: 1 },
+                [field]: value,
+            },
         ],
     });
 

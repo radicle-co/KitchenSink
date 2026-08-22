@@ -50,7 +50,9 @@ const RECIPE_PAYLOAD = {
     totalTimeMinutes: 15,
     tags: ['integration'],
     dietaryFlags: [],
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: 1 }],
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-0000000000bb', name: 'Flour', quantity: { kind: 'exact', value: 1 } },
+    ],
     steps: [{ instruction: 'Mix.' }],
 };
 

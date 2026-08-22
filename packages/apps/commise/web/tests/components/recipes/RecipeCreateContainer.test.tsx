@@ -134,7 +134,9 @@ describe('RecipeCreateContainer', () => {
         await vi.waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
         const [input] = createSpy.mock.calls[0] as [CreateRecipeRequest];
         expect(input.title).toBe('Test Recipe');
-        expect(input.ingredients).toEqual([{ ingredientId: 'ing_9', name: 'Olive oil', quantity: 1 }]);
+        expect(input.ingredients).toEqual([
+            { ingredientId: 'ing_9', name: 'Olive oil', quantity: { kind: 'exact', value: 1 } },
+        ]);
         expect(input.steps).toEqual([{ instruction: 'Combine everything.' }]);
         expect(input.status).toBe('published');
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_created'));

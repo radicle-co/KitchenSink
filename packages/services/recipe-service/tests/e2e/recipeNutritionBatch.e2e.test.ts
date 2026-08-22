@@ -61,7 +61,14 @@ describe.skipIf(!hasDatabaseUrl)('POST /api/v1/recipes/nutrition-batch (e2e, ass
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
-                ingredients: [{ ingredientId: SEED_INGREDIENT_FLOUR, name: 'Flour', quantity: 200, unit: 'g' }],
+                ingredients: [
+                    {
+                        ingredientId: SEED_INGREDIENT_FLOUR,
+                        name: 'Flour',
+                        quantity: { kind: 'exact', value: 200 },
+                        unit: 'g',
+                    },
+                ],
                 steps: [{ instruction: 'Mix.' }],
             }),
         });

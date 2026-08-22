@@ -11,7 +11,6 @@
         "./testing": "./src/testing/index.ts",
         "./database-name": "./src/recipeDatabaseName.ts",
         "./food-name": "./src/foodName.ts",
-        "./ingredient-quantity": "./src/ingredientQuantity.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"
     },

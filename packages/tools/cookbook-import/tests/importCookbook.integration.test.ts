@@ -34,7 +34,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { quantityLowerBound } from '@kitchensink/recipe-core/ingredient-quantity';
+
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { COOKBOOKS } from '../src/cookbooks.js';
@@ -91,22 +91,17 @@ describe.skipIf(!configured)('cookbook import against a live recipe service', ()
         const lines: CreateRecipeBody['ingredients'][number][] = [];
 
         for (const parsed of outcome.recipe.ingredients) {
-            // ⚠️ REWRITTEN for U7. This was `parsed.quantity ?? 0`, mirroring `runImport`; the `0` it
-            // produced for an unquantified line sits below the wire's `0.001` floor, so the service
-            // answered `400` and refused the WHOLE recipe. The line is dropped here for the same reason
-            // the run drops it, and the tier asserts below that a real recipe still reaches the service.
-            const quantity = quantityLowerBound(parsed.quantity);
-
-            if (quantity === null) {
-                continue;
-            }
-
+            // ⚠️ REWRITTEN AGAIN for U8, and the rewrite is a DELETION. U7 collapsed the value object to
+            // its lower bound here and skipped any line without one, mirroring `runImport`, because the
+            // wire took a required positive scalar. It now takes `exact | range | absent`, so the parser's
+            // own reading travels through unaltered — and THIS TIER is what proves that against the real
+            // shipped contract rather than against a fake that would agree with anything.
             const resolution = await resolveIngredientLikeAUser(client, parsed.name);
 
             lines.push({
                 ingredientId: resolution.ingredient.id,
                 name: resolution.ingredient.name,
-                quantity,
+                quantity: parsed.quantity,
                 ...(parsed.unit === null ? {} : { unit: parsed.unit }),
                 notes: parsed.raw,
             });

@@ -24,7 +24,7 @@ const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngred
     id: 'ri_1',
     recipeId: 'rec_1',
     ingredientId: 'ing_1',
-    quantity: 2,
+    quantity: { kind: 'exact', value: 2 },
     unit: 'tbsp',
     sortOrder: 1,
     ingredientName: 'Olive oil',
@@ -186,10 +186,14 @@ describe('computeConflictDiff', () => {
     });
 
     it('reports a changed row for an ingredient changed on one side, keyed by its ingredientId', () => {
-        const ingredients = [makeIngredient({ ingredientId: 'ing_1', quantity: 2, unit: 'tbsp' })];
+        const ingredients = [
+            makeIngredient({ ingredientId: 'ing_1', quantity: { kind: 'exact', value: 2 }, unit: 'tbsp' }),
+        ];
         const base = makeSnapshot({ ingredients });
         const mine = makeSnapshot({
-            ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: 3, unit: 'tbsp' })],
+            ingredients: [
+                makeIngredient({ ingredientId: 'ing_1', quantity: { kind: 'exact', value: 3 }, unit: 'tbsp' }),
+            ],
         });
         const theirs = makeSnapshot({ ingredients });
 
@@ -270,7 +274,7 @@ describe('computeConflictDiff', () => {
                     id: 'ri_2',
                     ingredientId: 'ing_2',
                     ingredientName: 'Garlic',
-                    quantity: 1,
+                    quantity: { kind: 'exact', value: 1 },
                     unit: 'clove',
                 }),
             ],
@@ -294,7 +298,13 @@ describe('computeConflictDiff', () => {
     it('reports a removed ingredient (absent from theirs) with the theirs side empty', () => {
         const ingredients = [
             makeIngredient({ ingredientId: 'ing_1' }),
-            makeIngredient({ id: 'ri_2', ingredientId: 'ing_2', ingredientName: 'Garlic', quantity: 1, unit: 'clove' }),
+            makeIngredient({
+                id: 'ri_2',
+                ingredientId: 'ing_2',
+                ingredientName: 'Garlic',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'clove',
+            }),
         ];
         const base = makeSnapshot({ ingredients });
         const mine = makeSnapshot({ ingredients });
@@ -368,8 +378,12 @@ describe('computeConflictDiff', () => {
         });
 
         it('classifies a per-element ingredient difference as conflict, with base absent', () => {
-            const mine = makeSnapshot({ ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: 2 })] });
-            const theirs = makeSnapshot({ ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: 5 })] });
+            const mine = makeSnapshot({
+                ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: { kind: 'exact', value: 2 } })],
+            });
+            const theirs = makeSnapshot({
+                ingredients: [makeIngredient({ ingredientId: 'ing_1', quantity: { kind: 'exact', value: 5 } })],
+            });
 
             const diff = computeConflictDiff(undefined, mine, theirs, 'en');
 

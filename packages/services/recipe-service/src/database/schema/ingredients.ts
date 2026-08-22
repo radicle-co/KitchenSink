@@ -103,7 +103,12 @@ export const recipeIngredients = pgTable(
         ingredientId: uuid('ingredient_id')
             .notNull()
             .references(() => ingredients.id),
-        quantity: numeric('quantity', { precision: 10, scale: 3 }).notNull(),
+        // U8/R41 — NULLABLE, and that is the point: `NULL` is the ONE representation of "the source stated
+        // no amount" ("butter the size of an egg"). It is never `0`, which the kept positive check below
+        // still refuses precisely so a zero cannot become a second spelling of absent.
+        quantity: numeric('quantity', { precision: 10, scale: 3 }),
+        /** The upper bound when the source stated a RANGE (`2 to 3 cups`); `NULL` for a single value (R36). */
+        quantityHigh: numeric('quantity_high', { precision: 10, scale: 3 }),
         unit: text('unit').notNull(),
         displayText: text('display_text'),
         sortOrder: integer('sort_order').notNull().default(0),
@@ -119,7 +124,17 @@ export const recipeIngredients = pgTable(
         userFatG: numeric('user_fat_g', { precision: 8, scale: 2 }),
     },
     (table) => [
+        // KEPT through U8 on purpose. A Postgres CHECK is satisfied when it evaluates to NULL, so this
+        // already admits an absent quantity while still refusing a zero — see `0020_quantity_range.sql`.
         check('recipe_ingredients_quantity_positive', sql`${table.quantity} > 0`),
+        // The pair's illegal states, unrepresentable in the database as well as in `IngredientQuantity`: an
+        // upper bound with no lower, and an upper bound at or below its lower (coincident bounds ARE an
+        // exact quantity). Declared `NOT VALID` in the migration; drizzle has no way to spell that, and the
+        // migration is authoritative — this entry exists so a reader of the schema sees the constraint.
+        check(
+            'recipe_ingredients_quantity_coherent',
+            sql`${table.quantityHigh} IS NULL OR (${table.quantity} IS NOT NULL AND ${table.quantityHigh} > ${table.quantity})`,
+        ),
         index('idx_recipe_ingredients_recipe_id').on(table.recipeId),
         index('idx_recipe_ingredients_ingredient_id').on(table.ingredientId),
     ],

@@ -164,7 +164,10 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             id: { type: 'uuid', notNull: true },
             recipe_id: { type: 'uuid', notNull: true },
             ingredient_id: { type: 'uuid', notNull: true },
-            quantity: { type: 'numeric(10,3)', notNull: true },
+            // U8/R41 — NULLABLE since migration 0020: `NULL` is the ONE representation of "the source
+            // stated no amount". `quantity_high` carries the upper bound of a stated range (R36).
+            quantity: { type: 'numeric(10,3)', notNull: false },
+            quantity_high: { type: 'numeric(10,3)', notNull: false },
             unit: { type: 'text', notNull: true },
             display_text: { type: 'text', notNull: false },
             sort_order: { type: 'integer', notNull: true },

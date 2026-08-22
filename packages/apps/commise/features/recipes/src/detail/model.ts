@@ -8,24 +8,64 @@
 import type { ReactNode } from 'react';
 
 import type { Locale } from '@commise/i18n';
-import type { RecipeDetail } from '@kitchensink/recipe-core';
+import type { IngredientQuantity, RecipeDetail } from '@kitchensink/recipe-core';
+
+/**
+ * Separates the two bounds of a stated range (`2–3 cups`).
+ *
+ * ⛔ NOT `Intl.NumberFormat.prototype.formatRange`, which is the obvious library-first answer and is wrong
+ * HERE: this formatter is shared verbatim by web and by React Native, Hermes delegates `Intl` to the
+ * platform's own formatter, and the app polyfills `PluralRules`/`RelativeTimeFormat`/`Locale` but NOT
+ * `NumberFormat`. Feature-detecting it would be worse than not using it — the two platforms would then
+ * render the same recipe differently, which is exactly what §14's shared-model rule exists to prevent. Each
+ * BOUND still goes through `Intl.NumberFormat`, so grouping and decimal separators stay locale-correct;
+ * only the glyph between them is fixed.
+ *
+ * An EN DASH, deliberately: it is the typographic convention for a numeric span in every locale this ships
+ * to, and it is punctuation rather than copy, so it does not belong in the message catalogue. U9 owns the
+ * final presentation of a ranged quantity on both platforms and may revisit it.
+ */
+const RANGE_SEPARATOR = '–';
 
 /**
  * Format an ingredient quantity with its optional unit for the active locale via {@link Intl.NumberFormat}
- * (never string concatenation, so grouping/decimal separators stay locale-correct) — e.g.
- * `formatQuantity(1000, 'en-US') === '1,000'`, `formatQuantity(1.5, 'en-US', 'lbs') === '1.5 lbs'`,
- * `formatQuantity(3, 'en-US') === '3'`. An empty-string unit is treated as absent. Mirrors
+ * (never string concatenation of the NUMBERS, so grouping/decimal separators stay locale-correct). Mirrors
  * `card/model.ts`'s `formatCalories`. Pure.
  *
- * @param quantity - The ingredient quantity.
+ * Each of the value object's three members renders differently, and the third is the one to be careful
+ * about:
+ *
+ * | Member   | Example input                 | Renders     |
+ * | -------- | ----------------------------- | ----------- |
+ * | `exact`  | `{ value: 1.5 }`, `'lbs'`     | `1.5 lbs`   |
+ * | `range`  | `{ low: 2, high: 3 }`, `'cups'` | `2–3 cups`  |
+ * | `absent` | `—`, `'pinch'`                | `pinch`     |
+ *
+ * ⛔ An ABSENT quantity renders NO number — not `0`, not `1` (R40). "Butter the size of an egg" states no
+ * amount, and printing one would put a figure in front of a cook that their recipe never contained. With no
+ * unit either, the result is the empty string; a caller composing `"{quantity} {name}"` must trim.
+ *
+ * @param quantity - The ingredient quantity value object.
  * @param locale - The active BCP-47 locale.
- * @param unit - The optional unit of measure.
- * @returns The formatted "quantity unit" string (quantity alone when no unit).
+ * @param unit - The optional unit of measure. An empty string is treated as absent.
+ * @returns The formatted "quantity unit" string (either part alone when the other is absent; `''` when both
+ *   are).
  */
-export const formatQuantity = (quantity: number, locale: Locale, unit?: string): string => {
-    const formattedQuantity = new Intl.NumberFormat(locale).format(quantity);
+export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, unit?: string): string => {
+    const format = (value: number): string => new Intl.NumberFormat(locale).format(value);
+    const formattedQuantity =
+        quantity.kind === 'exact'
+            ? format(quantity.value)
+            : quantity.kind === 'range'
+              ? `${format(quantity.low)}${RANGE_SEPARATOR}${format(quantity.high)}`
+              : '';
+    const hasUnit = unit !== undefined && unit.length > 0;
 
-    return unit !== undefined && unit.length > 0 ? `${formattedQuantity} ${unit}` : formattedQuantity;
+    if (formattedQuantity.length === 0) {
+        return hasUnit ? unit : '';
+    }
+
+    return hasUnit ? `${formattedQuantity} ${unit}` : formattedQuantity;
 };
 
 /**

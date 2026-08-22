@@ -22,7 +22,7 @@ import { toRecipeNutritionState } from '../nutritionState.js';
 
 /** A catalog line that accounts cleanly: 200 g at 350 kcal/100 g → 700 kcal. */
 const catalogLine: NutritionLine = {
-    quantity: 200,
+    quantity: { kind: 'exact', value: 200 },
     unit: 'g',
     caloriesPer100g: 350,
     proteinGPer100g: 12,
@@ -31,10 +31,15 @@ const catalogLine: NutritionLine = {
 };
 
 /** A line the user priced themselves — accounted WITHOUT any food data. */
-const userLine: NutritionLine = { quantity: 1, unit: 'scoop', userCalories: 200, userProteinG: 30 };
+const userLine: NutritionLine = {
+    quantity: { kind: 'exact', value: 1 },
+    unit: 'scoop',
+    userCalories: 200,
+    userProteinG: 30,
+};
 
 /** A line nothing can account for: no override, no catalog nutrition. */
-const unaccountableLine: NutritionLine = { quantity: 1, unit: 'pinch' };
+const unaccountableLine: NutritionLine = { quantity: { kind: 'exact', value: 1 }, unit: 'pinch' };
 
 describe('toRecipeNutritionState — known', () => {
     it('reports the per-serving figure, marked complete and fresh', () => {
@@ -58,7 +63,7 @@ describe('toRecipeNutritionState — known', () => {
     it('⛔ reports a GENUINE measured zero as known, never as unaccounted', () => {
         // Water, black coffee, a zero-calorie sweetener. The line IS accounted; its contribution is 0. This
         // is the exact case the union's `known`-requires-a-number rule exists to keep renderable.
-        const water: NutritionLine = { quantity: 250, unit: 'g', caloriesPer100g: 0 };
+        const water: NutritionLine = { quantity: { kind: 'exact', value: 250 }, unit: 'g', caloriesPer100g: 0 };
 
         expect(
             toRecipeNutritionState(

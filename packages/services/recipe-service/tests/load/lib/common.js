@@ -263,8 +263,8 @@ export function makeRecipePayload(label) {
         cuisine: 'italian',
         visibility: 'public',
         ingredients: [
-            { ingredientId: SEED_INGREDIENT_FLOUR, name: 'flour', quantity: 2, unit: 'cups' },
-            { ingredientId: SEED_INGREDIENT_SUGAR, name: 'sugar', quantity: 1, unit: 'cup' },
+            { ingredientId: SEED_INGREDIENT_FLOUR, name: 'flour', quantity: { kind: 'exact', value: 2 }, unit: 'cups' },
+            { ingredientId: SEED_INGREDIENT_SUGAR, name: 'sugar', quantity: { kind: 'exact', value: 1 }, unit: 'cup' },
         ],
         steps: [
             { instruction: 'Mix the dry ingredients.' },

@@ -87,7 +87,7 @@ const baseSnapshot: RecipeSnapshot = {
             id: 'ri_1',
             recipeId: RECIPE_ID,
             ingredientId: E2E_INGREDIENT_IDS.oliveOil,
-            quantity: 2,
+            quantity: { kind: 'exact', value: 2 },
             unit: 'tbsp',
             sortOrder: 1,
             ingredientName: 'Olive oil',
@@ -120,7 +120,7 @@ async function seed(page: Page): Promise<void> {
                     {
                         ingredientId: E2E_INGREDIENT_IDS.oliveOil,
                         name: 'Olive oil',
-                        quantity: 2,
+                        quantity: { kind: 'exact', value: 2 },
                         unit: 'tbsp',
                         isUserEntered: false,
                     },

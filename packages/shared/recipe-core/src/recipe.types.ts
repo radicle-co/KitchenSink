@@ -2,12 +2,34 @@
 
 import { z } from 'zod';
 
+import { ingredientQuantitySchema, type IngredientQuantity } from './ingredientQuantity.js';
+import { MAX_RECIPE_DEVICE_LABEL_LENGTH } from './recipeRequestBounds.js';
+
 const idSchema = z.string().min(1);
 const isoDateTimeStringSchema = z.string().datetime({ offset: true });
 const nonNegativeNumberSchema = z.number().finite().nonnegative();
-// Strictly-positive quantity validator: the `recipe_ingredients` DB CHECK is `quantity > 0`,
-// so 0 must be rejected (a zero-quantity ingredient line is meaningless).
+// A strictly-positive measure. ⚠️ This USED to be the ingredient-quantity validator, named for the
+// `recipe_ingredients` `CHECK (quantity > 0)` it mirrored; U8 moved that job to `ingredientQuantitySchema`
+// and its only remaining caller is `ingredientPortionSchema.gramsPerUnit` — a portion weighing nothing is
+// not a portion.
 const positiveNumberSchema = z.number().finite().positive();
+
+/*
+ * ⛔ A LEGACY-TOLERANT QUANTITY SCHEMA STOOD HERE AND WAS MOVED OUT. Do not reintroduce one.
+ *
+ * Pre-U8 `recipe_versions.snapshot` JSONB holds `quantity: 2` — a bare number — and a version is immutable
+ * by design, so no migration will ever rewrite it. The first attempt at that problem accepted BOTH forms
+ * here, via `z.union([ingredientQuantitySchema, z.number().transform(…)])`. The contract generator refused
+ * it, correctly and by design: *"Transforms cannot be represented in JSON Schema … server-side
+ * normalization is not part of the shape a caller must satisfy — move it out of the published schema and
+ * into the handler."*
+ *
+ * It was right on the merits, not just mechanically. A caller has exactly ONE way to spell a quantity; the
+ * old form is a fact about rows this system wrote years ago, and it is the SERVER's job to upgrade one on
+ * the way out. That upgrade now lives at the persistence boundary where the blob enters the system —
+ * `recipe-service`'s `versions/snapshotUpgrade.ts` — beside `dal/quantityColumns.ts`, which does the same
+ * job for the two `numeric` columns.
+ */
 const positiveIntSchema = z.number().int().positive();
 const nonNegativeIntSchema = z.number().int().nonnegative();
 
@@ -359,7 +381,8 @@ export const recipeStepViewSchema = z.object({
 export interface RecipeIngredientView {
     ingredientId: string;
     name: string;
-    quantity: number;
+    /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
+    quantity: IngredientQuantity;
     unit?: string;
     notes?: string;
     isUserEntered: boolean;
@@ -371,7 +394,7 @@ export interface RecipeIngredientView {
 export const recipeIngredientViewSchema = z.object({
     ingredientId: idSchema,
     name: z.string().min(1),
-    quantity: z.number().positive(),
+    quantity: ingredientQuantitySchema,
     unit: z.string().min(1).optional(),
     notes: z.string().min(1).optional(),
     isUserEntered: z.boolean(),
@@ -396,6 +419,16 @@ export interface RecipeNutrition {
     carbsG: number;
     fatG: number;
     isComplete: boolean;
+    /**
+     * Present when at least one contributing line stated a RANGE, naming the bound the figure was taken
+     * from (R38) — the sibling of R35's historical-unit marker.
+     *
+     * ⚠️ Load-bearing honesty, not decoration. A total computed from `2 cups` when the line read
+     * `2 to 3 cups` is up to a third under and is otherwise indistinguishable from an exact one. Absent
+     * means no range was collapsed; there is no "not applicable" value, because the presence of the field
+     * IS the disclosure.
+     */
+    rangeDerivedBound?: 'low' | 'high';
 }
 
 /**
@@ -407,6 +440,7 @@ export const recipeNutritionSchema = z.object({
     carbsG: nonNegativeNumberSchema,
     fatG: nonNegativeNumberSchema,
     isComplete: z.boolean(),
+    rangeDerivedBound: z.enum(['low', 'high']).optional(),
 });
 
 export interface RecipeDetail extends Recipe {
@@ -576,7 +610,8 @@ export interface RecipeIngredient {
     id: string;
     recipeId: string;
     ingredientId: string;
-    quantity: number;
+    /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
+    quantity: IngredientQuantity;
     unit: string;
     /** Free-form display override (wire field: `notes`). */
     displayText?: string;
@@ -597,7 +632,7 @@ export const recipeIngredientSchema = z.object({
     id: idSchema,
     recipeId: idSchema,
     ingredientId: idSchema,
-    quantity: positiveNumberSchema,
+    quantity: ingredientQuantitySchema,
     // NOT `.min(1)`: `recipe_ingredients.unit` is a NOT NULL column whose "unitless" value is the EMPTY
     // STRING ("2 eggs", "1 lemon" — the create/update DTO's `unit` is optional and the service persists
     // `line.unit ?? ''`), and the version snapshot copies the column verbatim. A non-empty constraint here
@@ -756,18 +791,6 @@ export interface RecipeVersion {
     deviceLabel?: string;
     createdAt: IsoDateTimeString;
 }
-
-/**
- * Max length of a version's device label (W8-a.6 / FR-007b).
- *
- * ONE authority for the bound, shared by the two RESPONSE shapes that carry the label
- * ({@link recipeVersionSchema}, {@link versionConflictSideSchema}) and by the recipe service's REQUEST schema
- * (`src/recipes/recipes.schema.ts`), which additionally applies a charset rule the responses must not — a
- * response has to be able to carry a label persisted before that rule existed. Bounded at all because the
- * value is user-controlled and surfaced in the version history and the conflict banner; the cap is defense in
- * depth over the render-time escaping that is the actual XSS control.
- */
-export const MAX_RECIPE_DEVICE_LABEL_LENGTH = 80;
 
 /**
  * Runtime validator for {@link RecipeVersion}.

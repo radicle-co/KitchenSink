@@ -107,7 +107,9 @@ describe.skipIf(!hasDatabaseUrl)('create → public discovery (e2e, assembled ap
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,
                 totalTimeMinutes: 15,
-                ingredients: [{ ingredientId, name: INGREDIENT_TOKEN, quantity: 1, unit: 'cup' }],
+                ingredients: [
+                    { ingredientId, name: INGREDIENT_TOKEN, quantity: { kind: 'exact', value: 1 }, unit: 'cup' },
+                ],
                 steps: [{ instruction: 'Cook it.' }],
             }),
         });

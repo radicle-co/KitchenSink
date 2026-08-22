@@ -24,7 +24,13 @@ function createPayload(over: Record<string, unknown> = {}): Record<string, unkno
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
-        ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 1 }],
+        ingredients: [
+            {
+                ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                name: 'Flour',
+                quantity: { kind: 'exact', value: 1 },
+            },
+        ],
         steps: [{ instruction: 'Mix.' }],
         ...over,
     };
@@ -55,7 +61,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe input validation caps + value rejection
                 ingredients: Array.from({ length: 101 }, (_, i) => ({
                     ingredientId: '00000000-0000-4000-8000-0000000000aa',
                     name: `Ingredient ${i}`,
-                    quantity: 1,
+                    quantity: { kind: 'exact', value: 1 },
                 })),
             }),
         );

@@ -207,7 +207,13 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         // (`too_small`, min 1), which is the guard working: the request could never have succeeded.
         const input = {
             title: 'Soup',
-            ingredients: [{ ingredientId: '4b1c0a3e-2f6d-4c58-9a71-0d5e8c2f4a90', name: 'Stock', quantity: 1 }],
+            ingredients: [
+                {
+                    ingredientId: '4b1c0a3e-2f6d-4c58-9a71-0d5e8c2f4a90',
+                    name: 'Stock',
+                    quantity: { kind: 'exact', value: 1 },
+                } as const,
+            ],
             // No `stepNumber` — the server assigns it from array order, and the body is `strictObject`.
             steps: [{ instruction: 'Simmer the stock.' }],
             servings: 2,

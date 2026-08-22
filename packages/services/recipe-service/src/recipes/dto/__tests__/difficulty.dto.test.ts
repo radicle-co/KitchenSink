@@ -33,7 +33,13 @@ function createBody(over: Record<string, unknown> = {}): Record<string, unknown>
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
         totalTimeMinutes: 15,
-        ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 1 }],
+        ingredients: [
+            {
+                ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                name: 'Flour',
+                quantity: { kind: 'exact', value: 1 },
+            },
+        ],
         steps: [{ instruction: 'Mix.' }],
         ...over,
     };

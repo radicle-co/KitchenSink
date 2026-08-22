@@ -54,7 +54,7 @@ Three consequences that shape the whole plan:
 
 ## 4. Data model
 
-Four new tables. Migration **`0025_publishing_rewards.sql`**.
+Four new tables. Migration **`0026_publishing_rewards.sql`**.
 
 > ⚠️ **Corrected 2026-08-22.** An earlier draft of this plan said `0024`, and said the latest shipped was
 > `0023`. Both were wrong: **`0024` is already taken twice** — `0024_ingredient_rank_terms.sql` (`9545447c`)
@@ -64,12 +64,12 @@ Four new tables. Migration **`0025_publishing_rewards.sql`**.
 > (`name TEXT PRIMARY KEY`) — so the numeric prefix is a sort key, not an identity, and both files apply in a
 > stable lexicographic order. 015 takes `0025` for legibility, not correctness.
 
-| Table                   | Purpose                                       | Key columns                                                                                                                    | Notes                                                                                                                                     |
-| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `recipe_publications`   | `FR-002`, Key Entity _Publication_            | `id`, `recipe_id`, `user_id`, `published_at`, `attestation_accepted_at`, `eligibility_decision`, `eligibility_reason`, `state` | One row per publication act. Attestation is **on this row**, not on the recipe (`FR-022` retention).                                      |
-| `reward_grants`         | `FR-007a`/`FR-009`, Key Entity _Reward Grant_ | `id`, `publication_id`, `user_id`, `kind` (`slot`\|`milestone`), `amount`, `granted_at`, `reversed_at`, `reversal_reason`      | **Append-only.** Reversal sets `reversed_at` on the original row — the only permitted mutation, and the only one `FR-007i` allows.        |
-| `recipe_impact_signals` | `FR-007f`/`FR-007g`                           | `recipe_id`, `cook_count`, `save_count`, `rating_count`, `rating_sum`, `updated_at`                                            | Aggregate-only. **No viewer column may ever exist here** (`012-FR-024`) — enforced by a schema guard test.                                |
-| `contributor_standing`  | `FR-007h`                                     | `user_id`, `tier`, `highest_tier_reached`, `updated_at`                                                                        | `highest_tier_reached` is the ratchet: `tier` may only ever be `>= highest_tier_reached`. **DB CHECK constraint**, not application logic. |
+| Table                    | Purpose                                       | Key columns                                                                                                                  | Notes                                                                                                                                                                                                   |
+| ------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recipe_public_listings` | `FR-002`, Key Entity _Publication_            | `id`, `recipe_id`, `owner_id`, `listed_at`, `attestation_accepted_at`, `eligibility_decision`, `eligibility_reason`, `state` | **Renamed** from `recipe_publications`: `recipes.status='published'` already means "not a draft" and is a security boundary. See [`migrations/migration-plan.md`](./migrations/migration-plan.md) §2.3. |
+| `reward_grants`          | `FR-007a`/`FR-009`, Key Entity _Reward Grant_ | `id`, `publication_id`, `user_id`, `kind` (`slot`\|`milestone`), `amount`, `granted_at`, `reversed_at`, `reversal_reason`    | **Append-only.** Reversal sets `reversed_at` on the original row — the only permitted mutation, and the only one `FR-007i` allows.                                                                      |
+| `recipe_impact_signals`  | `FR-007f`/`FR-007g`                           | `recipe_id`, `cook_count`, `save_count`, `updated_at`                                                                        | **No rating columns** — `recipes.average_rating`/`rating_count` already exist and are trigger-maintained (§2.2). Aggregate-only; no viewer column may ever exist (`012-FR-024`).                        |
+| `contributor_standing`   | `FR-007h`                                     | `owner_id`, `tier`, `updated_at`                                                                                             | Ratchet enforced by a **BEFORE UPDATE trigger**, not a CHECK — the CHECK was tested against a live DB and defeated (§2.4).                                                                              |
 
 **Slot balance is derived, never stored as a mutable counter**: `SUM(amount) FILTER (kind='slot' AND reversed_at IS NULL)`. A stored counter can drift; a
 derived sum cannot, and it makes `FR-007b`'s permanence structural rather than disciplined.

@@ -1,4 +1,4 @@
--- 0025_publishing_rewards.sql (feature 015) — the publishing-reward ledger.
+-- 0026_publishing_rewards.sql (feature 015) — the publishing-reward ledger.
 --
 -- EXPAND-ONLY. Four new tables, no existing object modified, so old and new code run concurrently against
 -- this schema (ADR-0022 expand-first precondition).
@@ -13,9 +13,9 @@
 -- recipes_rating_aggregate_coherent. Duplicating them would create a second source of truth with nothing
 -- keeping it honest. Ratings are READ FROM `recipes`.
 --
--- ⛔ NUMBER IS 0025, NOT 0024. `0024` is taken twice already (0024_ingredient_rank_terms,
--- 0024_ingredient_source_line) — tolerated, because the runner sorts by filename and journals on the FULL
--- filename, so the prefix is a sort key and not an identity.
+-- ⛔ NUMBER IS 0026. It was 0024, then 0025, and both were taken by concurrent work (5cd53969). The runner sorts by filename and journals on the FULL filename, so a prefix is a sort
+-- key and not an identity — but RE-CHECK the directory before writing this file; the number is not stable
+-- while multiple sessions share one worktree.
 
 -- ── §1. The publication record ────────────────────────────────────────────────
 -- One row per act of making a recipe public. The authorship attestation (FR-002) lives HERE and not on

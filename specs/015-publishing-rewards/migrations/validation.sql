@@ -1,4 +1,4 @@
--- Validation queries for 0025_publishing_rewards.sql (feature 015).
+-- Validation queries for 0026_publishing_rewards.sql (feature 015).
 -- Run AFTER the migration. Every query is read-only. Each states its PASS condition explicitly.
 
 -- Q1 — all four tables exist. PASS: 4 rows.

@@ -1,7 +1,7 @@
 # Migration Plan — 015 Publishing Rewards
 
 **Phase**: 5.5 (conditional — triggered: [`plan.md`](../plan.md) §4 defines a data model)
-**Migration**: `0025_publishing_rewards.sql` · **Created**: 2026-08-22
+**Migration**: `0026_publishing_rewards.sql` · **Created**: 2026-08-22
 **Character**: EXPAND-ONLY, additive, zero-downtime. No column is dropped, narrowed, or retyped.
 
 ---
@@ -29,7 +29,14 @@ transaction, so there is no lock to avoid.
 `0024_ingredient_rank_terms.sql` (`9545447c`) and `0024_ingredient_source_line.sql` (`6a3bf118`) are **both
 committed**. This is tolerated by design and is _not_ a live bug: `src/lambdas/migrate/handler.ts` discovers
 `*.sql`, `.sort()`s by **filename**, and journals into `schema_migrations` keyed on the **full filename**
-(`name TEXT PRIMARY KEY`). The numeric prefix is a sort key, not an identity. 015 takes **`0025`**.
+(`name TEXT PRIMARY KEY`). The numeric prefix is a sort key, not an identity. 015 takes **`0026`**.
+
+> **Update — the collision in R5 actually happened, within the hour.** A concurrent session shipped
+> `5cd53969` ("give two colliding migrations distinct numbers"), renumbering
+> `0024_ingredient_rank_terms.sql` → **`0025`**. That took the number this plan had just claimed. 015 moves to
+> `0026`. This is why R5 is rated Medium and not Low: with multiple sessions live in one worktree, the next
+> free migration number is not stable, and it must be re-checked immediately before the file is written —
+> never taken from a plan document.
 
 ### 2.2 `recipe_impact_signals` MUST NOT hold rating aggregates
 

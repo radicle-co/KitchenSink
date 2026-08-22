@@ -1,4 +1,4 @@
--- Rollback for 0025_publishing_rewards.sql (feature 015).
+-- Rollback for 0026_publishing_rewards.sql (feature 015).
 --
 -- ⛔⛔ PRE-LAUNCH USE ONLY. THIS IS DESTRUCTIVE TO PERMANENT STATE.
 --

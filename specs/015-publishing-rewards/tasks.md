@@ -42,8 +42,8 @@
       Paths: packages/services/recipe-service/tests/rewardLedger.integration.test.ts
       Test-first: true
       Size: M
-- [ ] B013 — Write migration `0025_publishing_rewards.sql` — EXPAND-ONLY: 4 CREATE TABLEs + ratchet trigger
-      Paths: packages/services/recipe-service/src/database/migrations/0025_publishing_rewards.sql
+- [ ] B013 — Write migration `0026_publishing_rewards.sql` — EXPAND-ONLY: 4 CREATE TABLEs + ratchet trigger
+      Paths: packages/services/recipe-service/src/database/migrations/0026_publishing_rewards.sql
       Size: M
 - [ ] B014 — Drizzle schema for `recipe_public_listings`, `reward_grants`, `recipe_impact_signals`, `contributor_standing`
       Paths: packages/services/recipe-service/src/database/schema/rewards.ts, packages/services/recipe-service/src/database/schema/index.ts

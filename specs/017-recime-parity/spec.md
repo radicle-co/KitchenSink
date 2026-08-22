@@ -70,6 +70,19 @@ only for now_.
 
 ---
 
+## Clarifications
+
+### Session 2026-08-22
+
+- Q: Retrieval posture when a source platform blocks us or forbids automated access? → A: Match ReciMe's user-directed posture, **and** treat source-platform access as a first-class tracked operational risk (per-platform success monitoring, explicit degradation path, no single platform load-bearing for the success criteria).
+- Q: What may a household `member` do versus an `owner`? → A: Members create, edit and check off shared content; **owners alone** invite, remove members, delete the household, **and delete shared content**.
+- Q: What page access should the browser extension request? → A: **`activeTab` only** — access granted on user activation, for that tab, for that invocation. No persistent host permissions and no background page reading.
+- Q: A capture worker dies mid-waterfall after a billed inference tier — what happens on retry? → A: **Resume from the last recorded tier.** Each tier commits before the next begins; a retry skips completed tiers and never re-pays for inference already billed.
+- Q: Does the share sheet confirm acceptance or extraction? → A: **Accept immediately, notify on completion.** One path for every tier; `014-FR-001` becomes a dependency and SC-003 splits into time-to-accept and time-to-draft.
+- Q: Is FR-030c's complete-vs-delete split accepted (U-5)? → A: **Accepted.** `complete`/`archive` is a member action; `delete` is owner-only.
+- Q: Does that split apply to meal plans as well as grocery lists? → A: **Yes — one truth table** across grocery lists, meal plans and the aisle taxonomy. No per-resource exceptions.
+- Q: The "sole owner cannot leave" invariant is unenforceable against GDPR erasure — what happens? → A: **Ownership auto-transfers to the longest-tenured active member.** Erasure is never blocked and no reserved action becomes unreachable.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Get the recipe out of the video (Priority: P1)
@@ -240,8 +253,20 @@ household's content intact.
 - **The video is 45 minutes long.** Frame sampling and transcription must be bounded, and the bound must be
   stated, or a single import can consume an unbounded share of the inference budget.
 - **On-screen text is decorative or is a watermark/handle.** Tier 3 must not emit `@creator` as an ingredient.
+- **The capture is accepted but the user has notifications denied.** FR-013a's notification is the only signal
+  that a draft is ready. With it suppressed the draft must still be discoverable in-app — acceptance must never
+  depend on a channel the user can switch off.
+- **The extension is activated on a page with no recipe.** Activation-scoped access means we only learn this
+  after the click; the extension must report "no recipe here" rather than appearing broken — the same
+  `no_recipe` vs `unreadable` distinction FR-008 draws.
+- **A platform stops working entirely.** One source platform blocking us, changing its surface, or going down
+  must degrade that platform's imports only — never the feature. FR-001b's monitoring is what makes this
+  visible rather than a slow silent decline in success rate.
 - **The source is deleted between import and retry.** A retried import of a dead URL must fail cleanly without
-  destroying the draft already extracted.
+  destroying the draft already extracted — and per FR-011a it resumes rather than restarting, so tiers already
+  paid for are not re-attempted against a source that no longer exists.
+- **A tier commits, then the settle write fails.** ADR-0024 forbids retrying settle. The reservation stands and
+  is reconciled by the period's own accounting; the capture still resumes from the committed tier.
 - **A migration file is 2,000 recipes and the connection drops at 1,400.** Resumable or restartable without
   duplicating the 1,400.
 - **A migration file contains recipes the user did not author.** Provenance classification (`004-FR-014a`,
@@ -249,6 +274,16 @@ household's content intact.
   migration is not a side door around provenance or attestation.
 - **Unit conversion of an unquantified ingredient.** "Salt to taste" converts to "salt to taste" — see FR-010.
 - **Conflicting units within one ingredient line** ("1 lb (450 g) beef"). Convert once; do not double-convert.
+- **A member finishes the shop and wants the list gone.** FR-030c splits _complete/archive_ (any member) from
+  _delete_ (owner only). If that split is rejected, FR-030b puts an owner in the path of a routine action.
+- **The sole owner is erased, removed, or leaves.** Resolved by FR-032a — ownership transfers to the
+  longest-tenured active member. Erasure is never blocked; the "sole owner cannot leave" invariant governs the
+  _voluntary_ case only and is deliberately unenforceable against a legal erasure request.
+- **The sole owner's subscription lapses but members remain.** Distinct from departure: the owner is still
+  present, so no transfer fires. Content is retained per `010-FR-043`; what a lapsed household may still _do_
+  is `010`'s to answer, not this feature's.
+- **Two members joined at the same instant and the sole owner is erased.** FR-032a must be deterministic —
+  ties resolve by a stable secondary key, never by whichever row the query returns first.
 - **Two household members edit the same plan entry at once.** `006-FR-032`'s idempotency key was written for a
   single owner; concurrent editing by distinct members is a new condition it does not cover.
 - **A household member goes offline in the shop and both check items off.** Governed by GR-005; this spec must
@@ -270,6 +305,18 @@ household's content intact.
 
 - **FR-001** `→ 004 ADDED`: System MUST import recipes from public social video posts on TikTok, Instagram
   Reels, YouTube (Shorts and long-form), and Facebook.
+- **FR-001a** `→ 004 ADDED`: Retrieval MUST be **user-directed**: one item, on one explicit user action. System
+  MUST NOT crawl, batch, pre-fetch, or speculatively retrieve, and MUST NOT rotate addresses, spoof a
+  user-agent, or otherwise evade a platform control. Where a platform blocks us or its terms forbid automated
+  access, the capture resolves `unreadable` (FR-008) and offers the screenshot/paste path. _(This is ReciMe's
+  own stated position — "does not use bots or automated tools" — so it is the floor, not caution. Our exposure
+  is strictly worse than theirs at equal posture, because we operate a public library and they do not. A green
+  `robots.txt` is not terms-of-use clearance.)_
+- **FR-001b** `→ 004 ADDED`: System MUST monitor extraction success **per source platform**, MUST surface a
+  defined degradation path when one platform stops working, and MUST NOT let any single platform be
+  load-bearing for the feature's success criteria. _(ReciMe took a staff-acknowledged import outage across
+  Instagram, TikTok and Facebook Reels in 2026 while running the conservative posture; platform access is an
+  operational risk to be measured, not an assumption.)_
 - **FR-002** `→ 004 ADDED`: System MUST attempt extraction as an ordered **waterfall**, stopping at the first
   tier that yields a structurally complete recipe: **(1)** caption/description text, **(2)** audio transcript,
   **(3)** on-screen text from sampled frames, **(4)** visual analysis of sampled frames, **(5)** lookup of the
@@ -289,10 +336,13 @@ household's content intact.
 - **FR-009** `→ 004 MODIFIED`: Instagram import MUST be reachable through user-initiated capture and MUST NOT
   depend on Meta Graph API approval. **This closes gate D-002 on `004-FR-009`**; the Graph API path becomes an
   optional enhancement, never a precondition.
-- **FR-010** `→ 004 MODIFIED, → 001 MODIFIED`: An ingredient whose quantity is genuinely unstated ("salt to
-  taste", "a splash of oil") MUST be representable and MUST round-trip through storage, display, scaling, unit
-  conversion, and export without being coerced to a number or silently dropped. **This resolves the `004-FR-020`
-  finding**; it is a blocker for D1 because video sources state quantities far less often than blog sources do.
+- **FR-010** `→ 004 MODIFIED`: Every **new** surface introduced by this feature — the waterfall (FR-002), unit
+  conversion (FR-026), and export round-trip (FR-020) — MUST preserve an unstated quantity as unstated, never
+  coercing it to a number, zero, or one. ⚠️ **Corrected by research R-01: the representation already ships.**
+  `ABSENT_QUANTITY` in `recipe-core/src/ingredientQuantity.ts` is "the one representation of 'the source stated
+  no amount' (R40, R41)" and already reaches parse, persistence, scaling and the form model. D20's claim that
+  "salt to taste" is unrepresentable is **false against the shipped code**; the obligation here is not to break
+  it. This matters most for D1 because video sources state quantities far less often than blog sources do.
 - **FR-011** `→ 004 ADDED`: Frame sampling, transcription, and visual analysis MUST each be bounded per import,
   and the bound MUST be stated in the product. **No sampled frame, decoded audio, or derived rendition may be
   persisted to operator-controlled storage** — analysis is transient and the artefacts are discarded with the
@@ -301,12 +351,30 @@ household's content intact.
 
 #### B. Capture surfaces — D2, D3
 
+- **FR-011a** `→ 004 ADDED`: Each tier's result MUST be committed before the next tier begins, and a retried
+  capture MUST resume from the last recorded tier rather than re-running the waterfall. A tier already billed
+  MUST NOT be paid for twice. _(ADR-0024's settle is deliberately never retried — `reserved + $delta` is not
+  idempotent — and its own reasoning is that crashes correlate with the runaway the ceiling exists to stop, so
+  a crash storm must not become a spend storm.)_
+- **FR-011b** `→ 004 ADDED`: A resumed capture MUST NOT consume the daily import quota (`004-FR-022`) a second
+  time. Quota is charged per **user intent**, not per worker attempt.
 - **FR-012** `→ 004 ADDED`: System MUST register as a share target on iOS and Android, accepting URLs, text,
   and images from any app's share sheet.
-- **FR-013** `→ 004 ADDED`: Share-sheet capture MUST create a draft and confirm success without requiring the
-  user to open the app first.
+- **FR-013** `→ 004 ADDED`: Share-sheet capture MUST **durably accept** the capture and confirm acceptance
+  without requiring the user to open the app first. Acceptance is confirmed as soon as the capture is
+  crash-safe — it does **not** wait for extraction. _(An iOS share extension runs under a hard memory and
+  wall-clock budget, and tier 4 can exceed it; waiting would make the OS killing the extension a routine
+  outcome.)_
+- **FR-013a** `→ 004 ADDED`: When extraction completes, System MUST notify the user that the draft is ready,
+  via `014-FR-001`'s publish endpoint addressed to `recipient.kind = "user"`. A capture that resolves
+  `no_recipe` or `unreadable` MUST notify too — silence is indistinguishable from a lost capture.
 - **FR-014** `→ 004 ADDED`: System MUST provide a desktop browser extension that captures the current page as a
-  recipe in one action.
+  recipe in one action. It MUST request **activation-scoped page access only** (`activeTab`): the page is
+  readable only after the user activates the extension, only for the active tab, and only for that
+  invocation. ⛔ It MUST NOT request persistent host permissions, MUST NOT read pages in the background, and
+  MUST NOT pre-scan pages the user has not activated it on. _(The browser-level expression of FR-001a. Widening
+  this later triggers store re-review and can suspend the extension for existing users pending re-consent, so
+  it is treated as an expensive-to-reverse boundary.)_
 - **FR-015** `→ 004 ADDED`: Every capture surface — chooser, share sheet, extension, migration — MUST route
   through **one** import pipeline, so provenance, confidence, quota (`004-FR-022`), attestation
   (`016-FR-014`), and policy behave identically regardless of entry point. Each surface MUST record its
@@ -320,8 +388,12 @@ household's content intact.
   and ReciMe.
 - **FR-017** `→ 004 ADDED`: A library migration MUST report a per-recipe outcome, MUST retain successfully
   imported recipes when others fail, and MUST be restartable without duplicating already-imported recipes.
-- **FR-018** `→ 001 ADDED`: Users MUST be able to export their entire recipe library as a lossless
-  machine-readable file.
+- **FR-018** `→ 001 MODIFIED`: Users MUST be able to export their entire recipe library as a lossless
+  machine-readable file **from a product surface**, not only as a privacy-request endpoint. ⚠️ **Corrected by
+  research R-02:** `GET /api/v1/account/export` already ships a zod-contracted GDPR Art. 15/20 export covering
+  recipes, collections, memberships, photos, ratings, versions and author handles. The work is surfacing and
+  re-using it — including revisiting its deliberately tightest-in-service rate limit for a routine action —
+  not building a serializer.
 - **FR-019** `→ 001 ADDED`: Users MUST be able to export a recipe, a collection, or the whole library as a
   human-readable document.
 - **FR-020** `→ 001 ADDED`: An export re-imported into an empty account MUST reproduce every user-visible field,
@@ -365,6 +437,33 @@ household's content intact.
   members, and MUST make it the ownership boundary for meal plans and grocery lists. Every account belongs to
   exactly one household, created implicitly at signup with that user as its only member, so that a solo user is
   a household of one and no code path needs a "no household" branch.
+- **FR-030a** `→ 006 ADDED, → 007 ADDED`: Every **active member** MUST be able to create, edit and check off
+  the household's meal plans, grocery lists and aisle taxonomy. Content capability is equal across roles —
+  that equality is the point of a household.
+- **FR-030b** `→ 006 ADDED, → 007 ADDED, → 010 ADDED`: The following are reserved to an **owner**: inviting a
+  member, removing a member, deleting the household, and **deleting shared content** (a meal plan, a grocery
+  list, or the aisle taxonomy). A member attempting a reserved action receives a refusal that names the
+  restriction. _(Membership control follows the seat allowance the subscriber pays for, so a member can
+  neither spend the payer's seats nor remove the payer; reserving deletion makes shared content
+  accident-resistant.)_
+- **FR-030c** `→ 006 ADDED, → 007 ADDED` _(confirmed by owner, 2026-08-22)_: Completing or archiving shared
+  content is **not** a deletion and MUST remain available to every active member. This applies uniformly to
+  **grocery lists, meal plans and the aisle taxonomy** — there are no per-resource exceptions, so the policy
+  stays a single truth table. Without this split the routine end-of-shop action would require an owner, putting
+  FR-030b directly in the path of the one task US5 exists to serve.
+- **FR-032a** `→ 006 ADDED, → 007 ADDED`: When the **sole owner** of a household departs — by removal, by
+  leaving, or by **account erasure** — ownership MUST transfer automatically to the longest-tenured active
+  member, deterministically and with no user interaction. ⛔ Erasure MUST NOT be blocked, delayed, or made
+  conditional on a nomination: a right-to-erasure request is a legal statement, and the
+  "sole owner cannot leave" invariant is **unenforceable against it**. Where the departing owner is the only
+  member, the household is removed with them.
+- **FR-032b** `→ 006 ADDED`: The transfer of FR-032a MUST be performed **before** the departing owner's
+  membership row is removed, and MUST be idempotent under redelivery — following the ordering discipline of the
+  existing account-erasure worker, whose stated design failure is _a false success_, not a crash. An
+  interrupted erasure must leave the transfer still owed, never silently skipped.
+- **FR-032c** `→ 006 ADDED`: A household's display name MUST NOT retain an erased member's identity. Where the
+  name was derived from the departing owner's handle, it MUST be re-derived or neutralised as part of the same
+  erasure — otherwise erasure pseudonymises the recipes and leaks the handle through the household.
 - **FR-031** `→ 006 MODIFIED`: Meal plan reads and writes MUST be scoped to the owning **household** rather
   than the single authenticated owner. _(Replaces `006-FR-029`'s owner-scoping and supersedes `006`'s stated
   position that "there is no sharing model in this feature.")_
@@ -442,8 +541,11 @@ household's content intact.
   recipes, multi-recipe posts).
 - **SC-002**: On the subset of that corpus with **no caption and no speech**, at least **60%** succeed — a
   class in which the competitor's documented pipeline succeeds **0%** of the time, having no visual tier.
-- **SC-003**: From tapping share in another app to a confirmed saved draft takes under **20 seconds** at the
-  median, with no app switch required of the user.
+- **SC-003a**: From tapping share in another app to **confirmed acceptance** takes under **2 seconds** at the
+  median, with no app switch required — and this holds regardless of which tier ultimately resolves it.
+- **SC-003b**: From tapping share to the **draft being ready** takes under **20 seconds** at the median for
+  captures resolved by tiers 1–2, which is the common case. Tiers 3–4 are notified on completion rather than
+  waited on.
 - **SC-004**: A 2,000-recipe competitor export completes migration with a per-recipe outcome for every entry
   and **zero** silently dropped recipes.
 - **SC-005**: An exported library re-imported into an empty account reproduces **100%** of user-visible fields,
@@ -455,6 +557,9 @@ household's content intact.
 - **SC-008**: Inference spend per successful import stays within the per-import bound of FR-011 and the monthly
   ceiling of ADR-0024, measured over a full month of real traffic — not modelled.
 - **SC-009**: For every draft, the tier that produced each field is inspectable by the user.
+- **SC-012**: Extraction success is reported **per source platform**, and no single platform contributes more
+  than **50%** of the corpus behind SC-001 — so a platform-level block degrades the number visibly rather than
+  invalidating the claim.
 - **SC-010**: A two-person household shares a plan and its list with **zero** cases of one member's action
   being invisible to the other, and **zero** cases of a departing member's exit destroying household content.
 - **SC-011**: Voice navigation never mutates cooking state on a misrecognised or ambient utterance across a
@@ -496,6 +601,7 @@ household's content intact.
 | **`016-FR-027e` offline photographs vs FR-025**         | **Resolved in FR-025**                        | `016` names this itself as "a known interaction with offline cook mode". Offline cook shows the placeholder; caching the referenced image to satisfy FR-025 is explicitly forbidden.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **ADR-0024 cost model extended to import inference**    | ⚠️ Open                                       | The ceiling was sized for the LLM verification gate, not a vision waterfall. §8 open decision 4 says tiers 3–4 need costing **before** commitment. FR-039 is unenforceable until this lands.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **D7 / FR-037 platform-managed inference**              | Open — in scope here                          | FR-003 and FR-004 cannot ship on BYOK.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **`014-FR-001` notification publish**                   | Specified, not built                          | FR-013a needs it to tell the user a draft is ready. Without it, an accepted capture is silent and indistinguishable from a lost one. Note `014` is sequenced _after_ everything in the gap analysis's §7 ordering.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | **`016-FR-010`…`FR-014` content licence + attestation** | Specified; **A-1…A-8 amendments NOT applied** | Every capture surface added here increases the volume of content displayed under a licence that does not yet exist in the terms.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | **`016-FR-022`/`FR-026` notice-and-action**             | Specified, not built                          | Formerly tracked here as D24. Every delta here increases third-party-sourced content volume before safe harbour exists.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | **`docs/offline-strategy.md`** (GR-005 AC-005-d)        | ❌ Does not exist                             | FR-025 cannot enter implementation; GR-005 forbids inventing an ad-hoc offline approach.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |

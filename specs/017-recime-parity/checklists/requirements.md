@@ -3,7 +3,7 @@
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-22
 **Feature**: [spec.md](../spec.md)
-**Iteration**: 3 (post-clarification, post-016-reconciliation)
+**Iteration**: 5 (post-re-plan; U-5 resolved)
 
 ## Content Quality
 
@@ -43,6 +43,29 @@
       when GR-005 was written for a single user. Blocks implementation, not this spec.
 - [x] **NFR-005 / `001-FR-044a`**: web+mobile parity asserted, with the browser-extension exemption stated
       explicitly rather than left implicit
+
+## Clarification session 2026-08-22 (`/speckit-clarify`)
+
+Five questions asked, five answered. No checkbox changed state — **19/20 → 19/20**; the single unchecked item
+(GR-005) is unaffected because `docs/offline-strategy.md` still does not exist.
+
+| #   | Question                                      | Answer                                                                                                     | Spec effect                                                            |
+| --- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 1   | Retrieval posture when a platform blocks us   | Match ReciMe's user-directed posture **+ track access as an operational risk**                             | FR-001a, FR-001b, SC-012, 2 edge cases                                 |
+| 2   | Household `member` vs `owner` capability      | Members create/edit/check off; owners alone invite, remove, delete household **and delete shared content** | FR-030a, FR-030b, FR-030c (derived), 2 edge cases, data-model §1       |
+| 3   | Browser-extension page access                 | **`activeTab` only** — no persistent host permissions, no background reading                               | FR-014, 1 edge case                                                    |
+| 4   | Capture retry after a billed tier             | **Resume from the last recorded tier**; never re-pay billed work                                           | FR-011a, FR-011b, 2 edge cases, data-model §2                          |
+| 5   | Share sheet confirms acceptance or extraction | **Accept immediately, notify on completion**                                                               | FR-013, FR-013a, SC-003a/SC-003b, `014-FR-001` dependency, 1 edge case |
+
+✅ **FR-030c confirmed by the owner 2026-08-22**, and broadened to meal plans and the aisle taxonomy — one
+truth table, no per-resource exceptions. U-5 is closed.
+
+⚠️ **A hole found while confirming it, now closed.** The invariant "a household always has ≥1 active owner" is
+**unenforceable against GDPR erasure** — refusing would make a legal right conditional on household state.
+Owner ruling: ownership auto-transfers to the longest-tenured active member (FR-032a), written before the
+departing row is removed and idempotent under redelivery (FR-032b). And `households.display_name` defaults to
+the creating user's handle, so erasing that owner would pseudonymize their recipes and then leak the handle
+through the household name (FR-032c). Spec is now **50 FRs**.
 
 ## Owner rulings applied (2026-08-22)
 

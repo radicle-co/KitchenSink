@@ -40,7 +40,7 @@
  * calling `localhost`), `FOOD_CATALOG_BLEND_ENABLED` (Stage-2 rollout switch) and
  * `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` (the per-keystroke bound).
  */
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
@@ -50,6 +50,12 @@ import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
 import { FoodNutritionGateway } from './foodNutrition.gateway.js';
 import { IngredientsDal } from './dal/ingredients.dal.js';
+import { createCuratedTier } from './resolution/curatedTier.js';
+import { createMemoTier } from './resolution/memoTier.js';
+import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
+import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
+import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
+import type { ResolutionTier } from './resolution/resolutionCascade.js';
 
 /**
  * Default per-keystroke bound on the catalog-blend request (ms).
@@ -61,6 +67,29 @@ import { IngredientsDal } from './dal/ingredients.dal.js';
  * brief wait for the catalog section, never a stalled typeahead.
  */
 const TYPEAHEAD_TIMEOUT_MS = 600;
+
+/**
+ * The ordered resolution cascade (plan U10 / R11). ⛔ **THE ORDER IS THE CONFIGURATION** — it is R11's
+ * precedence, not an implementation detail, which is why it lives here as an explicit registry rather than
+ * being assembled inside the service.
+ *
+ * Today it holds tiers **1** (curated mappings) and **3** (remembered resolutions). The two absentees are
+ * absent for stated reasons rather than by oversight:
+ *
+ *  - **Tier 2, lexical**, is U5/U6's: the ranking and the margin at which it is confident are theirs, and
+ *    inserting a half-built one here would give the cascade a metric nobody had measured. Until it ships, the
+ *    EXISTING `addByName` path is the lexical fallback — it runs after the cascade is exhausted, which is the
+ *    same position in the precedence. U5/U6 insert their tier at index 1.
+ *  - **Tier 4, the LLM gate**, is U11's, and it cannot be a synchronous tier at all: ADR-0024 grants
+ *    `bedrock:InvokeModel` to exactly one Lambda execution role, and this Fargate service is not it. From the
+ *    cascade's side tier 4 is an ENQUEUE, answered later through the shipped `PENDING → RESOLVED` lifecycle.
+ *
+ * @param mappings - The knowledge-base repository both live tiers read through.
+ * @returns The tiers, in R11's order.
+ */
+function resolutionTiers(mappings: ResolutionMappingsDal): readonly ResolutionTier[] {
+    return [createCuratedTier(mappings), createMemoTier(mappings)];
+}
 
 @Module({
     controllers: [IngredientsController],
@@ -98,8 +127,35 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
             inject: [FoodServiceClients],
             useFactory: (clients: FoodServiceClients): FoodNutritionGateway => new FoodNutritionGateway(clients),
         },
-        IngredientsService,
+        {
+            provide: ResolutionMappingsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): ResolutionMappingsDal => new ResolutionMappingsDal(db),
+        },
+        {
+            // The promotion audit's log half goes through Nest's `Logger`, so the identifiers it carries are
+            // scrubbed on the way out; the metric half writes EMF straight to stdout by default.
+            provide: MappingPromotionAudit,
+            useFactory: (): MappingPromotionAudit => {
+                const logger = new Logger(MappingPromotionAudit.name);
+
+                return new MappingPromotionAudit(undefined, undefined, (message, context) =>
+                    logger.log(message, context),
+                );
+            },
+        },
+        ResolutionMappingsService,
+        {
+            provide: IngredientsService,
+            inject: [IngredientsDal, FoodServiceClients, FoodCatalogGateway, ResolutionMappingsDal],
+            useFactory: (
+                dal: IngredientsDal,
+                clients: FoodServiceClients,
+                catalog: FoodCatalogGateway,
+                mappings: ResolutionMappingsDal,
+            ): IngredientsService => new IngredientsService(dal, clients, catalog, resolutionTiers(mappings)),
+        },
     ],
-    exports: [IngredientsService, FoodNutritionGateway],
+    exports: [IngredientsService, FoodNutritionGateway, ResolutionMappingsService],
 })
 export class IngredientsModule {}

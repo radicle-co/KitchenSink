@@ -37,6 +37,20 @@ export type {
     FoodResolutionStatus,
 } from './ingredients.js';
 
+// ── ingredient_resolution_mappings + ingredient_resolution_memos (plan U10, 0021) ───────────────
+export {
+    ingredientResolutionMappings,
+    ingredientResolutionMemos,
+    RESOLUTION_MAPPING_SCOPES,
+    RESOLUTION_MAPPING_ORIGINS,
+} from './resolutionMappings.js';
+export type {
+    IngredientResolutionMappingRow,
+    NewIngredientResolutionMappingRow,
+    IngredientResolutionMemoRow,
+    NewIngredientResolutionMemoRow,
+} from './resolutionMappings.js';
+
 // ── recipe_versions + recipe_version_pending_archives (T013, T121) ────────────────────────────────
 export { recipeVersions, recipeVersionPendingArchives, PENDING_ARCHIVE_STATUSES } from './versions.js';
 export type {

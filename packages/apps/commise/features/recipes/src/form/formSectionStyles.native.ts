@@ -64,6 +64,9 @@ export const styles = StyleSheet.create({
     // and its 44pt touch target can never be clipped (the web leaf's `shrink-0` idiom).
     rowGrow: { flexGrow: 1, flexShrink: 1, flexBasis: '60%' },
     rowNarrow: { width: 88 },
+    // The EN DASH between an ingredient's two quantity bounds (U9/R42) — decorative punctuation, so it
+    // never yields width and never grows the row.
+    rangeSeparator: { flexShrink: 0, color: palette.slate, fontSize: 13 },
     rowAction: { flexShrink: 0 },
     stepMarker: {
         width: 28,

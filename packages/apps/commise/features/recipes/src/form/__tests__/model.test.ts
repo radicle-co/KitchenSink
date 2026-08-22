@@ -15,14 +15,18 @@ import {
     RecipeVisibility,
     MAX_RECIPE_DESCRIPTION_LENGTH,
     MAX_RECIPE_TITLE_LENGTH,
+    type RecipeIngredientView,
 } from '@kitchensink/recipe-core';
 import { createRecipeRequestSchema, updateRecipeRequestSchema } from '@kitchensink/schema-recipe';
+
+import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
 
 import {
     canAdvanceFromStep,
     computeTotalTime,
     defaultRecipeFormValues,
     draftQuantity,
+    draftQuantityVerdict,
     DESCRIPTION_MAX_LENGTH,
     TITLE_MAX_LENGTH,
     lineCalories,
@@ -32,6 +36,7 @@ import {
     stepErrorsFor,
     toCreateRecipeInput,
     toNutritionLine,
+    toRecipeFormValues,
     toUpdateRecipeInput,
     validateRecipeForm,
     type RecipeFormIngredient,
@@ -324,10 +329,99 @@ describe('validateRecipeForm', () => {
         expect(validateRecipeForm(filledValues({ prepTimeMinutes: -1 })).times).toBe('timesNonNegative');
     });
 
-    it('flags an ingredient line with a resolved id but a non-positive quantity', () => {
+    /**
+     * REWRITTEN for U9 (was: "flags ... a non-positive quantity" -> `ingredientsUnresolved`).
+     *
+     * The old code conflated two different failures under one message, and U9 makes that untenable: an
+     * absent quantity is now VALID, so "every ingredient needs a resolved item and a quantity greater than
+     * zero" is no longer a true sentence. Resolution and quantity are separate codes with separate copy,
+     * and the assertion below proves the quantity failure gets the quantity code.
+     */
+    it('flags a resolved line whose quantity is a typed zero, as a QUANTITY failure', () => {
         const errors = validateRecipeForm(
             filledValues({
                 ingredients: [{ ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Kale', quantity: 0 }],
+            }),
+        );
+        expect(errors.ingredients).toBe('ingredientsQuantityInvalid');
+    });
+
+    it('flags an incoherent RANGE — an upper bound below its lower one (R42)', () => {
+        const errors = validateRecipeForm(
+            filledValues({
+                ingredients: [
+                    {
+                        ingredientId: '00000000-0000-4000-8000-000000000001',
+                        name: 'Flour',
+                        quantity: 3,
+                        quantityHigh: 2,
+                    },
+                ],
+            }),
+        );
+        expect(errors.ingredients).toBe('ingredientsQuantityInvalid');
+    });
+
+    it('flags an upper bound stated with NO lower bound (R42)', () => {
+        const errors = validateRecipeForm(
+            filledValues({
+                ingredients: [
+                    {
+                        ingredientId: '00000000-0000-4000-8000-000000000001',
+                        name: 'Flour',
+                        quantity: Number.NaN,
+                        quantityHigh: 3,
+                    },
+                ],
+            }),
+        );
+        expect(errors.ingredients).toBe('ingredientsQuantityInvalid');
+    });
+
+    it('ACCEPTS a line that states no quantity at all (R40) — an absent amount is not an error', () => {
+        expect(
+            validateRecipeForm(
+                filledValues({
+                    ingredients: [
+                        {
+                            ingredientId: '00000000-0000-4000-8000-000000000001',
+                            name: 'Butter',
+                            quantity: Number.NaN,
+                            unit: 'the size of an egg',
+                        },
+                    ],
+                }),
+            ),
+        ).toEqual({});
+    });
+
+    it('ACCEPTS a coherent range', () => {
+        expect(
+            validateRecipeForm(
+                filledValues({
+                    ingredients: [
+                        {
+                            ingredientId: '00000000-0000-4000-8000-000000000001',
+                            name: 'Flour',
+                            quantity: 2,
+                            quantityHigh: 3,
+                            unit: 'cups',
+                        },
+                    ],
+                }),
+            ),
+        ).toEqual({});
+    });
+
+    it('reports an UNRESOLVED line ahead of a quantity failure, so the user fixes the picker first', () => {
+        // One field carries one code. The precedence is stated here rather than left to array order: a line
+        // with no catalog id cannot be submitted whatever its quantity says.
+        const errors = validateRecipeForm(
+            filledValues({
+                ingredients: [
+                    { ingredientId: null, name: 'Kale', quantity: 1 },
+                    { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Salt', quantity: 0 },
+                ],
             }),
         );
         expect(errors.ingredients).toBe('ingredientsUnresolved');
@@ -786,7 +880,8 @@ describe('the form validators ARE the published wire schemas, so the two cannot 
                     ],
                 }),
             ).ingredients,
-        ).toBe('ingredientsUnresolved');
+            // U9: the same rule, now reported under the code that names the field it is about.
+        ).toBe('ingredientsQuantityInvalid');
     });
 
     // ⚠️ THERE IS DELIBERATELY NO TEST HERE FOR A MALFORMED-BUT-PRESENT `ingredientId`, and the asymmetry with
@@ -799,4 +894,110 @@ describe('the form validators ARE the published wire schemas, so the two cannot 
     // `null` sentinel), and reusing it for a malformed id would send the user back to a picker that is already
     // showing a selection. The FORMAT rule belongs to the wire — `recipeIngredientInputSchema` enforces
     // `z.uuid()` and the server rejects it — and `model.ts` records why the form must not compose that shape.
+});
+
+/**
+ * U9 — the draft-side VERDICT on a quantity pair, and the half U8 deliberately left open.
+ *
+ * `draftQuantity` answers "what does this draft state?" and reports every incoherent pair as `absent`,
+ * because a value object has no member for "these two numbers disagree". This is the other half: whether
+ * that draft may be SUBMITTED. Without it an absent quantity is indistinguishable from a half-typed one,
+ * and `validateRecipeForm` has to refuse both — which is exactly why an absent-quantity recipe could be
+ * read but not saved.
+ */
+describe('draftQuantityVerdict (U9)', () => {
+    const line = (overrides: Partial<RecipeFormIngredient>): RecipeFormIngredient => ({
+        ingredientId: '00000000-0000-4000-8000-000000000001',
+        name: 'Butter',
+        quantity: 2,
+        ...overrides,
+    });
+
+    it('accepts a single stated amount', () => {
+        expect(draftQuantityVerdict(line({ quantity: 2 }))).toBe('stated');
+    });
+
+    it('accepts a coherent range', () => {
+        expect(draftQuantityVerdict(line({ quantity: 2, quantityHigh: 3 }))).toBe('stated');
+    });
+
+    it('accepts coincident bounds (which collapse to one exact value)', () => {
+        expect(draftQuantityVerdict(line({ quantity: 2, quantityHigh: 2 }))).toBe('stated');
+    });
+
+    it('reports BOTH bounds empty as absent — a submittable state (R40)', () => {
+        // ⛔ THE U8 GAP THIS UNIT CLOSES. "Butter the size of an egg" states no amount; the draft holds
+        // `NaN`, and calling that invalid is what made such a recipe readable but not editable.
+        expect(draftQuantityVerdict(line({ quantity: Number.NaN }))).toBe('absent');
+    });
+
+    it('rejects an upper bound with no lower bound', () => {
+        expect(draftQuantityVerdict(line({ quantity: Number.NaN, quantityHigh: 3 }))).toBe('invalid');
+    });
+
+    it('rejects an upper bound below its lower bound', () => {
+        expect(draftQuantityVerdict(line({ quantity: 3, quantityHigh: 2 }))).toBe('invalid');
+    });
+
+    it('rejects a stated zero or negative — a typed number that is not an amount', () => {
+        expect(draftQuantityVerdict(line({ quantity: 0 }))).toBe('invalid');
+        expect(draftQuantityVerdict(line({ quantity: -1 }))).toBe('invalid');
+    });
+
+    it('rejects a bound the storage column cannot hold, on EITHER side of the range', () => {
+        // Composes the wire's own per-bound schema, so a bound outside 0.001 .. 1 000 000 is refused here
+        // rather than round-tripping to a 400 — and the UPPER bound is checked too, which a validator
+        // written against the old scalar would have missed entirely.
+        expect(draftQuantityVerdict(line({ quantity: 0.0001 }))).toBe('invalid');
+        expect(draftQuantityVerdict(line({ quantity: 1, quantityHigh: 1_000_001 }))).toBe('invalid');
+    });
+});
+
+/**
+ * U9 — the seed adapter must round-trip every member of the quantity value object.
+ *
+ * This is the editability half of the unit: a recipe whose quantity is a range or absent has to survive
+ * being opened in the editor and saved again without the bound quietly changing. The three assertions
+ * below are open -> validate -> submit for each member, which is the only shape that catches a narrowing
+ * (`2–3` saved back as `2`) or a fabrication (an absent amount saved back as `0`).
+ */
+describe('toRecipeFormValues + validate + submit — the quantity round-trip (U9)', () => {
+    const seed = (quantity: RecipeIngredientView['quantity']): RecipeFormValues =>
+        toRecipeFormValues(
+            makeRecipeDetail({
+                ingredients: [makeIngredientView({ quantity, unit: 'cups' })],
+                steps: [makeStepView()],
+            }),
+        );
+
+    it('round-trips an EXACT quantity', () => {
+        const values = seed({ kind: 'exact', value: 2 });
+
+        expect(validateRecipeForm(values)).toEqual({});
+        expect(toCreateRecipeInput(values).ingredients[0]?.quantity).toEqual({ kind: 'exact', value: 2 });
+    });
+
+    it('round-trips a RANGE without narrowing it to its lower bound', () => {
+        const values = seed({ kind: 'range', low: 2, high: 3 });
+
+        expect(values.ingredients[0]?.quantity).toBe(2);
+        expect(values.ingredients[0]?.quantityHigh).toBe(3);
+        expect(validateRecipeForm(values)).toEqual({});
+        expect(toCreateRecipeInput(values).ingredients[0]?.quantity).toEqual({ kind: 'range', low: 2, high: 3 });
+    });
+
+    it('round-trips an ABSENT quantity without fabricating one, and lets the form SUBMIT', () => {
+        // ⛔ The defect U8 handed to U9: the draft holds `NaN`, and the old validator refused it, so this
+        // recipe could be opened and never saved. Both halves are asserted — it validates, AND what it
+        // submits is still `absent` rather than a `0` or a `1` the source never stated.
+        const values = seed({ kind: 'absent' });
+
+        expect(values.ingredients[0]?.quantity).toBeNaN();
+        expect(validateRecipeForm(values)).toEqual({});
+        expect(toCreateRecipeInput(values).ingredients[0]?.quantity).toEqual({ kind: 'absent' });
+    });
+
+    it('carries an absent quantity through the UPDATE body too (the edit path, not just create)', () => {
+        expect(toUpdateRecipeInput(seed({ kind: 'absent' })).ingredients?.[0]?.quantity).toEqual({ kind: 'absent' });
+    });
 });

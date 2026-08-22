@@ -21,8 +21,8 @@
 import {
     ABSENT_QUANTITY,
     computeRecipeNutrition,
+    ingredientQuantitySchema,
     quantityLowerBound,
-    recipeIngredientQuantitySchema,
     recipeStepInstructionSchema,
     recipeTitleSchema,
     statedQuantity,
@@ -73,10 +73,11 @@ export interface RecipeFormIngredient {
     /**
      * The UPPER bound when the line states a range (`2 to 3 cups`); absent for a single stated value.
      *
-     * ⚠️ Carried by the draft even though no input renders it yet — U9 adds the second numeric field. It is
-     * here NOW because `toRecipeFormValues` has to round-trip it: without it, opening a ranged recipe in the
-     * editor and pressing save would silently narrow `2–3 cups` back to `2 cups`, which is precisely the
-     * value corruption this whole change exists to end.
+     * Rendered by U9's second numeric input, beside the lower bound and sharing the line's one unit field.
+     * It was carried by the draft a unit EARLIER than that input existed, because `toRecipeFormValues` has
+     * to round-trip it: without it, opening a ranged recipe in the editor and pressing save would silently
+     * narrow `2–3 cups` back to `2 cups`, which is precisely the value corruption this whole change exists
+     * to end.
      */
     readonly quantityHigh?: number;
     readonly unit?: string;
@@ -185,6 +186,49 @@ export const computeTotalTime = (prepTimeMinutes: number, cookTimeMinutes: numbe
  */
 export const draftQuantity = (line: RecipeFormIngredient): IngredientQuantity =>
     statedQuantity(line.quantity, line.quantityHigh) ?? ABSENT_QUANTITY;
+
+/**
+ * What a draft line's quantity pair AMOUNTS TO, for submission purposes (U9).
+ *
+ * @remarks
+ * `absent` — the line states no amount, which is a legitimate, submittable state (R40).
+ * `stated` — the line states a coherent amount the wire will accept.
+ * `invalid` — the two numbers do not describe any amount, and submission must be blocked.
+ */
+export type DraftQuantityVerdict = 'absent' | 'stated' | 'invalid';
+
+/**
+ * Judge one draft line's quantity pair. Pure.
+ *
+ * ⛔ THE OTHER HALF OF {@link draftQuantity}, AND THE DEFECT IT CLOSES. `draftQuantity` reports every
+ * incoherent pair as `absent`, because the value object has no member for "these two numbers disagree" —
+ * which is correct as a reading, and useless as a gate. Until this function existed the validator could not
+ * tell "the source stated no amount" from "the user is half-way through typing", so it refused BOTH, and an
+ * absent-quantity recipe could be opened in the editor and never saved.
+ *
+ * The bound check COMPOSES `ingredientQuantitySchema` — the wire's own discriminated union — rather than
+ * `recipeIngredientQuantitySchema` applied to a scalar. That matters for a range: the wire applies the
+ * storage bound to EVERY numeric member, so an upper bound the `numeric(10,3)` column cannot hold is caught
+ * here instead of round-tripping to a 400. A validator written against the old scalar would have checked
+ * only the lower one.
+ *
+ * @param line - The form's ingredient line.
+ * @returns Whether the line states no amount, a valid amount, or an incoherent pair.
+ */
+export const draftQuantityVerdict = (line: RecipeFormIngredient): DraftQuantityVerdict => {
+    const low = Number.isFinite(line.quantity) ? line.quantity : undefined;
+    const high = line.quantityHigh !== undefined && Number.isFinite(line.quantityHigh) ? line.quantityHigh : undefined;
+
+    if (low === undefined) {
+        // An upper bound with no lower one is not "no amount" — it is a half-stated range, and saying so is
+        // what sends the user to the field that is actually empty.
+        return high === undefined ? 'absent' : 'invalid';
+    }
+
+    const quantity = statedQuantity(low, high);
+
+    return quantity !== null && ingredientQuantitySchema.safeParse(quantity).success ? 'stated' : 'invalid';
+};
 
 export const toNutritionLine = (line: RecipeFormIngredient): NutritionLine => {
     const measure: LineMeasure = {
@@ -381,8 +425,9 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         name: line.name,
         // ⚠️ BOTH bounds, always. `NaN` for an absent quantity is what an emptied numeric input holds, so
         // the draft says "no amount stated" rather than fabricating a `0` the source never gave (R40) —
-        // and the high bound is carried even though no input renders it yet, because dropping it here is
-        // what would silently narrow `2–3 cups` to `2 cups` on the next save.
+        // and the high bound is carried because dropping it here is what would silently narrow `2–3 cups`
+        // to `2 cups` on the next save. Both are now editable (U9), and `validateRecipeForm` accepts the
+        // absent case, so a recipe seeded this way can be opened, changed and saved with its bound intact.
         quantity: quantityLowerBound(line.quantity) ?? Number.NaN,
         ...(line.quantity.kind === 'range' ? { quantityHigh: line.quantity.high } : {}),
         resolutionStatus: 'RESOLVED',
@@ -453,6 +498,7 @@ export type RecipeFormErrorCode =
     | 'titleRequired'
     | 'ingredientsEmpty'
     | 'ingredientsUnresolved'
+    | 'ingredientsQuantityInvalid'
     | 'stepsRequired'
     | 'servingsPositive'
     | 'timesNonNegative';
@@ -470,8 +516,11 @@ export interface RecipeFormErrors {
 // DA5) — the single authoritative source for the rules the form and the create contract genuinely SHARE, so
 // the form can never hand-restate (and drift from) what the wire already encodes:
 //   - `recipeTitleSchema`: a non-empty, ≤200-character title.
-//   - `recipeIngredientQuantitySchema`: a quantity inside the 0.001 .. 1 000 000 window the column can store.
 //   - `recipeStepInstructionSchema`: a non-empty step instruction.
+//   - `ingredientQuantitySchema` (via `draftQuantityVerdict`): the wire's `exact | range | absent`
+//     union, which applies the 0.001 .. 1 000 000 storage window to EVERY numeric member. U9 moved the
+//     quantity rule from the bare scalar to the union for exactly that reason — the scalar could not see an
+//     upper bound at all.
 //
 // ⚠️ THESE ARE THE SAME OBJECTS THE SERVER VALIDATES WITH — not copies, and not the same rule written twice.
 // Per the owner's ruling the recipe bounds live in `recipe-core`, and `recipe-service`'s
@@ -484,7 +533,6 @@ export interface RecipeFormErrors {
 // what stops a wire-envelope reshape (renaming a field, making one optional) from silently breaking a
 // field-level rule the form depends on: a named Value Object survives that, `shape.title` does not.
 const titleSchema = recipeTitleSchema;
-const quantitySchema = recipeIngredientQuantitySchema;
 const instructionSchema = recipeStepInstructionSchema;
 
 /**
@@ -506,8 +554,13 @@ const isResolvedIngredientId = (ingredientId: string | null): boolean =>
 
 /**
  * Validate the form for submission: title present, ≥1 ingredient with EVERY line resolved to a catalog id
- * and a positive quantity, ≥1 step with a non-empty instruction, positive servings, non-negative times.
+ * and a COHERENT quantity, ≥1 step with a non-empty instruction, positive servings, non-negative times.
  * Pure and locale-free — returns error CODES (the leaf resolves copy). Empty object when submittable.
+ *
+ * ⛔ "Coherent" is NOT "positive", and the difference is the point of U9. A line that states no amount at
+ * all is valid (R40 — "butter the size of an egg" states none), while `0`, a negative, an upper bound below
+ * its lower, and an upper bound with no lower are all refused. {@link draftQuantityVerdict} owns that
+ * judgement; this validator only decides which field the failure belongs to.
  *
  * COMPOSES the published `createRecipeRequestSchema`'s field bounds (DA5, parse-don't-validate) for the
  * rules it and the form
@@ -542,12 +595,16 @@ export const validateRecipeForm = (values: RecipeFormValues): RecipeFormErrors =
         // be shown, not a form-only extra. (It said "the wire schema allows an empty array" until the
         // published contract gained the bound; keeping that claim would have invited deleting the check.)
         errors.ingredients = 'ingredientsEmpty';
-    } else if (
-        values.ingredients.some(
-            (line) => !isResolvedIngredientId(line.ingredientId) || !quantitySchema.safeParse(line.quantity).success,
-        )
-    ) {
+    } else if (values.ingredients.some((line) => !isResolvedIngredientId(line.ingredientId))) {
         errors.ingredients = 'ingredientsUnresolved';
+    } else if (values.ingredients.some((line) => draftQuantityVerdict(line) === 'invalid')) {
+        // SPLIT FROM `ingredientsUnresolved` BY U9, not merely renamed. The two failures were reported under
+        // one code and one sentence ("...a resolved item AND a quantity greater than zero"), and that
+        // sentence stopped being true the moment an absent quantity became legal (R40) — a line stating no
+        // amount is now valid, while a half-typed range is not. One field carries one code, so resolution is
+        // reported FIRST: a line with no catalog id cannot be submitted whatever its quantity says, and
+        // sending the user to a quantity field would be sending them to the wrong control.
+        errors.ingredients = 'ingredientsQuantityInvalid';
     }
 
     if (

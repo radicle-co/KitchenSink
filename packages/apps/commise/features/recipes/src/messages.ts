@@ -96,6 +96,14 @@ export interface RecipeDetailMessages {
     readonly nutritionHeading: string;
     /** Notice shown when per-serving nutrition is incomplete (FR-007 partial nutrition). */
     readonly nutritionPartial: string;
+    /**
+     * Disclosure shown when the figure was computed from the LOWER bound of an ingredient's stated range
+     * (R38). Distinct from {@link nutritionPartial}: that one says some lines were left out, this one says a
+     * counted line was counted at one end of the amount the recipe actually states.
+     */
+    readonly nutritionRangeDerivedLow: string;
+    /** The same disclosure for a figure computed from the UPPER bound (R38). */
+    readonly nutritionRangeDerivedHigh: string;
     /** Always-present standing note explaining the nutrition source + the Custom marker (D8). */
     readonly nutritionSourceNote: string;
     /** Label for calories. */
@@ -251,6 +259,8 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             tagFilterLabel: 'Find recipes tagged {tag}',
             nutritionHeading: 'Nutrition (per serving)',
             nutritionPartial: 'Estimated — some items aren’t counted yet',
+            nutritionRangeDerivedLow: 'Estimated from the lower amount of each stated range',
+            nutritionRangeDerivedHigh: 'Estimated from the upper amount of each stated range',
             nutritionSourceNote: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.',
             caloriesLabel: 'Calories',
             proteinLabel: 'Protein',

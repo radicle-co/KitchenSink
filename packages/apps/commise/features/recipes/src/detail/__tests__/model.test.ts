@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 
 import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core';
 
-import { formatQuantity } from '../model.js';
+import { makeNutrition } from '../../__fixtures__/index.js';
+import { formatQuantity, rangeDerivedNotice } from '../model.js';
 
 /** A quantity the source stated exactly. */
 function exact(value: number): IngredientQuantity {
@@ -90,5 +91,30 @@ describe('formatQuantity — an absent quantity (R40)', () => {
 
     it('renders the unit alone when the line states one, with no stray separator', () => {
         expect(formatQuantity(ABSENT_QUANTITY, 'en-US', 'pinch')).toBe('pinch');
+    });
+});
+
+/**
+ * U9 / R38 — the disclosure that a total was computed from ONE bound of a stated range.
+ *
+ * `computeRecipeNutrition` already records which bound it collapsed to; nothing rendered it, so a figure up
+ * to a third under the recipe's upper bound was indistinguishable from an exact one. This selector is the
+ * single place that fact becomes copy, on both platforms and on both the detail and the editor surface.
+ */
+describe('rangeDerivedNotice (R38)', () => {
+    const notices = { low: 'from the lower amount', high: 'from the upper amount' };
+
+    it('returns nothing when no range was collapsed — absence IS the "not applicable"', () => {
+        expect(rangeDerivedNotice(makeNutrition(), notices)).toBeUndefined();
+    });
+
+    it('names the LOWER bound when the figure came from it', () => {
+        expect(rangeDerivedNotice(makeNutrition({ rangeDerivedBound: 'low' }), notices)).toBe('from the lower amount');
+    });
+
+    it('names the UPPER bound when the figure came from it', () => {
+        // Today's policy only ever collapses to `low`; the client renders the bound it is TOLD, so a policy
+        // change is a one-line server edit rather than a client release.
+        expect(rangeDerivedNotice(makeNutrition({ rangeDerivedBound: 'high' }), notices)).toBe('from the upper amount');
     });
 });

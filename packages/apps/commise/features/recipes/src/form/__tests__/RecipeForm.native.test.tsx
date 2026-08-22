@@ -373,7 +373,8 @@ describe('RecipeForm (native) — B8 error accessibility wiring (aria-invalid + 
         expect(cook.getAttribute('aria-describedby')).toBe(alert.id);
     });
 
-    it('wires only the offending ingredient line(s) to the ingredients alert, per field (WCAG 3.3.1)', () => {
+    /** REWRITTEN + SPLIT for U9 — see the web suite for the rationale. One test per error code. */
+    it('wires only the UNRESOLVED lines to an ingredientsUnresolved alert (WCAG 3.3.1)', () => {
         renderForm({
             values: filledValues({
                 ingredients: [
@@ -392,11 +393,29 @@ describe('RecipeForm (native) — B8 error accessibility wiring (aria-invalid + 
         expect(screen.getByLabelText('Ingredient 1 quantity').getAttribute('aria-invalid')).toBeNull();
 
         expect(screen.getByLabelText('Ingredient 2 name').getAttribute('aria-invalid')).toBeNull();
-        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-invalid')).toBe('true');
-        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-describedby')).toBe(alert.id);
+        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-invalid')).toBeNull();
 
         expect(screen.getByLabelText('Ingredient 3 name').getAttribute('aria-invalid')).toBeNull();
         expect(screen.getByLabelText('Ingredient 3 quantity').getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('wires only the offending QUANTITY lines to an ingredientsQuantityInvalid alert (WCAG 3.3.1)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Salt', quantity: 0 },
+                    { ingredientId: 'ing_2', name: 'Pepper', quantity: 1 },
+                ],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(screen.getByLabelText('Ingredient 1 quantity').getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByLabelText('Ingredient 1 quantity').getAttribute('aria-describedby')).toBe(alert.id);
+        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-invalid')).toBeNull();
+        expect(screen.getByLabelText('Ingredient 2 quantity').getAttribute('aria-invalid')).toBeNull();
     });
 
     it('does not mark any ingredient line invalid on an ingredientsEmpty error (no lines exist)', () => {
@@ -1068,5 +1087,190 @@ describe('RecipeForm (native) — PLACEHOLDER text clears the AA body-text floor
             placeholderContrast(screen.getByLabelText('Tags')),
             'ChipInput placeholder on its white field',
         ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * U9 / R42 — the two-bound quantity field, native leaf.
+ *
+ * The one-for-one mirror of the web suite's ranged-quantity block: same states, same accessible names, same
+ * marking rules. §14's cross-platform rule is what makes this a mirror rather than a variation — a range
+ * that renders on one platform and not the other is the failure both suites exist to catch.
+ */
+describe('RecipeForm (native) — ranged quantity (U9/R42)', () => {
+    const lowField = (number = 1) => screen.getByLabelText<HTMLInputElement>(`Ingredient ${number} quantity`);
+    const highField = (number = 1) => screen.getByLabelText<HTMLInputElement>(`Ingredient ${number} maximum quantity`);
+
+    it('renders BOTH bounds of a stated range, sharing one unit field', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3, unit: 'cups' }],
+            }),
+        });
+
+        expect(lowField().value).toBe('2');
+        expect(highField().value).toBe('3');
+        expect(inputValue('Ingredient 1 unit')).toBe('cups');
+    });
+
+    it('leaves the upper bound EMPTY for a single stated value', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+        });
+
+        expect(highField().value).toBe('');
+    });
+
+    it('renders an ABSENT quantity as an empty field, never a zero (R40)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Butter', quantity: Number.NaN, unit: 'the size of an egg' },
+                ],
+            }),
+        });
+
+        expect(lowField().value).toBe('');
+        expect(highField().value).toBe('');
+    });
+
+    it('states an upper bound when the user types one', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+            onChange,
+        });
+
+        fireEvent.change(highField(), { target: { value: '3' } });
+
+        expect(onChange).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+        );
+    });
+
+    it('CLEARS the upper bound back to a single value when the field is emptied', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+            onChange,
+        });
+
+        fireEvent.change(highField(), { target: { value: '' } });
+
+        const next = onChange.mock.calls.at(-1)?.[0] as RecipeFormValues;
+        expect('quantityHigh' in (next.ingredients[0] ?? {})).toBe(false);
+    });
+
+    it('clears the LOWER bound to an absent amount when emptied, not to a zero', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2 }] }),
+            onChange,
+        });
+
+        fireEvent.change(lowField(), { target: { value: '' } });
+
+        const next = onChange.mock.calls.at(-1)?.[0] as RecipeFormValues;
+        expect(next.ingredients[0]?.quantity).toBeNaN();
+    });
+
+    it('marks BOTH bounds invalid and wires them to the alert when the range is incoherent (WCAG 3.3.1)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 3, quantityHigh: 2 }],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        const alert = screen.getByRole('alert');
+
+        expect(alert.textContent).toContain('above');
+        expect(lowField().getAttribute('aria-invalid')).toBe('true');
+        expect(lowField().getAttribute('aria-describedby')).toBe(alert.id);
+        expect(highField().getAttribute('aria-invalid')).toBe('true');
+        expect(highField().getAttribute('aria-describedby')).toBe(alert.id);
+    });
+
+    it('marks NEITHER bound on a line whose quantity is absent — absence is not an error', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Butter', quantity: Number.NaN },
+                    { ingredientId: 'ing_2', name: 'Flour', quantity: 3, quantityHigh: 2 },
+                ],
+            }),
+            errors: { ingredients: 'ingredientsQuantityInvalid' },
+        });
+
+        expect(lowField(1).getAttribute('aria-invalid')).toBeNull();
+        expect(highField(1).getAttribute('aria-invalid')).toBeNull();
+        expect(lowField(2).getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('does NOT mark a quantity on an ingredientsUnresolved error — that error is about the picker', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: null, name: 'Flour', quantity: 0 }] }),
+            errors: { ingredients: 'ingredientsUnresolved' },
+        });
+
+        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-invalid')).toBe('true');
+        expect(lowField().getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('discloses that the running total was computed from one bound of a range (R38)', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    {
+                        ingredientId: 'ing_1',
+                        name: 'Flour',
+                        quantity: 100,
+                        quantityHigh: 200,
+                        unit: 'g',
+                        caloriesPer100g: 364,
+                    },
+                ],
+            }),
+        });
+
+        expect(screen.getByText('Estimated from the lower amount of each stated range')).toBeTruthy();
+    });
+
+    it('shows NO range disclosure when no line states a range', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 100, unit: 'g', caloriesPer100g: 364 }],
+            }),
+        });
+
+        expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
+    });
+});
+
+/**
+ * U9 — the separator glyph is PUNCTUATION, and the native spelling of "hidden" is the load-bearing part.
+ *
+ * ⛔ THE REGRESSION THIS CATCHES. `importantForAccessibility="no"` reads as correct RN and produces NO DOM
+ * attribute under react-native-web, so the web build would carry a bare dash in its accessibility tree with
+ * nothing failing. `aria-hidden` reverse-maps onto RN's own pair on device AND emits the attribute here —
+ * the same reasoning `RecipeWidgetSkeleton.native.tsx` records, and the same form the web leaf uses.
+ */
+describe('RecipeForm (native) — the range separator is decorative', () => {
+    it('hides the separator glyph from the accessibility tree', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Flour', quantity: 2, quantityHigh: 3 }],
+            }),
+        });
+
+        const separators = Array.from(document.body.querySelectorAll('[aria-hidden="true"]')).filter(
+            (element) => element.textContent === '–',
+        );
+
+        expect(separators).toHaveLength(1);
     });
 });

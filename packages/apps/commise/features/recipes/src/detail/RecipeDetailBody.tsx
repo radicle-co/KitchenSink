@@ -27,7 +27,7 @@ import { PhotoCarousel } from './PhotoCarousel.js';
 import { RecipeHero } from './RecipeHero.js';
 import { RecipeSourceLine } from './RecipeSourceLine.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
-import { formatQuantity, type RecipeDetailBodyProps } from './model.js';
+import { formatQuantity, rangeDerivedNotice, type RecipeDetailBodyProps } from './model.js';
 
 const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:grid-cols-4';
 const statValue = 'font-display text-2xl font-bold text-charcoal';
@@ -56,6 +56,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const locale = useLocale();
     // Cuisine + dietary flags are descriptive pills; only `tags` are the search-filter chips (D6).
     const staticBadges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags];
+    // R38 — read from the STORED figure, not the scaled projection: scaling multiplies both bounds, so which
+    // bound the total came from is a fact about the computation, not about the serving count on screen.
+    const rangeNotice = rangeDerivedNotice(recipe.nutrition, {
+        low: detail.nutritionRangeDerivedLow,
+        high: detail.nutritionRangeDerivedHigh,
+    });
     // ONE derivation of what the chosen serving count means — the same pure policy the native leaf reads,
     // so the platforms cannot disagree about WHAT scales. Quantities and prep scale; cook time and the
     // per-step timers below are rendered from the STORED recipe, on purpose (see `scaleRecipeForServings`).
@@ -311,6 +317,10 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     </div>
                 </dl>
                 {!recipe.nutrition.isComplete && <p className="text-body-sm text-slate">{detail.nutritionPartial}</p>}
+                {/* R38 — a DIFFERENT admission from the partial notice above: that one says some lines were
+                    left out, this one says a counted line was counted at one end of the amount the recipe
+                    actually states. Both can be true at once, so both render. */}
+                {rangeNotice !== undefined && <p className="text-body-sm text-slate">{rangeNotice}</p>}
                 {hasUserEnteredIngredients(recipe.ingredients) && (
                     <p className="text-caption text-slate">{detail.nutritionSourceNote}</p>
                 )}

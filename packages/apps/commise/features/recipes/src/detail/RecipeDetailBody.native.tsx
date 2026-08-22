@@ -31,7 +31,7 @@ import { PhotoCarousel } from './PhotoCarousel.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
 import { ServingScaleControl } from './ServingScaleControl.native.js';
-import { formatQuantity, type RecipeDetailBodyProps } from './model.js';
+import { formatQuantity, rangeDerivedNotice, type RecipeDetailBodyProps } from './model.js';
 
 /** One label/value cell in the stats or nutrition strip. */
 const Stat: FC<{ label: string; value: ReactNode }> = ({ label, value }) => (
@@ -64,6 +64,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const locale = useLocale();
     // Cuisine + dietary flags are descriptive pills; only `tags` are the search-filter chips (D6).
     const staticBadges = [...(recipe.cuisine ? [recipe.cuisine] : []), ...recipe.dietaryFlags];
+    // R38 — see the web leaf: read from the STORED figure, not the scaled projection.
+    const rangeNotice = rangeDerivedNotice(recipe.nutrition, {
+        low: detail.nutritionRangeDerivedLow,
+        high: detail.nutritionRangeDerivedHigh,
+    });
     // ONE derivation, shared with the web leaf: quantities + prep scale, cook time and step timers do not.
     const scaled = scaleRecipeForServings(recipe, servings);
 
@@ -259,6 +264,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 />
             </View>
             {!recipe.nutrition.isComplete && <Text style={styles.description}>{detail.nutritionPartial}</Text>}
+            {/* R38 — see the web leaf: a different admission from the partial notice, and both can be true. */}
+            {rangeNotice !== undefined && <Text style={styles.description}>{rangeNotice}</Text>}
             {hasUserEnteredIngredients(recipe.ingredients) && (
                 <Text style={styles.sourceNote}>{detail.nutritionSourceNote}</Text>
             )}

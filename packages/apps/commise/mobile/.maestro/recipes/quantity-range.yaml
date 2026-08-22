@@ -1,0 +1,164 @@
+appId: io.commise.mobile
+---
+# Ranged and absent ingredient quantities (U9 / R40, R42; acceptance AE20 + AE21). Mobile mirror of the web
+# Playwright `recipeQuantityRange.spec.ts`, per the cross-platform mandate — a quantity model that ships to
+# one platform and not the other is exactly what §14 exists to stop.
+#
+# Assumes an authenticated session (the auth flow runs first in CI ordering) and the app pointed at a seeded
+# recipe API. It CREATES its own recipe rather than editing a seeded one, so `Ingredient 1 …` addresses the
+# line this flow itself made — the seeded recipes carry five lines of their own, and addressing by position
+# into a fixture is what made `recipes/edit.yaml`'s original checkpoint pass without proving anything.
+#
+# ONE flow covers three facts, because they share a single emulator run and each is worthless alone:
+#   1. A range can be STATED — two adjacent numeric fields sharing the line's one unit field.
+#   2. It SURVIVES the round trip — the detail shows the span, and re-opening the editor re-seeds BOTH
+#      bounds. The failure this guards is silent narrowing: an editor that renders only the lower bound
+#      saves `2 cups` and still looks like it saved.
+#   3. An ABSENT amount is EDITABLE and SAVEABLE (R40). Before U9 the draft held `NaN` and validation
+#      refused it, so such a recipe could be opened and never saved — the Publish tap below is that
+#      assertion.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+# Step 1 of 4 (Basic). servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Title'
+- tapOn: 'Title'
+- inputText: 'Maestro Range Loaf'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients). Resolve a line through the freeform create (no food-service dependency in this
+# job — same rationale as `create.yaml`), then state a RANGE across its two bounds.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+# The picker RESETS only after the resolved line is handed up, so this disappearing IS the create resolving
+# (see `edit.yaml`'s note on why this is the honest checkpoint).
+- extendedWaitUntil:
+      notVisible: 'Create .*Tomato.*'
+      timeout: 30000
+
+- scrollUntilVisible:
+      element: 'Ingredient 1 quantity'
+      direction: DOWN
+      timeout: 30000
+- tapOn: 'Ingredient 1 quantity'
+- eraseText
+- inputText: '2'
+- tapOn: 'Ingredient 1 maximum quantity'
+- inputText: '3'
+- tapOn: 'Ingredient 1 unit'
+- inputText: 'cups'
+
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+
+# Step 3 of 4 (Instructions) — a fresh create has no steps, so this is `Step 1`.
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Mix and bake.'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+# Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character
+# input duplication (see `create.yaml`).
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Range Loaf.*'
+      timeout: 40000
+
+# ⛔ THE SPAN, not its lower bound. An EN DASH, which is what `formatQuantity` prints on BOTH platforms —
+# the same glyph the web spec asserts, so a platform that formatted a range differently fails here.
+- scrollUntilVisible:
+      element:
+          text: '2–3 cups'
+      direction: DOWN
+      timeout: 20000
+
+# Re-open the editor: the seed must carry BOTH bounds. Dropping the upper one here is the narrowing defect.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Step 1 of 4'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Ingredient 1 maximum quantity'
+      direction: DOWN
+      timeout: 20000
+# A TextInput's own value is matchable text in this suite (see `search-navigation.yaml`), so the seeded
+# bounds are assertable directly.
+- assertVisible:
+      text: '3'
+
+# Now state that the source gave NO amount: clear both bounds, keep the prose in the unit field. Publishing
+# from here is the assertion — before U9 this form could not be submitted at all.
+- tapOn: 'Ingredient 1 quantity'
+- eraseText
+- tapOn: 'Ingredient 1 maximum quantity'
+- eraseText
+- tapOn: 'Ingredient 1 unit'
+- eraseText
+- inputText: 'the size of an egg'
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Range Loaf.*'
+      timeout: 40000
+# The unit prose renders with NO number in front of it — not a `0`, not a `1` (R40).
+- scrollUntilVisible:
+      element:
+          text: 'the size of an egg'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible:
+      text: '0 the size of an egg'

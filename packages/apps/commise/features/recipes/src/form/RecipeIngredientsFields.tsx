@@ -14,14 +14,18 @@ import type { FC, ReactElement } from 'react';
 import { errorText, field, rowField, sectionCard, sectionHeading } from './formSectionStyles.js';
 import { fillTemplate } from '../list/model.js';
 import { ingredientsErrorId } from './fieldErrorIds.js';
-import { lineCalories, recipeNutritionTotal } from './model.js';
+import { draftQuantityVerdict, lineCalories, recipeNutritionTotal } from './model.js';
 import { PlusIcon, TrashIcon } from './icons.js';
+import { rangeDerivedNotice } from '../detail/model.js';
 import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
-    parseNumericInput,
+    parseQuantityBound,
+    quantityInputValue,
     removeIngredientAt,
     resolutionStatusLabel,
+    setIngredientQuantityHigh,
+    setIngredientQuantityLow,
     updateIngredientAt,
     type RecipeFormSectionProps,
 } from './props.js';
@@ -31,10 +35,11 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
     const m = useMessages(recipeFormMessages);
     const total = recipeNutritionTotal(values);
 
-    // B8: an unresolved/invalid LINE is marked invalid only when it is itself the reason `errors.ingredients`
-    // is set (WCAG 3.3.1 — identify the specific control, not the whole list) — never the whole list on an
-    // `ingredientsEmpty` error, since there are no line inputs to mark in that case.
-    const ingredientsInvalid = errors?.ingredients !== undefined;
+    // R38 — the disclosure the running total owes when a line states a range (see `rangeDerivedNotice`).
+    const rangeNotice = rangeDerivedNotice(total, {
+        low: m.nutritionRangeDerivedLow,
+        high: m.nutritionRangeDerivedHigh,
+    });
 
     const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
         const number = index + 1;
@@ -46,8 +51,18 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
         // freeform search text, not a persisted name — so `nameInvalid` (an unresolved-line concern) can only
         // ever apply to that editable branch.
         const resolved = line.ingredientId !== null;
-        const nameInvalid = ingredientsInvalid && line.ingredientId === null;
-        const quantityInvalid = ingredientsInvalid && line.quantity <= 0;
+        // B8: a LINE is marked invalid only when it is itself the reason `errors.ingredients` is set (WCAG
+        // 3.3.1 — identify the specific control, not the whole list) — never the whole list on an
+        // `ingredientsEmpty` error, since there are no line inputs to mark in that case.
+        //
+        // U9 narrowed this from "any ingredients error" to the SPECIFIC code, because there are now two
+        // line-level failures with different owning controls: marking a quantity field on an
+        // `ingredientsUnresolved` error points the user at a control the message is not about.
+        const nameInvalid = errors?.ingredients === 'ingredientsUnresolved' && line.ingredientId === null;
+        // Both bounds carry the mark: the invalid thing is the PAIR (`3` and `2` are each fine alone), and
+        // marking only one would send the user to a field that may be the correct half of the two.
+        const quantityInvalid =
+            errors?.ingredients === 'ingredientsQuantityInvalid' && draftQuantityVerdict(line) === 'invalid';
 
         return (
             <li key={index} className="flex flex-wrap items-center gap-2">
@@ -74,14 +89,34 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                         className={rowField}
                     />
                 )}
+                {/* The two bounds of R42's ranged quantity, sharing the ONE unit field that follows. An
+                    emptied field renders as empty (`quantityInputValue`), never as `0` or the literal
+                    "NaN" — an absent amount is a state the recipe can genuinely be in (R40). */}
                 <input
                     type="number"
                     aria-label={fillTemplate(m.ingredientQuantityLabel, { number })}
                     aria-invalid={quantityInvalid || undefined}
                     aria-describedby={quantityInvalid ? ingredientsErrorId : undefined}
-                    value={String(line.quantity)}
+                    value={quantityInputValue(line.quantity)}
                     onChange={(event) =>
-                        onChange(updateIngredientAt(values, index, { quantity: parseNumericInput(event.target.value) }))
+                        onChange(setIngredientQuantityLow(values, index, parseQuantityBound(event.target.value)))
+                    }
+                    className={`${field} w-24`}
+                />
+                {/* Punctuation, not copy — the same EN DASH `formatQuantity` prints between the bounds on the
+                    read surface, so the editor and the detail agree on what a range looks like. Hidden from
+                    assistive tech: each input already carries its own accessible name. */}
+                <span aria-hidden className="text-slate">
+                    –
+                </span>
+                <input
+                    type="number"
+                    aria-label={fillTemplate(m.ingredientQuantityHighLabel, { number })}
+                    aria-invalid={quantityInvalid || undefined}
+                    aria-describedby={quantityInvalid ? ingredientsErrorId : undefined}
+                    value={quantityInputValue(line.quantityHigh)}
+                    onChange={(event) =>
+                        onChange(setIngredientQuantityHigh(values, index, parseQuantityBound(event.target.value)))
                     }
                     className={`${field} w-24`}
                 />
@@ -149,6 +184,9 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                     })}
                 </p>
                 {!total.isComplete && <p className="text-caption text-slate">{m.nutritionPartialNotice}</p>}
+                {/* R38 — a total computed from the low end of `2–3 cups` is up to a third under, and says so
+                    here rather than reading as an exact figure. */}
+                {rangeNotice !== undefined && <p className="text-caption text-slate">{rangeNotice}</p>}
             </div>
         </section>
     );

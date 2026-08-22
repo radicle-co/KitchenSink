@@ -113,19 +113,44 @@ CREATE TRIGGER trg_contributor_standing_ratchet
     FOR EACH ROW EXECUTE FUNCTION contributor_standing_ratchet();
 
 -- ── §4. ⛔ RESTITUTION BACKFILL — DO NOT UNCOMMENT WITHOUT THE §3 DECISION ─────
--- See migration-plan.md §3. Users who hold compelled-public recipes from the 001-FR-003 era start at 0
--- slots and cannot make private content they NEVER CHOSE to publish. That is the Art. 25(2) harm this
--- feature exists to remove, applied to the existing base.
+-- See migration-plan.md §3. The DEFAULT position is now Option C, DO NOTHING: the programme is
+-- forward-looking, everyone gets identical terms from launch, and free users already have a
+-- private-in-effect state (status='draft' is owner-only and is NOT premium-gated). What remains is an
+-- EQUITY question, not a lockout: pre-existing public recipes are "spent" under FR-005 (one grant per
+-- recipe lifetime), so a user who already gave 30 recipes earns nothing for them while a newcomer is
+-- granted 2 slots for doing it once.
 --
--- This implements Option A (restitution). It is idempotent: the UNIQUE natural key on
--- (listing_id, kind) plus ON CONFLICT DO NOTHING makes a re-run a no-op.
+-- ⛔ AN EARLIER DRAFT OF THIS BLOCK WAS INCOHERENT. It marked listings 'ineligible' purely to satisfy
+-- recipe_public_listings_attestation_required, then granted a slot against them. Ineligible means EARNS
+-- NOTHING. The three structural changes below are what restitution actually requires.
 --
--- REQUIRES an owner decision before it runs. `validation.sql` Q5 detects whether it did.
+-- ⛔ REQUIRES: an owner decision (§3), AND an explicit SC-002 carve-out in spec.md — SC-002 currently says
+-- 100% of rewarded publications carry an attestation, and these do not. Restitution does NOT reopen the
+-- FR-001 inducement hazard, because inducement is prospective: a grant for a publication that already
+-- happened cannot have motivated it.
 --
+-- validation.sql Q5 detects whether this ran.
+--
+-- -- (1) a third, honest decision value: a real historical publication with no attestation
+-- ALTER TABLE recipe_public_listings DROP CONSTRAINT recipe_public_listings_decision_check;
+-- ALTER TABLE recipe_public_listings ADD CONSTRAINT recipe_public_listings_decision_check
+--     CHECK (eligibility_decision IN ('eligible', 'ineligible', 'grandfathered'));
+-- ALTER TABLE recipe_public_listings DROP CONSTRAINT recipe_public_listings_attestation_required;
+-- ALTER TABLE recipe_public_listings ADD CONSTRAINT recipe_public_listings_attestation_required
+--     CHECK (eligibility_decision <> 'eligible' OR attestation_accepted_at IS NOT NULL);
+--
+-- -- (2) restitution is its own kind, so it is never misread as a scheduled grant
+-- ALTER TABLE reward_grants DROP CONSTRAINT reward_grants_kind_check;
+-- ALTER TABLE reward_grants ADD CONSTRAINT reward_grants_kind_check
+--     CHECK (kind IN ('slot', 'milestone', 'restitution'));
+--
+-- -- (3) the backfill itself. Idempotent: ON CONFLICT DO NOTHING on the (listing_id, kind) natural key.
+-- --     NOTE: this implements Option A (flat 1 per recipe). Option B (retroactive FR-007a schedule) needs
+-- --     a window function over each owner's corpus ordered by created_at — see migration-plan.md §3.
 -- INSERT INTO recipe_public_listings (recipe_id, owner_id, listed_at, attestation_accepted_at,
 --                                     eligibility_decision, eligibility_reason, state)
--- SELECT r.id, r.owner_id, r.created_at, NULL, 'ineligible',
---        'pre-dates publishing rewards; compelled public under 001-FR-003', 'listed'
+-- SELECT r.id, r.owner_id, r.created_at, NULL, 'grandfathered',
+--        'pre-dates publishing rewards; published under 001-FR-003', 'listed'
 --   FROM recipes r
 --  WHERE r.visibility = 'public'
 --    AND r.source_type = 'user_created'
@@ -134,7 +159,7 @@ CREATE TRIGGER trg_contributor_standing_ratchet
 -- ON CONFLICT DO NOTHING;
 --
 -- INSERT INTO reward_grants (listing_id, owner_id, kind, amount, granted_at)
--- SELECT l.id, l.owner_id, 'slot', 1, now()
+-- SELECT l.id, l.owner_id, 'restitution', 1, now()
 --   FROM recipe_public_listings l
---  WHERE l.eligibility_reason = 'pre-dates publishing rewards; compelled public under 001-FR-003'
+--  WHERE l.eligibility_decision = 'grandfathered'
 -- ON CONFLICT (listing_id, kind) DO NOTHING;

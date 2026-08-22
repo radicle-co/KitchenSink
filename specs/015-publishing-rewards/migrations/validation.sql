@@ -37,7 +37,7 @@ SELECT l.id, l.recipe_id, l.owner_id
 -- A non-zero count here without that decision means slots were granted that nobody authorised.
 SELECT count(*) AS restitution_listings
   FROM recipe_public_listings
- WHERE eligibility_reason = 'pre-dates publishing rewards; compelled public under 001-FR-003';
+ WHERE eligibility_decision = 'grandfathered';
 
 -- Q6 — SC-003: no grant exists for a recipe whose provenance is imported or cloned. PASS: 0 rows.
 -- This is the anti-inducement control (FR-001) asserted against real data rather than trusted.

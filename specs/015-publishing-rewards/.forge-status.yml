@@ -46,7 +46,7 @@ phases:
         blocked_requirements: 15
     migration_plan:
         status: 'completed'
-        note: 'Triggered by plan.md data model. forward/rollback/validation SQL written and EXECUTED against PG16 and PG18.6 throwaway DBs. Found and fixed a non-working ratchet CHECK; found a table-name collision and a duplicated rating aggregate. Carries one REQUIRED owner decision: §3 grandfathering.'
+        note: 'Triggered by plan.md data model. forward/rollback/validation SQL written and EXECUTED against PG16 and PG18.6 throwaway DBs. Found and fixed a non-working ratchet CHECK; found a table-name collision and a duplicated rating aggregate. Carries one owner decision: §3 grandfathering — reframed 2026-08-22 from a capability problem to an EQUITY one (the publish-to-earn path exists for everyone, and status=draft is an un-gated private-in-effect state), so Option C do-nothing is now the default.'
     pre_impl_review:
         status: 'pending'
     implement:

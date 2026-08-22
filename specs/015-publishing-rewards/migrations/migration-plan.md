@@ -110,32 +110,60 @@ PG18 was included because the platform is mid-upgrade (`21ddb4d2`, `dfcd1cbd` mo
 this migration touches a PG18 behaviour change — notably it uses **no generated columns**, so the
 virtual-by-default change does not apply.
 
-## 3. ⛔ The grandfathering decision — REQUIRED before this migration ships
+## 3. ⛔ The grandfathering decision — REQUIRED before the backfill ships
 
-**Nobody has decided this, and it is not a migration detail — it is a product and privacy decision.**
+**Corrected 2026-08-22 (owner).** An earlier draft of this section framed this as a **capability** problem —
+that affected users "cannot make private content they never chose to publish." That was wrong twice over:
 
-Today `001-FR-003` forces every free-tier user's own recipes public. When D4a lands and privacy becomes
-slot-earned, a free user who already has _N_ compelled-public recipes starts at **0 slots** (`FR-007a`,
-re-affirmed as `C-015-017`) and therefore **cannot make private a single recipe they never chose to publish**.
+1. **The path to privacy exists for everyone.** That is the whole feature: publish an eligible recipe, earn
+   slots (`FR-007a`). An existing user is not locked out; they face exactly the same forward terms as a new
+   one.
+2. **Free users already have a private-in-effect state** — `status = 'draft'` is **not** premium-gated, and a
+   draft is owner-only regardless of visibility (`recipePredicates.ts`: _"a `draft` is owner-only REGARDLESS
+   of visibility"_). It is a degraded state — `status` defaults to `'published'`, so the normal path through
+   the wizard publishes, and staying private means never finishing the recipe — but it is not nothing.
 
-This is _not_ the zero-slot risk the owner already accepted. That risk was about a **new** user's first
-recipe, where the price is one voluntary publication. This is about **existing** recipes that were made public
-**without the user's intervention** — which is the precise language of GDPR Art. 25(2), the Article this
-feature exists to answer.
+**What actually remains is an equity question, not a lockout.** Under `FR-005` a recipe earns **at most once
+in its lifetime**, and pre-existing public recipes have no listing row and no grant — so they are **spent**.
+They can never earn. A user who already contributed 30 recipes to the public corpus and a newcomer with zero
+both have to write a _new_ recipe to get their first slot; the newcomer is granted 2 slots for the act the
+existing user already performed 30 times, uncompensated.
 
-| Option                                                                                                                                                                 | Effect                                                                                            | Cost                                                                                                 |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **A. Restitution grant (recommended)** — one-time slot grant equal to the count of `user_created` recipes the account holds that are public and pre-date the migration | Every compelled publication becomes reversible. Directly answers Art. 25(2) for the existing base | Free users arrive with a slot balance; the reciprocity signal is diluted for them                    |
-| **B. Grandfather in place** — pre-migration public `user_created` recipes may be set private without consuming a slot                                                  | Same outcome, no visible balance, cleanly bounded to the compelled set                            | Needs a durable "pre-migration" marker on the recipe; adds a branch to `evaluateVisibility`'s caller |
-| **C. Do nothing**                                                                                                                                                      | Users stay locked out of privacy for content they never chose to publish                          | Carries forward the exact harm the feature was written to remove                                     |
+That is the whole of it. It is a goodwill and fairness call, and "do nothing" is a legitimate answer.
 
-**Recommendation: A**, because it needs no new branch in the visibility path — it is expressible entirely as
-seed rows in `reward_grants`, which is already the append-only ledger, and it is auditable afterwards. **B**
-is defensible if the diluted signal matters more than the simplicity. **C** should be rejected explicitly
-rather than reached by omission.
+| Option                                                                                                             | Effect                                                                                                                   | Cost                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| **C. Do nothing** _(now the default)_                                                                              | The programme is forward-looking. Everyone gets identical terms from launch; past contribution is simply not retroactive | The most prolific early contributors get least from the change. A visible "I gave you 30 recipes and got nothing" grievance    |
+| **A. Flat restitution** — 1 slot per pre-existing eligible public `user_created` recipe                            | Recognises past contribution cheaply and boundedly                                                                       | Does not match the schedule, so it is a _different_ currency rate than everyone else gets                                      |
+| **B. Retroactive schedule** — run the `FR-007a` bands over the pre-existing corpus (2 each for the first 10, etc.) | The most coherent: past publications count exactly as if the programme had always existed                                | Generous — a user with 70 public recipes maxes the 50-slot ceiling instantly, and the slot economy is over for them on day one |
 
-The backfill in `forward.sql` §4 implements **A** and is **commented out pending this decision**. It must not
-run unread.
+**Recommendation: C, unless the goodwill matters more than the simplicity** — and it might. The earlier
+recommendation of A was written under the mistaken capability framing and should not be read as standing.
+If restitution _is_ wanted, **B is more defensible than A**: it applies one rule to everybody rather than
+inventing a second exchange rate for legacy users.
+
+### 3.1 What restitution would require structurally — and why the first draft of the backfill was incoherent
+
+The backfill in `forward.sql` §4 marked its listings `eligibility_decision = 'ineligible'` purely to satisfy
+`recipe_public_listings_attestation_required`, then granted a slot against them. **Ineligible means earns
+nothing.** A slot grant hanging off an ineligible listing contradicts the model, and `reward_grants_kind_check`
+would reject a distinct `'restitution'` kind anyway. Any real implementation of A or B needs three changes,
+which are now written into the commented block so they travel with it:
+
+1. A third `eligibility_decision` value, **`'grandfathered'`** — honest about what it is: a real historical
+   publication carrying no attestation, because nobody was asked for one.
+2. `'restitution'` added to `reward_grants_kind_check`, so restitution is never mistaken for a scheduled
+   grant when the ledger is read.
+3. **An explicit `SC-002` carve-out in `spec.md`.** SC-002 says _100% of published recipes that earned a
+   reward have a recorded authorship attestation_. Restitution grants would breach it as written. The
+   qualification needed is "earned **under the reward schedule**" — and that must be an owner decision
+   recorded as a clarification, not a quiet edit to a success criterion.
+
+**Why this does not reopen the inducement hazard**: inducement is _prospective_. You cannot induce someone to
+do something they have already done. A restitution grant for a publication that happened before the programme
+existed cannot have motivated that publication, so `FR-001`'s control is not weakened by it. This is the one
+place in the feature where granting without attestation is defensible — and it is defensible only because the
+act is in the past.
 
 ## 4. Ordering, backfill, and idempotency
 

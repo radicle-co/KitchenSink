@@ -370,7 +370,9 @@ Four things that are easy to get wrong here:
 - **Recognition (US5/US6) is NOT buildable.** No cook/save telemetry exists anywhere in recipe-service; 008 and
   012 have no code. Only the `standing.port.ts` seam may be built.
 
-⛔ Blocked on: **016** (ToS content licence + DMCA — we have no stated right to display or permit cloning of a
-user's recipe), **D4a** (un-gate free-tier privacy), and 008/012 for the recognition half.
+⛔ Blocked on: **D4a** (un-gate free-tier privacy) for US1–US3; **016's takedown process** for US4 only; and
+**008/012** for the recognition half. ⚠️ 016's missing **content licence** is a **pre-existing** product gap,
+not a 015 blocker — `001-FR-004`/`FR-005` already ship public read and clone. 015 amplifies it via inducement
+(the _Grokster_ axis) rather than creating it.
 
 <!-- SPECKIT END -->

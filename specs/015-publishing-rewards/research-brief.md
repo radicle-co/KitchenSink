@@ -220,6 +220,9 @@ recipes, more likely to be serious cooks).
 - **D5** — re-pricing. Removing the privacy paywall removes the free tier's only current paywall lever.
 - **D24** — registered DMCA agent + repeat-infringer policy. `FR-016`–`FR-018` consume a takedown process that
   does not yet exist for the main recipe corpus.
+- ⚠️ **Corrected 2026-08-22**: the licence gap below is **pre-existing**, not created by 015 — `001-FR-004`
+  and `001-FR-005` already ship public read and clone. 015 amplifies it through inducement. The **takedown**
+  process hard-blocks **US4 only**. Original wording retained below for the record.
 - **The ToS content licence** — still missing portfolio-wide. We have no stated right to display or permit
   cloning of a user's recipe, which this feature depends on entirely.
 

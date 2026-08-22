@@ -183,19 +183,39 @@ Two residuals, both recorded rather than waived:
 
 Verified against the codebase, not assumed:
 
-| #   | Blocker                                                                                 | Status in code                                                         | Blocks                                                                                                                                       | Severity                               |
-| --- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| B1  | **016 Legal Compliance Framework** — ToS content licence + portfolio-wide DMCA/takedown | Spec drafted 2026-08-22, **no code**                                   | `FR-015`–`FR-019` (US4) and the _entire_ right to display/clone a user's recipe                                                              | 🔴 **Hard — nothing ships without it** |
-| B2  | **001-FR-003 amendment (D4a)** — un-gate free-tier privacy in `visibilityPolicy.ts`     | Code exists, gate is `isPremium`                                       | Everything. The reward is meaningless while privacy is also paywalled                                                                        | 🔴 **Hard**                            |
-| B3  | **008 Cooking Mode** — the producer of cook events                                      | **Not implemented** (only a mockup e2e reference)                      | `FR-007f` cook signal, `FR-007g` milestones, `FR-007h` standing → all of **US5**                                                             | 🟠 **Hard for US5, not for US1–3**     |
-| B4  | **012 Creator Profiles** — the public surface for standing                              | **Not implemented** (no code)                                          | `FR-007h` public visibility (`C-015-018`), `FR-032`                                                                                          | 🟠 **Hard for public standing**        |
-| B5  | **010 Subscriptions (D5)** — re-pricing after the privacy lever is removed              | Entitlement _read_ path exists (`PREMIUM_PERMISSION`); billing partial | Not technically blocking, but removing the free tier's only paywall lever without re-pricing is a business decision that must precede launch | 🟡 **Business gate**                   |
+| #   | Blocker                                                                             | Status in code                                                         | Blocks                                                                                                                                       | Severity                              |
+| --- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| B1  | **016 Legal Compliance Framework** — portfolio-wide DMCA/takedown                   | Spec drafted 2026-08-22, **no code**                                   | `FR-015`–`FR-019` (**US4 only**)                                                                                                             | 🔴 **Hard for US4**                   |
+| B1a | **016's user content licence** (`016-FR-010`–`FR-015`)                              | No terms acceptance, consent record or age floor exists (`016` spec)   | Nothing in 015 _newly_ — see the note below                                                                                                  | 🟠 **Pre-existing; 015 amplifies it** |
+| B2  | **001-FR-003 amendment (D4a)** — un-gate free-tier privacy in `visibilityPolicy.ts` | Code exists, gate is `isPremium`                                       | Everything. The reward is meaningless while privacy is also paywalled                                                                        | 🔴 **Hard**                           |
+| B3  | **008 Cooking Mode** — the producer of cook events                                  | **Not implemented** (only a mockup e2e reference)                      | `FR-007f` cook signal, `FR-007g` milestones, `FR-007h` standing → all of **US5**                                                             | 🟠 **Hard for US5, not for US1–3**    |
+| B4  | **012 Creator Profiles** — the public surface for standing                          | **Not implemented** (no code)                                          | `FR-007h` public visibility (`C-015-018`), `FR-032`                                                                                          | 🟠 **Hard for public standing**       |
+| B5  | **010 Subscriptions (D5)** — re-pricing after the privacy lever is removed          | Entitlement _read_ path exists (`PREMIUM_PERMISSION`); billing partial | Not technically blocking, but removing the free tier's only paywall lever without re-pricing is a business decision that must precede launch | 🟡 **Business gate**                  |
+
+> ⚠️ **Corrected 2026-08-22 — B1 was overstated.** Earlier revisions of this plan said 016 blocked "the
+> entire right to display/clone a user's recipe" and that "nothing ships without it". That conflates two
+> different things.
+>
+> **The content-licence gap is pre-existing and 015 does not create it.** `001-FR-004` already lets any
+> authenticated user view public recipes and `001-FR-005` already lets them clone. Public display and cloning
+> **ship today**. The missing licence therefore blocks the _current product_; it is not a novel consequence of
+> this feature.
+>
+> **What 015 uniquely adds is inducement.** Rewarding publication converts passive hosting into active
+> encouragement — the _Grokster_ axis — and is what makes §512(c)(1)(B)'s "direct financial benefit … right and
+> ability to control" prong read differently. `016`'s own spec says this: _"`015` turns on this"_. So 015 does
+> not open the hole; it raises the cost of leaving it open.
+>
+> **The takedown half is a genuine, narrow 015 blocker**: `FR-016`–`FR-019` consume a process that does not
+> exist, which hard-blocks **US4 only**. The spec already conceded as much in US4's priority note — _"the
+> programme can launch safely without it only if launch volume is small and takedowns are handled by hand."_
 
 **What this means for sequencing.** US1–US3 (publish, unpublish, ineligible-cannot-earn) are buildable
 today against B2 alone. **US5 is not buildable at all** — its data source does not exist. And `FR-007j`'s
 handoff makes that structural, not cosmetic: slots are a finite bootstrap that must hand off to recognition
 before the ceiling, and recognition cannot exist until B3 and B4 land. **Shipping US1–US3 without a dated
-plan for B3/B4 builds the cliff recorded in the spec's overjustification risk.**
+plan for B3/B4 builds the cliff recorded in the spec's overjustification risk.** US1–US3 do **not** require
+B1 — they require `D4a`.
 
 ## 10. Risks
 

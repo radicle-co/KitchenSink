@@ -882,8 +882,14 @@ cannot**, and the last one is the hardest:
 - **D5** — re-pricing. Removing the privacy paywall removes the free tier's only current paywall lever.
 - **D24** — registered takedown agent and repeat-infringer policy. `FR-016`–`FR-018` consume a takedown
   process that does not yet exist for the main recipe corpus.
-- **The ToS content licence** — still missing portfolio-wide. We have no stated right to display a user's
-  recipe or to permit others to clone it, and this feature depends on both entirely.
+- **The ToS content licence** (`016-FR-010`–`FR-015`) — still missing portfolio-wide; `016`'s spec records that
+  there is no terms acceptance, consent record or age floor today. ⚠️ **This is a PRE-EXISTING gap that this
+  feature inherits, not one it creates**: `001-FR-004` (public read) and `001-FR-005` (clone) already ship, so
+  the missing licence blocks the current product. What 015 uniquely adds is **inducement** — rewarding
+  publication converts passive hosting into active encouragement, which is what moves the §512(c)(1)(B)
+  analysis. 015 raises the cost of leaving the gap open; it does not open it.
+- **016's takedown process** — a genuine and narrow blocker: `FR-016`–`FR-019` consume it, which hard-blocks
+  **User Story 4 only**. US1–US3 do not depend on it.
 - **Counsel review of the inducement posture** — the analysis in
   [`research/reward-psychology.md`](./research/reward-psychology.md) §6 is as far as a specification can
   responsibly go.

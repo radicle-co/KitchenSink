@@ -17,11 +17,11 @@
 - [ ] A001 — Land 016 Legal Compliance Framework: ToS content licence granting display + clone rights
       Paths: unknown
       Size: XL
-      Blocks: everything. We currently have no stated right to display a user's recipe or permit cloning.
+      Blocks: NOTHING in 015 newly — the licence gap is pre-existing (001-FR-004 public read and 001-FR-005 clone already ship). 015 amplifies it via inducement rather than creating it. Sequence for the product's sake, not as a 015 gate.
 - [ ] A002 — Land 016's registered DMCA agent + repeat-infringer policy (D24)
       Paths: unknown
       Size: L
-      Blocks: FR-015–FR-019, User Story 4.
+      Blocks: FR-015–FR-019 — User Story 4 ONLY. US1–US3 do not depend on it.
 - [ ] A003 — Owner decision on D5 re-pricing before launch (removing the privacy paywall removes the free tier's only lever)
       Paths: unknown
       Size: S

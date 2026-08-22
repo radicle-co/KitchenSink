@@ -18,11 +18,12 @@ export {
     type UsdaBulkReadOptions,
 } from './usdaBulk.reader.js';
 export {
+    BULK_DATA_TYPES,
     SEEDED_BULK_DATA_TYPES,
+    type BulkDataType,
     type BulkFoodBundle,
     type BulkLookups,
     type BulkNutrientDefinition,
     type BulkNutrientRow,
     type BulkPortionRow,
-    type SeededBulkDataType,
 } from './usdaBulk.types.js';

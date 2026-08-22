@@ -37,12 +37,12 @@ import { UsdaBulkFormatError } from './usdaBulk.errors.js';
 import { mapBulkFoodToCanonical } from './usdaBulk.parser.js';
 import {
     SEEDED_BULK_DATA_TYPES,
+    type BulkDataType,
     type BulkFoodBundle,
     type BulkLookups,
     type BulkNutrientDefinition,
     type BulkNutrientRow,
     type BulkPortionRow,
-    type SeededBulkDataType,
 } from './usdaBulk.types.js';
 
 /** The bulk CSV filenames, and the columns each one must expose for the mapping to work. */
@@ -63,6 +63,15 @@ export interface UsdaBulkReadOptions {
     readonly dir: string;
     /** Optional structured logger (defaults to silent so library use and tests stay quiet). */
     readonly logger?: WorkerLogger;
+    /**
+     * Which `food.data_type`s to select, defaulting to {@link SEEDED_BULK_DATA_TYPES}.
+     *
+     * ⚠️ This is a PARAMETER rather than a constant because which datasets the catalog is built from is
+     * CONFIGURATION, owned by the catalog roster (`src/foods/seed/catalogDatasets.ts`) — adding Survey
+     * (FNDDS) is a roster flip, not an edit to this reader. An explicit selection REPLACES the default;
+     * it never widens it.
+     */
+    readonly dataTypes?: readonly BulkDataType[];
 }
 
 /** One raw CSV record, keyed by header name. */
@@ -153,17 +162,20 @@ function describe(error: unknown): string {
 /** Read a trimmed field, defaulting to the empty string when the column is absent/blank. */
 const field = (record: CsvRecord, column: string): string => record[column]?.trim() ?? '';
 
-/** The seedable `data_type` set, as a Set for O(1) membership. */
-const SEEDED_DATA_TYPES = new Set<string>(SEEDED_BULK_DATA_TYPES);
-
 /**
- * Whether a raw `food.data_type` is one Stage 1 seeds (Foundation / SR Legacy — never Branded).
+ * Build the membership test for one run's selected `data_type`s.
  *
- * @param dataType - The raw `data_type` field.
- * @returns `true` when the row should be seeded.
+ * @param dataTypes - The selection, or `undefined` for {@link SEEDED_BULK_DATA_TYPES}.
+ * @returns A predicate narrowing a raw `data_type` field to a selected {@link BulkDataType}.
  */
-function isSeededDataType(dataType: string): dataType is SeededBulkDataType {
-    return SEEDED_DATA_TYPES.has(dataType);
+function selectedDataTypes(dataTypes: readonly BulkDataType[] | undefined): {
+    readonly names: readonly BulkDataType[];
+    readonly includes: (dataType: string) => dataType is BulkDataType;
+} {
+    const names = dataTypes ?? SEEDED_BULK_DATA_TYPES;
+    const set = new Set<string>(names);
+
+    return { names, includes: (dataType: string): dataType is BulkDataType => set.has(dataType) };
 }
 
 /**
@@ -215,9 +227,10 @@ export async function loadBulkLookups(dir: string): Promise<BulkLookups> {
 export async function* streamBulkFoodBundles(options: UsdaBulkReadOptions): AsyncGenerator<BulkFoodBundle> {
     const { dir } = options;
     const logger = options.logger ?? new SilentWorkerLogger();
+    const selection = selectedDataTypes(options.dataTypes);
 
     // ── Pass 1: the seedable foods (the filter that bounds everything after it). ──────────────────────
-    const selected = new Map<string, { dataType: SeededBulkDataType; description: string; publicationDate: string }>();
+    const selected = new Map<string, { dataType: BulkDataType; description: string; publicationDate: string }>();
     let scannedFoods = 0;
 
     for await (const record of readCsv(dir, FILES.food, true)) {
@@ -225,7 +238,7 @@ export async function* streamBulkFoodBundles(options: UsdaBulkReadOptions): Asyn
         const dataType = field(record, 'data_type');
         const fdcId = field(record, 'fdc_id');
 
-        if (fdcId !== '' && isSeededDataType(dataType)) {
+        if (fdcId !== '' && selection.includes(dataType)) {
             selected.set(fdcId, {
                 dataType,
                 // NOT trimmed via `field`: a description may legitimately contain an embedded newline,
@@ -236,7 +249,7 @@ export async function* streamBulkFoodBundles(options: UsdaBulkReadOptions): Asyn
         }
     }
 
-    logger.info('bulk-foods-selected', { scannedFoods, selected: selected.size, dataTypes: SEEDED_BULK_DATA_TYPES });
+    logger.info('bulk-foods-selected', { scannedFoods, selected: selected.size, dataTypes: selection.names });
 
     // ── Pass 2: nutrient rows, kept only for the selected foods. ──────────────────────────────────────
     const nutrientsByFood = new Map<string, BulkNutrientRow[]>();

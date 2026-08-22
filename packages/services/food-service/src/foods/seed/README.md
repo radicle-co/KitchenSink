@@ -182,7 +182,7 @@ STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" RECIPE_DATABASE_URL="$RECIPE_DAT
 STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" RECIPE_DATABASE_URL="$RECIPE_DATABASE_URL" \
     npm run catalog:clear --workspace=packages/services/food-service -- --confirm sandbox
 
-# 3. Then re-run the import above (§3). Nothing repopulates the catalog on its own.
+# 3. Then RESEED (U12b, below). Nothing repopulates the catalog on its own.
 ```
 
 Both commands share one guard:
@@ -199,6 +199,71 @@ Both are idempotent and exit non-zero on any refusal, so a scripted invocation c
 said no" for "there was nothing to do". The clear removes `food` and the eight tables that cascade off it;
 the `nutrient` and `food_category` dictionaries are left, because the reseed finds them rather than
 re-minting them.
+
+---
+
+## Reseeding after a clear (U12b) — `catalog:reseed`
+
+`seed:usda-bulk` (§3) imports ONE directory with no stage guard: it is the Stage 1 tool, and it predates
+the reset. `catalog:reseed` is the **reset's** other half — the same importer, driven by the catalog
+**roster** and wearing the same guard the clear wears, because it is still a bulk write against shared
+data that mints fresh ULIDs.
+
+```bash
+# 1. LOOK first. Reads the extractions, counts what would be imported, writes nothing.
+STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" \
+    npm run catalog:reseed --workspace=packages/services/food-service -- \
+      --dir tmp/fdc/FoodData_Central_sr_legacy_food_csv_2018-04 \
+      --dir tmp/fdc/FoodData_Central_foundation_food_csv_2026-04-30 --dry-run
+
+# 2. Then import. Same flags, plus the stage typed back.
+STAGE=sandbox DATABASE_URL="$FOOD_DATABASE_URL" \
+    npm run catalog:reseed --workspace=packages/services/food-service -- \
+      --dir tmp/fdc/FoodData_Central_sr_legacy_food_csv_2018-04 \
+      --dir tmp/fdc/FoodData_Central_foundation_food_csv_2026-04-30 --confirm sandbox
+```
+
+| Flag                | Meaning                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| `--stage` / `STAGE` | Required, no default (as above).                                                     |
+| `--confirm <stage>` | Required for a run that writes; must EQUAL the resolved stage. A dry run needs none. |
+| `--allow-prod`      | Required on `prod`, **rejected** on any other stage.                                 |
+| `--dry-run`         | Reads the extractions, reports the counts, writes nothing.                           |
+| `--dir <path>`      | **Repeatable** — one extracted download per dataset. Required (or `USDA_BULK_DIR`).  |
+| `--limit <n>`       | Cap on candidates taken from EACH directory — the bounded smoke run.                 |
+
+The run logs `catalog-reseed-starting` (naming the server it actually reached, before writing) and
+`catalog-reseed-finished` with the tallies, the catalog counts before/after, and `wouldProceed`.
+
+### The post-condition — and why it cannot roll back
+
+The clear asserts inside its transaction; a reseed cannot (thousands of foods, thousands of
+transactions). So `assertCatalogReseeded` runs **after** the write and reports **every** violated check at
+once: an empty catalog, any failed candidate, rows not marked `origin='bulk'` when the catalog started
+empty, and the alias check below. Exit is non-zero; nothing is rolled back; the import is idempotent, so
+the remedy is always "fix the cause and re-run".
+
+### ⚠️ The reseed lands NO aliases — read this before concluding U2 is broken
+
+`food.aliases` is **NULL across the entire reseeded catalog**, on purpose and by measurement.
+
+USDA publishes curated "additional descriptions" only for **Survey (FNDDS)** foods. The roster this
+reseed ships (`catalogDatasets.ts`) enables `foundation_food` + `sr_legacy_food`, and both were verified
+live against FDC on 2026-08-21 to carry none. So a reseed does **not**, by itself, make U2's alias ranking
+observable — aliases reach the catalog only through the live acquisition path (`UsdaSourceAdapter`), one
+on-demand food at a time. Every run reports the position it is in (`aliasesExpected: false`,
+`foodsWithAliases: 0`) rather than leaving it to be inferred.
+
+⛔ **Whether to seed FNDDS is an owner decision, not an engineering one.** FNDDS is composite prepared
+dishes ("Cheese, cheddar, prepared"); admitting ~5.4k of them into a catalog whose job is "which
+ingredient is this recipe line?" puts dishes in direct competition with ingredient rows — immediately
+before the ranking work that would be measured against them. The roster carries the entry **disabled**,
+with its reasoning, so enabling it is a one-word decision rather than a rewrite.
+
+⚠️ Enabling it also needs reader work, and the reseed will say so rather than seed silently: the bulk zips
+carry additional descriptions in `food_attribute.csv` + `food_attribute_type.csv`, which
+`usdaBulk.reader.ts` does not read. A roster whose enabled datasets declare `carriesAliases` but whose
+import lands zero aliases **fails the post-condition**.
 
 ---
 

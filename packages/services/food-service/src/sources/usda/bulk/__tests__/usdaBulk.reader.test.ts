@@ -85,6 +85,10 @@ describe('USDA bulk CSV reader', () => {
             ['747447', 'foundation_food', 'Cheese, cheddar', '1', '2019-12-16'],
             ['2057648', 'branded_food', 'GREEK YOGURT', 'Yogurt', '2021-07-29'],
             ['321829', 'sub_sample_food', 'Broccoli, steamed, sub sample', '11', '6/2/2023'],
+            // Survey (FNDDS) — the ONLY USDA data type carrying curated "additional descriptions" (U2),
+            // and deliberately NOT in the default selection. Present here so both halves are proved: it
+            // is excluded by default, and it is reachable by CONFIGURATION rather than by a code change.
+            ['2705709', 'survey_fndds_food', 'Cheese, cheddar', '1', '2024-10-31'],
         ]);
         write('food_nutrient.csv', [
             [...FOOD_NUTRIENT_HEADER],
@@ -163,13 +167,38 @@ describe('USDA bulk CSV reader', () => {
     });
 
     describe('streamBulkFoodBundles', () => {
-        it('yields ONLY foundation_food + sr_legacy_food rows (Branded and the sample chain excluded)', async () => {
+        it('yields ONLY foundation_food + sr_legacy_food rows (Branded, the sample chain and FNDDS excluded)', async () => {
             writeCompleteDataset();
 
             const bundles = await collect(streamBulkFoodBundles({ dir }));
 
             expect(bundles.map((bundle) => bundle.fdcId).sort()).toEqual(['170379', '747447']);
             expect(bundles.map((bundle) => bundle.dataType).sort()).toEqual(['foundation_food', 'sr_legacy_food']);
+        });
+
+        it('selects the data types the CALLER asks for, so the roster is configuration and not a rewrite', async () => {
+            writeCompleteDataset();
+
+            const bundles = await collect(streamBulkFoodBundles({ dir, dataTypes: ['survey_fndds_food'] }));
+
+            expect(bundles.map((bundle) => bundle.fdcId)).toEqual(['2705709']);
+            expect(bundles.map((bundle) => bundle.dataType)).toEqual(['survey_fndds_food']);
+        });
+
+        it('never widens past the requested set — an explicit selection excludes the defaults too', async () => {
+            writeCompleteDataset();
+
+            const bundles = await collect(streamBulkFoodBundles({ dir, dataTypes: ['foundation_food'] }));
+
+            expect(bundles.map((bundle) => bundle.fdcId)).toEqual(['747447']);
+        });
+
+        it('⚠️ a Survey row read this way still lands with NO aliases — the bulk reader does not read food_attribute.csv', async () => {
+            writeCompleteDataset();
+
+            const candidates = await collect(streamBulkCandidates({ dir, dataTypes: ['survey_fndds_food'] }));
+
+            expect(candidates.map((candidate) => candidate.aliases)).toEqual([[]]);
         });
 
         it('attaches each food ONLY its own nutrient + portion rows', async () => {

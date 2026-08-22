@@ -199,13 +199,45 @@ the recipe is unpublished and the specific grant is reversed while unrelated gra
 **Rewards — what is granted**
 
 - **FR-007**: Rewards MUST be **non-monetary, non-transferable, and carry no cash value**. This feature MUST
-  NOT create a balance that can be withdrawn, exchanged, gifted or sold.
+  NOT create a balance that can be withdrawn, exchanged, gifted or sold. A private-recipe slot (`FR-007a`) is a
+  **capability grant**, not a spendable balance: it cannot be moved between accounts or converted to anything.
+
+**Reward currency 1 — private-recipe slots (free tier)** _(owner decision, 2026-08-22)_
+
+- **FR-007a**: A free account MUST start with **zero** private-recipe slots. Each qualifying publication grants
+  slots according to the reward schedule. ⚠️ **The schedule itself is UNDEFINED** — see
+  [`research-brief.md`](./research-brief.md) §1.
+- **FR-007b**: A slot grant MUST be **permanent**. It MUST NOT be revoked when the earning recipe is
+  unpublished, when the recipe is edited or deleted, when a subscription lapses, or through the passage of
+  time. The **only** reversal permitted is `FR-016`'s takedown path, and it reverses only the grant earned by
+  the recipe that was taken down. _(This supersedes the earlier per-period-cap framing: a permanent grant
+  cannot be "consumed" or "freed", so the question of whether an unpublished recipe frees cap room is moot.)_
+- **FR-007c**: A free account MUST NOT hold more than **50** private recipes in total, regardless of how many
+  slots it has earned. Once the ceiling is reached, further slot grants MUST NOT be made, publication MUST
+  still succeed, and the user MUST be told the ceiling is reached and what lifts it.
+- **FR-007d**: Privacy that is **mandated by provenance** MUST NOT consume a slot. A recipe that is
+  private-only for every tier under C-004 — imported from a physical copy or a paid source — is private
+  because policy requires it, not because the user spent an earned slot, and MUST NOT count against `FR-007c`'s
+  ceiling. Charging a user a slot for privacy they never chose would re-create the coercion this feature exists
+  to remove.
+
+**Reward currency 2 — status and recognition (both tiers)** _(owner decision, 2026-08-22)_
+
+- **FR-007e** _(**DRAFT — mechanics UNDEFINED, MUST NOT be implemented until specified**)_: The system MUST
+  also recognise qualifying publications through non-consumable **status and recognition**, available to
+  **both** free and premium accounts. This is the only reward currency that reaches premium users, for whom
+  private slots have no value. The concrete mechanics — what is displayed, to whom, and on what surface — are
+  **not decided**; see [`research-brief.md`](./research-brief.md) §2 and §4. This requirement is recorded so the
+  obligation is not lost, and is **not implementable as written**.
 - **FR-008**: The system MUST state the specific benefit a publication will grant **before** the user confirms,
   together with a plain statement of what publishing means: any signed-in user may read and clone the recipe.
 - **FR-009**: Every grant and every reversal MUST be recorded in an append-only record that the owning user can
   inspect, showing what was granted, for which recipe, and when.
-- **FR-010**: Grants MUST be subject to a per-user, per-period cap. Reaching the cap MUST NOT block
-  publication; it MUST withhold the grant and state when the cap resets.
+- **FR-010** _(amended 2026-08-22)_: Grants MUST be subject to a per-user **earn-rate limit**, so that a
+  large volume of publications in a short window cannot convert directly into the full `FR-007c` ceiling.
+  Reaching the limit MUST NOT block publication; it MUST withhold the grant and state when earning resumes.
+  ⚠️ **The rate itself is UNDEFINED** — see [`research-brief.md`](./research-brief.md) §1. _(This is a rate
+  limit, not the lifetime cap: the lifetime ceiling is `FR-007c`'s 50 recipes.)_
 - **FR-011**: A recipe MUST meet a stated **completeness floor** to be eligible. A recipe below the floor MUST
   still be publishable, MUST NOT earn, and the user MUST be told which fields would make it eligible.
 
@@ -297,9 +329,11 @@ the recipe is unpublished and the specific grant is reversed while unrelated gra
   portfolio-wide: `012-FR-034` states 012 must not compute revenue splits, hold balances or initiate
   disbursement, and `013-FR-010` is blocked on marketplace payments. Non-monetary benefits are the only
   currently buildable currency and also carry materially lower inducement, tax and consumer-law risk.
-- **The benefit currency is drawn from existing entitlements** — for example additional import allowance under
-  the existing per-user quota, or eligibility for a creator profile. This feature grants entitlements; it does
-  not invent a new one.
+- **There are two reward currencies, doing different jobs** _(decided 2026-08-22)_: **private-recipe slots**
+  for the free tier (direct, tangible, and something the contributor already wanted) and **status/recognition**
+  for both tiers (the psychological lever, and the only one that reaches premium). Import allowance and
+  creator-profile eligibility — the currencies assumed in the first draft — are **no longer the primary
+  mechanism**, though they remain candidates in the research brief.
 - **Imported public recipes remain publishable but never rewardable.** This preserves attribution-carrying
   public content already permitted by the existing visibility policy while removing any incentive to import
   other people's work in order to earn.
@@ -316,56 +350,78 @@ the recipe is unpublished and the specific grant is reversed while unrelated gra
 - Changing subscription tiers or pricing — owned by 010.
 - Creator profiles, follower graphs and discovery ranking — owned by 012.
 - Rewarding any activity other than publishing a recipe (rating, cloning, commenting, referring).
-- Leaderboards, public rankings, or any surface that displays one user's earnings to another.
+- Monetising the status layer, or making recognition purchasable.
+
+> ⚠️ **No longer out of scope, but not yet in it either:** leaderboards, public rankings and any surface that
+> displays one user's standing to another were excluded in the first draft. The owner's direction — leverage the
+> psychology social media and GitHub use — makes visible social proof a live candidate, and GitHub's mechanism
+> works _because_ it is public. This is now an **open design question**, not an exclusion; see
+> [`research-brief.md`](./research-brief.md) §2. Note the existing constraints it must fit: `012-FR-009`
+> forbids publicly visible follower lists, and `012-FR-024` requires analytics be aggregated-only.
 
 ---
 
 ## Clarifications
 
-### Session 2026-08-21 — OPEN, awaiting owner decision
+### Session 2026-08-22 — RESOLVED by owner
 
-The three questions below are **unresolved**. Each is recorded here rather than guessed, because each lacks a
-defensible default and each changes the shape of the feature. **Q1 blocks `/speckit-plan`** — the feature's
-premise depends on it. Q2 and Q3 block implementation but not planning.
+- **C-015-001 — Q1 answered: REPLACE.** Free users get privacy; the free-tier privacy _prohibition_
+  (`001-FR-003`) goes away and publication becomes a rewarded opt-in. **Rewards apply to BOTH tiers**, are
+  never monetary, and are meant to work through the same psychology social media and GitHub use.
+- **C-015-002 — Q2 answered: structural completeness.** A recipe earns only if it has a title, at least one
+  ingredient with a resolved quantity, at least one step, servings, and at least one time field. Objective and
+  testable, with no human in the loop. The bar can be raised later without breaking anything already granted.
+- **C-015-003 — Q3 is MOOT, and resolved in the non-coercive direction.** The old question ("do grants for
+  unpublished recipes still consume the per-period cap?") assumed a consumable balance. **A slot grant is
+  permanent** (`FR-007b`), so nothing is consumed and nothing is freed. What survives from the old cap is a
+  separate **earn-rate limit** (`FR-010`), which is a different control with a different purpose.
+- **C-015-004 — Free accounts start at ZERO private slots** (`FR-007a`), and are ceilinged at **50 private
+  recipes** (`FR-007c`).
+- **C-015-005 — Privacy mandated by provenance never costs a slot** (`FR-007d`). A cookbook scan or paid-source
+  recipe is private because C-004 requires it. Spending a user's earned slot on privacy they did not choose
+  would re-create the coercion this feature exists to remove. _(Derived by this spec from C-015-004, not
+  stated by the owner — flag for confirmation.)_
+- **C-015-006 — Two currencies, not one.** Private slots reach the free tier; status and recognition reach
+  everyone, and are the **only** lever that reaches premium, for whom slots are worthless.
 
-> **Q1: Does this feature replace the current privacy paywall, or sit alongside it?**
->
-> **Context**: `001-FR-003` currently makes free-tier users' own recipes public with no private option, and
-> `010-FR-041` sells private visibility as a premium capability. This feature's entire rationale is that
-> publication should be _pull_ (rewarded) rather than _push_ (compelled).
->
-> **What we need to know**: Is the free-tier privacy prohibition being lifted in the same release?
->
-> | Option | Answer                                                                       | Implications                                                                                                                                                                    |
-> | ------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-> | A      | **Replace** — free users get privacy; publishing becomes the rewarded opt-in | Cleanest incentive, resolves the GDPR Art. 25(2) exposure, removes the trust problem. Removes the free tier's current paywall lever, so `010` must re-price in the same change. |
-> | B      | **Alongside** — privacy stays premium and publishing also earns              | Two simultaneous pressures to publish. Worsens the Art. 25(2) position and muddies the reward signal. Cheapest to ship; hardest to defend.                                      |
-> | C      | **Sequence** — ship rewards first, lift the privacy gate in a later release  | Lets the reward mechanics be validated before the pricing change, but leaves the coercive default in place meanwhile, which is the risk being fixed.                            |
-> | Custom | Provide your own answer                                                      |                                                                                                                                                                                 |
+### ⚠️ Recorded risk — the zero-slot start re-introduces a first-publication toll
 
-> **Q2: What is the eligibility floor for a published recipe to earn?**
->
-> **Context**: `FR-011` requires a stated completeness floor, but the height of that bar is the difference
-> between a corpus worth having and a farm for junk publications.
->
-> **What we need to know**: What must a recipe contain to be reward-eligible?
->
-> | Option | Answer                                                                                                                       | Implications                                                                                                                                             |
-> | ------ | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-> | A      | **Structural completeness only** — title, ≥1 ingredient with a resolved quantity, ≥1 step, servings, at least one time field | Objective, testable, no human in the loop, cheap. Gameable by a determined farmer, but the per-period cap bounds the damage.                             |
-> | B      | **Structural plus a photo**                                                                                                  | Materially raises quality and makes farming costlier. Excludes legitimate text-only contributors and interacts with the "don't copy source photos" rule. |
-> | C      | **Structural plus a community signal** — earns only after N distinct views or a first rating                                 | Best corpus quality; delays gratification, which weakens the incentive, and creates a cold-start problem for new users.                                  |
-> | Custom | Provide your own answer                                                                                                      |                                                                                                                                                          |
+`FR-007a` means a free user's **first authored recipe cannot be private**. To earn any privacy at all they must
+first publish something publicly. This is materially better than the paywall it replaces — the price is one
+publication rather than money, and it is payable immediately — but it is **not** the same as "free users get
+privacy," and it should be understood as a **reciprocity gate**, not an absence of one.
 
-> **Q3: Does an unpublished-but-rewarded recipe keep counting toward the per-period cap?**
->
-> **Context**: `FR-005` gives a recipe one grant for life and `FR-012` forbids clawback on voluntary
-> unpublishing. A user could publish, earn, unpublish, and repeat with new recipes.
->
-> **What we need to know**: Should grants for recipes that are no longer public still consume the cap?
->
-> | Option | Answer                                                                        | Implications                                                                                                                                        |
-> | ------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-> | A      | **Yes** — the cap counts grants made, regardless of current publication state | Simplest and unambiguous; a user cannot cycle content to earn faster. Slightly penalises someone who genuinely changed their mind.                  |
-> | B      | **No** — the cap counts currently-public rewarded recipes                     | Rewards sustained contribution rather than one-off publication. Creates a soft pressure to stay public, which is in tension with `FR-012`'s intent. |
-> | Custom | Provide your own answer                                                       |                                                                                                                                                     |
+Two specific consequences to weigh before implementation:
+
+1. **GDPR Art. 25(2) is only partly addressed.** The Article is about the _default_, and the default here is
+   still public for a new user's own content. The mitigation is that intervention no longer requires payment —
+   but it does still require an act of publication.
+2. **The sensitive-first-recipe case has no path.** A user whose first authored recipe is the one they least
+   want public (a family recipe they typed themselves — `user_created`, so C-004's private-only classes do not
+   cover it) must publish something else first. `FR-007d` protects cookbook _scans_, not typed-in family
+   recipes.
+
+**Not a blocker, and not a re-litigation of the owner's decision** — recorded so the next session prices it
+deliberately. The obvious mitigations (a small starting grant, or letting the first N recipes be private) are
+listed in [`research-brief.md`](./research-brief.md) §3.
+
+### Session 2026-08-21 — superseded
+
+The three questions raised on 2026-08-21 (replace-vs-coexist, eligibility floor, cap consumption) are all
+resolved above. Their original option tables are retained in git history.
+
+---
+
+## Status: PAUSED — awaiting research
+
+This specification is **not ready for `/speckit-plan`**. Four things are decided and four are open. The open
+set is recorded in **[`research-brief.md`](./research-brief.md)**, which is the entry point for the next
+session.
+
+| Area                                                                 | State        |
+| -------------------------------------------------------------------- | ------------ |
+| Privacy model, slot permanence, 50-recipe ceiling, eligibility floor | ✅ Decided   |
+| Reward schedule — slots per publication, earn-rate limit             | ❌ Open (§1) |
+| Status & recognition — what it is, where it appears, who sees it     | ❌ Open (§2) |
+| Zero-slot start — mitigations for the first-publication toll         | ❌ Open (§3) |
+| Incentives that reach premium, and whether two currencies are enough | ❌ Open (§4) |

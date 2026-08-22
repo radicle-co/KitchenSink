@@ -982,9 +982,16 @@ ends on PG 18 describes a database prod no longer runs.
    deletes. ⛔ The recipe-side unlink runs FIRST and must complete before the food-side clear: reversed, every
    recipe carries a `food_id` pointing at a deleted row for the length of the window, and `ingredients.food_id`
    has no foreign key to catch it. A non-zero remaining linked count aborts before any food row is deleted.
-5. **U12b — reseed with aliases.** ⚠️ It cannot wait for the end. U2's alias verification is unobservable
-   until rows carry `additionalDescriptions`, and U5's judgement-set gate at the next step would otherwise
-   measure an EMPTY catalog. Only the re-import stays at the end.
+5. **U12b — reseed.** ⚠️ It cannot wait for the end: U5's judgement-set gate at the next step would
+   otherwise measure an EMPTY catalog. Only the re-import stays at the end.
+   ⛔ **It does NOT make aliases observable, contrary to this step's original rationale** (measured
+   2026-08-21, U2 and U12b independently). USDA publishes additional descriptions only for **Survey (FNDDS)**
+   foods; Stage 1 seeds `foundation_food` + `sr_legacy_food`, both verified empty. So after the reseed
+   `food.aliases` is NULL across the whole bulk catalog and **U5/U6 must not assume an alias-bearing
+   catalog** — aliases arrive only through the live acquisition path, one food at a time. Seeding FNDDS is
+   an OPEN OWNER DECISION (composite prepared dishes competing with ingredient rows, immediately before the
+   ranking work); U12b left it one configuration word away, with a post-condition that fails loudly if FNDDS
+   is enabled while the reader still cannot read `food_attribute.csv`.
 6. **U5 + U6** — ranking and matching. Client re-sorts retired in the **same release** as U5, never before.
 7. **U7 → U8 → U9** — parser, then the quantity model whole, then UI on both platforms.
 8. **U10** — curated mappings. Its write path is unreachable until U14 lands in the same release.

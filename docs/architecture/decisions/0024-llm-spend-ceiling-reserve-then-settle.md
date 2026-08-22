@@ -34,7 +34,7 @@
   layer 4's bypass claim was corrected and IAM added as layer 4b (§3), and billing denials were separated
   from verification disagreements (§2). Owner rulings, all dated 2026-08-21.
 
-## ⚠️ Before you change this — seven "improvements" that are all wrong
+## ⚠️ Before you change this — eight "improvements" that are all wrong
 
 1. **Do not replace the counter with an AWS Budget, and do not add a Budget _Action_ thinking it closes the
    gap.** It does not. A budget action fires off the same threshold evaluation as the notification, so it
@@ -56,7 +56,10 @@
 6. **Do not reintroduce a daily (or weekly) sub-ceiling.** A monthly ceiling is a hard cap, not a slow
    detector — a same-day runaway still stops at $100. A second ceiling denies legitimate bulk work, never
    enforced the monthly one (31 × $5 = $155), and turns §2's single-row invariant into two. See Decision §3.
-7. **Do not write cost logic for `cacheReadInputTokens` / `cacheWriteInputTokens` and assume it runs.** Both
+7. **Do not "simplify" the reserve statement back to `INSERT … VALUES … ON CONFLICT DO UPDATE … WHERE`.**
+   That `WHERE` guards only the UPDATE branch, so the first reservation of each period is unguarded. The
+   `SELECT … WHERE $headroom >= 0` form is load-bearing. See Decision §2.
+8. **Do not write cost logic for `cacheReadInputTokens` / `cacheWriteInputTokens` and assume it runs.** Both
    are `Required: No` on the wire, and at ~660 input tokens prompt caching **cannot engage on any
    candidate**. See Decision §5.
 
@@ -144,7 +147,8 @@ One row per period, **one atomic conditional statement per call, with no prior r
 ```sql
 -- RESERVE — checks the ceiling and charges worst case in a single round trip.
 INSERT INTO verification_spend (period, reserved_micros)
-VALUES ($period, $worst)
+SELECT $period, $worst
+ WHERE $headroom >= 0                        -- ⛔ guards the INSERT branch; see below
 ON CONFLICT (period) DO UPDATE
    SET reserved_micros = verification_spend.reserved_micros + $worst
  WHERE verification_spend.reserved_micros <= $headroom
@@ -152,6 +156,15 @@ RETURNING reserved_micros;
 --   $worst    = worstCaseMicros(modelId, MAX_INPUT_TOKENS, maxTokens)
 --   $headroom = CEILING_MICROS - $worst
 ```
+
+⛔ **Corrected 2026-08-22 — the earlier form of this statement had a hole, and it was found by U11's
+integration tier, not by review.** It read `INSERT … VALUES … ON CONFLICT DO UPDATE … WHERE`, and that
+`WHERE` guards **only the UPDATE branch**. On the FIRST reservation of a period there is no conflicting row,
+so the INSERT proceeded **unguarded** — admitting a single worst-case charge that may exceed the entire
+ceiling, once per period, in precisely the situations the ceiling exists for: a ceiling lowered mid-incident,
+or a raised `maxTokens`. `WHERE $headroom >= 0` applies the same predicate to the absent row's implicit zero,
+so both branches are guarded by one rule. ⚠️ A unit test cannot see this: it only appears against a real
+table on a period's first write.
 
 **Zero rows returned IS the budget denial** — the row exists and the `WHERE` failed. `UPDATE`/`INSERT … ON
 CONFLICT` takes a row lock, so concurrent callers serialize on the one row and each sees the latest value;

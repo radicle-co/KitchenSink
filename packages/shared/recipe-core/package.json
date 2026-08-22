@@ -12,6 +12,10 @@
         "./database-name": "./src/recipeDatabaseName.ts",
         "./food-name": "./src/foodName.ts",
         "./resolution/normalized-key": "./src/resolution/normalizedKey.ts",
+        "./resolution/verification-gate-policy": "./src/resolution/verificationGatePolicy.ts",
+        "./resolution/verification-key": "./src/resolution/verificationKey.ts",
+        "./resolution/confidence": "./src/resolution/confidence.ts",
+        "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"
     },

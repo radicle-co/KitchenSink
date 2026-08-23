@@ -57,7 +57,7 @@ const SOURCE_LINE = '200 g of plain flour, sifted';
  * derivation and the writer's derivation agree, so both must go through `verificationKey`.
  */
 const VERDICT_KEY = verificationKey(
-    { sourceLine: SOURCE_LINE, foodId: FOOD_ID, quantityLow: 200, quantityHigh: null, unit: 'g' },
+    { sourceLine: SOURCE_LINE, foodId: FOOD_ID, quantityLow: 200, quantityHigh: null, unit: 'g', statedMeasure: null },
     sha256Hex,
 );
 

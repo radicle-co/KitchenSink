@@ -4445,6 +4445,51 @@ components:
                 type: string
                 minLength: 1
                 maxLength: 1000
+              statedMeasure:
+                type: object
+                properties:
+                  quantity:
+                    oneOf:
+                      - type: object
+                        properties:
+                          kind:
+                            type: string
+                            enum:
+                              - exact
+                          value:
+                            type: number
+                            minimum: 0.001
+                            maximum: 1000000
+                        required:
+                          - kind
+                          - value
+                        additionalProperties: false
+                      - type: object
+                        properties:
+                          kind:
+                            type: string
+                            enum:
+                              - range
+                          low:
+                            type: number
+                            minimum: 0.001
+                            maximum: 1000000
+                          high:
+                            type: number
+                            minimum: 0.001
+                            maximum: 1000000
+                        required:
+                          - kind
+                          - low
+                          - high
+                        additionalProperties: false
+                  unit:
+                    type: string
+                    minLength: 1
+                required:
+                  - quantity
+                  - unit
+                additionalProperties: false
             required:
               - ingredientId
               - name

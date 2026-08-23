@@ -149,6 +149,33 @@ const accounts: readonly ColumnAccount[] = [
         column: 'quantity_high',
         fields: [{ field: 'CreateRecipeRequest.ingredients[].quantity.high', schema: recipeIngredientQuantitySchema }],
     },
+    // U7/U11 (migration 0027) — what the SOURCE printed, before a historical measure was restated. The wire
+    // paths are the members of `statedMeasure.quantity`, and they compose the SAME bound schema the restated
+    // pair does, so a stated gill that `numeric(10,3)` cannot store is refused in one place rather than four.
+    {
+        table: 'recipe_ingredients',
+        column: 'stated_quantity',
+        fields: [
+            {
+                field: 'CreateRecipeRequest.ingredients[].statedMeasure.quantity.value',
+                schema: recipeIngredientQuantitySchema,
+            },
+            {
+                field: 'CreateRecipeRequest.ingredients[].statedMeasure.quantity.low',
+                schema: recipeIngredientQuantitySchema,
+            },
+        ],
+    },
+    {
+        table: 'recipe_ingredients',
+        column: 'stated_quantity_high',
+        fields: [
+            {
+                field: 'CreateRecipeRequest.ingredients[].statedMeasure.quantity.high',
+                schema: recipeIngredientQuantitySchema,
+            },
+        ],
+    },
     {
         table: 'recipe_ingredients',
         column: 'sort_order',

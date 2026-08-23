@@ -26,7 +26,12 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
     it('carries an exact quantity as the LOW bound with no high bound', () => {
         expect(
             verifiedLineIdentity(
-                { sourceLine: '2 cups flour', quantity: { kind: 'exact', value: 2 }, unit: 'cup' },
+                {
+                    sourceLine: '2 cups flour',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    statedMeasure: undefined,
+                },
                 'food_1',
             ),
         ).toStrictEqual({
@@ -35,12 +40,96 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
             quantityLow: 2,
             quantityHigh: null,
             unit: 'cup',
+            // U7/U11 — `null`, not absent: the member is REQUIRED on the identity so a construction site that
+            // forgets it cannot silently key the old way. `null` says this line was not restated.
+            statedMeasure: null,
         });
+    });
+
+    /**
+     * U7/U11 — the pair the SOURCE printed, carried into the judgement's identity.
+     *
+     * ⛔ These are the assertions that make the `v2` key bump meaningful. Before migration 0027 a restated
+     * line reached the gate as `[.., 0.5, null, 'cup']` and nothing recorded that the source had printed
+     * `one gill`, so the model — shown the source line beside `0.5 cup` — correctly DISAGREED with a line we
+     * had parsed right. Two things had to change together: the model must be asked about the gill, and the
+     * verdict must be keyed on it, or the corrected line would look up the pre-correction verdict forever.
+     */
+    it('carries the stated measure the source printed, when the line was restated', () => {
+        expect(
+            verifiedLineIdentity(
+                {
+                    sourceLine: 'one gill of milk',
+                    quantity: { kind: 'exact', value: 0.5 },
+                    unit: 'cup',
+                    statedMeasure: { quantity: { kind: 'exact', value: 1 }, unit: 'gill' },
+                },
+                'food_1',
+            ),
+        ).toStrictEqual({
+            sourceLine: 'one gill of milk',
+            foodId: 'food_1',
+            // ⛔ The RESTATED pair still keys the row, because that is what nutrition is computed from and
+            // what U14's reader holds in hand. The stated pair is carried BESIDE it, never instead of it.
+            quantityLow: 0.5,
+            quantityHigh: null,
+            unit: 'cup',
+            statedMeasure: { quantityLow: 1, quantityHigh: null, unit: 'gill' },
+        });
+    });
+
+    it('carries BOTH stated bounds when the source printed a range', () => {
+        const identity = verifiedLineIdentity(
+            {
+                sourceLine: 'one to two gills of milk',
+                quantity: { kind: 'range', low: 0.5, high: 1 },
+                unit: 'cup',
+                statedMeasure: { quantity: { kind: 'range', low: 1, high: 2 }, unit: 'gill' },
+            },
+            'food_1',
+        );
+
+        expect(identity?.statedMeasure).toStrictEqual({ quantityLow: 1, quantityHigh: 2, unit: 'gill' });
+    });
+
+    // ⛔ THE PROPERTY THE `v2` BUMP EXISTS FOR. Both lines say the same thing about the same food and the same
+    // persisted amount; only one of them records that the source printed a gill. They are DIFFERENT
+    // judgements — the model is shown different numbers — so they must not share a verdict.
+    it('⛔ a restated line and an un-restated line are DIFFERENT judgements', () => {
+        const restated = verifiedLineIdentity(
+            {
+                sourceLine: 'one gill of milk',
+                quantity: { kind: 'exact', value: 0.5 },
+                unit: 'cup',
+                statedMeasure: { quantity: { kind: 'exact', value: 1 }, unit: 'gill' },
+            },
+            'food_1',
+        );
+        const plain = verifiedLineIdentity(
+            {
+                sourceLine: 'one gill of milk',
+                quantity: { kind: 'exact', value: 0.5 },
+                unit: 'cup',
+                statedMeasure: undefined,
+            },
+            'food_1',
+        );
+
+        expect(restated).toBeDefined();
+        expect(plain).toBeDefined();
+        expect(restated === undefined ? '' : verificationKeyPreimage(restated)).not.toBe(
+            plain === undefined ? '' : verificationKeyPreimage(plain),
+        );
     });
 
     it('carries BOTH bounds of a stated range', () => {
         const identity = verifiedLineIdentity(
-            { sourceLine: '2 to 3 cups flour', quantity: { kind: 'range', low: 2, high: 3 }, unit: 'cup' },
+            {
+                sourceLine: '2 to 3 cups flour',
+                quantity: { kind: 'range', low: 2, high: 3 },
+                unit: 'cup',
+                statedMeasure: undefined,
+            },
             'food_1',
         );
 
@@ -49,7 +138,7 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
 
     it('carries an ABSENT quantity as two nulls — never a fabricated 0 or 1', () => {
         const identity = verifiedLineIdentity(
-            { sourceLine: 'butter the size of an egg', quantity: ABSENT_QUANTITY, unit: '' },
+            { sourceLine: 'butter the size of an egg', quantity: ABSENT_QUANTITY, unit: '', statedMeasure: undefined },
             'food_1',
         );
 
@@ -58,7 +147,7 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
 
     it('⛔ converts the unitless EMPTY STRING to null — the spelling the worker hashed', () => {
         const identity = verifiedLineIdentity(
-            { sourceLine: '2 eggs', quantity: { kind: 'exact', value: 2 }, unit: '' },
+            { sourceLine: '2 eggs', quantity: { kind: 'exact', value: 2 }, unit: '', statedMeasure: undefined },
             'food_1',
         );
 
@@ -70,11 +159,11 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
 
     it('⛔ a unitless line and a line measured in `each` are DIFFERENT judgements', () => {
         const unitless = verifiedLineIdentity(
-            { sourceLine: '2 eggs', quantity: { kind: 'exact', value: 2 }, unit: '' },
+            { sourceLine: '2 eggs', quantity: { kind: 'exact', value: 2 }, unit: '', statedMeasure: undefined },
             'food_1',
         );
         const withUnit = verifiedLineIdentity(
-            { sourceLine: '2 eggs', quantity: { kind: 'exact', value: 2 }, unit: 'each' },
+            { sourceLine: '2 eggs', quantity: { kind: 'exact', value: 2 }, unit: 'each', statedMeasure: undefined },
             'food_1',
         );
 
@@ -87,20 +176,31 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
 
     it('returns undefined when the line was AUTHORED rather than transcribed (no source line)', () => {
         expect(
-            verifiedLineIdentity({ sourceLine: null, quantity: { kind: 'exact', value: 2 }, unit: 'cup' }, 'food_1'),
+            verifiedLineIdentity(
+                { sourceLine: null, quantity: { kind: 'exact', value: 2 }, unit: 'cup', statedMeasure: undefined },
+                'food_1',
+            ),
         ).toBeUndefined();
     });
 
     it('returns undefined when a source line is present but blank — there is nothing to judge', () => {
         expect(
-            verifiedLineIdentity({ sourceLine: '   ', quantity: { kind: 'exact', value: 2 }, unit: 'cup' }, 'food_1'),
+            verifiedLineIdentity(
+                { sourceLine: '   ', quantity: { kind: 'exact', value: 2 }, unit: 'cup', statedMeasure: undefined },
+                'food_1',
+            ),
         ).toBeUndefined();
     });
 
     it('returns undefined for a freeform line that maps to no food', () => {
         expect(
             verifiedLineIdentity(
-                { sourceLine: '2 cups flour', quantity: { kind: 'exact', value: 2 }, unit: 'cup' },
+                {
+                    sourceLine: '2 cups flour',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    statedMeasure: undefined,
+                },
                 undefined,
             ),
         ).toBeUndefined();

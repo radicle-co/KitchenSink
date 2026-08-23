@@ -186,4 +186,77 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
         // skip.
         expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ shortlist: nan }))).toThrow();
     });
+
+    /**
+     * U7/U11 — the pair the SOURCE printed, carried so the model is asked about the numbers the source
+     * actually contained.
+     *
+     * ⛔ A NESTED OBJECT, not three coordinated flat fields, and the refusals below are what that buys: a
+     * half-existing stated measure is unrepresentable rather than merely invalid. Contrast the flat
+     * `quantityLow`/`quantityHigh`/`unit` above, which are REQUIRED and so have no half-existence to prevent.
+     */
+    describe('statedMeasure', () => {
+        const GILL = { quantityLow: 1, quantityHigh: null, unit: 'gill' };
+
+        it('accepts a message carrying what the source printed', () => {
+            const parsed = verifyIngredientLineMessageSchema.parse(verifyLine({ statedMeasure: GILL }));
+
+            expect(parsed.statedMeasure).toEqual(GILL);
+        });
+
+        it('accepts a stated range', () => {
+            const parsed = verifyIngredientLineMessageSchema.parse(
+                verifyLine({ statedMeasure: { ...GILL, quantityHigh: 2 } }),
+            );
+
+            expect(parsed.statedMeasure?.quantityHigh).toBe(2);
+        });
+
+        // ⚠️ OPTIONAL, and it must stay optional through at least one release — the same reason `ownerId`
+        // carries. The queue holds messages enqueued by the producer that predates this field, and making it
+        // required turns every one of them into DLQ poison the moment the new worker deploys. A line arriving
+        // without it is judged against the pair we persisted, which is exactly today's behaviour.
+        it('is OPTIONAL, so an in-flight message from the previous producer still parses', () => {
+            const parsed = verifyIngredientLineMessageSchema.parse(verifyLine());
+
+            expect(parsed.statedMeasure).toBeUndefined();
+        });
+
+        // ⛔ `quantityLow` is NOT nullable here, unlike its flat sibling. `convertHistoricalUnit` refuses an
+        // absent quantity outright, so "restated from no amount" is a state no producer can reach.
+        it('REFUSES a stated measure with no amount', () => {
+            expect(() =>
+                verifyIngredientLineMessageSchema.parse(verifyLine({ statedMeasure: { ...GILL, quantityLow: null } })),
+            ).toThrow();
+        });
+
+        // ⛔ Nor is `unit` nullable: a restatement is never FROM nothing.
+        it('REFUSES a stated measure with no unit', () => {
+            expect(() =>
+                verifyIngredientLineMessageSchema.parse(verifyLine({ statedMeasure: { ...GILL, unit: null } })),
+            ).toThrow();
+            expect(() =>
+                verifyIngredientLineMessageSchema.parse(verifyLine({ statedMeasure: { ...GILL, unit: '' } })),
+            ).toThrow();
+        });
+
+        // The stated unit reaches the PROMPT, so it carries the same 64-code-point bound its flat sibling
+        // does — ADR-0024 §2 makes a hard input cap a precondition of the spend reservation, and a second
+        // unbounded unit would reopen it.
+        it('REFUSES a stated unit over the transport bound', () => {
+            expect(() =>
+                verifyIngredientLineMessageSchema.parse(
+                    verifyLine({ statedMeasure: { ...GILL, unit: 'g'.repeat(65) } }),
+                ),
+            ).toThrow();
+        });
+
+        it('REFUSES a non-finite stated bound', () => {
+            expect(() =>
+                verifyIngredientLineMessageSchema.parse(
+                    verifyLine({ statedMeasure: { ...GILL, quantityLow: Number.NaN } }),
+                ),
+            ).toThrow();
+        });
+    });
 });

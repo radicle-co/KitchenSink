@@ -174,7 +174,10 @@ export {
     quantityUpperBound,
     statedQuantity,
 } from './ingredientQuantity.js';
-export type { IngredientQuantity } from './ingredientQuantity.js';
+export { statedAmountSchema } from './ingredientQuantity.js';
+export type { IngredientQuantity, StatedAmount } from './ingredientQuantity.js';
+export { statedMeasureSchema } from './statedMeasure.js';
+export type { StatedMeasure } from './statedMeasure.js';
 export { MASS_UNIT_TO_GRAMS, normalizeUnit, unitToGrams } from './units.js';
 export {
     computeRecipeNutrition,

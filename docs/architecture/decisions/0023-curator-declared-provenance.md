@@ -252,3 +252,41 @@ buys nothing that `details.requiredScope` does not already make actionable.
   substantive edit. A curated import is public and stays public unless a premium owner substantively edits it.
   That is unchanged by this ADR and is called out because it is the first question asked about a corpus of
   imported public recipes.
+
+## Addendum (2026-08-23) — `statedMeasure` is NOT gated on the curator grant, deliberately
+
+Plan U7/U11 added a second create-only ingredient-line field shaped very much like `sourceLine`:
+`statedMeasure`, the amount and unit the source PRINTED before the importer restated a historical measure
+(`one gill of milk` is persisted as `0.5 cup`, because the USDA household-portion table has never heard of a
+gill). Migration `0027_ingredient_stated_measure.sql` persists it, and U11's verification gate asks the model
+about it instead of about the restated pair — which is what stops the gate manufacturing a false DISAGREE
+against a line we parsed correctly.
+
+**It was considered for `CURATOR_IMPORT_SCOPE` and deliberately left ungated.** The argument for gating was
+real and is worth stating, because it will be re-derived by the next reader: a lie in `sourceLine` is
+_visible_ to the model (the model checks our parse against it), while a lie in `statedMeasure` is _invisible_,
+because the stated pair IS the parse the model is shown. A caller could therefore post
+`quantity: 500, unit: cup` with `statedMeasure: {1, gill}` and a matching source line, collect an `agree`, and
+publish nutrition computed from 500 cups.
+
+**Three things defeat that argument.**
+
+1. **The cheaper attack already exists and always has.** `sourceLine` is optional. A caller who wants the same
+   outcome simply omits it: `decideVerification` returns `skip: 'no-source-text'`, the gate never runs, and
+   the recipe publishes. Gating `statedMeasure` removes no protection anybody was relying on.
+2. **The gate is a parser-quality control, not an integrity control against a hostile client.** Both
+   `verificationGatePolicy.ts` and `0023_line_verifications.sql` say so in their own words — absence of a
+   verdict PUBLISHES. Treating it as an authorization surface would be citing this ADR's conclusion without
+   its premise.
+3. **This ADR's grant exists for a DIFFERENT harm.** `imported_public` attaches a named author's credit to
+   public content, so a false declaration is a cross-user reputational harm. Wrong nutrition on your own
+   recipe is not that harm, and the populations that legitimately restate a historical measure without holding
+   `recipes:import:public` — 011's photographed physical cookbooks, 017's capture waterfall — are real.
+
+**What protects it instead** is the arithmetic, asserted where it is performed rather than where it is read:
+`convertHistoricalUnit` REFUSES a restatement whose kind changes or whose bounds do not round-trip back to the
+stated amount within 1%, so the two halves of a conversion cannot describe different amounts. That is a
+statement about our own code, which is the only thing an assertion can be a statement about.
+
+⚠️ A scope gate on a create-only wire field is cheap to add and **expensive to remove**. If this is revisited,
+revisit it as a product decision about who may import, not as a patch to the verification gate.

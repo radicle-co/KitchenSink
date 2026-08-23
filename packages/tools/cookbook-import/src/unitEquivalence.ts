@@ -36,6 +36,7 @@ import {
     quantityUpperBound,
     statedQuantity,
     type IngredientQuantity,
+    type StatedAmount,
 } from '@kitchensink/recipe-core';
 import { millilitresPerUnit, roundToQuantityStorageScale, type MeasureSystem } from '@kitchensink/recipe-import-core';
 import { STANDARD_EQUIVALENCES, millilitresForStandardUnit } from './standardUnits.js';
@@ -141,10 +142,16 @@ export type UnitEquivalenceResolver = (unit: string) => UnitEquivalence | null;
  * R35 forbids. This is the sibling of `RecipeNutrition.rangeDerivedBound`'s disclosure.
  */
 export interface HistoricalUnitConversion {
-    /** What the source printed. */
-    readonly stated: { readonly quantity: IngredientQuantity; readonly unit: string };
-    /** The same amount, in a unit the USDA household-portion table carries. */
-    readonly restated: { readonly quantity: IngredientQuantity; readonly unit: CanonicalVolumeUnit };
+    /**
+     * What the source printed.
+     *
+     * ⛔ `StatedAmount`, not `IngredientQuantity`: a restatement OF nothing is not a thing, and this value is
+     * persisted through `statedMeasureSchema`, which has no `absent` member either. The type carries the
+     * refusal rather than leaving it to a runtime check downstream.
+     */
+    readonly stated: { readonly quantity: StatedAmount; readonly unit: string };
+    /** The same amount, in a unit the USDA household-portion table carries. Never `absent`, for the same reason. */
+    readonly restated: { readonly quantity: StatedAmount; readonly unit: CanonicalVolumeUnit };
     /** The factor used, its measure system and its citation (R34). */
     readonly equivalence: UnitEquivalence;
 }
@@ -265,7 +272,13 @@ export function convertHistoricalUnit(
         quantity.kind === 'range' && high !== null ? restate(high, equivalence.millilitres, target.millilitres) : null,
     );
 
-    if (restated === null) {
+    if (restated === null || restated.kind === 'absent') {
+        return null;
+    }
+
+    // ⛔ THE ARITHMETIC CHECKS ITSELF, and a failure is OUR bug rather than a verdict about the cook's line.
+    // See `representsStatedAmount` below for why this cannot be left to the verification gate.
+    if (!representsStatedAmount(quantity, restated, equivalence.millilitres, target.millilitres)) {
         return null;
     }
 
@@ -273,6 +286,80 @@ export function convertHistoricalUnit(
         stated: Object.freeze({ quantity, unit: equivalence.unit }),
         restated: Object.freeze({ quantity: restated, unit: target.unit }),
         equivalence,
+    });
+}
+
+/**
+ * How far a restated bound may sit from the amount it came from, as a fraction, before it is refused.
+ *
+ * ⛔ NOT A GUESS, and not to be widened. Measured against every unit this importer understands, in both
+ * measure systems: the worst real case is a British gill restated into US customary cups — 0.6004… stored as
+ * 0.600, an error of 0.08%. One per cent leaves that two orders of magnitude of headroom while still catching
+ * the failure the fallback branches of {@link restatementTarget} can produce (a hundredth of a saltspoon
+ * rounds from 0.0025 to 0.003 teaspoon: twenty per cent MORE of the ingredient than the source printed).
+ *
+ * If a future unit is refused by this bound, the answer is to widen {@link CANONICAL_TARGETS} so the
+ * restatement lands on a unit that can hold it — never to widen the tolerance, which would let the error
+ * through everywhere at once.
+ */
+const RESTATEMENT_TOLERANCE = 0.01;
+
+/**
+ * Whether a restated quantity still represents the amount the source printed.
+ *
+ * ## ⛔ WHY THIS EXISTS, AND WHY IT IS NOT THE VERIFICATION GATE'S JOB
+ *
+ * Since plan U7's gate fix the two halves of a conversion have different readers: the STATED pair is
+ * persisted and is what U11's model is asked about (asking it about a number the source never printed
+ * manufactures a false DISAGREE), while the RESTATED pair is what nutrition is computed from. That split is
+ * only sound if the two describe the same amount — and nothing checked it. A conversion is deterministic
+ * arithmetic we performed, so it needs an ASSERTION, not a language model: the model is bad at arithmetic,
+ * and the comparison is one the source's own words do not support.
+ *
+ * Two ways the arithmetic can drift, both of which produce a perfectly plausible-looking row:
+ *
+ *  1. **The KIND changes.** `statedQuantity` collapses coincident bounds to `exact`, so a stated RANGE whose
+ *     two bounds round together at three decimal places becomes a single restated value. The gate would then
+ *     be shown two numbers while nutrition used one.
+ *  2. **The VALUE moves.** `restate` rounds each bound to what `numeric(10,3)` keeps, and
+ *     {@link restatementTarget}'s fallbacks can land on a target where that rounding is a large RELATIVE
+ *     error even though it is a small absolute one.
+ *
+ * Millilitres are the comparison, because they are the only place the two units meet — the same reasoning
+ * that makes them the bridge in the first place (see this module's header).
+ *
+ * @param stated - What the source printed.
+ * @param restated - What it was restated to.
+ * @param statedMillilitres - One stated unit, in millilitres, read in the BOOK's system.
+ * @param targetMillilitres - One restated unit, in millilitres, read in the CATALOG's system.
+ * @returns Whether every bound survives within {@link RESTATEMENT_TOLERANCE}, and the kind is unchanged. Pure.
+ */
+function representsStatedAmount(
+    stated: IngredientQuantity,
+    restated: IngredientQuantity,
+    statedMillilitres: number,
+    targetMillilitres: number,
+): boolean {
+    // ⛔ Kind first. Comparing bounds pairwise across two different kinds would compare a range's high bound
+    // against an exact value's only one and call them equal.
+    if (stated.kind !== restated.kind) {
+        return false;
+    }
+
+    const bounds: readonly (readonly [number | null, number | null])[] = [
+        [quantityLowerBound(stated), quantityLowerBound(restated)],
+        [quantityUpperBound(stated), quantityUpperBound(restated)],
+    ];
+
+    return bounds.every(([statedBound, restatedBound]) => {
+        if (statedBound === null || restatedBound === null) {
+            // Both are `null` for the same member of the same kind, which the guard above already pinned.
+            return statedBound === restatedBound;
+        }
+
+        const expected = statedBound * statedMillilitres;
+
+        return Math.abs(restatedBound * targetMillilitres - expected) / expected <= RESTATEMENT_TOLERANCE;
     });
 }
 

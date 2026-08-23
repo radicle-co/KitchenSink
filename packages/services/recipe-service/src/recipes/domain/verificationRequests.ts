@@ -3,7 +3,7 @@
  * producer.
  *
  * DESIGN PATTERN: **Specification / Policy module**, the sibling of `provenancePolicy.ts` and
- * `sourceLineCarryForward.ts`, and the pure `decide` of the decide/evaluate split this repository already
+ * `transcriptionCarryForward.ts`, and the pure `decide` of the decide/evaluate split this repository already
  * uses in `deploy-gate.sh` and in `evaluateProvenance` vs `RecipesService.create`. It answers ONE question —
  * "for this saved recipe, which lines does the model need to see?" — from its inputs alone: no database, no
  * queue, no clock (`requestedAt` is injected for exactly that reason).
@@ -20,7 +20,7 @@
  * tiers, with no member for "nothing resolved".
  *
  * `IngredientsService.addByName` is the next candidate and is also wrong: it is per-PHRASE, and five of the
- * message's nine fields — `recipeId`, `sourceLine`, `quantityLow`, `quantityHigh`, `unit` — do not exist
+ * message's fields — `recipeId`, `sourceLine`, `quantityLow`, `quantityHigh`, `unit`, `statedMeasure` — do not exist
  * there. They exist in exactly one place, which is where this module is called from: `RecipesService.create`
  * and `RecipesService.update`, after the ingredient rows are persisted.
  *
@@ -54,7 +54,7 @@
  * is keyed on. Two implementations of that rule would drift, and the drift would be invisible: it would show
  * up only as a bill.
  */
-import type { IngredientQuantity } from '@kitchensink/recipe-core';
+import type { IngredientQuantity, StatedMeasure } from '@kitchensink/recipe-core';
 import {
     decideVerification,
     unattributedEvidence,
@@ -93,6 +93,21 @@ export interface VerifiableLine {
     readonly quantity: IngredientQuantity;
     /** The parsed unit. `''` is the persistence layer's "none" — projected to `null` on the wire. */
     readonly unit: string;
+    /**
+     * What the SOURCE printed, when {@link quantity}/{@link unit} are a RESTATEMENT of it (migration 0027).
+     *
+     * ⛔ THE FIELD THAT STOPS THIS PRODUCER MANUFACTURING A FALSE DISAGREE. The lines here are PERSISTED rows,
+     * and a historical measure was already restated before it reached them — `one gill of milk` is stored as
+     * `0.5 cup`. Building the message from the stored pair alone showed the model a source line beside a
+     * number that source never printed, and it correctly disagreed with a line we had parsed right.
+     *
+     * ⛔ A REQUIRED KEY carrying `undefined`, like {@link sourceLine} beside it and unlike
+     * {@link VerificationRequestInput.ownerId} above. `ownerId` is required-and-always-present because this
+     * module is the only place that knows it; a stated measure genuinely does not exist for most lines, so
+     * the VALUE is optional while the KEY is not — which is what makes every projection site a compile error
+     * rather than a silent reversion to the old question.
+     */
+    readonly statedMeasure: StatedMeasure | undefined;
 }
 
 /**
@@ -290,6 +305,12 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
             quantityLow: judgement.quantityLow,
             quantityHigh: judgement.quantityHigh,
             unit: judgement.unit,
+            // ⛔ From the SAME `verifiedLineIdentity` call as the three above, never re-derived beside them.
+            // The stated pair is IN the verdict key (`v2`), so a message describing a different stated pair
+            // from the one the dedup set recorded would be billed for, answered, and then stored under a key
+            // U14's reader never looks up. `null` on the identity means "not restated"; the wire spells that
+            // by omitting the key, which is why this is a spread rather than an assignment.
+            ...(judgement.statedMeasure === null ? {} : { statedMeasure: judgement.statedMeasure }),
             // ⛔ The producer knows of no tier, and must not guess one: `curated-exact` would suppress the
             // identity check. See the module docstring.
             evidenceKind: 'unattributed',

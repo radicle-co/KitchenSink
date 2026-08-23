@@ -185,6 +185,104 @@ describe('convertHistoricalUnit (R35)', () => {
 });
 
 /**
+ * ⛔ THE RESTATEMENT MUST STILL REPRESENT THE AMOUNT IT CAME FROM — the assertion the arithmetic never had.
+ *
+ * Since plan U7's gate fix the STATED pair is persisted and is what U11's model is asked about, while the
+ * RESTATED pair is what nutrition is computed from. That split is only sound if the two describe the same
+ * amount, and nothing checked it: `restate` rounds each bound to the `numeric(10,3)` the column keeps, and
+ * `restatementTarget`'s non-exact fallbacks (`MIN_READABLE_AMOUNT`, then `sized.at(-1)`) can land on a target
+ * where that rounding is a large relative error — the module's own docstring names a saltspoon-in-cups at
+ * 0.005208 stored as 0.005, a 4% loss.
+ *
+ * ⚠️ It is deliberately NOT a database CHECK and NOT a question for the model. A conversion is deterministic
+ * arithmetic WE performed: it needs an assertion, and a mismatch is OUR bug rather than a verdict about the
+ * cook's line. A CHECK would turn it into a 500 on a legitimate save; a model would be asked to do arithmetic
+ * it is bad at, on a comparison the source's words do not support.
+ *
+ * The response to a failure is REFUSAL — `null`, so the line keeps its own words — which is the same
+ * asymmetric-cost rule the module already applies to a unit no authority sizes: it refuses to assert a WRONG
+ * number, never to carry a right one in an old unit.
+ */
+describe('convertHistoricalUnit refuses a restatement that does not represent the stated amount', () => {
+    /**
+     * ⛔ THE MEASUREMENT, not a guess at a tolerance. Every unit the importer understands, in both measure
+     * systems, must survive the guard — otherwise the guard is not a safety net, it is a silent feature
+     * removal. If a future unit fails this, the answer is to widen `CANONICAL_TARGETS`, never the tolerance.
+     */
+    it.each([
+        ['gill', AMERICAN],
+        ['gill', BRITISH],
+        ['wineglass', AMERICAN],
+        ['wineglass', BRITISH],
+        ['dessertspoon', AMERICAN],
+        ['dessertspoon', BRITISH],
+        ['saltspoon', AMERICAN],
+        ['saltspoon', BRITISH],
+    ])('still converts %s for a %s book', (unit, book) => {
+        expect(convertHistoricalUnit(unitEquivalenceFor(book), exactly(1), unit)).not.toBeNull();
+    });
+
+    // ⛔ THE INVARIANT THE MIGRATION'S HEADER PROMISES THIS FUNCTION ENFORCES, and which nothing enforced:
+    // `statedQuantity` collapses coincident bounds to `exact`, so two stated bounds close enough to round
+    // together at three decimal places turn a stated RANGE into a restated single value. The gate would then
+    // be shown "1 to 1.0001 gills" while nutrition used one number, and the two halves of one conversion
+    // would describe different things.
+    it('REFUSES a range whose restated bounds round together into a single value', () => {
+        const narrow = statedQuantity(1, 1.0001);
+
+        expect(convertHistoricalUnit(unitEquivalenceFor(AMERICAN), narrow as IngredientQuantity, 'gill')).toBeNull();
+    });
+
+    // A range whose bounds stay apart converts normally — the guard must refuse the degenerate case only.
+    it('still converts a range whose bounds survive the rounding', () => {
+        const wide = statedQuantity(1, 2);
+
+        expect(
+            convertHistoricalUnit(unitEquivalenceFor(AMERICAN), wide as IngredientQuantity, 'gill')?.restated.quantity,
+        ).toEqual(statedQuantity(0.5, 1));
+    });
+
+    /**
+     * ⛔ THE ROUNDING GUARD, driven through a unit whose size makes the rounding bite.
+     *
+     * A quantity small enough that its restatement lands below the storable scale cannot be represented at
+     * `numeric(10,3)` at all — the stored figure would be a different amount from the one the source printed,
+     * which is exactly the misstatement R35 exists to prevent. Refusing keeps the line honest: it carries its
+     * own words, contributes no nutrition, and `RecipeNutrition.isComplete` discloses that.
+     */
+    it('REFUSES a restatement the storable scale cannot represent', () => {
+        // One thousandth of a saltspoon restates to 0.00025 teaspoon, which rounds to 0.000 — a 100% loss.
+        // ⚠️ Characterization: this one already fell out of `statedQuantity` refusing a zero. Pinned so a
+        // change to the guard cannot quietly turn it into a stored `0`, which would be a fabricated amount.
+        expect(convertHistoricalUnit(unitEquivalenceFor(AMERICAN), exactly(0.001), 'saltspoon')).toBeNull();
+    });
+
+    /**
+     * ⛔ THE REACHABLE ROUNDING FAILURE, and the reason this guard is not speculative.
+     *
+     * A hundredth of a saltspoon is 0.0025 teaspoon. `numeric(10,3)` cannot hold that, so `restate` rounds it
+     * to 0.003 — a positive, perfectly storable number that `statedQuantity` accepts without complaint, and
+     * which is TWENTY PER CENT more of the ingredient than the source printed. Before this guard the line
+     * persisted with `stated 0.01 saltspoon` beside `restated 0.003 teaspoon`, the gate agreed (it is shown
+     * the saltspoon, correctly), and the nutrition published off the inflated figure. The gate cannot catch
+     * this — it is arithmetic, on the half the model is deliberately not shown — so the arithmetic checks
+     * itself, here, where both halves are in hand.
+     */
+    it('REFUSES a restatement whose rounding moves the amount by more than the tolerance', () => {
+        expect(convertHistoricalUnit(unitEquivalenceFor(AMERICAN), exactly(0.01), 'saltspoon')).toBeNull();
+    });
+
+    // ⛔ THE GUARD IS NOT A BLANKET REFUSAL — the degenerate way to make every case above pass. A restatement
+    // that rounds cleanly must still be produced, and must still be the value the other tests pin.
+    it('is not simply refusing everything — a clean conversion still lands', () => {
+        expect(convertHistoricalUnit(unitEquivalenceFor(AMERICAN), exactly(1), 'saltspoon')?.restated).toEqual({
+            quantity: exactly(0.25),
+            unit: 'teaspoon',
+        });
+    });
+});
+
+/**
  * R33's second sentence — a book with a known origin follows its origin's measure system, and one whose
  * origin is unestablished follows nothing. Its FIRST sentence, about transcribing each book's own printed
  * table, no longer applies: that table is gone (see `standardUnits.ts`).

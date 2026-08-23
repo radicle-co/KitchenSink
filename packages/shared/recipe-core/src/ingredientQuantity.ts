@@ -131,6 +131,38 @@ export function quantitiesEqual(left: IngredientQuantity, right: IngredientQuant
 }
 
 /**
+ * The two members that state an AMOUNT, declared ONCE and composed into both unions below.
+ *
+ * ⛔ Extracted rather than written out twice. `statedAmountSchema` is the same union minus `absent`, and two
+ * hand-written copies of the `range` member is two places for a bound to drift from the `numeric(10,3)`
+ * column they both write.
+ */
+const STATED_AMOUNT_MEMBERS = [
+    z.strictObject({ kind: z.literal('exact'), value: recipeIngredientQuantitySchema }),
+    z.strictObject({
+        kind: z.literal('range'),
+        low: recipeIngredientQuantitySchema,
+        high: recipeIngredientQuantitySchema,
+    }),
+] as const;
+
+/**
+ * Apply the range's coherence rule to a quantity union.
+ *
+ * STRICTLY greater, not `>=`: {@link statedQuantity} collapses coincident bounds to `exact`, so admitting
+ * `low === high` would give one amount two wire representations — the thing the `''`-is-rejected unit
+ * convention exists to prevent. Shared by both unions so the rule cannot hold for one and not the other.
+ *
+ * @param schema - A union of quantity members.
+ * @returns The same schema, refined. Pure.
+ */
+function withRangeCoherence<T extends IngredientQuantity>(schema: z.ZodType<T>): z.ZodType<T> {
+    return schema.refine((quantity) => quantity.kind !== 'range' || quantity.high > quantity.low, {
+        message: 'A quantity range must state an upper bound strictly above its lower bound',
+    });
+}
+
+/**
  * The WIRE form of {@link IngredientQuantity} — a discriminated union, so the request contract can spell
  * exactly the three states the domain admits and no others.
  *
@@ -149,19 +181,23 @@ export function quantitiesEqual(left: IngredientQuantity, right: IngredientQuant
  * Each bound is `recipeIngredientQuantitySchema`, so a bound the `numeric(10,3)` column cannot store is
  * refused in ONE place rather than three.
  */
-export const ingredientQuantitySchema: z.ZodType<IngredientQuantity> = z
-    .discriminatedUnion('kind', [
-        z.strictObject({ kind: z.literal('exact'), value: recipeIngredientQuantitySchema }),
-        z.strictObject({
-            kind: z.literal('range'),
-            low: recipeIngredientQuantitySchema,
-            high: recipeIngredientQuantitySchema,
-        }),
-        z.strictObject({ kind: z.literal('absent') }),
-    ])
-    // STRICTLY greater, not `>=`: `statedQuantity` collapses coincident bounds to `exact`, so admitting
-    // `low === high` here would give one amount two wire representations — the thing the `''`-is-rejected
-    // unit convention exists to prevent.
-    .refine((quantity) => quantity.kind !== 'range' || quantity.high > quantity.low, {
-        message: 'A quantity range must state an upper bound strictly above its lower bound',
-    });
+export const ingredientQuantitySchema: z.ZodType<IngredientQuantity> = withRangeCoherence(
+    z.discriminatedUnion('kind', [...STATED_AMOUNT_MEMBERS, z.strictObject({ kind: z.literal('absent') })]),
+);
+
+/**
+ * A quantity a source actually STATED — {@link IngredientQuantity} minus the member that states nothing.
+ *
+ * ⛔ DERIVED with `Exclude`, never re-declared. A second hand-written union would be a second place for the
+ * `range` member's bounds to drift from the one the wire and the column already agree on.
+ *
+ * It exists because `StatedMeasure` (`./statedMeasure.ts`) needs a quantity that CANNOT be `absent`:
+ * a restatement of nothing is not a thing, `convertHistoricalUnit` refuses an absent quantity outright, and
+ * `recipe_ingredients_stated_measure_coherent` would turn such a row into a 500 where a 400 belongs.
+ */
+export type StatedAmount = Exclude<IngredientQuantity, { readonly kind: 'absent' }>;
+
+/** The wire form of {@link StatedAmount}: the same two members, with the same bounds, and no third. */
+export const statedAmountSchema: z.ZodType<StatedAmount> = withRangeCoherence(
+    z.discriminatedUnion('kind', STATED_AMOUNT_MEMBERS),
+);

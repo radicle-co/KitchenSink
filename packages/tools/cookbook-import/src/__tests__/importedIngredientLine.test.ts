@@ -25,7 +25,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { toImportedIngredientLine } from '../importedIngredientLine.js';
+import { statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core';
+import { createRecipeIngredientInputSchema } from '@kitchensink/schema-recipe';
+
+import { COOKBOOKS } from '../cookbooks.js';
+import { toImportedIngredientLine, type ParsedClause } from '../importedIngredientLine.js';
+import { convertHistoricalUnit, unitEquivalenceFor } from '../unitEquivalence.js';
 
 /** A parsed clause, as `parseIngredientLine` returns it. */
 const parsed = {
@@ -102,5 +107,85 @@ describe('⛔ the source line must be the SOURCE’s words, not ours', () => {
         // An authored line reaches this function without a scanner, so there is no earlier text to prefer.
         // Falling back is right; silently preferring `raw` when `sourceText` EXISTS is the defect above.
         expect(toImportedIngredientLine(parsed, ingredient).sourceLine).toBe(parsed.raw);
+    });
+});
+
+/**
+ * ⛔ THE RESTATEMENT MUST CROSS THE WIRE, and until it did the verification gate was being lied to.
+ *
+ * `restateHistoricalUnit` (`proseRecipe.ts`) OVERWRITES the candidate line's `quantity`/`unit` with the
+ * restated pair — `one gill of milk` becomes `0.5 cup`, because the USDA household-portion table has never
+ * heard of a gill — and keeps what the source printed on `unitConversion`. This function built the create
+ * body from `parsed.quantity`/`parsed.unit` alone, so the gill reached the service only as PROSE, in `notes`
+ * and `sourceLine`.
+ *
+ * U11's gate then built its question from the persisted pair. The model was shown a source line reading
+ * `one gill of milk` beside a parse claiming `0.5 cup` and asked whether they agree. They do not, and it is
+ * RIGHT to say so about a line we parsed correctly. U11 names the false-disagree rate as "the number that
+ * triggers a rethink": a wrong AGREE passes data that would have shipped anyway, while a wrong DISAGREE
+ * withholds nutrition from a correct line — worse than having no gate. Every historical-unit line in a book
+ * was exposed to it, and those are exactly the lines this importer exists to handle.
+ */
+describe('⛔ a restated line carries what the source PRINTED', () => {
+    /** The conversion `restateHistoricalUnit` attaches for `one gill of milk` in an American book. */
+    const gillConversion = (): NonNullable<ParsedClause['unitConversion']> => {
+        const conversion = convertHistoricalUnit(
+            unitEquivalenceFor(COOKBOOKS['international-jewish']!.measures),
+            statedQuantity(1) as IngredientQuantity,
+            'gill',
+        );
+
+        if (conversion === null) {
+            throw new Error('fixture bug: a gill no longer converts for an American book');
+        }
+
+        return conversion;
+    };
+
+    it('sends the stated measure beside the restated quantity and unit', () => {
+        const conversion = gillConversion();
+        const line = toImportedIngredientLine(
+            {
+                ...parsed,
+                sourceText: 'one gill of milk',
+                quantity: conversion.restated.quantity,
+                unit: conversion.restated.unit,
+                unitConversion: conversion,
+            },
+            ingredient,
+        );
+
+        // The RESTATED pair is still what is persisted and what nutrition is computed from…
+        expect(line.quantity).toEqual({ kind: 'exact', value: 0.5 });
+        expect(line.unit).toBe('cup');
+        // …and the STATED pair travels beside it, which is what the gate is asked about.
+        expect(line.statedMeasure).toEqual({ quantity: { kind: 'exact', value: 1 }, unit: 'gill' });
+    });
+
+    // ⛔ ABSENCE IS THE DISCLOSURE, exactly as `RecipeNutrition.rangeDerivedBound`'s presence is. A line whose
+    // quantity and unit ARE what the source said must not carry a restatement claim — that would assert a
+    // conversion that never happened, on the dominant case.
+    it('omits the key entirely for a line that was never restated', () => {
+        expect(toImportedIngredientLine(parsed, ingredient).statedMeasure).toBeUndefined();
+    });
+
+    it('emits a body the SHIPPED contract accepts', () => {
+        const conversion = gillConversion();
+        const line = toImportedIngredientLine(
+            {
+                ...parsed,
+                sourceText: 'one gill of milk',
+                quantity: conversion.restated.quantity,
+                unit: conversion.restated.unit,
+                unitConversion: conversion,
+            },
+            // A real UUID: `ingredientId` is `z.uuid()` on the shipped contract, and this assertion exists to
+            // be judged by that contract rather than by a placeholder that merely looks like an id.
+            { ...ingredient, id: '00000000-0000-4000-8000-0000000000aa' },
+        );
+
+        // The committed copy of the service's authored zod (ADR-0014), not this tool's belief about it: a
+        // `strictObject` member means a stated measure carrying a stray key would be refused at the boundary.
+        expect(() => createRecipeIngredientInputSchema.parse(line)).not.toThrow();
     });
 });

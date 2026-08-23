@@ -530,10 +530,15 @@ export interface RecipeNutrition {
      * from (R38) — the sibling of R35's historical-unit marker, `HistoricalUnitConversion` in
      * `@kitchensink/cookbook-import`'s `unitEquivalence.ts`.
      *
-     * ⚠️ A sibling in SHAPE, not in placement: that marker is produced at IMPORT time by a tool and is
-     * deliberately NOT on this wire, because a historical unit is restated once, upstream, while a range is
-     * persisted and collapsed on every read. See `RangeDerivedBound` in `nutrition.ts` before adding a
-     * provenance field here to "match" it.
+     * ⚠️ A sibling in SHAPE, not in placement, and the reason has been CORRECTED. That marker is produced at
+     * IMPORT time by a tool and is deliberately NOT on this RESPONSE wire — but it is not, as this note used
+     * to claim, absent from every wire and every column. Migration 0027 persists the pair the source printed
+     * on `recipe_ingredients`, and it rides the CREATE request, because U11's verification gate reads it: a
+     * gate shown `0.5 cup` beside a source reading `one gill of milk` disagrees with a line we parsed
+     * correctly. See `RangeDerivedBound` in `nutrition.ts` for the full correction — and note that the
+     * conclusion for THIS type is unchanged: do not add a historical-unit provenance field here to "match"
+     * it. `RecipeIngredient` carries no `sourceLine` either; both are write-side provenance, and the
+     * disclosure a cook gets is the sentence in the recipe's description.
      *
      * ⚠️ Load-bearing honesty, not decoration. A total computed from `2 cups` when the line read
      * `2 to 3 cups` is up to a third under and is otherwise indistinguishable from an exact one. Absent

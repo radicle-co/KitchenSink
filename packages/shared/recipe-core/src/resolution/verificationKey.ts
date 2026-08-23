@@ -27,6 +27,14 @@
  * quietly stops applying. The prefix turns that into a visible, additive event: bump it, and the old
  * generation is inert and enumerable rather than invisible.
  *
+ * ⚠️ IT HAS BEEN BUMPED ONCE, to `v2`, and the reason is worth keeping: migration 0027 added the pair the
+ * SOURCE printed (`one gill`) beside the pair we restated it to (`0.5 cup`), and the gate now asks about the
+ * stated one. A line judged before that change and the same line judged after it share every OTHER member of
+ * the tuple, so at `v1` the corrected line would have looked up the pre-correction verdict — and because
+ * absence of a verdict is what publishes, U14 would have withheld nutrition from a correctly-parsed line
+ * forever. Every `v1` row is now inert; that is the intended cost, and it is cheapest before the corpus is
+ * verified in production.
+ *
  * ⛔ Reachable ONLY as `@kitchensink/recipe-core/resolution/verification-key`, never from the barrel.
  */
 
@@ -36,7 +44,28 @@
  * ⛔ BUMP THIS whenever {@link verificationKeyPreimage} changes what it serializes, in what order, or how it
  * normalizes. Not bumping it is the silent re-partition described above.
  */
-export const VERIFICATION_KEY_VERSION = 'v1';
+export const VERIFICATION_KEY_VERSION = 'v2';
+
+/**
+ * What the SOURCE printed, when this line's measure was RESTATED before it was persisted (migration 0027).
+ *
+ * The importer converts a historical unit at parse time — `one gill of milk` becomes `0.5 cup`, because the
+ * USDA household-portion table has never heard of a gill — and it is the STATED pair the gate asks the model
+ * about, since that is what the source's own words support.
+ *
+ * ⛔ Neither member is nullable except the upper bound, and that is not defensive typing. A restatement of an
+ * `absent` quantity is not a thing (`convertHistoricalUnit` refuses one outright), and a restatement FROM no
+ * unit is not a thing either — so a stated measure with a missing half is a state no producer can reach.
+ * "This line was not restated" is spelled by the whole member being `null`.
+ */
+export interface StatedMeasureIdentity {
+    /** The amount the source printed, or the low end of a printed range. */
+    readonly quantityLow: number;
+    /** The high end of a printed range. `null` when the source printed one value. */
+    readonly quantityHigh: number | null;
+    /** The unit the source printed. */
+    readonly unit: string;
+}
 
 /** Everything a verdict is ABOUT — change any of it and the judgement is a different one. */
 export interface VerifiedLineIdentity {
@@ -50,6 +79,26 @@ export interface VerifiedLineIdentity {
     readonly quantityHigh: number | null;
     /** The parsed unit. `null` when there was none — DISTINCT from `''`. */
     readonly unit: string | null;
+    /**
+     * What the source PRINTED, when the five members above are a RESTATEMENT of it. `null` when they are
+     * what the source itself said — which is every authored line and every line stating a modern unit.
+     *
+     * ⛔ IT IS PART OF THE JUDGEMENT, not context beside it, and leaving it out would have been the exact
+     * failure this module's own docstring names. A restated line and an un-restated one can share all five
+     * other members — the corpus imported before migration 0027 and re-imported after it produce precisely
+     * that pair — while the model is shown DIFFERENT numbers and reaches a DIFFERENT verdict. Sharing a key
+     * across them is "the worst possible cache hit, because it looks like a saving", and here it would serve
+     * the pre-0027 false DISAGREE to the corrected line forever, since absence of a verdict is the only thing
+     * that publishes.
+     *
+     * ⚠️ `candidateFoodName` is prompt content that is deliberately NOT here, and is not a counter-example:
+     * it is a function of `foodId`, so it is not an independent axis. This is one, and it is caller-supplied.
+     *
+     * ⚠️ REQUIRED KEY with a `null` value, never optional. Every construction site — `verifiedLineIdentity`,
+     * the queue producer, the worker, the parity test — becomes a compile error rather than silently keying
+     * the old way.
+     */
+    readonly statedMeasure: StatedMeasureIdentity | null;
 }
 
 /**
@@ -91,6 +140,13 @@ export function verificationKeyPreimage(identity: VerifiedLineIdentity): string 
         identity.quantityLow,
         identity.quantityHigh,
         identity.unit,
+        // ONE nested member, not three flat ones: "this line was not restated" then has exactly one spelling
+        // rather than three coordinated nulls that a future edit could let disagree. The nesting also keeps a
+        // stated unit from running into the bound beside it, which is the same boundary property the outer
+        // JSON array buys.
+        identity.statedMeasure === null
+            ? null
+            : [identity.statedMeasure.quantityLow, identity.statedMeasure.quantityHigh, identity.statedMeasure.unit],
     ]);
 }
 

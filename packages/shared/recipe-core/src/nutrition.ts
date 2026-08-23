@@ -26,13 +26,24 @@ import { unitToGrams } from './units.js';
  * `HistoricalUnitConversion` in `@kitchensink/cookbook-import`'s `unitEquivalence.ts`, and which likewise
  * makes its disclosure by BEING PRESENT rather than by carrying a "not applicable" value.
  *
- * ⚠️ The two markers deliberately live at different layers, and the asymmetry is the answer to the
- * question this sentence otherwise invites. A range is PERSISTED and collapsed at READ time, here, so its
- * marker has to travel on the wire. A historical unit is restated at IMPORT time, upstream of the wire and
- * by a tool, so there is no read-time step to disclose and no column to disclose it in — the conversion is
- * recorded in the import report and in the recipe's own description instead. Do not "restore the symmetry"
- * by adding a provenance field here; that is a persisted column plus a `CONTRACT_HASH` move (ADR-0014) for
- * a fact with one producer and no reader.
+ * ⚠️ The two markers live at different layers, and the asymmetry is the answer to the question this
+ * sentence otherwise invites. A range is PERSISTED and collapsed at READ time, here, so its marker has to
+ * travel on THIS wire — the response a cook is shown. A historical unit is restated at IMPORT time, and its
+ * marker travels on the REQUEST wire and into three columns of `recipe_ingredients` instead
+ * (`0027_ingredient_stated_measure.sql`), because its reader is the verification gate rather than a cook.
+ *
+ * ⛔ AN EARLIER VERSION OF THIS NOTE ARGUED THERE WAS NO READER AT ALL, and it was wrong. It said a
+ * historical unit "is restated at IMPORT time, upstream of the wire and by a tool, so there is no read-time
+ * step to disclose and no column to disclose it in", and refused a column as "a persisted column plus a
+ * `CONTRACT_HASH` move (ADR-0014) for a fact with one producer and no reader". U11's gate IS that reader:
+ * it builds its question from the persisted `quantity`/`unit`, so without the stated pair it was shown
+ * `one gill of milk` beside `0.5 cup` and correctly disagreed with a line we had parsed RIGHT. The premise
+ * is false; the marker crosses a wire, and the `CONTRACT_HASH` moved.
+ *
+ * ⚠️ WHAT IS STILL REFUSED, and this half of the old note stands: do NOT add a historical-unit provenance
+ * field to {@link RecipeNutrition} or to `RecipeIngredient` to "restore the symmetry". Neither carries
+ * `sourceLine` either. Both are write-side provenance the gate reads; the disclosure a COOK gets is the
+ * sentence `describeConversions` writes into the recipe's own description.
  *
  * The domain of "a bound" is the pair `quantityLowerBound`/`quantityUpperBound` answer, so both members are
  * named here even though today's policy only ever collapses to `low` — a client renders the bound it is

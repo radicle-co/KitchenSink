@@ -21,6 +21,12 @@
  *     key would be refused at the boundary.
  *  4. **The source's own words survive the restatement** into `notes` and `sourceLine`, which is what
  *     makes R35's marker checkable by a human reading the recipe rather than only by a machine.
+ *  5. **The source's own MEASURE survives it too**, as structured data on `statedMeasure` — the seam the
+ *     defect actually lived in. `restateHistoricalUnit` attaches the conversion to the candidate and
+ *     `toImportedIngredientLine` reads the stated half off it; each stage was correct in isolation and the
+ *     EDGE between them was missing, which no unit test of either stage can observe. The symptom was U11's
+ *     gate being shown `0.5 cup` for a line reading `one gill of milk` and correctly disagreeing with a
+ *     parse that was right.
  *
  * ⛔ This tier needs NO booted service and NO network, so unlike `importCookbook.integration.test.ts` it
  * never skips. The boundary it crosses is the CONTRACT and the third-party parser, not the transport.
@@ -119,6 +125,39 @@ describe('a historical measure, from prose to the shipped contract', () => {
         expect(britishMilk?.quantity).toEqual({ kind: 'exact', value: 0.6 });
         expect(americanMilk?.unit).toBe('cup');
         expect(britishMilk?.unit).toBe('cup');
+
+        // ⛔ AND BOTH CARRY THE GILL. The two restatements differ, but the source printed the SAME words in
+        // both books — which is precisely why the gate must be asked about the stated pair rather than about
+        // a number that depends on which book the line came from.
+        expect(americanMilk?.statedMeasure).toEqual({ quantity: { kind: 'exact', value: 1 }, unit: 'gill' });
+        expect(britishMilk?.statedMeasure).toEqual({ quantity: { kind: 'exact', value: 1 }, unit: 'gill' });
+    });
+
+    /**
+     * ⛔ THE SEAM ONLY THIS TIER CAN PROVE, and the one the defect actually lived in.
+     *
+     * Every stage in isolation looked right: `convertHistoricalUnit` returned both halves,
+     * `restateHistoricalUnit` attached the conversion, `toImportedIngredientLine` built a valid body. What
+     * was missing was the EDGE between the last two — the stated half was never read off the candidate — and
+     * the only symptom was a verification gate shown `0.5 cup` for a line reading `one gill of milk`,
+     * disagreeing with a parse that was correct. A unit test of either stage passes either way.
+     */
+    it('every restated line carries its stated measure onto the body, and no other line does', () => {
+        const { lines, body } = candidateFor('international-jewish');
+
+        const restatedNames = lines
+            .filter((line) => line.unitConversion !== undefined)
+            .map((line) => line.name)
+            .sort();
+        const carryingNames = body.ingredients
+            .filter((line) => line.statedMeasure !== undefined)
+            .map((line) => line.name)
+            .sort();
+
+        // Set equality in BOTH directions: a line that was restated must carry the fact, and a line that was
+        // not must not claim it. The block states three historical measures, so this is not a vacuous pass.
+        expect(restatedNames.length).toBeGreaterThan(0);
+        expect(carryingNames).toEqual(restatedNames);
     });
 
     it('teaches the real parser every historical measure in the block, so none is dropped', () => {

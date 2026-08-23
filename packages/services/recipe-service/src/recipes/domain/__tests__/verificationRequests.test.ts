@@ -24,7 +24,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core';
+import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity, type StatedAmount } from '@kitchensink/recipe-core';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 import {
     verifyIngredientLineMessageSchema,
@@ -47,12 +47,24 @@ function amount(low: number, high?: number): IngredientQuantity {
     return quantity;
 }
 
+/** The same fixture, narrowed to the union a stated measure admits — it can never be `absent`. */
+function statedAmount(low: number, high?: number): StatedAmount {
+    const quantity = amount(low, high);
+
+    if (quantity.kind === 'absent') {
+        throw new Error('fixture bug: a stated amount is never absent');
+    }
+
+    return quantity;
+}
+
 const makeLine = (overrides: Partial<VerifiableLine> = {}): VerifiableLine => ({
     sourceLine: '2 cups all-purpose flour, sifted',
     foodId: '01JFOOD000000000000000000',
     candidateFoodName: 'Flour, wheat, all-purpose',
     quantity: amount(2),
     unit: 'cup',
+    statedMeasure: undefined,
     ...overrides,
 });
 
@@ -296,5 +308,98 @@ describe('buildVerificationRequests — the owner travels with every request (00
         for (const request of requests) {
             expect(request.ownerId).toBe(OWNER_ID);
         }
+    });
+});
+
+/**
+ * U7/U11 — the pair the SOURCE printed travels with the request, so the model is asked the right question.
+ *
+ * ⛔ THE DEFECT THESE ASSERTIONS PIN. The importer restates a historical measure at parse time, so
+ * `one gill of milk` persists as `quantity 0.5, unit 'cup'` — and this producer builds the message's
+ * `quantityLow`/`unit` from the PERSISTED row. The model was therefore shown `one gill of milk` beside
+ * `0.5 cup` and asked whether they agree. They do not, and it is RIGHT to say so about a line we parsed
+ * correctly. U11 ranks a wrong DISAGREE as the unacceptable direction, because it withholds nutrition from a
+ * correct line while a wrong AGREE only passes data that would have shipped anyway.
+ */
+describe('buildVerificationRequests — what the SOURCE printed travels with the request', () => {
+    const GILL = { quantity: statedAmount(1), unit: 'gill' } as const;
+
+    /** A line the importer restated: the source printed `one gill`, we persisted `0.5 cup`. */
+    const restatedLine = (overrides: Partial<VerifiableLine> = {}): VerifiableLine =>
+        makeLine({
+            sourceLine: 'one gill of milk',
+            candidateFoodName: 'Milk, whole',
+            quantity: amount(0.5),
+            unit: 'cup',
+            statedMeasure: GILL,
+            ...overrides,
+        });
+
+    it('carries the stated measure onto the message', () => {
+        const { requests } = plan([restatedLine()]);
+
+        expect(requests[0]?.statedMeasure).toEqual({ quantityLow: 1, quantityHigh: null, unit: 'gill' });
+    });
+
+    // ⛔ BESIDE the restated pair, never instead of it. The restated pair is what nutrition is computed from
+    // and what U14's reader holds in hand, so it must keep keying the row; the stated pair is what the model
+    // is asked about. Dropping either half breaks a different half of the system.
+    it('still carries the RESTATED pair, which is what the row is keyed on', () => {
+        const { requests } = plan([restatedLine()]);
+
+        expect(requests[0]).toMatchObject({ quantityLow: 0.5, quantityHigh: null, unit: 'cup' });
+    });
+
+    it('carries both stated bounds when the source printed a range', () => {
+        const { requests } = plan([
+            restatedLine({
+                sourceLine: 'one to two gills of milk',
+                quantity: { kind: 'range', low: 0.5, high: 1 },
+                statedMeasure: { quantity: statedAmount(1, 2), unit: 'gill' },
+            }),
+        ]);
+
+        expect(requests[0]?.statedMeasure).toEqual({ quantityLow: 1, quantityHigh: 2, unit: 'gill' });
+    });
+
+    // The dominant case: nothing was restated, so nothing is claimed. Its ABSENCE is the disclosure, exactly
+    // as `RecipeNutrition.rangeDerivedBound`'s is — there is no "not applicable" value.
+    it('omits the member entirely for a line that was never restated', () => {
+        const { requests } = plan([makeLine()]);
+
+        expect(requests[0]?.statedMeasure).toBeUndefined();
+    });
+
+    /**
+     * ⛔ THE DEDUP KEY MOVES WITH IT, and this is the assertion that makes the `v2` key bump real.
+     *
+     * A restated line and an un-restated one can agree on every other member of the judgement — the corpus
+     * imported before migration 0027 and re-imported after it produce exactly that pair. They are shown
+     * DIFFERENT numbers and reach DIFFERENT verdicts, so if they shared an identity the second would be
+     * suppressed as "already requested" and would inherit the first's answer: the pre-0027 false DISAGREE,
+     * served to the corrected line forever, because absence of a verdict is the only thing that publishes.
+     */
+    it('does NOT suppress a restated line as a duplicate of its un-restated self', () => {
+        const { requests } = plan([restatedLine()], [restatedLine({ statedMeasure: undefined })]);
+
+        expect(requests).toHaveLength(1);
+        expect(requests[0]?.statedMeasure).toEqual({ quantityLow: 1, quantityHigh: null, unit: 'gill' });
+    });
+
+    it('DOES suppress a genuinely identical restated line', () => {
+        const { requests } = plan([restatedLine()], [restatedLine()]);
+
+        expect(requests).toHaveLength(0);
+    });
+
+    // Two lines of one recipe restated from DIFFERENT source measures are different judgements, so both are
+    // asked about — the within-save dedup must not collapse them onto the restated pair alone.
+    it('asks about two lines that share a restated pair but not a stated one', () => {
+        const { requests } = plan([
+            restatedLine(),
+            restatedLine({ statedMeasure: { quantity: statedAmount(1), unit: 'wineglass' } }),
+        ]);
+
+        expect(requests).toHaveLength(2);
     });
 });

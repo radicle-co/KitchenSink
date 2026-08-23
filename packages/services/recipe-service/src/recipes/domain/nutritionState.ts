@@ -72,7 +72,14 @@ export function toRecipeNutritionState(
     const sources = accounting.lines.map((line) => lineNutritionSource(line));
 
     if (sources.some((source) => source !== null)) {
-        const { calories, proteinG, carbsG, fatG, isComplete } = computeRecipeNutrition(accounting.lines, servings);
+        // ⛔ `rangeDerivedBound` is destructured and forwarded DELIBERATELY. It was omitted here, and because
+        // this is a positive enumeration rather than a spread, dropping it cost no compile error — the
+        // batch that feeds every recipe card published a figure that can sit up to a third under the stated
+        // range with no caveat, while the detail view disclosed it (R38).
+        const { calories, proteinG, carbsG, fatG, isComplete, rangeDerivedBound } = computeRecipeNutrition(
+            accounting.lines,
+            servings,
+        );
 
         return {
             state: 'known',
@@ -81,6 +88,7 @@ export function toRecipeNutritionState(
             carbsG,
             fatG,
             isComplete,
+            ...(rangeDerivedBound === undefined ? {} : { rangeDerivedBound }),
             // KTD-3b is "serve stale, MARKED" — and equally, do not mark what is not stale. A reading whose
             // accounted lines are all the user's own per-line overrides drew on NO food data, so a food
             // outage cannot have aged it; marking it would be a caveat about data it does not contain.

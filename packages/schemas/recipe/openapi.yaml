@@ -4733,6 +4733,11 @@ components:
               enum:
                 - fresh
                 - stale
+            rangeDerivedBound:
+              type: string
+              enum:
+                - low
+                - high
           required:
             - state
             - caloriesPerServing

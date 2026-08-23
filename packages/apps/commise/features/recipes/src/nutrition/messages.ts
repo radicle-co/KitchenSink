@@ -36,6 +36,15 @@ export interface RecipeNutritionMessages {
     readonly caloriesApproximateLabel: string;
     /** Accessible name for a reading that is both incomplete AND stale (contains `{calories}`). */
     readonly caloriesApproximateStaleLabel: string;
+    /**
+     * Accessible name for a figure computed from the LOW end of a stated range (R38, contains `{calories}`).
+     *
+     * ⛔ NAMES THE BOUND. "About N cal" alone would not: a reader cannot tell a figure that is missing some
+     * items from one that is a third under because the recipe said `2–3 cups` and we took the 2.
+     */
+    readonly caloriesRangeLowLabel: string;
+    /** Accessible name for a figure computed from the HIGH end of a stated range (contains `{calories}`). */
+    readonly caloriesRangeHighLabel: string;
     /** Disclosure copy: nothing in the recipe is matched to a food yet (`no_resolved_ingredients`). */
     readonly unaccountedNoResolvedIngredients: string;
     /** Disclosure copy: foods matched, but none carries qualifying nutrient data (`no_nutrient_data`). */
@@ -59,6 +68,8 @@ export const recipeNutritionMessages: LocalizedMessages<RecipeNutritionMessages>
         caloriesStaleLabel: '{calories} cal, may be out of date',
         caloriesApproximateLabel: 'About {calories} cal, some items aren’t counted yet',
         caloriesApproximateStaleLabel: 'About {calories} cal, some items aren’t counted yet and may be out of date',
+        caloriesRangeLowLabel: 'About {calories} cal, counted from the lower amount in this recipe’s range',
+        caloriesRangeHighLabel: 'About {calories} cal, counted from the upper amount in this recipe’s range',
         unaccountedNoResolvedIngredients: 'No nutrition yet — none of these ingredients is matched to a food.',
         unaccountedNoNutrientData: 'No nutrition yet — the matched foods carry no nutrient data.',
         unaccountedFoodUnavailable: 'Nutrition is unavailable right now. Try again shortly.',

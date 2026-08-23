@@ -46,7 +46,7 @@ import type { RecipeNutritionMessages } from './messages.js';
  */
 export type RecipeCalorieReading = Pick<
     Extract<RecipeNutritionState, { state: 'known' }>,
-    'state' | 'caloriesPerServing' | 'isComplete' | 'freshness'
+    'state' | 'caloriesPerServing' | 'isComplete' | 'freshness' | 'rangeDerivedBound'
 >;
 
 /** A settled reading with NO figure, and the reason why — the wire member verbatim. */
@@ -180,15 +180,26 @@ export const toCalorieChipModel = (
     messages: RecipeNutritionMessages,
 ): RecipeCalorieChipModel => {
     const isStale = reading.freshness === 'stale';
-    const isApproximate = !reading.isComplete;
+    // ⛔ A RANGE-DERIVED figure is approximate too, and saying so is R38. `computeRecipeNutrition` collapses
+    // a stated range to ONE bound, so the number can sit up to a third under what the recipe actually says.
+    // The detail view has always disclosed it; this batch feeds every recipe, discovery and collection CARD
+    // and silently did not, which put two opposite honesty postures on one page.
+    const isRangeDerived = reading.rangeDerivedBound !== undefined;
+    const isApproximate = !reading.isComplete || isRangeDerived;
     const calories = formatCalories(reading.caloriesPerServing, locale);
-    const labelTemplate = isApproximate
-        ? isStale
-            ? messages.caloriesApproximateStaleLabel
-            : messages.caloriesApproximateLabel
-        : isStale
-          ? messages.caloriesStaleLabel
-          : messages.calories;
+    // The bound is NAMED rather than merely implied, which is the half of R38 a bare "~" does not carry: a
+    // reader has to be able to tell which end of `2–3 cups` the figure came from.
+    const labelTemplate = isRangeDerived
+        ? reading.rangeDerivedBound === 'high'
+            ? messages.caloriesRangeHighLabel
+            : messages.caloriesRangeLowLabel
+        : isApproximate
+          ? isStale
+              ? messages.caloriesApproximateStaleLabel
+              : messages.caloriesApproximateLabel
+          : isStale
+            ? messages.caloriesStaleLabel
+            : messages.calories;
 
     return {
         text: fillTemplate(isApproximate ? messages.caloriesApproximate : messages.calories, { calories }),

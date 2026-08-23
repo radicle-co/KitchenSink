@@ -132,3 +132,37 @@ describe('unaccountedReasonText', () => {
         expect(texts.every((text) => text.length > 0)).toBe(true);
     });
 });
+
+describe('R38 — a range-derived calorie figure on a CARD', () => {
+    /** A settled, complete, fresh reading — the case that used to render with no caveat at all. */
+    const reading = { state: 'known', caloriesPerServing: 420, isComplete: true, freshness: 'fresh' } as const;
+
+    it('⛔ marks the figure approximate when it came from a collapsed range', () => {
+        // `computeRecipeNutrition` collapses `2–3 cups` to ONE bound, so the number can sit up to a third
+        // under what the recipe says. The detail view has always disclosed that; the batch feeding every
+        // recipe, discovery and collection card silently did not — two opposite honesty postures on one
+        // page, which is exactly what R38 exists to stop.
+        const model = toCalorieChipModel({ ...reading, rangeDerivedBound: 'low' }, 'en', recipeNutritionMessages.en);
+
+        expect(model.isApproximate).toBe(true);
+        expect(model.text).toBe('~420 cal');
+    });
+
+    it('⛔ NAMES the bound in the accessible name, which a bare "~" does not', () => {
+        const low = toCalorieChipModel({ ...reading, rangeDerivedBound: 'low' }, 'en', recipeNutritionMessages.en);
+        const high = toCalorieChipModel({ ...reading, rangeDerivedBound: 'high' }, 'en', recipeNutritionMessages.en);
+
+        expect(low.label).toContain('lower amount');
+        expect(high.label).toContain('upper amount');
+        // A reader must be able to tell "some items aren't counted" from "we took the low end of a range".
+        expect(low.label).not.toBe(high.label);
+        expect(low.label).not.toContain('aren’t counted yet');
+    });
+
+    it('leaves a figure that came from no range exactly as it was', () => {
+        const model = toCalorieChipModel(reading, 'en', recipeNutritionMessages.en);
+
+        expect(model.isApproximate).toBe(false);
+        expect(model.text).toBe('420 cal');
+    });
+});

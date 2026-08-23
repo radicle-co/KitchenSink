@@ -496,6 +496,15 @@ export const recipeNutritionStateSchema = z.discriminatedUnion('state', [
             isComplete: z.boolean(),
             /** Whether the underlying food data is current, or served from cache during an outage. */
             freshness: z.enum(['fresh', 'stale']),
+            /**
+             * Which bound a collapsed range's figure was taken from, when one was (R38).
+             *
+             * ⛔ ABSENT IS A STATEMENT, not a gap: the figure was not derived from a range at all. Publishing
+             * a low-bound figure with no provenance is what R38 exists to stop — the detail view discloses it
+             * and this batch, which feeds EVERY recipe card, silently did not, so one page carried two
+             * opposite honesty postures about the same number.
+             */
+            rangeDerivedBound: z.enum(['low', 'high']).optional(),
         })
         .strict(),
     z

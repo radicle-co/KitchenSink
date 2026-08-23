@@ -69,6 +69,16 @@ appId: io.commise.mobile
 
           # Sc10 — rating reveals the remove affordance; removing it succeeds and withdraws the affordance,
           # restoring the caller's contribution to zero (leaving the shared seed net-unchanged).
-          - assertVisible: 'Remove my rating'
+          # ⚠️ SCROLLED to, not merely asserted. Rating the recipe CHANGES THE LAYOUT ABOVE this control:
+          # the community aggregate goes from the one-line "Not yet rated" to a star row, so everything
+          # below it shifts down by roughly that difference. The scroll above stopped as soon as
+          # `Rate 4 stars` was visible — i.e. near the bottom of the viewport — so the newly revealed
+          # `Remove my rating` lands just off-screen and a bare `assertVisible` passes or fails on where
+          # the scroll increments happened to stop. It is still an assertion that the control APPEARS;
+          # `scrollUntilVisible` fails if it does not exist.
+          - scrollUntilVisible:
+                element: 'Remove my rating'
+                direction: DOWN
+                timeout: 20000
           - tapOn: 'Remove my rating'
           - assertNotVisible: 'Remove my rating'

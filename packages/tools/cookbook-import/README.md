@@ -132,6 +132,36 @@ Two consequences are recorded rather than hidden:
   the authored servings, so `1` is the only value under which the stored quantities are the printed ones and
   "scale to 2" doubles them. Any other value silently rescales every quantity by a factor nobody measured.
 
+## The parse model comparison (`src/parseComparison/`, `scripts/parseModelComparison.ts`)
+
+A **measurement harness**, not part of the import. It asks three Amazon Bedrock models to parse the same
+ingredient lines this package extracts, and reports three things that need no labelled answer: **contract
+compliance** (is the response a bare JSON document of the declared shape), **determinism** (the same line
+twice at `temperature: 0`), and **agreement with the `ingredient-parser-nlp` CRF parser**, field by field on
+normalised text. Neither parser is declared correct where they differ — the point is to size and characterise
+the disagreement.
+
+It lives here because its subject is this package's subject: the corpus, the prose→clause extraction and the
+operator-downloaded-file rule are all already here. It is dev-only and ships nowhere.
+
+⛔ **It spends real money on developer credentials, outside ADR-0024's counter.** Use `--limit` first and read
+the printed worst-case estimate. ⛔ **Do not commit corpus dumps or raw response logs** — `--out` writes to a
+scratch path.
+
+⚠️ **Pin the CRF parser.** Its model file ships inside the package, so an unpinned upgrade changes what
+"the CRF said" means and moves every agreement figure without a line of our code changing. The report was
+measured against **`ingredient-parser-nlp==2.3.0`**, which is what CI installs.
+
+```bash
+pip3 install --user 'ingredient-parser-nlp==2.3.0'
+curl -fL -o /tmp/pg12350.txt https://www.gutenberg.org/cache/epub/12350/pg12350.txt   # by hand, once
+
+AWS_REGION=us-east-1 npm run parse-comparison --workspace=@kitchensink/cookbook-import -- \
+  --book /tmp/pg12350.txt --limit 20
+```
+
+Findings: [`docs/reports/2026-08-23-002-ingredient-parse-model-comparison.md`](../../../docs/reports/2026-08-23-002-ingredient-parse-model-comparison.md).
+
 ## Tests
 
 ```bash

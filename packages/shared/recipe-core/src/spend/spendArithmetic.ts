@@ -65,6 +65,19 @@ export const NOVA_MICRO_MODEL_ID = 'amazon.nova-micro-v1:0';
 export const CLAUDE_HAIKU_4_5_MODEL_ID = 'anthropic.claude-haiku-4-5-20251001-v1:0';
 
 /**
+ * Amazon Nova Lite — the next rung of the same family, priced so the bake-off can ask whether Micro is
+ * leaving quality on the table.
+ *
+ * ⚠️ Being priced here is NOT a decision to ship it. {@link BEDROCK_RATE_TABLE} is the authority for what may
+ * be CALLED; ADR-0024 §4a's shipped default is still Nova Micro, and moving it is an SSM change plus an ADR.
+ * What this entry buys is that a family sweep can be run and costed without inventing a rate.
+ */
+export const NOVA_LITE_MODEL_ID = 'amazon.nova-lite-v1:0';
+
+/** Amazon Nova Pro — the top of the family sweep. Same caveat as {@link NOVA_LITE_MODEL_ID}. */
+export const NOVA_PRO_MODEL_ID = 'amazon.nova-pro-v1:0';
+
+/**
  * The ceiling the CDK seeds the SSM parameter with — R23's owner-set $100 per calendar month.
  *
  * ⛔ Like {@link NOVA_MICRO_MODEL_ID}, this is a SEED and not the live value. R23 requires the ceiling be
@@ -122,12 +135,19 @@ export interface ModelRate {
  *
  * ⛔ MEMBERSHIP IS AUTHORIZATION. A model absent from this table cannot be reserved for and therefore cannot
  * be called, whatever the SSM parameter says — see {@link planReservation}. Adding a model here is the
- * decision to allow it; the bake-off roster is Nova Micro vs Claude Haiku 4.5 and nothing else.
+ * decision to ALLOW it, which is not the same as the decision to SHIP it: ADR-0024 §4a's shipped default is
+ * Nova Micro, and changing that is an SSM parameter plus an ADR, never an edit here.
  *
- * ⚠️ Cache rates are derived as multiples of the input rate (0.1x read, 1.25x write), which are the
- * industry-standard discount and the documented 5-minute cache-write premium. They are NOT read from a price
- * list, because the branch that uses them cannot be reached at this prompt size; they exist to keep
- * {@link worstCaseMicros} a true bound rather than to bill anyone.
+ * ⚠️ THE ENTRIES DO NOT ALL HAVE THE SAME PROVENANCE, and {@link ModelRate.priceVerified} is where that
+ * lives. Cache rates on the two ORIGINAL entries are derived as multiples of the input rate (0.1x read,
+ * 1.25x write) — the industry-standard discount and the documented 5-minute cache-write premium — because
+ * the branch that uses them cannot be reached at this prompt size; they exist to keep {@link worstCaseMicros}
+ * a true bound rather than to bill anyone. The two Nova family additions carry cache rates READ from the
+ * Price List API instead, and those two published figures differ from the derived ones in BOTH directions
+ * (Nova reads cost 0.25x input, not 0.1x; Nova writes are free, not 1.25x). ⚠️ That mismatch is a live
+ * discrepancy against Nova Micro's own derived cache rates, which no longer look like a safe assumption — it
+ * is recorded rather than silently corrected, because narrowing a SHIPPED reservation is an ADR-0024 decision
+ * and not a side effect of pricing two new models.
  */
 export const BEDROCK_RATE_TABLE: Readonly<Record<string, ModelRate>> = Object.freeze({
     // Read from the AWS Pricing API on 2026-08-20, us-east-1: $0.035/1M input, $0.14/1M output. Reproduces
@@ -151,6 +171,43 @@ export const BEDROCK_RATE_TABLE: Readonly<Record<string, ModelRate>> = Object.fr
         cacheWriteMicrosPerMillionTokens: 1_250_000,
         effectiveDate: '2026-08-20',
         priceVerified: false,
+    }),
+    // ⛔ READ 2026-08-23 from the AWS Price List API — the PRIMARY source, and the same query that reproduces
+    // Nova Micro's committed figures exactly:
+    //   aws pricing get-products --service-code AmazonBedrock --region us-east-1 \
+    //     --filters Type=TERM_MATCH,Field=model,Value="Nova Lite" \
+    //               Type=TERM_MATCH,Field=regionCode,Value=us-east-1
+    // `feature: On-demand Inference`, publicationDate 2026-08-20, effectiveDate 2026-08-01, us-east-1:
+    //   input $0.00006/1K · output $0.00024/1K · cache read $0.000015/1K · cache write $0.00/1K.
+    // ⚠️ Every price on this entry — cache rates INCLUDED — is read, not derived. `aws.amazon.com/bedrock/
+    // pricing/` renders its tables client-side and cannot be fetched, which is why the Price List API is the
+    // source of record here as it was for Nova Micro.
+    [NOVA_LITE_MODEL_ID]: Object.freeze({
+        inputMicrosPerMillionTokens: 60_000,
+        outputMicrosPerMillionTokens: 240_000,
+        cacheReadMicrosPerMillionTokens: 15_000,
+        // ⛔ ZERO IS THE PUBLISHED RATE, not a missing value: the Nova family bills nothing for cache WRITES
+        // (`USE1-NovaLite-cache-write-input-token-count` = $0.0000000000/1K). It collapses `worstCaseMicros`'
+        // dearest-input rate onto the fresh input rate, which is still a TRUE bound — Bedrock defines total
+        // input as `inputTokens + cacheReadInputTokens + cacheWriteInputTokens`, so every partition of layer
+        // 1's input cap costs at most the cap charged entirely as fresh input. Asserted over the whole table.
+        cacheWriteMicrosPerMillionTokens: 0,
+        effectiveDate: '2026-08-23',
+        priceVerified: true,
+    }),
+    // Same query and same source as Nova Lite, `Value="Nova Pro"`: input $0.0008/1K · output $0.0032/1K ·
+    // cache read $0.0002/1K · cache write $0.00/1K.
+    // ⚠️ Nova Pro ALSO publishes `flex` (0.5x) and `priority` (1.75x) service-tier dimensions. These are the
+    // STANDARD on-demand rates, which is what a `Converse` call with no service tier is billed at; pricing a
+    // flex or priority run off this entry would be wrong in both directions.
+    [NOVA_PRO_MODEL_ID]: Object.freeze({
+        inputMicrosPerMillionTokens: 800_000,
+        outputMicrosPerMillionTokens: 3_200_000,
+        cacheReadMicrosPerMillionTokens: 200_000,
+        // See the Nova Lite entry — published zero, not an omission.
+        cacheWriteMicrosPerMillionTokens: 0,
+        effectiveDate: '2026-08-23',
+        priceVerified: true,
     }),
 });
 

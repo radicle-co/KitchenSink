@@ -20,7 +20,9 @@ import {
     BEDROCK_RATE_TABLE,
     DEFAULT_MONTHLY_CEILING_MICROS,
     MICROS_PER_DOLLAR,
+    NOVA_LITE_MODEL_ID,
     NOVA_MICRO_MODEL_ID,
+    NOVA_PRO_MODEL_ID,
     actualCostMicros,
     headroomMicros,
     periodKey,
@@ -34,6 +36,23 @@ const NOVA = rateFor(NOVA_MICRO_MODEL_ID);
 
 if (NOVA === undefined) {
     throw new Error('the rate table must price the model the gate ships with');
+}
+
+/** Tokens per "per-1K tokens" quote — the denominator the AWS Price List API's Bedrock dimensions use. */
+const TOKENS_PER_PRICE_LIST_UNIT = 1_000;
+
+/**
+ * The dollars-per-1,000-tokens figure a stored rate asserts, i.e. the number the price list itself prints.
+ *
+ * ⛔ The assertions below compare against the PUBLISHED quote rather than against a recomputation of the
+ * stored integer, so a transcription slip (a dropped zero, a per-1M figure pasted into a per-1K field) fails
+ * here instead of silently under-counting real money for a month.
+ *
+ * @param microsPerMillionTokens - The stored rate.
+ * @returns USD per 1,000 tokens. Pure.
+ */
+function usdPerThousandTokens(microsPerMillionTokens: number): number {
+    return (microsPerMillionTokens / MICROS_PER_DOLLAR) * (TOKENS_PER_PRICE_LIST_UNIT / 1_000_000);
 }
 
 describe('periodKey', () => {
@@ -68,6 +87,46 @@ describe('rateFor', () => {
         // the ADR calls settled.
         expect(NOVA.inputMicrosPerMillionTokens).toBe(35_000);
         expect(NOVA.outputMicrosPerMillionTokens).toBe(140_000);
+    });
+
+    it.each([
+        // ⛔ READ 2026-08-23 from the AWS Price List API — `aws pricing get-products --service-code
+        // AmazonBedrock --filters Field=model,Value="Nova Lite" Field=regionCode,Value=us-east-1`, the
+        // `On-demand Inference` feature, publicationDate 2026-08-20 / effectiveDate 2026-08-01. The same
+        // query reproduces Nova Micro's committed $0.035 / $0.14 exactly, which is what makes it the primary
+        // source ADR-0024 asks for rather than a second unverified entry.
+        [NOVA_LITE_MODEL_ID, 'input', 'inputMicrosPerMillionTokens', 60_000, 0.00006],
+        [NOVA_LITE_MODEL_ID, 'output', 'outputMicrosPerMillionTokens', 240_000, 0.00024],
+        [NOVA_LITE_MODEL_ID, 'cache read', 'cacheReadMicrosPerMillionTokens', 15_000, 0.000015],
+        [NOVA_LITE_MODEL_ID, 'cache write', 'cacheWriteMicrosPerMillionTokens', 0, 0],
+        [NOVA_PRO_MODEL_ID, 'input', 'inputMicrosPerMillionTokens', 800_000, 0.0008],
+        [NOVA_PRO_MODEL_ID, 'output', 'outputMicrosPerMillionTokens', 3_200_000, 0.0032],
+        [NOVA_PRO_MODEL_ID, 'cache read', 'cacheReadMicrosPerMillionTokens', 200_000, 0.0002],
+        [NOVA_PRO_MODEL_ID, 'cache write', 'cacheWriteMicrosPerMillionTokens', 0, 0],
+    ] as const)('prices %s %s at the published $%s… rate', (modelId, _label, field, micros, usdPerThousand) => {
+        const rate = rateFor(modelId);
+
+        expect(rate).toBeDefined();
+        expect(rate?.[field]).toBe(micros);
+        expect(usdPerThousandTokens(rate?.[field] ?? Number.NaN)).toBeCloseTo(usdPerThousand, 10);
+    });
+
+    it('records both Nova family additions as READ, not assumed', () => {
+        // ⛔ ADR-0024 already carries ONE entry whose price could not be read from a primary source. A second
+        // would turn the flag into decoration. These two were read; if that ever stops being true the flag
+        // must move, not the comment.
+        for (const modelId of [NOVA_LITE_MODEL_ID, NOVA_PRO_MODEL_ID]) {
+            expect(rateFor(modelId)?.priceVerified, modelId).toBe(true);
+            expect(rateFor(modelId)?.effectiveDate, modelId).toBe('2026-08-23');
+        }
+    });
+
+    it('keys the Nova family on the BARE model id, which is what on-demand inference accepts', () => {
+        // Both report `inferenceTypesSupported: ["ON_DEMAND", "INFERENCE_PROFILE"]`, so unlike Claude Haiku
+        // 4.5 they need no `us.` profile — and the rate table keys on the bare id either way, which is the
+        // distinction the bake-off runner's INVOCATION_IDS map exists to keep.
+        expect(NOVA_LITE_MODEL_ID).toBe('amazon.nova-lite-v1:0');
+        expect(NOVA_PRO_MODEL_ID).toBe('amazon.nova-pro-v1:0');
     });
 
     it('returns undefined for a model the table does not price', () => {
@@ -159,6 +218,39 @@ describe('worstCaseMicros', () => {
 
         for (const usage of usages) {
             expect(actualCostMicros(NOVA, usage), JSON.stringify(usage)).toBeLessThanOrEqual(worst);
+        }
+    });
+
+    it('bounds every input-token SPLIT, for EVERY model in the table', () => {
+        // ⛔ THE INVARIANT THE WHOLE CEILING RESTS ON, asserted over the table rather than over one model —
+        // because the way this breaks is somebody ADDING an entry, not somebody editing `worstCaseMicros`.
+        //
+        // Bedrock's prompt-caching reference states the shape the split may take:
+        //   "total input tokens = inputTokens + cacheReadInputTokens + cacheWriteInputTokens"
+        // so layer 1's input cap bounds the SUM of the three, and an admissible usage is any partition of it.
+        // A cache-write rate of ZERO (which the Nova family genuinely publishes) makes the dearest input rate
+        // collapse onto the fresh rate — this is what proves that collapse is still a true bound and not a
+        // reservation that can be exceeded.
+        const maxInput = 1_000;
+        const maxOutput = 200;
+
+        for (const [modelId, rate] of Object.entries(BEDROCK_RATE_TABLE)) {
+            const worst = worstCaseMicros(rate, maxInput, maxOutput);
+
+            for (let fresh = 0; fresh <= maxInput; fresh += 100) {
+                for (let read = 0; read <= maxInput - fresh; read += 100) {
+                    const usage = {
+                        inputTokens: fresh,
+                        outputTokens: maxOutput,
+                        cacheReadInputTokens: read,
+                        cacheWriteInputTokens: maxInput - fresh - read,
+                    };
+
+                    expect(actualCostMicros(rate, usage), `${modelId} ${JSON.stringify(usage)}`).toBeLessThanOrEqual(
+                        worst,
+                    );
+                }
+            }
         }
     });
 

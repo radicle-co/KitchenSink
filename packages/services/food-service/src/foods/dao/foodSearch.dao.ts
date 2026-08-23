@@ -58,6 +58,8 @@
 import { sql, type SQL } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
+import { describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
+
 import { catalogTieredSortKey } from './foodRelevance.js';
 
 /** Max search rows returned (FR-010). */
@@ -282,6 +284,25 @@ export class FoodSearchDao {
                    )`;
         const score = catalogTieredSortKey(query, baseMetric);
 
+        // ⛔ HEAD-TERM RETRIEVAL. U6 widened retrieval with a head-term branch and put it on the recipe-LOCAL
+        // table (`IngredientsDal.search`); its plan entry names two files, both in recipe-service. The
+        // catalog kept the five clauses below, and on 2026-08-22 that set was measured against 8,094 real
+        // USDA foods: `jalapeño` returned NOTHING (trigram 0.250 against the 0.3 threshold — 0.429 folded),
+        // `Kerrygold butter` returned NOTHING (the tsquery conjunction needs `kerrygold`; trigram 0.292,
+        // short by 0.008), and `Fresh oregano` returned `Basil, fresh` because `fresh & oregano` matched no
+        // row and both hits were earned on the modifier rather than the food.
+        //
+        // `rank_tokens` is already the name's FOLDED, SINGULARIZED token array (migration 0008), so one
+        // containment test is head-term retrieval and diacritic folding at once — and it reuses the same
+        // `describeRankingQuery` the ranking above already calls, so retrieval and ranking cannot disagree
+        // about what the head term is. ⛔ Deliberately NOT `unaccent`: 0008 rejected it because its rules
+        // file is not NFD and could not be mirrored in TypeScript.
+        //
+        // ⚠️ It widens the CANDIDATE set only. The tier ladder still decides the order, so a head-term hit
+        // that is a poor match lands on a low rung rather than jumping the queue.
+        const head = describeRankingQuery(query).head;
+        const headTerm = head === undefined ? sql`` : sql` OR rank_tokens @> ARRAY[${head}]::text[]`;
+
         return sql`
             SELECT id, name, ${score} AS score
             FROM food
@@ -293,6 +314,7 @@ export class FoodSearchDao {
                   OR name % ${query}
                   OR name ILIKE ${pattern} ESCAPE '\\'
                   OR description ILIKE ${pattern} ESCAPE '\\'
+                  ${headTerm}
               )
             ORDER BY score DESC, name ASC
             LIMIT ${limit}

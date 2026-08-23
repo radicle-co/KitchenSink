@@ -349,3 +349,100 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
     //
     // The measured before/after plans are recorded on T-198 in `specs/003-usda-food-data/tasks.md`.
 });
+
+/**
+ * Retrieval, not ranking — the half U6 fixed on the wrong table.
+ *
+ * ⛔ Measured 2026-08-22 against 8,094 real USDA foods: every one of these queries returned ZERO rows, so
+ * U5's tier ladder was never consulted for any of them. `rankingTiers.integration.test.ts` already proves
+ * the ladder bridges `jalapeño` → `jalapeno` at the `exact` rung, and that test is CORRECT and was passing
+ * the whole time — a green test over behaviour the product could not reach, because the retrieval predicate
+ * never returned the row for the ladder to rank.
+ *
+ * U6's plan entry names two files, both in recipe-service, and its head-term branch went onto
+ * `IngredientsDal.search` — the recipe-LOCAL table. The catalog kept
+ * `plainto_tsquery OR aliases_tsquery OR name % OR name ILIKE OR description ILIKE`, and that set has two
+ * holes these cases pin:
+ *
+ *  - **the tsquery is a CONJUNCTION.** `Fresh oregano` becomes `fresh & oregano`; the catalog's only oregano
+ *    row is `Spices, oregano, dried`, which has no `fresh`, so it matched nothing and the query came back
+ *    with `Basil, fresh` and `Thyme, fresh` — hits earned on the modifier the cook did not care about.
+ *  - **trigram is measured on the WHOLE name.** `similarity('Peppers, jalapeno, raw', 'jalapeño') = 0.250`
+ *    against the 0.3 threshold — and 0.429 once the diacritic is folded. `Kerrygold butter` against
+ *    `Butter, salted` is 0.292, short by 0.008.
+ *
+ * The fix reuses what U5 already stores: `rank_tokens` is the name's folded, singularized token array, so
+ * `rank_tokens @> ARRAY[head]` is head-term retrieval and diacritic folding in one predicate. ⛔ It is NOT
+ * the `unaccent` extension: migration 0008 explicitly rejected that because its rules file is not NFD and
+ * could not be mirrored in TypeScript, and the two engines must agree.
+ */
+describe.skipIf(!DATABASE_URL)('FoodSearchDao head-term retrieval (integration)', () => {
+    let pool: pg.Pool;
+    let db: TestDb;
+    let dao: FoodSearchDao;
+
+    beforeAll(async () => {
+        pool = makePool();
+        db = makeDb(pool);
+        await resetSchema(pool);
+        dao = new FoodSearchDao(db);
+    });
+
+    afterAll(async () => {
+        await pool.end();
+    });
+
+    beforeEach(async () => {
+        await pool.query('TRUNCATE food CASCADE');
+    });
+
+    it('⛔ retrieves across a DIACRITIC the catalog does not carry', async () => {
+        await seedFood(pool, { id: 'f-jal', name: 'Peppers, jalapeno, raw' });
+
+        expect((await dao.search('jalapeño', 20)).map((row) => row.name)).toContain('Peppers, jalapeno, raw');
+    });
+
+    it('⛔ retrieves the head noun when the cook supplied a modifier the row does not have', async () => {
+        // The conjunction case. `Basil, fresh` is seeded precisely because it is what the query used to
+        // return INSTEAD — so this fails if the head-term branch is removed AND if it ever ranks below it.
+        await seedFood(pool, { id: 'f-ore', name: 'Spices, oregano, dried' });
+        await seedFood(pool, { id: 'f-bas', name: 'Basil, fresh' });
+
+        const names = (await dao.search('Fresh oregano', 20)).map((row) => row.name);
+
+        expect(names).toContain('Spices, oregano, dried');
+
+        // ⚠️ RETRIEVED, and still ranked BELOW `Basil, fresh` — asserted so the residual is pinned rather
+        // than discovered again later. Both rows land on the `base` rung: `covered` needs EVERY query token
+        // (neither row has both `fresh` and `oregano`), and `head` compares the NAME's head to the query's,
+        // which for `Spices, oregano, dried` is `spice` because USDA inverts its names. So the base metric
+        // decides and the shorter name wins on trigram length penalty.
+        //
+        // ⛔ This is a RANKING gap, not a retrieval one, and closing it means a new rung — "the query's head
+        // appears as a token in the name", which is stronger evidence than sharing an adjective. That is a
+        // change to U5's ladder shape, felt on BOTH surfaces, and it needs its own before/after measurement.
+        // Recorded in `docs/reports/2026-08-22-001-ingredient-resolution-measurement.md` rather than smuggled
+        // in behind a retrieval fix.
+        expect(names.indexOf('Basil, fresh')).toBeLessThan(names.indexOf('Spices, oregano, dried'));
+    });
+
+    it('retrieves the generic food behind a brand the catalog has never heard of', async () => {
+        await seedFood(pool, { id: 'f-but', name: 'Butter, salted' });
+
+        expect((await dao.search('Kerrygold butter', 20)).map((row) => row.name)).toContain('Butter, salted');
+    });
+
+    it('⛔ does NOT retrieve on a typo — widening retrieval must not become matching anything', async () => {
+        // `chikcen` is a transposition; trigram similarity to the chicken rows measured 0.067–0.075. If this
+        // starts returning rows, the predicate has stopped discriminating rather than started bridging.
+        await seedFood(pool, { id: 'f-chk', name: 'Chicken, broilers or fryers, breast' });
+
+        expect(await dao.search('chikcen', 20)).toHaveLength(0);
+    });
+
+    it('leaves a single-token query that already worked exactly as it was', async () => {
+        await seedFood(pool, { id: 'f-flr', name: 'Flour, wheat, all-purpose' });
+
+        expect((await dao.search('flour', 20)).map((row) => row.name)).toContain('Flour, wheat, all-purpose');
+    });
+});

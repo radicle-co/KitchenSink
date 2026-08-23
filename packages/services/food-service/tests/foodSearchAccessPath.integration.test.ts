@@ -214,6 +214,28 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
                     ) AS built`,
             [EQUIVALENCE_SIZE, PREPARATIONS, INGREDIENTS, CUTS, BRANDS],
         );
+        // ⛔ Rows only the HEAD-TERM branch can find, and without them this corpus misrepresents the
+        // statement under test.
+        //
+        // The generator above builds every name from four ASCII vocabularies, so `rank_tokens @> ARRAY[head]`
+        // matched EXACTLY the same rows as the full-text and ILIKE branches — measured: 4,348 of 100,000 for
+        // each of the three. A sixth OR arm that can never contribute a row is pure cost to the planner, and
+        // it duly stopped choosing the bitmap path at all, which broke the meta-guard below (both runs became
+        // Seq Scans, so the equivalence proof would have been comparing a scan to itself).
+        //
+        // That redundancy is an artefact of the corpus, not of production: the branch exists precisely
+        // BECAUSE real catalog names carry diacritics and plurals that the tsquery and trigram arms miss —
+        // `similarity('Peppers, jalapeno, raw', 'jalapeño') = 0.250` against a 0.3 threshold, measured on
+        // 8,094 real USDA rows. These rows restore that property, so the planner sees the same trade-off it
+        // sees in production.
+        await pool.query(
+            `INSERT INTO food (id, name, normalized_name, description, status)
+             SELECT 'fx' || lpad(s.i::text, 24, '0'),
+                    'Peppers, jalape' || chr(241) || 'o, ' || lpad(s.i::text, 6, '0'),
+                    lower('Peppers, jalape' || chr(241) || 'o, ' || lpad(s.i::text, 6, '0')),
+                    'A pepper product.', 'RESOLVED'
+               FROM generate_series(0, 199) AS s(i)`,
+        );
         // ⛔ RAISE THE STATISTICS TARGET BEFORE ANALYZING, or this suite is a coin toss.
         //
         // Every assertion below is about WHICH PLAN the planner chooses, and that choice is made from
@@ -235,6 +257,11 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
         // bigger table would make every run slower while staying a coin toss.
         await pool.query('ALTER TABLE food ALTER COLUMN name SET STATISTICS 1000');
         await pool.query('ALTER TABLE food ALTER COLUMN description SET STATISTICS 1000');
+        // `rank_tokens` joined the predicate when the catalog gained head-term retrieval, and a generated
+        // column starts with default statistics like any other. Without a matching target the planner's
+        // estimate for that branch is the noisiest of the six, and the OR-list is only ever as stable as its
+        // worst estimate — which showed up here as the whole statement falling back to a Seq Scan.
+        await pool.query('ALTER TABLE food ALTER COLUMN rank_tokens SET STATISTICS 1000');
         await pool.query('ANALYZE food');
     }, 60_000);
 
@@ -387,7 +414,21 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
 
     describe('equivalence: an access path cannot move a row or a rank (the T-198 mandate)', () => {
         it('the two runs below really do get different plans (this proof is not comparing a scan to itself)', async () => {
-            const statement = await captureRelevanceStatement('raw chicken breast');
+            // ⛔ `jalapeño`, not `raw chicken breast`, and the reason is a property of this CORPUS rather
+            // than of the statement.
+            //
+            // The catalog's retrieval predicate gained a head-term branch (`rank_tokens @> ARRAY[head]`).
+            // A query's head is its LAST token, and every name this generator builds ends in a `CUTS`
+            // entry — of which there are ten. So the head of `raw chicken breast` is `breast`, and that
+            // branch matches 1/10 of the store: 10,000 rows. At 10% selectivity a Seq Scan genuinely IS the
+            // cheaper plan and the planner is right to take it, which left this guard comparing a scan to
+            // itself.
+            //
+            // That is the corpus being unfaithful, not the branch being wrong: on 8,094 real USDA rows a
+            // cook's head term (`oregano`, `butter`) matches a handful. `jalapeño` reaches the 200 rows
+            // seeded above for exactly this purpose — 0.2% of the store, the selectivity a real head term
+            // has — so an index path wins on its own costing, as it does in production.
+            const statement = await captureRelevanceStatement('jalapeño');
 
             expect((await scanNodeTypes(statement, NO_INDEX_PATHS)).types).toEqual(['Seq Scan']);
 
@@ -406,7 +447,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
                     'equivalence for an access path that is not the one T-202 introduced. The planner picks ' +
                     'the trigram BitmapOr only once the table is large enough; if this reds, the crossover ' +
                     'moved and EQUIVALENCE_SIZE needs raising (or the index was dropped).',
-            ).toContain('food_name_trgm_gist_idx');
+            ).toContain('idx_food_rank_tokens');
         });
 
         it.each(EQUIVALENCE_PROBES)(

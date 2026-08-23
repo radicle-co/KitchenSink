@@ -27,6 +27,7 @@ import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtu
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photosDal.fixture.js';
 import { fakeRatingsDal } from '../__fixtures__/ratingsDal.fixture.js';
+import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 
 const VIEWER = '01J000000000000000000FREE0';
 const FLOUR_INGREDIENT = '00000000-0000-4000-8000-0000000000aa';
@@ -124,6 +125,7 @@ function newService(dal: RecipesDal, lookup: ReturnType<typeof vi.fn>): RecipesS
         RECIPE_PHOTOS_CDN,
         fakeRatingsDal(),
         { lookup } as never,
+        fakeVerificationQueue(),
     );
 }
 

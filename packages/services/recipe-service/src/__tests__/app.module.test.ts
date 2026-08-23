@@ -37,6 +37,7 @@ beforeAll(async () => {
         CLOUDFRONT_URL: 'http://localhost:4566/commise-photos',
         FOOD_SERVICE_URL: 'http://localhost:3002',
         ACCOUNT_ERASURE_QUEUE_URL: 'http://localhost:4566/000000000000/account-erasure',
+        INGREDIENT_VERIFICATION_QUEUE_URL: 'http://localhost:4566/000000000000/recipe-verification',
         DATABASE_URL: 'postgres://placeholder:placeholder@127.0.0.1:5432/placeholder',
     };
 

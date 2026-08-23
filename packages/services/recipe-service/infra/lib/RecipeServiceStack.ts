@@ -247,6 +247,23 @@ export class RecipeServiceStack extends Stack {
                 this,
                 `/kitchensink/${stage}/recipe/account-erasure-queue-url`,
             ),
+            // ⛔ THE VERIFICATION GATE'S QUEUE (plan U11 / ADR-0024), and the reason this line exists at all:
+            // U11 shipped the gate's CONSUMER complete — a Lambda, its queue and DLQ, its `bedrock:InvokeModel`
+            // grant, its EMF alarms and its spend ledger — and `RecipeWorkersStack` published this very
+            // parameter under the comment "cross-stack hand-off to recipe-service's PRODUCER". Nothing read
+            // it. The gate ran, alarmed and verified nothing, behind a fully green repository.
+            //
+            // UNCONDITIONAL, like FOOD_SERVICE_URL below and for the same reason: `ingredientVerificationConfigSchema`
+            // requires it, so a stage wired without a queue fails the DEPLOY instead of silently asking nobody.
+            //
+            // Keyed on `stage`, NOT `baseStage`: a pr-{N} preview must enqueue onto the pr-{N} queue, whose
+            // worker points at the pr-{N} logical database (ADR-0006) — and ADR-0024's spend counter lives in
+            // THAT database, so a message crossing stages would be judged against, and billed against, the
+            // wrong stage's ceiling.
+            INGREDIENT_VERIFICATION_QUEUE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/${stage}/recipe/verification-queue-url`,
+            ),
             // The food service (003) this stage's ingredients vertical reads through (issue #120).
             // UNCONDITIONAL: the service's config requires it, so an absent value is a boot failure, and the
             // previous conditional passthrough is precisely how the live task ended up with no food origin at
@@ -302,6 +319,25 @@ export class RecipeServiceStack extends Stack {
                     ssm.StringParameter.valueForStringParameter(
                         this,
                         `/kitchensink/${stage}/recipe/account-erasure-queue-arn`,
+                    ),
+                ],
+            }),
+        );
+
+        // sqs:SendMessage on the VERIFICATION queue, and nothing more (plan U11 / ADR-0024). A SEPARATE
+        // statement rather than a second resource on the one above, so each grant stays readable as "this
+        // role may send to exactly this queue" — and so removing one queue cannot silently widen the other.
+        //
+        // ⛔ Send only. The API PRODUCES verification work; the gate Lambda is the sole consumer, and it is
+        // also ADR-0024 layer 4b's single `bedrock:InvokeModel` grantee. A task role that could receive here
+        // could drain requests without verifying them, which would look exactly like a healthy quiet queue.
+        apiTaskRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['sqs:SendMessage'],
+                resources: [
+                    ssm.StringParameter.valueForStringParameter(
+                        this,
+                        `/kitchensink/${stage}/recipe/verification-queue-arn`,
                     ),
                 ],
             }),

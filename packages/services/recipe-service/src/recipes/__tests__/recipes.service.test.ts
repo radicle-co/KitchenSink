@@ -31,6 +31,7 @@ import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { RecipeIngredientInputDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
+import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -111,6 +112,7 @@ function newService(dal: RecipesDal, ratingsDal: RatingsDal = fakeRatingsDal()):
         RECIPE_PHOTOS_CDN,
         ratingsDal,
         nutritionGatewayDouble,
+        fakeVerificationQueue(),
     );
 }
 
@@ -184,6 +186,7 @@ describe('RecipesService.create', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         await service.create(principal(), CREATE_DTO);
@@ -212,6 +215,7 @@ describe('RecipesService.create', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         await service.create(principal(), { ...CREATE_DTO, deviceLabel: 'Pixel 8' });
@@ -230,6 +234,7 @@ describe('RecipesService.create', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         // A principal carrying first/last-name claims → deriveDisplayName → "Ada Lovelace".
@@ -260,6 +265,7 @@ describe('RecipesService.create', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         await service.create(principal(), CREATE_DTO);
@@ -307,6 +313,7 @@ describe('RecipesService.create', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         ).create(principal(), CREATE_DTO);
 
         // Exact snapshot: every mapped field is pinned (numeric coercion, the `?? ''`/`?? 1` fallbacks,
@@ -356,6 +363,7 @@ describe('RecipesService.create', () => {
                 RECIPE_PHOTOS_CDN,
                 fakeRatingsDal(),
                 nutritionGatewayDouble,
+                fakeVerificationQueue(),
             ).create(principal(), CREATE_DTO),
         ).resolves.toMatchObject({ id: 'r-1' });
         expect(consoleError).toHaveBeenCalled();
@@ -467,6 +475,7 @@ describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () =
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
     }
 
@@ -911,6 +920,7 @@ describe('RecipesService.update', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         await service.update(principal(), 'r-1', patch);
@@ -934,6 +944,7 @@ describe('RecipesService.update', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         await service.update(principal(), 'r-1', patch, { recordSnapshot: false });
@@ -955,6 +966,7 @@ describe('RecipesService.update', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         // An editor whose token claims derive to "Clara Oswald" — the same ONE rule create uses.
@@ -977,6 +989,7 @@ describe('RecipesService.update', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         // The default principal carries no first/last name → deriveDisplayName returns '' → the key is omitted
@@ -1129,6 +1142,7 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         ).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
@@ -1178,6 +1192,7 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         ).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
@@ -1584,6 +1599,7 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
     }
 
@@ -1623,6 +1639,7 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         await service.create(principal(), {

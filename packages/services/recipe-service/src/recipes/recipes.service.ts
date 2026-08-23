@@ -22,9 +22,13 @@ import {
     type NutritionLine,
     type RecipeNutrition,
     type RecipePhoto,
+    type Ingredient,
     type RecipeSnapshot,
     type VersionConflictSide,
 } from '@kitchensink/recipe-core';
+
+import { Logger } from '@nestjs/common';
+import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 
 import { toPageEnvelope } from '../common/pagination.js';
 import { VersionsService } from '../versions/versions.service.js';
@@ -52,6 +56,8 @@ import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/createRecipe.dto.js';
 import type { CreateRecipeIngredientInput } from './recipes.schema.js';
 import { carryForwardSourceLines } from './domain/sourceLineCarryForward.js';
+import { buildVerificationRequests, type VerifiableLine } from './domain/verificationRequests.js';
+import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipeResponse.dto.js';
@@ -64,6 +70,65 @@ import { FoodNutritionGateway } from '../ingredients/foodNutrition.gateway.js';
 
 /** DI token for the recipe DAL — provided by `RecipesModule` via `useFactory` over the Drizzle client. */
 export const RECIPES_DAL = 'RECIPES_DAL';
+
+/**
+ * What {@link RecipesService.resolveIngredientLines} produces: the link rows to persist, AND the catalog rows
+ * they were resolved against.
+ *
+ * The catalog half exists for the verification producer, which needs `foodId` and the catalog's canonical
+ * `name` — neither of which survives onto a `recipe_ingredients` row. Returning it reuses the batch read the
+ * method already performs rather than adding a second query to every recipe save.
+ */
+interface ResolvedIngredientLines {
+    readonly lines: ResolvedIngredientLine[];
+    readonly catalog: ReadonlyMap<string, Ingredient>;
+}
+
+/**
+ * Project a line the service is about to persist onto the gate's question.
+ *
+ * @param line - The resolved link row.
+ * @param catalog - The catalog rows, by ingredient id.
+ * @returns The verifiable projection. `foodId` is `undefined` for a user-entered ingredient, which the
+ *   producer reads as "there is no catalog identity to check". Pure.
+ */
+function toVerifiableLine(line: ResolvedIngredientLine, catalog: ReadonlyMap<string, Ingredient>): VerifiableLine {
+    const ingredient = catalog.get(line.ingredientId);
+
+    return {
+        sourceLine: line.sourceLine,
+        foodId: ingredient?.foodId,
+        // The CATALOG's name, never the caller's phrase: the gate asks whether the source line means THIS
+        // food, and our rendered name is the output of the very parse under test (0024's header makes this
+        // point — checking it against itself agrees by construction and verifies nothing).
+        candidateFoodName: ingredient?.name ?? line.ingredientName,
+        quantity: line.quantity,
+        unit: line.unit,
+    };
+}
+
+/**
+ * Project a line ALREADY STORED onto the same question, so an unchanged line is recognised as unchanged.
+ *
+ * ⚠️ `quantityFromColumns` is the ONE adapter that turns the two nullable `numeric` columns back into the
+ * value object — the same one the read projection and `ingredientsChanged` use. A local re-derivation here
+ * would make "unchanged" mean something subtly different from what the rest of the service means by it, and
+ * the only symptom would be a bill.
+ *
+ * @param row - The stored `recipe_ingredients` row.
+ * @param catalog - The catalog rows, by ingredient id. A row whose ingredient is absent from this map yields
+ *   no `foodId`, hence no judgement identity, hence no suppression — the SAFE direction (re-ask).
+ * @returns The verifiable projection. Pure.
+ */
+function storedLineToVerifiable(row: RecipeIngredientRow, catalog: ReadonlyMap<string, Ingredient>): VerifiableLine {
+    return {
+        sourceLine: row.sourceLine ?? undefined,
+        foodId: catalog.get(row.ingredientId)?.foodId,
+        candidateFoodName: row.ingredientName,
+        quantity: quantityFromColumns(row),
+        unit: row.unit,
+    };
+}
 
 /** DI token for the recipes vertical's own `PhotosDal` instance (embeds a recipe's photos in the detail). */
 export const RECIPE_PHOTOS_DAL = 'RECIPE_PHOTOS_DAL';
@@ -399,7 +464,14 @@ export class RecipesService {
         // for `RecipeDetail.viewerRating` (see RECIPE_RATINGS_DAL for why an own instance, not a module import).
         @Inject(RECIPE_RATINGS_DAL) private readonly ratingsDal: RatingsDal,
         private readonly foodNutrition: FoodNutritionGateway,
+        // ⛔ THE VERIFICATION GATE'S PRODUCER (plan U11 / ADR-0024). REQUIRED, not defaulted: U11 shipped the
+        // gate's consumer with nothing sending it a message, and a collaborator that defaults to a no-op is
+        // how that state comes back — silently, past a green suite. Every construction site must name it.
+        @Inject(VERIFICATION_QUEUE) private readonly verificationQueue: VerificationQueuePort,
     ) {}
+
+    /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
+    private readonly logger = new Logger(RecipesService.name);
 
     /**
      * Load a recipe's photo ROWS in display order. Returns rows (not wire views) because the detail read
@@ -695,7 +767,7 @@ export class RecipesService {
             throw invalidVisibility(decision.reason, { visibility: requested, sourceType: provenance.sourceType });
         }
 
-        const ingredients = await this.resolveIngredientLines(dto.ingredients);
+        const { lines: ingredients, catalog } = await this.resolveIngredientLines(dto.ingredients);
         // Denormalized author handle (W8-a.2 / decision 6): the initial value from the token claims via the
         // ONE shared rule. The handle-sync consumer keeps every owned recipe/version current thereafter.
         const authorHandle = deriveDisplayName(principal) || undefined;
@@ -735,6 +807,10 @@ export class RecipesService {
 
         await this.recordSnapshot(aggregate, principal.userId, 'Created', dto.deviceLabel, authorHandle);
 
+        // Ask the verification gate about the transcribed lines (plan U11 / ADR-0024). A create has nothing
+        // already on record, so `previous` is empty. Never throws — see `requestVerification`.
+        await this.requestVerification(aggregate.recipe.id, ingredients, catalog, []);
+
         // A freshly-created recipe has no photos yet (uploaded afterward); nutrition is computed from its lines.
         return this.toDetailResponse(aggregate, [], { caller });
     }
@@ -751,11 +827,11 @@ export class RecipesService {
      */
     private async resolveIngredientLines(
         lines: readonly CreateRecipeIngredientInput[],
-    ): Promise<ResolvedIngredientLine[]> {
+    ): Promise<ResolvedIngredientLines> {
         const ids = [...new Set(lines.map((line) => line.ingredientId))];
         const catalog = new Map((await this.ingredientsDal.findByIds(ids)).map((ing) => [ing.id, ing]));
 
-        return lines.map((line, index) => {
+        const resolved = lines.map((line, index) => {
             const ingredient = catalog.get(line.ingredientId);
 
             if (!ingredient) {
@@ -783,6 +859,62 @@ export class RecipesService {
                 ...(line.userFatG !== undefined ? { userFatG: line.userFatG } : {}),
             };
         });
+
+        // ⛔ The catalog map is RETURNED, not discarded, because the verification producer needs the two
+        // fields only it holds — `foodId` and the catalog's canonical `name`. Returning it costs nothing
+        // (the batch read already happened); re-reading it after the write would put a second query on
+        // every recipe save to recover data this method already had in hand.
+        return { lines: resolved, catalog };
+    }
+
+    /**
+     * Ask the verification gate about the lines this write changed (plan U11 / ADR-0024).
+     *
+     * ⛔ CALLED AFTER THE ROW IS PERSISTED, and its failure is SWALLOWED. Two rules, each with a reason:
+     *
+     *  - **After**, because the message carries the recipe's id — a producer that ran first would have
+     *    nothing to name.
+     *  - **Swallowed**, because the gate is a quality enhancement on an ASYNC path and
+     *    `0023_line_verifications.sql` establishes that absence of a verdict means PUBLISH. A lost message
+     *    degrades to exactly the behaviour the system had before the gate existed, so letting SQS fail a
+     *    save would trade a quality improvement for an availability regression. It is logged at `error`
+     *    so a SUSTAINED rate is visible as the "the gate is receiving nothing" signal it would be.
+     *
+     * @param recipeId - The persisted recipe.
+     * @param lines - The lines as they are now stored.
+     * @param catalog - The catalog rows those lines resolved to, by ingredient id.
+     * @param previous - The recipe's lines BEFORE this write; empty on a create.
+     * @sideEffect Sends SQS messages; logs on failure. Never throws.
+     */
+    private async requestVerification(
+        recipeId: string,
+        lines: readonly ResolvedIngredientLine[],
+        catalog: ReadonlyMap<string, Ingredient>,
+        previous: readonly RecipeIngredientRow[],
+    ): Promise<void> {
+        const requests = buildVerificationRequests({
+            recipeId,
+            lines: lines.map((line) => toVerifiableLine(line, catalog)),
+            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, catalog)),
+            thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
+            requestedAt: new Date().toISOString(),
+        });
+
+        if (requests.length === 0) {
+            // ⛔ Not an empty batch — no call at all. `SendMessageBatch` rejects an empty `Entries` list, so
+            // an unguarded call here would turn every hand-authored recipe save into a logged error.
+            return;
+        }
+
+        try {
+            await this.verificationQueue.enqueue(requests);
+        } catch (error) {
+            this.logger.error(
+                `failed to enqueue ${requests.length} verification request(s) for recipe ${recipeId}; ` +
+                    'the lines publish unverified, which is the behaviour that predates the gate',
+                error instanceof Error ? error.stack : String(error),
+            );
+        }
     }
 
     /**
@@ -903,10 +1035,9 @@ export class RecipesService {
         //    `toCreateRecipeInput`, which always emits the array), so "a metadata-only PATCH preserves them"
         //    describes a request no app makes. The rule is `domain/sourceLineCarryForward.ts`; it is applied
         //    HERE because this is the only layer holding both the stored aggregate and the resolved lines.
+        const resolved = dto.ingredients !== undefined ? await this.resolveIngredientLines(dto.ingredients) : undefined;
         const ingredients =
-            dto.ingredients !== undefined
-                ? this.withCarriedSourceLines(existing.ingredients, await this.resolveIngredientLines(dto.ingredients))
-                : undefined;
+            resolved === undefined ? undefined : this.withCarriedSourceLines(existing.ingredients, resolved.lines);
 
         // ⛔ No lead-calorie recompute here any more (plan U10). This block existed to keep a denormalized
         // column in step with the lines and the serving count; with the column dropped there is nothing to
@@ -967,6 +1098,14 @@ export class RecipesService {
             // version between our read and our write (the lost-update race). Raise the enriched 409 (or a
             // 404 if the row is genuinely gone). `return` narrows `updated` to defined below.
             return this.raiseVersionConflict(id, dto.expectedVersion);
+        }
+
+        if (ingredients !== undefined && resolved !== undefined) {
+            // ⛔ `existing.ingredients` is the ALREADY-REQUESTED set, and it is what stops a title edit from
+            // re-paying for every line: `replaceForRecipe` rewrites the whole set on every save, and both
+            // shipped clients send `ingredients` on every save. A patch that carries no `ingredients` asks
+            // nothing at all, because no judgement moved.
+            await this.requestVerification(id, ingredients, resolved.catalog, existing.ingredients);
         }
 
         if (options.recordSnapshot !== false) {

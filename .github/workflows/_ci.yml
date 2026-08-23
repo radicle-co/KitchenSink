@@ -1322,6 +1322,8 @@ jobs:
                   aws --endpoint-url http://localhost:4566 s3api create-bucket --bucket commise-photos
                   aws --endpoint-url http://localhost:4566 s3api create-bucket --bucket commise-versions
                   aws --endpoint-url http://localhost:4566 sqs create-queue --queue-name account-erasure
+                  # U11's verification queue — see the sibling comment in _ci-heavy.yml.
+                  aws --endpoint-url http://localhost:4566 sqs create-queue --queue-name recipe-verification
             # The food catalog, from the repo's OWN seeder — the one the k6 tier already uses. It writes
             # RESOLVED foods with full golden records (20 per-100 g nutrients + 3 portions + provenance),
             # which is exactly what the linkage proof consumes. Sized down from its 50,000-row default:
@@ -1394,6 +1396,11 @@ jobs:
                   export CLOUDFRONT_URL=http://localhost:4566/commise-photos
                   export SQS_ENDPOINT=http://localhost:4566
                   export ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/account-erasure
+                  # REQUIRED since U11's producer landed — the service refuses to boot without a
+                  # verification queue, deliberately (an optional URL is how the gate shipped inert).
+                  # The queue need not EXIST for this job: an enqueue failure is logged and swallowed,
+                  # because a lost verification request degrades to the pre-gate behaviour.
+                  export INGREDIENT_VERIFICATION_QUEUE_URL=http://localhost:4566/000000000000/recipe-verification
                   export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
                   cd packages/services/recipe-service
                   setsid nohup npx tsx dist/src/main.js > "${RUNNER_TEMP}/recipe-service.log" 2>&1 < /dev/null &

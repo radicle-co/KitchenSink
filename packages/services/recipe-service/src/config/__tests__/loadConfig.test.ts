@@ -33,6 +33,7 @@ const validEnv = (): Record<string, string> => ({
     CLOUDFRONT_URL: 'https://cdn.commise.app',
     DATABASE_URL: 'postgres://recipe_app@localhost:5432/kitchensink_recipes',
     ACCOUNT_ERASURE_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/account-erasure',
+    INGREDIENT_VERIFICATION_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/recipe-verification',
     FOOD_SERVICE_URL: 'https://food.commise.app',
 });
 
@@ -78,6 +79,18 @@ describe('loadConfig', () => {
 
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(ConfigValidationError);
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(/ACCOUNT_ERASURE_QUEUE_URL/);
+    });
+
+    it('requires INGREDIENT_VERIFICATION_QUEUE_URL — a stage must not boot asking the gate nothing', () => {
+        // ⛔ THE FAILURE THIS PREVENTS ALREADY HAPPENED ONCE. U11 shipped the verification gate's consumer —
+        // Lambda, queue, DLQ, IAM grant, alarms, spend ledger — with nothing producing a message, and every
+        // check in the repository stayed green. An OPTIONAL URL is how that returns: the service boots, saves
+        // recipes and silently asks nobody. Same reasoning as FOOD_SERVICE_URL below, same conclusion.
+        const env = validEnv();
+        delete env['INGREDIENT_VERIFICATION_QUEUE_URL'];
+
+        expect(() => loadConfig(apiConfigSchema, env)).toThrow(ConfigValidationError);
+        expect(() => loadConfig(apiConfigSchema, env)).toThrow(/INGREDIENT_VERIFICATION_QUEUE_URL/);
     });
 
     it('requires FOOD_SERVICE_URL — a stage must not boot pointed at nothing (issue #120)', () => {

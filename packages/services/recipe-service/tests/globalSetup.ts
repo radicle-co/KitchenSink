@@ -56,6 +56,15 @@ export const SEED_BUCKETS = ['commise-photos', 'commise-versions'] as const;
 export const SEED_ERASURE_QUEUE_NAME = 'account-erasure';
 
 /**
+ * The ingredient-verification queue's name (plan U11 / ADR-0024).
+ *
+ * `RecipesModule` reads its URL from `INGREDIENT_VERIFICATION_QUEUE_URL`, which
+ * `ingredientVerificationConfigSchema` makes REQUIRED — so without this queue the app under test does not
+ * boot at all, and every integration spec in the package fails rather than only the verification one.
+ */
+export const SEED_VERIFICATION_QUEUE_NAME = 'recipe-verification';
+
+/**
  * LocalStack's fixed default AWS account id. Not a secret and not configurable — it is the constant
  * LocalStack namespaces every queue URL under.
  */
@@ -75,6 +84,14 @@ const LOCALSTACK_ACCOUNT_ID = '000000000000';
  * asserting on it can never address different queues.
  */
 export const SEED_ERASURE_QUEUE_URL = `${SQS_ENDPOINT}/${LOCALSTACK_ACCOUNT_ID}/${SEED_ERASURE_QUEUE_NAME}`;
+
+/**
+ * The `recipe-verification` queue URL the booted app and the specs both address.
+ *
+ * Path-style for the same reason {@link SEED_ERASURE_QUEUE_URL} is, and exported as the ONE definition of
+ * this queue's address so the app under test and the spec draining it cannot address different queues.
+ */
+export const SEED_VERIFICATION_QUEUE_URL = `${SQS_ENDPOINT}/${LOCALSTACK_ACCOUNT_ID}/${SEED_VERIFICATION_QUEUE_NAME}`;
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/database/migrations');
 
@@ -124,7 +141,7 @@ async function provisionBuckets(): Promise<void> {
 }
 
 /**
- * Create the `account-erasure` SQS queue. Idempotent: `CreateQueue` on an existing queue with identical
+ * Create the SQS queues the app under test enqueues onto. Idempotent: `CreateQueue` on an existing queue with identical
  * attributes is a no-op that returns the same URL (verified against LocalStack 3).
  *
  * Static `test` credentials mirror `createSqsErasureQueue`'s LocalStack branch, so the harness is
@@ -132,7 +149,7 @@ async function provisionBuckets(): Promise<void> {
  *
  * @sideEffect Network call to LocalStack; creates the queue.
  */
-async function provisionErasureQueue(): Promise<void> {
+async function provisionQueues(): Promise<void> {
     const sqs = new SQSClient({
         endpoint: SQS_ENDPOINT,
         region: process.env['AWS_REGION'] ?? 'us-east-1',
@@ -140,7 +157,9 @@ async function provisionErasureQueue(): Promise<void> {
     });
 
     try {
-        await sqs.send(new CreateQueueCommand({ QueueName: SEED_ERASURE_QUEUE_NAME }));
+        for (const name of [SEED_ERASURE_QUEUE_NAME, SEED_VERIFICATION_QUEUE_NAME]) {
+            await sqs.send(new CreateQueueCommand({ QueueName: name }));
+        }
     } finally {
         sqs.destroy();
     }
@@ -181,7 +200,7 @@ export async function setup(): Promise<void> {
 
     await provisionBuckets();
     // After provisionBuckets, which is what waits for LocalStack to come up.
-    await provisionErasureQueue();
+    await provisionQueues();
 
     const pool = new pg.Pool({ connectionString: DATABASE_URL });
 

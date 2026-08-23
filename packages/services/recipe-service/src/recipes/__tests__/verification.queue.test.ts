@@ -77,6 +77,28 @@ describe('createVerificationQueue — nothing unsendable leaves the process', ()
         expect(calls[0]?.Entries).toHaveLength(1);
     });
 
+    /**
+     * ⛔ THE REGRESSION THIS FILE EXISTED TO CATCH AND DID NOT.
+     *
+     * `ownerId` shipped as `z.ulid()`. `z.object` refuses the WHOLE message when one field fails, and the
+     * partition above drops a refused message by design — so a recipe whose owner id merely failed a format
+     * check had every one of its lines silently dropped, and the gate verified nothing for it. Four
+     * integration cases caught it (`expected [] to have a length of 1`) only because their owner fixture
+     * happened to read like a ULID without being one; nothing at THIS layer, where the drop happens, said a
+     * word.
+     *
+     * ⚠️ The rule this pins is a PRIORITY, not a format. `ownerId` exists so a memo can be erased later;
+     * verification is why the message exists at all. A field that cannot fail the thing it annotates must
+     * never be able to veto it — so an unrecognised owner id costs an erasure correlation, and nothing else.
+     */
+    it('sends a message whose ownerId is unrecognised — a correlation id may not veto verification', async () => {
+        const send = vi.fn().mockResolvedValue({ failedIds: [] });
+
+        await createVerificationQueue(send, QUEUE_URL).enqueue([makeMessage({ ownerId: 'not-a-ulid' })]);
+
+        expect(send).toHaveBeenCalledTimes(1);
+    });
+
     it('issues NO call at all for an empty list', async () => {
         // An empty `Entries` list is not merely wasteful — SQS refuses it outright with
         // `AWS.SimpleQueueService.EmptyBatchRequest` (verified against LocalStack in this tree), so an

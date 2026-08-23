@@ -149,17 +149,27 @@ export const verifyIngredientLineMessageSchema = z.object({
      * field against that question. This one earns its place by being what makes the phrase beside it
      * erasable.
      *
-     * ⛔ `z.ulid()`, NOT `ulidx`'s `isValid` — which is what `messages.schema.ts` and `accountErasureWorker`
-     * use, and a first attempt here used it too for exactly that consistency. It cannot be used in THIS
-     * package: `recipe-core` is asserted to be a zod-only leaf (recipe-service's `contract.test.ts`, "the
-     * leaf property"), because `@commise/web` and `@commise/mobile` bundle it and a runtime dependency here
-     * reaches both. That guard failed on the attempt, correctly. Zod's own format check is the library-first
-     * answer with no new dependency: it enforces the 26-character Crockford base32 form and rejects the
-     * excluded letters, which is what a WIRE contract owes. It does not bound the timestamp component the
-     * way `ulidx` does — acceptable here, because this value is only ever a bound SQL parameter and never a
-     * key prefix, which is the case that made strictness matter in the erasure worker.
+     * ⛔ BOUNDED, NOT FORMAT-VALIDATED, and that is a correction rather than an omission.
+     *
+     * This shipped as `z.ulid()`, and it took the verification gate down. `z.object` REFUSES a message whose
+     * every field but this one is valid, the SQS adapter logs-and-drops a refused message by design, and the
+     * result is that a malformed correlation id silently stops every line on that recipe from being verified
+     * at all. Caught by `verificationEnqueue.integration.test.ts` — four cases, `expected [] to have a
+     * length of 1` — whose own owner fixture reads like a ULID (`01JU11VERIFY0WNER00000000A`) and is not
+     * one, because Crockford base32 excludes I, L, O and U.
+     *
+     * ⚠️ The priority is what settles it. `ownerId` exists ONLY so a memo can be erased later; verification
+     * is the reason the message exists at all. A field that cannot fail the thing it annotates must not be
+     * able to veto it — and the failure direction here is the one U11 names as unacceptable, since a line
+     * that is never asked about is worse than a line asked about badly. An unrecognised owner id costs an
+     * erasure correlation; a refused message costs the verification.
+     *
+     * The bound stays, because an unbounded string reaches the DLQ. The FORMAT check goes, for the reason
+     * the previous version of this comment already gave and then contradicted: this value is only ever a
+     * bound SQL parameter, never an S3 key prefix, so it has none of the properties that made strictness
+     * matter in `accountErasureWorker`. An id that matches no owner simply sweeps nothing.
      */
-    ownerId: z.ulid().optional(),
+    ownerId: z.string().min(1).max(64).optional(),
     /** The line the cook's source said. UNTRUSTED, and the reason for every bound above. */
     sourceLine: boundedText(MAX_VERIFICATION_SOURCE_LINE_LENGTH),
     /** The opaque food-service id the cascade resolved to. */

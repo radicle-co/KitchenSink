@@ -64,8 +64,30 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
         expect(() => verifyIngredientLineMessageSchema.parse(verifyLine())).not.toThrow();
     });
 
-    it('refuses an ownerId that is not a ULID', () => {
-        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: 'not-a-ulid' }))).toThrow();
+    /**
+     * ⛔ REWRITTEN, and it now asserts the OPPOSITE of what it asserted before. This case demanded that a
+     * non-ULID `ownerId` be REFUSED. That was wrong, and it was not a theoretical wrongness: `z.object`
+     * refuses the whole message, the SQS adapter logs-and-drops a refused message by design, and the gate
+     * therefore stopped enqueuing anything for a recipe whose owner id merely failed a format check.
+     *
+     * The correction is recorded in the schema's own docstring. What the contract owes here is a BOUND — an
+     * unbounded string reaches the DLQ — not a format. So this asserts the bound, and asserts that an
+     * unrecognised id degrades the erasure correlation rather than the verification.
+     */
+    it('accepts an unrecognised ownerId rather than refusing the whole message', () => {
+        const parsed = verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: 'not-a-ulid' }));
+
+        expect(parsed.ownerId).toBe('not-a-ulid');
+        expect(parsed.sourceLine).toBe('2 cups all-purpose flour');
+    });
+
+    // The bound is what survives, and it is what keeps a hostile value out of the DLQ.
+    it('refuses an ownerId longer than the column and the DLQ should carry', () => {
+        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: 'x'.repeat(65) }))).toThrow();
+    });
+
+    it('refuses an empty ownerId — absent and blank are different claims', () => {
+        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: '' }))).toThrow();
     });
 
     it('carries the ownerId through to the parsed message', () => {

@@ -42,7 +42,7 @@ import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../te
 import { SEED_VERIFICATION_QUEUE_URL } from '../../../tests/globalSetup.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
-const OWNER = '01JU11VERIFY0WNER00000000A';
+const OWNER = '01JQ8N2X4RBV6WK3ZT5Y7A9C0P';
 
 /** A FOOD-BACKED catalog row, created by this suite — the seeded ingredients are all user-entered. */
 const FOOD_BACKED_INGREDIENT_ID = '00000000-0000-4000-8000-00000011ab01';

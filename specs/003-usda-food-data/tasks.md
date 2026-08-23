@@ -1243,3 +1243,47 @@ triples. That is a code signature, not a slow runner.
 ⚠️ Whichever is chosen, note what let this through: `foodSearchAccessPath.integration.test.ts` asserts the
 PLAN, not the LATENCY, so nothing caught it until the label-gated heavy tier ran hours later. A plan assertion
 cannot see a query that picks the right index and then scores 4,545 rows through it.
+
+---
+
+## ⛔ OPEN — `parseIngredientLine` folds measurements into the food name, silently (raised 2026-08-23)
+
+**Status: undecided. A defect, not a fork — but the fix has a design choice inside it.**
+
+`parseIngredientLine` reads the LEADING quantity phrase and treats everything after it as the food. Where a
+line states more than one measurement, the remainder lands in `name`, and `reviewReasons` stays **empty** —
+so nothing downstream knows. Measured 2026-08-23:
+
+| line                                                | name it produced                             | reviewReasons |
+| --------------------------------------------------- | -------------------------------------------- | ------------- |
+| `2 cups and 1 tablespoon all-purpose flour, sifted` | `and 1 tablespoon all-purpose flour, sifted` | `[]`          |
+| `1 pound (about 4 cups) shredded cooked chicken`    | `(about 4 cups) shredded cooked chicken`     | `[]`          |
+| `a handful of fresh basil leaves, torn`             | `handful of fresh basil leaves, torn`        | `[]`          |
+
+⛔ A food name carrying a measurement matches no catalog row, so the line resolves to nothing or to something
+wrong — and the empty `reviewReasons` means it is not surfaced for correction either. This is the same
+corruption class the verification gate exists to catch, arriving from our own parser.
+
+⚠️ What the parser gets RIGHT is worth stating, because the fix must not cost it: exact rational arithmetic
+(`1/3` → `1n/3n`, stored canonically as `0.333`, never a float artifact), unit normalisation (`pound` → `lb`),
+ranges (`1 to 2 teaspoons`), number words (`one and a half` → 3/2, `two dozen` → 24), and an honest
+`{kind:'absent'}` + `no_quantity` on `salt and pepper to taste`.
+
+### The design choice inside the fix
+
+The missing capability is **segmentation** — deciding where the measurement ends and the food begins when a
+line states more than one. Three shapes, which mean different things and must not be conflated:
+
+- **additive** — `2 cups and 1 tablespoon`: sum them.
+- **equivalent** — `1 pound (about 4 cups)`: the same amount said twice; summing DOUBLES it.
+- **container and net** — `1 (14.5 ounce) can`: one is what is bought, the other what is in it.
+
+The connective words carry the distinction (`and`/`plus` vs. a parenthetical), so a splitter keyed on them is
+deterministic and testable. ⚠️ Note the downstream constraint: `IngredientQuantity` stores ONE quantity and
+ONE unit, so an additive pair must also be converted to a common unit and summed — `millilitresPerUnit`
+already exists for that half.
+
+⚠️ Related, and the reason this surfaced: an LLM asked to parse the same lines segments all three correctly,
+while producing worse numbers (`1/3` → `0.3333333333333333`, and the same line answering differently between
+runs at `temperature: 0`). The division that holds is: a model decides where the boundaries are, our parser
+converts what it is handed. Neither does the other's job.

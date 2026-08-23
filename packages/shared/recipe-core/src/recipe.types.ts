@@ -421,7 +421,13 @@ export interface RecipeNutrition {
     isComplete: boolean;
     /**
      * Present when at least one contributing line stated a RANGE, naming the bound the figure was taken
-     * from (R38) — the sibling of R35's historical-unit marker.
+     * from (R38) — the sibling of R35's historical-unit marker, `HistoricalUnitConversion` in
+     * `@kitchensink/cookbook-import`'s `unitEquivalence.ts`.
+     *
+     * ⚠️ A sibling in SHAPE, not in placement: that marker is produced at IMPORT time by a tool and is
+     * deliberately NOT on this wire, because a historical unit is restated once, upstream, while a range is
+     * persisted and collapsed on every read. See `RangeDerivedBound` in `nutrition.ts` before adding a
+     * provenance field here to "match" it.
      *
      * ⚠️ Load-bearing honesty, not decoration. A total computed from `2 cups` when the line read
      * `2 to 3 cups` is up to a third under and is otherwise indistinguishable from an exact one. Absent

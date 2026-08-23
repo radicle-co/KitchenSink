@@ -31,6 +31,8 @@
  * use the Project Gutenberg trademark to describe the recipe itself. **Flagged for owner/legal review.**
  */
 
+import { INTERNATIONAL_JEWISH_TABLE, type BookMeasures } from './unitEquivalence.js';
+
 /** Project Gutenberg's unrestricted-use sentence — the evidence a given file is public domain in the US. */
 export const PUBLIC_DOMAIN_HEADER = 'This eBook is for the use of anyone anywhere in the United States and';
 
@@ -46,6 +48,16 @@ export interface Cookbook {
     readonly sourceUrl: string;
     /** The human-readable credit persisted as `sourceAttribution` and rendered to readers. */
     readonly attribution: string;
+    /**
+     * Which system of measure this book's volumes are read in, and whatever of its own table of weights
+     * and measures has been transcribed (R33).
+     *
+     * ⛔ REQUIRED, with no default. R33 asks that each book's table be "read and recorded BEFORE that book
+     * is imported", and a field the compiler lets you omit records nothing — the book would simply import
+     * with its gills silently unconverted, or worse, converted as though it were American. Making it
+     * required means registering a book is the moment somebody has to answer the question.
+     */
+    readonly measures: BookMeasures;
 }
 
 /**
@@ -58,17 +70,45 @@ export interface Cookbook {
  * @param ebookId - Project Gutenberg ebook number.
  * @param title - The work's title.
  * @param author - The work's author.
+ * @param measures - The book's measure system and its own table of weights and measures (R33).
  * @returns The frozen entry. Pure.
  */
-function cookbook(ebookId: number, title: string, author: string): Cookbook {
+function cookbook(ebookId: number, title: string, author: string, measures: BookMeasures): Cookbook {
     return Object.freeze({
         ebookId,
         title,
         author,
         sourceUrl: `https://www.gutenberg.org/cache/epub/${ebookId}/pg${ebookId}.txt`,
         attribution: `${title} by ${author} (Project Gutenberg eBook #${ebookId}, public domain)`,
+        measures,
     });
 }
+
+/**
+ * The three American books whose own tables have not been read.
+ *
+ * ⚠️ SHARED because the two facts are literally the same two facts, not because the entries
+ * look alike: each is an American work of the 1900s-1920s (recorded in the corpus survey of 2026-08-19
+ * that selected them), and none of the three files is held locally, so no table has been transcribed from
+ * any of them. If one is ever downloaded and read, it stops sharing this value and gets its own —
+ * which is exactly the signal that the shared one was knowledge rather than coincidence.
+ */
+const AMERICAN_UNREAD: BookMeasures = {
+    origin: {
+        kind: 'established',
+        system: 'us-customary',
+        basis:
+            'An American work of the 1900s-1920s; four of the five registered books are American, recorded ' +
+            'in the corpus survey of 2026-08-19 that selected them.',
+    },
+    table: {
+        kind: 'not-transcribed',
+        why:
+            'The file is not held locally and its table — if it prints one — has never been read ' +
+            "from the bytes. This book therefore converts by its ORIGIN, per R33, never by another book's " +
+            'factors.',
+    },
+};
 
 /**
  * The registered corpus, keyed by the `--book` argument.
@@ -98,11 +138,37 @@ function cookbook(ebookId: number, title: string, author: string): Cookbook {
  * `7 quart [Illustration`) and #24407 (ingredients bleed across adjacent recipes).
  */
 export const COOKBOOKS: Readonly<Record<string, Cookbook>> = Object.freeze({
-    'international-jewish': cookbook(12350, 'The International Jewish Cook Book', 'Florence Kreisler Greenbaum'),
-    'jewish-manual': cookbook(12327, 'The Jewish Manual', 'Lady Judith Cohen Montefiore'),
-    'golden-rule': cookbook(55555, 'The Golden Rule Cook Book', 'M. R. L. Sharpe'),
-    'mrs-wilson': cookbook(17438, "Mrs. Wilson's Cook Book", 'Mary A. Wilson'),
-    'sunday-dinners': cookbook(31534, 'Fifty-Two Sunday Dinners', 'Elizabeth O. Hiller'),
+    'international-jewish': cookbook(12350, 'The International Jewish Cook Book', 'Florence Kreisler Greenbaum', {
+        origin: {
+            kind: 'established',
+            system: 'us-customary',
+            basis:
+                'The book pins its own system in prose: its TABLE OF WEIGHTS AND MEASURES directs that ' +
+                '"the cup should be the regulation half-pint cup", and a half-pint cup is the US customary ' +
+                'one. The system is READ OUT of the book rather than assumed from its origin.',
+        },
+        table: INTERNATIONAL_JEWISH_TABLE,
+    }),
+    'jewish-manual': cookbook(12327, 'The Jewish Manual', 'Lady Judith Cohen Montefiore', {
+        origin: {
+            kind: 'established',
+            system: 'british-imperial',
+            basis:
+                'A British work — Lady Judith Cohen Montefiore, published London, 1846 — so R33 ' +
+                "puts it on its origin's system. This is the book the US/imperial split actually bites on: " +
+                'it is the one most likely to state a gill, and an imperial gill is 142 mL against 118 mL.',
+        },
+        table: {
+            kind: 'not-transcribed',
+            why:
+                'The file is not held locally and its table has never been read from the bytes. Project ' +
+                "Gutenberg's terms bar us from fetching it, so transcribing it needs an operator to " +
+                'download the book again. Until then this book converts by its ORIGIN, per R33.',
+        },
+    }),
+    'golden-rule': cookbook(55555, 'The Golden Rule Cook Book', 'M. R. L. Sharpe', AMERICAN_UNREAD),
+    'mrs-wilson': cookbook(17438, "Mrs. Wilson's Cook Book", 'Mary A. Wilson', AMERICAN_UNREAD),
+    'sunday-dinners': cookbook(31534, 'Fifty-Two Sunday Dinners', 'Elizabeth O. Hiller', AMERICAN_UNREAD),
 });
 
 /** The `--book` keys this tool accepts. */

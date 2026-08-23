@@ -20,8 +20,11 @@
  */
 import { quantityLowerBound, quantityUpperBound, type IngredientQuantity } from '@kitchensink/recipe-core';
 
+import type { MeasureSystem } from '@kitchensink/recipe-import-core';
+
 import type { IngredientResolutionKind } from './resolveIngredient.js';
 import type { RecipeSkipReason } from './proseRecipe.js';
+import type { EquivalenceSource, HistoricalUnitConversion } from './unitEquivalence.js';
 
 /** One imported recipe, kept so the report can show real examples rather than only counts. */
 export interface ImportedExample {
@@ -43,6 +46,24 @@ export interface ImportedExample {
         readonly foodId: string | undefined;
         readonly foodResolutionStatus: string | undefined;
     }[];
+}
+
+/** One equivalence the run leaned on, and how many lines it converted. */
+export interface HistoricalEquivalenceUse {
+    /** The historical unit, canonicalised. */
+    readonly unit: string;
+    /** Millilitres per unit, as this book's authority sizes it. */
+    readonly millilitres: number;
+    /** Which system the factor is read in — an imperial gill and a US customary gill are 20% apart. */
+    readonly measureSystem: MeasureSystem;
+    /** The book's own table, or the named external standard. */
+    readonly source: EquivalenceSource;
+    /** The authority, in words. */
+    readonly citation: string;
+    /** The authority's own printed statement, verbatim. */
+    readonly statedAs: string;
+    /** How many ingredient lines this equivalence converted. */
+    lines: number;
 }
 
 /** Everything the run measured. */
@@ -96,6 +117,18 @@ export interface ImportReportData {
      */
     /** Source clauses that named something but carried no usable quantity, verbatim. */
     readonly droppedLines: string[];
+    /** Ingredient LINES whose stated unit was restated from a historical measure (R35). */
+    historicalConversions: number;
+    /**
+     * Each distinct equivalence the run relied on, with the authority behind it (R34).
+     *
+     * ⛔ NOT a single conversion count, and not keyed on the unit. R34 says an equivalence that leaves its
+     * citation or its measure system implicit does not satisfy the requirement, and a bare counter leaves
+     * both implicit — it cannot tell a reader that the gills came from the book's own printed table while
+     * the dessertspoons came from an external standard the book never mentions. Keyed on the equivalence
+     * so the same word from two books, sized 20% apart, is two rows and not one.
+     */
+    readonly historicalEquivalences: HistoricalEquivalenceUse[];
     /** A handful of complete recipes, for a reader who wants to see the output rather than the totals. */
     readonly examples: ImportedExample[];
 }
@@ -118,8 +151,45 @@ export function emptyReport(book: string): ImportReportData {
         foodBackedIngredients: 0,
         catalogUnavailable: 0,
         droppedLines: [],
+        historicalConversions: 0,
+        historicalEquivalences: [],
         examples: [],
     };
+}
+
+/**
+ * Record that one line was converted through a historical-unit equivalence (R35).
+ *
+ * @param report - The accumulating report.
+ * @param conversion - The conversion the mapper made.
+ * @sideEffect Mutates `report`, like {@link recordDropped}.
+ */
+export function recordHistoricalConversion(report: ImportReportData, conversion: HistoricalUnitConversion): void {
+    const { equivalence } = conversion;
+
+    report.historicalConversions += 1;
+
+    // ⛔ Matched on the CITATION as well as the unit. Keying on the unit alone would fold Montefiore's
+    // 142 mL gill into #12350's 118 mL one and report a single row for two different claims.
+    const existing = report.historicalEquivalences.find(
+        (entry) => entry.unit === equivalence.unit && entry.citation === equivalence.citation,
+    );
+
+    if (existing !== undefined) {
+        existing.lines += 1;
+
+        return;
+    }
+
+    report.historicalEquivalences.push({
+        unit: equivalence.unit,
+        millilitres: equivalence.millilitres,
+        measureSystem: equivalence.measureSystem,
+        source: equivalence.source,
+        citation: equivalence.citation,
+        statedAs: equivalence.statedAs,
+        lines: 1,
+    });
 }
 
 /** How many verbatim dropped lines to keep. Enough to see the SHAPE of the failures, not a second corpus. */
@@ -186,6 +256,21 @@ export function renderReport(report: ImportReportData): string {
 
         for (const failure of report.failures.slice(0, 20)) {
             lines.push(`  ${failure.title} — ${failure.reason}`);
+        }
+    }
+
+    if (report.historicalEquivalences.length > 0) {
+        // Printed with its authority beside every row, never as a lone total: "47 conversions" is a number
+        // a reader cannot check, while "gill = 118.294 mL, us-customary, #12350's own table" is a claim.
+        lines.push(
+            `\nHISTORICAL UNIT CONVERSIONS  (${report.historicalConversions} line(s), by the authority that sized each unit)`,
+        );
+
+        for (const used of report.historicalEquivalences) {
+            lines.push(
+                `  ${used.unit.padEnd(14)} ${used.millilitres.toFixed(3).padStart(9)} mL  ${used.measureSystem.padEnd(17)} ${String(used.lines).padStart(4)} line(s)`,
+            );
+            lines.push(`      "${used.statedAs}" — ${used.citation}`);
         }
     }
 

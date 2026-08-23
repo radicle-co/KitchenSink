@@ -25,13 +25,26 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // seam between the grammar and the two scalar normalizers, and nothing outside this package has a
         // use for them. A regex on the public surface would also break the all-exports-are-functions
         // control below, which is worth keeping exactly as strict as it is.
+        //
+        // ⚠️ GREW BY TWO MORE in U7's second half, and each is answering a question `cookbook-import`
+        // cannot answer for itself. `millilitresPerUnit` is how a book's RELATIONAL table ("2 gills = 1
+        // cup") becomes a number without restating `parse-ingredient`'s per-system volume table, and
+        // `roundToQuantityStorageScale` is the `numeric(10,3)` scale — ONE piece of knowledge that now has
+        // a second producer of storable quantities (the historical-unit conversion) and must not be
+        // copied into it.
+        //
+        // ⛔ `HISTORICAL_UNIT_DEFINITIONS` is deliberately NOT here. It is a `parse-ingredient` extension
+        // table consumed only by `ingredientLine.ts` inside this package, and publishing it would put a
+        // non-function on a surface whose all-exports-are-functions control is worth more than the export.
         expect(Object.keys(publicApi).sort()).toEqual([
             'corruptsStatedValue',
             'findQuantityPhrases',
+            'millilitresPerUnit',
             'normalizeDurationToMinutes',
             'normalizeQuantity',
             'normalizeServings',
             'parseIngredientLine',
+            'roundToQuantityStorageScale',
             'sanitizeToPlainText',
         ]);
     });

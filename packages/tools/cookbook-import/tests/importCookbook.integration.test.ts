@@ -82,7 +82,7 @@ describe.skipIf(!configured)('cookbook import against a live recipe service', ()
             throw new Error('fixture or registry entry missing');
         }
 
-        const outcome = toCandidateRecipe(BLOCK, book.attribution);
+        const outcome = toCandidateRecipe(BLOCK, book);
 
         if (outcome.kind !== 'candidate') {
             throw new Error(`the fixture recipe no longer parses: ${outcome.reason}`);

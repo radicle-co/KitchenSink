@@ -1,5 +1,7 @@
 export { sanitizeToPlainText } from './contentSanitizer.js';
-export { corruptsStatedValue, parseIngredientLine } from './ingredientLine.js';
+export { millilitresPerUnit } from './historicalUnits.js';
+export type { MeasureSystem } from './historicalUnits.js';
+export { corruptsStatedValue, parseIngredientLine, roundToQuantityStorageScale } from './ingredientLine.js';
 export type { IngredientReviewReason, ParsedIngredientLine } from './ingredientLine.js';
 export { normalizeQuantity } from './normalizeQuantity.js';
 export type { NormalizedQuantity } from './normalizeQuantity.js';

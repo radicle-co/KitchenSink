@@ -22,10 +22,21 @@ import { unitToGrams } from './units.js';
 /**
  * Which bound of a stated range a computed figure was taken from (R38).
  *
- * A fact ABOUT a number, in the same shape as R35's historical-unit marker. The domain of "a bound" is the
- * pair `quantityLowerBound`/`quantityUpperBound` answer, so both members are named here even
- * though today's policy only ever collapses to `low` — a client renders the bound it is TOLD, rather than
- * hard-coding the word "lower" against a policy it cannot see.
+ * A fact ABOUT a number, in the same shape as R35's historical-unit marker — which is
+ * `HistoricalUnitConversion` in `@kitchensink/cookbook-import`'s `unitEquivalence.ts`, and which likewise
+ * makes its disclosure by BEING PRESENT rather than by carrying a "not applicable" value.
+ *
+ * ⚠️ The two markers deliberately live at different layers, and the asymmetry is the answer to the
+ * question this sentence otherwise invites. A range is PERSISTED and collapsed at READ time, here, so its
+ * marker has to travel on the wire. A historical unit is restated at IMPORT time, upstream of the wire and
+ * by a tool, so there is no read-time step to disclose and no column to disclose it in — the conversion is
+ * recorded in the import report and in the recipe's own description instead. Do not "restore the symmetry"
+ * by adding a provenance field here; that is a persisted column plus a `CONTRACT_HASH` move (ADR-0014) for
+ * a fact with one producer and no reader.
+ *
+ * The domain of "a bound" is the pair `quantityLowerBound`/`quantityUpperBound` answer, so both members are
+ * named here even though today's policy only ever collapses to `low` — a client renders the bound it is
+ * TOLD, rather than hard-coding the word "lower" against a policy it cannot see.
  */
 export type RangeDerivedBound = 'low' | 'high';
 

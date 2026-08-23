@@ -60,6 +60,8 @@ re-runs the missing half for roughly **$2.20** (projected — see §6).
 
 ⛔ **Everything below therefore SELECTS NOTHING.** Nova Micro is characterised, not chosen.
 
+⚠️ **SUPERSEDED IN PART — see §9.** A three-way Nova ladder (Micro vs Lite vs Pro) ran later the same day on the same corpus and DOES select: Nova Micro ships. The Anthropic half of the roster remains unmeasured for the reason given in this section.
+
 ---
 
 ## 2. A defect the run found in its own corpus, and why both sets of numbers are printed
@@ -376,3 +378,93 @@ AWS_REGION=us-east-1 npx tsx src/scripts/verificationBakeOff.ts \
 `--trials-out` writes one JSON object per call carrying the raw `verdict` and `certainty`, which is what makes
 §5's contingency table derivable **without re-spending the run**. The threshold tables are a pivot of that
 file over `verdict × certainty × parseIsCorrect`, restricted to `contrastClass ∈ {correct, nearMissIdentity}`.
+
+---
+
+## 9. Update (2026-08-23) — the Nova ladder, and the decision it settles
+
+§1 records that the planned roster could not run: Claude Haiku 4.5 is unreachable on this account without an
+Anthropic use-case attestation. Rather than pay that attestation blind, a **Nova ladder** ran instead —
+Micro vs Lite vs Pro, all reachable today — on the identical corpus (digest `415472d0…64bf57`, 2,136 lines,
+generator v1.1.0), the same harness, the same prompt, `us-east-1`. Nova Micro was re-run as a control so all
+three columns come from one session.
+
+**Owner ruling: the bake-off is DONE.** Its result informs which model ships and nothing else. It is not a
+standing capability, and no future decision should turn on the harness.
+
+### The decision
+
+**Nova Micro ships.** Neither alternative wins on the number that decides, and this is a null result — which
+is the useful kind, because it produces **no case for paying the Anthropic attestation**.
+
+### Read `inconclusiveRate` first, and note it means opposite things per model
+
+|                           | Micro | Lite        | Pro   |
+| ------------------------- | ----- | ----------- | ----- |
+| `inconclusiveRate`        | 4.35% | **13.20%**  | 0.05% |
+| — of which malformed JSON | **0** | **281/286** | 0     |
+| — of which true abstain   | 140   | 2           | 0     |
+
+⛔ Lite's figure is **not abstention — it is broken JSON**: a correct verdict object with a stray `]`, or a
+`"`-opened `reason` closed with `'`. Two syntactic defects, reproduced 7/40 on a re-probe. This is KTD-4's
+named structured-output risk actually occurring, and because `inconclusive` publishes, ~13% of lines would
+silently bypass the gate on Lite.
+
+### Three-way results
+
+| Metric                     | Micro           | Lite            | Pro              |
+| -------------------------- | --------------- | --------------- | ---------------- |
+| `falseDisagreeRate` (full) | 2.98%           | **1.50%**       | **39.31%**       |
+| `falseAgreeRate` (full)    | 28.48%          | 28.57%          | 1.44%            |
+| `swapDisagreements`        | 15.12%          | 27.01%          | 5.71%            |
+| Both-order false disagree  | 6/608           | 4/608           | **190/608**      |
+| 95% Wilson CI (n=608)      | 1.88–4.63%      | 0.78–2.79%      | 35.51–43.25%     |
+| Cost / mean µ$ per call    | $0.0747 / 17.47 | $0.1102 / 25.80 | $1.7000 / 397.94 |
+
+### Errors caught, by contrast class — the question the ladder was run to answer
+
+| Class                                 | Micro      | Lite       | Pro          |
+| ------------------------------------- | ---------- | ---------- | ------------ |
+| `nearMissIdentity`                    | 77.38%     | 75.00%     | **98.93%**   |
+| `wrongFormIdentity`                   | 70.19%     | 57.69%     | **95.99%**   |
+| **`quantityUnitError`**               | **55.92%** | **50.66%** | **99.34%**   |
+| _correct parses wrongly contradicted_ | _2.96%_    | _1.32%_    | **_39.31%_** |
+
+**The quantity/unit weakness is NOT a family trait.** It is a capability gap, and Pro closes it completely.
+But Pro closes it by contradicting nearly everything — 39.31% of _correct_ parses, the direction U11 names as
+unacceptable — and the gap does not close monotonically: Lite is worse than Micro at every class.
+
+⚠️ Pro's false-disagree rate is **not** explained by the corpus artifact §8 predicted. 166 of its 190
+both-order false disagreements are on lines Micro fully verified, and on the cleanest slice (has a unit, no
+trailing modifier, n=389) it is Micro 1.42% vs Pro 30.21% — a 21× gap. No threshold reaches it either: Pro's
+`disagree`/`high` cell is 28.5% real errors against Micro's 3.4%, and there is no rung above `high`.
+
+**Cost is not why Micro wins.** At ADR-0024 §3's ~8,000 calls/month all three are 30×+ under the ceiling —
+Micro $0.14, Lite $0.21, Pro $3.18. Quality is the reason.
+
+### Three findings worth acting on separately
+
+1. ⚠️ **The rate table's derived cache rates are wrong for Nova, in the unsafe direction.** Published: cache
+   reads cost **0.25×** input (not the assumed 0.1×) and cache writes are **free** (not 1.25×). The read rate
+   is an UNDER-count, so `worstCaseMicros` is not the true bound it claims to be. Recorded in the table's
+   docstring rather than silently narrowing a shipped reservation — that is an ADR-0024 call.
+2. ⚠️ **Nova Pro's on-demand quota is 250 RPM against 2,000 for Micro and Lite.** The first Pro run came back
+   **83.6% throttled** (3,571/4,272) and produced entirely fictitious rates, because the runner pins
+   `maxAttempts: 1`. It was discarded ($0.28) and re-run at `--concurrency 2`. Any future run against a large
+   model must check the quota first.
+3. ✅ **ADR-0024 §5's "cache fields are always zero" now has evidence.** It reasoned from Haiku's 4,096-token
+   minimum, while Nova documents _automatic_ caching for all prompts. Measured zero across all 9,474+ calls.
+
+Also: **Nova Lite and Pro are both `ON_DEMAND`** — no `us.` inference profile, so the bare id works and the
+rate table prices it exactly. Claude Haiku 4.5 remains the only roster model that needs the profile split.
+
+### What this does not establish
+
+- **Haiku is still unmeasured.** Cross-vendor diversity is untested; no attestation was submitted.
+- **The corpus is synthetic** and not comparable to U1's annotation protocol. Every rate is conditional on a
+  chosen class mix.
+- **Run-to-run variance is real.** The Micro control against the published run, same corpus and model:
+  `falseDisagreeRate` 2.98% vs 2.32%, quantity/unit 55.92% vs 54.61%. ⛔ Treat sub-1.5-point differences as
+  noise — which makes Lite's 1.50% against Micro's 2.98% suggestive, not established.
+- The scoring reducer was audited during this run (lineId collisions, band and stop-reason censuses, swap
+  pairing) and **no defect was found**.

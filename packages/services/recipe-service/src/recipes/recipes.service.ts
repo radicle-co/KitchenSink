@@ -1026,7 +1026,13 @@ export class RecipesService {
         // ⛔ Reads `aggregate.ingredients` (the PERSISTED rows), not the pre-persistence lines: the DTO
         // carries an unrounded number while the column is `numeric(10,3)`, so the two can disagree on a
         // quantity — see `storedLineToVerifiable`.
-        await this.requestVerification(aggregate.recipe.id, aggregate.ingredients, catalog, []);
+        await this.requestVerification(
+            aggregate.recipe.id,
+            aggregate.recipe.ownerId,
+            aggregate.ingredients,
+            catalog,
+            [],
+        );
 
         // A freshly-created recipe has no photos yet (uploaded afterward); nutrition is computed from its lines.
         return this.toDetailResponse(aggregate, [], { caller });
@@ -1098,6 +1104,7 @@ export class RecipesService {
      *    so a SUSTAINED rate is visible as the "the gate is receiving nothing" signal it would be.
      *
      * @param recipeId - The persisted recipe.
+     * @param ownerId - That recipe's owner, carried so a remembered phrase stays erasable (migration 0026).
      * @param lines - The lines as they are now stored.
      * @param catalog - The catalog rows those lines resolved to, by ingredient id.
      * @param previous - The recipe's lines BEFORE this write; empty on a create.
@@ -1105,12 +1112,14 @@ export class RecipesService {
      */
     private async requestVerification(
         recipeId: string,
+        ownerId: string,
         lines: readonly RecipeIngredientRow[],
         catalog: ReadonlyMap<string, Ingredient>,
         previous: readonly RecipeIngredientRow[],
     ): Promise<void> {
         const { requests, unasked } = buildVerificationRequests({
             recipeId,
+            ownerId,
             lines: lines.map((row) => storedLineToVerifiable(row, catalog)),
             alreadyRequested: previous.map((row) => storedLineToVerifiable(row, catalog)),
             thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
@@ -1353,7 +1362,13 @@ export class RecipesService {
             // re-paying for every line: `replaceForRecipe` rewrites the whole set on every save, and both
             // shipped clients send `ingredients` on every save. A patch carrying no `ingredients` asks
             // nothing at all, because no judgement moved. LAST, for the reason `create` states.
-            await this.requestVerification(id, updated.ingredients, resolved.catalog, existing.ingredients);
+            await this.requestVerification(
+                id,
+                existing.recipe.ownerId,
+                updated.ingredients,
+                resolved.catalog,
+                existing.ingredients,
+            );
         }
 
         return this.toDetailResponse(updated, await this.loadPhotoRows(id));

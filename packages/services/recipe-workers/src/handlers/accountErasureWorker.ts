@@ -398,11 +398,15 @@ export interface EraseRecipeRowsResult {
  *     exactly the shape migration 0021 was written for. Scoped to LIVE rows, so a previously-swept row is
  *     left alone.
  *
- * ⚠️ `ingredient_resolution_memos` is deliberately NOT swept here, and that is a stated residual rather than
- * an omission. It carries a `source_phrase` but NO author column at all — a memo is machine-derived and
- * nobody asserted it — so there is no per-user predicate a sweep could key on. See the module-level note in
- * `0021_resolution_mappings.sql`; closing it needs an owner column on that table, which is a schema decision
- * this worker cannot make.
+ * 11. **Machine-derived resolution memos (plan U10, migration 0026), DE-IDENTIFIED rather than deleted.**
+ *     `ingredient_resolution_memos` records that a model agreed a phrase means a food. It carries the
+ *     phrase a user typed, and until 0026 it carried no author column at all, so there was no per-user
+ *     predicate a sweep could key on — 0021's header recorded that as a stated residual. Owner ruling
+ *     2026-08-23 closed it by ADDING `owner_id`, over the alternative of dropping `source_phrase` (which is
+ *     write-only, so dropping it would have removed the question rather than answering it). ⛔ Deleting the
+ *     row is wrong here for a DIFFERENT reason than in the mappings tier: a memo is keyed by
+ *     `normalized_key` alone and is read by every user's cascade, so a delete un-resolves that phrase for
+ *     the whole installation. The machine's conclusion survives; the phrase and the owner link do not.
  *
  * `recipe_versions.created_by` is not swept independently: mutations are owner-only and `created_by`
  * cannot diverge from its recipe's `owner_id`, so the cascade covers it, and a "defensive" delete would
@@ -503,6 +507,25 @@ export const eraseRecipeRows = async (
             UPDATE ingredient_resolution_mappings
             SET superseded_at = now(), author_id = NULL, source_phrase = NULL
             WHERE author_id = ${ownerId} AND superseded_at IS NULL
+        `);
+
+        // 11. **The MEMO tier (plan U10, migration 0026), de-identified rather than deleted.**
+        //     `ingredient_resolution_memos` remembers that a MODEL agreed a phrase means a food. The phrase
+        //     is text a user typed, so the row is personal data — but until 0026 the table carried no author
+        //     column, so no predicate existed to sweep on and 0021's header recorded that as a stated
+        //     residual. Owner ruling 2026-08-23 closed it by ADDING the link rather than dropping the phrase.
+        //     ⛔ An UPDATE, and the reason differs from the mappings tier above. A memo is keyed by
+        //     `normalized_key` ALONE and is consulted by every user's resolution cascade, so deleting the
+        //     erased owner's memos would silently un-resolve those phrases for the whole installation.
+        //     `food_id` and `verified_by` are the MACHINE's conclusion, which nobody asked to have erased,
+        //     so they survive; the phrase and the owner link do not.
+        //     ⚠️ There is no `superseded_at` analogue to scope on, and none is wanted: the memo's primary key
+        //     is the phrase's normalized form, so a re-swept row is already NULL on both columns and the
+        //     statement is a no-op rather than a rewrite of history.
+        await tx.execute(sql`
+            UPDATE ingredient_resolution_memos
+            SET owner_id = NULL, source_phrase = NULL
+            WHERE owner_id = ${ownerId}
         `);
 
         return { removedRecipeIds };

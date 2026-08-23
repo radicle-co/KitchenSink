@@ -1049,9 +1049,40 @@ ends on PG 18 describes a database prod no longer runs.
 - The bake-off selects a winner and ships it; the false-disagree rate triggers a rethink (U11).
 - Quantity is nullable on both the column and the wire (KTD-6).
 
+**Ruled 2026-08-23** — the four decisions that were still open after implementation:
+
+- **FNDDS is NOT seeded.** Foundation + SR Legacy stand, and `food.aliases` stays empty across the bulk
+  catalog. The evidence decided it: all four zero-retrieval failures the 2026-08-22 measurement found
+  (`jalapeño`, `Kerrygold butter`, `chikcen`, `Arborio rice`) were retrieval MECHANICS — the missing
+  `unaccent`, `plainto_tsquery`'s conjunction, and trigram's blindness to a transposition — and all were
+  closed catalog-side. None was an alias gap. FNDDS would add 5,432 composite prepared dishes competing with
+  ingredient rows in exactly the ranking that just changed, for a benefit nothing has measured. Re-open it
+  with numbers after the corpus run, not before.
+- **`ingredient_resolution_memos` gets an `owner_id` and an erasure sweep** (migration 0026), rather than
+  dropping `source_phrase`. ⚠️ Note what the ruling costs, because it is the point of the change: the memo
+  table now holds a person-to-row link it did not hold before, which is what makes erasure possible and what
+  erasure must never miss. The alternative — dropping the phrase, which is write-only today — would have
+  removed the question instead of answering it, at the cost of the two-way door the mappings tier keeps.
+- **U10's corroboration rule stands unchanged.** Two independent authors still promote to global. The
+  sock-puppet path is real but bounded and reversible: every promotion emits an audit signal carrying both
+  author ids, and supersession is scope-gated so a grant holder can demote. Detect-and-reverse is the right
+  trade when the worst case is a wrong food id that nobody is harmed by while it stands.
+- **The bake-off and U15 run on a GENERATED corpus**, and their numbers are labelled non-comparable to U1's
+  annotation protocol. ADR-0023 forbids fetching the public-domain cookbooks and no operator file was
+  supplied. Ground truth comes by CONSTRUCTION — realistic cook phrasing derived from real catalog rows,
+  paired against the right food or against a deliberately wrong one — so the result measures discrimination
+  on constructed contrasts, which is a different claim from field accuracy and must be reported as one.
+
 **Deferred to implementation**
 
-4. Which named external standard fills unit gaps the books leave (at minimum `dessertspoon`).
+4. ~~Which named external standard fills unit gaps the books leave (at minimum `dessertspoon`).~~
+   **CLOSED 2026-08-23.** UCUM (`@lhncbc/ucum-lhc`, the US National Library of Medicine's implementation)
+   supplies every unit a standards body defines — `[gil_us]` and `[gil_br]` are distinct units there, which
+   IS the 118 mL / 142 mL split. The three household spoons remain ours because nothing defines them: of
+   UCUM, `convert-units`, NIST (HB 44 App. C, HB 133 App. E, SP 811), BIPM, ISO 80000, the UK Weights and
+   Measures Act 1985 and 21 CFR 101, none defines a dessertspoon. They are expressed as a ratio to a unit the
+   standard DOES define, which keeps them sized per system, and `standardUnits.ts` makes standard-versus-
+   convention the discriminant a reader sees.
 5. Confidence band thresholds — two-way doors, set from measured accuracy per band.
 6. Whether R9's precedence defect needs its own remedy once U6 re-measures the local-decides share, or
    whether U3's write-path fix and U12's clean start dissolve it. Nothing currently acts on that number.

@@ -374,6 +374,9 @@ export async function processVerification(deps: VerificationDeps, message: Verif
                 sourceLine: message.sourceLine,
                 foodId: message.foodId,
                 modelId: plan.modelId,
+                // Carried so account erasure can reach the phrase (migration 0026). `undefined` on a message
+                // from a producer that predates the field; the memo is written regardless.
+                ownerId: message.ownerId,
             });
         } catch (error) {
             logger.error('verification memo write failed', {

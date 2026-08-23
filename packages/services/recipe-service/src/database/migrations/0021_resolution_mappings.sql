@@ -6,6 +6,9 @@
 --     behind every global ruling.
 --   * ingredient_resolution_memos    — MACHINE-derived. Nobody asserted it, so it has no scope and no author;
 --     what it carries instead is the identifier of the model that AGREED with it (R21).
+--     ⚠️ UPDATED BY 0026: it now ALSO carries `owner_id` — not an author, and not a claim that anybody
+--     asserted the memo, but the predicate account erasure needs to reach `source_phrase`. The residual
+--     recorded below is CLOSED; read 0026 before reasoning about it.
 -- Folding them together would produce rows where "who decided this, and on whose authority" is unanswerable,
 -- which is the exact question an audit of a global mapping exists to answer.
 --

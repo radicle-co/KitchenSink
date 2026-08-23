@@ -130,6 +130,36 @@ const scoredCandidateSchema = z.object({
 export const verifyIngredientLineMessageSchema = z.object({
     /** The recipe the line belongs to. Correlation only — the verdict is keyed on content, not on this. */
     recipeId: z.uuid(),
+    /**
+     * Who owns the recipe this line belongs to — carried SOLELY so a remembered phrase can be erased.
+     *
+     * ⛔ The worker remembers an agreed phrase in `ingredient_resolution_memos`, and that phrase is text a
+     * user typed. Until migration 0026 that table carried no author column, so account erasure had no
+     * predicate to sweep on and 0021's header recorded the gap as a stated residual. Owner ruling
+     * 2026-08-23 closed it by adding the link rather than by dropping the phrase, and this field is the only
+     * thing that carries it from the producer — which knows the owner — to the worker, which does not.
+     *
+     * ⚠️ OPTIONAL, and it must stay optional through at least one release. The queue holds messages enqueued
+     * by the producer that predates this field; making it required turns every one of them into DLQ poison
+     * at the moment the new worker deploys. A memo written from such a message carries no owner — the same
+     * position the table was in before this change, not a worse one.
+     *
+     * ⚠️ It does NOT widen what the DLQ can hold in kind. `recipeId` is already an identifier tying a
+     * message to a person through a table this worker reads; see the note above about weighing each new
+     * field against that question. This one earns its place by being what makes the phrase beside it
+     * erasable.
+     *
+     * ⛔ `z.ulid()`, NOT `ulidx`'s `isValid` — which is what `messages.schema.ts` and `accountErasureWorker`
+     * use, and a first attempt here used it too for exactly that consistency. It cannot be used in THIS
+     * package: `recipe-core` is asserted to be a zod-only leaf (recipe-service's `contract.test.ts`, "the
+     * leaf property"), because `@commise/web` and `@commise/mobile` bundle it and a runtime dependency here
+     * reaches both. That guard failed on the attempt, correctly. Zod's own format check is the library-first
+     * answer with no new dependency: it enforces the 26-character Crockford base32 form and rejects the
+     * excluded letters, which is what a WIRE contract owes. It does not bound the timestamp component the
+     * way `ulidx` does — acceptable here, because this value is only ever a bound SQL parameter and never a
+     * key prefix, which is the case that made strictness matter in the erasure worker.
+     */
+    ownerId: z.ulid().optional(),
     /** The line the cook's source said. UNTRUSTED, and the reason for every bound above. */
     sourceLine: boundedText(MAX_VERIFICATION_SOURCE_LINE_LENGTH),
     /** The opaque food-service id the cascade resolved to. */

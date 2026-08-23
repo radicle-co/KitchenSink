@@ -139,6 +139,14 @@ export interface VerificationRequestPlan {
 export interface VerificationRequestInput {
     /** The recipe the lines belong to. Correlation only — a verdict is keyed on content, not on this. */
     readonly recipeId: string;
+    /**
+     * Who owns that recipe — carried so a phrase the worker REMEMBERS can later be erased (migration 0026).
+     *
+     * ⛔ Required here even though it is optional on the wire. This module is the only place that knows the
+     * owner, and an optional field on an internal input is an invitation to forget it at one of the two call
+     * sites; the wire's optionality exists for messages already in the queue, not for new ones.
+     */
+    readonly ownerId: string;
     /** The lines as they are now persisted, in the author's order. */
     readonly lines: readonly VerifiableLine[];
     /**
@@ -275,6 +283,7 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
         requests.push({
             recipeId: input.recipeId,
+            ownerId: input.ownerId,
             sourceLine,
             foodId,
             candidateFoodName: line.candidateFoodName,

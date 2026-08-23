@@ -56,6 +56,14 @@ export interface AgreementRow {
     readonly sourceLine: string;
     readonly foodId: string;
     readonly modelId: string;
+    /**
+     * Who owns the recipe the phrase came from, so account erasure can reach it (migration 0026).
+     *
+     * ⚠️ `undefined` for a message enqueued by a producer that predates the field. The memo is still written
+     * — refusing it would lose knowledge over a missing correlation — but it carries no owner, which is
+     * exactly the position every memo was in before 0026 rather than a worse one.
+     */
+    readonly ownerId?: string | undefined;
 }
 
 /** The gate's entire write surface. */
@@ -116,13 +124,20 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
                 return;
             }
 
+            // ⛔ `owner_id` MOVES WITH `source_phrase`, in both the insert and the update. The table is keyed
+            // on the normalized phrase, so two users whose lines normalize alike share one row and the later
+            // write replaces both columns together. Updating the phrase while leaving a previous owner's id
+            // beside it would point erasure at the wrong person — it would sweep a phrase the erased user
+            // never typed, and leave the one they did.
             await db.execute(sql`
-                INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
-                VALUES (${key}, ${row.foodId}, ${row.sourceLine}, ${row.modelId})
+                INSERT INTO ingredient_resolution_memos
+                    (normalized_key, food_id, source_phrase, verified_by, owner_id)
+                VALUES (${key}, ${row.foodId}, ${row.sourceLine}, ${row.modelId}, ${row.ownerId ?? null})
                 ON CONFLICT (normalized_key) DO UPDATE
                    SET food_id     = EXCLUDED.food_id,
                        source_phrase = EXCLUDED.source_phrase,
                        verified_by = EXCLUDED.verified_by,
+                       owner_id    = EXCLUDED.owner_id,
                        verified_at = now()
             `);
         },

@@ -135,19 +135,42 @@ export const ingredientResolutionMemos = pgTable(
         /** The key IS the identity: one remembered resolution per phrase. */
         normalizedKey: text('normalized_key').primaryKey(),
         foodId: text('food_id').notNull(),
-        sourcePhrase: text('source_phrase').notNull(),
+        /**
+         * The phrase the key was derived from. ⚠️ NULLABLE since migration 0026: account erasure nulls it,
+         * along with {@link ingredientResolutionMemos.ownerId}, for the user who typed it.
+         */
+        sourcePhrase: text('source_phrase'),
         /**
          * R21 — the identifier of the model that AGREED with this resolution. ⛔ A memo exists ONLY for a
          * resolution the verification gate agreed with; this column is that agreement's record, so a writer
          * with no model identifier to record is a writer with no agreement to record.
          */
         verifiedBy: text('verified_by').notNull(),
+        /**
+         * Who owns the recipe whose line most recently produced this memo (migration 0026, owner ruling
+         * 2026-08-23) — present SOLELY so account erasure has a predicate to sweep on.
+         *
+         * ⛔ It moves as a PAIR with `sourcePhrase`, in the writer's upsert and in the erasure sweep alike.
+         * The table is keyed on the normalized phrase, so two users whose lines normalize alike share one
+         * row; a write that replaced the phrase but not the owner would point erasure at the wrong person.
+         *
+         * ⚠️ NULL means one of two things and neither is an error: the memo came from a producer that
+         * predates the field, or the owner has been erased. Both leave the machine's conclusion — `foodId`
+         * and `verifiedBy` — intact and readable, which is the point.
+         */
+        ownerId: text('owner_id'),
         verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
         // ⛔ THE NEAREST-NEIGHBOUR SEARCH (R14 forbids equality-only matching). GiST — not GIN — because only
         // the GiST trigram operator class supports the `<->` distance operator a k-NN scan orders by.
         index('idx_resolution_memos_key_trgm').using('gist', sql`${table.normalizedKey} gist_trgm_ops`),
+        // Partial, mirroring the mappings tier's author index: the sweep's predicate is `owner_id = $1`, and
+        // a de-identified row is NULL forever after, so indexing the NULLs would index the table's eventual
+        // majority for a query that can never match them.
+        index('idx_resolution_memos_owner')
+            .on(table.ownerId)
+            .where(sql`${table.ownerId} IS NOT NULL`),
     ],
 );
 

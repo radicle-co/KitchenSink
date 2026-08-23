@@ -44,6 +44,36 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
         expect(() => verifyIngredientLineMessageSchema.parse(verifyLine())).not.toThrow();
     });
 
+    /**
+     * ⛔ `ownerId` EXISTS SO THAT A MEMO CAN BE ERASED (owner ruling 2026-08-23, migration 0026).
+     *
+     * The worker remembers an agreed phrase in `ingredient_resolution_memos`, and that phrase is text a user
+     * typed. Until 0026 the table carried no author column, so account erasure had no predicate to sweep on.
+     * The owner ruled to add the link rather than drop the phrase — which means this field is the ONLY thing
+     * that carries it from the producer, which knows the owner, to the worker, which does not.
+     *
+     * ⚠️ OPTIONAL, and it must stay optional through at least one release. The queue holds in-flight messages
+     * enqueued by the producer that predates this field; making it required would turn every one of them into
+     * DLQ poison at exactly the moment the new worker deploys. A memo written from such a message simply
+     * carries no owner — the same position the table was in before this change, not a worse one.
+     */
+    it('accepts an ownerId, and accepts a message without one', () => {
+        expect(() =>
+            verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P' })),
+        ).not.toThrow();
+        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine())).not.toThrow();
+    });
+
+    it('refuses an ownerId that is not a ULID', () => {
+        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: 'not-a-ulid' }))).toThrow();
+    });
+
+    it('carries the ownerId through to the parsed message', () => {
+        const parsed = verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P' }));
+
+        expect(parsed.ownerId).toBe('01JQ8N2X4RBV6WK3ZT5Y7A9C0P');
+    });
+
     it('carries NO aspects and NO skip decision — inputs only', () => {
         const parsed = verifyIngredientLineMessageSchema.parse(
             verifyLine({ aspects: ['quantity'], skip: true, verdict: 'agree' }),

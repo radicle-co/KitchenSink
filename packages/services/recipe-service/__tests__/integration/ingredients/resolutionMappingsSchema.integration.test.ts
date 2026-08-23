@@ -400,3 +400,152 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
         });
     });
 });
+
+/**
+ * ⛔ MIGRATION 0026 — THE MEMO TIER'S ERASABILITY, asserted against the real schema.
+ *
+ * 0021 shipped `ingredient_resolution_memos.source_phrase` as `NOT NULL` and with no author column beside it,
+ * and its header recorded the consequence: account erasure had no predicate to sweep on, so a phrase a user
+ * typed was unreachable. Owner ruling 2026-08-23 closed that by ADDING `owner_id` rather than by dropping the
+ * phrase, and 0026 is that change.
+ *
+ * ⛔ THIS TIER, not a unit test, for the reason the file header already gives about the indexes: the
+ * erasure sweep's correctness rests on properties only the database has. Specifically —
+ *
+ *  1. **`source_phrase` must have LOST its `NOT NULL`.** The sweep sets it to NULL. Against the 0021
+ *     constraint that statement raises `23502` and fails the whole erasure job, and no mock can see it.
+ *  2. **The de-identified row must SURVIVE, carrying the machine's conclusion.** A memo is keyed by
+ *     `normalized_key` alone and is read by every user's cascade; the difference between "erased" and
+ *     "deleted" here is the difference between de-identifying one row and un-resolving that phrase for the
+ *     whole installation.
+ *  3. **The sweep must be SCOPED.** Two owners can hold memos at once, and the predicate is the only thing
+ *     that separates them.
+ */
+describe.skipIf(!hasDatabaseUrl)('ingredient_resolution_memos — erasability (migration 0026)', () => {
+    const MEMO_KEY = 'u10 schema memo plain flour';
+    const OTHER_MEMO_KEY = 'u10 schema memo caster sugar';
+    const OWNER_A = '01JU10SCHEMA0000000OWNERA';
+    const OWNER_B = '01JU10SCHEMA0000000OWNERB';
+
+    let pool: pg.Pool;
+
+    beforeAll(() => {
+        pool = new pg.Pool({ connectionString: DATABASE_URL });
+    });
+
+    afterAll(async () => {
+        await pool.end();
+    });
+
+    afterEach(async () => {
+        await pool.query('DELETE FROM ingredient_resolution_memos WHERE normalized_key LIKE $1', ['u10 schema memo%']);
+    });
+
+    /** Insert one memo exactly as `verdictStore.rememberAgreement` does. */
+    const insertMemo = async (key: string, ownerId: string | null): Promise<void> => {
+        await pool.query(
+            `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by, owner_id)
+             VALUES ($1, $2, $3, 'us.amazon.nova-micro-v1:0', $4)`,
+            [key, FOOD_A, `${key} as the cook typed it`, ownerId],
+        );
+    };
+
+    it('accepts a NULL source_phrase — without which the erasure sweep raises 23502', async () => {
+        await insertMemo(MEMO_KEY, OWNER_A);
+
+        await expect(
+            pool.query('UPDATE ingredient_resolution_memos SET source_phrase = NULL WHERE normalized_key = $1', [
+                MEMO_KEY,
+            ]),
+        ).resolves.toBeDefined();
+    });
+
+    it('still admits a memo with no owner — the shape a pre-0026 producer sends', async () => {
+        await expect(insertMemo(MEMO_KEY, null)).resolves.toBeUndefined();
+    });
+
+    it('de-identifies the erased owner’s memo while keeping the machine’s conclusion', async () => {
+        await insertMemo(MEMO_KEY, OWNER_A);
+
+        // The sweep, verbatim from `accountErasureWorker.eraseRecipeRows`.
+        await pool.query(
+            'UPDATE ingredient_resolution_memos SET owner_id = NULL, source_phrase = NULL WHERE owner_id = $1',
+            [OWNER_A],
+        );
+
+        const { rows } = await pool.query<{
+            food_id: string;
+            verified_by: string;
+            source_phrase: string | null;
+            owner_id: string | null;
+        }>(
+            'SELECT food_id, verified_by, source_phrase, owner_id FROM ingredient_resolution_memos WHERE normalized_key = $1',
+            [MEMO_KEY],
+        );
+
+        // ⛔ The row SURVIVES. Deleting it would un-resolve this phrase for every other user.
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.source_phrase).toBeNull();
+        expect(rows[0]?.owner_id).toBeNull();
+        expect(rows[0]?.food_id).toBe(FOOD_A);
+        expect(rows[0]?.verified_by).toBe('us.amazon.nova-micro-v1:0');
+    });
+
+    it('sweeps ONLY the erased owner’s memos', async () => {
+        await insertMemo(MEMO_KEY, OWNER_A);
+        await insertMemo(OTHER_MEMO_KEY, OWNER_B);
+
+        await pool.query(
+            'UPDATE ingredient_resolution_memos SET owner_id = NULL, source_phrase = NULL WHERE owner_id = $1',
+            [OWNER_A],
+        );
+
+        const { rows } = await pool.query<{ source_phrase: string | null; owner_id: string | null }>(
+            'SELECT source_phrase, owner_id FROM ingredient_resolution_memos WHERE normalized_key = $1',
+            [OTHER_MEMO_KEY],
+        );
+
+        expect(rows[0]?.owner_id).toBe(OWNER_B);
+        expect(rows[0]?.source_phrase).not.toBeNull();
+    });
+
+    /**
+     * ⚠️ The pair rule, which is the subtle one. The table's primary key is the normalized phrase, so two
+     * users whose lines normalize alike share ONE row and the later write replaces both columns together. A
+     * writer that updated the phrase while leaving the previous owner's id beside it would point erasure at
+     * the wrong person: sweeping a phrase they never typed, and leaving the one they did.
+     */
+    it('moves owner_id and source_phrase as a pair on re-agreement', async () => {
+        await insertMemo(MEMO_KEY, OWNER_A);
+
+        await pool.query(
+            `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by, owner_id)
+             VALUES ($1, $2, $3, 'us.anthropic.claude-haiku-4-5-20251001-v1:0', $4)
+             ON CONFLICT (normalized_key) DO UPDATE
+                SET food_id = EXCLUDED.food_id,
+                    source_phrase = EXCLUDED.source_phrase,
+                    verified_by = EXCLUDED.verified_by,
+                    owner_id = EXCLUDED.owner_id,
+                    verified_at = now()`,
+            [MEMO_KEY, FOOD_B, 'the second cook’s wording', OWNER_B],
+        );
+
+        const { rows } = await pool.query<{ source_phrase: string | null; owner_id: string | null }>(
+            'SELECT source_phrase, owner_id FROM ingredient_resolution_memos WHERE normalized_key = $1',
+            [MEMO_KEY],
+        );
+
+        expect(rows[0]?.owner_id).toBe(OWNER_B);
+        expect(rows[0]?.source_phrase).toBe('the second cook’s wording');
+    });
+
+    it('indexes owner_id partially, so the sweep is not a sequential scan', async () => {
+        const { rows } = await pool.query<{ indexdef: string }>(
+            `SELECT indexdef FROM pg_indexes
+              WHERE tablename = 'ingredient_resolution_memos' AND indexname = 'idx_resolution_memos_owner'`,
+        );
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.indexdef).toMatch(/WHERE \(owner_id IS NOT NULL\)/i);
+    });
+});

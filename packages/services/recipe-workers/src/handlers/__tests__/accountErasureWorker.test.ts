@@ -526,6 +526,59 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(sweep?.text).toMatch(/source_phrase\s*=\s*null/i);
     });
 
+    /**
+     * ⛔ THE MEMO TIER — the half the mappings sweep above deliberately did NOT reach, closed by owner ruling
+     * (2026-08-23).
+     *
+     * `ingredient_resolution_memos` carries `source_phrase`: text a user typed, remembered because the
+     * verification gate agreed with the resolution it produced. Until this ruling the table had NO author
+     * column at all, so no per-user predicate existed for a sweep to key on, and migration 0021's header
+     * recorded that as a stated residual rather than an omission.
+     *
+     * ⚠️ The ruling was taken over the alternative of DROPPING `source_phrase` — which is write-only today,
+     * so dropping it would have removed the question rather than answering it. The owner chose to keep the
+     * phrase and make it erasable. That choice has a consequence worth stating where the sweep lives: the
+     * memo table now holds a person-to-row link it did not hold before, which is precisely what makes the
+     * sweep possible and precisely what the sweep must therefore never miss.
+     *
+     * ⛔ AN UPDATE, NOT A DELETE, for the same reason as the mappings tier — but reached differently. A memo
+     * is keyed by `normalized_key` alone and is consulted by EVERY user's resolution cascade; deleting the
+     * erased user's memos would silently un-resolve those phrases for the whole installation. What is
+     * personal here is the phrase and the owner link, not the machine's conclusion, so the conclusion
+     * (`food_id`, `verified_by`) survives de-identified.
+     */
+    it('de-identifies the erased owner’s memos, keeping the machine’s conclusion', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const sweep = statements.find((s) => /ingredient_resolution_memos/i.test(s.text));
+
+        expect(sweep).toBeDefined();
+        expect(sweep?.text).toMatch(/update\s+ingredient_resolution_memos/i);
+        expect(statements.some((s) => /delete\s+from\s+ingredient_resolution_memos/i.test(s.text))).toBe(false);
+        expect(sweep?.text).toMatch(/owner_id\s*=\s*null/i);
+        expect(sweep?.text).toMatch(/source_phrase\s*=\s*null/i);
+        // ⛔ The conclusion is NOT touched. A sweep that also cleared these would erase knowledge nobody
+        // asked to have erased, for every other user of the installation.
+        expect(sweep?.text).not.toMatch(/food_id\s*=\s*null/i);
+        expect(sweep?.text).not.toMatch(/verified_by\s*=\s*null/i);
+    });
+
+    it('sweeps ONLY the erased owner’s memos, and binds the owner as a parameter', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const sweep = control.statements().find((s) => /ingredient_resolution_memos/i.test(s.text));
+
+        expect(sweep?.text).toMatch(/where\s+owner_id\s*=\s*\$\d/i);
+        expect(sweep?.params).toContain(OWNER);
+    });
+
     it('sweeps ONLY the erased author’s LIVE mappings — never another author’s, never a superseded one', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
@@ -888,9 +941,12 @@ describe('handler', () => {
         db.enqueue({ rows: removedIds.map((id) => ({ id })) }); // removed-SELECT
 
         // persist, ratings, detach, delete, collections, scrub, author_handles, resolution-mapping sweep,
-        // completed, + caller trailing. ⚠️ The count moved from 8 to 9 when U14 added the knowledge-base
-        // sweep — the FakeDb serves ONE positional queue, so a stale count silently starves the NEXT record.
-        for (let i = 0; i < 9 + trailing; i += 1) {
+        // resolution-MEMO sweep, completed, + caller trailing. ⚠️ The count moved from 8 to 9 when U14 added
+        // the knowledge-base sweep, and from 9 to 10 when migration 0026 added the memo sweep beside it — the
+        // FakeDb serves ONE positional queue, so a stale count silently starves the NEXT record. It did
+        // exactly that on the 0026 change: the second record's removed-SELECT consumed the first record's
+        // leftover padding and returned nothing, and the only symptom was two missing S3 prefixes.
+        for (let i = 0; i < 10 + trailing; i += 1) {
             db.enqueue({ rows: [] });
         }
     };

@@ -56,12 +56,16 @@ const makeLine = (overrides: Partial<VerifiableLine> = {}): VerifiableLine => ({
     ...overrides,
 });
 
+/** The recipe's owner, carried onto every request so a remembered phrase stays erasable (0026). */
+const OWNER_ID = '01JQ8N2X4RBV6WK3ZT5Y7A9C0P';
+
 const plan = (
     lines: readonly VerifiableLine[],
     alreadyRequested: readonly VerifiableLine[] = [],
 ): ReturnType<typeof buildVerificationRequests> =>
     buildVerificationRequests({
         recipeId: RECIPE_ID,
+        ownerId: OWNER_ID,
         lines,
         alreadyRequested,
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
@@ -268,5 +272,29 @@ describe('buildVerificationRequests — a judgement already on record is not re-
         // An authored line and a transcribed line are different judgements; a `null` source line must not
         // collapse into a key that matches something.
         expect(build([makeLine()], [makeLine({ sourceLine: undefined })])).toHaveLength(1);
+    });
+});
+
+/**
+ * ⛔ THE ONLY REASON `ownerId` EXISTS ON THIS MESSAGE (migration 0026, owner ruling 2026-08-23).
+ *
+ * The worker remembers an agreed phrase in `ingredient_resolution_memos`, and that phrase is text a user
+ * typed. This producer is the only participant that knows whose recipe the line came from, so a request built
+ * without the owner produces a memo account erasure cannot reach. The field is REQUIRED on this input for
+ * exactly that reason, even though it is optional on the wire — the wire's optionality is for messages
+ * already sitting in the queue, not for new ones.
+ */
+describe('buildVerificationRequests — the owner travels with every request (0026)', () => {
+    it('stamps the owner on each request it builds', () => {
+        const { requests } = plan([
+            makeLine(),
+            makeLine({ sourceLine: '1 tsp salt', foodId: '01JFOOD000000000000000002' }),
+        ]);
+
+        expect(requests.length).toBeGreaterThan(0);
+
+        for (const request of requests) {
+            expect(request.ownerId).toBe(OWNER_ID);
+        }
     });
 });

@@ -22,8 +22,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { COOKBOOKS, type Cookbook } from '../cookbooks.js';
 import { segmentCookbook, type CookbookBlock } from '../gutenbergBook.adapter.js';
-import { toCandidateRecipe, type RecipeCandidateOutcome } from '../proseRecipe.js';
+import { toCandidateRecipe, type CandidateIngredient, type RecipeCandidateOutcome } from '../proseRecipe.js';
 
 const FIXTURE = readFileSync(join(import.meta.dirname, '../../fixtures/cookbookExcerpts.txt'), 'utf-8');
 const BLOCKS = segmentCookbook(FIXTURE);
@@ -398,5 +399,151 @@ describe('toCandidateRecipe — a value-corrupting parse is dropped, never re-re
 
         expect(flour?.quantity).toEqual({ kind: 'range', low: 2, high: 3 });
         expect(flour?.unit).toBe('cup');
+    });
+});
+
+/**
+ * R32–R35 — historical units, resolved from the SOURCE BOOK and disclosed to the reader.
+ *
+ * ⚠️ The prose below is written for the test rather than lifted from a fixture, because the committed
+ * corpus excerpts contain no gill or wineglassful and the golden corpus carries a VERBATIM rule that
+ * forbids inventing one. What these cases prove is the MAPPER's behaviour, never the book's text.
+ */
+describe('toCandidateRecipe, on historical units', () => {
+    const HISTORICAL: CookbookBlock = {
+        title: 'A SAUCE FOR PUDDING',
+        paragraphs: [
+            'Take one gill of milk, one wineglassful of sherry and two saltspoons of salt, and put them ' +
+                'together in a small saucepan over a gentle fire. Stir the mixture without ceasing until it ' +
+                'is quite smooth and begins to thicken, then draw it to the side of the stove. Let it cook ' +
+                'slowly half an hour and serve it very hot with a plain boiled pudding.',
+        ],
+    };
+
+    const PLAIN: CookbookBlock = {
+        title: 'A PLAIN CAKE',
+        paragraphs: [
+            'Take two cups of flour, one cup of milk and two teaspoons of baking-powder, and mix them well ' +
+                'together in a large bowl until the batter is smooth and creamy. Turn it into a buttered tin ' +
+                'and bake it half an hour in a slow oven, then set it aside on a rack to cool completely.',
+        ],
+    };
+
+    /** Look one ingredient up by name, failing loudly rather than asserting against `undefined`. */
+    function lineFor(outcome: RecipeCandidateOutcome, name: string): CandidateIngredient {
+        if (outcome.kind !== 'candidate') {
+            throw new Error(`expected a candidate, got a skip: ${outcome.reason}`);
+        }
+
+        const line = outcome.recipe.ingredients.find((candidate) => candidate.name.toLowerCase().includes(name));
+
+        if (line === undefined) {
+            const seen = outcome.recipe.ingredients.map((candidate) => candidate.name).join(', ');
+
+            throw new Error(`no ingredient matching "${name}"; the mapper read: ${seen}`);
+        }
+
+        return line;
+    }
+
+    it('restates a gill from an AMERICAN book into a unit the food catalog can weigh', () => {
+        const milk = lineFor(toCandidateRecipe(HISTORICAL, COOKBOOKS['international-jewish']), 'milk');
+
+        expect(milk.unit).toBe('cup');
+        expect(milk.quantity).toEqual({ kind: 'exact', value: 0.5 });
+    });
+
+    /**
+     * ⛔ THE HEADLINE OF R33, at the pipeline level: the SAME prose, two books, two numbers. If this ever
+     * reports one value for both, a whole corpus is being converted with another book's factors.
+     */
+    it('restates the SAME gill differently for The Jewish Manual, because it is a British book', () => {
+        const american = lineFor(toCandidateRecipe(HISTORICAL, COOKBOOKS['international-jewish']), 'milk');
+        const british = lineFor(toCandidateRecipe(HISTORICAL, COOKBOOKS['jewish-manual']), 'milk');
+
+        expect(american.quantity).toEqual({ kind: 'exact', value: 0.5 });
+        expect(british.quantity).toEqual({ kind: 'exact', value: 0.6 });
+        expect(american.unitConversion?.equivalence.measureSystem).toBe('us-customary');
+        expect(british.unitConversion?.equivalence.measureSystem).toBe('british-imperial');
+    });
+
+    it('marks the converted line with its citation and keeps the amount the book PRINTED (R34, R35)', () => {
+        const milk = lineFor(toCandidateRecipe(HISTORICAL, COOKBOOKS['international-jewish']), 'milk');
+
+        expect(milk.unitConversion?.stated).toEqual({ quantity: { kind: 'exact', value: 1 }, unit: 'gill' });
+        expect(milk.unitConversion?.equivalence.citation).toContain('12350');
+        expect(milk.unitConversion?.equivalence.source).toBe('source-book-table');
+        // The source's own UNIT survives on the line even after the structured values are restated — it is
+        // what `toImportedIngredientLine` sends as `notes` and `sourceLine`.
+        //
+        // ⚠️ `raw` is the suffix the scan handed the parser, so its NUMBER is already normalized
+        // ("one" -> "1"). That predates this unit and is asserted here as found, not as desired:
+        // `importedIngredientLine.ts` documents `sourceLine` as the clause "verbatim", and it is not
+        // quite. Flagged for U11, whose gate keys its verdict on that field.
+        expect(milk.raw).toContain('gill of milk');
+    });
+
+    /** ⛔ Presence IS the disclosure — a directly-stated metric line must carry no marker at all. */
+    it('leaves a directly-stated metric line unmarked and untouched', () => {
+        const flour = lineFor(toCandidateRecipe(PLAIN, COOKBOOKS['international-jewish']), 'flour');
+
+        expect(flour.unitConversion).toBeUndefined();
+        expect(flour.unit).toBe('cup');
+        expect(flour.quantity).toEqual({ kind: 'exact', value: 2 });
+    });
+
+    /**
+     * ⛔ An unconvertible historical line is KEPT, not dropped. `one gill of milk` is a real ingredient
+     * with a stated amount; discarding it to protect a nutrition nicety inverts this module's own
+     * asymmetric-cost rule, which is about never asserting a WRONG number — not about refusing a right one.
+     */
+    it('keeps the line unconverted when no book is supplied at all', () => {
+        const milk = lineFor(toCandidateRecipe(HISTORICAL), 'milk');
+
+        expect(milk.unit).toBe('gill');
+        expect(milk.quantity).toEqual({ kind: 'exact', value: 1 });
+        expect(milk.unitConversion).toBeUndefined();
+    });
+
+    it('keeps the line unconverted when the book’s measure system is unestablished (R33)', () => {
+        const placeless: Cookbook = {
+            ...COOKBOOKS['international-jewish'],
+            measures: {
+                origin: { kind: 'unestablished', why: 'A test fixture standing in for a book nobody has placed.' },
+                table: { kind: 'not-transcribed', why: 'A test fixture; no table has been read.' },
+            },
+        };
+        const milk = lineFor(toCandidateRecipe(HISTORICAL, placeless), 'milk');
+
+        expect(milk.unit).toBe('gill');
+        expect(milk.unitConversion).toBeUndefined();
+    });
+
+    /**
+     * R35's reader-facing half. The description already exists to disclose what the source did NOT state
+     * (its yield, its prep time); a converted measure is the same kind of fact, and it is disclosed in the
+     * same place rather than leaving a reader to wonder why a book from 1919 calls for half a cup.
+     */
+    it('discloses the conversion in the recipe description, naming the system and the authority', () => {
+        const outcome = toCandidateRecipe(HISTORICAL, COOKBOOKS['international-jewish']);
+
+        if (outcome.kind !== 'candidate') {
+            throw new Error(`expected a candidate, got a skip: ${outcome.reason}`);
+        }
+
+        expect(outcome.recipe.description).toContain('gill');
+        expect(outcome.recipe.description).toContain('US customary');
+        expect(outcome.recipe.description).toContain('TABLE OF WEIGHTS AND MEASURES');
+    });
+
+    it('says nothing about measures in a description when nothing was converted', () => {
+        const outcome = toCandidateRecipe(PLAIN, COOKBOOKS['international-jewish']);
+
+        if (outcome.kind !== 'candidate') {
+            throw new Error(`expected a candidate, got a skip: ${outcome.reason}`);
+        }
+
+        expect(outcome.recipe.description).not.toContain('measure');
+        expect(outcome.recipe.description).not.toContain('customary');
     });
 });

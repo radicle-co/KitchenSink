@@ -34,7 +34,16 @@ import {
     type ParsedIngredientLine,
 } from '@kitchensink/recipe-import-core';
 
+import type { MeasureSystem } from '@kitchensink/recipe-import-core';
+
+import type { Cookbook } from './cookbooks.js';
 import type { CookbookBlock } from './gutenbergBook.adapter.js';
+import {
+    convertHistoricalUnit,
+    unitEquivalenceFor,
+    type HistoricalUnitConversion,
+    type UnitEquivalenceResolver,
+} from './unitEquivalence.js';
 
 /**
  * The serving count written when the source states none.
@@ -184,6 +193,26 @@ const LEADING_NOISE = new Set([
 /** Why a block was not imported. Every value is reportable to a human without further lookup. */
 export type RecipeSkipReason = 'no_body' | 'too_few_ingredients' | 'too_few_steps' | 'no_stated_duration';
 
+/**
+ * One accepted ingredient line — the parse, plus R35's marker when a historical unit was restated.
+ *
+ * DESIGN PATTERN: Value Object, EXTENDING the one the parser produced rather than wrapping it, so a
+ * candidate line stays structurally a `ParsedClause` and `toImportedIngredientLine` needs no change.
+ *
+ * ⛔ `quantity` and `unit` are the values that go ON THE WIRE, so for a restated line they are the
+ * CONVERTED ones — and the amount the book actually printed is not lost, it moves into
+ * {@link unitConversion}`.stated`. `raw` is the source's own words either way.
+ */
+export interface CandidateIngredient extends ParsedIngredientLine {
+    /**
+     * Present ONLY when this line's unit was restated from a historical measure (R35).
+     *
+     * ⚠️ Its PRESENCE is the disclosure, exactly as `RecipeNutrition.rangeDerivedBound`'s is: there is no
+     * "not applicable" value, because a directly-stated metric quantity is the absence of this field.
+     */
+    readonly unitConversion?: HistoricalUnitConversion;
+}
+
 /** A recipe parsed out of prose, ready to be turned into a create request. */
 export interface CandidateRecipe {
     /** The book's heading, presented as a name rather than as shouting. */
@@ -191,7 +220,7 @@ export interface CandidateRecipe {
     /** Provenance-honest prose shown to the reader; discloses anything the source did not state. */
     readonly description: string;
     /** The quantified ingredient lines, in the order the prose introduced them. */
-    readonly ingredients: readonly ParsedIngredientLine[];
+    readonly ingredients: readonly CandidateIngredient[];
     /** The instruction steps, in order. */
     readonly steps: readonly string[];
     /** The longest duration the text actually states. */
@@ -517,11 +546,19 @@ function trimName(name: string): string {
 /**
  * Map one titled prose block to a candidate recipe, or explain why it is not one.
  *
+ * ⚠️ Takes the whole registry ENTRY rather than the attribution string it used to take, because two
+ * different parts of this function now need the book: the description needs its credit, and the
+ * historical-unit restatement needs its measure system and its own table of weights and measures (R33).
+ * Passing the two separately invites a caller to supply one and not the other, which reads as "this book
+ * has no measures" — the unknown-origin state R33 says a KNOWN-origin book must never fall into.
+ *
  * @param block - A block from the Gutenberg adapter.
- * @param attribution - Optional credit woven into the description (the book and author).
+ * @param book - The registry entry the block came from. Omitted only by tests that are not exercising
+ *   provenance: with no book there is no measure system, so no historical unit is restated and every line
+ *   keeps the unit the source printed.
  * @returns The candidate plus anything dropped, or a skip carrying a machine-readable reason. Pure.
  */
-export function toCandidateRecipe(block: CookbookBlock, attribution?: string): RecipeCandidateOutcome {
+export function toCandidateRecipe(block: CookbookBlock, book?: Cookbook): RecipeCandidateOutcome {
     const title = toDisplayTitle(block.title);
     const body = block.paragraphs.join(' ').trim();
 
@@ -529,7 +566,8 @@ export function toCandidateRecipe(block: CookbookBlock, attribution?: string): R
         return { kind: 'skipped', title, reason: 'no_body' };
     }
 
-    const ingredients: ParsedIngredientLine[] = [];
+    const resolveUnit = book === undefined ? null : unitEquivalenceFor(book.measures);
+    const ingredients: CandidateIngredient[] = [];
     const droppedLines: string[] = [];
     const seen = new Set<string>();
 
@@ -577,7 +615,7 @@ export function toCandidateRecipe(block: CookbookBlock, attribution?: string): R
         }
 
         seen.add(key);
-        ingredients.push({ ...parsed, name });
+        ingredients.push(restateHistoricalUnit({ ...parsed, name }, resolveUnit));
     }
 
     if (ingredients.length < MIN_INGREDIENTS) {
@@ -608,7 +646,7 @@ export function toCandidateRecipe(block: CookbookBlock, attribution?: string): R
         droppedLines,
         recipe: {
             title,
-            description: buildDescription(attribution, stated !== undefined),
+            description: buildDescription(book?.attribution, stated !== undefined, ingredients),
             ingredients,
             steps,
             cookTimeMinutes,
@@ -621,20 +659,97 @@ export function toCandidateRecipe(block: CookbookBlock, attribution?: string): R
 }
 
 /**
+ * Restate one accepted line's historical unit, when this book's measures define one (R32, R35).
+ *
+ * ⛔ A line the resolver cannot answer for is KEPT, exactly as parsed. "One gill of milk" is a real
+ * ingredient with a stated amount, and dropping it would be this module's asymmetric-cost rule applied
+ * backwards: that rule refuses to assert a WRONG number, not to carry a right one in an old unit. The
+ * consequence of keeping it is only that the food service finds no household portion named `gill`, so the
+ * line contributes no nutrition — which `RecipeNutrition.isComplete` already discloses.
+ *
+ * @param line - One accepted, named ingredient line.
+ * @param resolveUnit - The book's equivalence port, or `null` when no book was supplied.
+ * @returns The line, restated and marked, or unchanged. Pure.
+ */
+function restateHistoricalUnit(
+    line: CandidateIngredient,
+    resolveUnit: UnitEquivalenceResolver | null,
+): CandidateIngredient {
+    if (resolveUnit === null || line.unit === null) {
+        return line;
+    }
+
+    const conversion = convertHistoricalUnit(resolveUnit, line.quantity, line.unit);
+
+    return conversion === null
+        ? line
+        : {
+              ...line,
+              quantity: conversion.restated.quantity,
+              unit: conversion.restated.unit,
+              unitConversion: conversion,
+          };
+}
+
+/**
  * Compose the reader-facing description, disclosing whatever the source did not state.
  *
  * The disclosure is the point. A recipe showing "1 serving, 0 min prep" with no explanation looks like bad
- * data; the same recipe saying the source states neither is an accurate record of a 1900s cookbook.
+ * data; the same recipe saying the source states neither is an accurate record of a 1900s cookbook. R35's
+ * historical-unit conversion is the same kind of fact and is disclosed in the same place: a reader shown
+ * "0.5 cup" from a book that printed "one gill" is owed the sentence saying so, and WHOSE table said it.
  *
  * @param attribution - The book credit, when the caller supplied one.
  * @param yieldStated - Whether a serving count was read from the text.
+ * @param ingredients - The accepted lines, read for their conversion markers.
  * @returns The description. Pure.
  */
-function buildDescription(attribution: string | undefined, yieldStated: boolean): string {
+function buildDescription(
+    attribution: string | undefined,
+    yieldStated: boolean,
+    ingredients: readonly CandidateIngredient[],
+): string {
     const source = attribution === undefined ? 'a public-domain cookbook' : attribution;
     const caveat = yieldStated
         ? 'Preparation time is not stated in the source.'
         : 'The source states no yield, so the quantities are exactly as printed — one batch. Preparation time is not stated either.';
 
-    return `Imported verbatim from ${source}. ${caveat}`;
+    return [`Imported verbatim from ${source}.`, caveat, ...describeConversions(ingredients)].join(' ');
+}
+
+/** How each measure system is named to a reader. Never the internal token. */
+const MEASURE_SYSTEM_LABEL: Readonly<Record<MeasureSystem, string>> = {
+    'us-customary': 'US customary',
+    'british-imperial': 'British imperial',
+};
+
+/**
+ * The disclosure sentence for a recipe whose historical units were restated, or nothing at all.
+ *
+ * ⛔ Nothing when nothing was converted — the sentence's PRESENCE is the disclosure, so a recipe that
+ * needed no conversion must not carry a paragraph explaining that none happened. Units are grouped by the
+ * authority that sized them, so a reader is told which figures came from the book's own table and which
+ * from the external standard, rather than being handed one blended claim.
+ */
+function describeConversions(ingredients: readonly CandidateIngredient[]): readonly string[] {
+    const byCitation = new Map<string, { readonly system: MeasureSystem; readonly units: Set<string> }>();
+
+    for (const line of ingredients) {
+        const { equivalence } = line.unitConversion ?? {};
+
+        if (equivalence === undefined) {
+            continue;
+        }
+
+        const group = byCitation.get(equivalence.citation) ?? { system: equivalence.measureSystem, units: new Set() };
+
+        group.units.add(equivalence.unit);
+        byCitation.set(equivalence.citation, group);
+    }
+
+    return [...byCitation].map(
+        ([citation, group]) =>
+            `Historical measures in this recipe (${[...group.units].sort().join(', ')}) were converted to ` +
+            `modern kitchen measures in the ${MEASURE_SYSTEM_LABEL[group.system]} system, using ${citation}.`,
+    );
 }

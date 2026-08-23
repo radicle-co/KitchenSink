@@ -29,7 +29,13 @@ import { segmentCookbook } from './gutenbergBook.adapter.js';
 import { toCandidateRecipe } from './proseRecipe.js';
 import { resolveIngredientLikeAUser } from './resolveIngredient.js';
 import { toImportedIngredientLine } from './importedIngredientLine.js';
-import { emptyReport, recordDropped, type ImportReportData, type ImportedExample } from './importReport.js';
+import {
+    emptyReport,
+    recordDropped,
+    recordHistoricalConversion,
+    type ImportReportData,
+    type ImportedExample,
+} from './importReport.js';
 import type { ImportLedger } from './importLedger.js';
 import type { CreateRecipeBody, Ingredient, RecipeApiClient } from './RecipeApiClient.js';
 
@@ -86,7 +92,7 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
             break;
         }
 
-        const outcome = toCandidateRecipe(block, book.attribution);
+        const outcome = toCandidateRecipe(block, book);
 
         if (outcome.kind === 'skipped') {
             report.skipped[outcome.reason] += 1;
@@ -125,6 +131,12 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
 
             report.ingredientLines += 1;
             report.resolutionKinds[resolution.kind] += 1;
+
+            // R35 — a restated amount is not the amount the book printed, and the run says so under whose
+            // authority. The reader-facing half of the same disclosure is in the recipe's description.
+            if (parsed.unitConversion !== undefined) {
+                recordHistoricalConversion(report, parsed.unitConversion);
+            }
 
             if (resolution.catalogAvailability !== 'ok') {
                 report.catalogUnavailable += 1;

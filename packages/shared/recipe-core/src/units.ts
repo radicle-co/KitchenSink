@@ -49,14 +49,50 @@ const UNIT_ALIASES: Readonly<Record<string, string>> = {
     tsp: 'teaspoon',
     // R31 — the `*ful` family. A 1900s cookbook writes `teaspoonful`, and the de-pluralization fallback
     // below cannot reach it (no trailing `s`), so it normalized to itself, matched no portion, and cost
-    // the line its gram conversion. Exactly these three measures take the suffix; `handful`, `spoonful`
-    // and `glassful` name no defined amount and are deliberately absent.
+    // the line its gram conversion.
     teaspoonful: 'teaspoon',
     teaspoonfuls: 'teaspoon',
     tablespoonful: 'tablespoon',
     tablespoonfuls: 'tablespoon',
     cupful: 'cup',
     cupfuls: 'cup',
+    // R32 — the HISTORICAL volume units, added by U7 alongside the `*ful` family above.
+    //
+    // ⚠️ This REDRAWS the boundary the R31 comment drew rather than erasing it. That comment excluded
+    // `wineglassful` with the rest of the `*ful` words on the grounds that it "names no defined amount".
+    // It does: Project Gutenberg #12350's own TABLE OF WEIGHTS AND MEASURES prints `4 tablespoons = 1
+    // wine-glass`, and the named external standard covers the rest. `handful`, `spoonful` and `glassful`
+    // remain absent, because those genuinely name no amount and supplying one would invent a quantity the
+    // source never stated (R40).
+    //
+    // ⛔ Canonicalising the SPELLING is all that happens here. A historical unit has no
+    // ingredient-independent gram weight and `unitToGrams` deliberately returns `null` for one; the
+    // equivalence that gives it a value is PER SOURCE BOOK and lives in `@kitchensink/cookbook-import`'s
+    // `unitEquivalence.ts`, because two books can print two different values for the same word (an
+    // imperial gill is 142 mL against the US customary 118 mL). What this table buys is that the word is
+    // spelled ONE way by the time that lookup happens.
+    gill: 'gill',
+    gills: 'gill',
+    wineglass: 'wineglass',
+    wineglasses: 'wineglass',
+    wineglassful: 'wineglass',
+    wineglassfuls: 'wineglass',
+    'wine-glass': 'wineglass',
+    'wine-glasses': 'wineglass',
+    'wine-glassful': 'wineglass',
+    'wine-glassfuls': 'wineglass',
+    saltspoon: 'saltspoon',
+    saltspoons: 'saltspoon',
+    saltspoonful: 'saltspoon',
+    saltspoonfuls: 'saltspoon',
+    dessertspoon: 'dessertspoon',
+    dessertspoons: 'dessertspoon',
+    dessertspoonful: 'dessertspoon',
+    dessertspoonfuls: 'dessertspoon',
+    'dessert-spoon': 'dessertspoon',
+    'dessert-spoons': 'dessertspoon',
+    'dessert spoon': 'dessertspoon',
+    'dessert spoons': 'dessertspoon',
     clove: 'clove',
     cloves: 'clove',
     slice: 'slice',

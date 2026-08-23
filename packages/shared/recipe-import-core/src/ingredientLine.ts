@@ -8,10 +8,12 @@ import {
 } from '@kitchensink/recipe-core';
 import { parseIngredient, unitsOfMeasure, type UnitOfMeasureDefinitions } from 'parse-ingredient';
 
+import { HISTORICAL_UNIT_DEFINITIONS } from './historicalUnits.js';
 import { normalizeQuantityRange } from './normalizeQuantity.js';
 
 /**
- * The `*ful` spellings `parse-ingredient` does not RECOGNISE, taught through its own extension point.
+ * The period spellings `parse-ingredient` does not RECOGNISE, taught through its own extension point —
+ * the `*ful` family (R31) and the historical measures (R32).
  *
  * R31 has two halves and they live in different places, which is not the duplication it looks like.
  * Canonicalising `teaspoonful` -> `teaspoon` is recipe-core's `UNIT_ALIASES`, and it serves gram
@@ -32,6 +34,10 @@ const IMPORT_UNITS: UnitOfMeasureDefinitions = {
     teaspoon: withAlternates('teaspoon', ['teaspoonfuls']),
     tablespoon: withAlternates('tablespoon', ['tablespoonfuls']),
     cup: withAlternates('cup', ['cupful', 'cupfuls']),
+    // R32 — the historical measures, which the library does not define AT ALL (not even a stem to extend).
+    // They carry no conversion factor on purpose: what a gill is worth is a fact about the SOURCE BOOK, not
+    // about the language. See `historicalUnits.ts`.
+    ...HISTORICAL_UNIT_DEFINITIONS,
 };
 
 /** One library unit definition with extra spellings appended. Throws at module load if the id is gone. */
@@ -131,7 +137,18 @@ export interface ParsedIngredientLine {
  */
 const QUANTITY_STORAGE_SCALE = 3;
 
-function roundToStorageScale(value: number): number {
+/**
+ * Round an amount to the decimal places `recipe_ingredients.quantity` keeps.
+ *
+ * Exported because a SECOND producer of a storable quantity now exists: U7's historical-unit conversion
+ * (`@kitchensink/cookbook-import`'s `unitEquivalence.ts`) divides one measure by another and lands on
+ * 0.6004… for an imperial gill in cups. The column's scale is ONE piece of knowledge, and a private copy
+ * of `10 ** 3` beside a second `Math.round` is exactly the drift this repository's DRY rule is about.
+ *
+ * @param value - Any amount.
+ * @returns The amount as the column would store it. Pure.
+ */
+export function roundToQuantityStorageScale(value: number): number {
     const factor = 10 ** QUANTITY_STORAGE_SCALE;
 
     return Math.round(value * factor) / factor;
@@ -139,7 +156,7 @@ function roundToStorageScale(value: number): number {
 
 /** A bound rounded to what the column keeps, or `null` when there is no readable number here. */
 function toStorableBound(value: number | null): number | null {
-    return value === null || !Number.isFinite(value) ? null : roundToStorageScale(value);
+    return value === null || !Number.isFinite(value) ? null : roundToQuantityStorageScale(value);
 }
 
 /**

@@ -2,7 +2,7 @@
 
 **Plan:** [`docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`](../plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md) (U11 / KTD-4, KTD-5)
 **ADR:** [`0024-llm-spend-ceiling-reserve-then-settle.md`](../architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md) (§4a, the roster)
-**Run:** 2026-08-23, `us-east-1`, against live Amazon Bedrock. Measured spend **$0.1495** across two runs.
+**Run:** 2026-08-23, `us-east-1`, against live Amazon Bedrock. Measured spend **$0.1502** across three runs (695 + 74,754 + 74,657 micro-dollars).
 
 ---
 
@@ -195,7 +195,7 @@ gate can be claimed to do.
 ### Position bias, measured rather than asserted
 
 **353 of 2,136 lines (16.53 %) flipped band when the two aspects were presented in the other order** — at the
-top of U11's predicted 10–15 % band. It is not uniform:
+just ABOVE U11's predicted 10–15 % band, so the plan under-estimated position bias rather than over-estimated it. It is not uniform:
 
 | Class               | Lines | Flipped | Rate        |
 | ------------------- | ----- | ------- | ----------- |
@@ -305,7 +305,7 @@ not proven unnecessary — and the model it might matter for is the one that cou
 | Full corpus v1.0.0 (Nova)                             | 4,272 | $0.0748            |
 | Full corpus v1.1.0 (Nova) — **the run that stands**   | 4,272 | **$0.0747**        |
 | Haiku smoke (failed, 40× `ResourceNotFoundException`) | 40    | $0.0000 (unbilled) |
-| **Total**                                             |       | **$0.1495**        |
+| **Total**                                             |       | **$0.1502**        |
 
 Authorised: ~$0.09 (Nova) + ~$2.70 (Haiku). **Under budget, because the Haiku half did not run.**
 

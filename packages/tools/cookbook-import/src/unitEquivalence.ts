@@ -276,6 +276,11 @@ export function resolveUnitEquivalence(measures: BookMeasures, unit: string): Un
     const canonical = normalizeUnit(unit);
     const printed = table.kind === 'transcribed' ? table.entries.find((entry) => entry.unit === canonical) : undefined;
 
+    // ⛔ The chain STOPS here when the book printed this unit, even if its own line turns out to be
+    // unreadable (a `per` no measurement standard sizes — which can only be a transcription error). Falling
+    // through to the external standard would answer with `source: 'external-standard'` for a book that
+    // plainly DID define the unit, which is a false citation — the one thing R34 exists to prevent — and it
+    // would hide the broken transcription behind a plausible number.
     if (printed !== undefined) {
         return equivalenceFrom(
             printed,

@@ -96,6 +96,28 @@ describe('resolveUnitEquivalence — the same word, two amounts (R32, R33)', () 
         expect(resolveUnitEquivalence(AMERICAN, 'Gills')?.millilitres).toBeCloseTo(118.29, 1);
     });
 
+    /**
+     * ⛔ The chain does NOT fall through when the book's own line is unreadable. Answering with the
+     * external standard for a unit the book plainly defined would report `source: 'external-standard'`
+     * against a book that printed a table — a false citation, which is the one thing R34 exists to
+     * prevent — and it would hide a broken transcription behind a perfectly plausible number.
+     */
+    it('refuses rather than substituting the standard when a book’s own line cannot be read', () => {
+        const badTranscription: BookMeasures = {
+            origin: { kind: 'established', system: 'us-customary', basis: 'A test fixture with a known origin.' },
+            table: {
+                kind: 'transcribed',
+                citation: 'A test fixture table with one unreadable line.',
+                // `firkin` is not a unit any measurement standard here sizes, so this line has no value.
+                entries: [{ unit: 'gill', count: 0.25, per: 'firkin', printed: '4 gills = 1 firkin' }],
+            },
+        };
+
+        expect(resolveUnitEquivalence(badTranscription, 'gill')).toBeNull();
+        // …and the units that line says nothing about still resolve, so the refusal is scoped to the defect.
+        expect(resolveUnitEquivalence(badTranscription, 'dessertspoon')?.source).toBe('external-standard');
+    });
+
     it('resolves nothing for a unit that is not historical at all', () => {
         expect(resolveUnitEquivalence(AMERICAN, 'cup')).toBeNull();
         expect(resolveUnitEquivalence(AMERICAN, 'g')).toBeNull();

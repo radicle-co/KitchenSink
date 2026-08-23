@@ -17,7 +17,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    BEDROCK_RATE_TABLE,
+    BEDROCK_MODEL_REGISTRY,
+    CLAUDE_HAIKU_4_5_MODEL_ID,
     DEFAULT_MONTHLY_CEILING_MICROS,
     MICROS_PER_DOLLAR,
     NOVA_LITE_MODEL_ID,
@@ -28,6 +29,8 @@ import {
     periodKey,
     planReservation,
     rateFor,
+    registryEntryFor,
+    residencyClearance,
     settleDeltaMicros,
     worstCaseMicros,
 } from '../spendArithmetic.js';
@@ -135,7 +138,7 @@ describe('rateFor', () => {
     });
 
     it('carries an effective date and a price-provenance flag on every entry', () => {
-        for (const [modelId, rate] of Object.entries(BEDROCK_RATE_TABLE)) {
+        for (const [modelId, { rate }] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
             expect(rate.effectiveDate, `${modelId} must record when its price was read`).toMatch(
                 /^\d{4}-\d{2}-\d{2}$/u,
             );
@@ -146,7 +149,7 @@ describe('rateFor', () => {
     });
 
     it('does not price Gemini, which is not available on Bedrock at all (ADR-0024 §4)', () => {
-        expect(Object.keys(BEDROCK_RATE_TABLE).some((id) => id.includes('gemini'))).toBe(false);
+        expect(Object.keys(BEDROCK_MODEL_REGISTRY).some((id) => id.includes('gemini'))).toBe(false);
     });
 });
 
@@ -234,7 +237,7 @@ describe('worstCaseMicros', () => {
         const maxInput = 1_000;
         const maxOutput = 200;
 
-        for (const [modelId, rate] of Object.entries(BEDROCK_RATE_TABLE)) {
+        for (const [modelId, { rate }] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
             const worst = worstCaseMicros(rate, maxInput, maxOutput);
 
             for (let fresh = 0; fresh <= maxInput; fresh += 100) {
@@ -360,5 +363,146 @@ describe('planReservation', () => {
 
     it('seeds the ceiling at the $100 the owner set', () => {
         expect(DEFAULT_MONTHLY_CEILING_MICROS).toBe(100 * MICROS_PER_DOLLAR);
+    });
+});
+
+/**
+ * THE TABLE IS THE MODEL REGISTRY — the invocation id, the reach, and the residency warrant.
+ *
+ * ⛔ The defect this closes: one string served as the rate-table key, the recorded model identity, AND the id
+ * Bedrock is invoked with. For an on-demand model those coincide, so nothing ever caught it. Claude Haiku 4.5
+ * is `INFERENCE_PROFILE`-only — the bare id fails with `ValidationException` and the `us.` profile id is not a
+ * rate-table key — so pointing SSM at it failed every call in either direction.
+ *
+ * ⚠️ These assertions carry what the TYPE cannot. `ModelReach` is a discriminated union precisely so that an
+ * on-demand entry cannot carry a region list and a cross-region entry cannot omit its read date; asserting
+ * those would be asserting the compiler. What remains genuinely assertable is the PAIRING between the two
+ * halves — an entry whose invocation id differs from its model id is exactly an entry that reaches beyond the
+ * calling region — and that no shipped entry is residency-approved.
+ */
+describe('the model registry — invocation id and reach', () => {
+    it('addresses an on-demand model by its own id, reaching only where it is called', () => {
+        const entry = registryEntryFor(NOVA_MICRO_MODEL_ID);
+
+        expect(entry?.invocation.invocationId).toBe(NOVA_MICRO_MODEL_ID);
+        expect(entry?.invocation.reach.kind).toBe('deploy-region');
+    });
+
+    it('addresses Claude Haiku 4.5 through its inference profile, not its bare id', () => {
+        const entry = registryEntryFor(CLAUDE_HAIKU_4_5_MODEL_ID);
+
+        // ⛔ The bare id is REFUSED by Bedrock for this model: "Invocation of model ID … with on-demand
+        // throughput isn't supported". Verified against the live account 2026-08-23.
+        expect(entry?.invocation.invocationId).toBe(`us.${CLAUDE_HAIKU_4_5_MODEL_ID}`);
+        expect(entry?.invocation.reach.kind).toBe('regions');
+
+        const reach = entry?.invocation.reach;
+
+        if (reach?.kind !== 'regions') {
+            throw new Error('a profile-addressed entry must record the regions it reaches');
+        }
+
+        // Read from `aws bedrock get-inference-profile` in us-east-1. ⚠️ The destination set is a property of
+        // the profile AND the source region, which is why the read date travels with it.
+        expect([...reach.regions].sort()).toEqual(['us-east-1', 'us-east-2', 'us-west-2']);
+        expect(reach.readOn).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    });
+
+    /**
+     * ⛔ THE PAIRING INVARIANT, and the one property the union cannot express. A profile id addresses a
+     * ROUTING FAMILY rather than a model, so an entry addressed by something other than its own id is exactly
+     * an entry whose calls can leave the calling region. If those two facts ever disagree, either a profile
+     * reaches somewhere unrecorded, or an on-demand entry claims a reach it does not have.
+     */
+    it('addresses by a different id if and only if it reaches beyond the calling region', () => {
+        for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            const addressedByItself = entry.invocation.invocationId === modelId;
+            const staysHere = entry.invocation.reach.kind === 'deploy-region';
+
+            expect(addressedByItself, `${modelId}: addressing and reach disagree`).toBe(staysHere);
+        }
+    });
+
+    it('still prices every registered model, and still refuses an unregistered one', () => {
+        for (const modelId of Object.keys(BEDROCK_MODEL_REGISTRY)) {
+            expect(rateFor(modelId), modelId).toBeDefined();
+        }
+
+        expect(rateFor('amazon.nova-does-not-exist-v1:0')).toBeUndefined();
+        expect(registryEntryFor('amazon.nova-does-not-exist-v1:0')).toBeUndefined();
+    });
+});
+
+/**
+ * RESIDENCY — the single predicate the runtime gate and the IAM derivation both call.
+ *
+ * ⛔ Two interpreters of one fact is the failure this exists to prevent. If `planReservation` decided residency
+ * at runtime and the CDK stack decided it again at synth time, they would drift — and drift in the dangerous
+ * direction, where IAM grants what the runtime refuses or the reverse. One exported predicate, two callers.
+ *
+ * ⚠️ AWS documents that with cross-region inference "your input prompts and output results may be stored in
+ * the opt-in Regions for abuse detection purposes" — so this is about where user recipe text comes to REST,
+ * not only where it is processed.
+ */
+describe('residencyClearance', () => {
+    const novaEntry = registryEntryFor(NOVA_MICRO_MODEL_ID);
+    const haikuEntry = registryEntryFor(CLAUDE_HAIKU_4_5_MODEL_ID);
+
+    if (novaEntry === undefined || haikuEntry === undefined) {
+        throw new Error('the registry must carry both roster models');
+    }
+
+    it('clears an on-demand entry wherever it is deployed', () => {
+        // The sentinel arm means "wherever this invokes", so it is in-region BY CONSTRUCTION — including in a
+        // region this repo has never deployed to. That is what keeps a region literal out of recipe-core.
+        expect(residencyClearance(novaEntry, 'us-east-1')).toBe('in-deploy-region');
+        expect(residencyClearance(novaEntry, 'eu-west-1')).toBe('in-deploy-region');
+    });
+
+    it('refuses a profile that reaches beyond the deploy region without a warrant', () => {
+        expect(residencyClearance(haikuEntry, 'us-east-1')).toBe('unapproved');
+    });
+
+    it('clears a profile whose recorded reach does not actually leave the deploy region', () => {
+        const homebound = {
+            ...haikuEntry,
+            invocation: {
+                ...haikuEntry.invocation,
+                reach: { kind: 'regions', regions: ['us-east-1'], readOn: '2026-08-23' },
+            },
+        } as const;
+
+        expect(residencyClearance(homebound, 'us-east-1')).toBe('in-deploy-region');
+    });
+
+    it('clears a cross-region profile once it carries an approval', () => {
+        const approved = {
+            ...haikuEntry,
+            invocation: {
+                ...haikuEntry.invocation,
+                reach: {
+                    kind: 'regions',
+                    regions: ['us-east-1', 'us-east-2', 'us-west-2'],
+                    readOn: '2026-08-23',
+                    residencyApproval: { approvedOn: '2026-09-01', reference: 'ADR-0024 §9' },
+                },
+            },
+        } as const;
+
+        expect(residencyClearance(approved, 'us-east-1')).toBe('approved');
+    });
+
+    /**
+     * ⛔ R9 — NO SHIPPED ENTRY IS APPROVED, and this is the assertion that makes approving one a deliberate
+     * act. Flipping a marker fails this test until someone edits it in the same commit, so the diff shows both
+     * the approval and its warrant together. The residency question is open (016); nothing here closes it.
+     */
+    it('ships no residency-approved entry', () => {
+        for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            const { reach } = entry.invocation;
+            const approval = reach.kind === 'regions' ? reach.residencyApproval : undefined;
+
+            expect(approval, `${modelId} ships residency-approved — was that deliberate?`).toBeUndefined();
+        }
     });
 });

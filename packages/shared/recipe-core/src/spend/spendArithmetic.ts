@@ -68,7 +68,7 @@ export const CLAUDE_HAIKU_4_5_MODEL_ID = 'anthropic.claude-haiku-4-5-20251001-v1
  * Amazon Nova Lite — the next rung of the same family, priced so the bake-off can ask whether Micro is
  * leaving quality on the table.
  *
- * ⚠️ Being priced here is NOT a decision to ship it. {@link BEDROCK_RATE_TABLE} is the authority for what may
+ * ⚠️ Being priced here is NOT a decision to ship it. {@link BEDROCK_MODEL_REGISTRY} is the authority for what may
  * be CALLED; ADR-0024 §4a's shipped default is still Nova Micro, and moving it is an SSM change plus an ADR.
  * What this entry buys is that a family sweep can be run and costed without inventing a rate.
  */
@@ -92,6 +92,79 @@ export const NOVA_PRO_MODEL_ID = 'amazon.nova-pro-v1:0';
  * into two. Do not reintroduce one without re-deriving that invariant.
  */
 export const DEFAULT_MONTHLY_CEILING_MICROS = 100 * MICROS_PER_DOLLAR;
+
+/**
+ * Where a decision to route this model's inference beyond the calling region is written down.
+ *
+ * ⛔ A WARRANT, NOT A BOOLEAN, for the same reason {@link ModelRate.priceVerified} and
+ * {@link ModelRate.effectiveDate} exist beside the numbers they qualify: a bare `true` decays into "the table
+ * says so" and cannot be audited. Carrying the date and the reference means the diff that first approves a
+ * model shows WHAT approved it, in the same commit.
+ */
+export interface ResidencyApproval {
+    /** ISO date (`YYYY-MM-DD`) the approval was granted. */
+    readonly approvedOn: string;
+    /** Where the decision lives — an ADR id or an FR. */
+    readonly reference: string;
+}
+
+/**
+ * How far an invocation of this model can travel.
+ *
+ * ⛔ A DISCRIMINATED UNION so that illegal states cannot be written down. An on-demand model CANNOT carry a
+ * region list, and a cross-region profile CANNOT omit the date its membership was read. Both were assertions
+ * in an earlier draft; as a union they are the compiler's problem instead of a test's.
+ *
+ * ⚠️ `deploy-region` is a SENTINEL meaning "wherever this invokes", never a region name. A literal here would
+ * hardcode a deploy region into a package `@commise/web` and `@commise/mobile` transitively bundle, and would
+ * silently make the residency comparison vacuous the first time a stage deployed elsewhere.
+ *
+ * ⚠️ The region set is a property of the profile AND the calling region, not of the profile alone: AWS
+ * documents that `us.anthropic.claude-3-haiku` reaches three regions from us-east-2 but two from us-west-2.
+ * `readOn` is what makes a set recorded from another region visible rather than assumed.
+ */
+export type ModelReach =
+    | { readonly kind: 'deploy-region' }
+    | {
+          readonly kind: 'regions';
+          /** Every region this invocation may be routed to, as read from `aws bedrock get-inference-profile`. */
+          readonly regions: readonly string[];
+          /** ISO date (`YYYY-MM-DD`) that membership was read. The staleness signal. */
+          readonly readOn: string;
+          /** Absent until residency is decided. See {@link ResidencyApproval}. */
+          readonly residencyApproval?: ResidencyApproval | undefined;
+      };
+
+/**
+ * How Bedrock is ADDRESSED for a model, as distinct from how the model is identified.
+ *
+ * ⛔ THE TWO IDS ARE NOT THE SAME FACT. `invocationId` is what `Converse` is called with; the registry KEY is
+ * what the model IS, and what a verdict and a memo record (R21). They coincide for every on-demand model,
+ * which is exactly why one string served both jobs undetected until a profile-only model was rostered.
+ * Claude Haiku 4.5 reports `inferenceTypesSupported: ["INFERENCE_PROFILE"]` — its bare id is refused with
+ * `ValidationException` and its profile id is not a model id.
+ */
+export interface ModelInvocation {
+    /** The id passed to `Converse`. An inference-profile id for a profile-only model, else the model id. */
+    readonly invocationId: string;
+    /** How far a call on {@link ModelInvocation.invocationId} can travel. */
+    readonly reach: ModelReach;
+}
+
+/**
+ * One registered model: what it costs, and how it is reached.
+ *
+ * ⛔ MEMBERSHIP IS AUTHORIZATION (ADR-0024). A model absent from the registry cannot be priced, so it cannot
+ * be reserved for, so it cannot be called — whatever SSM says. That is why the address belongs here rather
+ * than in a sibling map: a second table could disagree with this one about which models exist, and the
+ * disagreement would be silent.
+ */
+export interface ModelRegistryEntry {
+    /** The list-price rates. Deliberately NESTED and unchanged, so the arithmetic still takes only prices. */
+    readonly rate: ModelRate;
+    /** How Bedrock is addressed for this model. */
+    readonly invocation: ModelInvocation;
+}
 
 /** One model's list-price rates, in integer micro-dollars per million tokens. */
 export interface ModelRate {
@@ -149,28 +222,50 @@ export interface ModelRate {
  * is recorded rather than silently corrected, because narrowing a SHIPPED reservation is an ADR-0024 decision
  * and not a side effect of pricing two new models.
  */
-export const BEDROCK_RATE_TABLE: Readonly<Record<string, ModelRate>> = Object.freeze({
+export const BEDROCK_MODEL_REGISTRY: Readonly<Record<string, ModelRegistryEntry>> = Object.freeze({
     // Read from the AWS Pricing API on 2026-08-20, us-east-1: $0.035/1M input, $0.14/1M output. Reproduces
     // ADR-0024's $0.27/month figure exactly for ~8,000 calls at ~660/~80 tokens.
     [NOVA_MICRO_MODEL_ID]: Object.freeze({
-        inputMicrosPerMillionTokens: 35_000,
-        outputMicrosPerMillionTokens: 140_000,
-        cacheReadMicrosPerMillionTokens: 3_500,
-        cacheWriteMicrosPerMillionTokens: 43_750,
-        effectiveDate: '2026-08-20',
-        priceVerified: true,
+        rate: Object.freeze({
+            inputMicrosPerMillionTokens: 35_000,
+            outputMicrosPerMillionTokens: 140_000,
+            cacheReadMicrosPerMillionTokens: 3_500,
+            cacheWriteMicrosPerMillionTokens: 43_750,
+            effectiveDate: '2026-08-20',
+            priceVerified: true,
+        }),
+        invocation: Object.freeze({
+            invocationId: NOVA_MICRO_MODEL_ID,
+            reach: Object.freeze({ kind: 'deploy-region' } as const),
+        }),
     }),
     // ⚠️ Computed from Anthropic's FIRST-PARTY rates ($1.00/1M input, $5.00/1M output) because the Bedrock
     // price could not be read from a primary source (ADR-0024, "Not verified"). Confirm before the bake-off
     // selects it — and note that a Haiku winner makes every figure in ADR-0024 §3 ~30x larger, including
     // whether $100 is still ~370x headroom.
     [CLAUDE_HAIKU_4_5_MODEL_ID]: Object.freeze({
-        inputMicrosPerMillionTokens: 1_000_000,
-        outputMicrosPerMillionTokens: 5_000_000,
-        cacheReadMicrosPerMillionTokens: 100_000,
-        cacheWriteMicrosPerMillionTokens: 1_250_000,
-        effectiveDate: '2026-08-20',
-        priceVerified: false,
+        rate: Object.freeze({
+            inputMicrosPerMillionTokens: 1_000_000,
+            outputMicrosPerMillionTokens: 5_000_000,
+            cacheReadMicrosPerMillionTokens: 100_000,
+            cacheWriteMicrosPerMillionTokens: 1_250_000,
+            effectiveDate: '2026-08-20',
+            priceVerified: false,
+        }),
+        // ⛔ INFERENCE_PROFILE-ONLY. The bare id is refused: "Invocation of model ID … with on-demand
+        // throughput isn't supported" (verified against the live account, 2026-08-23). Regions read from
+        // `aws bedrock get-inference-profile` FROM us-east-1 on that date; the set is a property of the
+        // profile AND the calling region, which is what `readOn` exists to expose.
+        // ⚠️ NO `residencyApproval` — AWS stores prompts and outputs in destination Regions for abuse
+        // detection, so routing recipe text there is an open question (016), not a config detail.
+        invocation: Object.freeze({
+            invocationId: `us.${CLAUDE_HAIKU_4_5_MODEL_ID}`,
+            reach: Object.freeze({
+                kind: 'regions',
+                regions: Object.freeze(['us-east-1', 'us-east-2', 'us-west-2']),
+                readOn: '2026-08-23',
+            } as const),
+        }),
     }),
     // ⛔ READ 2026-08-23 from the AWS Price List API — the PRIMARY source, and the same query that reproduces
     // Nova Micro's committed figures exactly:
@@ -183,17 +278,23 @@ export const BEDROCK_RATE_TABLE: Readonly<Record<string, ModelRate>> = Object.fr
     // pricing/` renders its tables client-side and cannot be fetched, which is why the Price List API is the
     // source of record here as it was for Nova Micro.
     [NOVA_LITE_MODEL_ID]: Object.freeze({
-        inputMicrosPerMillionTokens: 60_000,
-        outputMicrosPerMillionTokens: 240_000,
-        cacheReadMicrosPerMillionTokens: 15_000,
-        // ⛔ ZERO IS THE PUBLISHED RATE, not a missing value: the Nova family bills nothing for cache WRITES
-        // (`USE1-NovaLite-cache-write-input-token-count` = $0.0000000000/1K). It collapses `worstCaseMicros`'
-        // dearest-input rate onto the fresh input rate, which is still a TRUE bound — Bedrock defines total
-        // input as `inputTokens + cacheReadInputTokens + cacheWriteInputTokens`, so every partition of layer
-        // 1's input cap costs at most the cap charged entirely as fresh input. Asserted over the whole table.
-        cacheWriteMicrosPerMillionTokens: 0,
-        effectiveDate: '2026-08-23',
-        priceVerified: true,
+        rate: Object.freeze({
+            inputMicrosPerMillionTokens: 60_000,
+            outputMicrosPerMillionTokens: 240_000,
+            cacheReadMicrosPerMillionTokens: 15_000,
+            // ⛔ ZERO IS THE PUBLISHED RATE, not a missing value: the Nova family bills nothing for cache WRITES
+            // (`USE1-NovaLite-cache-write-input-token-count` = $0.0000000000/1K). It collapses `worstCaseMicros`'
+            // dearest-input rate onto the fresh input rate, which is still a TRUE bound — Bedrock defines total
+            // input as `inputTokens + cacheReadInputTokens + cacheWriteInputTokens`, so every partition of layer
+            // 1's input cap costs at most the cap charged entirely as fresh input. Asserted over the whole table.
+            cacheWriteMicrosPerMillionTokens: 0,
+            effectiveDate: '2026-08-23',
+            priceVerified: true,
+        }),
+        invocation: Object.freeze({
+            invocationId: NOVA_LITE_MODEL_ID,
+            reach: Object.freeze({ kind: 'deploy-region' } as const),
+        }),
     }),
     // Same query and same source as Nova Lite, `Value="Nova Pro"`: input $0.0008/1K · output $0.0032/1K ·
     // cache read $0.0002/1K · cache write $0.00/1K.
@@ -201,13 +302,19 @@ export const BEDROCK_RATE_TABLE: Readonly<Record<string, ModelRate>> = Object.fr
     // STANDARD on-demand rates, which is what a `Converse` call with no service tier is billed at; pricing a
     // flex or priority run off this entry would be wrong in both directions.
     [NOVA_PRO_MODEL_ID]: Object.freeze({
-        inputMicrosPerMillionTokens: 800_000,
-        outputMicrosPerMillionTokens: 3_200_000,
-        cacheReadMicrosPerMillionTokens: 200_000,
-        // See the Nova Lite entry — published zero, not an omission.
-        cacheWriteMicrosPerMillionTokens: 0,
-        effectiveDate: '2026-08-23',
-        priceVerified: true,
+        rate: Object.freeze({
+            inputMicrosPerMillionTokens: 800_000,
+            outputMicrosPerMillionTokens: 3_200_000,
+            cacheReadMicrosPerMillionTokens: 200_000,
+            // See the Nova Lite entry — published zero, not an omission.
+            cacheWriteMicrosPerMillionTokens: 0,
+            effectiveDate: '2026-08-23',
+            priceVerified: true,
+        }),
+        invocation: Object.freeze({
+            invocationId: NOVA_PRO_MODEL_ID,
+            reach: Object.freeze({ kind: 'deploy-region' } as const),
+        }),
     }),
 });
 
@@ -277,7 +384,7 @@ export type ReservationPlan = PricedReservation | { readonly kind: 'unpriced'; r
  * @returns The rate entry, or `undefined`. Pure.
  */
 export function rateFor(modelId: string): ModelRate | undefined {
-    return Object.hasOwn(BEDROCK_RATE_TABLE, modelId) ? BEDROCK_RATE_TABLE[modelId] : undefined;
+    return Object.hasOwn(BEDROCK_MODEL_REGISTRY, modelId) ? BEDROCK_MODEL_REGISTRY[modelId]?.rate : undefined;
 }
 
 /**
@@ -289,6 +396,51 @@ export function rateFor(modelId: string): ModelRate | undefined {
  * @param nowUtc - The instant to classify.
  * @returns The period key. Pure.
  */
+/**
+ * The registered model, or `undefined` when the registry does not know the id.
+ *
+ * ⛔ `undefined` IS the refusal. ADR-0024's membership-is-authorization rule means an unregistered id has no
+ * worst case, so it can never be reserved for and never be called. Pure.
+ *
+ * @param modelId - A Bedrock model id, as read from SSM.
+ * @returns The registry entry, or `undefined`.
+ */
+export function registryEntryFor(modelId: string): ModelRegistryEntry | undefined {
+    return Object.hasOwn(BEDROCK_MODEL_REGISTRY, modelId) ? BEDROCK_MODEL_REGISTRY[modelId] : undefined;
+}
+
+/** What residency has to say about invoking one entry from one region. */
+export type ResidencyClearance = 'in-deploy-region' | 'approved' | 'unapproved';
+
+/**
+ * Decide whether this entry may be invoked from this region on residency grounds. Pure and total.
+ *
+ * ⛔ THE ONLY INTERPRETER OF THE MARKER, called by BOTH the runtime gate and the CDK stack that derives the
+ * IAM grant. Two interpreters of one fact would drift, and drift in the dangerous direction — IAM granting
+ * what the runtime refuses, or the reverse. One predicate, two callers, no second opinion.
+ *
+ * ⚠️ `in-deploy-region` is returned for a recorded region set that does not actually leave the deploy region,
+ * not only for the sentinel. A profile whose members are all local needs no warrant, and demanding one would
+ * be ceremony rather than a control.
+ *
+ * @param entry - The registered model.
+ * @param deployRegion - The region the caller invokes from.
+ * @returns Whether the call stays local, is approved to leave, or is refused.
+ */
+export function residencyClearance(entry: ModelRegistryEntry, deployRegion: string): ResidencyClearance {
+    const { reach } = entry.invocation;
+
+    if (reach.kind === 'deploy-region') {
+        return 'in-deploy-region';
+    }
+
+    if (reach.regions.every((region) => region === deployRegion)) {
+        return 'in-deploy-region';
+    }
+
+    return reach.residencyApproval === undefined ? 'unapproved' : 'approved';
+}
+
 export function periodKey(nowUtc: Date): string {
     const year = nowUtc.getUTCFullYear();
     const month = String(nowUtc.getUTCMonth() + 1).padStart(2, '0');

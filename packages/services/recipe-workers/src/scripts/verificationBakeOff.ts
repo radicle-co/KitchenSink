@@ -104,7 +104,7 @@ export const DEFAULT_MODELS: readonly string[] = Object.freeze([NOVA_MICRO_MODEL
 /**
  * Decide which models this run will spend on.
  *
- * ⛔ THE PERMITTED SET IS THE RATE TABLE, NOT A LIST IN THIS FILE. `BEDROCK_RATE_TABLE`'s own docstring says
+ * ⛔ THE PERMITTED SET IS THE RATE TABLE, NOT A LIST IN THIS FILE. `BEDROCK_MODEL_REGISTRY`'s own docstring says
  * "membership is authorization", and a second roster beside it is a copy of that authority that can drift
  * from it — which is exactly what a `--models` id the runner accepts and `judge` then refuses would be. So
  * the check is `rateFor(...) !== undefined`, the same predicate the production gate fails closed on.
@@ -136,7 +136,7 @@ export function resolveModels(requested: string | undefined): readonly string[] 
     if (unpriced.length > 0) {
         throw new Error(
             `--models names a model the Bedrock rate table cannot price: ${unpriced.join(', ')}. ` +
-                'Add it to BEDROCK_RATE_TABLE with a price read from a primary source, or use the bare ' +
+                'Add it to BEDROCK_MODEL_REGISTRY with a price read from a primary source, or use the bare ' +
                 'model id rather than a us.-prefixed inference profile.',
         );
     }

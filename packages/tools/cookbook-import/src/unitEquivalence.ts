@@ -181,12 +181,27 @@ const MIN_READABLE_AMOUNT = 0.25;
  *    Appendix C ("General Tables of Units of Measurement") carries both the US customary and the British
  *    imperial liquid-measure tables, in which `4 gills = 1 pint` — the SAME relation in both, which is why
  *    one transcribed ratio yields 118 mL under one system and 142 mL under the other.
- *  - **The spoons** are NOT in any measurement standard. No standards body defines a `dessertspoon`; the
- *    UK Weights and Measures Act 1985 defined the gill but that definition was struck from Schedule 1 in
- *    1995. What exists is the pharmacopoeial "approximate measures" scale that these books were written
- *    beside — 1 dessertspoonful = 2 teaspoonfuls, 1 saltspoonful = a quarter teaspoonful. It is cited AS
- *    a household convention rather than dressed as a statute: naming what an authority actually is IS
- *    R34 compliance, and a false statutory citation is not.
+ *  - **The spoons** are NOT in any measurement standard. Of the bodies checked — NIST (HB 44 App. C,
+ *    HB 133 App. E, SP 811 App. B.8), BIPM's SI Brochure, ISO 80000, the UK Weights and Measures Act 1985
+ *    and 21 CFR 101 — **none defines a `dessertspoon`**, and every one that defines household spoons at
+ *    all defines only the teaspoon and the tablespoon. (The only appearance of "dessertspoonful" in a US
+ *    regulatory document is FDA's 2011 dosage-delivery guidance, citing a three-scale dosing cup as an
+ *    example of MISBRANDING.) So the spoons are cited as a household convention rather than dressed as a
+ *    statute: naming what an authority actually is IS R34 compliance, and a false statutory citation is not.
+ *
+ * ⛔ TWO EARLIER CITATIONS HERE WERE WRONG, and are corrected rather than quietly dropped, because a
+ * plausible-looking false citation is worse than none — it is the kind a reviewer nods past.
+ *
+ *  1. "The UK Weights and Measures Act 1985 defined the gill but that definition was struck from Schedule 1
+ *     in 1995." **It was not struck, and it is still in force.** SI 1994/2867 reg. 6(5)(b)(i) omitted the
+ *     gill from Schedule 1 **Part IV** (units usable for trade) and reg. 6(5)(c) substituted a new **Part
+ *     VI** — "units which may not be used for trade except as supplementary indications" — which contains
+ *     `Gill = ¼ pint`, unchanged. The instrument is a **1994** SI; 1 October 1995 is only its commencement.
+ *  2. The spoons were cited to a "pharmacopoeial approximate-measures scale". **USP deleted General Chapter
+ *     ⟨1221⟩ (Teaspoon) in April 2010 and has since reassigned that chapter number**, and current USP ⟨7⟩
+ *     Labeling requires metric units and contains no spoon measure at all. The live, free, citable
+ *     authority for a teaspoon being 5 mL is **21 CFR 101.9(b)(5)(viii)**, corroborated by NIST HB 44
+ *     App. C. USP is not cited anywhere here.
  *
  * ⛔ Every entry is a RELATION to a unit the standard already sizes per system — never a millilitre
  * constant. That is what makes the US/imperial split fall out of arithmetic instead of out of two
@@ -217,8 +232,10 @@ const EXTERNAL_STANDARD: Readonly<Record<string, PrintedEquivalence & { readonly
         per: 'teaspoon',
         printed: '1 dessertspoonful = 2 teaspoonfuls',
         citation:
-            'Pharmacopoeial approximate-measures scale (1 dessertspoonful = 2 teaspoonfuls). ⚠️ A ' +
-            'household convention, NOT a measurement standard — no standards body defines a dessertspoon',
+            'Household approximate-measures convention (1 dessertspoonful = 2 teaspoonfuls), sized per ' +
+            'system by the teaspoon of 21 CFR 101.9(b)(5)(viii) and NIST Handbook 44, Appendix C. ⚠️ A ' +
+            'household convention, NOT a measurement standard: of NIST, BIPM, ISO 80000, the UK Weights ' +
+            'and Measures Act 1985 and 21 CFR 101, none defines a dessertspoon',
     },
     saltspoon: {
         unit: 'saltspoon',
@@ -226,8 +243,9 @@ const EXTERNAL_STANDARD: Readonly<Record<string, PrintedEquivalence & { readonly
         per: 'teaspoon',
         printed: '1 saltspoonful = one quarter teaspoonful',
         citation:
-            'Household approximate-measures convention (a saltspoonful is a quarter teaspoonful). ⚠️ A ' +
-            'household convention, NOT a measurement standard',
+            'Household approximate-measures convention (a saltspoonful is a quarter teaspoonful), sized ' +
+            'per system by the teaspoon of 21 CFR 101.9(b)(5)(viii) and NIST Handbook 44, Appendix C. ' +
+            '⚠️ A household convention, NOT a measurement standard',
     },
 };
 

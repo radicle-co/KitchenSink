@@ -254,7 +254,7 @@ async function judge(
 
     try {
         const outcome = await client.converse({
-            modelId: INVOCATION_IDS[modelId] ?? modelId,
+            invocationId: INVOCATION_IDS[modelId] ?? modelId,
             systemPrompt: prompt.system,
             userMessage: prompt.user,
             maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,

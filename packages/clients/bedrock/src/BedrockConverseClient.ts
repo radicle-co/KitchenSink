@@ -54,8 +54,17 @@ import { converseOutputSchema, firstTextIn, usageSchema, type BedrockTokenUsage 
  * silently acquire an unbounded worst case; a required field makes forgetting it a compile error.
  */
 export interface ConverseRequest {
-    /** The Bedrock model id, resolved from SSM at cold start — never a constant at the call site. */
-    readonly modelId: string;
+    /**
+     * The id Bedrock is CALLED with, resolved at cold start — never a constant at the call site.
+     *
+     * ⛔ NOT necessarily the model's own id, and NOT the id a verdict is recorded against. A model that
+     * reports `inferenceTypesSupported: ["INFERENCE_PROFILE"]` — Claude Haiku 4.5 does — refuses its bare id
+     * with `ValidationException: Invocation of model ID … with on-demand throughput isn't supported`, and must
+     * be addressed through a cross-region inference profile (`us.anthropic.claude-haiku-4-5-…`). The rate
+     * table (ADR-0024) and the recorded model identity key on the BARE id. For an on-demand model the two
+     * coincide; for a profile model they cannot, so this field names the invocation and nothing else.
+     */
+    readonly invocationId: string;
     /** The instructions. Kept apart from the user turn so an embedded directive cannot impersonate one. */
     readonly systemPrompt: string;
     /** The user turn, carrying the delimited (and already length-checked) source line. */
@@ -100,7 +109,7 @@ export interface BedrockConverseClient {
     /**
      * Issue one `Converse` call.
      *
-     * @param request - The model, the two prompt halves, and the output cap.
+     * @param request - The invocation id, the two prompt halves, and the output cap.
      * @returns What arrived; see {@link ConverseOutcome}.
      * @throws {BedrockClientError} When no response arrived. Read `billed` to decide the refund.
      * @sideEffect Delegates to the transport, which calls Bedrock.
@@ -174,7 +183,10 @@ export function createBedrockConverseClient(send: ConverseTransport): BedrockCon
     return {
         async converse(request: ConverseRequest): Promise<ConverseOutcome> {
             const input: ConverseCommandInput = {
-                modelId: request.modelId,
+                // The SDK calls this `modelId`; ours is `invocationId` because for a profile-only model it is
+                // not the model's id. Translating one vocabulary into the other is this adapter's job — the
+                // alternative, re-exporting the SDK's name, would make the whole distinction a convention.
+                modelId: request.invocationId,
                 system: [{ text: request.systemPrompt }],
                 messages: [{ role: 'user', content: [{ text: request.userMessage }] }],
                 inferenceConfig: {

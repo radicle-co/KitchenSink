@@ -296,7 +296,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
 
     try {
         outcome = await deps.bedrock.converse({
-            modelId: plan.modelId,
+            invocationId: plan.modelId,
             systemPrompt: prompt.system,
             userMessage: prompt.user,
             maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,

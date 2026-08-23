@@ -20,7 +20,7 @@
  * errors are the SDK's OWN exception classes — never hand-written objects shaped to match this parser.
  */
 import { AccessDeniedException, ThrottlingException } from '@aws-sdk/client-bedrock-runtime';
-import type { ConverseCommandInput } from '@aws-sdk/client-bedrock-runtime';
+import type { BedrockRuntimeClient, ConverseCommandInput } from '@aws-sdk/client-bedrock-runtime';
 import { describe, expect, it } from 'vitest';
 
 import { NOVA_TEXT_RESPONSE, converseResponseWith } from '../__fixtures__/converseResponse.js';
@@ -55,11 +55,40 @@ function transportReturning(body: unknown): {
 const transportThrowing = (error: unknown) => (): Promise<unknown> => Promise.reject(error);
 
 const REQUEST = {
-    modelId: 'amazon.nova-micro-v1:0',
+    invocationId: 'amazon.nova-micro-v1:0',
     systemPrompt: 'You verify ingredient lines.',
     userMessage: '<line>2 cups flour</line>',
     maxOutputTokens: 200,
 } as const;
+
+/** Claude Haiku 4.5's cross-region inference profile — an invocation id that is NOT a model id. */
+const HAIKU_PROFILE_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+
+/**
+ * Capture what the real SDK client is asked to dispatch, and stop before anything leaves the process.
+ *
+ * The `initialize` step runs before serialization, signing and transport, so this needs no credentials and
+ * makes no call — and what it records is the `ConverseCommand`'s OWN input, not a value handed to it here.
+ *
+ * @param client - The SDK client to instrument.
+ * @returns The array the dispatched inputs accumulate into.
+ * @sideEffect Mutates the client's middleware stack; the client is single-use afterwards.
+ */
+function interceptDispatch(client: BedrockRuntimeClient): { readonly inputs: unknown[] } {
+    const inputs: unknown[] = [];
+
+    client.middlewareStack.add(
+        () =>
+            (args): Promise<never> => {
+                inputs.push(args.input);
+
+                return Promise.reject(new Error('intercepted before dispatch'));
+            },
+        { step: 'initialize', name: 'captureDispatchedInput' },
+    );
+
+    return { inputs };
+}
 
 /** An SDK service exception, constructed by the SDK itself so the shape is real. */
 function sdkException(name: string, httpStatusCode: number): Error {
@@ -83,16 +112,29 @@ describe('the request the client builds', () => {
             });
     });
 
-    it('addresses the model the caller named, never a default', () => {
+    it('puts the caller’s invocationId on the SDK’s modelId, never a default', () => {
         const transport = transportReturning(NOVA_TEXT_RESPONSE);
 
         return createBedrockConverseClient(transport.send)
             .converse(REQUEST)
             .then(() => {
-                // The live model id comes from SSM (ADR-0024 §3). A default here would silently outlive a
+                // The live id is resolved at cold start (ADR-0024 §3). A default here would silently outlive a
                 // parameter change and bill a model nobody selected.
                 expect(transport.calls[0]?.modelId).toBe('amazon.nova-micro-v1:0');
             });
+    });
+
+    it('passes an INFERENCE PROFILE id through unaltered', async () => {
+        const transport = transportReturning(NOVA_TEXT_RESPONSE);
+
+        await createBedrockConverseClient(transport.send).converse({ ...REQUEST, invocationId: HAIKU_PROFILE_ID });
+
+        // ⛔ THE REASON THE FIELD IS NOT CALLED `modelId`. Claude Haiku 4.5 reports
+        // `inferenceTypesSupported: ["INFERENCE_PROFILE"]` and refuses its own bare id with
+        // `ValidationException: Invocation of model ID … with on-demand throughput isn't supported`. The rate
+        // table and the recorded verdict key on the BARE id, so a client that "normalised" what it was handed
+        // — stripping the `us.` prefix, or resolving a model id of its own — would fail every Haiku call.
+        expect(transport.calls[0]?.modelId).toBe(HAIKU_PROFILE_ID);
     });
 
     it('carries the system prompt separately from the user turn', async () => {
@@ -312,6 +354,22 @@ describe('createBedrockTransport', () => {
         const transport = createBedrockTransport({ region: 'eu-west-1' });
 
         expect(await transport.client.config.region()).toBe('eu-west-1');
+    });
+
+    it('lands invocationId on the ConverseCommand the SDK actually dispatches', async () => {
+        const transport = createBedrockTransport({ region: 'us-east-1' });
+        const dispatched = interceptDispatch(transport.client);
+
+        await createBedrockConverseClient(transport.send)
+            .converse({ ...REQUEST, invocationId: HAIKU_PROFILE_ID })
+            .catch(() => undefined);
+
+        // ⛔ THE ONE MAPPING THE PORT'S NAME NO LONGER STATES. `ConverseRequest.invocationId` and
+        // `ConverseCommandInput.modelId` are deliberately different words, so nothing but this assertion says
+        // the first reaches the second. Every other test in this file stops at the transport port, which is a
+        // seam the tests supply — this one runs through `createBedrockTransport`'s real `new ConverseCommand`
+        // and reads the input the SDK was about to serialise.
+        expect(dispatched.inputs[0]).toMatchObject({ modelId: HAIKU_PROFILE_ID });
     });
 
     it('is pinned to bedrock-runtime, not bedrock-mantle', () => {

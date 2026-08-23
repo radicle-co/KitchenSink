@@ -5,6 +5,8 @@ export { corruptsStatedValue, parseIngredientLine, roundToQuantityStorageScale }
 export type { IngredientReviewReason, ParsedIngredientLine } from './ingredientLine.js';
 export { normalizeQuantity } from './normalizeQuantity.js';
 export type { NormalizedQuantity } from './normalizeQuantity.js';
+export { splitMeasurement } from './splitMeasurement.js';
+export type { SplitMeasurement } from './splitMeasurement.js';
 export { findQuantityPhrases } from './quantityPhrases.js';
 export type { QuantityPhraseSpan } from './quantityPhrases.js';
 export { normalizeDurationToMinutes, normalizeServings } from './valueNormalizers.js';

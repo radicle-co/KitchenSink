@@ -36,6 +36,12 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // ⛔ `HISTORICAL_UNIT_DEFINITIONS` is deliberately NOT here. It is a `parse-ingredient` extension
         // table consumed only by `ingredientLine.ts` inside this package, and publishing it would put a
         // non-function on a surface whose all-exports-are-functions control is worth more than the export.
+        //
+        // ⚠️ GREW BY ONE on 2026-08-23. `splitMeasurement` divides a measurement phrase into the parts that
+        // ADD and the parts that only RESTATE it — the step `normalizeQuantity` cannot take, because it
+        // reads the leading quantity and by design sees no second one. It is public because the caller that
+        // needs it is the import pipeline, not this package: a measurement arrives already bounded (an LLM
+        // or a parser decides where the food begins), and this divides what it is handed.
         expect(Object.keys(publicApi).sort()).toEqual([
             'corruptsStatedValue',
             'findQuantityPhrases',
@@ -46,6 +52,7 @@ describe('@kitchensink/recipe-import-core barrel', () => {
             'parseIngredientLine',
             'roundToQuantityStorageScale',
             'sanitizeToPlainText',
+            'splitMeasurement',
         ]);
     });
 

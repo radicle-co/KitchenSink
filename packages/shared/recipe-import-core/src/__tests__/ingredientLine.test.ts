@@ -488,21 +488,40 @@ describe('parseIngredientLine — a measurement left in the food name', () => {
     });
 
     /**
-     * ⚠️ `splitMeasurement` cannot recognise every way a line joins two measurements — an ampersand, a
-     * comma, a word-number after the conjunction and several vulgar fractions all fall through it. Those
-     * still land in the name, and this is the assertion that they are SEEN rather than silently kept: the
-     * flag is raised from the name itself, so it does not depend on the splitter being complete.
+     * ⛔ THE GENERAL RULE, and the reason the join list may stay short: an amount FOLLOWED BY A UNIT is a
+     * measurement, wherever it sits and however the line joined it on. None of these joins appears anywhere
+     * in the module.
+     *
+     * ⚠️ An earlier check asked instead whether anything word-like preceded the amount. Measured against
+     * exactly these eight, it caught THREE — every word-shaped join defeated it, because the join's own
+     * letters read as the food. It was a second enumeration, of punctuation, wearing a general rule's
+     * clothes. This case list is what refuted it and is kept for that reason.
      */
-    it('flags a join the splitter does not recognise, rather than passing it silently', () => {
-        const parsed = parseIngredientLine('2 cups & 1 tablespoon all-purpose flour');
-
-        expect(parsed.reviewReasons).toContain('measurement_in_name');
+    it.each([
+        ['a word join nothing here lists', '2 cups with 1 tablespoon all-purpose flour'],
+        ['a multi-word join', '2 cups as well as 1 tablespoon all-purpose flour'],
+        ['an em dash', '2 cups — 1 tablespoon all-purpose flour'],
+        ['a semicolon', '2 cups; 1 tablespoon all-purpose flour'],
+        ['a solidus', '2 cups / 1 tablespoon all-purpose flour'],
+        ['square brackets', '1 pound [about 4 cups] shredded chicken'],
+        ['a vulgar fraction outside Latin-1', '2 cups and ⅓ tablespoon all-purpose flour'],
+        ['a conjunction in another script', '2 cups и 1 tablespoon flour'],
+    ])('sees a measurement joined by %s', (_why, line) => {
+        expect(parseIngredientLine(line).reviewReasons).toContain('measurement_in_name');
     });
 
-    it('does not flag a name that merely contains a number', () => {
-        // "00" in "Flour, 00" is a grade, not an amount. A flag here would fire on every graded flour.
-        const parsed = parseIngredientLine('2 cups type 00 flour');
-
-        expect(parsed.reviewReasons).not.toContain('measurement_in_name');
+    /**
+     * ⛔ The UNIT requirement is what keeps a number BELONGING to a food from flagging. Without it this
+     * fires on every graded flour, every multigrain loaf and every reduced-fat milk — which would be worse
+     * than the defect, because a reason nobody trusts is a reason nobody reads.
+     */
+    it.each([
+        ['a flour grade', '2 cups type 00 flour'],
+        ['a grade after a comma', '2 cups Flour, 00'],
+        ['a grain count', '2 cups 7-grain bread'],
+        ['a fat percentage', '1 cup 2% milk'],
+        ['a size word, not a unit', '3 large eggs, separated'],
+    ])('stays quiet on %s', (_why, line) => {
+        expect(parseIngredientLine(line).reviewReasons).not.toContain('measurement_in_name');
     });
 });

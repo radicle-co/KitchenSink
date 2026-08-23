@@ -320,22 +320,58 @@ function takeMeasurementOutOf(description: string, reasons: IngredientReviewReas
 
     const cleaned = name.replace(/\s+/gu, ' ').trim();
 
-    // ⛔ THE COMPLETENESS CHECK, and the reason the rules above may stay narrow. A join this module does not
-    // recognise — an ampersand, a comma, a word-number — leaves its amount at the FRONT of what remains,
-    // because the leading quantity was already taken and the food follows. So an amount with nothing
-    // word-like before it is a measurement; one with words before it belongs to the food, which is what
-    // keeps "type 00 flour" and "Flour, 00" from flagging on their grade.
-    const [residual] = findQuantityPhrases(cleaned);
-
-    if (!reasons.includes('measurement_in_name') && residual !== undefined) {
-        const before = cleaned.slice(0, residual.start);
-
-        if (!/\p{L}/u.test(before)) {
-            reasons.push('measurement_in_name');
-        }
+    if (!reasons.includes('measurement_in_name') && carriesAMeasurement(cleaned)) {
+        reasons.push('measurement_in_name');
     }
 
     return cleaned;
+}
+
+/**
+ * Every spelling of every unit this module knows, lower-cased.
+ *
+ * ⛔ DERIVED FROM THE LEXICON, never listed here — the library's own definitions plus this module's
+ * overrides and the historical measures, exactly the vocabulary the parser itself is given. A unit added
+ * there is recognised here with no second edit, and there is no place to forget one.
+ *
+ * ⚠️ The KEY is included, not only `short`/`plural`/`alternates`: `parse-ingredient` keys on the canonical
+ * singular ("tablespoon") while `short` is the abbreviation ("tbsp"). Omitting it left the set without the
+ * commonest spellings, and the check silently matched almost nothing.
+ */
+const UNIT_WORDS: ReadonlySet<string> = new Set(
+    Object.entries({ ...unitsOfMeasure, ...IMPORT_UNITS })
+        .flatMap(([id, unit]) => [id, unit.short, unit.plural, ...unit.alternates])
+        .map((word) => word.toLowerCase()),
+);
+
+/**
+ * Whether a food name still carries a measurement.
+ *
+ * ⛔ THE GENERAL RULE, and the reason the join list above may stay short. An amount FOLLOWED BY A UNIT is a
+ * measurement — wherever it sits, and however the line joined it on. It does not ask what the join was, so
+ * it holds for joins nothing here enumerates: "with", "as well as", a bracket, a semicolon, a dash, a word in
+ * another script.
+ *
+ * ⚠️ An earlier version of this check asked instead whether anything word-like preceded the amount, on the
+ * theory that a residual measurement sits at the FRONT of the remainder. Measured against eight joins absent
+ * from this file, it caught THREE — every word-shaped join ("with 1 tablespoon", "as well as 1 tablespoon",
+ * "[about 4 cups]") defeated it, because the join's own letters read as the food. That check was a second
+ * enumeration — of punctuation — wearing a general rule's clothes.
+ *
+ * ⚠️ The unit requirement is what keeps a number that BELONGS to a food from flagging: "type 00 flour" and
+ * "Flour, 00" carry a grade, and no unit follows it. It also now catches a TRAILING measurement
+ * ("chicken breast, 2 pounds"), which the position rule could not see at all.
+ *
+ * @param name - The food name, after any measurement this module recognised was removed.
+ * @returns `true` when an amount in the name is followed by a unit. Pure.
+ */
+function carriesAMeasurement(name: string): boolean {
+    return findQuantityPhrases(name).some((span) => {
+        const after = name.slice(span.end).trim();
+        const [word] = after.split(/[\s,.;:/\])]+/u);
+
+        return word !== undefined && UNIT_WORDS.has(word.toLowerCase());
+    });
 }
 
 /**

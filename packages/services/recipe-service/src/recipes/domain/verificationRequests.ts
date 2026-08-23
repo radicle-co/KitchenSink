@@ -98,8 +98,22 @@ export interface VerificationRequestInput {
     /**
      * The lines a request was already made for — on an UPDATE, the recipe's previously stored lines.
      *
-     * Empty on a create. It is a list of LINES rather than of keys because the caller holds rows, not
-     * digests, and because the identity of a judgement is derived here in exactly one place.
+     * Empty on a create. A list of LINES rather than of keys because the caller holds rows, not digests, and
+     * because the identity of a judgement is derived here in exactly one place.
+     *
+     * ⚠️ IT IS A PROXY, and the two ways it is imprecise both matter — named here rather than discovered:
+     *
+     *  - **It ASSUMES the previous save asked.** True for every recipe written after this producer shipped;
+     *    false for one written before it, whose unchanged lines will never be asked about by an edit. The
+     *    backfill for those is plan U15's re-import, which goes through CREATE (where this list is empty),
+     *    not through an edit.
+     *  - **It is scoped to THIS RECIPE.** Two recipes quoting the same source line each pay, which
+     *    contradicts `0023_line_verifications.sql`'s claim to verify such a line "once". Closing that needs
+     *    a read of `recipe_ingredient_verifications` by key — an exact answer where this is an approximation,
+     *    and the follow-up that would also cover the first case.
+     *
+     * Both directions of imprecision cost MONEY, never correctness: the worst outcome is a duplicate
+     * question whose verdict write is idempotent by primary key.
      */
     readonly alreadyRequested: readonly VerifiableLine[];
     /** The gate's bands, injected — R17 makes them measured, so calibration is a value change. */

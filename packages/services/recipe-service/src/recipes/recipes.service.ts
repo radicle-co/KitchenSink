@@ -115,6 +115,13 @@ function toVerifiableLine(line: ResolvedIngredientLine, catalog: ReadonlyMap<str
  * would make "unchanged" mean something subtly different from what the rest of the service means by it, and
  * the only symptom would be a bill.
  *
+ * ⚠️ The `foodId` comes from the CURRENT catalog, not from a snapshot taken when the row was written — and
+ * that is only sound because `ingredients.food_id` is IMMUTABLE. It is set on insert (`createFoodBacked`)
+ * and no statement in `IngredientsDal` ever updates it: `updateResolution` writes
+ * `food_resolution_status`, `name` and `search_vector`, and nothing else. If that ever changes, this
+ * lookup starts reporting a stored line's judgement as being about a food it was not about, and a request
+ * that SHOULD be re-asked would be suppressed instead.
+ *
  * @param row - The stored `recipe_ingredients` row.
  * @param catalog - The catalog rows, by ingredient id. A row whose ingredient is absent from this map yields
  *   no `foodId`, hence no judgement identity, hence no suppression — the SAFE direction (re-ask).

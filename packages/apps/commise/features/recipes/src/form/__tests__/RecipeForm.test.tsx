@@ -17,7 +17,8 @@ import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { tintOf } from '../../__tests__/cssColor.js';
 import { RecipeForm } from '../RecipeForm.js';
 import { DESCRIPTION_MAX_LENGTH, defaultRecipeFormValues, TITLE_MAX_LENGTH, type RecipeFormValues } from '../model.js';
-import type { RecipeFormProps } from '../props.js';
+import { resolutionStatusLabel, type RecipeFormProps } from '../props.js';
+import { recipeFormMessages } from '../messages.js';
 
 afterEach(cleanup);
 
@@ -820,6 +821,9 @@ describe('RecipeForm (web) — ingredients', () => {
         [FoodResolutionStatus.RESOLVED, 'Resolved'],
         [FoodResolutionStatus.NOT_FOUND, 'No match found'],
         [FoodResolutionStatus.FAILED, 'Resolution failed'],
+        // ⚠️ EXTENDED for U14, not rewritten: the union gained a sixth member, and a table that only covers
+        // the five it had when it was written is a totality claim that stopped being true.
+        [FoodResolutionStatus.NEEDS_REVIEW, 'Needs review'],
     ])('renders the %s resolution-status badge', (status, label) => {
         renderForm({
             values: filledValues({
@@ -835,6 +839,36 @@ describe('RecipeForm (web) — ingredients', () => {
 
         expect(screen.queryByText('Resolved')).toBeNull();
         expect(screen.queryByText('Resolving…')).toBeNull();
+    });
+
+    it('⛔ styles the NEEDS_REVIEW badge differently from every other status (U14)', () => {
+        // A doubted line is the ONE status a cook can act on — re-pick the food — and the editor is the
+        // surface where they do it. Rendering it in the same neutral pearl as "Resolved" would put the
+        // affordance in front of them wearing the colour of "nothing to do here", which is how a caveat gets
+        // scrolled past. Asserted against the OTHER statuses rather than against a literal class string, so
+        // it pins the DISTINCTION rather than today's palette.
+        const classOf = (status: (typeof FoodResolutionStatus)[keyof typeof FoodResolutionStatus]): string => {
+            cleanup();
+            renderForm({
+                values: filledValues({
+                    ingredients: [{ ingredientId: 'ing_1', name: 'Rice', quantity: 1, resolutionStatus: status }],
+                }),
+            });
+
+            return screen.getByText(resolutionStatusLabel(recipeFormMessages.en, status)).className;
+        };
+
+        const review = classOf(FoodResolutionStatus.NEEDS_REVIEW);
+
+        for (const other of [
+            FoodResolutionStatus.PENDING,
+            FoodResolutionStatus.UNRESOLVED,
+            FoodResolutionStatus.RESOLVED,
+            FoodResolutionStatus.NOT_FOUND,
+            FoodResolutionStatus.FAILED,
+        ] as const) {
+            expect(review).not.toBe(classOf(other));
+        }
     });
 });
 

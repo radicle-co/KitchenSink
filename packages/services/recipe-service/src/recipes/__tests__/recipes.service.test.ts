@@ -32,6 +32,7 @@ import type { RecipeIngredientInputDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
+import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -113,6 +114,7 @@ function newService(dal: RecipesDal, ratingsDal: RatingsDal = fakeRatingsDal()):
         ratingsDal,
         nutritionGatewayDouble,
         fakeVerificationQueue(),
+        fakeLineVerificationsDal(),
     );
 }
 
@@ -187,6 +189,7 @@ describe('RecipesService.create', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         await service.create(principal(), CREATE_DTO);
@@ -216,6 +219,7 @@ describe('RecipesService.create', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         await service.create(principal(), { ...CREATE_DTO, deviceLabel: 'Pixel 8' });
@@ -235,6 +239,7 @@ describe('RecipesService.create', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         // A principal carrying first/last-name claims → deriveDisplayName → "Ada Lovelace".
@@ -266,6 +271,7 @@ describe('RecipesService.create', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         await service.create(principal(), CREATE_DTO);
@@ -314,6 +320,7 @@ describe('RecipesService.create', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         ).create(principal(), CREATE_DTO);
 
         // Exact snapshot: every mapped field is pinned (numeric coercion, the `?? ''`/`?? 1` fallbacks,
@@ -364,6 +371,7 @@ describe('RecipesService.create', () => {
                 fakeRatingsDal(),
                 nutritionGatewayDouble,
                 fakeVerificationQueue(),
+                fakeLineVerificationsDal(),
             ).create(principal(), CREATE_DTO),
         ).resolves.toMatchObject({ id: 'r-1' });
         expect(consoleError).toHaveBeenCalled();
@@ -476,6 +484,7 @@ describe('RecipesService.getById — cover thumbnail (FOLLOW-UP-CR-001-A)', () =
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
     }
 
@@ -921,6 +930,7 @@ describe('RecipesService.update', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         await service.update(principal(), 'r-1', patch);
@@ -945,6 +955,7 @@ describe('RecipesService.update', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         await service.update(principal(), 'r-1', patch, { recordSnapshot: false });
@@ -967,6 +978,7 @@ describe('RecipesService.update', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         // An editor whose token claims derive to "Clara Oswald" — the same ONE rule create uses.
@@ -990,6 +1002,7 @@ describe('RecipesService.update', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         // The default principal carries no first/last name → deriveDisplayName returns '' → the key is omitted
@@ -1143,6 +1156,7 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         ).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
@@ -1193,6 +1207,7 @@ describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         ).create(principal(), CREATE_DTO);
 
         const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
@@ -1600,6 +1615,7 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
     }
 
@@ -1640,6 +1656,7 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         await service.create(principal(), {

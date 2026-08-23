@@ -231,5 +231,10 @@ export const unaccountedReasonText = (
             return messages.unaccountedNoNutrientData;
         case 'food_unavailable':
             return messages.unaccountedFoodUnavailable;
+        case 'verification_disagreement':
+            // ⛔ NOT folded into `food_unavailable`. A withheld figure is a terminal answer about a line we
+            // checked and doubted, not an outage a retry will clear — plan U14 names that conflation as the
+            // thing this reason exists to prevent.
+            return messages.unaccountedVerificationDisagreement;
     }
 };

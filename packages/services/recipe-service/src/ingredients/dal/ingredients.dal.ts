@@ -24,7 +24,7 @@
  * @implements FR-007 FR-007a
  */
 import { sql } from 'drizzle-orm';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { foodResolutionStatusSchema, type CatalogFoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/database.module.js';
@@ -54,14 +54,19 @@ export interface CreateFoodBackedInput {
     readonly name: CanonicalIngredientName;
     /** Opaque food-service internal id (ULID) backing this ingredient. */
     readonly foodId: string;
-    /** The async resolution status returned by the food service. */
-    readonly foodResolutionStatus: FoodResolutionStatus;
+    /**
+     * The async resolution status returned by the food service.
+     *
+     * ⛔ The CATALOG subset. `NEEDS_REVIEW` is a per-RECIPE-LINE verification verdict and migration 0023
+     * forbids writing one to this shared, ownerless row — the type is what makes that unwritable.
+     */
+    readonly foodResolutionStatus: CatalogFoodResolutionStatus;
 }
 
 /** Input to {@link IngredientsDal.updateResolution}. */
 export interface UpdateResolutionInput {
-    /** The new resolution status. */
-    readonly foodResolutionStatus: FoodResolutionStatus;
+    /** The new resolution status. ⛔ The CATALOG subset — never a gate verdict (see above / 0023). */
+    readonly foodResolutionStatus: CatalogFoodResolutionStatus;
     /**
      * The golden record's canonical display name, to ADOPT as this shared catalog row's name (plan U3).
      *
@@ -93,14 +98,28 @@ function toIsoString(value: Date | string): string {
     return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
+/**
+ * The `foodResolutionStatus` field for a raw column value: present when the column holds one of the five
+ * values food-service can report, absent otherwise (including `NULL`). Pure.
+ */
+function toCatalogStatus(value: string | null): { foodResolutionStatus?: CatalogFoodResolutionStatus } {
+    const parsed = value === null ? undefined : foodResolutionStatusSchema.safeParse(value);
+
+    return parsed?.success === true ? { foodResolutionStatus: parsed.data } : {};
+}
+
 /** Map a raw `ingredients` row to the canonical `Ingredient` domain shape. Pure. */
 export function rowToIngredient(row: RawIngredientRow): Ingredient {
     return {
         id: row.id,
         name: row.name,
         foodId: row.food_id ?? undefined,
-        foodResolutionStatus:
-            row.food_resolution_status === null ? undefined : (row.food_resolution_status as FoodResolutionStatus),
+        // ⛔ PARSED, not cast. `ingredients.food_resolution_status` is a plain `text` column with NO CHECK
+        // constraint, so an `as` here asserted a union the database never guaranteed; a value written by any
+        // future path — including a mistaken `NEEDS_REVIEW`, which 0023 forbids on this shared row — would
+        // have flowed onto the wire as a status this build cannot interpret. An unrecognised value now reads
+        // as ABSENT, which every consumer already handles (a freeform ingredient carries no status at all).
+        ...toCatalogStatus(row.food_resolution_status),
         isUserEntered: row.is_user_entered,
         createdAt: toIsoString(row.created_at),
     };

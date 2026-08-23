@@ -63,6 +63,8 @@ import {
 import { verificationKeyPreimage } from '@kitchensink/recipe-core/resolution/verification-key';
 import type { VerifyIngredientLineMessage } from '@kitchensink/recipe-core/resolution/verification-message';
 
+import { verifiedLineIdentity } from './lineVerification.js';
+
 /**
  * One persisted recipe ingredient line, adapted for the gate.
  *
@@ -166,71 +168,30 @@ export interface VerificationRequestInput {
     readonly requestedAt: string;
 }
 
-/** The quantity as the wire contract states it: a low bound, and a high bound only for a real range. */
-interface QuantityBounds {
-    readonly quantityLow: number | null;
-    readonly quantityHigh: number | null;
-}
-
-/**
- * Project the quantity value object onto the two nullable numbers the contract carries.
- *
- * ⛔ An EXACT quantity reports `quantityHigh: null`, NOT a repeat of its value — that is what the contract
- * means by "the high end of a range, or `null` for an exact quantity", and `verificationKey` distinguishes
- * the two, so a repeat would both re-partition the verdict table and ask the model about a range the line
- * never stated. (This is why recipe-core's `quantityUpperBound` is deliberately NOT used here: it answers a
- * different question — "the largest amount the line admits" — for which an exact quantity's own value is the
- * right answer, and the wrong one for this contract.)
- *
- * @param quantity - The line's stated amount.
- * @returns The two bounds. Pure.
- */
-function boundsOf(quantity: IngredientQuantity): QuantityBounds {
-    switch (quantity.kind) {
-        case 'exact':
-            return { quantityLow: quantity.value, quantityHigh: null };
-        case 'range':
-            return { quantityLow: quantity.low, quantityHigh: quantity.high };
-        case 'absent':
-            // ⛔ Never zero (R40). "Butter the size of an egg" states no number, not none of something.
-            return { quantityLow: null, quantityHigh: null };
-    }
-}
-
-/**
- * The unit as the wire contract states it.
- *
- * @param unit - The persisted unit, where `''` means the parser found none.
- * @returns The unit, or `null`. Pure.
- */
-function unitOf(unit: string): string | null {
-    return unit.trim() === '' ? null : unit;
-}
-
 /**
  * The canonical identity of the judgement this line would ask for, or `undefined` when it would ask for none.
  *
- * ⛔ Delegates to {@link verificationKeyPreimage} — the same serialization the verdict table is keyed on —
- * rather than comparing fields here. Two answers to "what is this judgement about" would drift, and the drift
- * would surface only as a bill.
+ * ⛔ DELEGATES BOTH HALVES, and that is the point. The SERIALIZATION is `verificationKeyPreimage` — the same
+ * one the verdict table is keyed on. The COLUMN→TUPLE MAPPING is `verifiedLineIdentity`
+ * (`./lineVerification.ts`), which is also what U14's read side uses to look a verdict UP. Two answers to
+ * "what is this judgement about" would drift, and the drift would be invisible — the reader would report
+ * "the gate has judged nothing" while the gate judged, and was billed for, everything.
+ *
+ * ⚠️ It used to derive the tuple here, with a local `boundsOf` and `unitOf`. That was one derivation too
+ * many and it HAD already diverged from the reader's by the time both shipped (a whitespace-only unit, which
+ * `recipeIngredientUnitSchema` admits). The reasoning those helpers carried is preserved where the mapping
+ * now lives: an EXACT quantity reports `quantityHigh: null` rather than a repeat of its value — which is why
+ * recipe-core's `quantityUpperBound` is deliberately not used, since it answers a different question ("the
+ * largest amount the line admits") whose right answer for an exact quantity is the wrong one for this
+ * contract.
  *
  * @param line - The line.
  * @returns The preimage, or `undefined` for a line that carries no judgement (authored, or user-entered).
  */
 function judgementIdentity(line: VerifiableLine): string | undefined {
-    if (line.sourceLine === undefined || line.foodId === undefined) {
-        return undefined;
-    }
+    const identity = verifiedLineIdentity(line, line.foodId);
 
-    const bounds = boundsOf(line.quantity);
-
-    return verificationKeyPreimage({
-        sourceLine: line.sourceLine,
-        foodId: line.foodId,
-        quantityLow: bounds.quantityLow,
-        quantityHigh: bounds.quantityHigh,
-        unit: unitOf(line.unit),
-    });
+    return identity === undefined ? undefined : verificationKeyPreimage(identity);
 }
 
 /**
@@ -295,24 +256,31 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
             continue;
         }
 
-        const identity = judgementIdentity(line);
+        // ⛔ ONE derivation feeds BOTH the dedup key and the message's own fields. Deriving them separately
+        // is how a message could be sent describing a judgement other than the one the dedup set recorded —
+        // and, worse, other than the one U14's reader will look the resulting verdict up under.
+        const judgement = verifiedLineIdentity(line, foodId);
 
-        if (identity === undefined || seen.has(identity)) {
+        if (judgement === undefined) {
+            continue;
+        }
+
+        const identity = verificationKeyPreimage(judgement);
+
+        if (seen.has(identity)) {
             continue;
         }
 
         seen.add(identity);
-
-        const bounds = boundsOf(line.quantity);
 
         requests.push({
             recipeId: input.recipeId,
             sourceLine,
             foodId,
             candidateFoodName: line.candidateFoodName,
-            quantityLow: bounds.quantityLow,
-            quantityHigh: bounds.quantityHigh,
-            unit: unitOf(line.unit),
+            quantityLow: judgement.quantityLow,
+            quantityHigh: judgement.quantityHigh,
+            unit: judgement.unit,
             // ⛔ The producer knows of no tier, and must not guess one: `curated-exact` would suppress the
             // identity check. See the module docstring.
             evidenceKind: 'unattributed',

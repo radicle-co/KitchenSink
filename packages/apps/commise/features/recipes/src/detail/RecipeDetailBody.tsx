@@ -27,7 +27,13 @@ import { PhotoCarousel } from './PhotoCarousel.js';
 import { RecipeHero } from './RecipeHero.js';
 import { RecipeSourceLine } from './RecipeSourceLine.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
-import { formatQuantity, rangeDerivedNotice, type RecipeDetailBodyProps } from './model.js';
+import {
+    formatQuantity,
+    isLineNeedsReview,
+    needsReviewNotice,
+    rangeDerivedNotice,
+    type RecipeDetailBodyProps,
+} from './model.js';
 
 const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:grid-cols-4';
 const statValue = 'font-display text-2xl font-bold text-charcoal';
@@ -66,6 +72,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     // so the platforms cannot disagree about WHAT scales. Quantities and prep scale; cook time and the
     // per-step timers below are rendered from the STORED recipe, on purpose (see `scaleRecipeForServings`).
     const scaled = scaleRecipeForServings(recipe, servings);
+    // U14 — read from the STORED lines rather than the scaled projection, for the same reason `rangeNotice`
+    // is: which lines the gate doubted is a fact about the recipe, not about the serving count on screen.
+    const reviewNotice = needsReviewNotice(recipe.ingredients, detail);
 
     return (
         <article aria-label={recipe.title} className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
@@ -229,6 +238,22 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                         {detail.userEnteredBadge}
                                     </span>
                                 )}
+                                {/* U14 — the LINE the verification gate contradicted. `ml-auto` so it takes
+                                    the trailing slot when there is no `Custom` badge, and a WARNING tone
+                                    rather than the neutral pearl: this is the one status a cook can act on.
+                                    ⛔ CHARCOAL on a `warning` TINT, never `warning` as the text colour —
+                                    `colors.ts` is explicit that #F5B041 is a light fill taking a charcoal
+                                    label, and as a foreground on near-white it is far under the 4.5:1 floor.
+                                    ⚠️ No ARIA role and no `aria-label`: the badge's own TEXT is its content,
+                                    and text inside the list item is already announced with the line. A
+                                    `role="note"` here would add a second landmark per doubted line and
+                                    (being a role that does not take its name from content) would name none
+                                    of them — the mistake `RecipeCalorieChip`'s docstring describes. */}
+                                {isLineNeedsReview(ingredient) && (
+                                    <span className="ml-auto shrink-0 rounded-full bg-warning/25 px-2 py-0.5 text-caption font-medium text-charcoal">
+                                        {detail.needsReviewBadge}
+                                    </span>
+                                )}
                             </li>
                         );
                     })}
@@ -321,6 +346,16 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     left out, this one says a counted line was counted at one end of the amount the recipe
                     actually states. Both can be true at once, so both render. */}
                 {rangeNotice !== undefined && <p className="text-body-sm text-slate">{rangeNotice}</p>}
+                {/* U14 — a THIRD admission, and the only one that is our own doubt rather than a gap in the
+                    data. The catalog HAD these lines' figures; the verification gate read them against the
+                    cook's own wording, disagreed, and we withheld them. `role="note"` so the sentence reaches
+                    a screen reader as a remark rather than as loose prose, and a warning tone because unlike
+                    the two above it is ACTIONABLE: re-pick the food. */}
+                {reviewNotice !== undefined && (
+                    <p role="note" className="text-body-sm font-medium text-charcoal">
+                        {reviewNotice}
+                    </p>
+                )}
                 {hasUserEnteredIngredients(recipe.ingredients) && (
                     <p className="text-caption text-slate">{detail.nutritionSourceNote}</p>
                 )}

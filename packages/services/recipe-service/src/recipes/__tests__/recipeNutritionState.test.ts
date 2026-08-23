@@ -29,6 +29,7 @@
  * `unaccounted`, which carries no figure at all.
  */
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { recipeNutritionResponseSchema, recipeNutritionStateSchema } from '../recipes.schema.js';
 
@@ -62,12 +63,40 @@ describe('recipeNutritionStateSchema', () => {
     });
 
     it('accepts every unaccounted reason', () => {
-        for (const reason of ['no_resolved_ingredients', 'no_nutrient_data', 'food_unavailable'] as const) {
+        for (const reason of [
+            'no_resolved_ingredients',
+            'no_nutrient_data',
+            'food_unavailable',
+            'verification_disagreement',
+        ] as const) {
             expect(recipeNutritionStateSchema.parse({ state: 'unaccounted', reason })).toStrictEqual({
                 state: 'unaccounted',
                 reason,
             });
         }
+    });
+
+    it('⛔ keeps `verification_disagreement` DISTINCT from `food_unavailable` (U14)', () => {
+        // The conflation this reason exists to prevent. A withheld line means the gate read the cook's own
+        // source text and disagreed with our parse — the food service was reachable and answered. Reporting
+        // it as an outage would tell a cook to "try again shortly" about an answer that will never change.
+        const withheld = recipeNutritionStateSchema.parse({
+            state: 'unaccounted',
+            reason: 'verification_disagreement',
+        });
+
+        expect(withheld).not.toStrictEqual({ state: 'unaccounted', reason: 'food_unavailable' });
+    });
+
+    it('⛔ a client built before the fourth reason FAILS CLOSED on it, never mis-reads it as another', () => {
+        // The wire-compatibility decision, asserted rather than asserted-in-prose. The `unaccounted` member is
+        // `.strict()`, so it is closed to ANY additive change — a new sibling field would break an older
+        // reader exactly as a new enum member does. What matters is the DIRECTION of the break: a stale
+        // schema REFUSES the value outright, so an old client can never render a withheld figure as an
+        // outage, a zero, or a number. It shows nothing, which is the only safe answer it can give.
+        const priorGenerationReason = z.enum(['no_resolved_ingredients', 'no_nutrient_data', 'food_unavailable']);
+
+        expect(priorGenerationReason.safeParse('verification_disagreement').success).toBe(false);
     });
 
     it('⛔ has NO `pending` member — a server must not be able to make a skeleton permanent', () => {

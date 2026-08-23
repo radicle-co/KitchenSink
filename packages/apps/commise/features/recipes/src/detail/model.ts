@@ -8,7 +8,10 @@
 import type { ReactNode } from 'react';
 
 import type { Locale } from '@commise/i18n';
-import type { IngredientQuantity, RecipeDetail, RecipeNutrition } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { IngredientQuantity, RecipeDetail, RecipeIngredientView, RecipeNutrition } from '@kitchensink/recipe-core';
+
+import { fillTemplate } from '../list/model.js';
 
 /**
  * Separates the two bounds of a stated range (`2–3 cups`).
@@ -102,6 +105,68 @@ export type RangeDerivedNotices = Readonly<Record<RangeDerivedBound, string>>;
  */
 export const rangeDerivedNotice = (nutrition: RecipeNutrition, notices: RangeDerivedNotices): string | undefined =>
     nutrition.rangeDerivedBound === undefined ? undefined : notices[nutrition.rangeDerivedBound];
+
+/**
+ * Whether the U11 verification gate CONTRADICTED this line, so its catalog nutrition was withheld from the
+ * recipe's figure (plan U14 / R15). Pure.
+ *
+ * ⛔ ONLY `NEEDS_REVIEW`. Every other status — including the terminal `NOT_FOUND`/`FAILED` — is a fact about
+ * the FOOD LINK, not a doubt about our reading of the cook's source, and an ABSENT status means the gate has
+ * not judged the line at all. Migration 0023 is explicit that absence means PUBLISH: the gate runs off a
+ * queue, so a line publishes between save and verification whatever the verdict table says.
+ *
+ * @param line - One recipe ingredient line as the detail read returns it.
+ * @returns `true` only for a line the gate contradicted.
+ */
+export const isLineNeedsReview = (line: RecipeIngredientView): boolean =>
+    line.resolutionStatus === FoodResolutionStatus.NEEDS_REVIEW;
+
+/**
+ * How many of a recipe's lines the gate contradicted. Pure.
+ *
+ * @param ingredients - The recipe's ingredient lines.
+ * @returns The count of doubted lines.
+ */
+export const needsReviewCount = (ingredients: readonly RecipeIngredientView[]): number =>
+    ingredients.filter(isLineNeedsReview).length;
+
+/** The two localized sentences {@link needsReviewNotice} chooses between. */
+export interface NeedsReviewNotices {
+    /** The sentence for exactly one doubted line. */
+    readonly needsReviewNoticeOne: string;
+    /** The template for two or more (contains `{count}`). */
+    readonly needsReviewNoticeMany: string;
+}
+
+/**
+ * The recipe-level disclosure for a figure the gate withheld, or `undefined` when nothing was doubted. Pure.
+ *
+ * ⛔ ITS OWN SENTENCE, not the partial-nutrition caveat. "Some items aren't counted yet" says the catalog had
+ * nothing; this says the catalog HAD the figure and we declined to publish it because a check against the
+ * cook's own wording disagreed with our match. The two have different fixes — wait, versus correct the
+ * match — so collapsing them tells a cook nothing actionable. This is the client half of the wire's
+ * `unaccounted{verification_disagreement}`, which exists for the same reason.
+ *
+ * ⚠️ Singular and plural are two STRINGS rather than one template with a number in it: English
+ * pluralization is not a substitution, and a locale that inflects differently changes the catalogue rather
+ * than this function.
+ *
+ * @param ingredients - The recipe's ingredient lines.
+ * @param notices - The localized copy for the active locale.
+ * @returns The disclosure to render, or `undefined` when no line was doubted.
+ */
+export const needsReviewNotice = (
+    ingredients: readonly RecipeIngredientView[],
+    notices: NeedsReviewNotices,
+): string | undefined => {
+    const count = needsReviewCount(ingredients);
+
+    if (count === 0) {
+        return undefined;
+    }
+
+    return count === 1 ? notices.needsReviewNoticeOne : fillTemplate(notices.needsReviewNoticeMany, { count });
+};
 
 /**
  * Props for the recipe-detail HERO cover, shared by the web (`RecipeHero.tsx`) and native

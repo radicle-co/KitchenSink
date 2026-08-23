@@ -11,7 +11,7 @@
  * Both functions are pure and total, so both are provable by table test rather than by booting anything.
  * Neither knows the DAL, Nest, or HTTP.
  */
-import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { CatalogFoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { FoodStatus, StatusResult } from '@kitchensink/food-service-client';
 
 import { canonicalIngredientName, type CanonicalIngredientName } from './domain/ingredientName.js';
@@ -38,10 +38,15 @@ import { canonicalIngredientName, type CanonicalIngredientName } from './domain/
  * already handles. Reporting failure here would strand the ingredient in the picker's terminal branch
  * while food was still working on it.
  *
+ * ⛔ The return type is the CATALOG subset, not the six-member `FoodResolutionStatus`. Food-service cannot
+ * publish `NEEDS_REVIEW` — that value is OUR OWN per-recipe-line verification verdict (plan U14), and
+ * migration 0023 forbids it on this shared catalog row. Narrowing here is what stops it being returnable
+ * from a translation of somebody else's lifecycle.
+ *
  * @param status - The status food published.
  * @returns The status recipe persists and renders.
  */
-export function toResolutionStatus(status: FoodStatus): FoodResolutionStatus {
+export function toResolutionStatus(status: FoodStatus): CatalogFoodResolutionStatus {
     switch (status) {
         case 'PENDING':
         case 'UNRESOLVED':

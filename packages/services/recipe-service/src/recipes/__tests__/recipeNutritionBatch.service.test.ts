@@ -28,11 +28,18 @@ import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photosDal.fixture.js';
 import { fakeRatingsDal } from '../__fixtures__/ratingsDal.fixture.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
+import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
+import { sha256Hex } from '../../common/sha256.js';
+import type { VerificationBand } from '../domain/lineVerification.js';
+import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
 
 const VIEWER = '01J000000000000000000FREE0';
 const FLOUR_INGREDIENT = '00000000-0000-4000-8000-0000000000aa';
 const FLOUR_FOOD = '01JFOODFLOUR00000000000001';
 const FREEFORM_INGREDIENT = '00000000-0000-4000-8000-0000000000bb';
+
+/** The raw line a cook's source stated, as migration 0024 admits it. */
+const SOURCE_LINE = '200 g of plain flour, sifted';
 
 /** Food's per-100g projection for the flour fixture: 350 kcal, 12 g protein, 70 g carbs, 2 g fat. */
 const FLOUR_NUTRITION: Omit<FoodNutritionEntry, 'freshness'> = {
@@ -115,8 +122,45 @@ function fakeGateway(byFoodId: Map<string, Omit<FoodNutritionEntry, 'freshness'>
     });
 }
 
+/** A source-transcribed catalog line: 200 g of flour, carrying the raw line the cook's book stated. */
+function transcribedFlourLine(recipeId: string, lineId: string) {
+    return makeRecipeIngredientRow({
+        id: lineId,
+        recipeId,
+        ingredientId: FLOUR_INGREDIENT,
+        ingredientName: 'Flour',
+        quantity: '200',
+        unit: 'g',
+        sourceLine: SOURCE_LINE,
+        sortOrder: 0,
+    });
+}
+
+/**
+ * The verdict key the SERVICE will compute for {@link transcribedFlourLine} — derived exactly as production
+ * does, never hand-written.
+ *
+ * ⛔ This is what makes the withholding cases real assertions rather than restatements of a mock. If the
+ * service ever spelled the identity differently — the classic trap being the unitless `''`/`null` mismatch —
+ * it would compute a key that matches nothing, silently report "no verdict", and these tests would fail.
+ */
+const WITHHELD_KEY = verificationKey(
+    {
+        sourceLine: SOURCE_LINE,
+        foodId: FLOUR_FOOD,
+        quantityLow: 200,
+        quantityHigh: null,
+        unit: 'g',
+    },
+    sha256Hex,
+);
+
 /** The service under test, wired to the given DAL + gateway (the other collaborators are off-path here). */
-function newService(dal: RecipesDal, lookup: ReturnType<typeof vi.fn>): RecipesService {
+function newService(
+    dal: RecipesDal,
+    lookup: ReturnType<typeof vi.fn>,
+    verdicts: ReadonlyMap<string, VerificationBand> = new Map(),
+): RecipesService {
     return new RecipesService(
         dal,
         fakeIngredientsDal(),
@@ -126,6 +170,7 @@ function newService(dal: RecipesDal, lookup: ReturnType<typeof vi.fn>): RecipesS
         fakeRatingsDal(),
         { lookup } as never,
         fakeVerificationQueue(),
+        fakeLineVerificationsDal(verdicts),
     );
 }
 
@@ -242,6 +287,92 @@ describe('RecipesService.getNutritionForRecipes', () => {
             isComplete: true,
             freshness: 'fresh',
         });
+    });
+
+    it('⛔ WITHHOLDS a contradicted line and reports the disagreement, not an outage (U14)', async () => {
+        // The end-to-end property this unit exists for: a verdict recorded by `recipe-workers` reaches a
+        // cook. Food answered, the catalog HAD the figure, and the recipe reports `verification_disagreement`
+        // — which is a different sentence from "try again shortly".
+        const lookup = fakeGateway(new Map([[FLOUR_FOOD, FLOUR_NUTRITION]]), 'fresh');
+        const { dal } = fakeDal([input('r-1', [transcribedFlourLine('r-1', 'line-1')])]);
+        const service = newService(dal, lookup, new Map([[WITHHELD_KEY, 'contradicted']]));
+
+        const result = await this_getNutrition(service, ['r-1']);
+
+        expect(result.nutrition['r-1']).toStrictEqual({
+            state: 'unaccounted',
+            reason: 'verification_disagreement',
+        });
+    });
+
+    it('⛔ PUBLISHES the same line when the gate AGREED — only a contradiction withholds', async () => {
+        const lookup = fakeGateway(new Map([[FLOUR_FOOD, FLOUR_NUTRITION]]), 'fresh');
+        const { dal } = fakeDal([input('r-1', [transcribedFlourLine('r-1', 'line-1')])]);
+        const service = newService(dal, lookup, new Map([[WITHHELD_KEY, 'verified']]));
+
+        expect((await this_getNutrition(service, ['r-1'])).nutrition['r-1']).toMatchObject({
+            state: 'known',
+            caloriesPerServing: 350,
+        });
+    });
+
+    it('⛔ PUBLISHES when the gate has judged nothing — absence of a verdict means publish (0023)', async () => {
+        const lookup = fakeGateway(new Map([[FLOUR_FOOD, FLOUR_NUTRITION]]), 'fresh');
+        const { dal } = fakeDal([input('r-1', [transcribedFlourLine('r-1', 'line-1')])]);
+
+        expect((await this_getNutrition(newService(dal, lookup), ['r-1'])).nutrition['r-1']).toMatchObject({
+            state: 'known',
+            caloriesPerServing: 350,
+        });
+    });
+
+    it('⛔ withholds ONE line without deleting the recipe’s figure — the survivor still accounts', async () => {
+        // A second line, same food, DIFFERENT quantity: a different judgement, and deliberately not covered
+        // by the first line's verdict. Keying the verdict on the ingredient rather than the judgement would
+        // badge both and wipe the recipe's figure out entirely.
+        const secondLine = makeRecipeIngredientRow({
+            id: 'line-2',
+            recipeId: 'r-1',
+            ingredientId: FLOUR_INGREDIENT,
+            ingredientName: 'Flour',
+            quantity: '100',
+            unit: 'g',
+            sourceLine: 'a further 100 g of flour',
+            sortOrder: 1,
+        });
+        const lookup = fakeGateway(new Map([[FLOUR_FOOD, FLOUR_NUTRITION]]), 'fresh');
+        const { dal } = fakeDal([input('r-1', [transcribedFlourLine('r-1', 'line-1'), secondLine])]);
+        const service = newService(dal, lookup, new Map([[WITHHELD_KEY, 'contradicted']]));
+
+        expect((await this_getNutrition(service, ['r-1'])).nutrition['r-1']).toMatchObject({
+            state: 'known',
+            // 100 g at 350 kcal/100 g = 350 kcal, ÷ 2 servings = 175. The withheld 200 g contributes nothing.
+            caloriesPerServing: 175,
+            isComplete: false,
+        });
+    });
+
+    it('⛔ does NOT read verdicts at all when no line was transcribed — there is nothing to judge', async () => {
+        // `flourLine` carries `sourceLine: null` (an AUTHORED line). The verdict read is skipped entirely
+        // rather than issued with an empty predicate, mirroring the food lookup's own short circuit.
+        const lookup = fakeGateway(new Map([[FLOUR_FOOD, FLOUR_NUTRITION]]), 'fresh');
+        const { dal } = fakeDal([input('r-1', [flourLine('r-1')])]);
+        const verificationsDal = fakeLineVerificationsDal();
+        const service = new RecipesService(
+            dal,
+            fakeIngredientsDal(),
+            makeFakeVersionsService(),
+            fakePhotosDal(),
+            RECIPE_PHOTOS_CDN,
+            fakeRatingsDal(),
+            { lookup } as never,
+            fakeVerificationQueue(),
+            verificationsDal,
+        );
+
+        await service.getNutritionForRecipes(VIEWER, ['r-1']);
+
+        expect(verificationsDal.findBandsByKeys).not.toHaveBeenCalled();
     });
 
     it('does not call food at all when no requested recipe is readable', async () => {

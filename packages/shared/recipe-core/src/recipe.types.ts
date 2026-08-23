@@ -354,6 +354,95 @@ export const recipeSchema = z.object({
 });
 
 /**
+ * Async resolution state of an ingredient's backing food record in the
+ * source-agnostic food service (003). Values mirror the shipped food client's
+ * `FoodStatus` (`@kitchensink/food-service-client`), including the terminal
+ * `NOT_FOUND` / `FAILED` states. A just-added food may report `PENDING` or
+ * `UNRESOLVED` (nutrition not ready yet, or awaiting disambiguation) and
+ * transition to `RESOLVED` later; consumers must tolerate partial nutrition in
+ * the interim (FR-007). `NOT_FOUND` / `FAILED` are terminal — the picker UX
+ * surfaces an error, offers a freeform fallback, and allows removal. Whether an
+ * ingredient is freeform is a SEPARATE concern tracked by
+ * {@link Ingredient.isUserEntered}, never a resolution-status value.
+ *
+ * ## ⛔ `NEEDS_REVIEW` IS OURS, AND IT IS PER RECIPE LINE — NEVER PER CATALOG ROW
+ *
+ * The sixth member is the ONE value food-service does not emit: it means the U11 verification gate read a
+ * recipe line's raw source text against the food we resolved it to and CONTRADICTED the match (plan U14 /
+ * R15). It is derived at read time from `recipe_ingredient_verifications` and it is never persisted.
+ *
+ * `0023_line_verifications.sql` forbids writing a gate verdict into `ingredients.food_resolution_status` for
+ * three independent reasons — blast radius on a SHARED, ownerless catalog deduped one row per `food_id`;
+ * that column being a MIRROR of a lifecycle food-service owns; and `UNRESOLVED` already meaning "several
+ * candidates, ask the user to pick". So the two audiences get two schemas, and the split is STRUCTURAL:
+ * {@link foodResolutionStatusSchema} (the catalog `Ingredient`, five values) cannot carry `NEEDS_REVIEW`,
+ * and {@link lineResolutionStatusSchema} (one recipe line, six) can. A picker row therefore has no dead
+ * branch, and no code path can widen one recipe's disagreement into every recipe that shares the food.
+ */
+export const FoodResolutionStatus = {
+    PENDING: 'PENDING',
+    UNRESOLVED: 'UNRESOLVED',
+    RESOLVED: 'RESOLVED',
+    NOT_FOUND: 'NOT_FOUND',
+    FAILED: 'FAILED',
+    /** ⛔ RECIPE-LINE ONLY — see this block's header. Never written to a catalog row. */
+    NEEDS_REVIEW: 'NEEDS_REVIEW',
+} as const;
+
+/**
+ * Resolution lifecycle status for an ingredient's {@link Ingredient.foodId}, INCLUDING the recipe-line-only
+ * `NEEDS_REVIEW`. The two audiences narrow it through {@link foodResolutionStatusSchema} (catalog) and
+ * {@link lineResolutionStatusSchema} (recipe line).
+ */
+export type FoodResolutionStatus = (typeof FoodResolutionStatus)[keyof typeof FoodResolutionStatus];
+
+/**
+ * Runtime validator for a CATALOG ingredient's food-resolution status — the five values that mirror
+ * food-service's `FoodStatus`, and no more.
+ *
+ * ⛔ `NEEDS_REVIEW` IS DELIBERATELY ABSENT and adding it here is the change to refuse. This schema validates
+ * `Ingredient.foodResolutionStatus`, which is one row of a shared, ownerless catalog; admitting a gate
+ * verdict here is how ONE recipe line's disagreement would withdraw nutrition from every recipe referencing
+ * that food. Asserted in both directions by `lineResolutionStatus.test.ts`.
+ */
+export const foodResolutionStatusSchema = z.enum([
+    FoodResolutionStatus.PENDING,
+    FoodResolutionStatus.UNRESOLVED,
+    FoodResolutionStatus.RESOLVED,
+    FoodResolutionStatus.NOT_FOUND,
+    FoodResolutionStatus.FAILED,
+]);
+
+/**
+ * A CATALOG ingredient's food-resolution status — the five mirror values, and never `NEEDS_REVIEW`.
+ *
+ * ⛔ Use this, not the six-member {@link FoodResolutionStatus}, wherever the value describes an `ingredients`
+ * ROW. It is what makes 0023's blast-radius rule a compile error rather than a docstring: a gate verdict
+ * assigned to a catalog row does not type-check.
+ */
+export type CatalogFoodResolutionStatus = z.infer<typeof foodResolutionStatusSchema>;
+
+/**
+ * Runtime validator for ONE RECIPE LINE's food-resolution status: every mirror value above, PLUS the
+ * gate-derived {@link FoodResolutionStatus.NEEDS_REVIEW}.
+ *
+ * Spelled out member by member rather than spread from {@link foodResolutionStatusSchema}'s `options`: a
+ * spread would make the two enums one declaration whose members are decided by whichever list happens to be
+ * edited, and the whole point is that the catalog list is CLOSED against exactly one value.
+ */
+export const lineResolutionStatusSchema = z.enum([
+    FoodResolutionStatus.PENDING,
+    FoodResolutionStatus.UNRESOLVED,
+    FoodResolutionStatus.RESOLVED,
+    FoodResolutionStatus.NOT_FOUND,
+    FoodResolutionStatus.FAILED,
+    FoodResolutionStatus.NEEDS_REVIEW,
+]);
+
+/** One recipe line's food-resolution status — the catalog mirror widened by the gate's own verdict. */
+export type LineResolutionStatus = z.infer<typeof lineResolutionStatusSchema>;
+
+/**
  * A recipe instruction step as returned on the wire (the read projection of {@link RecipeStep} — no
  * persistence ids). `stepNumber` is the 1-based display order; `timerSeconds` is an optional inline timer.
  */
@@ -386,10 +475,26 @@ export interface RecipeIngredientView {
     unit?: string;
     notes?: string;
     isUserEntered: boolean;
+    /**
+     * How this LINE's food link stands (plan U14 / R15). `NEEDS_REVIEW` means the verification gate read the
+     * line's raw source text against the food we resolved it to and disagreed, so this line's catalog
+     * nutrition is WITHHELD from the recipe's figure.
+     *
+     * ⚠️ OPTIONAL, and absent is a real state rather than a default: a freeform line has no food link to
+     * report on, and `0023_line_verifications.sql` is explicit that ABSENCE OF A VERDICT MEANS PUBLISH — the
+     * gate runs off a queue, so an unjudged line must behave exactly as it did before the gate existed.
+     *
+     * ⛔ PER LINE, never the shared catalog row's status — see {@link foodResolutionStatusSchema}.
+     */
+    resolutionStatus?: LineResolutionStatus;
 }
 
 /**
  * Runtime validator for {@link RecipeIngredientView}.
+ *
+ * ⚠️ NOT `.strict()`, and `resolutionStatus` was added to it as an OPTIONAL key on purpose: a non-strict
+ * object lets a client built before this field STRIP it rather than reject the whole recipe, so widening the
+ * line view is backward compatible in a way that widening a `.strict()` member never is.
  */
 export const recipeIngredientViewSchema = z.object({
     ingredientId: idSchema,
@@ -398,6 +503,7 @@ export const recipeIngredientViewSchema = z.object({
     unit: z.string().min(1).optional(),
     notes: z.string().min(1).optional(),
     isUserEntered: z.boolean(),
+    resolutionStatus: lineResolutionStatusSchema.optional(),
 });
 
 /**
@@ -497,42 +603,6 @@ export const recipeStepSchema = z.object({
 });
 
 /**
- * Async resolution state of an ingredient's backing food record in the
- * source-agnostic food service (003). Values mirror the shipped food client's
- * `FoodStatus` (`@kitchensink/food-service-client`), including the terminal
- * `NOT_FOUND` / `FAILED` states. A just-added food may report `PENDING` or
- * `UNRESOLVED` (nutrition not ready yet, or awaiting disambiguation) and
- * transition to `RESOLVED` later; consumers must tolerate partial nutrition in
- * the interim (FR-007). `NOT_FOUND` / `FAILED` are terminal — the picker UX
- * surfaces an error, offers a freeform fallback, and allows removal. Whether an
- * ingredient is freeform is a SEPARATE concern tracked by
- * {@link Ingredient.isUserEntered}, never a resolution-status value.
- */
-export const FoodResolutionStatus = {
-    PENDING: 'PENDING',
-    UNRESOLVED: 'UNRESOLVED',
-    RESOLVED: 'RESOLVED',
-    NOT_FOUND: 'NOT_FOUND',
-    FAILED: 'FAILED',
-} as const;
-
-/**
- * Resolution lifecycle status for an ingredient's {@link Ingredient.foodId}.
- */
-export type FoodResolutionStatus = (typeof FoodResolutionStatus)[keyof typeof FoodResolutionStatus];
-
-/**
- * Runtime validator for {@link FoodResolutionStatus}.
- */
-export const foodResolutionStatusSchema = z.enum([
-    FoodResolutionStatus.PENDING,
-    FoodResolutionStatus.UNRESOLVED,
-    FoodResolutionStatus.RESOLVED,
-    FoodResolutionStatus.NOT_FOUND,
-    FoodResolutionStatus.FAILED,
-]);
-
-/**
  * Canonical ingredient definition, optionally enriched with nutrition per 100g.
  *
  * Nutrition is backed by the source-agnostic food service (003) via its typed
@@ -575,8 +645,11 @@ export interface Ingredient {
      * Async resolution state of {@link foodId} in the food service. Present only
      * for database-backed ingredients (a {@link foodId} is set); absent for
      * user-entered ingredients that carry no food reference.
+     *
+     * ⛔ The CATALOG subset, so `NEEDS_REVIEW` cannot be assigned here — a verification verdict is about ONE
+     * recipe line, and this is a shared, ownerless row. See {@link CatalogFoodResolutionStatus}.
      */
-    foodResolutionStatus?: FoodResolutionStatus;
+    foodResolutionStatus?: CatalogFoodResolutionStatus;
     isUserEntered: boolean;
     caloriesPer100g?: number;
     proteinGPer100g?: number;

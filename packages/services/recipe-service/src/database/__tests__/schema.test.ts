@@ -9,6 +9,8 @@ import {
     FoodResolutionStatus as RecipeCoreFoodResolutionStatus,
     RecipeCollectionAddedVia as RecipeCoreCollectionAddedVia,
     RecipeVersionArchiveStatus as RecipeCoreVersionArchiveStatus,
+    foodResolutionStatusSchema,
+    lineResolutionStatusSchema,
 } from '@kitchensink/recipe-core';
 
 import * as schema from '../schema/index.js';
@@ -356,8 +358,19 @@ describe('recipe-service schema — value sets are tied to @kitchensink/recipe-c
     it('RECIPE_STATUSES set-equals recipe-core RecipeStatus', () => {
         expectSetEqual(RECIPE_STATUSES, Object.values(RecipeCoreStatus));
     });
-    it('FOOD_RESOLUTION_STATUSES set-equals recipe-core FoodResolutionStatus', () => {
-        expectSetEqual(FOOD_RESOLUTION_STATUSES, Object.values(RecipeCoreFoodResolutionStatus));
+    it('FOOD_RESOLUTION_STATUSES set-equals recipe-core’s CATALOG status schema — NOT the wider union', () => {
+        // ⛔ REWRITTEN, not relaxed (plan U14). This used to compare against `Object.values(
+        // FoodResolutionStatus)`, which was the same set. That union has since gained `NEEDS_REVIEW` — the
+        // verification gate's own per-RECIPE-LINE verdict — and migration 0023 forbids writing one to this
+        // SHARED, ownerless catalog column, blast radius first among its three reasons. The authority for
+        // what this column may hold is therefore `foodResolutionStatusSchema` (the five-value food-service
+        // mirror), and comparing against it is what keeps the guard meaningful instead of merely green.
+        expectSetEqual(FOOD_RESOLUTION_STATUSES, foodResolutionStatusSchema.options);
+    });
+
+    it('⛔ FOOD_RESOLUTION_STATUSES EXCLUDES NEEDS_REVIEW, which the line union carries and this one may not', () => {
+        expect(FOOD_RESOLUTION_STATUSES).not.toContain(RecipeCoreFoodResolutionStatus.NEEDS_REVIEW);
+        expect(lineResolutionStatusSchema.options).toContain(RecipeCoreFoodResolutionStatus.NEEDS_REVIEW);
     });
     it('COLLECTION_VISIBILITIES set-equals recipe-core RecipeVisibility (Collection.visibility reuses it)', () => {
         expectSetEqual(COLLECTION_VISIBILITIES, Object.values(RecipeCoreVisibility));

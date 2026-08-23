@@ -19,7 +19,7 @@ import {
     uniqueIndex,
     uuid,
 } from 'drizzle-orm/pg-core';
-import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { CatalogFoodResolutionStatus, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { recipes, tsvector } from './recipes.js';
 
@@ -28,8 +28,13 @@ import { recipes, tsvector } from './recipes.js';
  * shipped food client's `FoodStatus` (UPPER_SNAKE, incl. terminal states). Set ONLY for
  * database-backed ingredients (food_id present); NULL for user-entered / freeform ingredients.
  *
- * Tied to recipe-core's authoritative {@link FoodResolutionStatus} with `satisfies` (S-R5); the type
- * below is RE-EXPORTED from recipe-core (not redeclared) to reconcile the same-named type.
+ * Tied to recipe-core's authoritative {@link CatalogFoodResolutionStatus} with `satisfies` (S-R5); the
+ * type below is RE-EXPORTED from recipe-core (not redeclared) to reconcile the same-named type.
+ *
+ * ⛔ `satisfies readonly CatalogFoodResolutionStatus[]`, NOT the six-member `FoodResolutionStatus`. This
+ * column is the SHARED, ownerless catalog's mirror of food-service's lifecycle, and `NEEDS_REVIEW` is a
+ * per-RECIPE-LINE verdict — migration 0023 forbids writing one here, blast radius first among its three
+ * reasons. Widening this list is what would make that forbidden write type-check.
  */
 export const FOOD_RESOLUTION_STATUSES = [
     'PENDING',
@@ -37,7 +42,7 @@ export const FOOD_RESOLUTION_STATUSES = [
     'RESOLVED',
     'NOT_FOUND',
     'FAILED',
-] as const satisfies readonly FoodResolutionStatus[];
+] as const satisfies readonly CatalogFoodResolutionStatus[];
 
 /** A food-resolution status value — the single authoritative type, re-exported from recipe-core. */
 export type { FoodResolutionStatus };

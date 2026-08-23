@@ -33,7 +33,8 @@ vi.mock('@expo/vector-icons', () => ({
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeForm } from '../RecipeForm.native.js';
 import { DESCRIPTION_MAX_LENGTH, defaultRecipeFormValues, TITLE_MAX_LENGTH, type RecipeFormValues } from '../model.js';
-import type { RecipeFormProps } from '../props.js';
+import { resolutionStatusLabel, type RecipeFormProps } from '../props.js';
+import { recipeFormMessages } from '../messages.js';
 
 afterEach(cleanup);
 afterEach(() => {
@@ -521,6 +522,8 @@ describe('RecipeForm (native) — ingredients', () => {
         [FoodResolutionStatus.RESOLVED, 'Resolved'],
         [FoodResolutionStatus.NOT_FOUND, 'No match found'],
         [FoodResolutionStatus.FAILED, 'Resolution failed'],
+        // ⚠️ EXTENDED for U14, not rewritten — see the web mirror.
+        [FoodResolutionStatus.NEEDS_REVIEW, 'Needs review'],
     ])('renders the %s resolution-status badge', (status, label) => {
         renderForm({
             values: filledValues({
@@ -535,6 +538,36 @@ describe('RecipeForm (native) — ingredients', () => {
         renderForm({ values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Rice', quantity: 1 }] }) });
 
         expect(screen.queryByText('Resolved')).toBeNull();
+    });
+
+    it('⛔ styles the NEEDS_REVIEW badge differently from every other status (U14)', () => {
+        // The native mirror of the web assertion, case for case: a doubted line is the ONE status a cook can
+        // act on, and the editor is where they act. Compared against the OTHER statuses rather than against a
+        // literal colour, so it pins the DISTINCTION rather than today's palette.
+        const styleOf = (status: (typeof FoodResolutionStatus)[keyof typeof FoodResolutionStatus]): string => {
+            cleanup();
+            renderForm({
+                values: filledValues({
+                    ingredients: [{ ingredientId: 'ing_1', name: 'Rice', quantity: 1, resolutionStatus: status }],
+                }),
+            });
+
+            const badge = screen.getByText(resolutionStatusLabel(recipeFormMessages.en, status));
+
+            return getComputedStyle(badge).color + '|' + getComputedStyle(badge).backgroundColor;
+        };
+
+        const review = styleOf(FoodResolutionStatus.NEEDS_REVIEW);
+
+        for (const other of [
+            FoodResolutionStatus.PENDING,
+            FoodResolutionStatus.UNRESOLVED,
+            FoodResolutionStatus.RESOLVED,
+            FoodResolutionStatus.NOT_FOUND,
+            FoodResolutionStatus.FAILED,
+        ] as const) {
+            expect(review).not.toBe(styleOf(other));
+        }
     });
 });
 

@@ -7,7 +7,7 @@
  *
  * The web counterpart is `formSectionStyles.ts` (Tailwind class strings).
  */
-import { palette } from '@commise/ui';
+import { palette, tint } from '@commise/ui';
 import { StyleSheet } from 'react-native';
 
 const border = 'rgba(178, 190, 195, 0.3)';
@@ -95,6 +95,21 @@ export const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     statusBadge: { fontSize: 11, color: palette.slate },
+    // U14 — the doubted-line badge. Deliberately NOT a variant spread over `statusBadge`: the two are two
+    // different facts, and a shared base would make a tone change to one silently change the other.
+    //
+    // ⛔ Charcoal (10.31:1) on a `warning` TINT, never `warning` as the foreground — `@commise/ui`'s palette
+    // JSDoc is explicit that #F5B041 is a light fill that takes a charcoal label. Same pair as the web leaf's
+    // `bg-warning/25 text-charcoal` and the detail body's badge.
+    statusBadgeNeedsReview: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: palette.charcoal,
+        backgroundColor: tint(palette.warning, 0.25),
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 999,
+    },
     // Contrast (WCAG 2.1 AA): a badge a reader READS takes `ocean-dark` (6.20:1 on the white card) rather than
     // seafoam (4.02:1). Mirrors the web leaf's `text-ocean-dark`. The visibility Switch's `trackColor` (set in
     // `RecipeVisibilityField.native.tsx`) stays seafoam — a control track is a 3:1 graphic, not text.

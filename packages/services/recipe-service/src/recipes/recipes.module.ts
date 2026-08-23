@@ -11,11 +11,13 @@ import {
     RECIPE_PHOTOS_DAL,
     RECIPE_PHOTOS_CDN_URL,
     RECIPE_RATINGS_DAL,
+    RECIPE_LINE_VERIFICATIONS_DAL,
 } from './recipes.service.js';
 import { RecipesDal } from './dal/recipes.dal.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
+import { LineVerificationsDal } from './dal/lineVerifications.dal.js';
 import { VersionsModule } from '../versions/versions.module.js';
 import { IngredientsModule } from '../ingredients/ingredients.module.js';
 import { createSqsVerificationQueue, VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
@@ -81,6 +83,14 @@ import { createSqsVerificationQueue, VERIFICATION_QUEUE, type VerificationQueueP
             provide: RECIPE_RATINGS_DAL,
             inject: [DrizzleProvider],
             useFactory: (db: RecipeDrizzle): RatingsDal => new RatingsDal(db),
+        },
+        {
+            // U14 — its OWN LineVerificationsDal instance over the shared Drizzle client, to read what the
+            // U11 verification gate concluded about each line. Same "own DAL instance" pattern as the two
+            // above; `recipe_ingredient_verifications` is WRITTEN only by `recipe-workers`.
+            provide: RECIPE_LINE_VERIFICATIONS_DAL,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): LineVerificationsDal => new LineVerificationsDal(db),
         },
         {
             provide: RECIPE_PHOTOS_CDN_URL,

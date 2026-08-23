@@ -524,9 +524,29 @@ export const recipeNutritionStateSchema = z.discriminatedUnion('state', [
             /**
              * Why there is no figure. `no_resolved_ingredients` — nothing in the recipe maps to a food yet;
              * `no_nutrient_data` — foods resolved but carry no qualifying per-100g rows; `food_unavailable`
-             * — the lookup itself failed and nothing was cached.
+             * — the lookup itself failed and nothing was cached; `verification_disagreement` — the U11
+             * verification gate read a line's raw source text against the food we resolved it to, disagreed,
+             * and this recipe's figure was WITHHELD as a result (plan U14 / R15).
+             *
+             * ⛔ THE FOURTH REASON IS NOT A SPELLING OF THE THIRD, and collapsing it is the conflation it
+             * exists to prevent. `food_unavailable` says "come back later"; a withheld figure will not change
+             * on a retry, because nothing is broken — we read the cook's own words and doubted our own match.
+             * `no_nutrient_data` would be worse still: it blames the catalog for data the catalog HAD.
+             *
+             * ⚠️ WIRE COMPATIBILITY, decided rather than assumed. This member is `.strict()`, so it is closed
+             * to EVERY additive change — a new sibling field breaks an older reader exactly as a new enum
+             * member does, and there is no cheaper additive shape available here. What was checked instead is
+             * the DIRECTION of the break: a client carrying the three-member enum REFUSES the value, so it
+             * can never render a withheld figure as an outage, a zero, or a number. It fails closed and shows
+             * nothing, which is the only safe answer it can give. Asserted in
+             * `__tests__/recipeNutritionState.test.ts`.
              */
-            reason: z.enum(['no_resolved_ingredients', 'no_nutrient_data', 'food_unavailable']),
+            reason: z.enum([
+                'no_resolved_ingredients',
+                'no_nutrient_data',
+                'food_unavailable',
+                'verification_disagreement',
+            ]),
         })
         .strict(),
 ]);

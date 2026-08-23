@@ -23,6 +23,7 @@ import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../..
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { Principal } from '../../auth/principal.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
+import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -120,6 +121,7 @@ function service(dal: RecipesDal): RecipesService {
         fakeRatingsDal(),
         nutritionGatewayDouble,
         fakeVerificationQueue(),
+        fakeLineVerificationsDal(),
     );
 }
 
@@ -236,6 +238,7 @@ describe('RecipesService.clone', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         // The CLONER (not the source author) is the editor of the clone's first version.

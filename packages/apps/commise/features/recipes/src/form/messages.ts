@@ -122,6 +122,13 @@ export interface RecipeFormMessages {
     readonly statusNotFound: string;
     /** Resolution-status badge: resolution failed. */
     readonly statusFailed: string;
+    /**
+     * Resolution-status badge: the U11 verification gate contradicted this line (plan U14 / R15).
+     *
+     * ⛔ Distinct from every badge above. Those describe the FOOD LINK's lifecycle as food-service reports it;
+     * this one is OUR own doubt about the match, and it is the only status a cook can act on by re-picking.
+     */
+    readonly statusNeedsReview: string;
 
     /** Heading for the instructions section. */
     readonly stepsHeading: string;
@@ -202,6 +209,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         statusResolved: 'Resolved',
         statusNotFound: 'No match found',
         statusFailed: 'Resolution failed',
+        statusNeedsReview: 'Needs review',
 
         stepsHeading: 'Instructions',
         stepInstructionLabel: 'Step {number} instruction',

@@ -39,6 +39,7 @@ import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
 import { fakePhotosDal, RECIPE_PHOTOS_CDN } from '../__fixtures__/photosDal.fixture.js';
 import { fakeRatingsDal } from '../__fixtures__/ratingsDal.fixture.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
+import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import { makeRecipeIngredientRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
@@ -119,6 +120,9 @@ function makeService(
         fakeRatingsDal(),
         nutritionGatewayDouble,
         queue,
+        // U14 — the verdict READER. Defaults to "the gate has judged nothing", which migration 0023 defines
+        // as PUBLISH, so these producer cases exercise the pre-gate read behaviour they were written against.
+        fakeLineVerificationsDal(),
     );
 }
 

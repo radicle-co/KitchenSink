@@ -1,26 +1,23 @@
 /**
  * THE BAKE-OFF RUNNER (plan U11 / KTD-4) — Nova Micro against Claude Haiku 4.5, on our own corpus.
  *
- * ⛔⛔ THIS SCRIPT SPENDS REAL MONEY, AND IT HAS NEVER BEEN RUN. It is written, typechecked, linted and its
- * scoring is unit-tested; it has NOT been executed against live Bedrock. Do not treat a green test suite as
- * evidence that a bake-off happened. Read "Before you run this" below.
- *
- * DESIGN PATTERN: the impure half of the decide/evaluate split. Every number this produces is computed by the
- * pure `verification/bakeOff.ts`; this file does the calling, the reading and the printing, and it reuses the
- * SAME prompt builder, verdict parser and rate table the production gate uses — because a bake-off run
- * against a different prompt measures a model that will never ship.
+ * ⛔⛔ THIS SCRIPT SPENDS REAL MONEY. Its scoring is pure and unit-tested (`verification/bakeOff.ts`); this
+ * file does the calling, the reading and the printing, and it reuses the SAME prompt builder, verdict parser
+ * and rate table the production gate uses — because a bake-off run against a different prompt measures a model
+ * that will never ship.
  *
  * ## ⛔ BEFORE YOU RUN THIS
  *
  *  1. **It costs money and it is not gated by the ceiling.** The counter guards the WORKER; this is a script
- *     with its own credentials. Estimated at ~$0.09 for Nova and ~$2.70 for Haiku over 2,432 lines x 2 swap
- *     orders — small, but it is real spend with no reserve-then-settle behind it. `--limit` exists so the
- *     first run is 20 lines rather than 2,432.
- *  2. **The corpus is NOT in this repository, and must not be.** It is a labelled slice of user and imported
- *     recipe lines. Supply it as JSONL via `--corpus`, out of band.
- *  3. **Run the RESIDUAL slice too, and report both.** The plan is explicit that the gate sees a
- *     systematically different distribution: the full corpus is for comparability, but the committed
- *     thresholds come from the residual. Two runs, two reports, both recorded.
+ *     with its own credentials. `--limit` exists so the first run is 20 lines rather than 2,432.
+ *  2. **The corpus is NOT in this repository, and must not be.** Supply it via `--corpus`. A SYNTHETIC corpus
+ *     can be generated from the seeded food catalog — see `generateBakeOffCorpus.ts`, and read its warnings:
+ *     synthetic results are NOT COMPARABLE to U1's annotation protocol.
+ *  3. **Both slices are reported from ONE run.** The full corpus is for comparability and the RESIDUAL slice
+ *     (the near-miss identity contrasts plus their matching correct lines) is what the committed thresholds
+ *     are calibrated on, because the earlier cascade tiers terminate on the easy cases and the gate therefore
+ *     sees a systematically different distribution. The residual is a SUBSET of the same trials, so reporting
+ *     it costs nothing extra — re-running it as a separate corpus would re-spend on lines already judged.
  *  4. **Read `inconclusiveRate` first.** A model that abstained on half the corpus has not been evaluated on
  *     that half, whatever its two error rates say.
  *  5. **The false-DISAGREE rate is the number that decides.** Not accuracy — there is deliberately no such
@@ -30,27 +27,46 @@
  *     could not be read from a primary source, so the rate table's figures are computed from Anthropic's
  *     first-party rates. The correctness columns are unaffected.
  *
+ * ## ⛔ THE ID BEDROCK IS CALLED WITH IS NOT ALWAYS THE ID THE RATE TABLE KEYS ON
+ *
+ * Claude Haiku 4.5 reports `inferenceTypesSupported: ["INFERENCE_PROFILE"]`, and calling the bare model id
+ * fails with `ValidationException: Invocation of model ID … with on-demand throughput isn't supported`. It
+ * must be invoked through a cross-region inference profile — `us.anthropic.claude-haiku-4-5-…`. The rate table
+ * (ADR-0024) keys on the BARE id, so the two are kept apart here: {@link INVOCATION_IDS} maps a roster entry
+ * to what Bedrock is called with, and everything else — pricing, reporting, the report's model column — uses
+ * the bare id. ⚠️ This is a latent gap in the SHIPPED gate too: `verifyLine` resolves its model id from SSM and
+ * passes it straight to both `rateFor` and `converse`, so pointing SSM at Haiku would fail every call. That is
+ * ADR territory, not a change to make from a bake-off script.
+ *
  * ## ⚠️ SWAP AUGMENTATION
  *
  * Each line is judged TWICE — once with the candidate presented as-is and once with the parse and the
  * candidate swapped in the prompt's ordering — which doubles the call count and is included in the cost
- * figures above. Plan U11 sizes position bias at 10–15 points, and `swapDisagreements` in the report is what
- * turns that mitigation from an assertion into a measurement.
+ * figures. Plan U11 sizes position bias at 10–15 points, and `swapDisagreements` in the report is what turns
+ * that mitigation from an assertion into a measurement.
+ *
+ * ## ⚠️ CONCURRENCY IS A PROPERTY OF THIS SCRIPT, NOT OF THE GATE
+ *
+ * The gate runs at `reservedConcurrency = 1`; this runner does not, because ~9,700 serialized calls is hours
+ * and this is a local script with no ceiling behind it. Throttling is therefore a real risk, and it is NOT
+ * retried: the transport pins `maxAttempts: 1`, a throttled call arrives as an `inconclusive` trial with
+ * `stopReason=ThrottlingException`, and the stop-reason census in the report is what makes a run degraded by
+ * throttling legible instead of scoring it as model abstention. If that count is not ~0, lower
+ * `--concurrency` and run again rather than believing the rates.
  *
  * ## Usage
  *
  * ```
  * AWS_REGION=us-east-1 npx tsx src/scripts/verificationBakeOff.ts \
- *   --corpus ./judgement-set.jsonl --limit 20
+ *   --corpus ./corpus.jsonl --limit 20 --concurrency 8 --trials-out ./trials.jsonl
  * ```
  *
- * Each corpus line is `{"lineId","sourceLine","candidateFoodName","quantityLow","quantityHigh","unit",
- * "parseIsCorrect"}`.
- *
- * @sideEffect Calls Amazon Bedrock (billed), reads a file, writes to stdout.
+ * @sideEffect Calls Amazon Bedrock (billed), reads a file, may write a file, writes to stdout and stderr.
  */
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { parseArgs } from 'node:util';
 
+import pLimit from 'p-limit';
 import { createBedrockConverseClient, createBedrockTransport, isBedrockClientError } from '@kitchensink/bedrock-client';
 import type { BedrockConverseClient } from '@kitchensink/bedrock-client';
 import {
@@ -62,6 +78,8 @@ import {
 import { bandFor } from '@kitchensink/recipe-core/resolution/confidence';
 
 import { scoreBakeOff, type BakeOffReport, type BakeOffTrial } from '../verification/bakeOff.js';
+import { parseCorpusJsonl, type CorpusLine } from '../verification/corpus.js';
+import { RESIDUAL_SLICE_CLASSES } from '../verification/corpusSynthesis.js';
 import { VERIFICATION_MAX_OUTPUT_TOKENS, buildVerificationPrompt } from '../verification/prompt.js';
 import { readVerdict } from '../verification/verdict.js';
 
@@ -76,23 +94,44 @@ import { readVerdict } from '../verification/verdict.js';
  */
 const ROSTER = [NOVA_MICRO_MODEL_ID, CLAUDE_HAIKU_4_5_MODEL_ID] as const;
 
-/** One labelled line from the operator-supplied corpus. */
-interface CorpusLine {
-    readonly lineId: string;
-    readonly sourceLine: string;
-    readonly candidateFoodName: string;
-    readonly quantityLow: number | null;
-    readonly quantityHigh: number | null;
-    readonly unit: string | null;
-    /** GROUND TRUTH: was our parse actually right for this line? */
-    readonly parseIsCorrect: boolean;
+/**
+ * What each roster entry is actually INVOKED as.
+ *
+ * A model absent here is invoked by its own id. See the file docstring: this exists because Claude Haiku 4.5
+ * supports inference profiles only, and the rate table keys on the bare model id.
+ */
+const INVOCATION_IDS: Readonly<Record<string, string>> = Object.freeze({
+    [CLAUDE_HAIKU_4_5_MODEL_ID]: `us.${CLAUDE_HAIKU_4_5_MODEL_ID}`,
+});
+
+/** How many calls may be in flight. Conservative by default — see the concurrency note in the docstring. */
+const DEFAULT_CONCURRENCY = 8;
+
+/** How often progress is written to stderr, in completed calls. */
+const PROGRESS_EVERY = 100;
+
+/**
+ * A trial, plus the raw verdict it came from.
+ *
+ * ⛔ WHY THE RAW VERDICT IS KEPT. `bandFor` collapses (verdict, certainty) into three bands, and the committed
+ * confidence thresholds ARE that collapse — whether a `medium` disagreement withholds, or only a `high` one.
+ * A run that recorded only the band could not calibrate the thing it was run to calibrate, and re-deriving it
+ * costs the whole run again. It is an ADDITIVE record: `scoreBakeOff` reads only the fields it always read,
+ * and no number in any report changes because these two are present.
+ */
+interface BakeOffObservation extends BakeOffTrial {
+    readonly modelId: string;
+    readonly verdict: string | undefined;
+    readonly certainty: string | undefined;
+    readonly contrastClass: string | undefined;
 }
 
-/** Read `--name value` from argv. */
-function flag(name: string): string | undefined {
-    const index = process.argv.indexOf(`--${name}`);
-
-    return index >= 0 ? process.argv[index + 1] : undefined;
+/** One model's numbers, on both slices. */
+interface ModelReport {
+    readonly modelId: string;
+    readonly full: BakeOffReport;
+    /** The near-miss identity contrasts plus their matching correct lines. Empty for a corpus with no classes. */
+    readonly residual: BakeOffReport;
 }
 
 /**
@@ -103,11 +142,11 @@ function flag(name: string): string | undefined {
  * MODEL, and a model that only ever saw the narrowed prompt would be scored on a different task than the one
  * it will sometimes be given.
  *
- * @param client - The Bedrock client for this model.
- * @param modelId - The model.
+ * @param client - The Bedrock client.
+ * @param modelId - The model, as the rate table and the report know it.
  * @param line - The corpus line.
  * @param swapVariant - Which candidate ordering to present.
- * @returns The trial, including its measured cost.
+ * @returns The observation, including its measured cost.
  * @sideEffect One billed Bedrock call.
  */
 async function judge(
@@ -115,7 +154,7 @@ async function judge(
     modelId: string,
     line: CorpusLine,
     swapVariant: 'original' | 'swapped',
-): Promise<BakeOffTrial> {
+): Promise<BakeOffObservation> {
     const rate = rateFor(modelId);
 
     if (rate === undefined) {
@@ -133,11 +172,17 @@ async function judge(
         aspects: swapVariant === 'original' ? ['identity', 'quantity'] : ['quantity', 'identity'],
     });
 
-    const base = { lineId: line.lineId, parseIsCorrect: line.parseIsCorrect, swapVariant };
+    const base = {
+        lineId: line.lineId,
+        parseIsCorrect: line.parseIsCorrect,
+        swapVariant,
+        modelId,
+        contrastClass: line.contrastClass,
+    };
 
     try {
         const outcome = await client.converse({
-            modelId,
+            modelId: INVOCATION_IDS[modelId] ?? modelId,
             systemPrompt: prompt.system,
             userMessage: prompt.user,
             maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -146,7 +191,14 @@ async function judge(
         const costMicros = outcome.usage === undefined ? 0 : actualCostMicros(rate, outcome.usage);
 
         if (outcome.kind !== 'answered') {
-            return { ...base, band: 'inconclusive', stopReason: outcome.stopReason ?? 'unusable', costMicros };
+            return {
+                ...base,
+                band: 'inconclusive',
+                stopReason: outcome.stopReason ?? 'unusable',
+                costMicros,
+                verdict: undefined,
+                certainty: undefined,
+            };
         }
 
         const reading = readVerdict(outcome.text, outcome.stopReason);
@@ -156,6 +208,8 @@ async function judge(
             band: reading.kind === 'read' ? bandFor(reading.outcome) : 'inconclusive',
             stopReason: outcome.stopReason,
             costMicros,
+            verdict: reading.kind === 'read' ? reading.outcome.verdict : undefined,
+            certainty: reading.kind === 'read' ? reading.outcome.certainty : undefined,
         };
     } catch (error) {
         // A failed call is not a verdict. It is recorded as inconclusive with a named cause so a run degraded
@@ -165,53 +219,131 @@ async function judge(
             band: 'inconclusive',
             stopReason: isBedrockClientError(error) ? error.name : 'error',
             costMicros: 0,
+            verdict: undefined,
+            certainty: undefined,
         };
     }
 }
 
-/**
- * Run the whole roster and print a report per model.
- *
- * ⚠️ Strictly SERIAL, and not for tidiness: it mirrors the production gate's `reservedConcurrency = 1` so the
- * throughput this run measures is the throughput the gate will actually have, and it keeps the script from
- * tripping Bedrock's account-wide RPM quota — which would show up as throttling and be scored as
- * inconclusive.
- *
- * @sideEffect Reads the corpus file, calls Bedrock repeatedly, writes to stdout.
- */
-async function main(): Promise<void> {
-    const corpusPath = flag('corpus');
+/** Read and validate the command line. */
+function readOptions(): {
+    corpus: string;
+    limit: number;
+    concurrency: number;
+    models: readonly string[];
+    trialsOut: string | undefined;
+} {
+    const { values } = parseArgs({
+        options: {
+            corpus: { type: 'string' },
+            limit: { type: 'string' },
+            concurrency: { type: 'string' },
+            models: { type: 'string' },
+            'trials-out': { type: 'string' },
+        },
+    });
 
-    if (corpusPath === undefined) {
+    if (values.corpus === undefined) {
         throw new Error('--corpus <path.jsonl> is required; the corpus is operator-supplied and not in this repo');
     }
 
-    const limit = Number(flag('limit') ?? Number.MAX_SAFE_INTEGER);
-    const region = process.env['AWS_REGION'] ?? 'us-east-1';
+    const requested = values.models?.split(',').map((name) => name.trim()) ?? [...ROSTER];
+    const unknown = requested.filter((name) => !ROSTER.includes(name as (typeof ROSTER)[number]));
 
-    const corpus: CorpusLine[] = readFileSync(corpusPath, 'utf8')
-        .split('\n')
-        .filter((row) => row.trim() !== '')
-        .map((row) => JSON.parse(row) as CorpusLine)
-        .slice(0, limit);
+    if (unknown.length > 0) {
+        throw new Error(`--models names a model outside the roster: ${unknown.join(', ')}`);
+    }
+
+    return {
+        corpus: values.corpus,
+        limit: Number(values.limit ?? Number.MAX_SAFE_INTEGER),
+        concurrency: Number(values.concurrency ?? DEFAULT_CONCURRENCY),
+        models: requested,
+        trialsOut: values['trials-out'],
+    };
+}
+
+/**
+ * Score a model on both slices.
+ *
+ * @param modelId - The model.
+ * @param observations - Every observation for that model.
+ * @returns The full and residual reports. Pure.
+ */
+function reportFor(modelId: string, observations: readonly BakeOffObservation[]): ModelReport {
+    const residual = observations.filter(
+        (observation) =>
+            observation.contrastClass !== undefined &&
+            RESIDUAL_SLICE_CLASSES.includes(observation.contrastClass as (typeof RESIDUAL_SLICE_CLASSES)[number]),
+    );
+
+    return {
+        modelId,
+        full: scoreBakeOff(modelId, observations),
+        residual: scoreBakeOff(modelId, residual),
+    };
+}
+
+/**
+ * Run the roster and print a report per model, per slice.
+ *
+ * @sideEffect Reads the corpus file, calls Bedrock repeatedly, may write a trials file, writes to stdout.
+ */
+async function main(): Promise<void> {
+    const options = readOptions();
+    const region = process.env['AWS_REGION'] ?? 'us-east-1';
+    const corpus = parseCorpusJsonl(readFileSync(options.corpus, 'utf8')).slice(0, options.limit);
+
+    if (options.trialsOut !== undefined) {
+        writeFileSync(options.trialsOut, '', 'utf8');
+    }
 
     const client = createBedrockConverseClient(createBedrockTransport({ region }).send);
-    const reports: BakeOffReport[] = [];
+    const reports: ModelReport[] = [];
 
-    for (const modelId of ROSTER) {
-        const trials: BakeOffTrial[] = [];
+    for (const modelId of options.models) {
+        const limit = pLimit(options.concurrency);
+        const started = Date.now();
+        let done = 0;
 
-        for (const line of corpus) {
-            for (const swapVariant of ['original', 'swapped'] as const) {
-                trials.push(await judge(client, modelId, line, swapVariant));
-            }
+        const observations = await Promise.all(
+            corpus.flatMap((line) =>
+                (['original', 'swapped'] as const).map((swapVariant) =>
+                    limit(async () => {
+                        const observation = await judge(client, modelId, line, swapVariant);
+
+                        done += 1;
+
+                        if (done % PROGRESS_EVERY === 0) {
+                            const elapsed = (Date.now() - started) / 1000;
+
+                            process.stderr.write(
+                                `${modelId}: ${String(done)}/${String(corpus.length * 2)} in ${elapsed.toFixed(0)}s\n`,
+                            );
+                        }
+
+                        return observation;
+                    }),
+                ),
+            ),
+        );
+
+        if (options.trialsOut !== undefined) {
+            // ⛔ Written BEFORE the next model runs. If the second model's run dies, the first model's raw
+            // trials — the expensive part — are already on disk and can be re-scored without re-spending.
+            appendFileSync(options.trialsOut, `${observations.map((row) => JSON.stringify(row)).join('\n')}\n`, 'utf8');
         }
 
-        reports.push(scoreBakeOff(modelId, trials));
+        reports.push(reportFor(modelId, observations));
     }
 
     // Machine-readable, so the committed result is a file rather than a paraphrase of a terminal.
-    console.log(JSON.stringify({ corpus: corpusPath, lines: corpus.length, reports }, null, 2));
+    process.stdout.write(
+        `${JSON.stringify({ corpus: options.corpus, lines: corpus.length, region, reports }, null, 2)}\n`,
+    );
 }
 
-await main();
+// ⛔ Guarded, so importing this module for one exported symbol does not start spending money.
+if (import.meta.main) {
+    await main();
+}

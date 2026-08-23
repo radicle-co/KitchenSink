@@ -73,3 +73,34 @@ describe('toImportedIngredientLine', () => {
         expect(toImportedIngredientLine(parsed, ingredient).notes).toBe('2 cups all-purpose flour, sifted');
     });
 });
+
+describe('⛔ the source line must be the SOURCE’s words, not ours', () => {
+    /**
+     * `parsed.raw` is byte-identical only to what `parseIngredientLine` RECEIVED, and the prose scanner
+     * normalizes before calling it: `proseRecipe.ts` runs `dropPartitiveOf`, which runs `normalizeQuantity`,
+     * which maps `one` to `1` through `WHOLE_NUMBER_WORDS`. So `raw` for "one gill of milk" is already
+     * "1 gill of milk" — a string WE produced.
+     *
+     * That matters because `recipeIngredientSourceLineSchema` says what the field is for: "verifying a parse
+     * against a string we ourselves produced from that parse is circular and always agrees, which is a gate
+     * that reports success by construction." Sending `raw` was exactly that, and I shipped it.
+     *
+     * The verbatim clause survives in the scanner as `trimmed.slice(at)` for the winning suffix, so the
+     * candidate carries it and the wire sends THAT.
+     */
+    it('sends the pre-normalization clause, not the parser’s normalized input', () => {
+        const line = toImportedIngredientLine(
+            { ...parsed, raw: '1 gill of milk', sourceText: 'one gill of milk' },
+            ingredient,
+        );
+
+        expect(line.sourceLine).toBe('one gill of milk');
+        expect(line.sourceLine).not.toBe('1 gill of milk');
+    });
+
+    it('falls back to the parser’s input when no verbatim clause was captured', () => {
+        // An authored line reaches this function without a scanner, so there is no earlier text to prefer.
+        // Falling back is right; silently preferring `raw` when `sourceText` EXISTS is the defect above.
+        expect(toImportedIngredientLine(parsed, ingredient).sourceLine).toBe(parsed.raw);
+    });
+});

@@ -28,8 +28,21 @@ type ImportedIngredientLine = CreateRecipeBody['ingredients'][number];
 
 /** The parts of a parsed clause this line is built from. */
 export interface ParsedClause {
-    /** The source's own words for the whole clause, verbatim. */
+    /**
+     * What `parseIngredientLine` RECEIVED.
+     *
+     * ⚠️ NOT the source's own words, despite the name. The prose scanner runs `normalizeQuantity` before
+     * calling the parser, so `one gill of milk` arrives here as `1 gill of milk` — a string we produced.
+     */
     readonly raw: string;
+    /**
+     * The clause exactly as the book printed it, before any normalization — `trimmed.slice(at)` for the
+     * suffix the scanner accepted.
+     *
+     * ⛔ THIS is what `sourceLine` must carry. Absent for an authored line, which reaches this function
+     * without a scanner and therefore has no earlier text to prefer.
+     */
+    readonly sourceText?: string | undefined;
     /** The ingredient name the parser lifted out of it. */
     readonly name: string;
     /** The parsed amount, in the wire's value-object form. */
@@ -67,8 +80,12 @@ export function toImportedIngredientLine(parsed: ParsedClause, ingredient: Resol
         ...(parsed.unit === null ? {} : { unit: parsed.unit }),
         // The source's own words, kept verbatim beside the structured values, for a reader.
         notes: parsed.raw,
-        // ⛔ The same string, in the field the GATE reads. Not a duplicate of `notes` in meaning: one is a
-        // display override, the other is the transcription a verdict is keyed on. See this module's header.
-        sourceLine: parsed.raw,
+        // ⛔ The field the GATE reads, and it must be the SOURCE's words. `raw` is only byte-identical to
+        // what the parser received, and the scanner normalizes first (`dropPartitiveOf` → `normalizeQuantity`
+        // → `one` becomes `1`), so sending `raw` would verify our parse against a string we produced from
+        // that parse — "a gate that reports success by construction", in the schema's own words. Not a
+        // duplicate of `notes` in meaning either: one is a display override, the other is the transcription
+        // a verdict is keyed on.
+        sourceLine: parsed.sourceText ?? parsed.raw,
     };
 }

@@ -201,9 +201,20 @@ export type RecipeSkipReason = 'no_body' | 'too_few_ingredients' | 'too_few_step
  *
  * ⛔ `quantity` and `unit` are the values that go ON THE WIRE, so for a restated line they are the
  * CONVERTED ones — and the amount the book actually printed is not lost, it moves into
- * {@link unitConversion}`.stated`. `raw` is the source's own words either way.
+ * {@link unitConversion}`.stated`. {@link CandidateIngredient.sourceText} is the source's own words either
+ * way; `raw` is NOT (see its note below).
  */
 export interface CandidateIngredient extends ParsedIngredientLine {
+    /**
+     * The clause EXACTLY as the book printed it, before this module's own normalization.
+     *
+     * ⛔ `raw` is not this, despite what an earlier docstring here claimed. `raw` is byte-identical to what
+     * `parseIngredientLine` RECEIVED, and `ingredientInClause` runs `dropPartitiveOf` — hence
+     * `normalizeQuantity` — first, so `one gill of milk` reaches the parser as `1 gill of milk`. U11's gate
+     * verifies our parse against the source line, and handing it a string we produced from that parse is
+     * "a gate that reports success by construction" (`recipeIngredientSourceLineSchema`).
+     */
+    readonly sourceText: string;
     /**
      * Present ONLY when this line's unit was restated from a historical measure (R35).
      *
@@ -412,7 +423,18 @@ function statedServings(text: string): number | undefined {
  * neither.
  */
 type ClauseReading =
-    | { readonly kind: 'ingredient'; readonly line: ParsedIngredientLine }
+    | {
+          readonly kind: 'ingredient';
+          readonly line: ParsedIngredientLine;
+          /**
+           * The accepted suffix EXACTLY as the book printed it, before `dropPartitiveOf` normalized it.
+           *
+           * ⛔ Carried because `line.raw` is not the source's words: it is byte-identical to what the parser
+           * RECEIVED, and this scanner normalizes first (`one` becomes `1`). U11's gate verifies our parse
+           * against this text, so handing it our own normalization would make the check circular.
+           */
+          readonly sourceText: string;
+      }
     | { readonly kind: 'corrupt' }
     | { readonly kind: 'none' };
 
@@ -458,7 +480,9 @@ function ingredientInClause(clause: string): ClauseReading {
     const starts = suffixStarts(trimmed);
 
     for (const at of starts.slice(0, MAX_SUFFIX_SKIP)) {
-        const parsed = parseIngredientLine(dropPartitiveOf(trimmed.slice(at)));
+        // The book's own words for this suffix, kept before `dropPartitiveOf` rewrites them.
+        const sourceText = trimmed.slice(at);
+        const parsed = parseIngredientLine(dropPartitiveOf(sourceText));
 
         // ⛔ R39 — the FIRST reading that misstates a value ends the clause. It cannot be a `continue`:
         // measured 2026-08-21, "Take three to two cups of flour" reads at "three" as
@@ -477,7 +501,7 @@ function ingredientInClause(clause: string): ClauseReading {
             !NOT_A_MEASURE.has(parsed.unit.toLowerCase()) &&
             parsed.name.trim() !== ''
         ) {
-            return { kind: 'ingredient', line: parsed };
+            return { kind: 'ingredient', line: parsed, sourceText };
         }
     }
 
@@ -597,7 +621,9 @@ export function toCandidateRecipe(block: CookbookBlock, book?: Cookbook): Recipe
             continue;
         }
 
-        const parsed = reading.line;
+        // The book's own words ride WITH the parse from here on — `restateHistoricalUnit` spreads the line,
+        // so attaching it at the source keeps it through the conversion without a second threading.
+        const parsed = { ...reading.line, sourceText: reading.sourceText };
         const name = trimName(parsed.name);
         const key = name.toLowerCase();
 

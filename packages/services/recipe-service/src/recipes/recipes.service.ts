@@ -15,10 +15,13 @@ import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/com
 import { deriveDisplayName } from '@kitchensink/identity-core';
 import {
     computeRecipeNutrition,
+    lineNutritionSource,
     quantitiesEqual,
     toNutritionLine,
+    type CatalogFoodResolutionStatus,
     type LineCatalogNutrition,
     type LineMeasure,
+    type LineResolutionStatus,
     type NutritionLine,
     type RecipeNutrition,
     type RecipePhoto,
@@ -26,6 +29,7 @@ import {
     type RecipeSnapshot,
     type VersionConflictSide,
 } from '@kitchensink/recipe-core';
+import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 
 import { Logger } from '@nestjs/common';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
@@ -36,6 +40,14 @@ import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { resolveCoverUrl, resolvePhotoView } from '../photos/photoView.js';
 import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
 import { toRecipeNutritionState } from './domain/nutritionState.js';
+import {
+    isWithheld,
+    resolveLineStatus,
+    verifiedLineIdentity,
+    type VerificationBand,
+} from './domain/lineVerification.js';
+import { LineVerificationsDal } from './dal/lineVerifications.dal.js';
+import { sha256Hex } from '../common/sha256.js';
 import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipeIngredients.dal.js';
@@ -146,6 +158,12 @@ export const RECIPE_PHOTOS_CDN_URL = 'RECIPE_PHOTOS_CDN_URL';
 export const RECIPE_RATINGS_DAL = 'RECIPE_RATINGS_DAL';
 
 /**
+ * DI token for the recipes vertical's {@link LineVerificationsDal} — the read side of the U11 verification
+ * gate (plan U14). Same "own DAL instance over the shared Drizzle client" pattern as the two above.
+ */
+export const RECIPE_LINE_VERIFICATIONS_DAL = 'RECIPE_LINE_VERIFICATIONS_DAL';
+
+/**
  * The permission string that marks a principal as premium-tier. There is deliberately NO tier field on
  * the {@link Principal} (subscriptions are a future feature, 010), so premium is derived from the signed
  * session token's `permissions` claim: `isPremium = principal.permissions.includes(PREMIUM_PERMISSION)`.
@@ -174,8 +192,17 @@ function toStepInput(step: { instruction: string; timerSeconds?: number }): Step
         : { instruction: step.instruction, timerSeconds: step.timerSeconds };
 }
 
-/** Map a persisted `recipe_ingredients` link row to the wire `RecipeIngredient` shape. Pure. */
-function toIngredientResponse(row: RecipeIngredientRow): RecipeIngredientResponse {
+/**
+ * Map a persisted `recipe_ingredients` link row to the wire `RecipeIngredient` shape. Pure.
+ *
+ * `resolutionStatus` (U14) is layered on by the DETAIL read alone and is OMITTED everywhere else — a list
+ * or search projection has performed neither the catalog load nor the verdict read, and emitting a default
+ * there would state a resolution fact nobody looked up.
+ */
+function toIngredientResponse(
+    row: RecipeIngredientRow,
+    resolutionStatus: LineResolutionStatus | undefined,
+): RecipeIngredientResponse {
     return {
         ingredientId: row.ingredientId,
         name: row.ingredientName,
@@ -184,6 +211,7 @@ function toIngredientResponse(row: RecipeIngredientRow): RecipeIngredientRespons
         ...(row.unit.length > 0 ? { unit: row.unit } : {}),
         ...(row.displayText !== null ? { notes: row.displayText } : {}),
         isUserEntered: row.isUserEntered,
+        ...(resolutionStatus === undefined ? {} : { resolutionStatus }),
     };
 }
 
@@ -193,6 +221,14 @@ interface RecipeResponseExtras {
     photos?: RecipePhoto[];
     /** Per-serving nutrition (DETAIL reads only) — omitted on list/search metadata. */
     nutrition?: RecipeNutrition;
+    /**
+     * Per-LINE resolution status by `recipe_ingredients` row id (U14, DETAIL reads only).
+     *
+     * ⛔ Keyed on the row id and NOT the ingredient id: two lines of one recipe may reference the same
+     * catalog ingredient with different quantities, which are two different judgements and may carry two
+     * different verdicts. Keying on the ingredient would silently badge both lines from one of them.
+     */
+    lineStatuses?: ReadonlyMap<string, LineResolutionStatus>;
     /** Absolute CDN URL of the cover photo (FR-001c). Resolved by the caller (list LATERAL / detail photos). */
     coverPhotoUrl?: string;
     /**
@@ -247,7 +283,7 @@ function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtr
         ...(recipe.description !== null ? { description: recipe.description } : {}),
         // Composed from the `recipe_ingredients` junction (persisted atomically with the recipe), in
         // author order (`sortOrder`). Empty only when the recipe genuinely has no ingredient lines.
-        ingredients: ingredients.map(toIngredientResponse),
+        ingredients: ingredients.map((row) => toIngredientResponse(row, extras.lineStatuses?.get(row.id))),
         steps: steps.map((step) => ({
             stepNumber: step.stepNumber,
             instruction: step.instruction,
@@ -295,12 +331,29 @@ function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientL
 }
 
 /**
+ * One recipe line as the nutrition path needs it: the measure the assembler consumes, the catalog
+ * ingredient it resolves through, and the two columns a verification verdict is keyed on.
+ *
+ * ⚠️ `lineId` is the `recipe_ingredients` row id and is used ONLY to carry a per-LINE verdict back to the
+ * right line within one request. It is deliberately NOT what the verdict is stored under: that id is
+ * regenerated on every recipe save (`replaceForRecipe` deletes and re-inserts), which is exactly why the
+ * verdict table is content-keyed instead.
+ */
+type LineNutritionInput = LineMeasure & {
+    readonly ingredientId: string;
+    readonly lineId: string;
+    readonly sourceLine: string | null;
+};
+
+/**
  * Map a persisted `recipe_ingredients` row to the nutrition line-assembler input (W8-a.1), coercing the
  * `numeric` columns (surfaced as strings) to numbers and `null` to absent. Pure.
  */
-function rowToMeasureInput(row: RecipeIngredientRow): LineMeasure & { ingredientId: string } {
+function rowToMeasureInput(row: RecipeIngredientRow): LineNutritionInput {
     return {
         ingredientId: row.ingredientId,
+        lineId: row.id,
+        sourceLine: row.sourceLine,
         quantity: quantityFromColumns(row),
         unit: row.unit,
         ...(row.userCalories !== null ? { userCalories: Number(row.userCalories) } : {}),
@@ -326,19 +379,73 @@ interface LineCatalog {
     readonly degraded: boolean;
     /** Food ids served from cache after a failed refresh, so each recipe can be caveated on its OWN data. */
     readonly staleFoodIds: ReadonlySet<string>;
+    /**
+     * The shared catalog row's OWN food-resolution status, by ingredient id (U14).
+     *
+     * ⛔ The five-value CATALOG subset. `NEEDS_REVIEW` is layered on top of it PER LINE by
+     * `resolveLineStatus` and is never read from — or written to — a catalog row (migration 0023).
+     */
+    readonly statusByIngredientId: ReadonlyMap<string, CatalogFoodResolutionStatus>;
 }
+
+/**
+ * What the gate concluded about the lines of one request, keyed by `recipe_ingredients` row id (U14).
+ *
+ * ⚠️ A line with NO entry is a line the gate has not judged, and that means PUBLISH — migration 0023's
+ * standing rule for an asynchronous gate. An empty map is therefore the correct, common answer, not a
+ * degraded one.
+ */
+type LineVerdicts = ReadonlyMap<string, VerificationBand>;
 
 /**
  * Merge a set of line measures with a loaded catalog through the single {@link toNutritionLine}
  * line-assembler. Pure — the functional core the batched I/O feeds.
+ *
+ * ⛔ A WITHHELD line is assembled with NO catalog nutrition, which is what "withheld" means here: the
+ * figure is not published, the line is not deleted, and the recipe's `isComplete` falls to `false` through
+ * the same path any other unaccountable line takes. A per-line USER override (FR-007a) survives — the gate
+ * judged OUR parse against the cook's source, and it has no standing over a number the cook typed
+ * themselves.
  */
 function assembleLines(
     catalog: LineCatalog,
-    measures: readonly (LineMeasure & { ingredientId: string })[],
+    measures: readonly LineNutritionInput[],
+    verdicts: LineVerdicts,
 ): NutritionLine[] {
-    return measures.map(({ ingredientId, ...measure }) =>
-        toNutritionLine(measure, catalog.byIngredientId.get(ingredientId)),
+    return measures.map(({ ingredientId, lineId, sourceLine: _sourceLine, ...measure }) =>
+        toNutritionLine(
+            measure,
+            isWithheld(verdicts.get(lineId)) ? undefined : catalog.byIngredientId.get(ingredientId),
+        ),
     );
+}
+
+/**
+ * How many of these lines the gate WITHHELD and thereby cost this recipe a contribution. Pure.
+ *
+ * ⚠️ A contradicted line only counts when withholding actually removed its accounting — a line the catalog
+ * could not have priced anyway (no per-100g rows, or a unit with no mass) did not lose the recipe anything,
+ * and a line carrying the cook's own override still accounts after the catalog figure is dropped. Counting
+ * either would blame the gate for an absence it did not cause, and `verification_disagreement` is precisely
+ * the claim "our own doubt is why there is no figure".
+ */
+function countWithheldContributions(
+    catalog: LineCatalog,
+    measures: readonly LineNutritionInput[],
+    verdicts: LineVerdicts,
+): number {
+    return measures.filter(({ ingredientId, lineId, sourceLine: _sourceLine, ...measure }) => {
+        if (!isWithheld(verdicts.get(lineId))) {
+            return false;
+        }
+
+        const withCatalog = toNutritionLine(measure, catalog.byIngredientId.get(ingredientId));
+
+        return (
+            lineNutritionSource(withCatalog) !== null &&
+            lineNutritionSource(toNutritionLine(measure, undefined)) === null
+        );
+    }).length;
 }
 
 /** Map a persisted step row to the DAL's step input shape (for cloning). Pure. */
@@ -477,6 +584,9 @@ export class RecipesService {
         // gate's consumer with nothing sending it a message, and a collaborator that defaults to a no-op is
         // how that state comes back — silently, past a green suite. Every construction site must name it.
         @Inject(VERIFICATION_QUEUE) private readonly verificationQueue: VerificationQueuePort,
+        // U14 — the read side of the U11 verification gate. Its OWN DAL instance over the shared Drizzle
+        // client, the same pattern as the embedded PhotosDal/RatingsDal above (no module import, no cycle).
+        @Inject(RECIPE_LINE_VERIFICATIONS_DAL) private readonly lineVerificationsDal: LineVerificationsDal,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
@@ -492,17 +602,44 @@ export class RecipesService {
     }
 
     /**
-     * Compute a recipe's estimated per-serving nutrition (FR-007) from its ingredient lines: each line's
-     * user-entered override (FR-007a) when present, else the catalog per-100g nutrition scaled by mass.
-     * The catalog nutrition is batch-loaded for the recipe's ingredient ids in one query.
+     * Compute a recipe's estimated per-serving nutrition (FR-007) from its ingredient lines — each line's
+     * user-entered override (FR-007a) when present, else the catalog per-100g nutrition scaled by mass —
+     * TOGETHER with the per-line resolution status the detail body renders (U14).
+     *
+     * ⚠️ ONE method returning BOTH, rather than two reads. The status and the figure are computed from the
+     * same catalog load and the same verdict read, and splitting them would either double the I/O or let
+     * the two disagree: a line badged "needs review" while its nutrition still fed the total is exactly the
+     * incoherence this unit exists to remove.
+     *
+     * @sideEffect One `ingredients` read, one food lookup, one `recipe_ingredient_verifications` read.
      */
     private async computeDetailNutrition(
         aggregate: RecipeAggregate,
         caller: CallerToken | undefined,
-    ): Promise<RecipeNutrition> {
-        const lines = await this.assembleNutritionLines(caller, aggregate.ingredients.map(rowToMeasureInput));
+    ): Promise<{ nutrition: RecipeNutrition; lineStatuses: ReadonlyMap<string, LineResolutionStatus> }> {
+        const measures = aggregate.ingredients.map(rowToMeasureInput);
+        const catalog = await this.loadLineCatalog(
+            caller,
+            measures.map((measure) => measure.ingredientId),
+        );
+        const verdicts = await this.loadLineVerdicts(catalog, measures);
+        const lineStatuses = new Map<string, LineResolutionStatus>();
 
-        return computeRecipeNutrition(lines, aggregate.recipe.servings);
+        for (const measure of measures) {
+            const status = resolveLineStatus(
+                verdicts.get(measure.lineId),
+                catalog.statusByIngredientId.get(measure.ingredientId),
+            );
+
+            if (status !== undefined) {
+                lineStatuses.set(measure.lineId, status);
+            }
+        }
+
+        return {
+            nutrition: computeRecipeNutrition(assembleLines(catalog, measures, verdicts), aggregate.recipe.servings),
+            lineStatuses,
+        };
     }
 
     /**
@@ -558,25 +695,79 @@ export class RecipesService {
             staleFoodIds: new Set(
                 [...lookup.byFoodId].filter(([, entry]) => entry.freshness === 'stale').map(([id]) => id),
             ),
+            statusByIngredientId: new Map(
+                rows
+                    .filter(
+                        (row): row is typeof row & { foodResolutionStatus: CatalogFoodResolutionStatus } =>
+                            row.foodResolutionStatus !== undefined,
+                    )
+                    .map((row) => [row.id, row.foodResolutionStatus] as const),
+            ),
         };
     }
 
     /**
-     * Assemble one recipe's lines into {@link NutritionLine}s via the single {@link toNutritionLine}
-     * line-assembler, over its own catalog load. The single-recipe shell over {@link loadLineCatalog};
-     * the detail read ({@link computeDetailNutrition}) is its caller.
+     * What the U11 verification gate concluded about these lines — ONE batched read, keyed back to each
+     * line's row id (plan U14 / R15).
+     *
+     * ⛔ THIS IS THE READ THE GATE NEVER HAD. Migration 0023 shipped the verdict table, `recipe-workers`
+     * shipped the writer, and nothing selected from it; a disagreement was durably stored and structurally
+     * unable to reach a cook. The join it was waiting for is derivable now that migration 0024 admits
+     * `recipe_ingredients.source_line`: a line's own columns plus its food id reproduce the content key the
+     * verdict is stored under.
+     *
+     * ⚠️ ONE READ FOR THE WHOLE REQUEST, on the same reasoning as {@link loadLineCatalog}: the deferred
+     * batch answers for up to `MAX_NUTRITION_RECIPE_IDS` recipes, and a per-line lookup would restore the
+     * N+1 that endpoint exists to remove.
+     *
+     * @param catalog - The already-loaded catalog, for each line's food id.
+     * @param measures - Every line in the request.
+     * @returns Row id → band, for the lines the gate has judged. A line with no entry PUBLISHES.
+     * @sideEffect One `recipe_ingredient_verifications` read.
      */
-    private async assembleNutritionLines(
-        caller: CallerToken | undefined,
-        lines: readonly (LineMeasure & { ingredientId: string })[],
-    ): Promise<NutritionLine[]> {
-        const catalog = await this.loadLineCatalog(
-            caller,
-            lines.map((line) => line.ingredientId),
-        );
+    private async loadLineVerdicts(
+        catalog: LineCatalog,
+        measures: readonly LineNutritionInput[],
+    ): Promise<LineVerdicts> {
+        const keyByLineId = new Map<string, string>();
 
-        return assembleLines(catalog, lines);
+        for (const measure of measures) {
+            const identity = verifiedLineIdentity(measure, catalog.foodIdByIngredientId.get(measure.ingredientId));
+
+            if (identity !== undefined) {
+                keyByLineId.set(measure.lineId, verificationKey(identity, sha256Hex));
+            }
+        }
+
+        if (keyByLineId.size === 0) {
+            // Every line was authored rather than transcribed, or freeform. No verdict about any of them can
+            // exist, so the read is skipped entirely rather than issued with an empty predicate.
+            return new Map();
+        }
+
+        const bands = await this.lineVerificationsDal.findBandsByKeys([...keyByLineId.values()]);
+        const byLineId = new Map<string, VerificationBand>();
+
+        for (const [lineId, key] of keyByLineId) {
+            const band = bands.get(key);
+
+            if (band !== undefined) {
+                byLineId.set(lineId, band);
+            }
+        }
+
+        return byLineId;
     }
+
+    /*
+     * ⛔ `assembleNutritionLines` DELETED (plan U14). It was the single-recipe shell over
+     * `loadLineCatalog` — load the catalog, assemble the lines — and its only caller was
+     * `computeDetailNutrition`. That method now needs the LOADED CATALOG itself (for each line's food id,
+     * to derive the verdict key, and for the catalog's own resolution status), so a shell that returned
+     * only the assembled lines and discarded the catalog could no longer serve it. Keeping it would have
+     * meant a second catalog load per detail read — the exact fan-out `loadLineCatalog`'s own docstring
+     * exists to prevent. Its behaviour is unchanged and now lives inline in `computeDetailNutrition`.
+     */
 
     /**
      * The DEFERRED calorie lookup (`POST /api/v1/recipes/nutrition-batch`): each named recipe's per-serving
@@ -611,10 +802,14 @@ export class RecipesService {
         }
 
         const measuresByRecipe = new Map(inputs.map((input) => [input.recipeId, input.lines.map(rowToMeasureInput)]));
+        const allMeasures = [...measuresByRecipe.values()].flat();
         const catalog = await this.loadLineCatalog(
             caller,
-            [...measuresByRecipe.values()].flat().map((measure) => measure.ingredientId),
+            allMeasures.map((measure) => measure.ingredientId),
         );
+        // ONE verdict read for the whole batch, for the same reason there is one food call: see
+        // `loadLineVerdicts`. It runs AFTER the catalog because a verdict is keyed on the line's food id.
+        const verdicts = await this.loadLineVerdicts(catalog, allMeasures);
 
         const nutrition: Record<string, RecipeNutritionState> = {};
 
@@ -631,10 +826,11 @@ export class RecipesService {
 
             nutrition[input.recipeId] = toRecipeNutritionState(
                 {
-                    lines: assembleLines(catalog, measures),
+                    lines: assembleLines(catalog, measures, verdicts),
                     referencedFoodCount: referenced.size,
                     resolvedFoodCount: [...referenced].filter((foodId) => catalog.resolvedFoodIds.has(foodId)).length,
                     staleFoodCount: [...referenced].filter((foodId) => catalog.staleFoodIds.has(foodId)).length,
+                    withheldLineCount: countWithheldContributions(catalog, measures, verdicts),
                 },
                 input.servings,
                 catalog.degraded,
@@ -681,10 +877,13 @@ export class RecipesService {
         const photos = photoRows.map((row) => resolvePhotoView(row, this.photosCdnUrl));
         const coverRow = photoRows[0];
 
-        const nutrition = await this.computeDetailNutrition(aggregate, options.caller);
+        const { nutrition, lineStatuses } = await this.computeDetailNutrition(aggregate, options.caller);
 
         return toRecipeResponse(aggregate, {
             photos,
+            // U14 — the per-line status the detail body badges. Absent for every line the gate has not
+            // judged and whose catalog row reports nothing, which is the ordinary case.
+            lineStatuses,
             // `nutrition` is the detail read's ONE calorie representation. It used to be accompanied by
             // `derivedNutrition: { leadCaloriesPerServing: nutrition.calories }` — the same number, from the
             // same computation, emitted a second time at the top level. Removed per ADR-0021's "Follow-up
@@ -841,7 +1040,7 @@ export class RecipesService {
      * `sortOrder`.
      *
      * S-R6: a SINGLE batch `findByIds` over the deduped ids — not one `findById` per line — so a recipe
-     * with M lines costs one catalog round-trip regardless of M (mirrors {@link assembleNutritionLines}).
+     * with M lines costs one catalog round-trip regardless of M (mirrors {@link loadLineCatalog}).
      */
     private async resolveIngredientLines(
         lines: readonly CreateRecipeIngredientInput[],

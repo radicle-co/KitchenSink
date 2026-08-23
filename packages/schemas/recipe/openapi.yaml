@@ -4208,6 +4208,15 @@ components:
                 minLength: 1
               isUserEntered:
                 type: boolean
+              resolutionStatus:
+                type: string
+                enum:
+                  - PENDING
+                  - UNRESOLVED
+                  - RESOLVED
+                  - NOT_FOUND
+                  - FAILED
+                  - NEEDS_REVIEW
             required:
               - ingredientId
               - name
@@ -4759,6 +4768,7 @@ components:
                 - no_resolved_ingredients
                 - no_nutrient_data
                 - food_unavailable
+                - verification_disagreement
           required:
             - state
             - reason

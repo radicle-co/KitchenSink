@@ -31,7 +31,13 @@ import { PhotoCarousel } from './PhotoCarousel.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
 import { SERVING_STEPPER_MIN_WIDTH, ServingScaleControl } from './ServingScaleControl.native.js';
-import { formatQuantity, rangeDerivedNotice, type RecipeDetailBodyProps } from './model.js';
+import {
+    formatQuantity,
+    isLineNeedsReview,
+    needsReviewNotice,
+    rangeDerivedNotice,
+    type RecipeDetailBodyProps,
+} from './model.js';
 
 /** One label/value cell in the stats or nutrition strip. */
 const Stat: FC<{ label: string; value: ReactNode }> = ({ label, value }) => (
@@ -71,6 +77,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     });
     // ONE derivation, shared with the web leaf: quantities + prep scale, cook time and step timers do not.
     const scaled = scaleRecipeForServings(recipe, servings);
+    // U14 — read from the STORED lines rather than the scaled projection, for the same reason `rangeNotice`
+    // is: which lines the gate doubted is a fact about the recipe, not about the serving count on screen.
+    const reviewNotice = needsReviewNotice(recipe.ingredients, detail);
 
     return (
         <View accessibilityLabel={recipe.title} style={styles.container}>
@@ -200,6 +209,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             {ingredient.isUserEntered && (
                                 <Text style={styles.userBadge}>{detail.userEnteredBadge}</Text>
                             )}
+                            {/* U14 — the LINE the verification gate contradicted. Mirrors the web leaf: the
+                                trailing slot, a WARNING tone rather than the neutral badge above, and no
+                                accessibility role — the text is content of the row and is announced with it. */}
+                            {isLineNeedsReview(ingredient) && (
+                                <Text style={styles.needsReviewBadge}>{detail.needsReviewBadge}</Text>
+                            )}
                         </View>
                     );
                 })}
@@ -266,6 +281,18 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
             {!recipe.nutrition.isComplete && <Text style={styles.description}>{detail.nutritionPartial}</Text>}
             {/* R38 — see the web leaf: a different admission from the partial notice, and both can be true. */}
             {rangeNotice !== undefined && <Text style={styles.description}>{rangeNotice}</Text>}
+            {/* U14 — see the web leaf: a THIRD admission, and the only one that is our own doubt rather than a
+                gap in the data.
+
+                ⚠️ `role`, NOT `accessibilityRole`. React Native's `AccessibilityRole` union predates ARIA and
+                has no `note` member, so `accessibilityRole="note"` does not type-check; the newer ARIA-shaped
+                `role` prop does carry it, and RN maps it onto the platform role on device exactly as
+                `accessibilityRole` would. Do not "fix" this back. */}
+            {reviewNotice !== undefined && (
+                <Text role="note" style={styles.reviewNotice}>
+                    {reviewNotice}
+                </Text>
+            )}
             {hasUserEnteredIngredients(recipe.ingredients) && (
                 <Text style={styles.sourceNote}>{detail.nutritionSourceNote}</Text>
             )}
@@ -417,6 +444,33 @@ const styles = StyleSheet.create({
         marginLeft: 'auto',
         fontSize: nativeTokens.fontSize.overline,
         color: palette.slate,
+    },
+    // U14 — the doubted line's badge. Same geometry as `userBadge` (both are trailing chips on the same row),
+    // deliberately NOT merged with it: they are two different facts, and a shared style would make a tone
+    // change to one silently change the other.
+    //
+    // ⛔ CHARCOAL on a `warning` TINT, never `warning` as the text colour. `colors.ts` is explicit that
+    // `warning` (#F5B041) is a light fill that takes a charcoal label — as a foreground on a near-white
+    // surface it is far under the 4.5:1 floor. The tint carries the caution; charcoal (10.31:1) carries the
+    // words. The web leaf paints the identical pair.
+    needsReviewBadge: {
+        flexShrink: 0,
+        marginLeft: 'auto',
+        paddingHorizontal: nativeTokens.spacing[2],
+        paddingVertical: 2,
+        borderRadius: nativeTokens.radius.full,
+        backgroundColor: tint(palette.warning, 0.25),
+        fontSize: nativeTokens.fontSize.overline,
+        fontWeight: '600',
+        color: palette.charcoal,
+    },
+    // The recipe-level disclosure. `description`'s size, but charcoal and weighted rather than slate, so it
+    // is distinguishable at a glance from the two neutral caveats above it — it is an admission a cook can
+    // ACT on (re-pick the food), not a note that the data is thin.
+    reviewNotice: {
+        fontSize: nativeTokens.fontSize.bodySm,
+        fontWeight: '600',
+        color: palette.charcoal,
     },
     stepList: { gap: 14 },
     stepRow: { flexDirection: 'row', gap: nativeTokens.spacing[3], alignItems: 'flex-start' },

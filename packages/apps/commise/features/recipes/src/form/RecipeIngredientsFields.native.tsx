@@ -12,6 +12,7 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { Feather } from '@expo/vector-icons';
 import type { FC, ReactElement } from 'react';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { Text, TextInput, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
@@ -114,7 +115,14 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 {line.resolutionStatus !== undefined && (
                     <Text
                         accessibilityLabel={fillTemplate(m.ingredientStatusLabel, { number })}
-                        style={styles.statusBadge}
+                        // U14 — mirrors the web leaf: a line the verification gate CONTRADICTED is the one
+                        // status a cook can act on, and it must not wear the same neutral badge as
+                        // "Resolved". ⛔ Charcoal on a `warning` tint, never `warning` as the text colour.
+                        style={
+                            line.resolutionStatus === FoodResolutionStatus.NEEDS_REVIEW
+                                ? styles.statusBadgeNeedsReview
+                                : styles.statusBadge
+                        }
                     >
                         {resolutionStatusLabel(m, line.resolutionStatus)}
                     </Text>

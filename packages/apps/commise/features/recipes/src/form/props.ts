@@ -383,5 +383,9 @@ export const resolutionStatusLabel = (messages: RecipeFormMessages, status: Food
             return messages.statusNotFound;
         case 'FAILED':
             return messages.statusFailed;
+        case 'NEEDS_REVIEW':
+            // U14 — OUR OWN verdict, not food-service's. The gate read the line's raw source text against the
+            // food we resolved it to and disagreed, so this line's nutrition is withheld until a human picks.
+            return messages.statusNeedsReview;
     }
 };

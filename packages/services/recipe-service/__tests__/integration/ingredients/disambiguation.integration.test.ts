@@ -15,7 +15,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, type CatalogFoodResolutionStatus } from '@kitchensink/recipe-core';
 import { FoodServiceClient, NotFoundError } from '@kitchensink/food-service-client';
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
@@ -78,7 +78,7 @@ describe.skipIf(!hasDatabaseUrl)(
         });
 
         /** Seed a food-backed catalog row in the given non-terminal status and return its 001 id. */
-        async function seedFoodBacked(status: FoodResolutionStatus): Promise<string> {
+        async function seedFoodBacked(status: CatalogFoodResolutionStatus): Promise<string> {
             const row = await dal.createFoodBacked({
                 name: makeCanonicalName('Ambiguous quinoa'),
                 foodId: FOOD_ID,

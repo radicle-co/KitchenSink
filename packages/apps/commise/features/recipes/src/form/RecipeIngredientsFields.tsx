@@ -9,6 +9,7 @@
  */
 import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { FC, ReactElement } from 'react';
 
 import { errorText, field, rowField, sectionCard, sectionHeading } from './formSectionStyles.js';
@@ -130,7 +131,17 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 {line.resolutionStatus !== undefined && (
                     <span
                         aria-label={fillTemplate(m.ingredientStatusLabel, { number })}
-                        className="rounded-full bg-pearl px-2 py-0.5 text-caption text-slate"
+                        // U14 — a line the verification gate CONTRADICTED is the one status a cook can act on
+                        // (re-pick the food), and the editor is where they do it. Wearing the same neutral
+                        // pearl as "Resolved" would put that affordance in front of them in the colour of
+                        // "nothing to do here". ⛔ CHARCOAL on a `warning` TINT, never `warning` as the text
+                        // colour: `@commise/ui`'s palette JSDoc is explicit that #F5B041 is a light FILL that
+                        // takes a charcoal label, and as a foreground on near-white it is far under 4.5:1.
+                        className={
+                            line.resolutionStatus === FoodResolutionStatus.NEEDS_REVIEW
+                                ? 'rounded-full bg-warning/25 px-2 py-0.5 text-caption font-medium text-charcoal'
+                                : 'rounded-full bg-pearl px-2 py-0.5 text-caption text-slate'
+                        }
                     >
                         {resolutionStatusLabel(m, line.resolutionStatus)}
                     </span>

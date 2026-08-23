@@ -17,9 +17,12 @@
  *     is decided HERE — by whether any line contributed — rather than by inspecting the number.
  *  2. **Partial versus absent.** `isComplete: false` means "some line could not be accounted for", which is
  *     still a figure worth showing with a caveat. It is NOT `unaccounted`.
- *  3. **WHY there is no figure.** The three reasons are three operational facts with three different fixes:
- *     the author has not resolved their ingredients, food has no qualifying rows for these foods, or food
- *     is unreachable and nothing was cached. A single "no data" would tell the reader nothing actionable.
+ *  3. **WHY there is no figure.** The four reasons are four operational facts with four different fixes:
+ *     the author has not resolved their ingredients, food has no qualifying rows for these foods, food is
+ *     unreachable and nothing was cached, or the U11 verification gate contradicted the line and we WITHHELD
+ *     a figure the catalog was perfectly able to supply. A single "no data" would tell the reader nothing
+ *     actionable — and the fourth in particular must never collapse into the third, because an outage says
+ *     "come back later" about an answer a retry will not change.
  *
  * ⚠️ The gateway no longer HAS an `absent` freshness — an id nothing recovered is simply not in its map.
  * What that used to mean
@@ -52,6 +55,20 @@ export interface RecipeNutritionAccounting {
      * warning about data this reading does not contain.
      */
     readonly staleFoodCount: number;
+    /**
+     * How many of this recipe's lines the U11 verification gate CONTRADICTED **and** whose catalog nutrition
+     * would otherwise have been accounted for (plan U14 / R15).
+     *
+     * ⛔ REQUIRED, not optional, and that is the lesson `rangeDerivedBound` taught this file the hard way: an
+     * optional field on a positively-enumerated struct is dropped at a call site with no compile error, and
+     * the resulting silence looks exactly like "nothing was withheld". A caller that has not thought about
+     * withholding must say `0` out loud.
+     *
+     * ⚠️ "WOULD OTHERWISE HAVE BEEN ACCOUNTED FOR" is load-bearing. A contradicted line that carried no
+     * usable nutrition anyway (no per-100g rows, or a unit with no mass) did not cost this recipe its figure,
+     * so counting it would blame the gate for an absence it did not cause.
+     */
+    readonly withheldLineCount: number;
 }
 
 /**
@@ -97,6 +114,15 @@ export function toRecipeNutritionState(
     }
 
     // Nothing contributed. The reason is decided from the recipe's OWN foods, most-specific first.
+    if (accounting.withheldLineCount > 0) {
+        // ⛔ FIRST, and ahead of every food-side reason. `withheldLineCount` already means "a line the gate
+        // contradicted that WOULD otherwise have accounted", so reaching this branch means our own doubt is
+        // the proximate cause of there being no figure — the food service answered, the catalog had the data,
+        // and we declined to publish it. The remaining lines' silence is not new information; the withholding
+        // is. See `RecipeNutritionAccounting.withheldLineCount`.
+        return { state: 'unaccounted', reason: 'verification_disagreement' };
+    }
+
     if (accounting.referencedFoodCount === 0) {
         // No line maps to a food, so food's availability is irrelevant to this recipe.
         return { state: 'unaccounted', reason: 'no_resolved_ingredients' };

@@ -84,6 +84,24 @@ export interface RecipeDetailMessages {
     readonly ingredientsHeading: string;
     /** Badge shown on a user-entered (freeform) ingredient. */
     readonly userEnteredBadge: string;
+    /**
+     * Badge shown on a line the U11 verification gate CONTRADICTED (plan U14 / R15).
+     *
+     * ⛔ NOT interchangeable with {@link nutritionPartial}. That caveat says the catalog had nothing for a
+     * line; this badge says the catalog HAD it and we withheld the figure because a check against the cook's
+     * own source text disagreed with our match. A cook who cannot tell those apart cannot act on either.
+     */
+    readonly needsReviewBadge: string;
+    /**
+     * Whole-sentence disclosure for a recipe carrying exactly ONE doubted line.
+     *
+     * A separate string from the plural template rather than a template with a `1` in it, for the reason
+     * every count string in this package is: English pluralization is not a substitution, and a locale that
+     * inflects differently changes the string rather than the code.
+     */
+    readonly needsReviewNoticeOne: string;
+    /** The same disclosure for two or more doubted lines (contains `{count}`). */
+    readonly needsReviewNoticeMany: string;
     /** Heading for the instructions section. */
     readonly instructionsHeading: string;
     /** Timer template for a step (contains `{seconds}`). */
@@ -253,6 +271,11 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             lightboxClose: 'Close photo',
             ingredientsHeading: 'Ingredients',
             userEnteredBadge: 'Custom',
+            needsReviewBadge: 'Needs review',
+            needsReviewNoticeOne:
+                'One ingredient didn’t match its original wording, so it isn’t counted here. Check it and pick the right food.',
+            needsReviewNoticeMany:
+                '{count} ingredients didn’t match their original wording, so they aren’t counted here. Check them and pick the right foods.',
             instructionsHeading: 'Instructions',
             stepTimer: '{seconds}s timer',
             stepToggleLabel: 'Mark step {step} complete',

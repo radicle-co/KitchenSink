@@ -51,6 +51,10 @@ export type {
     NewIngredientResolutionMemoRow,
 } from './resolutionMappings.js';
 
+// ── recipe_ingredient_verifications (plan U11/U14, 0023) — READ-ONLY here; recipe-workers writes it ──
+export { recipeIngredientVerifications, LINE_VERIFICATION_BANDS } from './lineVerifications.js';
+export type { RecipeIngredientVerificationRow } from './lineVerifications.js';
+
 // ── recipe_versions + recipe_version_pending_archives (T013, T121) ────────────────────────────────
 export { recipeVersions, recipeVersionPendingArchives, PENDING_ARCHIVE_STATUSES } from './versions.js';
 export type {

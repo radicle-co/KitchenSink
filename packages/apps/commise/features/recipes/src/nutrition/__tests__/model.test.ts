@@ -115,21 +115,34 @@ describe('toCalorieChipModel', () => {
 
 describe('unaccountedReasonText', () => {
     it('gives each wire reason its own copy', () => {
+        // ⚠️ EXTENDED, not rewritten (plan U14): the wire union gained a fourth reason, and the switch this
+        // covers is exhaustive with no default — so a missing arm is a compile error, and a missing CASE HERE
+        // would be an untested one.
         const texts = [
             unaccountedReasonText('no_resolved_ingredients', en),
             unaccountedReasonText('no_nutrient_data', en),
             unaccountedReasonText('food_unavailable', en),
+            unaccountedReasonText('verification_disagreement', en),
         ];
 
         expect(texts).toEqual([
             en.unaccountedNoResolvedIngredients,
             en.unaccountedNoNutrientData,
             en.unaccountedFoodUnavailable,
+            en.unaccountedVerificationDisagreement,
         ]);
         // Distinct, non-empty: a reason that fell through to a shared or blank string would tell the reader
         // nothing about why there is no figure.
-        expect(new Set(texts).size).toBe(3);
+        expect(new Set(texts).size).toBe(4);
         expect(texts.every((text) => text.length > 0)).toBe(true);
+    });
+
+    it('⛔ does NOT tell a cook to retry a WITHHELD figure — that is `food_unavailable`’s sentence alone', () => {
+        // The conflation plan U14 forbids, asserted at the copy level. Nothing is broken when the gate
+        // disagrees: the food service answered and the catalog had the number. "Try again shortly" would be
+        // advice about an answer that will not change.
+        expect(unaccountedReasonText('verification_disagreement', en)).not.toBe(en.unaccountedFoodUnavailable);
+        expect(unaccountedReasonText('verification_disagreement', en)).not.toBe(en.unaccountedNoNutrientData);
     });
 });
 

@@ -1,6 +1,6 @@
 /**
  * ⛔ THE CLASSIFIER for the deferred-nutrition union — the pure rule that decides `known` vs each of the
- * three `unaccounted` reasons, and whether a `known` reading is `fresh` or `stale`.
+ * FOUR `unaccounted` reasons, and whether a `known` reading is `fresh` or `stale`.
  *
  * The union's own invariants are pinned by `../../__tests__/recipeNutritionState.test.ts` (what the WIRE
  * may carry). This file pins the half that schema cannot express: WHICH member a given recipe earns. Every
@@ -10,9 +10,9 @@
  *    `calories: 0`, and they are opposite answers;
  *  - `isComplete: false` does not mean `unaccounted` — one accounted line among several unaccountable ones
  *    is still a figure, reported as incomplete;
- *  - the three `unaccounted` reasons are three different operational facts with three different fixes
- *    ("resolve your ingredients", "food has no data for these", "food is down"), and collapsing them would
- *    tell the reader nothing actionable.
+ *  - the four `unaccounted` reasons are four different operational facts with four different fixes
+ *    ("resolve your ingredients", "food has no data for these", "food is down", "we checked your source and
+ *    disagreed with our own match"), and collapsing them would tell the reader nothing actionable.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -44,7 +44,13 @@ const unaccountableLine: NutritionLine = { quantity: { kind: 'exact', value: 1 }
 describe('toRecipeNutritionState — known', () => {
     it('reports the per-serving figure, marked complete and fresh', () => {
         const state = toRecipeNutritionState(
-            { lines: [catalogLine], referencedFoodCount: 1, resolvedFoodCount: 1, staleFoodCount: 0 },
+            {
+                lines: [catalogLine],
+                referencedFoodCount: 1,
+                resolvedFoodCount: 1,
+                staleFoodCount: 0,
+                withheldLineCount: 0,
+            },
             2,
             false,
         );
@@ -67,7 +73,13 @@ describe('toRecipeNutritionState — known', () => {
 
         expect(
             toRecipeNutritionState(
-                { lines: [water], referencedFoodCount: 1, resolvedFoodCount: 1, staleFoodCount: 0 },
+                {
+                    lines: [water],
+                    referencedFoodCount: 1,
+                    resolvedFoodCount: 1,
+                    staleFoodCount: 0,
+                    withheldLineCount: 0,
+                },
                 1,
                 false,
             ),
@@ -89,6 +101,7 @@ describe('toRecipeNutritionState — known', () => {
                 referencedFoodCount: 1,
                 resolvedFoodCount: 1,
                 staleFoodCount: 0,
+                withheldLineCount: 0,
             },
             2,
             false,
@@ -102,7 +115,13 @@ describe('toRecipeNutritionState — known', () => {
         // `Promise.allSettled`, so one request mixes fresh and stale ids — and a recipe whose own foods
         // all came back fresh must not be caveated because a sibling recipe's chunk failed.
         const state = toRecipeNutritionState(
-            { lines: [catalogLine], referencedFoodCount: 1, resolvedFoodCount: 1, staleFoodCount: 1 },
+            {
+                lines: [catalogLine],
+                referencedFoodCount: 1,
+                resolvedFoodCount: 1,
+                staleFoodCount: 1,
+                withheldLineCount: 0,
+            },
             2,
             true,
         );
@@ -115,7 +134,13 @@ describe('toRecipeNutritionState — known', () => {
         // lookup failed, and they share one batch. Marking A "may be out of date" is a caveat about data A
         // does not contain.
         const state = toRecipeNutritionState(
-            { lines: [userLine], referencedFoodCount: 0, resolvedFoodCount: 0, staleFoodCount: 0 },
+            {
+                lines: [userLine],
+                referencedFoodCount: 0,
+                resolvedFoodCount: 0,
+                staleFoodCount: 0,
+                withheldLineCount: 0,
+            },
             1,
             true,
         );
@@ -126,7 +151,13 @@ describe('toRecipeNutritionState — known', () => {
     it('⛔ a user override beats catalog nutrition, so the reading stays fresh under degradation', () => {
         const overridden: NutritionLine = { ...catalogLine, userCalories: 50 };
         const state = toRecipeNutritionState(
-            { lines: [overridden], referencedFoodCount: 1, resolvedFoodCount: 1, staleFoodCount: 0 },
+            {
+                lines: [overridden],
+                referencedFoodCount: 1,
+                resolvedFoodCount: 1,
+                staleFoodCount: 0,
+                withheldLineCount: 0,
+            },
             1,
             true,
         );
@@ -139,7 +170,13 @@ describe('toRecipeNutritionState — unaccounted', () => {
     it('reports `no_resolved_ingredients` when nothing maps to a food yet', () => {
         expect(
             toRecipeNutritionState(
-                { lines: [unaccountableLine], referencedFoodCount: 0, resolvedFoodCount: 0, staleFoodCount: 0 },
+                {
+                    lines: [unaccountableLine],
+                    referencedFoodCount: 0,
+                    resolvedFoodCount: 0,
+                    staleFoodCount: 0,
+                    withheldLineCount: 0,
+                },
                 4,
                 false,
             ),
@@ -149,7 +186,7 @@ describe('toRecipeNutritionState — unaccounted', () => {
     it('reports `no_resolved_ingredients` for a recipe with no ingredient lines at all', () => {
         expect(
             toRecipeNutritionState(
-                { lines: [], referencedFoodCount: 0, resolvedFoodCount: 0, staleFoodCount: 0 },
+                { lines: [], referencedFoodCount: 0, resolvedFoodCount: 0, staleFoodCount: 0, withheldLineCount: 0 },
                 4,
                 false,
             ),
@@ -163,7 +200,13 @@ describe('toRecipeNutritionState — unaccounted', () => {
         // resolve their ingredients. Food's availability is only relevant to a recipe that needs food.
         expect(
             toRecipeNutritionState(
-                { lines: [unaccountableLine], referencedFoodCount: 0, resolvedFoodCount: 0, staleFoodCount: 0 },
+                {
+                    lines: [unaccountableLine],
+                    referencedFoodCount: 0,
+                    resolvedFoodCount: 0,
+                    staleFoodCount: 0,
+                    withheldLineCount: 0,
+                },
                 4,
                 true,
             ),
@@ -175,7 +218,13 @@ describe('toRecipeNutritionState — unaccounted', () => {
         // data gap in the catalog, not an outage, and the two need different responses.
         expect(
             toRecipeNutritionState(
-                { lines: [unaccountableLine], referencedFoodCount: 1, resolvedFoodCount: 1, staleFoodCount: 0 },
+                {
+                    lines: [unaccountableLine],
+                    referencedFoodCount: 1,
+                    resolvedFoodCount: 1,
+                    staleFoodCount: 0,
+                    withheldLineCount: 0,
+                },
                 4,
                 false,
             ),
@@ -185,7 +234,13 @@ describe('toRecipeNutritionState — unaccounted', () => {
     it('⛔ reports `no_nutrient_data`, not `food_unavailable`, when food answered and knows none of the ids', () => {
         expect(
             toRecipeNutritionState(
-                { lines: [unaccountableLine], referencedFoodCount: 2, resolvedFoodCount: 0, staleFoodCount: 0 },
+                {
+                    lines: [unaccountableLine],
+                    referencedFoodCount: 2,
+                    resolvedFoodCount: 0,
+                    staleFoodCount: 0,
+                    withheldLineCount: 0,
+                },
                 4,
                 false,
             ),
@@ -196,7 +251,13 @@ describe('toRecipeNutritionState — unaccounted', () => {
         // The gateway's third freshness value, `absent`, is NOT a wire freshness — it lands HERE.
         expect(
             toRecipeNutritionState(
-                { lines: [unaccountableLine], referencedFoodCount: 1, resolvedFoodCount: 0, staleFoodCount: 0 },
+                {
+                    lines: [unaccountableLine],
+                    referencedFoodCount: 1,
+                    resolvedFoodCount: 0,
+                    staleFoodCount: 0,
+                    withheldLineCount: 0,
+                },
                 4,
                 true,
             ),
@@ -207,7 +268,13 @@ describe('toRecipeNutritionState — unaccounted', () => {
         // A partially-warm cache: other recipes were served stale, this one has nothing.
         expect(
             toRecipeNutritionState(
-                { lines: [unaccountableLine], referencedFoodCount: 1, resolvedFoodCount: 0, staleFoodCount: 0 },
+                {
+                    lines: [unaccountableLine],
+                    referencedFoodCount: 1,
+                    resolvedFoodCount: 0,
+                    staleFoodCount: 0,
+                    withheldLineCount: 0,
+                },
                 4,
                 true,
             ),
@@ -216,11 +283,131 @@ describe('toRecipeNutritionState — unaccounted', () => {
 
     it('⛔ NEVER carries a figure — an outage must leave nothing for a client to render as 0', () => {
         const state = toRecipeNutritionState(
-            { lines: [unaccountableLine], referencedFoodCount: 1, resolvedFoodCount: 0, staleFoodCount: 0 },
+            {
+                lines: [unaccountableLine],
+                referencedFoodCount: 1,
+                resolvedFoodCount: 0,
+                staleFoodCount: 0,
+                withheldLineCount: 0,
+            },
             4,
             true,
         );
 
         expect(Object.keys(state).sort()).toStrictEqual(['reason', 'state']);
+    });
+});
+
+/**
+ * The FOURTH reason (plan U14 / R15) — a figure the verification gate WITHHELD.
+ *
+ * ⛔ The whole point is that it is not any of the other three. A withheld line is not an unresolved
+ * ingredient (it resolved), not missing nutrient data (the catalog had it), and not an outage (food answered)
+ * — it is a line whose parse the gate read against the cook's own source text and disagreed with. Collapsing
+ * it into `food_unavailable` would tell the cook to "try again shortly" about an answer that will not change,
+ * and collapsing it into `no_nutrient_data` would blame the catalog for our own doubt.
+ */
+describe('toRecipeNutritionState — unaccounted{verification_disagreement}', () => {
+    it('reports the disagreement when withholding is what left the recipe with no figure', () => {
+        expect(
+            toRecipeNutritionState(
+                {
+                    // The line's catalog nutrition has already been withheld by the caller, so what arrives
+                    // here is an unaccountable line PLUS the count of lines that were held back.
+                    lines: [unaccountableLine],
+                    referencedFoodCount: 1,
+                    resolvedFoodCount: 1,
+                    staleFoodCount: 0,
+                    withheldLineCount: 1,
+                },
+                2,
+                false,
+            ),
+        ).toStrictEqual({ state: 'unaccounted', reason: 'verification_disagreement' });
+    });
+
+    it('⛔ beats `no_nutrient_data` — the catalog HAD the data and we chose not to publish it', () => {
+        const state = toRecipeNutritionState(
+            {
+                lines: [unaccountableLine, unaccountableLine],
+                referencedFoodCount: 2,
+                resolvedFoodCount: 2,
+                staleFoodCount: 0,
+                withheldLineCount: 1,
+            },
+            2,
+            false,
+        );
+
+        expect(state).toStrictEqual({ state: 'unaccounted', reason: 'verification_disagreement' });
+    });
+
+    it('⛔ beats `food_unavailable` — an outage did not cause an answer we withheld ourselves', () => {
+        const state = toRecipeNutritionState(
+            {
+                lines: [unaccountableLine],
+                referencedFoodCount: 1,
+                resolvedFoodCount: 0,
+                staleFoodCount: 0,
+                withheldLineCount: 1,
+            },
+            2,
+            true,
+        );
+
+        expect(state).toStrictEqual({ state: 'unaccounted', reason: 'verification_disagreement' });
+    });
+
+    it('⛔ NEVER carries a figure', () => {
+        const state = toRecipeNutritionState(
+            {
+                lines: [unaccountableLine],
+                referencedFoodCount: 1,
+                resolvedFoodCount: 1,
+                staleFoodCount: 0,
+                withheldLineCount: 1,
+            },
+            2,
+            false,
+        );
+
+        expect(Object.keys(state).sort()).toStrictEqual(['reason', 'state']);
+    });
+
+    it('⛔ stays KNOWN when a surviving line still accounts — one withheld line is not a withheld recipe', () => {
+        // The failure this guards: treating "any line withheld" as "no figure" would delete a perfectly good
+        // reading because one of six lines was doubted. The surviving line still contributes; the withheld
+        // one shows up as `isComplete: false`, which is exactly what that flag has always meant.
+        const state = toRecipeNutritionState(
+            {
+                lines: [catalogLine, unaccountableLine],
+                referencedFoodCount: 2,
+                resolvedFoodCount: 2,
+                staleFoodCount: 0,
+                withheldLineCount: 1,
+            },
+            2,
+            false,
+        );
+
+        expect(state).toMatchObject({ state: 'known', caloriesPerServing: 350, isComplete: false });
+    });
+
+    it('⛔ does NOT claim a disagreement for a recipe that maps to no food at all', () => {
+        // Defensive: a line with no food cannot carry a verdict, so `withheldLineCount` can never exceed the
+        // referenced foods. If it somehow did, the honest answer is still the most specific TRUE one.
+        expect(
+            toRecipeNutritionState(
+                {
+                    lines: [unaccountableLine],
+                    referencedFoodCount: 0,
+                    resolvedFoodCount: 0,
+                    staleFoodCount: 0,
+                    withheldLineCount: 0,
+                },
+                2,
+                false,
+            ),
+        ).toStrictEqual({ state: 'unaccounted', reason: 'no_resolved_ingredients' });
     });
 });

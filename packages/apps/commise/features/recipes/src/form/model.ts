@@ -399,9 +399,11 @@ export const toUpdateRecipeInput = (
  * B2 — the ONE seed adapter both platforms and the `useRecipeEditor` headless hook use; a web-local and a
  * mobile-local copy of this exact mapping existed before this change and have been collapsed into this
  * single, package-level export). Persisted ingredient lines already reference a catalog id, so each is
- * marked `RESOLVED` — a saved recipe's lines are, by definition, resolved, and marking them explicitly
- * (rather than leaving `resolutionStatus` absent) lets the form's "Resolved" badge render for them exactly
- * as it does for a freshly-resolved line, instead of showing no badge at all. Optional fields (`unit`,
+ * carry whatever resolution status the detail read published for them, defaulting to `RESOLVED` when it
+ * published none — a saved recipe's lines are, by definition, resolved, and marking them explicitly (rather
+ * than leaving `resolutionStatus` absent) lets the form's "Resolved" badge render for them exactly as it does
+ * for a freshly-resolved line, instead of showing no badge at all. ⛔ It is no longer HARD-CODED; see the
+ * inline note on that line. Optional fields (`unit`,
  * `notes`, `timerSeconds`, `difficulty`) are OMITTED rather than set to `undefined`, so the result stays
  * valid under `exactOptionalPropertyTypes`. Pure.
  *
@@ -430,7 +432,14 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         // absent case, so a recipe seeded this way can be opened, changed and saved with its bound intact.
         quantity: quantityLowerBound(line.quantity) ?? Number.NaN,
         ...(line.quantity.kind === 'range' ? { quantityHigh: line.quantity.high } : {}),
-        resolutionStatus: 'RESOLVED',
+        // ⛔ THE LINE'S OWN STATUS, falling back to `RESOLVED` (U14). This used to be hard-coded, on the
+        // reasoning that "a saved recipe's lines are, by definition, resolved" — true while the status only
+        // mirrored food-service's lifecycle, and FALSE the moment the detail read began publishing the
+        // verification gate's verdict: a contradicted line would open in the editor badged "Resolved", the
+        // opposite of what the recipe screen had just told the cook, on the one surface where they can
+        // re-pick the food. The fallback keeps the original behaviour for a line the server said nothing
+        // about: it still shows a badge rather than none.
+        resolutionStatus: line.resolutionStatus ?? 'RESOLVED',
         ...(line.unit === undefined ? {} : { unit: line.unit }),
         ...(line.notes === undefined ? {} : { notes: line.notes }),
     })),

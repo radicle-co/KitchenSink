@@ -51,6 +51,16 @@ export interface RecipeNutritionMessages {
     readonly unaccountedNoNutrientData: string;
     /** Disclosure copy: the lookup itself failed and nothing was cached (`food_unavailable`). */
     readonly unaccountedFoodUnavailable: string;
+    /**
+     * Disclosure copy: the U11 verification gate read a line against the cook's own source text, disagreed
+     * with our match, and the figure was WITHHELD (`verification_disagreement`, plan U14 / R15).
+     *
+     * ⛔ ITS OWN SENTENCE, and the reason this reason exists. `unaccountedFoodUnavailable` says "come back
+     * later"; this one must not, because nothing is broken and a retry changes nothing — the food service
+     * answered and the catalog had the figure. `unaccountedNoNutrientData` would be wrong in the other
+     * direction: it blames the catalog for data the catalog HAD.
+     */
+    readonly unaccountedVerificationDisagreement: string;
 }
 
 /**
@@ -73,5 +83,7 @@ export const recipeNutritionMessages: LocalizedMessages<RecipeNutritionMessages>
         unaccountedNoResolvedIngredients: 'No nutrition yet — none of these ingredients is matched to a food.',
         unaccountedNoNutrientData: 'No nutrition yet — the matched foods carry no nutrient data.',
         unaccountedFoodUnavailable: 'Nutrition is unavailable right now. Try again shortly.',
+        unaccountedVerificationDisagreement:
+            'No nutrition yet — some ingredients didn’t match their original wording, so we’ve held the figure back. Check them and pick the right foods.',
     },
 };

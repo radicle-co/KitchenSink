@@ -33,6 +33,7 @@ import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
+import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -125,6 +126,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         const response = await service.create(OWNER_PRINCIPAL, CREATE_DTO);
@@ -177,6 +179,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         const poisoned: CreateRecipeDto = {
@@ -207,6 +210,7 @@ describe('RecipesService.create — ingredient composition (T043b)', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         const error = await catchError(service.create(OWNER_PRINCIPAL, CREATE_DTO));
@@ -228,6 +232,7 @@ describe('RecipesService.getById — ingredient composition (T043b)', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         const response = await service.getById(OWNER, 'r-1');
@@ -261,6 +266,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         const patch: UpdateRecipeDto = {
@@ -300,6 +306,7 @@ describe('RecipesService.update — ingredient composition (T043b)', () => {
             fakeRatingsDal(),
             nutritionGatewayDouble,
             fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
         );
 
         await service.update(OWNER_PRINCIPAL, 'r-1', { expectedVersion: 1, title: 'Renamed' });

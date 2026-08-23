@@ -21,6 +21,7 @@ import {
     type CatalogFoodResolutionStatus,
     type LineCatalogNutrition,
     type LineMeasure,
+    type StatedMeasure,
     type LineResolutionStatus,
     type NutritionLine,
     type RecipeNutrition,
@@ -51,7 +52,7 @@ import { sha256Hex } from '../common/sha256.js';
 import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { ResolvedIngredientLine } from './dal/recipeIngredients.dal.js';
-import { quantityFromColumns } from './dal/quantityColumns.js';
+import { quantityFromColumns, statedMeasureFromColumns } from './dal/quantityColumns.js';
 import {
     invalidVisibility,
     notOwner,
@@ -67,7 +68,7 @@ import { recipeRowToDomain } from './mappers/recipeRowToDomain.js';
 import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/createRecipe.dto.js';
 import type { CreateRecipeIngredientInput } from './recipes.schema.js';
-import { carryForwardSourceLines } from './domain/sourceLineCarryForward.js';
+import { carryForwardTranscription } from './domain/transcriptionCarryForward.js';
 import { buildVerificationRequests, type VerifiableLine } from './domain/verificationRequests.js';
 import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
@@ -138,6 +139,11 @@ function storedLineToVerifiable(row: RecipeIngredientRow, catalog: ReadonlyMap<s
         candidateFoodName: ingredient?.name ?? row.ingredientName,
         quantity: quantityFromColumns(row),
         unit: row.unit,
+        // ⛔ U7/U11 — what the SOURCE printed, when the pair above is a RESTATEMENT of it. Through the ONE
+        // adapter, and never omitted: a projection that dropped it would ask the model about `0.5 cup` for a
+        // line whose source said `one gill` — a false DISAGREE against a line we parsed correctly — AND would
+        // key the resulting verdict the pre-0027 way, so the corrected line could never find it.
+        statedMeasure: statedMeasureFromColumns(row),
     };
 }
 
@@ -303,6 +309,8 @@ function toRecipeResponse(aggregate: RecipeAggregate, extras: RecipeResponseExtr
 
 /** Map a persisted `recipe_ingredients` row back to a resolvable link (for cloning). Pure. */
 function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientLine {
+    const cloned = statedMeasureFromColumns(row);
+
     return {
         ingredientId: row.ingredientId,
         ingredientName: row.ingredientName,
@@ -320,6 +328,12 @@ function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientL
         // content-identical to the source's, and `verificationKey` is content-addressed, so any verdict the
         // source already carries applies to the clone unchanged.
         ...(row.sourceLine !== null ? { sourceLine: row.sourceLine } : {}),
+        // ⛔ And so does the stated measure, for the same reason and with a sharper consequence. A clone of an
+        // imported recipe was transcribed from the same book, so the gill belongs to the line exactly as the
+        // source line does. It is also what makes the sentence above TRUE: the judgement is content-identical
+        // to the source's only if the stated measure travels, because `verificationKey` v2 hashes it — omit it
+        // and the clone's key differs, the source's verdict no longer applies, and the clone is never verified.
+        ...(cloned === undefined ? {} : { statedMeasure: cloned }),
         sortOrder: row.sortOrder,
         isUserEntered: row.isUserEntered,
         // Preserve any per-line user-entered nutrition (FR-007a) across a clone (numeric → number).
@@ -343,6 +357,16 @@ type LineNutritionInput = LineMeasure & {
     readonly ingredientId: string;
     readonly lineId: string;
     readonly sourceLine: string | null;
+    /**
+     * What the SOURCE printed, when this line's measure was restated (migration 0027).
+     *
+     * ⛔ CARRIED BECAUSE THIS SHAPE IS FED TO `verifiedLineIdentity`, which is how a line finds the verdict
+     * the gate recorded about it. The stated measure is part of that key (`v2`), so dropping it here would
+     * make every RESTATED line look up a key the worker never wrote — reporting "the gate has judged
+     * nothing" for exactly the lines the gate was most likely to have an opinion about, and, because absence
+     * of a verdict PUBLISHES, doing so completely silently.
+     */
+    readonly statedMeasure: StatedMeasure | undefined;
 };
 
 /**
@@ -354,6 +378,7 @@ function rowToMeasureInput(row: RecipeIngredientRow): LineNutritionInput {
         ingredientId: row.ingredientId,
         lineId: row.id,
         sourceLine: row.sourceLine,
+        statedMeasure: statedMeasureFromColumns(row),
         quantity: quantityFromColumns(row),
         unit: row.unit,
         ...(row.userCalories !== null ? { userCalories: Number(row.userCalories) } : {}),
@@ -1070,9 +1095,14 @@ export class RecipesService {
                 // U11/U14 — carried only when the CALLER transcribed one, which only a create can do (the
                 // field is on the create element schema alone, ADR-0023's shape). An UPDATE's lines arrive
                 // here without one and are handed the stored transcription afterwards, by
-                // `withCarriedSourceLines` — see `domain/sourceLineCarryForward.ts` for why that is a
+                // `withCarriedTranscription` — see `domain/transcriptionCarryForward.ts` for why that is a
                 // carry-forward rather than a wire field.
                 ...(line.sourceLine !== undefined ? { sourceLine: line.sourceLine } : {}),
+                // U7/U11 — likewise create-only, and for a SHARPER version of the same reason: a source line
+                // is what the gate checks our parse against, so a lie in it is visible to the model, while a
+                // stated measure IS the parse the model is shown. An UPDATE's lines arrive without one and are
+                // handed the stored restatement afterwards, by `withCarriedTranscription`.
+                ...(line.statedMeasure !== undefined ? { statedMeasure: line.statedMeasure } : {}),
                 sortOrder: index,
                 isUserEntered: ingredient.isUserEntered,
                 // Per-line user-entered nutrition override (FR-007a) — carried through to persistence.
@@ -1161,8 +1191,9 @@ export class RecipesService {
     }
 
     /**
-     * Re-attach each resolved line's raw source line from the currently-stored lines, per the pure
-     * {@link carryForwardSourceLines} rule.
+     * Re-attach each resolved line's transcription — its raw source line AND the measure the source printed
+     * before a historical unit was restated — from the currently-stored lines, per the pure
+     * {@link carryForwardTranscription} rule.
      *
      * The stored rows are adapted here rather than in the policy: `quantity`/`quantity_high` arrive from
      * Drizzle as two nullable strings, and `quantityFromColumns` is the ONE adapter that turns them back into
@@ -1173,25 +1204,29 @@ export class RecipesService {
      * @param resolved - The lines the update is about to persist, in final order.
      * @returns The same lines, each carrying the transcription it inherits (if any). Pure.
      */
-    private withCarriedSourceLines(
+    private withCarriedTranscription(
         stored: readonly RecipeIngredientRow[],
         resolved: readonly ResolvedIngredientLine[],
     ): ResolvedIngredientLine[] {
-        const carried = carryForwardSourceLines(
+        const carried = carryForwardTranscription(
             stored.map((row) => ({
                 ingredientId: row.ingredientId,
                 quantity: quantityFromColumns(row),
                 unit: row.unit,
                 sourceLine: row.sourceLine ?? undefined,
+                statedMeasure: statedMeasureFromColumns(row),
             })),
             resolved,
         );
 
-        return resolved.map((line, index) => {
-            const sourceLine = carried[index];
-
-            return sourceLine === undefined ? { ...line } : { ...line, sourceLine };
-        });
+        return resolved.map((line, index) => ({
+            ...line,
+            // Spread-if-present rather than assign-if-undefined: `ResolvedIngredientLine` spells "this line
+            // has none" by OMITTING the key, matching the way the wire and the DAL both spell it, so an
+            // explicit `undefined` would put a second spelling of absence into the persistence path.
+            ...(carried[index]?.sourceLine === undefined ? {} : { sourceLine: carried[index]?.sourceLine }),
+            ...(carried[index]?.statedMeasure === undefined ? {} : { statedMeasure: carried[index]?.statedMeasure }),
+        }));
     }
 
     /** Fetch one recipe. Allowed for the owner, or for any `public` recipe. */
@@ -1276,11 +1311,11 @@ export class RecipesService {
         //    whole set, so without this a title edit would destroy every source line on an imported recipe —
         //    and BOTH shipped clients send `ingredients` on every save (`toUpdateRecipeInput` spreads
         //    `toCreateRecipeInput`, which always emits the array), so "a metadata-only PATCH preserves them"
-        //    describes a request no app makes. The rule is `domain/sourceLineCarryForward.ts`; it is applied
+        //    describes a request no app makes. The rule is `domain/transcriptionCarryForward.ts`; it is applied
         //    HERE because this is the only layer holding both the stored aggregate and the resolved lines.
         const resolved = dto.ingredients !== undefined ? await this.resolveIngredientLines(dto.ingredients) : undefined;
         const ingredients =
-            resolved === undefined ? undefined : this.withCarriedSourceLines(existing.ingredients, resolved.lines);
+            resolved === undefined ? undefined : this.withCarriedTranscription(existing.ingredients, resolved.lines);
 
         // ⛔ No lead-calorie recompute here any more (plan U10). This block existed to keep a denormalized
         // column in step with the lines and the serving count; with the column dropped there is nothing to

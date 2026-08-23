@@ -31,8 +31,12 @@ const identity = (overrides: Partial<VerifiedLineIdentity> = {}): VerifiedLineId
     quantityLow: 2,
     quantityHigh: null,
     unit: 'cup',
+    statedMeasure: null,
     ...overrides,
 });
+
+/** The plan's headline restatement: the source printed `one gill`, and we persisted `0.5 cup`. */
+const GILL = { quantityLow: 1, quantityHigh: null, unit: 'gill' } as const;
 
 describe('verificationKey', () => {
     it('is stable for the same judgement', () => {
@@ -52,6 +56,12 @@ describe('verificationKey', () => {
         ['the parsed quantity', { quantityLow: 3 }],
         ['the parsed upper bound', { quantityHigh: 4 }],
         ['the parsed unit', { unit: 'tablespoon' }],
+        // U7/U11 — the pair the SOURCE printed. It changes what the model is shown and therefore what it is
+        // asked, so by this module's own rule ("everything a verdict is ABOUT") it belongs in the key.
+        ['the stated measure appearing', { statedMeasure: GILL }],
+        ['the stated amount', { statedMeasure: { ...GILL, quantityLow: 2 } }],
+        ['the stated upper bound', { statedMeasure: { ...GILL, quantityHigh: 2 } }],
+        ['the stated unit', { statedMeasure: { ...GILL, unit: 'wineglass' } }],
     ])('changes when %s changes', (_label, overrides) => {
         // Every one of these is a thing the verdict is ABOUT. A key that ignored any of them would serve a
         // verdict for a judgement nobody made — the worst possible cache hit, because it looks like a saving.
@@ -117,6 +127,57 @@ describe('verificationKey', () => {
         });
 
         expect(seen).toEqual([verificationKeyPreimage(identity())]);
+    });
+
+    /**
+     * ⛔ THE REASON THE VERSION IS `v2` AND NOT `v1`, asserted rather than left to a comment.
+     *
+     * Before migration 0027 a restated line reached the gate as `[.., 0.5, null, 'cup']` with nothing saying
+     * the source had printed `one gill`, and the model — shown `one gill of milk` beside `0.5 cup` — quite
+     * correctly DISAGREED. After 0027 the same line is judged against the gill and agrees. Both spellings
+     * share every other member of the tuple, so at `v1` the corrected line would have looked up the
+     * pre-correction verdict and U14 would have withheld nutrition from it FOREVER — the exact false
+     * disagree this whole change exists to delete, made permanent by a cache hit.
+     */
+    it('is a NEW generation, so no pre-0027 verdict can be served to a corrected line', () => {
+        expect(VERIFICATION_KEY_VERSION).toBe('v2');
+    });
+
+    // The stated measure is ONE nested member, not three flat ones, so "no restatement" has exactly one
+    // spelling (`null`) rather than three coordinated nulls that could disagree.
+    it('serializes the stated measure as a single nested member', () => {
+        expect(verificationKeyPreimage(identity({ statedMeasure: GILL }))).toBe(
+            JSON.stringify([
+                VERIFICATION_KEY_VERSION,
+                '2 cups all-purpose flour',
+                '01JFOOD000000000000000000',
+                2,
+                null,
+                'cup',
+                [1, null, 'gill'],
+            ]),
+        );
+        expect(verificationKeyPreimage(identity())).toBe(
+            JSON.stringify([
+                VERIFICATION_KEY_VERSION,
+                '2 cups all-purpose flour',
+                '01JFOOD000000000000000000',
+                2,
+                null,
+                'cup',
+                null,
+            ]),
+        );
+    });
+
+    // ⛔ The same boundary bug the flat tuple is protected from, one level down: a nested array keeps a
+    // stated unit from running into the bound beside it.
+    it('cannot confuse a stated field boundary either', () => {
+        expect(
+            verificationKey(identity({ statedMeasure: { quantityLow: 1, quantityHigh: null, unit: 'gill' } }), echo),
+        ).not.toBe(
+            verificationKey(identity({ statedMeasure: { quantityLow: 1, quantityHigh: null, unit: 'gil' } }), echo),
+        );
     });
 
     it('produces a preimage that carries no raw user text once hashed', () => {

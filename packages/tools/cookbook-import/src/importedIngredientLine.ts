@@ -18,10 +18,18 @@
  * ⚠️ Nothing caught it because the field is `.optional()` and the request body is typed as a `z.input` of
  * the create schema: omitting an optional key is not a compile error. Hence a test that asserts the field is
  * PRESENT, not merely that the body validates.
+ *
+ * ## ⛔ `statedMeasure` is the same defect, one field over
+ *
+ * `restateHistoricalUnit` OVERWRITES a restated line's `quantity`/`unit` with the converted pair — `one gill
+ * of milk` becomes `0.5 cup` — and this function built the body from those. So the gate was shown a number
+ * the source never printed and correctly disagreed with a correct parse. Same shape of miss, same reason
+ * nothing caught it, same fix: the field is asserted PRESENT for a restated line and ABSENT otherwise.
  */
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
 
 import type { CreateRecipeBody } from './RecipeApiClient.js';
+import type { HistoricalUnitConversion } from './unitEquivalence.js';
 
 /** One line on a create request, as this importer builds it. */
 type ImportedIngredientLine = CreateRecipeBody['ingredients'][number];
@@ -49,6 +57,18 @@ export interface ParsedClause {
     readonly quantity: IngredientQuantity;
     /** The parsed unit, or `null` when the clause stated none. */
     readonly unit: string | null;
+    /**
+     * The historical-unit restatement this line went through, when it went through one (R35).
+     *
+     * ⛔ THE WHOLE CONVERSION, not a pre-extracted `statedMeasure`. `restateHistoricalUnit` already attaches
+     * exactly this value to the candidate line, so taking a second copy of half of it would be two
+     * representations of one fact — and the two would drift the moment the conversion grows a field.
+     *
+     * ⚠️ Its PRESENCE is the disclosure that {@link quantity}/{@link unit} above are NOT what the source
+     * printed: `restateHistoricalUnit` overwrites them with the restated pair. There is no "not applicable"
+     * value, exactly as with `RecipeNutrition.rangeDerivedBound`.
+     */
+    readonly unitConversion?: HistoricalUnitConversion | undefined;
 }
 
 /** The catalog row the resolver settled on for that clause. */
@@ -87,5 +107,13 @@ export function toImportedIngredientLine(parsed: ParsedClause, ingredient: Resol
         // duplicate of `notes` in meaning either: one is a display override, the other is the transcription
         // a verdict is keyed on.
         sourceLine: parsed.sourceText ?? parsed.raw,
+        // ⛔ WHAT THE SOURCE PRINTED, when `quantity`/`unit` above are a RESTATEMENT of it (R35). Without it
+        // U11's gate is shown a source line reading `one gill of milk` beside a parse claiming `0.5 cup` and
+        // asked whether they agree — a manufactured false DISAGREE about a line we parsed CORRECTLY, which
+        // U11 ranks as the unacceptable direction because it withholds nutrition from a correct line.
+        //
+        // Omitted, never `null`: absence is how this wire spells "these values ARE what the source said",
+        // which is every authored line and every line stating a modern unit.
+        ...(parsed.unitConversion === undefined ? {} : { statedMeasure: parsed.unitConversion.stated }),
     };
 }

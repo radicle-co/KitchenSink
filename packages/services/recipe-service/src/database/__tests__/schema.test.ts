@@ -182,6 +182,14 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // author-chosen display override) and from `ingredient_name` (OUR rendering) — the verification
             // gate checks our parse against this, and checking a parse against its own output always agrees.
             source_line: { type: 'text', notNull: false },
+            // U7/U11 (migration 0027) — what the SOURCE printed, before a historical measure was restated
+            // into one the USDA household-portion table carries. All three are NULL together for an authored
+            // line, for a line stating a modern unit, and for every line imported before 0027. Without them
+            // the gate is shown `0.5 cup` beside a source reading `one gill of milk` and correctly disagrees
+            // with a line we parsed RIGHT.
+            stated_quantity: { type: 'numeric(10,3)', notNull: false },
+            stated_quantity_high: { type: 'numeric(10,3)', notNull: false },
+            stated_unit: { type: 'text', notNull: false },
             sort_order: { type: 'integer', notNull: true },
             ingredient_name: { type: 'text', notNull: true },
             is_user_entered: { type: 'boolean', notNull: true },

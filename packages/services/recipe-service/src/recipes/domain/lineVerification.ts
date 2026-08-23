@@ -28,9 +28,14 @@
  * ## ⛔ THE IDENTITY MUST MATCH WHAT THE WORKER HASHED, BYTE FOR BYTE
  *
  * A verdict is keyed on `verificationKey()` — a digest over `[version, normalizedLine, foodId, quantityLow,
- * quantityHigh, unit]` (`@kitchensink/recipe-core/resolution/verification-key`). A reader that assembles that
- * tuple even slightly differently computes a key that matches no row, reports "no verdict" for every line,
- * and looks completely healthy while doing it — because ABSENCE OF A VERDICT MEANS PUBLISH.
+ * quantityHigh, unit, statedMeasure]` (`@kitchensink/recipe-core/resolution/verification-key`). A reader that
+ * assembles that tuple even slightly differently computes a key that matches no row, reports "no verdict" for
+ * every line, and looks completely healthy while doing it — because ABSENCE OF A VERDICT MEANS PUBLISH.
+ *
+ * ⚠️ The last member is the newest and the easiest to drop. `statedMeasure` is what the SOURCE printed before
+ * the importer restated a historical unit (migration 0027), and it is in the key because it changes what the
+ * model is SHOWN and therefore what it concludes — see `verificationKey.ts` for why leaving it out would have
+ * served a pre-0027 false DISAGREE to a corrected line forever.
  *
  * ⚠️ So {@link verifiedLineIdentity} is the ONE authoritative mapping from a `recipe_ingredients` row onto
  * that tuple, and the queue PRODUCER that enqueues a line for verification must build its message from this
@@ -48,8 +53,13 @@
  * LOST verdict benign, which is what lets the worker swallow a failed verdict write without re-paying for
  * the call.
  */
-import { FoodResolutionStatus, type IngredientQuantity, type LineResolutionStatus } from '@kitchensink/recipe-core';
-import type { VerifiedLineIdentity } from '@kitchensink/recipe-core/resolution/verification-key';
+import {
+    FoodResolutionStatus,
+    type IngredientQuantity,
+    type LineResolutionStatus,
+    type StatedMeasure,
+} from '@kitchensink/recipe-core';
+import type { StatedMeasureIdentity, VerifiedLineIdentity } from '@kitchensink/recipe-core/resolution/verification-key';
 
 /**
  * The bands migration 0023's `recipe_ingredient_verifications_band_check` admits.
@@ -85,6 +95,16 @@ export interface JudgeableLine {
     readonly quantity: IngredientQuantity;
     /** The parsed unit. `NOT NULL` in the database; blank means unitless. */
     readonly unit: string;
+    /**
+     * What the SOURCE printed, when {@link quantity}/{@link unit} are a RESTATEMENT of it (migration 0027).
+     *
+     * ⛔ A REQUIRED KEY carrying `undefined`, deliberately, and not `statedMeasure?:`. Every construction
+     * site of this shape — the read path, the queue producer, the parity test — must make a decision about
+     * it, because a site that forgets it would key the judgement the pre-0027 way while the model is shown
+     * the post-0027 numbers, and the only symptom would be a verdict nobody can find. `sourceLine` above
+     * carries the same shape for the same reason.
+     */
+    readonly statedMeasure: StatedMeasure | undefined;
 }
 
 /**
@@ -119,7 +139,38 @@ export function verifiedLineIdentity(
         quantityLow: quantityLowOf(line.quantity),
         quantityHigh: line.quantity.kind === 'range' ? line.quantity.high : null,
         unit: unitOf(line.unit),
+        // ⛔ BESIDE the restated pair, never instead of it. The restated pair still keys the row because it is
+        // what nutrition is computed from and what U14's reader holds; the stated pair is what the model is
+        // asked about, and it is in the key because it changes the judgement (see `verificationKey.ts`).
+        statedMeasure: statedMeasureIdentityOf(line.statedMeasure),
     };
+}
+
+/**
+ * The stated measure in the digest's spelling: two bounds and a unit, or `null`.
+ *
+ * ⛔ `null` rather than an omitted member, matching the way an exact quantity reports `quantityHigh: null`.
+ * The identity's member is REQUIRED, so "this line was not restated" is a value rather than an absence, and a
+ * caller cannot express it by forgetting.
+ *
+ * @param measure - What the source printed, when the line was restated.
+ * @returns The identity member. Pure.
+ */
+function statedMeasureIdentityOf(measure: StatedMeasure | undefined): StatedMeasureIdentity | null {
+    if (measure === undefined) {
+        return null;
+    }
+
+    const { quantity } = measure;
+
+    // ⛔ NOT `quantityLowerBound`/`quantityUpperBound`. Those answer "the largest amount the line admits",
+    // whose right answer for an EXACT quantity is the value itself — and repeating a value into
+    // `quantityHigh` is exactly the spelling this contract does not use (see `verifiedLineIdentity` above,
+    // which makes the same choice for the restated pair). `StatedAmount` has no `absent` member, so this
+    // switch is total over two cases rather than three.
+    return quantity.kind === 'exact'
+        ? { quantityLow: quantity.value, quantityHigh: null, unit: measure.unit }
+        : { quantityLow: quantity.low, quantityHigh: quantity.high, unit: measure.unit };
 }
 
 /**

@@ -432,3 +432,64 @@ describe('failures AFTER the money is spent', () => {
         expect(d.spies.emit.mock.calls.map((call) => call[0]?.name)).toContain('VerificationCacheTokensObserved');
     });
 });
+
+/**
+ * U7/U11 — a RESTATED line, end to end through the handler.
+ *
+ * ⛔ TWO DESTINATIONS, ONE FACT, AND MISSING EITHER IS A DIFFERENT SILENT FAILURE. `statedMeasure` says what
+ * the source PRINTED before the importer converted a historical measure (`one gill of milk` → `0.5 cup`), and
+ * the handler must hand it to BOTH collaborators:
+ *
+ *  - to the PROMPT, or the model is shown `0.5 cup` beside a line reading `one gill of milk` and correctly
+ *    disagrees with a parse that was right — the false DISAGREE U11 calls the number that triggers a rethink;
+ *  - to the KEY, or the verdict is stored under the identity of a DIFFERENT judgement (the un-restated one),
+ *    which U14's reader never looks up. Absence of a verdict publishes, so that failure is invisible.
+ *
+ * The unit suite replaces both collaborators wholesale, so this is the only tier that can observe the
+ * handler wiring them to the same value.
+ */
+describe('a line whose measure was RESTATED', () => {
+    const GILL = { quantityLow: 1, quantityHigh: null, unit: 'gill' };
+    const RESTATED = {
+        ...MESSAGE,
+        sourceLine: 'one gill of milk',
+        candidateFoodName: 'Milk, whole',
+        quantityLow: 0.5,
+        quantityHigh: null,
+        unit: 'cup',
+        statedMeasure: GILL,
+    };
+
+    /** The user turn the handler actually sent to the model. */
+    const userTurn = (spies: { converse: ReturnType<typeof vi.fn> }): string =>
+        String(spies.converse.mock.calls[0]?.[0]?.userMessage ?? '');
+
+    it('asks the model about the GILL, not about the cups we stored', async () => {
+        const d = deps();
+        await processVerification(d, RESTATED);
+
+        expect(userTurn(d.spies)).toContain('unit: gill');
+        expect(userTurn(d.spies)).not.toContain('cup');
+    });
+
+    it('keys the verdict on a DIFFERENT identity than the same line un-restated', async () => {
+        const restated = deps();
+        await processVerification(restated, RESTATED);
+
+        const plain = deps();
+        await processVerification(plain, { ...RESTATED, statedMeasure: undefined });
+
+        // ⛔ Both messages agree on the source line, the food and the persisted pair. Only the stated measure
+        // differs — and it is what the model was shown, so they are different judgements and must not collide.
+        expect(restated.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey).not.toBe(
+            plain.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey,
+        );
+    });
+
+    it('keys it under the v2 generation, so no pre-0027 verdict can be served to it', async () => {
+        const d = deps();
+        await processVerification(d, RESTATED);
+
+        expect(String(d.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey)).toMatch(/^v2:/u);
+    });
+});

@@ -257,6 +257,10 @@ export async function processVerification(deps: VerificationDeps, message: Verif
             quantityLow: message.quantityLow,
             quantityHigh: message.quantityHigh,
             unit: message.unit,
+            // ⛔ U7/U11 — when the line's measure was RESTATED, this is the pair the model is shown, and the
+            // three fields above are not rendered at all. `one gill of milk` persists as `0.5 cup`, and
+            // asking the model whether those agree manufactures a DISAGREE about a correct parse.
+            ...(message.statedMeasure === undefined ? {} : { statedMeasure: message.statedMeasure }),
             aspects: decision.aspects,
         });
     } catch (error) {
@@ -339,6 +343,12 @@ export async function processVerification(deps: VerificationDeps, message: Verif
             quantityLow: message.quantityLow,
             quantityHigh: message.quantityHigh,
             unit: message.unit,
+            // ⛔ IN THE KEY, not merely in the prompt, and `null` — never omitted — when the line was not
+            // restated. It changes what the model was SHOWN and therefore what it concluded, so a restated
+            // line and its un-restated self are different judgements. Sharing a key across them would serve
+            // the pre-0027 false DISAGREE to the corrected line forever, because absence of a verdict is the
+            // only thing that publishes. This is why `VERIFICATION_KEY_VERSION` is `v2`.
+            statedMeasure: message.statedMeasure ?? null,
         },
         (input) => createHash('sha256').update(input).digest('hex'),
     );

@@ -502,6 +502,25 @@ quantity normalizer consumed. Add the `*ful` family to `UNIT_ALIASES`. Preserve 
 already returns `quantity2` and the review reason `quantity_range_narrowed` already exists — the upper bound
 is discarded at one line.
 
+⛔ **CORRECTION (2026-08-23) — the restatement is NOT purely upstream of the wire, and a premise recorded
+when this unit landed was false.** `convertHistoricalUnit` returns both halves — `stated: 1 gill` and
+`restated: 0.5 cup` — but only the restated pair reached the service, on the reasoning that a historical unit
+"is restated once at import, upstream of the wire, and has no read-time step to disclose". **U11's
+verification gate IS a read-time consumer of the stated pair.** It builds its question from the persisted
+`quantity`/`unit`, so the model was shown a source line reading `one gill of milk` beside a parse claiming
+`0.5 cup` and asked whether they agree — a manufactured **false disagree** about a line we parsed correctly,
+on exactly the lines this unit exists to handle. U11 names the false-disagree rate as the number that triggers
+a rethink, because a wrong AGREE passes data that would have shipped anyway while a wrong DISAGREE withholds
+nutrition from a correct line.
+
+The stated pair is therefore persisted (`0027_ingredient_stated_measure.sql`), carried on the create wire and
+through an edit by `recipes/domain/transcriptionCarryForward.ts`, put in the verdict key (bumped to `v2`), and
+rendered as `<our_parse>` in place of the restated pair. `convertHistoricalUnit` now REFUSES a restatement
+whose kind changes or whose bounds do not round-trip within 1%, because the gate is deliberately not asked to
+check our own arithmetic. The two `recipe-core` docstrings that asserted the old premise are corrected in
+place. ⚠️ The marker is still **not** on the RESPONSE wire and is not shown to a cook as a structured field —
+that half of the original reasoning stands.
+
 Historical units resolve **from the source book's own published table**, behind a `UnitEquivalenceResolver`
 port. #12350's table gives `2 gills = 1 cup`, `4 tablespoons = 1 wine-glass`, `4 saltspoons = 1 teaspoon`,
 with the system pinned by its own prose. A book with known origin and no table follows its origin's measure

@@ -23,6 +23,28 @@
  * the SHAPE of the answer, never the meaning assigned within it — which is why an `agree` is only ever
  * accepted from a well-formed response with an `end_turn` stop reason.
  *
+ * ## ⛔ WHICH PAIR THE MODEL IS ASKED ABOUT — the stated one, never the restated one
+ *
+ * The importer converts a historical measure at parse time (plan U7 R35): `one gill of milk` is persisted as
+ * `quantity 0.5, unit 'cup'`, because the USDA household-portion table the nutrition path matches against has
+ * never heard of a gill. Building `<our_parse>` from the persisted pair therefore showed the model a source
+ * line reading `one gill of milk` beside a parse claiming `0.5 cup` and asked whether they agree. They do
+ * not — and the model is RIGHT to say so, about a line we parsed correctly. U11 names the false-disagree rate
+ * as the number that triggers a rethink, because a wrong AGREE passes data that would have shipped anyway
+ * while a wrong DISAGREE withholds nutrition from a correct line, which is worse than having no gate.
+ *
+ * So when `statedMeasure` is present it REPLACES the parse shown, and the restated pair is not rendered at
+ * all. ⛔ Do not "improve" this by showing both and instructing the model to judge only the stated one: that
+ * asks it to hold context it is told to ignore, and the failure mode of it judging anyway is exactly the
+ * false DISAGREE this exists to remove. It also spends tokens against a 2,000-code-point cap to do it.
+ *
+ * ⚠️ THE COVERAGE GAP THIS CREATES, recorded rather than left to be discovered: the gate verifies the pair the
+ * source PRINTED, while nutrition is computed from the RESTATED pair. Nothing on this path checks the
+ * arithmetic between them, and nothing here should — a conversion is deterministic arithmetic we performed,
+ * which needs an assertion rather than a language model. That assertion lives where the conversion is made:
+ * `convertHistoricalUnit` (`@kitchensink/cookbook-import`) REFUSES a restatement that does not round-trip
+ * back to the stated amount, so an unreconciled pair never reaches this queue.
+ *
  * ## ⛔ ESCAPE, DO NOT STRIP
  *
  * `<1/2 cup` and `>90% cocoa` are quantities real cookbooks write. A gate that deleted the angle bracket would
@@ -98,6 +120,18 @@ export interface VerificationPromptRequest {
     readonly quantityHigh: number | null;
     /** Our parsed unit, or `null`. */
     readonly unit: string | null;
+    /**
+     * What the SOURCE printed, when the three fields above are a RESTATEMENT of it (plan U7 R35 / U11).
+     *
+     * ⛔ WHEN PRESENT, THIS IS WHAT `<our_parse>` SHOWS, and the restated pair is not shown at all. See the
+     * file docstring's "WHICH PAIR THE MODEL IS ASKED ABOUT" for why. Absent for every ordinary line, whose
+     * quantity and unit ARE what the source said.
+     */
+    readonly statedMeasure?: {
+        readonly quantityLow: number;
+        readonly quantityHigh: number | null;
+        readonly unit: string;
+    };
     /** Which aspects to judge. Never empty — the policy makes that unrepresentable. */
     readonly aspects: readonly string[];
 }
@@ -148,13 +182,25 @@ export function buildVerificationPrompt(request: VerificationPromptRequest): Ver
             : '- quantity: do the amount, the unit and any range in <our_parse> match the line?',
     );
 
+    // ⛔ THE PAIR THE SOURCE'S OWN WORDS SUPPORT. For a restated line the persisted amount is a number the
+    // source never printed — `0.5 cup` against a line reading `one gill of milk` — and asking the model
+    // whether those agree manufactures a DISAGREE about a line we parsed correctly. `??` rather than a
+    // conditional block so exactly one pair can ever reach the block below.
+    const parse = request.statedMeasure ?? {
+        quantityLow: request.quantityLow,
+        quantityHigh: request.quantityHigh,
+        unit: request.unit,
+    };
+
     const user = [
         `<source_line>${escapeMarkup(request.sourceLine)}</source_line>`,
         `<candidate_food>${escapeMarkup(request.candidateFoodName)}</candidate_food>`,
         '<our_parse>',
-        `amount: ${shown(request.quantityLow)}`,
-        `upper bound: ${shown(request.quantityHigh)}`,
-        `unit: ${shown(request.unit === null ? null : escapeMarkup(request.unit))}`,
+        `amount: ${shown(parse.quantityLow)}`,
+        `upper bound: ${shown(parse.quantityHigh)}`,
+        // ⛔ ESCAPED whichever pair it came from. A stated unit is a second string lifted from a stranger's
+        // recipe, so it can forge a closing tag exactly as the source line can.
+        `unit: ${shown(parse.unit === null ? null : escapeMarkup(parse.unit))}`,
         '</our_parse>',
         '',
         'Judge only these aspects:',

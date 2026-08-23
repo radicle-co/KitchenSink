@@ -188,6 +188,54 @@ export const verifyIngredientLineMessageSchema = z.object({
      */
     unit: z.string().max(64).nullable(),
     /**
+     * What the SOURCE printed, when the three fields above are a RESTATEMENT of it (plan U7 R35 / U11).
+     *
+     * ⛔ THE FIELD THAT STOPS THE GATE MANUFACTURING A FALSE DISAGREE. The importer restates a historical
+     * measure at parse time — `one gill of milk` is persisted as `0.5 cup`, because the USDA
+     * household-portion table has never heard of a gill — and until this field existed the worker was shown
+     * `sourceLine: 'one gill of milk'` beside `quantityLow: 0.5, unit: 'cup'` and asked whether they agree.
+     * They do not, and the model is RIGHT to say so about a line we parsed correctly. U11 names the
+     * false-disagree rate as the number that triggers a rethink, because a wrong AGREE passes data that would
+     * have shipped anyway while a wrong DISAGREE withholds nutrition from a correct line.
+     *
+     * ⛔ A NESTED OBJECT, not three flat `stated*` fields, and that is the same argument
+     * `recipeSourceInputSchema` makes for its union: three coordinated optionals can spell HALF a stated
+     * measure — an amount that cannot say what unit it was printed in — and a half claim is one the worker
+     * would go on to ask about. Nested, absence has exactly one spelling.
+     *
+     * ⛔ Neither `quantityLow` nor `unit` is nullable, unlike their flat siblings above, and the asymmetry is
+     * the point rather than an oversight: `convertHistoricalUnit` refuses an `absent` quantity outright and
+     * requires a unit to convert FROM, so "restated from no amount" and "restated from no unit" are states no
+     * producer can reach. The flat fields are nullable because a PARSE genuinely can find neither.
+     *
+     * ⚠️ OPTIONAL, and it must stay optional through at least one release — the same reason `ownerId`
+     * carries. The queue holds messages enqueued by the producer that predates this field, and making it
+     * required turns every one of them into DLQ poison the moment the new worker deploys. A message arriving
+     * without it is judged against the persisted pair, which is exactly the behaviour it had before.
+     *
+     * ⚠️ It is ALSO part of the verdict's KEY (`VerifiedLineIdentity.statedMeasure`, bumped to `v2`), not
+     * merely prompt decoration — a restated line and an un-restated one can otherwise share a key while being
+     * shown different numbers and reaching different verdicts.
+     */
+    statedMeasure: z
+        .object({
+            /** The amount the source printed, or the low end of a printed range. */
+            quantityLow: z.number().finite(),
+            /** The high end of a printed range; `null` when the source printed one value. */
+            quantityHigh: z.number().finite().nullable(),
+            /**
+             * The unit the source printed.
+             *
+             * Bounded at 64 code points like its flat sibling, and for the same reason: it reaches the PROMPT,
+             * and ADR-0024 §2 makes a hard input cap a precondition of an honest spend reservation. The same
+             * documented asymmetry applies — `recipe_ingredients.stated_unit` is `text` and the create wire
+             * has no maximum, so a longer unit fails the SQS adapter's parse and the line goes unverified with
+             * a log, rather than becoming DLQ poison carrying recipe text.
+             */
+            unit: z.string().min(1).max(64),
+        })
+        .optional(),
+    /**
      * Which cascade tier established identity — the discriminant of `IdentityEvidence`.
      *
      * A closed enum because it selects which skip doors are open. An unrecognised value would have to fall

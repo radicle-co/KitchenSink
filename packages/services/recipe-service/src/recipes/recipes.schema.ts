@@ -60,6 +60,7 @@ import {
     recipeTimerSecondsSchema,
     recipeTitleSchema,
     recipeVisibilitySchema,
+    statedMeasureSchema,
     MAX_RECIPE_INGREDIENTS,
     MAX_RECIPE_LIST_PAGE_SIZE,
     MAX_RECIPE_TAGS,
@@ -113,7 +114,7 @@ export type RecipeIngredientInput = z.infer<typeof recipeIngredientInputSchema>;
  * `toCreateRecipeInput`, which always emits the array), so there is no metadata-only `PATCH` from any app.
  * Left alone, fixing a typo in an imported recipe's TITLE would silently destroy every source line on it.
  * The transcription is therefore carried forward server-side by the pure
- * `recipes/domain/sourceLineCarryForward.ts`: a line keeps its source line when its identity, both quantity
+ * `recipes/domain/transcriptionCarryForward.ts`: a line keeps its source line when its identity, both quantity
  * bounds and its unit are unchanged, and loses it when any of them moves — because that tuple is exactly
  * what a verdict about the line is keyed on, so a change to it makes the old transcription describe a
  * different judgement. The wire stays create-only; the FACT survives an edit that did not change it.
@@ -124,6 +125,30 @@ export const createRecipeIngredientInputSchema = recipeIngredientInputSchema.ext
      * parse to disagree with, which is a stated non-conclusion rather than a gap.
      */
     sourceLine: recipeIngredientSourceLineSchema.optional(),
+    /**
+     * What the source PRINTED, when `quantity`/`unit` above are a RESTATEMENT of it (plan U7 R35 / U11).
+     *
+     * ⛔ THE FIELD THAT STOPS THE GATE MANUFACTURING A FALSE DISAGREE. The importer restates a historical
+     * measure at parse time — `one gill of milk` becomes `quantity: 0.5, unit: 'cup'`, because the USDA
+     * household-portion table carries `cup` and has never heard of a gill — and until this field existed the
+     * gill survived only as prose in `notes` and `sourceLine`. U11's gate builds its question from
+     * `quantity`/`unit`, so the model was shown `one gill of milk` beside `0.5 cup` and asked whether they
+     * agree. They do not, and it is right to say so about a line we parsed CORRECTLY. U11 ranks a wrong
+     * DISAGREE as the unacceptable direction, because it withholds nutrition from a correct line.
+     *
+     * Omit it whenever `quantity`/`unit` are what the source itself said — which is every authored line and
+     * every line stating a modern unit. Its PRESENCE is the disclosure that a restatement happened, exactly
+     * as `RecipeNutrition.rangeDerivedBound`'s is; there is no "not applicable" value.
+     *
+     * ⛔ CREATE-ONLY, on this element schema and never on {@link recipeIngredientInputSchema} — the same
+     * ADR-0023 shape `sourceLine` rides, for a SHARPER version of the same reason. A source line is what the
+     * gate checks our parse AGAINST, so a lie in it is visible to the model; a stated measure IS the parse
+     * the model is shown, so a lie in it is invisible. Letting `PATCH` re-assert one would hand any caller a
+     * way to steer a verdict that `ingredient_resolution_memos` then memoizes ACROSS USERS. The FACT survives
+     * an edit through `recipes/domain/transcriptionCarryForward.ts`, which carries it forward beside the
+     * source line and drops it on exactly the same condition.
+     */
+    statedMeasure: statedMeasureSchema.optional(),
 });
 
 /** One ingredient line on a create request. */

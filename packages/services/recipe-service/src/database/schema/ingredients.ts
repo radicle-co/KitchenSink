@@ -141,6 +141,17 @@ export const recipeIngredients = pgTable(
         // checks our parse against this, and checking a parse against its own output agrees by construction.
         // `NULL` means the line was AUTHORED rather than transcribed — see `0024_ingredient_source_line.sql`.
         sourceLine: text('source_line'),
+        // U7/U11 — what the SOURCE printed, before the importer restated a historical measure into one the
+        // USDA household-portion table carries. `one gill of milk` persists as `quantity 0.5, unit 'cup'`
+        // with `stated_quantity 1, stated_unit 'gill'` beside it. ⛔ Without these the verification gate is
+        // shown a number the source never printed and correctly disagrees with a line we parsed RIGHT — see
+        // `0027_ingredient_stated_measure.sql`. All three are `NULL` together for an authored line, for a
+        // line stating a modern unit, and for every line imported before 0027 shipped.
+        statedQuantity: numeric('stated_quantity', { precision: 10, scale: 3 }),
+        /** The stated UPPER bound when the source stated a range; `NULL` for a single stated value. */
+        statedQuantityHigh: numeric('stated_quantity_high', { precision: 10, scale: 3 }),
+        /** The unit the source printed (`gill`, `wineglass`, `saltspoon`). `NULL`, never `''`. */
+        statedUnit: text('stated_unit'),
         sortOrder: integer('sort_order').notNull().default(0),
 
         // Denormalized for display / search_vector assembly (no JOIN needed on write).
@@ -164,6 +175,21 @@ export const recipeIngredients = pgTable(
         check(
             'recipe_ingredients_quantity_coherent',
             sql`${table.quantityHigh} IS NULL OR (${table.quantity} IS NOT NULL AND ${table.quantityHigh} > ${table.quantity})`,
+        ),
+        // The stated pair's own illegal states, unrepresentable in the database as well as in the domain:
+        // half a restatement (a quantity that cannot name what it converted FROM, or a unit with no amount),
+        // a blank unit (a second spelling of "none" beside `NULL`), a non-positive amount, an upper bound at
+        // or below its lower, and a stated measure on a line whose restated quantity is ABSENT — which
+        // `convertHistoricalUnit` refuses to produce, since there is no number to restate.
+        //
+        // ⚠️ It deliberately does NOT require the two pairs to share their range-ness: two stated bounds a
+        // ten-thousandth apart round to one value at `numeric(10,3)`, and the right refusal for that is in
+        // the tool, not a CHECK that makes a legitimate save a 500. Declared `NOT VALID` in the migration;
+        // drizzle has no way to spell that, and the migration is authoritative — this entry exists so a
+        // reader of the schema sees the constraint.
+        check(
+            'recipe_ingredients_stated_measure_coherent',
+            sql`(${table.statedQuantity} IS NULL AND ${table.statedQuantityHigh} IS NULL AND ${table.statedUnit} IS NULL) OR (${table.statedQuantity} IS NOT NULL AND ${table.statedQuantity} > 0 AND ${table.statedUnit} IS NOT NULL AND ${table.statedUnit} <> '' AND ${table.quantity} IS NOT NULL AND (${table.statedQuantityHigh} IS NULL OR ${table.statedQuantityHigh} > ${table.statedQuantity}))`,
         ),
         index('idx_recipe_ingredients_recipe_id').on(table.recipeId),
         index('idx_recipe_ingredients_ingredient_id').on(table.ingredientId),

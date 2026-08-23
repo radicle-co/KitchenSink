@@ -15,11 +15,18 @@
  *
  * Both modules delegate the SERIALIZATION to `verificationKeyPreimage`. What this file pins is the half that
  * lives in this service: the mapping from `recipe_ingredients`' COLUMNS onto that tuple — `sourceLine`'s
- * `null`, the two quantity bounds, and the unit's empty-string spelling of "none". That mapping is the thing
- * that can differ while both sides still look correct in isolation.
+ * `null`, the two quantity bounds, the unit's empty-string spelling of "none", and (since migration 0027) the
+ * measure the SOURCE printed before a historical unit was restated. That mapping is the thing that can differ
+ * while both sides still look correct in isolation.
+ *
+ * ⚠️ THE STATED MEASURE IS THE NEWEST MEMBER AND THE EASIEST TO DROP, because it is the only one the two ends
+ * spell differently on the way in: the reader holds a `StatedMeasure` VALUE OBJECT read out of three columns,
+ * while the producer puts a flat `{ quantityLow, quantityHigh, unit }` on the wire. A producer that forgot to
+ * emit it would still build a perfectly valid message — and every verdict for a restated line would then be
+ * written under a key this service never looks up. The cases below drive both spellings.
  */
 import { describe, expect, it } from 'vitest';
-import { ABSENT_QUANTITY, type IngredientQuantity } from '@kitchensink/recipe-core';
+import { ABSENT_QUANTITY, type IngredientQuantity, type StatedMeasure } from '@kitchensink/recipe-core';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 import { verificationKeyPreimage } from '@kitchensink/recipe-core/resolution/verification-key';
 
@@ -34,7 +41,12 @@ interface StoredLine {
     readonly sourceLine: string;
     readonly quantity: IngredientQuantity;
     readonly unit: string;
+    /** What the source PRINTED, when the pair above is a restatement of it (migration 0027). */
+    readonly statedMeasure: StatedMeasure | undefined;
 }
+
+/** The plan's headline restatement: the source printed `one gill`, and we persisted `0.5 cup`. */
+const GILL: StatedMeasure = { quantity: { kind: 'exact', value: 1 }, unit: 'gill' };
 
 /**
  * The preimage the PRODUCER would send for this line — recovered from the message it actually builds, not
@@ -59,6 +71,10 @@ function producerPreimage(line: StoredLine): string {
         quantityLow: message?.quantityLow ?? null,
         quantityHigh: message?.quantityHigh ?? null,
         unit: message?.unit ?? null,
+        // ⛔ The wire's FLAT shape, read straight back. It is deliberately not reconstructed from `line`:
+        // this function exists to pin what the consumer actually receives, so a producer that dropped the
+        // member must fail here rather than be papered over by the test's own fixture.
+        statedMeasure: message?.statedMeasure ?? null,
     });
 }
 
@@ -75,16 +91,29 @@ describe('the producer and the reader agree on what a judgement is ABOUT', () =>
     it.each<[string, StoredLine]>([
         [
             'an exact quantity with a unit',
-            { sourceLine: SOURCE_LINE, quantity: { kind: 'exact', value: 2 }, unit: 'cup' },
+            { sourceLine: SOURCE_LINE, quantity: { kind: 'exact', value: 2 }, unit: 'cup', statedMeasure: undefined },
         ],
         [
             'a stated RANGE, both bounds',
-            { sourceLine: '2 to 3 cups of flour', quantity: { kind: 'range', low: 2, high: 3 }, unit: 'cup' },
+            {
+                sourceLine: '2 to 3 cups of flour',
+                quantity: { kind: 'range', low: 2, high: 3 },
+                unit: 'cup',
+                statedMeasure: undefined,
+            },
         ],
-        ['an ABSENT quantity', { sourceLine: 'butter the size of an egg', quantity: ABSENT_QUANTITY, unit: 'knob' }],
+        [
+            'an ABSENT quantity',
+            {
+                sourceLine: 'butter the size of an egg',
+                quantity: ABSENT_QUANTITY,
+                unit: 'knob',
+                statedMeasure: undefined,
+            },
+        ],
         [
             "a UNITLESS line — the column spells it `''`, the wire spells it `null`",
-            { sourceLine: '2 eggs, beaten', quantity: { kind: 'exact', value: 2 }, unit: '' },
+            { sourceLine: '2 eggs, beaten', quantity: { kind: 'exact', value: 2 }, unit: '', statedMeasure: undefined },
         ],
         [
             // ⛔ THE REACHABLE DIVERGENCE. `recipeIngredientUnitSchema` is `z.string().min(1)` with NO
@@ -92,11 +121,41 @@ describe('the producer and the reader agree on what a judgement is ABOUT', () =>
             // column. The producer treats it as no unit; a reader comparing against `''` alone would treat
             // it as the unit `' '` — two keys for one judgement, and every verdict for such a line lost.
             'a WHITESPACE-ONLY unit, which the wire admits',
-            { sourceLine: '2 eggs, beaten', quantity: { kind: 'exact', value: 2 }, unit: ' ' },
+            {
+                sourceLine: '2 eggs, beaten',
+                quantity: { kind: 'exact', value: 2 },
+                unit: ' ',
+                statedMeasure: undefined,
+            },
         ],
         [
             'a unit that merely has surrounding space — the value itself is preserved, not trimmed away',
-            { sourceLine: '2 cups of flour', quantity: { kind: 'exact', value: 2 }, unit: ' cup ' },
+            {
+                sourceLine: '2 cups of flour',
+                quantity: { kind: 'exact', value: 2 },
+                unit: ' cup ',
+                statedMeasure: undefined,
+            },
+        ],
+        [
+            // ⛔ THE 0027 MEMBER. The reader reads three columns into a value object; the producer flattens it
+            // onto the wire. Two spellings of one fact is exactly the shape this file exists to police.
+            'a RESTATED line — the source printed a gill, the row holds cups',
+            {
+                sourceLine: 'one gill of milk',
+                quantity: { kind: 'exact', value: 0.5 },
+                unit: 'cup',
+                statedMeasure: GILL,
+            },
+        ],
+        [
+            'a restated line whose SOURCE printed a range',
+            {
+                sourceLine: 'one to two gills of milk',
+                quantity: { kind: 'range', low: 0.5, high: 1 },
+                unit: 'cup',
+                statedMeasure: { quantity: { kind: 'range', low: 1, high: 2 }, unit: 'gill' },
+            },
         ],
     ])('derives one identity for %s', (_name, line) => {
         expect(readerPreimage(line)).toBe(producerPreimage(line));
@@ -105,9 +164,42 @@ describe('the producer and the reader agree on what a judgement is ABOUT', () =>
     it('⛔ still distinguishes two genuinely different judgements — parity is not collapse', () => {
         // Guards the degenerate way to make the cases above pass: a mapping that answered the same thing for
         // everything would agree perfectly and verify nothing.
-        const unitless = readerPreimage({ sourceLine: '2 eggs', quantity: { kind: 'exact', value: 2 }, unit: '' });
-        const withUnit = readerPreimage({ sourceLine: '2 eggs', quantity: { kind: 'exact', value: 2 }, unit: 'each' });
+        const unitless = readerPreimage({
+            sourceLine: '2 eggs',
+            quantity: { kind: 'exact', value: 2 },
+            unit: '',
+            statedMeasure: undefined,
+        });
+        const withUnit = readerPreimage({
+            sourceLine: '2 eggs',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'each',
+            statedMeasure: undefined,
+        });
 
         expect(unitless).not.toBe(withUnit);
+    });
+
+    /**
+     * ⛔ THE OTHER DIRECTION FOR THE 0027 MEMBER, and the one that would have been missed.
+     *
+     * A producer that silently dropped `statedMeasure` would still agree with a reader that also dropped it —
+     * the cases above would all pass. What breaks then is the DISTINCTION: a restated line and its
+     * un-restated self are shown different numbers and reach different verdicts, so they must never share a
+     * key. Both ends are checked, so neither can be the one that collapses them.
+     */
+    it('⛔ a restated line and its un-restated self are different judgements at BOTH ends', () => {
+        const restated = {
+            sourceLine: 'one gill of milk',
+            quantity: { kind: 'exact', value: 0.5 } as const,
+            unit: 'cup',
+        };
+
+        expect(readerPreimage({ ...restated, statedMeasure: GILL })).not.toBe(
+            readerPreimage({ ...restated, statedMeasure: undefined }),
+        );
+        expect(producerPreimage({ ...restated, statedMeasure: GILL })).not.toBe(
+            producerPreimage({ ...restated, statedMeasure: undefined }),
+        );
     });
 });

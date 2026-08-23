@@ -58,6 +58,12 @@ describe('RecipeIngredientsDal.replaceForRecipe', () => {
             // whole-row `toEqual` for the reason stated above: a column the mapper forgets to emit is a row
             // that silently keeps a previous value, and this is the column a verification verdict joins on.
             sourceLine: null,
+            // U7/U11 — all three stated columns are written on EVERY line, `null` included. Asserted rather
+            // than omitted: a partial write would leave a previous line's `stated_unit` attached to an amount
+            // nobody restated, and this expectation is what makes that visible if the spread is ever dropped.
+            statedQuantity: null,
+            statedQuantityHigh: null,
+            statedUnit: null,
             sortOrder: 0,
             isUserEntered: false,
             // No per-line nutrition override supplied → the numeric columns are null.

@@ -1,6 +1,11 @@
 /**
- * THE TRANSCRIPTION CARRY-FORWARD RULE (plan U11/U14) — when an updated ingredient line keeps the raw source
- * line the recipe was transcribed from, and when that transcription has gone stale.
+ * THE TRANSCRIPTION CARRY-FORWARD RULE (plan U11/U14, widened by U7) — when an updated ingredient line keeps
+ * what it was transcribed from, and when that transcription has gone stale.
+ *
+ * ⚠️ It carries TWO facts, and the module was renamed from `sourceLineCarryForward.ts` when the second
+ * arrived: the raw source line (migration 0024) and the measure the source PRINTED before a historical unit
+ * was restated (migration 0027). A name that enumerated only one of them was an invitation to add a third
+ * carry-forward somewhere else instead of here.
  *
  * DESIGN PATTERN: **Specification / Policy module**, the sibling of `provenancePolicy.ts` and
  * `visibilityPolicy.ts` and shaped like them: pure, total, no I/O, no Drizzle, no Nest, and exhaustible as a
@@ -50,7 +55,23 @@
  * asynchronously long after the line was written. Keying on `ingredientId` is the same fact one indirection
  * earlier, and it does not move when a background resolution attaches a food.
  */
-import { quantitiesEqual, type IngredientQuantity } from '@kitchensink/recipe-core';
+import { quantitiesEqual, type IngredientQuantity, type StatedMeasure } from '@kitchensink/recipe-core';
+
+/**
+ * Everything one line inherits from the version of itself already stored.
+ *
+ * ⛔ A BUNDLE, not two policies. Both members are create-only wire fields, both are swapped away by
+ * `replaceForRecipe` on every save, and both are stale under EXACTLY the same condition — the tuple a verdict
+ * is keyed on moved. Carrying them separately would be two homes for one rule, and the drift would be silent:
+ * a line could keep the gill it was restated from while losing the transcription that printed it, and the gate
+ * would then be asked about a pair no source ever contained.
+ */
+export interface CarriedTranscription {
+    /** The raw source line inherited, or `undefined`. */
+    readonly sourceLine: string | undefined;
+    /** The measure the source PRINTED, inherited, or `undefined` when the line was never restated. */
+    readonly statedMeasure: StatedMeasure | undefined;
+}
 
 /** One PERSISTED line, reduced to the facts a verdict about it would be keyed on, plus what it transcribed. */
 export interface StoredTranscription {
@@ -62,6 +83,15 @@ export interface StoredTranscription {
     readonly unit: string;
     /** The raw source line held for it, or `undefined` when the stored line was authored rather than transcribed. */
     readonly sourceLine: string | undefined;
+    /**
+     * What the source PRINTED, when {@link quantity}/{@link unit} are a RESTATEMENT of it (migration 0027).
+     *
+     * ⚠️ It is in the verification KEY but deliberately NOT in the match tuple below, and that is not an
+     * inconsistency. The tuple is what an INCOMING line can assert; a create-only fact cannot be matched on,
+     * only carried. `sourceLine` sits in exactly the same position, which is why this module derives the tuple
+     * as "digest membership MINUS the line itself" rather than as the whole digest.
+     */
+    readonly statedMeasure: StatedMeasure | undefined;
 }
 
 /** One INCOMING line, reduced to the same facts. Deliberately a subset of `ResolvedIngredientLine`. */
@@ -91,7 +121,7 @@ function sameJudgement(stored: StoredTranscription, incoming: IncomingLineIdenti
 }
 
 /**
- * Decide which raw source line, if any, each incoming ingredient line inherits from what is already stored.
+ * Decide what, if anything, each incoming ingredient line inherits from the version of itself already stored.
  *
  * TOTAL: returns exactly one entry per incoming line, in the caller's order, so the caller indexes it
  * positionally and cannot silently receive a short array.
@@ -104,12 +134,13 @@ function sameJudgement(stored: StoredTranscription, incoming: IncomingLineIdenti
  *
  * @param stored - The recipe's currently persisted lines, in any order.
  * @param incoming - The lines the update will persist, in their final order.
- * @returns The source line each incoming line inherits, or `undefined`. Pure — neither argument is mutated.
+ * @returns What each incoming line inherits — both members `undefined` when it inherits nothing. Pure;
+ *   neither argument is mutated.
  */
-export function carryForwardSourceLines(
+export function carryForwardTranscription(
     stored: readonly StoredTranscription[],
     incoming: readonly IncomingLineIdentity[],
-): readonly (string | undefined)[] {
+): readonly CarriedTranscription[] {
     // A local claim ledger rather than a mutated input: purity is the property this module is bought for.
     const claimed = new Array<boolean>(stored.length).fill(false);
 
@@ -120,11 +151,14 @@ export function carryForwardSourceLines(
         );
 
         if (match === -1) {
-            return undefined;
+            return { sourceLine: undefined, statedMeasure: undefined };
         }
 
         claimed[match] = true;
 
-        return stored[match]?.sourceLine;
+        // ⛔ BOTH members from the SAME matched line, or neither. A stated measure kept beside an amount the
+        // author has since edited would claim the source printed a gill for a quantity it never printed —
+        // a restatement whose two halves describe different lines, which is worse than no restatement.
+        return { sourceLine: stored[match]?.sourceLine, statedMeasure: stored[match]?.statedMeasure };
     });
 }

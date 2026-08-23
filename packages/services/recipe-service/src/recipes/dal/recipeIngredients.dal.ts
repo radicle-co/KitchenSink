@@ -12,12 +12,12 @@
  */
 import { asc, eq, inArray } from 'drizzle-orm';
 
-import type { IngredientQuantity } from '@kitchensink/recipe-core';
+import type { IngredientQuantity, StatedMeasure } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipeIngredients, type RecipeIngredientRow } from '../../database/schema/index.js';
 import { type Writer } from '../../database/unitOfWork.js';
-import { quantityColumns } from './quantityColumns.js';
+import { quantityColumns, statedMeasureColumns } from './quantityColumns.js';
 
 /**
  * A recipe ingredient line resolved to a catalog ingredient, ready to persist. `quantity` is the domain
@@ -38,6 +38,14 @@ export interface ResolvedIngredientLine {
      * `skip: 'no-source-text'`, not as missing data.
      */
     sourceLine?: string;
+    /**
+     * What the SOURCE printed, when {@link quantity}/{@link unit} are a RESTATEMENT of it (migration 0027).
+     *
+     * Absent for the ordinary line, whose quantity and unit ARE what the source said. Its PRESENCE is the
+     * disclosure that a historical measure was converted — `one gill` persisted as `0.5 cup` — and it is what
+     * U11's gate asks the model about, since the restated number is one the source never printed.
+     */
+    statedMeasure?: StatedMeasure;
     sortOrder: number;
     isUserEntered: boolean;
     /** Per-line user-entered nutrition override (FR-007a) — absolute for this line's quantity. */
@@ -83,6 +91,10 @@ export class RecipeIngredientsDal {
                     unit: line.unit,
                     displayText: line.displayText ?? null,
                     sourceLine: line.sourceLine ?? null,
+                    // U7/U11 — all THREE stated columns on every line, `null` included. A partial write would
+                    // leave a previous line's `stated_unit` attached to an amount nobody restated; the ONE
+                    // adapter is what makes that unspellable here (see `quantityColumns.ts`).
+                    ...statedMeasureColumns(line.statedMeasure),
                     sortOrder: line.sortOrder,
                     isUserEntered: line.isUserEntered,
                     // Numeric columns take a string; null when the client supplied no per-line override.

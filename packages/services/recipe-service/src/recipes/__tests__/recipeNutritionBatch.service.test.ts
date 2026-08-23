@@ -150,6 +150,7 @@ const WITHHELD_KEY = verificationKey(
         foodId: FLOUR_FOOD,
         quantityLow: 200,
         quantityHigh: null,
+        statedMeasure: null,
         unit: 'g',
     },
     sha256Hex,

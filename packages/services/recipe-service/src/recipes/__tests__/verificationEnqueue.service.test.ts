@@ -19,7 +19,7 @@
  *     producer re-pays for a whole recipe when a title changes.
  *  4. **⚠️ An UPDATE asks nothing AT ALL today, and the two cases below say why.** An unchanged line is
  *     filtered as already-requested; a CHANGED line loses its transcription to the carry-forward rule and is
- *     no longer verifiable. That is a consequence of `domain/sourceLineCarryForward.ts`, recorded here rather
+ *     no longer verifiable. That is a consequence of `domain/transcriptionCarryForward.ts`, recorded here rather
  *     than discovered later — and it is the right outcome, because verifying our parse of an author's
  *     correction against the source they overrode would manufacture a wrong DISAGREE.
  *
@@ -216,7 +216,7 @@ describe('RecipesService.update — the verification producer', () => {
     });
 
     it('⛔ asks NOTHING when the author OVERRODE our parse — the transcription went stale with it', async () => {
-        // ⚠️ NOT the obvious expectation, and the reason is `domain/sourceLineCarryForward.ts`: a line's raw
+        // ⚠️ NOT the obvious expectation, and the reason is `domain/transcriptionCarryForward.ts`: a line's raw
         // source line is carried across an update only while `[ingredientId, quantity, unit]` is unchanged,
         // and is DROPPED when it moves. So an author editing `2 cups` to `3 cups` leaves a line with no
         // source text, and `decideVerification` reads that as `skip: 'no-source-text'`.

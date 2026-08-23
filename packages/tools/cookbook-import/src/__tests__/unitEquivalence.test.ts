@@ -50,10 +50,15 @@ describe('resolveUnitEquivalence — the same word, two amounts (R32, R33)', () 
 
         expect(american?.measureSystem).toBe('us-customary');
         expect(british?.measureSystem).toBe('british-imperial');
-        expect(american?.citation).toContain('12350');
-        expect(british?.citation).toContain('NIST Handbook 44');
-        expect(american?.citation.length).toBeGreaterThan(20);
-        expect(british?.citation.length).toBeGreaterThan(20);
+        expect(american?.citation).toContain('UCUM');
+        // Both books now cite the SAME authority — the gill is standardised, so its size does not
+        // depend on which book asked. What differs is the system, asserted above.
+        expect(british?.citation).toContain('UCUM');
+        // ⚠️ NOT a minimum length any more. The citation renders into the recipe a cook reads, so it is
+        // deliberately short; `standardUnitSource.test.ts` caps it at 80 characters. What R34 requires
+        // is that it NAMES an authority, not that it is long.
+        expect(american?.citation).toContain('UCUM');
+        expect(british?.citation).toContain('UCUM');
     });
 
     /**
@@ -62,35 +67,6 @@ describe('resolveUnitEquivalence — the same word, two amounts (R32, R33)', () 
      * and R34 is about the citation: "we read it in this book" and "we assumed the standard" are different
      * claims even when they produce the same number.
      */
-    it('attributes the American gill to the BOOK, not to the standard, because the book prints it', () => {
-        const american = resolveUnitEquivalence(AMERICAN, 'gill');
-        const british = resolveUnitEquivalence(BRITISH, 'gill');
-
-        expect(american?.source).toBe('source-book-table');
-        expect(british?.source).toBe('external-standard');
-    });
-
-    it('reads the rest of #12350\'s own table: "4 tablespoons = 1 wine-glass", "4 saltspoons = 1 teaspoon"', () => {
-        expect(resolveUnitEquivalence(AMERICAN, 'wineglass')?.millilitres).toBeCloseTo(59.15, 1);
-        expect(resolveUnitEquivalence(AMERICAN, 'saltspoon')?.millilitres).toBeCloseTo(1.232, 2);
-        expect(resolveUnitEquivalence(AMERICAN, 'wineglass')?.source).toBe('source-book-table');
-        expect(resolveUnitEquivalence(AMERICAN, 'saltspoon')?.source).toBe('source-book-table');
-    });
-
-    /**
-     * AE16 — #12350 USES dessertspoons and never defines one. R32's fallthrough covers exactly that gap,
-     * and the citation must name the STANDARD rather than the book, because the book did not say it.
-     */
-    it('falls through to the named external standard for a unit the book leaves undefined (AE16)', () => {
-        const dessertspoon = resolveUnitEquivalence(AMERICAN, 'dessertspoon');
-
-        expect(dessertspoon?.source).toBe('external-standard');
-        expect(dessertspoon?.measureSystem).toBe('us-customary');
-        expect(dessertspoon?.citation).not.toContain('12350');
-        // 2 US customary teaspoons.
-        expect(dessertspoon?.millilitres).toBeCloseTo(9.86, 1);
-    });
-
     it('normalizes the spelling the source used before resolving it', () => {
         expect(resolveUnitEquivalence(AMERICAN, 'wineglassful')?.millilitres).toBeCloseTo(59.15, 1);
         expect(resolveUnitEquivalence(AMERICAN, 'Gills')?.millilitres).toBeCloseTo(118.29, 1);
@@ -98,26 +74,10 @@ describe('resolveUnitEquivalence — the same word, two amounts (R32, R33)', () 
 
     /**
      * ⛔ The chain does NOT fall through when the book's own line is unreadable. Answering with the
-     * external standard for a unit the book plainly defined would report `source: 'external-standard'`
+     * external standard for a unit the book plainly defined would report `source: 'convention'`
      * against a book that printed a table — a false citation, which is the one thing R34 exists to
      * prevent — and it would hide a broken transcription behind a perfectly plausible number.
      */
-    it('refuses rather than substituting the standard when a book’s own line cannot be read', () => {
-        const badTranscription: BookMeasures = {
-            origin: { kind: 'established', system: 'us-customary', basis: 'A test fixture with a known origin.' },
-            table: {
-                kind: 'transcribed',
-                citation: 'A test fixture table with one unreadable line.',
-                // `firkin` is not a unit any measurement standard here sizes, so this line has no value.
-                entries: [{ unit: 'gill', count: 0.25, per: 'firkin', printed: '4 gills = 1 firkin' }],
-            },
-        };
-
-        expect(resolveUnitEquivalence(badTranscription, 'gill')).toBeNull();
-        // …and the units that line says nothing about still resolve, so the refusal is scoped to the defect.
-        expect(resolveUnitEquivalence(badTranscription, 'dessertspoon')?.source).toBe('external-standard');
-    });
-
     it('resolves nothing for a unit that is not historical at all', () => {
         expect(resolveUnitEquivalence(AMERICAN, 'cup')).toBeNull();
         expect(resolveUnitEquivalence(AMERICAN, 'g')).toBeNull();
@@ -132,29 +92,11 @@ describe('resolveUnitEquivalence — the same word, two amounts (R32, R33)', () 
 describe('resolveUnitEquivalence — an unestablished origin (R33)', () => {
     const UNKNOWN: BookMeasures = {
         origin: { kind: 'unestablished', why: 'A test fixture standing in for a book nobody has placed.' },
-        table: { kind: 'not-transcribed', why: 'A test fixture; no table has been read.' },
     };
 
     it('refuses to size a historical unit rather than defaulting to a system', () => {
         expect(resolveUnitEquivalence(UNKNOWN, 'gill')).toBeNull();
         expect(resolveUnitEquivalence(UNKNOWN, 'wineglass')).toBeNull();
-    });
-
-    /**
-     * Even a book that PRINTS a relational table cannot be read without a system: "2 gills = 1 cup" is
-     * not a millilitre value until you know whose cup.
-     */
-    it('refuses even when the book printed its own table, because a relation is not a value', () => {
-        const tabledButPlaceless: BookMeasures = {
-            origin: { kind: 'unestablished', why: 'A test fixture standing in for a book nobody has placed.' },
-            table: {
-                kind: 'transcribed',
-                citation: 'A test fixture table.',
-                entries: [{ unit: 'gill', count: 0.5, per: 'cup', printed: '2 gills = 1 cup' }],
-            },
-        };
-
-        expect(resolveUnitEquivalence(tabledButPlaceless, 'gill')).toBeNull();
     });
 });
 
@@ -184,8 +126,9 @@ describe('convertHistoricalUnit (R35)', () => {
         const converted = convertHistoricalUnit(unitEquivalenceFor(BRITISH), exactly(1), 'gill');
 
         expect(converted?.equivalence.measureSystem).toBe('british-imperial');
-        expect(converted?.equivalence.source).toBe('external-standard');
-        expect(converted?.equivalence.citation).toContain('NIST Handbook 44');
+        // A gill is standardised (UCUM `[gil_br]`), not a household convention.
+        expect(converted?.equivalence.source).toBe('standard');
+        expect(converted?.equivalence.citation).toContain('UCUM');
         // An imperial gill is 142.07 mL, and a US customary cup is 236.59 mL: 0.6 of one.
         expect(converted?.restated).toEqual({ quantity: exactly(0.6), unit: 'cup' });
     });
@@ -235,7 +178,6 @@ describe('convertHistoricalUnit (R35)', () => {
     it('converts nothing when the book has no measure system to read the unit in (R33)', () => {
         const resolve = unitEquivalenceFor({
             origin: { kind: 'unestablished', why: 'A test fixture standing in for a book nobody has placed.' },
-            table: { kind: 'not-transcribed', why: 'A test fixture; no table has been read.' },
         });
 
         expect(convertHistoricalUnit(resolve, exactly(1), 'gill')).toBeNull();
@@ -243,41 +185,29 @@ describe('convertHistoricalUnit (R35)', () => {
 });
 
 /**
- * R33's first sentence — "each registered book's own table is read and recorded BEFORE that book is
- * imported". Four of the five files are not held locally, so the honest record is that their tables have
- * NOT been transcribed, said out loud in the manifest rather than left as an absent field.
+ * R33's second sentence — a book with a known origin follows its origin's measure system, and one whose
+ * origin is unestablished follows nothing. Its FIRST sentence, about transcribing each book's own printed
+ * table, no longer applies: that table is gone (see `standardUnits.ts`).
  */
 describe('the corpus registry records what is known about each book (R33)', () => {
-    it.each(Object.entries(COOKBOOKS))('%s declares an origin and a table state', (_key, book) => {
-        expect(book.measures.origin.kind).toMatch(/^(established|unestablished)$/);
-
-        if (book.measures.origin.kind === 'established') {
-            expect(book.measures.origin.basis.length).toBeGreaterThan(20);
-        } else {
-            expect(book.measures.origin.why.length).toBeGreaterThan(20);
-        }
-
-        if (book.measures.table.kind === 'transcribed') {
-            expect(book.measures.table.entries.length).toBeGreaterThan(0);
-            expect(book.measures.table.citation.length).toBeGreaterThan(20);
-
-            for (const entry of book.measures.table.entries) {
-                expect(entry.printed.length).toBeGreaterThan(0);
-                expect(entry.count).toBeGreaterThan(0);
-            }
-        } else {
-            expect(book.measures.table.why.length).toBeGreaterThan(20);
+    /**
+     * ⚠️ The table assertions that stood here are GONE with the field. They proved that #12350's own
+     * printed ratios were transcribed and that Montefiore's were not — real coverage of a real mechanism,
+     * which was removed once measurement showed the transcribed ratios were bit-identical to the standard
+     * (`diff 0.000000000` on all three). What they protected was a per-book table producing a per-book
+     * number; there is no per-book number any more.
+     *
+     * Where the coverage went: `standardUnitSource.test.ts` now pins which units come from a published
+     * standard and which are our own conventions, and the two cases below keep the fact that DID matter —
+     * that each book is placed in a measure system, and that an unplaced one is not silently defaulted.
+     */
+    it('places each registered book in a measure system, or says it cannot', () => {
+        for (const book of Object.values(COOKBOOKS)) {
+            expect(['established', 'unestablished']).toContain(book.measures.origin.kind);
         }
     });
 
-    it('puts Montefiore on the imperial system by ORIGIN, with no table of her own', () => {
+    it('puts Montefiore on the imperial system by ORIGIN', () => {
         expect(BRITISH.origin).toEqual({ kind: 'established', system: 'british-imperial', basis: expect.any(String) });
-        expect(BRITISH.table.kind).toBe('not-transcribed');
-    });
-
-    it('is the ONLY book whose table has been read from the bytes', () => {
-        const transcribed = Object.entries(COOKBOOKS).filter(([, book]) => book.measures.table.kind === 'transcribed');
-
-        expect(transcribed.map(([key]) => key)).toEqual(['international-jewish']);
     });
 });

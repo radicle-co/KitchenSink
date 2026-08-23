@@ -16,6 +16,7 @@
         "@kitchensink/recipe-core": "*",
         "@kitchensink/recipe-import-core": "*",
         "@kitchensink/schema-recipe": "*",
+        "@lhncbc/ucum-lhc": "^7.1.9",
         "p-retry": "^7.0.0",
         "zod": "^4.4.3"
     },

@@ -471,8 +471,8 @@ describe('toCandidateRecipe, on historical units', () => {
         const milk = lineFor(toCandidateRecipe(HISTORICAL, COOKBOOKS['international-jewish']), 'milk');
 
         expect(milk.unitConversion?.stated).toEqual({ quantity: { kind: 'exact', value: 1 }, unit: 'gill' });
-        expect(milk.unitConversion?.equivalence.citation).toContain('12350');
-        expect(milk.unitConversion?.equivalence.source).toBe('source-book-table');
+        expect(milk.unitConversion?.equivalence.citation).toContain('UCUM');
+        expect(milk.unitConversion?.equivalence.source).toBe('standard');
         // The source's own UNIT survives on the line even after the structured values are restated — it is
         // what `toImportedIngredientLine` sends as `notes` and `sourceLine`.
         //
@@ -510,7 +510,6 @@ describe('toCandidateRecipe, on historical units', () => {
             ...COOKBOOKS['international-jewish'],
             measures: {
                 origin: { kind: 'unestablished', why: 'A test fixture standing in for a book nobody has placed.' },
-                table: { kind: 'not-transcribed', why: 'A test fixture; no table has been read.' },
             },
         };
         const milk = lineFor(toCandidateRecipe(HISTORICAL, placeless), 'milk');
@@ -533,7 +532,7 @@ describe('toCandidateRecipe, on historical units', () => {
 
         expect(outcome.recipe.description).toContain('gill');
         expect(outcome.recipe.description).toContain('US customary');
-        expect(outcome.recipe.description).toContain('TABLE OF WEIGHTS AND MEASURES');
+        expect(outcome.recipe.description).toContain('UCUM');
     });
 
     it('says nothing about measures in a description when nothing was converted', () => {

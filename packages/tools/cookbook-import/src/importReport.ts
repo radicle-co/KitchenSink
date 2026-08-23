@@ -169,10 +169,18 @@ export function recordHistoricalConversion(report: ImportReportData, conversion:
 
     report.historicalConversions += 1;
 
-    // ⛔ Matched on the CITATION as well as the unit. Keying on the unit alone would fold Montefiore's
-    // 142 mL gill into #12350's 118 mL one and report a single row for two different claims.
+    // ⛔ Matched on the MEASURE SYSTEM as well as the unit and the citation. Keying on unit alone would fold
+    // Montefiore's 142 mL gill into #12350's 118 mL one and report a single row for two different claims.
+    //
+    // ⚠️ The citation used to carry that distinction for free, because each book cited its own printed
+    // table. It no longer does: both books now size a gill from UCUM, so both rows say "UCUM (gill)" and
+    // only the system tells them apart. Dropping the per-book table quietly made the old key insufficient —
+    // caught by the test that asserts two books produce two rows, which is exactly what it is for.
     const existing = report.historicalEquivalences.find(
-        (entry) => entry.unit === equivalence.unit && entry.citation === equivalence.citation,
+        (entry) =>
+            entry.unit === equivalence.unit &&
+            entry.citation === equivalence.citation &&
+            entry.measureSystem === equivalence.measureSystem,
     );
 
     if (existing !== undefined) {

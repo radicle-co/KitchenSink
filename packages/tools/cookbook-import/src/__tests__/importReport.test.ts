@@ -41,8 +41,8 @@ describe('recordHistoricalConversion', () => {
         const authorities = report.historicalEquivalences;
 
         expect(authorities).toHaveLength(2);
-        expect(authorities.find((entry) => entry.unit === 'gill')?.source).toBe('source-book-table');
-        expect(authorities.find((entry) => entry.unit === 'dessertspoon')?.source).toBe('external-standard');
+        expect(authorities.find((entry) => entry.unit === 'gill')?.source).toBe('standard');
+        expect(authorities.find((entry) => entry.unit === 'dessertspoon')?.source).toBe('convention');
         expect(authorities.find((entry) => entry.unit === 'gill')?.lines).toBe(2);
     });
 
@@ -86,7 +86,7 @@ describe('renderReport', () => {
         expect(rendered).toContain('HISTORICAL UNIT');
         expect(rendered).toContain('gill');
         expect(rendered).toContain('us-customary');
-        expect(rendered).toContain('TABLE OF WEIGHTS AND MEASURES');
+        expect(rendered).toContain('UCUM');
     });
 
     it('says nothing about historical units when a run converted none', () => {

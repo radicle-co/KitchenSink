@@ -178,7 +178,40 @@ const HANDOFFS: readonly Handoff[] = [
     { a: 'Kerrygold butter', b: 'butter', bridgedBy: 'ranking (U5/U6)', bridgedAt: 'head' },
 ];
 
+/**
+ * ⛔ MEASURED 2026-08-22 AGAINST THE REAL CATALOG: two of the handoffs below are asserted correctly and are
+ * UNREACHABLE in the product today.
+ *
+ * `classifyRankTier` is a pure function over two term sets, so every `bridgedAt` assertion in this file is
+ * true of the ladder. What the ladder never sees is the row: `foodSearch.dao.ts`'s retrieval predicate
+ * (`plainto_tsquery OR aliases_tsquery OR name % OR name ILIKE OR description ILIKE`) returns NOTHING for
+ * two of these phrases against 8,094 real USDA foods, so the rung is never consulted.
+ *
+ * | phrase              | why retrieval returns zero rows                                                  |
+ * | ------------------- | -------------------------------------------------------------------------------- |
+ * | `jalapeño`          | `similarity('Peppers, jalapeno, raw', 'jalapeño') = 0.250` vs the 0.3 threshold.   |
+ * |                     | Unaccented it is 0.429 and FTS matches. `unaccent` is not installed.              |
+ * | `Kerrygold butter`  | the tsquery conjunction needs `kerrygold`, which no row has; trigram is 0.292 —    |
+ * |                     | short of 0.3 by 0.008.                                                            |
+ *
+ * ⚠️ So these two rows are a GREEN TEST OVER ABSENT BEHAVIOUR, and that is recorded here rather than fixed
+ * here because the fix is on the retrieval side and belongs to the food service, not to this ladder. The
+ * assertions stay: they are what will still be true, and immediately meaningful, the day retrieval reaches
+ * those rows. See `docs/reports/2026-08-22-001-ingredient-resolution-measurement.md` §3.
+ *
+ * `chikcen` is a third measured miss, and a DIFFERENT answer: trigram similarity to the chicken rows is
+ * 0.067–0.075, so this file's claim that "only fuzzy ranking can rescue" a transposition is measured false
+ * on this catalog. No rung bridges it and none is expected to.
+ */
+const UNREACHABLE_THROUGH_CATALOG_RETRIEVAL: readonly string[] = ['jalapeño', 'Kerrygold butter'];
+
 describe('representative typed ingredient names', () => {
+    it('⛔ records which handoffs the catalog cannot currently retrieve at all', () => {
+        // A list, not a skip: the ladder assertions below still run and still hold. This one exists so the
+        // gap is visible in the suite rather than only in a report, and so re-measuring is a diff here.
+        expect(HANDOFFS.filter((handoff) => UNREACHABLE_THROUGH_CATALOG_RETRIEVAL.includes(handoff.a))).toHaveLength(2);
+    });
+
     it.each(CORPUS)('normalizes $typed as measured today', ({ typed, sanitized, key }) => {
         expect(sanitizeFoodName(typed)).toBe(sanitized);
         expect(normalizedIngredientKey(typed)).toBe(key);

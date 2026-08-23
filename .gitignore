@@ -134,3 +134,8 @@ packages/services/*/k6-*-summary.json
 # Build INTERMEDIATE of the contract generator. `src/metadata.ts` is derived wholly from the authored
 # `*.schema.ts` sources, so committing it would only add a large single-line file to review diffs.
 packages/services/recipe-service/src/metadata.ts
+
+# Operator-downloaded bulk data. `packages/services/food-service/src/foods/seed/README.md` step 1 tells an
+# operator to extract the USDA FoodData Central zips into `tmp/fdc/` — ~110 MB of CSV that must never be
+# committed, and was untracked-but-visible until now.
+tmp/

@@ -207,45 +207,47 @@ const MIN_READABLE_AMOUNT = 0.25;
  * constant. That is what makes the US/imperial split fall out of arithmetic instead of out of two
  * hand-typed numbers that can disagree.
  */
+/**
+ * ⛔ `citation` IS READ BY A COOK, not by a reviewer. It renders into the recipe's own description
+ * ("…converted to modern kitchen measures in the US customary system, using {citation}."), so it is the
+ * SHORT attribution a reader can act on — the standard's name, or the honest words "a household
+ * convention". The scholarship behind each one, including which bodies were checked and the two citations
+ * that turned out to be wrong, lives in this module's header where a reviewer will find it.
+ *
+ * ⚠️ It briefly did not. A first pass at correcting the authorities put the verification INTO this field,
+ * which rendered a warning emoji and a list of five standards bodies into a 456-character sentence on a
+ * recipe. Rigour about provenance and the words shown to a cook are different jobs; this field is the
+ * second one, and the distinction a reader actually needs — measurement standard versus household
+ * convention — survives in four words.
+ */
 const EXTERNAL_STANDARD: Readonly<Record<string, PrintedEquivalence & { readonly citation: string }>> = {
     gill: {
         unit: 'gill',
         count: 0.25,
         per: 'pint',
         printed: '4 gills = 1 pint',
-        citation:
-            'NIST Handbook 44, Appendix C — General Tables of Units of Measurement, liquid measure ' +
-            '("4 gills = 1 pint" in both the US customary and British imperial tables)',
+        citation: 'NIST Handbook 44, Appendix C (4 gills = 1 pint)',
     },
     wineglass: {
         unit: 'wineglass',
         count: 2,
         per: 'fluid ounce',
         printed: '1 wineglassful = 2 fluid ounces',
-        citation:
-            'Household approximate-measures convention (a wineglassful is two fluid ounces), sized per ' +
-            'system by NIST Handbook 44, Appendix C — General Tables of Units of Measurement',
+        citation: 'a household convention (1 wineglassful = 2 fluid ounces)',
     },
     dessertspoon: {
         unit: 'dessertspoon',
         count: 2,
         per: 'teaspoon',
         printed: '1 dessertspoonful = 2 teaspoonfuls',
-        citation:
-            'Household approximate-measures convention (1 dessertspoonful = 2 teaspoonfuls), sized per ' +
-            'system by the teaspoon of 21 CFR 101.9(b)(5)(viii) and NIST Handbook 44, Appendix C. ⚠️ A ' +
-            'household convention, NOT a measurement standard: of NIST, BIPM, ISO 80000, the UK Weights ' +
-            'and Measures Act 1985 and 21 CFR 101, none defines a dessertspoon',
+        citation: 'a household convention (1 dessertspoonful = 2 teaspoonfuls)',
     },
     saltspoon: {
         unit: 'saltspoon',
         count: 0.25,
         per: 'teaspoon',
         printed: '1 saltspoonful = one quarter teaspoonful',
-        citation:
-            'Household approximate-measures convention (a saltspoonful is a quarter teaspoonful), sized ' +
-            'per system by the teaspoon of 21 CFR 101.9(b)(5)(viii) and NIST Handbook 44, Appendix C. ' +
-            '⚠️ A household convention, NOT a measurement standard',
+        citation: 'a household convention (1 saltspoonful = ¼ teaspoonful)',
     },
 };
 

@@ -86,9 +86,13 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
  *    inserting a half-built one here would give the cascade a metric nobody had measured. Until it ships, the
  *    EXISTING `addByName` path is the lexical fallback — it runs after the cascade is exhausted, which is the
  *    same position in the precedence. U5/U6 insert their tier at index 1.
- *  - **Tier 4, the LLM gate**, is U11's, and it cannot be a synchronous tier at all: ADR-0024 grants
- *    `bedrock:InvokeModel` to exactly one Lambda execution role, and this Fargate service is not it. From the
- *    cascade's side tier 4 is an ENQUEUE, answered later through the shipped `PENDING → RESOLVED` lifecycle.
+ *  - **Tier 4, the LLM gate, is NOT A TIER OF THIS CHAIN AT ALL** — corrected 2026-08-22, when its producer
+ *    shipped. KTD-3 is "the verification gate, NOT a residual fallback": the model verifies what is about to
+ *    be PUBLISHED, whereas a tier here is consulted precisely when tiers 1–3 have all passed, i.e. when there
+ *    is nothing resolved to verify. The gate's producer lives on the RECIPE write path, which is the only
+ *    layer holding the recipe id, the raw source line, the parsed quantity and the resolved food together —
+ *    see `recipes/domain/verificationRequests.ts`. This registry stays two tiers long until U5/U6 ship the
+ *    lexical one at index 1.
  *
  * @param mappings - The knowledge-base repository both live tiers read through.
  * @returns The tiers, in R11's order.

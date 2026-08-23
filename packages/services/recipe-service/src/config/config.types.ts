@@ -476,6 +476,42 @@ export const accountErasureConfigMeta: Record<keyof AccountErasureConfig, Config
 };
 
 // ---------------------------------------------------------------------------
+// Ingredient Verification Config
+// ---------------------------------------------------------------------------
+
+/**
+ * Config for the LLM verification gate's hand-off (plan U11 / ADR-0024): the `recipe-verification` SQS queue
+ * this service enqueues onto after a recipe save, drained by `verifyLine` in `@kitchensink/recipe-workers`.
+ *
+ * ⛔ `INGREDIENT_VERIFICATION_QUEUE_URL` is REQUIRED, and the reason is this unit's own history rather than
+ * symmetry with the erasure queue. U11 shipped the gate's consumer — a Lambda, its queue, its DLQ, its IAM
+ * grant, its alarms and its spend ledger — with NOTHING producing a message, and every check in the
+ * repository stayed green while the gate verified nothing. An optional URL is exactly how that state comes
+ * back: the service would boot, save recipes, and silently ask nobody. This is ADR-0010's lesson applied
+ * (`RECIPE_FOOD_SERVICE_URL`'s conditional passthrough is what left a preview with no food service at all),
+ * and it is what `FOOD_SERVICE_URL` already does for the same reason.
+ *
+ * ⚠️ The SQS ENDPOINT override is deliberately NOT redeclared here — it is one client setting for one
+ * process, and both queue adapters read the same `SQS_ENDPOINT` from `accountErasureConfigSchema`. Two
+ * endpoint variables would be two ways to point the same process at two different LocalStacks.
+ */
+export const ingredientVerificationConfigSchema = z.object({
+    /** URL of the `recipe-verification` SQS queue (published per stage by `RecipeWorkersStack`). */
+    INGREDIENT_VERIFICATION_QUEUE_URL: z.string().url(),
+});
+
+/** Typed ingredient-verification configuration. */
+export type IngredientVerificationConfig = z.infer<typeof ingredientVerificationConfigSchema>;
+
+/** Secret/non-secret metadata. A queue URL is not a secret. */
+export const ingredientVerificationConfigMeta: Record<keyof IngredientVerificationConfig, ConfigFieldMeta> = {
+    INGREDIENT_VERIFICATION_QUEUE_URL: {
+        secret: false,
+        description: 'ingredient-verification SQS queue URL (plan U11, ADR-0024)',
+    },
+};
+
+// ---------------------------------------------------------------------------
 // Composite: Full API Config
 // ---------------------------------------------------------------------------
 
@@ -497,6 +533,7 @@ export const apiConfigSchema = baseConfigSchema
     .merge(rateLimitConfigSchema)
     .merge(foodServiceConfigSchema)
     .merge(accountErasureConfigSchema)
+    .merge(ingredientVerificationConfigSchema)
     // The DB connection is an either/or (URL vs discrete IAM parts), so it is intersected in rather
     // than merged — a union is not a ZodObject and cannot be `.merge()`d.
     .and(databaseConnectionSchema)

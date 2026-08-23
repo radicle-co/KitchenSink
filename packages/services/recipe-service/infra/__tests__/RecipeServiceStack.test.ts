@@ -362,6 +362,94 @@ describe('Account-erasure queue wiring', () => {
 });
 
 /**
+ * The VERIFICATION queue hand-off (plan U11 / ADR-0024) — the producer's other half.
+ *
+ * ⛔ THE FAILURE THESE PIN ALREADY HAPPENED. U11 shipped the gate's consumer complete — a Lambda, its queue
+ * and DLQ, its `bedrock:InvokeModel` grant, its EMF alarms and its spend ledger — and `RecipeWorkersStack`
+ * published `/kitchensink/{stage}/recipe/verification-queue-url` under the comment "cross-stack hand-off to
+ * recipe-service's PRODUCER". Nothing read it. The gate was deployed, alarmed, and verified nothing, behind
+ * a fully green repository.
+ *
+ * `ingredientVerificationConfigSchema` now makes the URL REQUIRED, so the container refuses to boot without
+ * it — and that choice is only honoured if this stack supplies it, which is what these tests are for.
+ */
+describe('Ingredient-verification queue wiring', () => {
+    let template: Template;
+
+    beforeAll(() => {
+        template = synthTemplate('pr-73', 'sandbox');
+    });
+
+    const apiEnvironment = (t: Template): { Name: string; Value: unknown }[] => {
+        const taskDefs = t.findResources('AWS::ECS::TaskDefinition');
+
+        return Object.values(taskDefs).flatMap((def) =>
+            (def.Properties?.ContainerDefinitions ?? []).flatMap(
+                (container: { Environment?: { Name: string; Value: unknown }[] }) => container.Environment ?? [],
+            ),
+        );
+    };
+
+    it('supplies INGREDIENT_VERIFICATION_QUEUE_URL to the API task', () => {
+        // Without this the container crash-loops on boot: the config schema rejects the missing key.
+        expect(apiEnvironment(template).map((entry) => entry.Name)).toContain('INGREDIENT_VERIFICATION_QUEUE_URL');
+    });
+
+    it('sources it from SSM, not a cross-stack export', () => {
+        // Same reason as the erasure queue: an `Fn.importValue` locks the workers export while this stack
+        // references it, and ADR-0005's PR-close cleanup deletes a PR's stacks in no guaranteed order.
+        const serialized = JSON.stringify(
+            apiEnvironment(template).find((entry) => entry.Name === 'INGREDIENT_VERIFICATION_QUEUE_URL')?.Value,
+        );
+
+        expect(serialized).toContain('Ref');
+        expect(serialized).not.toContain('Fn::ImportValue');
+    });
+
+    it('reads the queue from THIS stage, never the base stage', () => {
+        // ⛔ A pr-73 service must not enqueue onto the sandbox queue. The pr-73 worker points at the pr-73
+        // logical database (ADR-0006), and ADR-0024's spend counter lives in that database — so a message
+        // crossing stages would be judged against, and BILLED against, the wrong stage's ceiling.
+        const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
+
+        expect(parameters).toContain('/kitchensink/pr-73/recipe/verification-queue-url');
+        expect(parameters).not.toContain('/kitchensink/sandbox/recipe/verification-queue-url');
+    });
+
+    it('grants sqs:SendMessage scoped to the verification queue ARN, and NOTHING else on it', () => {
+        // The API PRODUCES verification work; only the gate Lambda consumes it. A task role that could
+        // receive would let the API drain requests without verifying them.
+        //
+        // ⛔ ASSERTED ON THE STATEMENT'S ACTION LIST, not on string-ABSENCE over the template. The earlier
+        // version checked only that `sqs:ReceiveMessage` and `sqs:DeleteMessage` appeared nowhere — so
+        // mutating `actions: ['sqs:SendMessage']` to `['sqs:*']` kept it green while handing the API receive
+        // AND delete on the queue. A negative assertion cannot see a wildcard.
+        const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
+
+        expect(parameters).toContain('/kitchensink/pr-73/recipe/verification-queue-arn');
+
+        const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
+            (policy: { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }) =>
+                policy.Properties?.PolicyDocument?.Statement ?? [],
+        );
+        const verificationStatements = statements.filter((statement) =>
+            JSON.stringify(statement).includes('verificationqueuearn'),
+        );
+
+        // Exactly one statement names this queue, and its action list is exactly one action.
+        expect(verificationStatements).toHaveLength(1);
+        expect(verificationStatements[0]).toMatchObject({ Action: 'sqs:SendMessage', Effect: 'Allow' });
+    });
+
+    it('does NOT grant the API task bedrock:InvokeModel — ADR-0024 layer 4b keeps that to ONE role', () => {
+        // ⛔ The producer's whole reason for existing is that recipe-service CANNOT call Bedrock. Layer 4b is
+        // the only bypass control the design has: "a permission nobody else holds cannot be bypassed; a
+        // metric nobody else emits cannot notice."
+        expect(JSON.stringify(template.toJSON())).not.toContain('bedrock:InvokeModel');
+    });
+});
+
+/**
  * The food-service origin the ingredients vertical calls (issue #120).
  *
  * `RECIPE_FOOD_SERVICE_URL` reaches this stack through `infra/bin/app.ts` and is written straight into the

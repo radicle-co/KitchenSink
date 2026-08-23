@@ -15,6 +15,7 @@
         "./resolution/ranking-terms": "./src/resolution/rankingTerms.ts",
         "./resolution/ranking-tiers": "./src/resolution/rankingTiers.ts",
         "./resolution/verification-gate-policy": "./src/resolution/verificationGatePolicy.ts",
+        "./resolution/verification-message": "./src/resolution/verificationMessage.ts",
         "./resolution/verification-key": "./src/resolution/verificationKey.ts",
         "./resolution/confidence": "./src/resolution/confidence.ts",
         "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",

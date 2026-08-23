@@ -316,6 +316,7 @@ jobs:
                       -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
                       -e SQS_ENDPOINT=http://localhost:4566 \
                       -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
+                      -e INGREDIENT_VERIFICATION_QUEUE_URL=http://localhost:4566/000000000000/recipe-verification \
                       -e FOOD_SERVICE_URL=http://localhost:3002 \
                       -e RECIPE_DEV_AUTH_USER_ID=01J0K6000000000000000000K6 \
                       -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
@@ -566,6 +567,10 @@ jobs:
                   aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-photos
                   aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-versions
                   aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name erasure
+                  # U11's verification queue. The producer swallows a send failure, so this is not strictly
+                  # required to boot — but without it every recipe write in the load run logs an error, and
+                  # a log full of expected errors is where a real one hides.
+                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name recipe-verification
                   # Fail loudly HERE (with the actual URL in the log) rather than as an opaque k6 threshold
                   # breach if the queue is not addressable where the service is pointed. Asserted on the PATH
                   # only, deliberately: the SQS client overrides the host via SQS_ENDPOINT and uses just the
@@ -619,6 +624,7 @@ jobs:
                       -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
                       -e SQS_ENDPOINT=http://localhost:4566 \
                       -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
+                      -e INGREDIENT_VERIFICATION_QUEUE_URL=http://localhost:4566/000000000000/recipe-verification \
                       -e FOOD_SERVICE_URL=http://localhost:3002 \
                       -e RECIPE_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/recipe-service/tests/load/erasure-public-key.pem)" \
                       -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \

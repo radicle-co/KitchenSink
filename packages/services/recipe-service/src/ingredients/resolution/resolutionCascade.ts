@@ -15,8 +15,27 @@
  *    that query is food's and U5/U6's, never this module's.
  *  - **recipe-workers owns only GATE EXECUTION**, behind the shipped `PENDING → RESOLVED` lifecycle. The
  *    verification gate runs in a Lambda because ADR-0024 grants `bedrock:InvokeModel` to exactly one
- *    execution role, and recipe-service is not it. ⚠️ That makes tier 4, from this chain's side, an ENQUEUE
- *    rather than a synchronous answer — see {@link TierOutcome} for the member U11 will need.
+ *    execution role, and recipe-service is not it.
+ *
+ * ## ⛔ THE VERIFICATION GATE IS NOT A TIER OF THIS CHAIN — corrected 2026-08-22, when its producer shipped
+ *
+ * An earlier revision of this file said tier 4 would be "an ENQUEUE rather than a synchronous answer" and
+ * reserved a `deferred` member on {@link TierOutcome} for it. Both were wrong, and building them would have
+ * left a named shape that lies.
+ *
+ * KTD-3 is titled "the verification gate, NOT a residual fallback", and its argument is that "a
+ * tier-4-as-residual design never sees a confidently wrong answer, and every one of the ~900 bad `food_id`s
+ * was confidently wrong — so the model verifies what is about to be PUBLISHED." The gate is therefore
+ * POST-resolution by construction, while a tier of this chain is consulted precisely when tiers 1–3 have all
+ * PASSED — i.e. when there is no `foodId`, no candidate name and no identity evidence to ask about. The
+ * shipped contract agrees: `verifyIngredientLineMessage`'s `foodId` is `min(1)` and its `evidenceKind` is
+ * closed over the three IDENTITY-ESTABLISHING tiers, with no member for "nothing resolved".
+ *
+ * The producer lives where every field the gate needs actually coexists — `RecipesService`, after the
+ * ingredient rows are persisted. See `recipes/domain/verificationRequests.ts`. Do not reintroduce a
+ * `deferred` outcome here: a tier that hands off and cannot answer has, from this chain's side, PASSED —
+ * it merely did I/O on the way out — and giving `runResolutionCascade` a third outcome would force it to
+ * decide a termination rule whose only coherent answer is the one `pass` already has.
  *
  * ## Why a tier reports a VERDICT and not a confidence number
  *
@@ -53,11 +72,11 @@ export type ResolutionTierId = (typeof RESOLUTION_TIER_IDS)[number];
 /**
  * What one tier reports.
  *
- * ⚠️ FOR U11, so the shape is not discovered by collision: the `resolved` member is where a measured
- * `confidence` belongs (additive, and no tier that ignores it needs to change), and a THIRD member —
- * `deferred` — is the one tier 4 actually needs. recipe-service cannot invoke Bedrock (ADR-0024 layer 4b),
- * so from this chain's side the LLM tier hands the line to a queue and the answer arrives later through the
- * existing `PENDING → RESOLVED` lifecycle. It is not built here because nothing can produce it yet.
+ * TWO MEMBERS, and that is the whole of Chain of Responsibility's contract: handle, or pass on.
+ *
+ * ⚠️ The `resolved` member is where a measured `confidence` belongs if one is ever derived — additive, and
+ * no tier that ignores it needs to change. ⛔ A third `deferred` member is NOT coming: see the file
+ * docstring for why the verification gate is not a tier of this chain at all.
  */
 export type TierOutcome =
     | {

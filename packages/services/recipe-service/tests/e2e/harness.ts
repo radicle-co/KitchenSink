@@ -22,7 +22,7 @@
  */
 import { bootServiceApp, type BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { SEED_ERASURE_QUEUE_URL } from '../globalSetup.js';
+import { SEED_ERASURE_QUEUE_URL, SEED_VERIFICATION_QUEUE_URL } from '../globalSetup.js';
 
 /** The harness Postgres connection string the booted app is configured against. */
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -85,6 +85,10 @@ export async function bootRecipeApp(options: BootRecipeAppOptions = {}): Promise
             // The queue the global setup actually provisions — one definition, so the booted app and the
             // specs draining the queue can never address different queues.
             ACCOUNT_ERASURE_QUEUE_URL: SEED_ERASURE_QUEUE_URL,
+            // The verification gate's queue (plan U11 / ADR-0024). REQUIRED like the food origin above and
+            // for the same reason: `ingredientVerificationConfigSchema` refuses to boot without it, because
+            // U11 shipped the gate's consumer with nothing producing a message and every check stayed green.
+            INGREDIENT_VERIFICATION_QUEUE_URL: SEED_VERIFICATION_QUEUE_URL,
             // REQUIRED since issue #120 — the app refuses to boot without a food origin, deliberately (the old
             // in-code `http://localhost:3002` default is what silently pointed the deployed service at itself).
             // Nothing listens here, which is what makes the F2 specs below a real absent-dependency proof.

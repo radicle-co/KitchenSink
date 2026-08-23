@@ -22,6 +22,7 @@ import { isRecipeDomainError } from '../recipe.error.js';
 import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../../__fixtures__/index.js';
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { Principal } from '../../auth/principal.js';
+import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -118,6 +119,7 @@ function service(dal: RecipesDal): RecipesService {
         RECIPE_PHOTOS_CDN,
         fakeRatingsDal(),
         nutritionGatewayDouble,
+        fakeVerificationQueue(),
     );
 }
 
@@ -233,11 +235,38 @@ describe('RecipesService.clone', () => {
             RECIPE_PHOTOS_CDN,
             fakeRatingsDal(),
             nutritionGatewayDouble,
+            fakeVerificationQueue(),
         );
 
         // The CLONER (not the source author) is the editor of the clone's first version.
         await svc.clone({ ...CLONER_PRINCIPAL, firstName: 'Rose', lastName: 'Tyler' }, 'src-1');
 
         expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ editorHandle: 'Rose Tyler' }));
+    });
+});
+
+describe('RecipesService.clone — the source line survives (U11)', () => {
+    it('⛔ carries the raw SOURCE LINE onto the clone', async () => {
+        // ⛔ THE DATA LOSS THIS PINS. `toResolvedIngredientLine` preserved `displayText` and all four per-line
+        // nutrition overrides and silently dropped `source_line`, which `0024_ingredient_source_line.sql`
+        // added later. A clone therefore lost the one fact the verification gate needs, permanently: the
+        // cloned recipe could never be verified, and U14's correction surface would have nothing to show the
+        // cook the source said.
+        //
+        // It is a fact about the SOURCE, not about the author — a clone of an imported recipe was transcribed
+        // from the same book — so it travels with the line exactly as `display_text` does.
+        const SOURCE_LINE = '2 heaping cups of well-sifted pastry flour';
+        const source = sourceAggregate();
+        const withSourceLine: typeof source = {
+            ...source,
+            ingredients: source.ingredients.map((row) => ({ ...row, sourceLine: SOURCE_LINE })),
+        };
+        const { dal, create } = fakeDal(withSourceLine);
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+
+        const input = create.mock.calls[0]?.[0] as { ingredients: { sourceLine?: string }[] } | undefined;
+
+        expect(input?.ingredients[0]?.sourceLine).toBe(SOURCE_LINE);
     });
 });

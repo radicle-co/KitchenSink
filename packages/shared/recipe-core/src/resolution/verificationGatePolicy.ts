@@ -106,6 +106,33 @@ export type IdentityEvidence =
           /** The lexical tier's ranked shortlist (cascade tier 2). May be empty until U5 ships. */
           readonly kind: 'ranked';
           readonly shortlist: readonly ScoredCandidate[];
+      }
+    | {
+          /**
+           * ⛔ NO PROVENANCE WAS RECORDED — the honest state of the shipped producer, not a placeholder.
+           *
+           * `RecipesService` enqueues from PERSISTED `recipe_ingredients` rows. The cascade outcome that
+           * first resolved the catalog row was discarded inside
+           * `IngredientsService.resolveThroughCascade` (it keeps only `foodId`), and no column anywhere
+           * records which tier answered — so by the time a line is saved against a recipe, WHICH tier
+           * established identity is simply not recoverable.
+           *
+           * ⚠️ IT EXISTS BECAUSE THE WIRE ENUM IS A ONE-WAY DOOR, not because the two decide differently.
+           * `rankedEvidence([])` decides identically TODAY and — checked, not assumed — produces a
+           * byte-identical {@link GateObservations} (`shortlistOf` yields `[]` for both, so the size, the
+           * margin and the agreement all match). What differs is the CLAIM: `ranked` asserts that the
+           * lexical tier ran and offered nothing, on a value that is persisted in a queue message and
+           * re-read by a separately-deployed consumer. The moment any skip door keys on `kind === 'ranked'`
+           * — U5 ships exactly that tier — a producer that never ranked anything would be acting on a
+           * statement it invented. This is the same argument that makes {@link IdentityEvidence} a union
+           * rather than `{ tier, shortlist }`: a state that should not be representable should not be
+           * spellable.
+           *
+           * It can never establish identity, so a line carrying it always verifies both aspects. That is
+           * KTD-3's own default ("everything else verifies") and the safe direction: over-verifying costs
+           * money at ~370x headroom, under-verifying publishes nutrition nothing checked.
+           */
+          readonly kind: 'unattributed';
       };
 
 /** A human-asserted curated mapping. */
@@ -113,6 +140,12 @@ export const curatedExactEvidence = (): IdentityEvidence => ({ kind: 'curated-ex
 
 /** A remembered machine resolution. */
 export const rememberedEvidence = (): IdentityEvidence => ({ kind: 'remembered' });
+
+/**
+ * A resolution whose establishing tier was not recorded. See the `unattributed` member for why this is a
+ * member of its own rather than an empty {@link rankedEvidence}.
+ */
+export const unattributedEvidence = (): IdentityEvidence => ({ kind: 'unattributed' });
 
 /**
  * A ranked shortlist.

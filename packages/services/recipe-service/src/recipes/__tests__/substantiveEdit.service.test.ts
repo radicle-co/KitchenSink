@@ -19,6 +19,7 @@ import { makeRecipeRow, makeRecipeStepRow, makeRecipeIngredientRow } from '../..
 import { makeIngredient } from '../../ingredients/__fixtures__/ingredients.fixtures.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
+import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 
 /**
  * A `FoodNutritionGateway` double for suites that are NOT about nutrition (U10).
@@ -87,6 +88,7 @@ function service(dal: RecipesDal): RecipesService {
         RECIPE_PHOTOS_CDN,
         fakeRatingsDal(),
         nutritionGatewayDouble,
+        fakeVerificationQueue(),
     );
 }
 

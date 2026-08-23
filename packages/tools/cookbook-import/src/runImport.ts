@@ -28,6 +28,7 @@ import { assertPublicDomain, type Cookbook } from './cookbooks.js';
 import { segmentCookbook } from './gutenbergBook.adapter.js';
 import { toCandidateRecipe } from './proseRecipe.js';
 import { resolveIngredientLikeAUser } from './resolveIngredient.js';
+import { toImportedIngredientLine } from './importedIngredientLine.js';
 import { emptyReport, recordDropped, type ImportReportData, type ImportedExample } from './importReport.js';
 import type { ImportLedger } from './importLedger.js';
 import type { CreateRecipeBody, Ingredient, RecipeApiClient } from './RecipeApiClient.js';
@@ -136,16 +137,7 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
                 pending.set(ingredient.id, ingredient);
             }
 
-            lines.push({
-                ingredientId: ingredient.id,
-                // The wire requires a name; the server overwrites it from the catalog row anyway. Sending
-                // the catalog's own name keeps the request honest about what it is referencing.
-                name: ingredient.name,
-                quantity: parsed.quantity,
-                ...(parsed.unit === null ? {} : { unit: parsed.unit }),
-                // The source's own words for this line, kept verbatim beside the structured values.
-                notes: parsed.raw,
-            });
+            lines.push(toImportedIngredientLine(parsed, ingredient));
 
             exampleLines.push({
                 quantity: parsed.quantity,

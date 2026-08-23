@@ -47,7 +47,9 @@
         "aws-cdk": "^2.1134.0",
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
+        "p-limit": "^7.1.1",
         "prettier": "^3.0.0",
+        "pure-rand": "^7.0.1",
         "tsx": "^4.23.12",
         "typescript": "^5.9.3",
         "vitest": "^4.0.0"

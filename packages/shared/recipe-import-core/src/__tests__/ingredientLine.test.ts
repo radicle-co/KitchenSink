@@ -423,3 +423,86 @@ describe('corruptsStatedValue', () => {
         }
     });
 });
+
+/**
+ * ⛔ A MEASUREMENT LEFT INSIDE THE FOOD NAME (raised 2026-08-23).
+ *
+ * `parse-ingredient` reads the LEADING quantity and treats the remainder as the food, so a line stating more
+ * than one measurement puts the rest into `name` — measured before this fix, "2 cups and 1 tablespoon
+ * all-purpose flour, sifted" produced `name: "and 1 tablespoon all-purpose flour, sifted"` with
+ * `reviewReasons: []`.
+ *
+ * Both halves of that are defects. A name carrying a measurement matches no catalog row, so the line resolves
+ * to nothing or to something wrong; and an empty review reason means nobody is asked to correct it either.
+ *
+ * ⚠️ The two shapes need OPPOSITE treatment, which is why `splitMeasurement` decides and this does not:
+ *
+ *  - a conjunction ADDS, so the quantity we persist UNDERSTATES the line — that is value-corrupting.
+ *  - a parenthetical RESTATES, so the quantity is already right — the text is merely not part of the name.
+ *
+ * Treating the second as the first would flag every "(about 4 cups)" as a wrong number; treating the first as
+ * the second would silently persist a fifth of the flour.
+ */
+describe('parseIngredientLine — a measurement left in the food name', () => {
+    it('takes the restatement out of the name without touching the quantity', () => {
+        const parsed = parseIngredientLine('1 pound (about 4 cups) shredded cooked chicken');
+
+        expect(parsed.name).toBe('shredded cooked chicken');
+        expect(parsed.quantity).toEqual({ kind: 'exact', value: 1 });
+        expect(parsed.unit).toBe('lb');
+        // The amount is stated twice and read once, which is correct — nothing to review.
+        expect(parsed.reviewReasons).not.toContain('measurement_in_name');
+    });
+
+    it('takes an added measurement out of the name AND says the quantity understates the line', () => {
+        const parsed = parseIngredientLine('2 cups and 1 tablespoon all-purpose flour, sifted');
+
+        expect(parsed.name).toBe('all-purpose flour, sifted');
+        expect(parsed.quantity).toEqual({ kind: 'exact', value: 2 });
+        expect(parsed.unit).toBe('cup');
+        expect(parsed.reviewReasons).toContain('measurement_in_name');
+    });
+
+    /**
+     * ⛔ REWRITTEN, and it asserts the OPPOSITE of what it first did. I had this reason as value-corrupting,
+     * on the argument that persisting 2 cups for "2 cups and 1 tablespoon" asserts a number the source did
+     * not state. `cookbook-import`'s own suite refuted it: `proseRecipe.ts` DROPS a clause whose reading
+     * corrupts a value, so membership discarded the ingredient outright and a golden-corpus recipe lost its
+     * confectioner's sugar entirely.
+     *
+     * The set's docstring already drew the line — membership is "a stated number would be wrong", not
+     * "something is missing". Reading 2 cups reads a real amount and stops short of the rest, which is the
+     * shape of `no_quantity`, also absent from that set. Losing 100% of a line to avoid understating it by
+     * 3% is the wrong trade.
+     */
+    it('does not treat a short reading as a wrong number, so the ingredient survives', () => {
+        expect(corruptsStatedValue('measurement_in_name')).toBe(false);
+    });
+
+    it('leaves an ordinary line entirely alone', () => {
+        const parsed = parseIngredientLine('1 to 2 teaspoons kosher salt');
+
+        expect(parsed.name).toBe('kosher salt');
+        expect(parsed.quantity).toEqual({ kind: 'range', low: 1, high: 2 });
+        expect(parsed.reviewReasons).not.toContain('measurement_in_name');
+    });
+
+    /**
+     * ⚠️ `splitMeasurement` cannot recognise every way a line joins two measurements — an ampersand, a
+     * comma, a word-number after the conjunction and several vulgar fractions all fall through it. Those
+     * still land in the name, and this is the assertion that they are SEEN rather than silently kept: the
+     * flag is raised from the name itself, so it does not depend on the splitter being complete.
+     */
+    it('flags a join the splitter does not recognise, rather than passing it silently', () => {
+        const parsed = parseIngredientLine('2 cups & 1 tablespoon all-purpose flour');
+
+        expect(parsed.reviewReasons).toContain('measurement_in_name');
+    });
+
+    it('does not flag a name that merely contains a number', () => {
+        // "00" in "Flour, 00" is a grade, not an amount. A flag here would fire on every graded flour.
+        const parsed = parseIngredientLine('2 cups type 00 flour');
+
+        expect(parsed.reviewReasons).not.toContain('measurement_in_name');
+    });
+});

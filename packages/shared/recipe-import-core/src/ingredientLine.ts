@@ -10,6 +10,8 @@ import { parseIngredient, unitsOfMeasure, type UnitOfMeasureDefinitions } from '
 
 import { HISTORICAL_UNIT_DEFINITIONS } from './historicalUnits.js';
 import { normalizeQuantityRange } from './normalizeQuantity.js';
+import { findQuantityPhrases } from './quantityPhrases.js';
+import { MEASUREMENT_JOIN_SOURCE } from './splitMeasurement.js';
 
 /**
  * The period spellings `parse-ingredient` does not RECOGNISE, taught through its own extension point —
@@ -69,7 +71,14 @@ export type IngredientReviewReason =
     /** More than one line was passed in, so content beyond the first would be dropped. */
     | 'multiline_input'
     /** The name exceeds what recipe-core will store. It is returned UNCUT; truncation is not this module's. */
-    | 'name_too_long';
+    | 'name_too_long'
+    /**
+     * The line stated a measurement this parse did not read, and it was left sitting in the food name.
+     * The persisted quantity therefore UNDERSTATES the line (`"2 cups and 1 tablespoon"` reads as 2 cups).
+     * ⚠️ Raised only for a measurement that ADDS. A parenthesised restatement (`"1 pound (about 4 cups)"`)
+     * states the same amount twice, so the quantity is already right and only the name needed cleaning.
+     */
+    | 'measurement_in_name';
 
 /**
  * Reasons meaning "the value we would persist is not the value the source stated" (R39).
@@ -86,6 +95,14 @@ export type IngredientReviewReason =
 const VALUE_CORRUPTING_REVIEW_REASONS: ReadonlySet<IngredientReviewReason> = new Set([
     'quantity_out_of_storage_range',
     'quantity_bounds_inverted',
+    // ⛔ `measurement_in_name` is deliberately NOT here, and the distinction is the one this set's docstring
+    // draws: it names something MISSING, not a number that is wrong. Reading 2 cups from "2 cups and 1
+    // tablespoon" reads a real amount the source stated and stops short of the rest — the same shape as
+    // `no_quantity`, which is also absent from this set.
+    // ⚠️ The consequence decided it. `cookbook-import` DROPS a clause whose reading corrupts a value
+    // (`proseRecipe.ts`, "a clause whose own reading misstates a value is not an ingredient at any length"),
+    // so membership here would discard the whole ingredient rather than surface it — losing 100% of a line
+    // to avoid understating it by 3%.
 ]);
 
 /**
@@ -235,13 +252,90 @@ export function parseIngredientLine(raw: string): ParsedIngredientLine {
 
     const quantity = readQuantity(readBounds(range, entry), reasons);
     const unit = entry.unitOfMeasure === null ? null : normalizeUnit(entry.unitOfMeasure) || null;
-    const name = entry.description;
+    const name = takeMeasurementOutOf(entry.description, reasons);
 
     if (name.length > MAX_RECIPE_INGREDIENT_NAME_LENGTH) {
         reasons.push('name_too_long');
     }
 
     return { raw, quantity, unit, name, needsReview: reasons.length > 0, reviewReasons: reasons };
+}
+
+/**
+ * A parenthesised group, closed or running to the end.
+ *
+ * ⛔ Only stripped when it CONTAINS a quantity. "(about 4 cups)" restates the amount and is not part of the
+ * food; "(a family recipe)" is prose about the food and must survive — the difference is whether an amount
+ * is in there, which `findQuantityPhrases` answers without this module owning a number lexicon.
+ */
+const PARENTHESISED = /\s*\(([^)]*)\)?/gu;
+
+/**
+ * A leading conjunction introducing a second measurement — the remainder `parse-ingredient` did not read.
+ *
+ * ⚠️ Anchored at the START, because this runs on what is LEFT after the leading quantity was taken. A
+ * conjunction anywhere else joins words in the food's own name ("salt and pepper"), which must not be cut.
+ *
+ * ⛔ Built from `MEASUREMENT_JOIN_SOURCE` rather than written out, so the digit lookahead cannot be lost
+ * here while surviving there. It was, once: an "and" cut without that lookahead splits "One and one-half"
+ * and publishes a third of the stated quantity.
+ */
+const LEADING_JOIN = new RegExp(`^\\s*${MEASUREMENT_JOIN_SOURCE}`, 'iu');
+
+/**
+ * Take a measurement out of the food name, naming the case where doing so leaves the quantity understated.
+ *
+ * ⛔ THE DEFECT THIS CLOSES. `parse-ingredient` reads the LEADING quantity and calls everything after it the
+ * food, so a line stating a second measurement puts it in the name — "and 1 tablespoon all-purpose flour"
+ * and "(about 4 cups) shredded cooked chicken", both measured 2026-08-23 with `reviewReasons` EMPTY. A name
+ * carrying a measurement matches no catalog row, and an empty reason means nobody is asked to fix it.
+ *
+ * ⚠️ It does not need to recognise every join. Whatever it fails to strip stays in the name and is FLAGGED
+ * by the residual check below, so an unrecognised ampersand or comma is visible rather than silent — which
+ * is the property that lets the narrow rules above stay narrow.
+ *
+ * @param description - The food text `parse-ingredient` returned.
+ * @param reasons - Collected review reasons; appended to when the quantity understates the line.
+ * @returns The food name with any measurement removed. Pure apart from the `reasons` it appends to.
+ * @sideEffect Appends to `reasons`.
+ */
+function takeMeasurementOutOf(description: string, reasons: IngredientReviewReason[]): string {
+    // Restatements first: a conjunction INSIDE one ("(about 4 cups and a bit)") joins nothing.
+    let name = description.replace(PARENTHESISED, (match, inner: string | undefined) =>
+        findQuantityPhrases(inner ?? '').length > 0 ? ' ' : match,
+    );
+
+    const join = LEADING_JOIN.exec(name);
+
+    if (join !== null) {
+        const afterJoin = name.slice(join[0].length);
+        const [amount] = findQuantityPhrases(afterJoin);
+
+        // Only when the conjunction actually introduces an AMOUNT. "and pepper" is the food's own name.
+        if (amount !== undefined && amount.start === 0) {
+            name = afterJoin.slice(amount.end).replace(/^\s*\S+\s*/u, ' ');
+            reasons.push('measurement_in_name');
+        }
+    }
+
+    const cleaned = name.replace(/\s+/gu, ' ').trim();
+
+    // ⛔ THE COMPLETENESS CHECK, and the reason the rules above may stay narrow. A join this module does not
+    // recognise — an ampersand, a comma, a word-number — leaves its amount at the FRONT of what remains,
+    // because the leading quantity was already taken and the food follows. So an amount with nothing
+    // word-like before it is a measurement; one with words before it belongs to the food, which is what
+    // keeps "type 00 flour" and "Flour, 00" from flagging on their grade.
+    const [residual] = findQuantityPhrases(cleaned);
+
+    if (!reasons.includes('measurement_in_name') && residual !== undefined) {
+        const before = cleaned.slice(0, residual.start);
+
+        if (!/\p{L}/u.test(before)) {
+            reasons.push('measurement_in_name');
+        }
+    }
+
+    return cleaned;
 }
 
 /**

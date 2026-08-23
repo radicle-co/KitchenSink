@@ -63,6 +63,11 @@ describe('splitMeasurement — parts that add up', () => {
         });
     });
 
+    it('splits on an ampersand and a plus sign, which cooks write as often as the words', () => {
+        expect(splitMeasurement('2 cups & 1 tablespoon')).toEqual({ summed: ['2 cups', '1 tablespoon'], restated: [] });
+        expect(splitMeasurement('2 cups + 1 tablespoon')).toEqual({ summed: ['2 cups', '1 tablespoon'], restated: [] });
+    });
+
     it('splits three parts', () => {
         expect(splitMeasurement('1 quart and 1 cup and 2 tablespoons')).toEqual({
             summed: ['1 quart', '1 cup', '2 tablespoons'],

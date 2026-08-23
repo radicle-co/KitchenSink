@@ -44,14 +44,24 @@ export interface SplitMeasurement {
 }
 
 /**
- * A conjunction joining two measurements, as opposed to one inside an amount.
+ * The ONE definition of a conjunction that joins two measurements, as opposed to one inside an amount.
+ *
+ * ⛔ EXPORTED SO IT IS NOT WRITTEN TWICE. `ingredientLine.ts` needs the same rule, anchored differently, and
+ * a second copy of it lost this lookahead within an hour of being written — re-creating the shipped defect
+ * where "One and one-half cups" was cut into "One" and "one-half cups" and published as 0.5 cups, a third of
+ * the stated amount, with `needsReview: false`.
+ *
+ * Not on the package barrel: a regex there would break the all-exports-are-functions control, and no consumer
+ * outside this package has a use for it.
  *
  * ⛔ Requires a DIGIT after the conjunction. `one and a half cups` and `two and a half pounds` both carry
  * "and" inside the amount, and a bare word match would cut them in half — reporting a fifth of a pound as
  * two ingredients. Requiring the next token to start a new number is what separates "2 cups and 1 tablespoon"
  * from "one and a half cups", without needing to know which number words exist.
  */
-const JOINS = /\s*,?\s*\b(?:and|plus)\b\s+(?=[\d¼-¾])/giu;
+export const MEASUREMENT_JOIN_SOURCE = '(?:\\b(?:and|plus)\\b|&|\\+)\\s+(?=[\\d¼-¾])';
+
+const JOINS = new RegExp(`\\s*,?\\s*${MEASUREMENT_JOIN_SOURCE}`, 'giu');
 
 /** A parenthesised restatement, closed or running to the end of the phrase. */
 const PARENTHETICAL = /\s*\(([^)]*)\)?\s*/gu;

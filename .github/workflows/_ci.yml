@@ -1010,6 +1010,14 @@ jobs:
             # REAL ingredient-resolution endpoints, and SKIPS (rather than fails) when `COOKBOOK_IMPORT_RECIPE_URL`
             # is unset — mirroring how the recipe service's own DB-backed tiers guard on `DATABASE_URL`. The step
             # exists so the suite is wired the day an origin is provided, instead of being discovered missing then.
+            # The CRF half of the parse comparison needs the Python model installed, or its tier resolves to
+            # `describe.skip` and proves nothing — a tier CI calls but cannot run is a tier that does not
+            # exist (§7.1). It is a pure pip install: no service, no Docker, no network at test time.
+            - name: Install the CRF ingredient parser (cookbook-import parse comparison)
+              # ⚠️ PINNED to the version the comparison was measured against. The CRF model file ships with the
+              # package, so an unpinned upgrade silently changes what "the CRF parser said" means and would
+              # move every agreement figure in the report without a line of our code changing.
+              run: pip install --user 'ingredient-parser-nlp==2.3.0'
             - name: Run cookbook-import integration tests
               run: npm run test:integration --workspace=@kitchensink/cookbook-import
 

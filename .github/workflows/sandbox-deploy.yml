@@ -615,7 +615,7 @@ jobs:
             # takes no instance argument by construction — see its header for why prod is unreachable.
             - name: Wake the shared sandbox database
               if: steps.gate.outputs.deploy == 'true'
-              run: bash .github/scripts/db-wake.sh ensure "${DEFAULT_AWS_REGION}"
+              run: bash .github/scripts/sandbox-wake.sh ensure "${DEFAULT_AWS_REGION}"
             # turbo (not a bare workspace build) so `^build` compiles the shared @kitchensink/clerk-verify
             # and @kitchensink/usda-client dist first — the image copies those dists and crash-loops on
             # the bare specifiers without them.
@@ -818,7 +818,7 @@ jobs:
             # takes no instance argument by construction — see its header for why prod is unreachable.
             - name: Wake the shared sandbox database
               if: steps.gate.outputs.deploy == 'true'
-              run: bash .github/scripts/db-wake.sh ensure "${DEFAULT_AWS_REGION}"
+              run: bash .github/scripts/sandbox-wake.sh ensure "${DEFAULT_AWS_REGION}"
             # turbo (not a bare workspace build) so `^build` compiles the shared dists the image COPYs
             # (recipe-core, food-service-client, clerk-verify, identity-core). Without them the container
             # crash-loops at boot on the bare @kitchensink/* specifiers.

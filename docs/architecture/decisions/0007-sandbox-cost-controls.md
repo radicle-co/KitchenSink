@@ -59,3 +59,49 @@ sandbox on weekends); only the nightly 00:00–09:00 ET window is shut down.
   keeps `small` + `ENHANCED` and gets no scheduler.
 - Downsizing an existing sandbox RDS to `micro` is a modify with brief downtime; applied during a
   deliberate sandbox deploy, not silently.
+
+## Update (2026-08-23) — the deploy-time wake gate now wakes the NAT too
+
+The nightly window composes with **ADR-0022** (schema migrations run INSIDE the deploy, as an in-stack
+`aws-cdk-lib/triggers` Trigger) to produce a failure neither ADR predicted: a sandbox deploy that lands
+inside the window runs against stopped infrastructure. `.github/scripts/sandbox-wake.sh` closes that, and
+every sandbox deploy step is asserted to be preceded by it
+(`packages/infra/global/__tests__/sandboxWakeWiring.test.ts`).
+
+It was written to wake only the **database**, and its own header said it "never touches ECS or the NAT
+instance". That was wrong about the NAT, and the gap took a second incident to surface, because the first
+symptom looked identical to the one already fixed:
+
+```
+Result: {"errorType":"TimeoutError","trace":["AggregateError [ETIMEDOUT]:","at internalConnectMultiple"]}
+```
+
+Measured on the live account at the time of failure — the database was `available` (the gate had done its
+job, and the RDS event log records `DB instance started` at 04:13Z), `i-0b126b357d15b35fd`
+(`Global-sandbox/…/NatInstance`) was `stopped`, and `describe-vpc-endpoints` on the sandbox VPC returned
+**nothing**. Per **ADR-0004** the sandbox VPC deliberately carries no interface endpoints, so every
+VPC-attached Lambda reaches Secrets Manager, SQS and the Clerk API through that one `t4g.nano`. The
+migration runner resolves `DB_SECRET_ARN` before it opens a connection, so it died in Secrets Manager and
+never reached Postgres.
+
+⚠️ **The tell is what the trace does NOT contain.** The original incident named `10.1.4.241:5432`; this one
+names no address at all, because the failure is upstream of the database. A wake gate that only ever looks
+at RDS reports success and the deploy still fails.
+
+The same window also explains the web E2E failures that ran beside it: the Clerk webhook Lambda backfills
+`externalId` by calling `clerk.users.updateUser`, which leaves through the same NAT, so
+`waitForTestUserExternalId` timed out on every shard. One stopped instance, three red jobs.
+
+`ensure` now wakes **both**, and reports both in one run rather than failing at the first — a deploy needs
+the database _and_ the NAT, and stopping at the first verdict costs the operator a second round trip. The
+script is renamed `sandbox-wake.sh` because "db-wake" is no longer what it does. ECS stays out of scope on
+purpose: a sandbox deploy deploys its own service, and CDK restores the desired count as part of that.
+
+Verified end to end rather than reasoned about: the gate discovered and started the sandbox NAT (and only
+it), and the identity migration runner — which had returned `TimeoutError` minutes earlier — returned
+`FunctionError: None` with 9 migrations validated on the first invocation after the instance reached
+`running`. No warm-up delay was needed, which is why the gate stops at `running` and adds no sleep.
+
+**Residual risk.** The CI credentials must carry `ec2:DescribeInstances` and `ec2:StartInstances`; they
+deploy the VPC that owns the NAT, so they do today, but a future least-privilege pass on those keys must
+keep them. The failure mode is loud (an `::error::` naming the instance), not silent.

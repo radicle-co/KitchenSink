@@ -1,6 +1,6 @@
 /**
- * Integration suite for the sandbox DB wake gate's IMPURE half — `db-wake.sh ensure`
- * (`.github/scripts/db-wake.sh`). `__tests__/dbWake.test.ts` covers the pure predicates; this covers
+ * Integration suite for the sandbox DB wake gate's IMPURE half — `sandbox-wake.sh ensure`
+ * (`.github/scripts/sandbox-wake.sh`). `__tests__/sandboxWake.test.ts` covers the pure predicates; this covers
  * everything they cannot see: discovery, the refusal of a non-sandbox identifier BEFORE any mutating call,
  * the `StartDBInstance` call itself, the poll loop, the concurrent-start race, and the bounded timeout.
  *
@@ -14,7 +14,7 @@
  *   rather than about our own reasoning.
  *
  * ⚠️ The child is spawned ASYNCHRONOUSLY and the poll interval is driven to zero through
- * `DB_WAKE_POLL_SECONDS`, so the real loop runs every iteration without the suite sleeping for it.
+ * `SANDBOX_WAKE_POLL_SECONDS`, so the real loop runs every iteration without the suite sleeping for it.
  */
 import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -24,12 +24,18 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/db-wake.sh', import.meta.url));
+const SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/sandbox-wake.sh', import.meta.url));
 
 /** The live sandbox instance identifier (verified against the account 2026-08-19). */
 const SANDBOX_ID = 'kitchensink-data-sandbox-databaseb269d8bb-p76w6xmz1xlk';
 /** The live PROD instance identifier — the one nothing here may ever touch. */
 const PROD_ID = 'kitchensink-data-prod-databaseb269d8bb-ci1yhovuyivm';
+/** The live sandbox NAT instance and its `Name` tag (verified against the account 2026-08-23). */
+const SANDBOX_NAT_ID = 'i-0b126b357d15b35fd';
+const SANDBOX_NAT_NAME = 'Global-sandbox/Network-sandbox/Vpc/publicSubnet1/NatInstance';
+/** The live PROD NAT — running, and the one instance a wake must never reach. */
+const PROD_NAT_ID = 'i-0d654e6d9f819b231';
+const PROD_NAT_NAME = 'Global-prod/Network-prod/Vpc/publicSubnet1/NatInstance';
 
 /**
  * A stub `aws` binary. It logs every invocation to `$AWS_STUB_LOG`, answers discovery from
@@ -40,6 +46,34 @@ const AWS_STUB = `#!/usr/bin/env bash
 printf '%s\\n' "$*" >>"\${AWS_STUB_LOG}"
 
 case "$*" in
+  *"ec2 start-instances"*)
+    if [ "\${AWS_STUB_NAT_START}" = 'FAIL' ]; then
+      echo "An error occurred (IncorrectInstanceState): The instance is not in a stopped state." >&2
+      exit 254
+    fi
+    echo '{}'
+    exit 0
+    ;;
+  *"ec2 describe-instances"*"--instance-ids"*)
+    # Per-NAT describe: pop the head of the state queue, keeping the last entry forever.
+    read -r head rest < <(cat "\${AWS_STUB_NAT_STATE_FILE}")
+    if [ -n "$rest" ]; then printf '%s\\n' "$rest" >"\${AWS_STUB_NAT_STATE_FILE}"; fi
+    if [ "$head" = 'FAIL' ]; then
+      echo "An error occurred (InvalidInstanceID.NotFound)" >&2
+      exit 254
+    fi
+    printf '%s\\n' "$head"
+    exit 0
+    ;;
+  *"ec2 describe-instances"*)
+    # NAT discovery.
+    if [ "\${AWS_STUB_NAT_DISCOVERY}" = 'FAIL' ]; then
+      echo "An error occurred (UnauthorizedOperation)" >&2
+      exit 254
+    fi
+    printf '%s\\n' "\${AWS_STUB_NAT_DISCOVERY}"
+    exit 0
+    ;;
   *"start-db-instance"*)
     if [ "\${AWS_STUB_START}" = 'FAIL' ]; then
       echo "An error occurred (InvalidDBInstanceState): Instance is not in a stopped state." >&2
@@ -83,7 +117,7 @@ let workdir: string;
 let binDir: string;
 
 beforeAll(() => {
-    workdir = mkdtempSync(join(tmpdir(), 'db-wake-'));
+    workdir = mkdtempSync(join(tmpdir(), 'sandbox-wake-'));
     // A directory holding ONLY the stub, prepended to PATH, so a real AWS CLI is shadowed and this suite
     // cannot reach a real account even by accident.
     binDir = join(workdir, 'bin');
@@ -109,12 +143,20 @@ const ensure = async (options: {
     readonly statuses: readonly string[];
     readonly startFails?: boolean;
     readonly timeoutSeconds?: number;
+    readonly natDiscovery?: string;
+    readonly natStates?: readonly string[];
+    readonly natStartFails?: boolean;
 }): Promise<EnsureResult> => {
     const token = Math.random().toString(36).slice(2);
     const logFile = join(workdir, `aws-${token}.log`);
     const statusFile = join(workdir, `status-${token}.txt`);
+    const natStateFile = join(workdir, `nat-state-${token}.txt`);
     writeFileSync(logFile, '');
     writeFileSync(statusFile, `${options.statuses.join(' ')}\n`);
+    // ⚠️ The NAT half defaults to an already-running instance so that every RDS case above keeps
+    // asserting exactly what it asserted before this half existed. A default of `stopped` would make
+    // each of them silently also a NAT-wake test, which is how a suite stops meaning what it says.
+    writeFileSync(natStateFile, `${(options.natStates ?? ['running']).join(' ')}\n`);
 
     const child = spawn('bash', [SCRIPT, 'ensure', 'us-east-1'], {
         env: {
@@ -124,8 +166,11 @@ const ensure = async (options: {
             AWS_STUB_STATUS_FILE: statusFile,
             AWS_STUB_DISCOVERY: options.discovery ?? SANDBOX_ID,
             AWS_STUB_START: options.startFails === true ? 'FAIL' : 'OK',
-            DB_WAKE_POLL_SECONDS: '0',
-            DB_WAKE_TIMEOUT_SECONDS: String(options.timeoutSeconds ?? 60),
+            AWS_STUB_NAT_STATE_FILE: natStateFile,
+            AWS_STUB_NAT_DISCOVERY: options.natDiscovery ?? `${SANDBOX_NAT_ID}\t${SANDBOX_NAT_NAME}`,
+            AWS_STUB_NAT_START: options.natStartFails === true ? 'FAIL' : 'OK',
+            SANDBOX_WAKE_POLL_SECONDS: '0',
+            SANDBOX_WAKE_TIMEOUT_SECONDS: String(options.timeoutSeconds ?? 60),
         },
     });
 
@@ -148,13 +193,13 @@ const ensure = async (options: {
     return { status, stdout, stderr, awsCalls: readFileSync(logFile, 'utf8') };
 };
 
-describe('db-wake.sh ensure — the file exists', () => {
-    it('is present at .github/scripts/db-wake.sh', () => {
+describe('sandbox-wake.sh ensure — the file exists', () => {
+    it('is present at .github/scripts/sandbox-wake.sh', () => {
         expect(existsSync(SCRIPT)).toBe(true);
     });
 });
 
-describe('db_wake_ensure — an already-available instance is a no-op', () => {
+describe('sandbox_wake_ensure — an already-available instance is a no-op', () => {
     it('exits 0 without issuing StartDBInstance', async () => {
         const result = await ensure({ statuses: ['available'] });
 
@@ -163,7 +208,7 @@ describe('db_wake_ensure — an already-available instance is a no-op', () => {
     });
 });
 
-describe('db_wake_ensure — a stopped instance is woken and waited for', () => {
+describe('sandbox_wake_ensure — a stopped instance is woken and waited for', () => {
     it('issues exactly one StartDBInstance for the sandbox instance, then waits for `available`', async () => {
         const result = await ensure({ statuses: ['stopped', 'starting', 'starting', 'available'] });
 
@@ -195,7 +240,7 @@ describe('db_wake_ensure — a stopped instance is woken and waited for', () => 
     });
 });
 
-describe('db_wake_ensure — race tolerance: a rejected StartDBInstance is not a failed job', () => {
+describe('sandbox_wake_ensure — race tolerance: a rejected StartDBInstance is not a failed job', () => {
     // Two workflows can reach `stopped` simultaneously; the loser's StartDBInstance returns
     // InvalidDBInstanceState. That is the CORRECT outcome — the instance is coming up — so it must not fail
     // the deploy. The loop, not the call, is the authority.
@@ -207,7 +252,7 @@ describe('db_wake_ensure — race tolerance: a rejected StartDBInstance is not a
     });
 });
 
-describe('db_wake_ensure — the wait is BOUNDED and the timeout is loud', () => {
+describe('sandbox_wake_ensure — the wait is BOUNDED and the timeout is loud', () => {
     // An unbounded wait converts a fast failure into a six-hour job. Past the bound the gate annotates and
     // exits non-zero, naming the instance and the last status it saw.
     it('fails with ::error:: when the instance never becomes available', async () => {
@@ -220,7 +265,7 @@ describe('db_wake_ensure — the wait is BOUNDED and the timeout is loud', () =>
     });
 });
 
-describe('db_wake_ensure — a terminal status fails immediately instead of waiting out the clock', () => {
+describe('sandbox_wake_ensure — a terminal status fails immediately instead of waiting out the clock', () => {
     it.each(['failed', 'deleting', 'incompatible-network'])(
         'fails fast on %s and never issues a start',
         async (status) => {
@@ -233,7 +278,7 @@ describe('db_wake_ensure — a terminal status fails immediately instead of wait
     );
 });
 
-describe('⛔ db_wake_ensure — prod is structurally unreachable', () => {
+describe('⛔ sandbox_wake_ensure — prod is structurally unreachable', () => {
     // The server-side query already filters to the sandbox prefix; this proves the SECOND, independent
     // guard — the client-side re-assertion — by feeding discovery an identifier the query could not have
     // returned. Nothing mutating may be issued, for prod OR for the sandbox instance beside it.
@@ -253,7 +298,7 @@ describe('⛔ db_wake_ensure — prod is structurally unreachable', () => {
     });
 });
 
-describe('db_wake_ensure — discovery problems fail loudly rather than silently skipping the wake', () => {
+describe('sandbox_wake_ensure — discovery problems fail loudly rather than silently skipping the wake', () => {
     // A silent skip here reproduces the exact incident: the deploy proceeds, the migration Trigger times
     // out against a stopped instance, and the rollback wedges the stack.
     it('fails when no sandbox instance is discovered', async () => {
@@ -268,5 +313,172 @@ describe('db_wake_ensure — discovery problems fail loudly rather than silently
 
         expect(result.status).not.toBe(0);
         expect(`${result.stdout}${result.stderr}`).toContain('::error::');
+    });
+});
+
+/**
+ * ⛔ THE NAT HALF. Everything above proves the database is awake; none of it would have caught the
+ * 2026-08-23 failure, because the database WAS awake and the deploy still died — in Secrets Manager,
+ * before Postgres, because the sandbox NAT was stopped and the VPC has no interface endpoints (ADR-0004).
+ *
+ * These cases mirror the RDS ones deliberately: the same no-op, wake, race, bound and scope shapes, against
+ * the other resource. The mirroring is the point — the incident happened because one resource had a gate
+ * and its neighbour did not.
+ */
+describe('sandbox_wake_ensure — the NAT half', () => {
+    it('is a no-op when the NAT is already running', async () => {
+        const result = await ensure({ statuses: ['available'], natStates: ['running'] });
+
+        expect(result.status).toBe(0);
+        expect(result.awsCalls).not.toContain('start-instances');
+    });
+
+    it('issues exactly one StartInstances for a stopped NAT, then waits for `running`', async () => {
+        const result = await ensure({
+            statuses: ['available'],
+            natStates: ['stopped', 'pending', 'pending', 'running'],
+        });
+
+        expect(result.status).toBe(0);
+
+        const starts = result.awsCalls.split('\n').filter((line) => line.includes('start-instances'));
+
+        expect(starts).toHaveLength(1);
+        expect(starts[0]).toContain(SANDBOX_NAT_ID);
+    });
+
+    // The same mid-stop race the RDS half handles: StartInstances on a `stopping` instance is rejected, so
+    // the gate waits for `stopped` and only then wakes it.
+    it('waits for a `stopping` NAT to reach `stopped` before waking it', async () => {
+        const result = await ensure({
+            statuses: ['available'],
+            natStates: ['stopping', 'stopping', 'stopped', 'pending', 'running'],
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.awsCalls.split('\n').filter((line) => line.includes('start-instances'))).toHaveLength(1);
+    });
+
+    it('tolerates a rejected StartInstances and succeeds once the NAT is running', async () => {
+        const result = await ensure({
+            statuses: ['available'],
+            natStates: ['stopped', 'pending', 'running'],
+            natStartFails: true,
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.awsCalls).toContain('start-instances');
+    });
+
+    it('fails loudly, and bounded, when the NAT never reaches `running`', async () => {
+        const result = await ensure({
+            statuses: ['available'],
+            natStates: ['stopped'],
+            natStartFails: true,
+            timeoutSeconds: 0,
+        });
+
+        expect(result.status).not.toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain('::error::');
+        expect(`${result.stdout}${result.stderr}`).toContain(SANDBOX_NAT_ID);
+    });
+
+    it('fails fast on a terminated NAT rather than waiting out the clock', async () => {
+        const result = await ensure({ statuses: ['available'], natStates: ['terminated'] });
+
+        expect(result.status).not.toBe(0);
+        expect(result.awsCalls).not.toContain('start-instances');
+    });
+
+    it('fails when no sandbox NAT is discovered — a silent skip IS the incident', async () => {
+        const result = await ensure({ statuses: ['available'], natDiscovery: '' });
+
+        expect(result.status).not.toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain('::error::');
+    });
+
+    it('fails when the NAT discovery call itself fails', async () => {
+        const result = await ensure({ statuses: ['available'], natDiscovery: 'FAIL' });
+
+        expect(result.status).not.toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain('::error::');
+    });
+});
+
+/**
+ * ⛔ The prod NAT is live in this account and is never stopped, so a wake that reached it could only ever be
+ * a mistake. The server-side filter narrows to a `sandbox` Name tag; these feed discovery values that filter
+ * could not have returned, which is what proves the CLIENT-side re-assertion is doing real work.
+ */
+describe('⛔ sandbox_wake_ensure — the prod NAT is structurally unreachable', () => {
+    it('refuses to act when NAT discovery returns the prod NAT', async () => {
+        const result = await ensure({
+            statuses: ['available'],
+            natDiscovery: `${PROD_NAT_ID}\t${PROD_NAT_NAME}`,
+            natStates: ['stopped'],
+        });
+
+        expect(result.status).not.toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain('::error::');
+        expect(result.awsCalls).not.toContain('start-instances');
+    });
+
+    it('refuses the whole run when discovery mixes the prod NAT in with the sandbox one', async () => {
+        const result = await ensure({
+            statuses: ['available'],
+            natDiscovery: `${SANDBOX_NAT_ID}\t${SANDBOX_NAT_NAME}\n${PROD_NAT_ID}\t${PROD_NAT_NAME}`,
+            natStates: ['stopped'],
+        });
+
+        expect(result.status).not.toBe(0);
+        expect(result.awsCalls).not.toContain('start-instances');
+    });
+
+    // A name carrying BOTH markers is the case a bare `contains('sandbox')` admits — the prod veto is the
+    // only thing that refuses it, and this is what fails if someone removes that veto as redundant.
+    it('refuses a NAT whose name carries both markers', async () => {
+        const result = await ensure({
+            statuses: ['available'],
+            natDiscovery: `${SANDBOX_NAT_ID}\tGlobal-prod/Network-sandbox/Vpc/publicSubnet1/NatInstance`,
+            natStates: ['stopped'],
+        });
+
+        expect(result.status).not.toBe(0);
+        expect(result.awsCalls).not.toContain('start-instances');
+    });
+});
+
+/**
+ * The composition rule: a deploy needs BOTH. A gate that reported only the first failure would send the
+ * operator back for a second round trip to learn the second.
+ */
+describe('sandbox_wake_ensure — both halves are reported in one run', () => {
+    it('names the database AND the NAT when both are unreachable', async () => {
+        const result = await ensure({
+            statuses: ['stopped'],
+            startFails: true,
+            natStates: ['stopped'],
+            natStartFails: true,
+            timeoutSeconds: 0,
+        });
+
+        expect(result.status).not.toBe(0);
+
+        const output = `${result.stdout}${result.stderr}`;
+
+        expect(output).toContain(SANDBOX_ID);
+        expect(output).toContain(SANDBOX_NAT_ID);
+    });
+
+    it('still fails when only the NAT is unreachable, even though the database is available', async () => {
+        const result = await ensure({
+            statuses: ['available'],
+            natStates: ['stopped'],
+            natStartFails: true,
+            timeoutSeconds: 0,
+        });
+
+        expect(result.status).not.toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain(SANDBOX_NAT_ID);
     });
 });

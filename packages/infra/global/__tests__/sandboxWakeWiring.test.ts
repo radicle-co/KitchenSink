@@ -10,13 +10,13 @@
  * `UPDATE_ROLLBACK_FAILED`. That state is not self-healing: every later sandbox deploy fails on the wedge
  * rather than on its own diff, until a human runs `continue-update-rollback --resources-to-skip`.
  *
- * `.github/scripts/db-wake.sh` closes it. THIS suite is what stops the fix from being quietly removed or
+ * `.github/scripts/sandbox-wake.sh` closes it. THIS suite is what stops the fix from being quietly removed or
  * narrowed later: the rule is stated over the workflow tree, not over the three call sites that exist
  * today, so a NEW sandbox job that deploys a stack is covered the moment it is written and has to argue its
  * way OUT via {@link EXEMPT_DEPLOY_STEPS} rather than silently in.
  *
- * ⚠️ Prod is deliberately out of scope. The prod instance is never stopped, and `db-wake.sh` is scoped so
- * that it cannot address a prod database at all (see `dbWake.test.ts`).
+ * ⚠️ Prod is deliberately out of scope. The prod instance is never stopped, and `sandbox-wake.sh` is scoped so
+ * that it cannot address a prod database at all (see `sandboxWake.test.ts`).
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -43,7 +43,7 @@ interface Doc {
 }
 
 /** The wake gate's invocation, as it appears in a `run:` body. */
-const WAKE_INVOCATION = 'db-wake.sh ensure';
+const WAKE_INVOCATION = 'sandbox-wake.sh ensure';
 
 /**
  * A step that hands a CloudFormation stack to CDK. `infra:deploy` is included because a workspace script
@@ -139,7 +139,7 @@ describe('sandbox DB wake wiring — no sandbox deploy runs against a possibly-s
     it('every sandbox deploy step is preceded by the wake gate in its own job', () => {
         expect(
             findUnwokenDeploys(),
-            'a sandbox `cdk deploy` with no `db-wake.sh ensure` before it in the same job can wedge its stack ' +
+            'a sandbox `cdk deploy` with no `sandbox-wake.sh ensure` before it in the same job can wedge its stack ' +
                 'in UPDATE_ROLLBACK_FAILED during the ADR-0007 nightly window. Add the wake step, or add an ' +
                 'EXEMPT_DEPLOY_STEPS entry stating why that stack touches no database.',
         ).toEqual([]);
@@ -167,7 +167,7 @@ describe('sandbox DB wake wiring — the gate is allowed to fail the job', () =>
         for (const { id, step } of wakeSteps()) {
             expect(step['continue-on-error'] ?? false, `${id} must be able to fail the job`).toBe(false);
             expect(step.run ?? '', `${id} must not suppress the wake gate's exit status`).not.toMatch(
-                /db-wake\.sh ensure[^\n]*\|\|/,
+                /sandbox-wake\.sh ensure[^\n]*\|\|/,
             );
         }
     });

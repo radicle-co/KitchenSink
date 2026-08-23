@@ -151,10 +151,17 @@ describe('a historical measure, from prose to the shipped contract', () => {
         const { body } = candidateFor('jewish-manual');
 
         expect(body.description).toContain('British imperial');
-        expect(body.description).toContain('NIST Handbook 44');
-        // ⚠️ And the lengthened description still passes the contract's own cap. The citations are long
-        // strings and a recipe drawing on several authorities carries one sentence each, so the ceiling is
-        // reachable — which is exactly why it is asserted against the shipped schema and not eyeballed.
+        // ⚠️ REWRITTEN, not repaired. This asserted `NIST Handbook 44` — the citation the hand-written
+        // pint-and-gallon table carried before `standardUnits.ts` took the gill from UCUM. Editing it to
+        // whatever string happens to render now would leave a test that passes and proves nothing, so it
+        // asserts the distinction the new code actually makes: a gill is STANDARDISED and cites the
+        // standard, a saltspoon is a household CONVENTION and says so. One book's description carries
+        // both, so a reader is never told a convention was a standard.
+        expect(body.description).toContain('UCUM (gill)');
+        expect(body.description).toContain('a household convention (1 saltspoonful = ¼ teaspoonful)');
+        // ⚠️ And the lengthened description still passes the contract's own cap. A recipe drawing on
+        // several authorities carries one sentence each, so the ceiling is reachable — which is exactly
+        // why it is asserted against the shipped schema and not eyeballed.
         expect(createRecipeRequestSchema.safeParse(body).success).toBe(true);
     });
 });

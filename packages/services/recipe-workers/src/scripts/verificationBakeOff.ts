@@ -1,5 +1,9 @@
 /**
- * THE BAKE-OFF RUNNER (plan U11 / KTD-4) — Nova Micro against Claude Haiku 4.5, on our own corpus.
+ * THE BAKE-OFF RUNNER (plan U11 / KTD-4) — one corpus, one prompt, any priced model, on our own corpus.
+ *
+ * ⚠️ ADR-0024 §4a's roster is Nova Micro against Claude Haiku 4.5, and that is still what a BARE invocation
+ * runs ({@link DEFAULT_MODELS}). What `--models` may name is a wider question with a different answer — see
+ * {@link resolveModels}.
  *
  * ⛔⛔ THIS SCRIPT SPENDS REAL MONEY. Its scoring is pure and unit-tested (`verification/bakeOff.ts`); this
  * file does the calling, the reading and the printing, and it reuses the SAME prompt builder, verdict parser
@@ -68,7 +72,7 @@ import { parseArgs } from 'node:util';
 
 import pLimit from 'p-limit';
 import { createBedrockConverseClient, createBedrockTransport, isBedrockClientError } from '@kitchensink/bedrock-client';
-import type { BedrockConverseClient } from '@kitchensink/bedrock-client';
+import type { BedrockConverseClient, BedrockTokenUsage } from '@kitchensink/bedrock-client';
 import {
     CLAUDE_HAIKU_4_5_MODEL_ID,
     NOVA_MICRO_MODEL_ID,
@@ -84,15 +88,71 @@ import { VERIFICATION_MAX_OUTPUT_TOKENS, buildVerificationPrompt } from '../veri
 import { readVerdict } from '../verification/verdict.js';
 
 /**
- * The roster.
+ * What a BARE invocation runs — ADR-0024 §4a's roster, and nothing else.
  *
  * ⛔ TWO MODELS, AND GEMINI IS NOT ONE OF THEM. Gemini Flash-Lite is not available on Amazon Bedrock at all —
  * only Google's Gemma models are — so naming it would break every premise that chose Bedrock: no vendor
  * relationship, no secret in Secrets Manager, and no egress path of its own to review against ADR-0004.
  * Adding a third candidate is its own ADR, not a line in this array. If one is wanted, the in-boundary option
  * is a Gemma model.
+ *
+ * ⚠️ THIS IS NO LONGER THE LIST OF WHAT MAY BE CALLED — see {@link resolveModels}. It is the default, which
+ * is a different question, and the two were one list until pricing Nova Lite and Nova Pro made them diverge.
  */
-const ROSTER = [NOVA_MICRO_MODEL_ID, CLAUDE_HAIKU_4_5_MODEL_ID] as const;
+export const DEFAULT_MODELS: readonly string[] = Object.freeze([NOVA_MICRO_MODEL_ID, CLAUDE_HAIKU_4_5_MODEL_ID]);
+
+/**
+ * Decide which models this run will spend on.
+ *
+ * ⛔ THE PERMITTED SET IS THE RATE TABLE, NOT A LIST IN THIS FILE. `BEDROCK_RATE_TABLE`'s own docstring says
+ * "membership is authorization", and a second roster beside it is a copy of that authority that can drift
+ * from it — which is exactly what a `--models` id the runner accepts and `judge` then refuses would be. So
+ * the check is `rateFor(...) !== undefined`, the same predicate the production gate fails closed on.
+ *
+ * ⚠️ The `us.`-prefixed inference-profile ids are therefore REFUSED here even though Bedrock would answer
+ * them: the table keys on the bare id, so accepting a profile id would produce an uncosted run rather than a
+ * broken one. {@link INVOCATION_IDS} is where a profile id belongs.
+ *
+ * @param requested - The raw `--models` value, or `undefined` for the default roster.
+ * @returns The models to run, in the order asked for. Pure.
+ * @throws If any id is unpriced, repeated, or the selection is empty.
+ */
+export function resolveModels(requested: string | undefined): readonly string[] {
+    if (requested === undefined) {
+        return DEFAULT_MODELS;
+    }
+
+    const named = requested
+        .split(',')
+        .map((name) => name.trim())
+        .filter((name) => name.length > 0);
+
+    if (named.length === 0) {
+        throw new Error('--models named no model; omit it to run the default roster');
+    }
+
+    const unpriced = named.filter((name) => rateFor(name) === undefined);
+
+    if (unpriced.length > 0) {
+        throw new Error(
+            `--models names a model the Bedrock rate table cannot price: ${unpriced.join(', ')}. ` +
+                'Add it to BEDROCK_RATE_TABLE with a price read from a primary source, or use the bare ' +
+                'model id rather than a us.-prefixed inference profile.',
+        );
+    }
+
+    const repeated = named.filter((name, index) => named.indexOf(name) !== index);
+
+    if (repeated.length > 0) {
+        // Not deduplicated silently: the corpus would be judged twice at twice the cost, and the report would
+        // carry two entries with the same modelId — a comparison table comparing a model to itself.
+        throw new Error(
+            `--models names a model twice, which would double the spend: ${[...new Set(repeated)].join(', ')}`,
+        );
+    }
+
+    return named;
+}
 
 /**
  * What each roster entry is actually INVOKED as.
@@ -124,6 +184,18 @@ interface BakeOffObservation extends BakeOffTrial {
     readonly verdict: string | undefined;
     readonly certainty: string | undefined;
     readonly contrastClass: string | undefined;
+    /**
+     * The raw token counts the cost was computed from.
+     *
+     * ⚠️ ADDITIVE, like {@link BakeOffObservation.verdict}: `scoreBakeOff` never reads it and no reported
+     * number moves because it is present. It is here because ADR-0024 §5 ASSERTS that `cacheReadInputTokens`
+     * and `cacheWriteInputTokens` are always zero at this prompt size — reasoning from Claude Haiku 4.5's
+     * 4,096-token checkpoint minimum. Amazon Nova documents AUTOMATIC prompt caching "for all text prompts",
+     * which is a different mechanism that assumption does not cover, and the counter costs cache reads at a
+     * DERIVED rate that the Price List API contradicts. Recording usage turns "the ADR says zero" into
+     * something a run can check for free.
+     */
+    readonly usage: BedrockTokenUsage | undefined;
 }
 
 /** One model's numbers, on both slices. */
@@ -198,6 +270,7 @@ async function judge(
                 costMicros,
                 verdict: undefined,
                 certainty: undefined,
+                usage: outcome.usage,
             };
         }
 
@@ -210,6 +283,7 @@ async function judge(
             costMicros,
             verdict: reading.kind === 'read' ? reading.outcome.verdict : undefined,
             certainty: reading.kind === 'read' ? reading.outcome.certainty : undefined,
+            usage: outcome.usage,
         };
     } catch (error) {
         // A failed call is not a verdict. It is recorded as inconclusive with a named cause so a run degraded
@@ -221,6 +295,7 @@ async function judge(
             costMicros: 0,
             verdict: undefined,
             certainty: undefined,
+            usage: undefined,
         };
     }
 }
@@ -247,18 +322,11 @@ function readOptions(): {
         throw new Error('--corpus <path.jsonl> is required; the corpus is operator-supplied and not in this repo');
     }
 
-    const requested = values.models?.split(',').map((name) => name.trim()) ?? [...ROSTER];
-    const unknown = requested.filter((name) => !ROSTER.includes(name as (typeof ROSTER)[number]));
-
-    if (unknown.length > 0) {
-        throw new Error(`--models names a model outside the roster: ${unknown.join(', ')}`);
-    }
-
     return {
         corpus: values.corpus,
         limit: Number(values.limit ?? Number.MAX_SAFE_INTEGER),
         concurrency: Number(values.concurrency ?? DEFAULT_CONCURRENCY),
-        models: requested,
+        models: resolveModels(values.models),
         trialsOut: values['trials-out'],
     };
 }

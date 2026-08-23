@@ -34,6 +34,10 @@
             "types": "./dist/resolution/verificationGatePolicy.d.ts",
             "default": "./dist/resolution/verificationGatePolicy.js"
         },
+        "./resolution/verification-message": {
+            "types": "./dist/resolution/verificationMessage.d.ts",
+            "default": "./dist/resolution/verificationMessage.js"
+        },
         "./resolution/verification-key": {
             "types": "./dist/resolution/verificationKey.d.ts",
             "default": "./dist/resolution/verificationKey.js"

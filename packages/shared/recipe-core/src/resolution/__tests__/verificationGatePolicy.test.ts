@@ -29,6 +29,7 @@ import {
     decideVerification,
     rankedEvidence,
     rememberedEvidence,
+    unattributedEvidence,
     type ScoredCandidate,
     type VerificationGateInput,
 } from '../verificationGatePolicy.js';
@@ -65,6 +66,7 @@ describe('quantity is never skippable — by anything', () => {
         ['a shortlist whose candidates agree perfectly on nutrients', rankedEvidence([candidate(1), candidate(0)])],
         ['a singleton shortlist', rankedEvidence([candidate(1)])],
         ['an empty shortlist', rankedEvidence([])],
+        ['no recorded provenance at all', unattributedEvidence()],
     ])('still verifies quantity given %s', (_label, evidence) => {
         // ⛔ THE CORE RULE. Every piece of evidence the cascade can produce is evidence about IDENTITY. None
         // of it has ever looked at a number, a unit or a range — and the parser defects this whole plan exists
@@ -103,6 +105,29 @@ describe('identity is skipped only on identity evidence', () => {
             'identity',
             'quantity',
         ]);
+    });
+
+    it('is VERIFIED when the caller recorded NO provenance for the resolution', () => {
+        // ⛔ THE PRODUCER'S REAL STATE, and why this member exists rather than `rankedEvidence([])`.
+        // `RecipesService` enqueues from PERSISTED ingredient rows: the cascade outcome that first resolved
+        // the catalog row was discarded at `IngredientsService.resolveThroughCascade`, and nothing persists
+        // which tier answered. `rankedEvidence([])` would decide identically and would SAY the lexical tier
+        // ran and found nothing — a claim about provenance that is simply false, and the kind of name that
+        // later reads as evidence. This member says the true thing, and it can never establish identity.
+        expect(aspectsOf(decideVerification(input({ evidence: unattributedEvidence() })))).toEqual([
+            'identity',
+            'quantity',
+        ]);
+    });
+
+    it('reports a zero-length shortlist for unattributed evidence rather than inventing one', () => {
+        const decision = decideVerification(input({ evidence: unattributedEvidence() }));
+
+        expect(decision.observations.shortlistSize).toBe(0);
+        // ⛔ `undefined`, never `0`: a margin of zero is a real observation (two candidates tied). There were
+        // no candidates at all here, and a calibration reading these rows must be able to tell those apart.
+        expect(decision.observations.margin).toBeUndefined();
+        expect(decision.observations.nutrientAgreement).toBe('unknown');
     });
 
     it('is VERIFIED for a NARROW margin, however high the top score', () => {

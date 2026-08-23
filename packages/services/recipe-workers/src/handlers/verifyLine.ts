@@ -51,9 +51,14 @@ import {
     decideVerification,
     rankedEvidence,
     rememberedEvidence,
+    unattributedEvidence,
     type IdentityEvidence,
     type VerificationAspect,
 } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
+import {
+    verifyIngredientLineMessageSchema,
+    type VerifyIngredientLineMessage,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 import { bandFor, type ConfidenceBand } from '@kitchensink/recipe-core/resolution/confidence';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import {
@@ -68,7 +73,6 @@ import { requireEnv } from '../common/config.js';
 import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
-import { verifyIngredientLineMessageSchema, type VerifyIngredientLineMessage } from '../common/messages.schema.js';
 import { createSpendLedger, isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
 import {
     VERIFICATION_MAX_INPUT_TOKENS,
@@ -138,6 +142,10 @@ function evidenceFrom(message: VerifyIngredientLineMessage): IdentityEvidence {
             return rememberedEvidence();
         case 'ranked':
             return rankedEvidence(message.shortlist);
+        case 'unattributed':
+            // What the recipe write path sends: the persisted line records no cascade provenance, so there is
+            // none to rebuild. It opens no skip door, which is KTD-3's default and the safe direction.
+            return unattributedEvidence();
     }
 }
 

@@ -106,6 +106,28 @@ export type IdentityEvidence =
           /** The lexical tier's ranked shortlist (cascade tier 2). May be empty until U5 ships. */
           readonly kind: 'ranked';
           readonly shortlist: readonly ScoredCandidate[];
+      }
+    | {
+          /**
+           * ⛔ NO PROVENANCE WAS RECORDED — the honest state of the shipped producer, not a placeholder.
+           *
+           * `RecipesService` enqueues from PERSISTED `recipe_ingredients` rows. The cascade outcome that
+           * first resolved the catalog row was discarded inside
+           * `IngredientsService.resolveThroughCascade` (it keeps only `foodId`), and no column anywhere
+           * records which tier answered — so by the time a line is saved against a recipe, WHICH tier
+           * established identity is simply not recoverable.
+           *
+           * ⚠️ It exists because `ranked` with an empty shortlist decides IDENTICALLY and says something
+           * false: that the lexical tier ran and offered nothing. That difference is invisible in the
+           * decision and very visible in {@link GateObservations}, which is calibration evidence — and R17
+           * makes the bands MEASURED, so a row that misreports where its evidence came from corrupts the
+           * measurement rather than merely reading oddly.
+           *
+           * It can never establish identity, so a line carrying it always verifies both aspects. That is
+           * KTD-3's own default ("everything else verifies") and the safe direction: over-verifying costs
+           * money at ~370x headroom, under-verifying publishes nutrition nothing checked.
+           */
+          readonly kind: 'unattributed';
       };
 
 /** A human-asserted curated mapping. */
@@ -113,6 +135,12 @@ export const curatedExactEvidence = (): IdentityEvidence => ({ kind: 'curated-ex
 
 /** A remembered machine resolution. */
 export const rememberedEvidence = (): IdentityEvidence => ({ kind: 'remembered' });
+
+/**
+ * A resolution whose establishing tier was not recorded. See the `unattributed` member for why this is a
+ * member of its own rather than an empty {@link rankedEvidence}.
+ */
+export const unattributedEvidence = (): IdentityEvidence => ({ kind: 'unattributed' });
 
 /**
  * A ranked shortlist.

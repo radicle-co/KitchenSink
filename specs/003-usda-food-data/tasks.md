@@ -1202,3 +1202,44 @@ food-substitution FR remains open, and it is owned outside this task list).
    a DB-backed ranking only when a second source is wired (T-120). No schema change at launch.
 4. Async candidate search (§9-3) and change-detection via `item_version` (§9-4) are resolved in-plan (async +
    `food_sources.item_version`) — no open decision, recorded for traceability.
+
+---
+
+## ⛔ OPEN — SC-007's load fixture vs. the head-term retrieval branch (raised 2026-08-23)
+
+**Status: undecided. Needs an owner ruling before the heavy tier can be trusted again.**
+
+`8c70d742` ("retrieve on the head term, which folds diacritics for free") added one clause to
+`FoodSearchDao.relevanceQuery`:
+
+```sql
+OR rank_tokens @> ARRAY[${head}]::text[]
+```
+
+It fixed four measured zero-retrieval failures (`jalapeño`, `Kerrygold butter`, `oregano`, `Arborio rice`) and
+is the highest-value lever the 2026-08-22 measurement identified. It also moved k6 `search` p95 from ~48 ms to
+~133 ms and `narrow` from ~53 ms to ~184 ms, cutting SC-007's 288 ms headroom from ~5.6x to ~1.5x. Heavy E2E
+run `32639941903` then breached it — `narrow` 303 ms, `brand` 297 ms — on a commit touching no food file.
+
+**The evidence isolates code from host.** `localStoreRead` p95 (a single-row read the search predicate cannot
+touch) is flat at 3.85–5.56 ms across all five runs, and the `short` probe — the one shape where the branch
+cannot fire, since a 2-character head matches nothing — stays flat at 40–47 ms while every other shape
+triples. That is a code signature, not a slow runner.
+
+⚠️ **Do not re-run and call it green.** At 1.5x headroom ordinary p95 tail variance decides the outcome.
+
+### The fork — these are different claims about reality, not two spellings of one fix
+
+1. **The fixture is lying.** `tests/load/perfFixture.ts` builds names as `"{prep} {ingredient} {cut}, {brand}
+{serial}"` by `index % list.length`, so head terms distribute uniformly over tiny vocabularies:
+   `@> ARRAY['breast']` matches ~4,545 of 50,000 rows. On the real 8,094-row USDA catalog a cook's head term
+   matches a handful, and `8c70d742` repaired exactly this unfaithfulness in the ACCESS-PATH corpus
+   (`foodSearchAccessPath.integration.test.ts:421`) while leaving the LOAD fixture untouched. Choosing this
+   means: production search did not regress, and the fixture must be made selectively realistic.
+2. **The query is too broad.** Bound the head-term branch's contribution — cap its candidate set, require it to
+   co-occur with another term, or only fall back to it when the conjunction returns nothing. Choosing this
+   means: the branch really can degrade a large catalog and the fix belongs in the query.
+
+⚠️ Whichever is chosen, note what let this through: `foodSearchAccessPath.integration.test.ts` asserts the
+PLAN, not the LATENCY, so nothing caught it until the label-gated heavy tier ran hours later. A plan assertion
+cannot see a query that picks the right index and then scores 4,545 rows through it.

@@ -19,7 +19,7 @@
  *    ≈ $88/month/stage on Nova Micro. ADR-0024 names raising it as "the one change that makes this ruling
  *    unsafe" — and then supplies no control for it. This is that control.
  *
- * ## Why exact SET EQUALITY, and why it is bidirectional
+ * ## Why exact SET EQUALITY over GRANTEES, and why it is bidirectional
  *
  * Same shape as `natEgressConsumers.test.ts`, for the same reason: the drift that matters is an ADDITION
  * nobody noticed. A second `bedrock:InvokeModel` grantee — for an embedding model, for a tier-4 rewrite in
@@ -29,7 +29,23 @@
  * recipe-service (Fargate) would add a SECOND `bedrock:InvokeModel` grantee".
  *
  * The reverse direction matters too: a grant this file still expects after the function is deleted is the
- * same defect pointing the other way, and would leave the next reader believing a control exists.
+ * same defect pointing the other way, and would leave the next reader believing a control exists. That is the
+ * VACUITY floor, and it is a separate verdict from the grantee count rather than the same one.
+ *
+ * ⚠️ The set is over GRANTEES and their ACTIONS — never over the number of policy STATEMENTS. An earlier
+ * version asserted `grants.length === 1` and then read `grants[0]`, which is three defects in one line:
+ *
+ *  1. It failed a SECOND statement on the SAME role — one grantee, no bypass, nothing outside the counter —
+ *     under a message announcing that the gate had stopped discovering. That names the opposite of the cause,
+ *     and sends the reader looking for a broken parser instead of at their own diff.
+ *  2. It left every grant after the first entirely unread: its grantee and its actions were never judged. So
+ *     the moment the statement count was allowed to move, a widened second statement produced NO breach at
+ *     all — measured, not reasoned: the streaming fake below returned `[]` against that shape.
+ *  3. It therefore constrained the IAM SHAPE rather than the security invariant, which is backwards, and is
+ *     what blocked adopting AWS's documented least-privilege shape for inference profiles (a model ARN and a
+ *     profile ARN want two statements, one role).
+ *
+ * Grantee identity is the invariant. Statement count is a stylistic accident of how the policy is written.
  *
  * ## Why the PARSER and not grep
  *
@@ -39,8 +55,10 @@
  * there is only one. Same reasoning as `serviceSources.ts`: parsing means comments are comments.
  *
  * DESIGN PATTERN: Specification module over one parser — {@link bedrockGrantsIn} and
- * {@link reservedConcurrencyIn} are pure verdicts over a source file, so each is fired at deliberately
- * violating fakes below as well as at the working tree.
+ * {@link reservedConcurrencyIn} are pure readings of a source file, and {@link bedrockGrantBreaches} is the
+ * pure VERDICT over what they read. Splitting the verdict out of the `expect` calls is what lets layer 4b's
+ * judgement be fired at deliberately violating fakes below, and not only at the working tree — the reading
+ * was already testable that way; the judgement was not, which is how it stayed wrong.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -61,6 +79,23 @@ import type { SourceFile } from './serviceSources.js';
 
 /** The construct id of the one role ADR-0024 layer 4b permits to invoke a model. */
 const SOLE_BEDROCK_GRANTEE = 'IngredientVerificationRole';
+
+/**
+ * How that role is REFERRED TO where its policy statements are added.
+ *
+ * A rename lands here as a one-line edit and a red run, which is the point of pinning it: the grantee set is
+ * read from source text, so the gate must say which text it expects rather than accept whatever it finds.
+ */
+const SOLE_BEDROCK_GRANTEE_REFERENCE = 'verificationRole';
+
+/**
+ * The one action that role may hold.
+ *
+ * `InvokeModelWithResponseStream` is deliberately absent: the gate never streams, and a streamed response
+ * would defeat its single-response settlement. `bedrock:*` would additionally authorize model management and
+ * provisioned throughput on the role that already holds the spend counter.
+ */
+const SOLE_BEDROCK_ACTION = 'bedrock:InvokeModel';
 
 /** The construct id of the one function that may call Bedrock. */
 const VERIFIER_FUNCTION = 'IngredientVerificationFunction';
@@ -135,6 +170,70 @@ export function bedrockGrantsIn(source: SourceFile): readonly BedrockGrant[] {
     return grants;
 }
 
+/** One way a set of discovered grants breaches ADR-0024 layer 4b. */
+export interface BedrockGrantBreach {
+    /**
+     * Which of the three things layer 4b forbids.
+     *
+     * `no-grant-discovered` is the VACUITY floor and is deliberately its own kind rather than a special case
+     * of the grantee count: "the parser stopped finding grants" and "a second role holds the permission" are
+     * opposite failures with opposite repairs, and reporting one under the other's message is the defect this
+     * verdict replaced.
+     */
+    readonly kind: 'no-grant-discovered' | 'second-grantee' | 'action-wider-than-invoke-model';
+    /** The evidence, so the failure names what was actually found. */
+    readonly detail: string;
+}
+
+/**
+ * ADR-0024 layer 4b's verdict over EVERY bedrock grant discovered across the tree.
+ *
+ * The invariant is over GRANTEES and ACTIONS — never over the number of policy STATEMENTS. Two statements on
+ * one role are one grantee and therefore no bypass; one statement on each of two roles is the bypass, whatever
+ * the total happens to be. Every discovered grant is judged, because the addition this gate exists to catch
+ * arrives just as easily as a second statement as it does as a second file.
+ *
+ * ⚠️ Grantee identity is the reference text exactly as written (`verificationRole`, `this.verificationRole`),
+ * NOT a normalised last segment. Normalising would merge `workers.role` with `service.role` — two roles read
+ * as one, a false GREEN on precisely the bypass. Writing the same role two ways instead costs a false RED,
+ * which a human reads and corrects.
+ *
+ * @param grants - Every bedrock grant found in the tree (or in a fake standing in for it).
+ * @returns The breaches, empty when layer 4b holds. Pure.
+ */
+export function bedrockGrantBreaches(grants: readonly BedrockGrant[]): readonly BedrockGrantBreach[] {
+    const breaches: BedrockGrantBreach[] = [];
+
+    if (grants.length === 0) {
+        breaches.push({
+            kind: 'no-grant-discovered',
+            detail: 'no bedrock grant found anywhere — the gate has stopped discovering, so it proves nothing',
+        });
+    }
+
+    const grantees = [...new Set(grants.map(({ grantee }) => grantee))].sort();
+
+    if (grantees.length > 1) {
+        breaches.push({
+            kind: 'second-grantee',
+            detail: `bedrock actions are granted to ${grantees.length} roles: ${grantees.join(', ')}`,
+        });
+    }
+
+    for (const { file, grantee, actions } of grants) {
+        const wider = actions.filter((action) => action !== SOLE_BEDROCK_ACTION);
+
+        if (wider.length > 0) {
+            breaches.push({
+                kind: 'action-wider-than-invoke-model',
+                detail: `${file} grants ${grantee} more than ${SOLE_BEDROCK_ACTION}: ${wider.join(', ')}`,
+            });
+        }
+    }
+
+    return breaches;
+}
+
 /**
  * The `reservedConcurrentExecutions` declared for each `*Function` construct in one source.
  *
@@ -191,27 +290,32 @@ function infraSources(): readonly SourceFile[] {
         .map((file) => ({ file, contents: readFileSync(path.join(repoRoot, file), 'utf8') }));
 }
 
+/**
+ * The whole pipeline — parser then verdict — over deliberately violating fake sources.
+ *
+ * @param fakes - Fake infra sources, standing in for the tree.
+ * @returns The breach kinds, in verdict order. Pure.
+ */
+function breachKindsOf(...fakes: readonly SourceFile[]): readonly BedrockGrantBreach['kind'][] {
+    return bedrockGrantBreaches(fakes.flatMap((fake) => bedrockGrantsIn(fake))).map(({ kind }) => kind);
+}
+
 describe('ADR-0024 layer 4b — who may invoke a model', () => {
-    it('grants bedrock:InvokeModel to EXACTLY ONE role, across the whole tree', () => {
+    it('grants bedrock actions to EXACTLY ONE role, and only InvokeModel, across the whole tree', () => {
         const grants = infraSources().flatMap((source) => bedrockGrantsIn(source));
 
-        // ⛔ The gate has stopped discovering if this is empty — which would make the assertion below pass
-        // vacuously, i.e. report "exactly the right grantees" over nothing at all.
-        expect(grants.length, 'no bedrock grant found anywhere — the gate has stopped discovering').toBe(1);
-
-        const [grant] = grants;
-
-        expect(grant?.grantee).toContain('verificationRole');
-        expect(grant?.file).toContain('recipe-workers');
+        // Every breach is reported at once rather than one assertion at a time, so a diff that both moves the
+        // grant and widens it says so in one run instead of hiding the second defect behind the first.
+        expect(bedrockGrantBreaches(grants), 'ADR-0024 layer 4b is breached in the working tree').toEqual([]);
     });
 
-    it('grants only InvokeModel — never a streaming or wildcard action', () => {
-        // `InvokeModelWithResponseStream` is deliberately absent: the gate never streams, and a streamed
-        // response would defeat its single-response settlement. `bedrock:*` would additionally authorize
-        // model management and provisioned throughput on the role that already holds the spend counter.
-        const [grant] = infraSources().flatMap((source) => bedrockGrantsIn(source));
+    it('pins WHICH role holds it and WHERE — so a wholesale move is still a failure', () => {
+        const grants = infraSources().flatMap((source) => bedrockGrantsIn(source));
 
-        expect(grant?.actions).toEqual(['bedrock:InvokeModel']);
+        // The verdict above says "one grantee"; this says WHICH — so moving the grant wholesale to another
+        // role stays a failure rather than a silently still-compliant set of one.
+        expect([...new Set(grants.map(({ grantee }) => grantee))]).toEqual([SOLE_BEDROCK_GRANTEE_REFERENCE]);
+        expect(grants.filter(({ file }) => !file.includes('recipe-workers'))).toEqual([]);
     });
 
     it('names that role in the stack that owns the verifier', () => {
@@ -232,6 +336,95 @@ describe('ADR-0024 layer 4b — who may invoke a model', () => {
         });
 
         expect(found.map(({ grantee }) => grantee)).toEqual(['embeddingRole']);
+    });
+
+    it('accepts TWO statements on the SAME role — one grantee, so no bypass', () => {
+        expect(
+            breachKindsOf({
+                file: 'fake/SameRole.ts',
+                contents: `
+                    verificationRole.addToPolicy(new iam.PolicyStatement({
+                        actions: ['bedrock:InvokeModel'],
+                        resources: [foundationModelArn],
+                    }));
+                    verificationRole.addToPolicy(new iam.PolicyStatement({
+                        actions: ['bedrock:InvokeModel'],
+                        resources: [inferenceProfileArn],
+                    }));
+                `,
+            }),
+        ).toEqual([]);
+    });
+
+    it('rejects a second statement on a DIFFERENT role, which is the real bypass', () => {
+        expect(
+            breachKindsOf(
+                {
+                    file: 'fake/recipe-workers/Verifier.ts',
+                    contents: `
+                        verificationRole.addToPolicy(new iam.PolicyStatement({
+                            actions: ['bedrock:InvokeModel'],
+                            resources: [foundationModelArn],
+                        }));
+                    `,
+                },
+                {
+                    file: 'fake/recipe/Embeddings.ts',
+                    contents: `
+                        embeddingRole.addToPolicy(new iam.PolicyStatement({
+                            actions: ['bedrock:InvokeModel'],
+                            resources: ['*'],
+                        }));
+                    `,
+                },
+            ),
+        ).toEqual(['second-grantee']);
+    });
+
+    it('rejects a WIDER action on the SECOND statement, which reading only the first would miss', () => {
+        expect(
+            breachKindsOf({
+                file: 'fake/Streaming.ts',
+                contents: `
+                    verificationRole.addToPolicy(new iam.PolicyStatement({
+                        actions: ['bedrock:InvokeModel'],
+                        resources: [foundationModelArn],
+                    }));
+                    verificationRole.addToPolicy(new iam.PolicyStatement({
+                        actions: ['bedrock:InvokeModelWithResponseStream'],
+                        resources: [foundationModelArn],
+                    }));
+                `,
+            }),
+        ).toEqual(['action-wider-than-invoke-model']);
+    });
+
+    it('rejects a wildcard action wherever it sits', () => {
+        expect(
+            breachKindsOf({
+                file: 'fake/Wildcard.ts',
+                contents: `
+                    verificationRole.addToPolicy(new iam.PolicyStatement({
+                        actions: ['bedrock:*'],
+                        resources: ['*'],
+                    }));
+                `,
+            }),
+        ).toEqual(['action-wider-than-invoke-model']);
+    });
+
+    it('rejects a tree with NO grant at all — the gate has stopped discovering', () => {
+        expect(
+            breachKindsOf({
+                file: 'fake/NoBedrock.ts',
+                contents: `
+                    verificationRole.addToPolicy(new iam.PolicyStatement({
+                        actions: ['ssm:GetParameters'],
+                        resources: [ceilingParameterArn],
+                    }));
+                `,
+            }),
+        ).toEqual(['no-grant-discovered']);
     });
 
     it('reads a grant from code but not from the prose explaining why there is only one', () => {

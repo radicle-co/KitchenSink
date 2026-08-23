@@ -458,6 +458,42 @@ Micro $0.14, Lite $0.21, Pro $3.18. Quality is the reason.
 Also: **Nova Lite and Pro are both `ON_DEMAND`** — no `us.` inference profile, so the bare id works and the
 rate table prices it exactly. Claude Haiku 4.5 remains the only roster model that needs the profile split.
 
+### Adjudicated after the fact — were the contradicted lines actually correct?
+
+⛔ The right question to ask of a synthetic corpus, and it has been wrong here before (§2). Pro's 190
+both-order contradictions of `correct`-labelled lines were adjudicated by inspection on 2026-08-23, against
+the corpus records rather than against the model's reasoning.
+
+**The labels hold.** In every sampled case the parse names exactly the catalog row the line was generated
+from — `Spices, oregano, dried` from "2 pounds dried oregano spices", `Bulgur, cooked` from "3 to 4 cooked
+bulgur". The gate asks whether our parse matches the line, and it does. Pro is wrong as a verifier of this
+task.
+
+**But a real corpus defect surfaced, and it is not §2's.** 84 of the 608 `correct` lines — **13.8%** — carry
+**no unit at all**. "3 to 4 cooked bulgur" is not a line any cook writes. Pro contradicts 50.0% of that slice
+against 28.2% of lines that have a unit, so the defect inflates its rate materially.
+
+**It does not explain the rate.** On lines with a correct identity AND a real unit, Pro still contradicts
+28.2% where Micro contradicts 0.8% — a 35× gap the artifact cannot account for.
+
+| slice                | n   | Pro   | Micro |
+| -------------------- | --- | ----- | ----- |
+| no unit              | 84  | 50.0% | 2.4%  |
+| has a unit           | 524 | 28.2% | 0.8%  |
+| bulk mass of a spice | 12  | 16.7% | 0.0%  |
+| all `correct`        | 608 | 31.2% | 1.0%  |
+
+⚠️ One hypothesis formed from the sample and DISPROVED: implausible bulk quantities of spices ("2 pounds
+dried oregano") looked like the driver and are not — that slice runs _below_ Pro's average. Recorded because
+it would otherwise read as an obvious explanation to the next person.
+
+**What this changes.** Pro is not contradicting at random; it appears to answer "would a cook write this?"
+rather than "does the parse match?". That makes it worse for this task, not better — a model answering a
+different question is less useful than one answering the right question imprecisely — so the ruling stands.
+⛔ What it does change is confidence in the _corpus_: 13.8% unitless lines is a generator defect that touches
+every model's column, including Micro's `quantityUnitError` figure, since corrupting the unit of a line that
+has no unit is degenerate. Fix the generator before any of these numbers is re-used to decide something else.
+
 ### What this does not establish
 
 - **Haiku is still unmeasured.** Cross-vendor diversity is untested; no attestation was submitted.

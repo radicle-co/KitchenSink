@@ -43,7 +43,11 @@
  * `RecipeIngredientsDal.replaceForRecipe` deletes every ingredient row of a recipe and re-inserts the whole
  * set on EVERY save. Without this filter, editing one word of a title re-enqueues — and re-PAYS for — every
  * line in the recipe, which is the exact failure `verificationKey.ts` says content-keying removes. Content
- * keying made the verdict WRITE idempotent; nothing made the CALL idempotent, and this is that.
+ * keying made the verdict WRITE idempotent; nothing makes the CALL idempotent. ⚠️ This is not that, and an
+ * earlier wording here overclaimed that it was: it deduplicates within ONE recipe, across ONE save, and only
+ * if the previous save's enqueue actually happened. Across recipes it does nothing, and a second create of
+ * the same content asks again. The exact answer is a keyed read of `recipe_ingredient_verifications` — see
+ * {@link VerificationRequestInput.alreadyRequested}.
  *
  * The comparison defers to {@link verificationKeyPreimage} rather than comparing fields locally, because that
  * function is the ONE authoritative answer to "what is this judgement about" — it is what the verdict table
@@ -89,7 +93,47 @@ export interface VerifiableLine {
     readonly unit: string;
 }
 
-/** Everything the plan needs. Total: every input produces a list, and nothing here throws. */
+/**
+ * A line the gate will never be asked about, and why.
+ *
+ * ⛔ EXISTS BECAUSE `reject` AND `skip` ARE NOT THE SAME OUTCOME. `recipeRequestBounds.ts` states the
+ * intent for an over-cap line: it should resolve "as unresolved and be surfaced for correction, which is
+ * precisely the outcome that branch exists to produce". Silently dropping it alongside an authored line
+ * makes a line the system has permanently decided never to check invisible in every log there is — and it
+ * renders `verifyLine.ts`'s own over-cap branch unreachable from BOTH sides, since no message ever gets far
+ * enough to hit it.
+ *
+ * Reporting is the interim (the gate ships observe-only, so there is no `unresolved` state to write yet);
+ * `RecipesService` logs these, which is what makes the rate visible at all.
+ */
+export interface UnaskedLine {
+    /**
+     * Why the line was not asked about.
+     *
+     *  - `authored` — the cook wrote it; there is no source for our parse to disagree with.
+     *  - `no-catalog-identity` — a user-entered ingredient; no food to check identity against.
+     *  - `blank-source` — a source line with no visible content.
+     *  - `over-cap` — ⛔ REJECTED, never truncated (ADR-0024 §2). Reachable for a real cookbook line:
+     *    `MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH` admits 1000 characters and this gate caps at 400.
+     */
+    readonly reason: 'authored' | 'no-catalog-identity' | 'blank-source' | 'over-cap';
+    /** How long the source line was, for an `over-cap` line. Absent otherwise. */
+    readonly observedChars?: number;
+}
+
+/** What the producer decided: the messages to send, and every line it will never ask about. */
+export interface VerificationRequestPlan {
+    readonly requests: readonly VerifyIngredientLineMessage[];
+    /**
+     * Lines that will never be verified.
+     *
+     * ⚠️ NOT an error list — `authored` is the dominant, entirely normal case. It is here so `over-cap`, the
+     * one entry that means "we permanently gave up on a line a cook can see", is not invisible.
+     */
+    readonly unasked: readonly UnaskedLine[];
+}
+
+/** Everything the plan needs. Total: every input produces a plan, and nothing here throws. */
 export interface VerificationRequestInput {
     /** The recipe the lines belong to. Correlation only — a verdict is keyed on content, not on this. */
     readonly recipeId: string;
@@ -196,9 +240,10 @@ function judgementIdentity(line: VerifiableLine): string | undefined {
  * save that had already succeeded. Every line that cannot be asked about is simply absent from the result.
  *
  * @param input - The recipe, its lines, what was already asked, the bands and the instant.
- * @returns The messages to enqueue, in the author's line order, deduplicated by judgement. Pure.
+ * @returns The messages to enqueue in the author's line order, deduplicated by judgement, and every line
+ *   that will never be asked about. Pure.
  */
-export function buildVerificationRequests(input: VerificationRequestInput): readonly VerifyIngredientLineMessage[] {
+export function buildVerificationRequests(input: VerificationRequestInput): VerificationRequestPlan {
     const seen = new Set<string>();
 
     for (const previous of input.alreadyRequested) {
@@ -210,15 +255,23 @@ export function buildVerificationRequests(input: VerificationRequestInput): read
     }
 
     const requests: VerifyIngredientLineMessage[] = [];
+    const unasked: UnaskedLine[] = [];
 
     for (const line of input.lines) {
         const { sourceLine, foodId } = line;
 
-        // Two lines the gate structurally cannot be asked about. An AUTHORED line has no source for our parse
-        // to disagree with; a USER-ENTERED ingredient has no catalog identity, and a message with an empty
-        // `foodId` could not satisfy the consumer's schema — emitting one would manufacture DLQ poison.
-        // Destructured so the narrowing is the guard rather than a later assertion.
-        if (sourceLine === undefined || foodId === undefined) {
+        // Two lines the gate structurally cannot be asked about, and they are DIFFERENT facts: an AUTHORED
+        // line has no source for our parse to disagree with, while a USER-ENTERED ingredient has no catalog
+        // identity (and a message with an empty `foodId` could not satisfy the consumer's schema, so emitting
+        // one would manufacture DLQ poison). Destructured so the narrowing is the guard, not a later
+        // assertion.
+        if (sourceLine === undefined) {
+            unasked.push({ reason: 'authored' });
+            continue;
+        }
+
+        if (foodId === undefined) {
+            unasked.push({ reason: 'no-catalog-identity' });
             continue;
         }
 
@@ -230,7 +283,15 @@ export function buildVerificationRequests(input: VerificationRequestInput): read
             thresholds: input.thresholds,
         });
 
-        if (decision.kind !== 'verify') {
+        if (decision.kind === 'skip') {
+            unasked.push({ reason: 'blank-source' });
+            continue;
+        }
+
+        if (decision.kind === 'reject') {
+            // ⛔ REPORTED, not silently dropped. This is a line a cook can see that the system has decided it
+            // will never check; collapsing it into the authored case makes that decision invisible everywhere.
+            unasked.push({ reason: 'over-cap', observedChars: decision.observedChars });
             continue;
         }
 
@@ -262,5 +323,5 @@ export function buildVerificationRequests(input: VerificationRequestInput): read
         });
     }
 
-    return requests;
+    return { requests, unasked };
 }

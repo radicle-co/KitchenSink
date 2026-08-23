@@ -416,15 +416,29 @@ describe('Ingredient-verification queue wiring', () => {
         expect(parameters).not.toContain('/kitchensink/sandbox/recipe/verification-queue-url');
     });
 
-    it('grants sqs:SendMessage scoped to the verification queue ARN, and never receive/delete', () => {
+    it('grants sqs:SendMessage scoped to the verification queue ARN, and NOTHING else on it', () => {
         // The API PRODUCES verification work; only the gate Lambda consumes it. A task role that could
         // receive would let the API drain requests without verifying them.
+        //
+        // ⛔ ASSERTED ON THE STATEMENT'S ACTION LIST, not on string-ABSENCE over the template. The earlier
+        // version checked only that `sqs:ReceiveMessage` and `sqs:DeleteMessage` appeared nowhere — so
+        // mutating `actions: ['sqs:SendMessage']` to `['sqs:*']` kept it green while handing the API receive
+        // AND delete on the queue. A negative assertion cannot see a wildcard.
         const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
-        const serialized = JSON.stringify(Object.values(template.findResources('AWS::IAM::Policy')));
 
         expect(parameters).toContain('/kitchensink/pr-73/recipe/verification-queue-arn');
-        expect(serialized).not.toContain('sqs:ReceiveMessage');
-        expect(serialized).not.toContain('sqs:DeleteMessage');
+
+        const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
+            (policy: { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }) =>
+                policy.Properties?.PolicyDocument?.Statement ?? [],
+        );
+        const verificationStatements = statements.filter((statement) =>
+            JSON.stringify(statement).includes('verificationqueuearn'),
+        );
+
+        // Exactly one statement names this queue, and its action list is exactly one action.
+        expect(verificationStatements).toHaveLength(1);
+        expect(verificationStatements[0]).toMatchObject({ Action: 'sqs:SendMessage', Effect: 'Allow' });
     });
 
     it('does NOT grant the API task bedrock:InvokeModel — ADR-0024 layer 4b keeps that to ONE role', () => {

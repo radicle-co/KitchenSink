@@ -14,7 +14,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { verifyIngredientLineMessageSchema } from '../verificationMessage.js';
+import { MAX_VERIFICATION_SOURCE_LINE_LENGTH, verifyIngredientLineMessageSchema } from '../verificationMessage.js';
 
 describe('verifyIngredientLineMessageSchema (plan U11)', () => {
     /**
@@ -60,6 +60,27 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
         // ⛔ ADR-0024 §2: without a bound on prompt length "the reservation is a lie and the ceiling does not
         // hold". The queue is the last place this value can be refused before it becomes a worst case.
         expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ sourceLine: 'x'.repeat(5_000) }))).toThrow();
+    });
+
+    it('⛔ counts the source line in CODE POINTS, so it agrees with the policy that admitted it', () => {
+        // ⛔ THE DEFECT THIS PINS, measured in this tree: 120 pizza emoji + 250 ASCII is 370 CODE POINTS —
+        // which `decideVerification` admits, because its cap counts code points — and 490 UTF-16 units,
+        // which `z.string().max(400)` refuses. Producer says verify, consumer says poison: the message is
+        // redelivered 20 times under `maxReceiveCount` and lands in a three-day DLQ carrying a cook's recipe
+        // text, while the API reports success and the line is never checked.
+        //
+        // Every other bound in this file is tested with `'x'.repeat(n)`, which cannot see this class at all.
+        const astral = '\u{1F355}'.repeat(120) + 'x'.repeat(250);
+
+        expect([...astral].length).toBeLessThanOrEqual(MAX_VERIFICATION_SOURCE_LINE_LENGTH);
+        expect(astral.length).toBeGreaterThan(MAX_VERIFICATION_SOURCE_LINE_LENGTH);
+        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ sourceLine: astral }))).not.toThrow();
+    });
+
+    it('still refuses a line that is over cap in CODE POINTS', () => {
+        const over = '\u{1F355}'.repeat(MAX_VERIFICATION_SOURCE_LINE_LENGTH + 1);
+
+        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ sourceLine: over }))).toThrow();
     });
 
     it('rejects a blank source line rather than spending a call to verify nothing', () => {

@@ -117,11 +117,16 @@ export type IdentityEvidence =
            * records which tier answered — so by the time a line is saved against a recipe, WHICH tier
            * established identity is simply not recoverable.
            *
-           * ⚠️ It exists because `ranked` with an empty shortlist decides IDENTICALLY and says something
-           * false: that the lexical tier ran and offered nothing. That difference is invisible in the
-           * decision and very visible in {@link GateObservations}, which is calibration evidence — and R17
-           * makes the bands MEASURED, so a row that misreports where its evidence came from corrupts the
-           * measurement rather than merely reading oddly.
+           * ⚠️ IT EXISTS BECAUSE THE WIRE ENUM IS A ONE-WAY DOOR, not because the two decide differently.
+           * `rankedEvidence([])` decides identically TODAY and — checked, not assumed — produces a
+           * byte-identical {@link GateObservations} (`shortlistOf` yields `[]` for both, so the size, the
+           * margin and the agreement all match). What differs is the CLAIM: `ranked` asserts that the
+           * lexical tier ran and offered nothing, on a value that is persisted in a queue message and
+           * re-read by a separately-deployed consumer. The moment any skip door keys on `kind === 'ranked'`
+           * — U5 ships exactly that tier — a producer that never ranked anything would be acting on a
+           * statement it invented. This is the same argument that makes {@link IdentityEvidence} a union
+           * rather than `{ tier, shortlist }`: a state that should not be representable should not be
+           * spellable.
            *
            * It can never establish identity, so a line carrying it always verifies both aspects. That is
            * KTD-3's own default ("everything else verifies") and the safe direction: over-verifying costs

@@ -232,6 +232,48 @@ describe.skipIf(!hasDatabaseUrl)('the verification gate’s producer (U11 integr
         expect(await drainQueue()).toEqual([]);
     });
 
+    it('⛔ asks NOTHING when the author OVERRODE our parse — against the REAL carry-forward', async () => {
+        // ⚠️ The unit tier asserts this against a FAKE DAL, which means it asserts an assumption about what
+        // `replaceForRecipe` persists. Only this tier proves it: the quantity edit moves
+        // `[ingredientId, quantity, unit]`, `carryForwardSourceLines` drops the transcription, the column
+        // really goes NULL, and the producer — which reads the PERSISTED rows — then has nothing to ask.
+        //
+        // That is the correct outcome, not a gap: carrying the transcription would have the gate check our
+        // parse of `3 cups` against a source that said `2 cups` and correctly DISAGREE with an edit the
+        // author made on purpose — the wrong-disagree direction U11 calls unacceptable, on the one line a
+        // human has just told us we got wrong.
+        const created = await create(SOURCE_LINE);
+
+        expect(await drainQueue()).toHaveLength(1);
+
+        const response = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                expectedVersion: created.currentVersion,
+                ingredients: [
+                    {
+                        ingredientId: FOOD_BACKED_INGREDIENT_ID,
+                        name: 'Flour',
+                        quantity: { kind: 'exact', value: 3 },
+                        unit: 'cup',
+                    },
+                ],
+            }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(await drainQueue()).toEqual([]);
+
+        const { rows } = await pool.query<{ source_line: string | null }>(
+            'SELECT source_line FROM recipe_ingredients WHERE recipe_id = $1',
+            [created.id],
+        );
+
+        // The mechanism, asserted rather than inferred from the empty queue.
+        expect(rows[0]?.source_line).toBeNull();
+    });
+
     it('sends NOTHING for a USER-ENTERED line, which has no catalog identity to check', async () => {
         // The seeded catalog is entirely user-entered (`food_id IS NULL`), which is exactly the skip case.
         const response = await fetch(`${baseUrl}/api/v1/recipes`, {

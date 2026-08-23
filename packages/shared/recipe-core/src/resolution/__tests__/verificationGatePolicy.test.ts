@@ -108,20 +108,30 @@ describe('identity is skipped only on identity evidence', () => {
     });
 
     it('is VERIFIED when the caller recorded NO provenance for the resolution', () => {
-        // ⛔ THE PRODUCER'S REAL STATE, and why this member exists rather than `rankedEvidence([])`.
-        // `RecipesService` enqueues from PERSISTED ingredient rows: the cascade outcome that first resolved
-        // the catalog row was discarded at `IngredientsService.resolveThroughCascade`, and nothing persists
-        // which tier answered. `rankedEvidence([])` would decide identically and would SAY the lexical tier
-        // ran and found nothing — a claim about provenance that is simply false, and the kind of name that
-        // later reads as evidence. This member says the true thing, and it can never establish identity.
+        // ⛔ THE PRODUCER'S REAL STATE. `RecipesService` enqueues from PERSISTED ingredient rows: the cascade
+        // outcome that first resolved the catalog row was discarded at
+        // `IngredientsService.resolveThroughCascade`, and nothing persists which tier answered.
+        //
+        // ⚠️ It decides IDENTICALLY to `rankedEvidence([])` — see the next case, which asserts that on
+        // purpose so nobody "simplifies" this member away believing it changes an outcome. It earns its
+        // place on the WIRE, where `ranked` would assert that a lexical tier ran, on a value a
+        // separately-deployed consumer re-reads and a future skip door will key on.
         expect(aspectsOf(decideVerification(input({ evidence: unattributedEvidence() })))).toEqual([
             'identity',
             'quantity',
         ]);
     });
 
-    it('reports a zero-length shortlist for unattributed evidence rather than inventing one', () => {
-        const decision = decideVerification(input({ evidence: unattributedEvidence() }));
+    it('observes exactly what an empty ranked shortlist observes — the member is a WIRE claim, not a verdict', () => {
+        // ⛔ ASSERTED, not assumed. An earlier docstring claimed the difference was "very visible in
+        // GateObservations"; it is not, and a justification that cites evidence which does not exist is worse
+        // than none. Pinning the equality here is what keeps the real reason (the wire enum) the stated one.
+        const unattributed = decideVerification(input({ evidence: unattributedEvidence() }));
+        const emptyRanked = decideVerification(input({ evidence: rankedEvidence([]) }));
+
+        expect(unattributed.observations).toEqual(emptyRanked.observations);
+
+        const decision = unattributed;
 
         expect(decision.observations.shortlistSize).toBe(0);
         // ⛔ `undefined`, never `0`: a margin of zero is a real observation (two candidates tied). There were

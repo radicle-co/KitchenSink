@@ -26,7 +26,10 @@ import { describe, expect, it } from 'vitest';
 
 import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
-import { verifyIngredientLineMessageSchema } from '@kitchensink/recipe-core/resolution/verification-message';
+import {
+    verifyIngredientLineMessageSchema,
+    type VerifyIngredientLineMessage,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 
 import { buildVerificationRequests, type VerifiableLine } from '../verificationRequests.js';
 
@@ -53,7 +56,7 @@ const makeLine = (overrides: Partial<VerifiableLine> = {}): VerifiableLine => ({
     ...overrides,
 });
 
-const build = (
+const plan = (
     lines: readonly VerifiableLine[],
     alreadyRequested: readonly VerifiableLine[] = [],
 ): ReturnType<typeof buildVerificationRequests> =>
@@ -64,6 +67,12 @@ const build = (
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
         requestedAt: REQUESTED_AT,
     });
+
+/** Just the messages, for the many cases that are only about what reaches the queue. */
+const build = (
+    lines: readonly VerifiableLine[],
+    alreadyRequested: readonly VerifiableLine[] = [],
+): readonly VerifyIngredientLineMessage[] => plan(lines, alreadyRequested).requests;
 
 describe('buildVerificationRequests — what reaches the queue at all (ADR-0024 layer 0)', () => {
     it('emits one message for a transcribed, catalog-backed line', () => {
@@ -111,11 +120,37 @@ describe('buildVerificationRequests — what reaches the queue at all (ADR-0024 
         expect(build([makeLine({ foodId: undefined })])).toEqual([]);
     });
 
-    it('REJECTS an over-cap line rather than truncating it', () => {
+    it('REJECTS an over-cap line rather than truncating it, and REPORTS the rejection', () => {
         const over = 'x'.repeat(PROVISIONAL_VERIFICATION_THRESHOLDS.maxSourceLineChars + 1);
+        const outcome = plan([makeLine({ sourceLine: over })]);
 
         // ⛔ ADR-0024 §2. Not "sends a shortened line" — sends nothing.
-        expect(build([makeLine({ sourceLine: over })])).toEqual([]);
+        expect(outcome.requests).toEqual([]);
+        // ⛔ AND NOT SILENTLY. `recipeRequestBounds.ts` says an over-cap line should be "surfaced for
+        // correction"; the gate ships observe-only so there is no `unresolved` state to write yet, but
+        // collapsing it into the authored case would make a line the system permanently gave up on invisible
+        // in every log there is. It is reachable for a real cookbook line: the wire admits 1000 characters
+        // and this cap is 400.
+        expect(outcome.unasked).toEqual([
+            { reason: 'over-cap', observedChars: PROVISIONAL_VERIFICATION_THRESHOLDS.maxSourceLineChars + 1 },
+        ]);
+    });
+
+    it('tells an AUTHORED line apart from a USER-ENTERED one apart from a BLANK one', () => {
+        // Three different facts about why nothing was asked, and the caller logs them differently. Collapsing
+        // them into one "skipped" count is how the interesting one stops being noticeable.
+        const outcome = plan([
+            makeLine({ sourceLine: undefined }),
+            makeLine({ foodId: undefined }),
+            makeLine({ sourceLine: '  \u200d ' }),
+        ]);
+
+        expect(outcome.requests).toEqual([]);
+        expect(outcome.unasked.map((entry) => entry.reason)).toEqual([
+            'authored',
+            'no-catalog-identity',
+            'blank-source',
+        ]);
     });
 
     it('sends a line sitting exactly ON the cap', () => {

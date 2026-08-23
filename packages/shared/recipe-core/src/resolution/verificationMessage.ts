@@ -41,6 +41,32 @@ import { z } from 'zod';
 const isoInstant = (): z.ZodISODateTime => z.iso.datetime();
 
 /**
+ * A trimmed, non-empty string bounded in Unicode CODE POINTS.
+ *
+ * ⛔ NOT `z.string().max(n)`, and the difference is a live defect rather than pedantry. Zod's `.max()`
+ * counts UTF-16 code units, while `verificationGatePolicy`'s cap counts CODE POINTS — and its docstring
+ * explains why: "an astral character is one thing a tokenizer sees and two `String.length` units". With the
+ * two files measuring the same bound in different units, the PRODUCER's policy says `verify` for a line the
+ * CONSUMER's schema then refuses. Measured in this tree: 120 pizza emoji plus 250 ASCII characters is 370
+ * code points (the policy admits it) and 490 UTF-16 units (`.max(400)` rejects it). The message is built,
+ * sent, redelivered 20 times under `maxReceiveCount`, and lands in a three-day DLQ carrying a cook's recipe
+ * text — while the API reports success and the line is never verified.
+ *
+ * It does not take a pathological input: 250 ASCII characters and 80 emoji clears the policy and fails the
+ * schema. Counting code points at BOTH ends is what makes the two bounds the same bound.
+ *
+ * @param max - The bound, in code points.
+ * @returns The schema. Pure.
+ */
+function boundedText(max: number): z.ZodType<string> {
+    return z
+        .string()
+        .trim()
+        .min(1)
+        .refine((value) => [...value].length <= max, { error: `must be at most ${String(max)} characters` });
+}
+
+/**
  * The largest source line this queue will carry, in characters.
  *
  * ⛔ SOURCED FROM THE SPEND CEILING, not from a column. ADR-0024 §2 makes a hard input cap a PRECONDITION of
@@ -105,11 +131,11 @@ export const verifyIngredientLineMessageSchema = z.object({
     /** The recipe the line belongs to. Correlation only — the verdict is keyed on content, not on this. */
     recipeId: z.uuid(),
     /** The line the cook's source said. UNTRUSTED, and the reason for every bound above. */
-    sourceLine: z.string().trim().min(1).max(MAX_VERIFICATION_SOURCE_LINE_LENGTH),
+    sourceLine: boundedText(MAX_VERIFICATION_SOURCE_LINE_LENGTH),
     /** The opaque food-service id the cascade resolved to. */
     foodId: z.string().min(1).max(64),
     /** That food's catalog name — what the model is asked to judge identity against. */
-    candidateFoodName: z.string().trim().min(1).max(MAX_VERIFICATION_FOOD_NAME_LENGTH),
+    candidateFoodName: boundedText(MAX_VERIFICATION_FOOD_NAME_LENGTH),
     /**
      * Our parsed amount, or the low end of a range. `null` when the parser found none.
      *
@@ -119,7 +145,17 @@ export const verifyIngredientLineMessageSchema = z.object({
     quantityLow: z.number().finite().nullable(),
     /** The high end of a range, or `null` for an exact quantity. */
     quantityHigh: z.number().finite().nullable(),
-    /** Our parsed unit, or `null`. */
+    /**
+     * Our parsed unit, or `null` when the parser found none.
+     *
+     * ⚠️ THE BOUND IS TIGHTER THAN THE WIRE'S AND TIGHTER THAN THE COLUMN'S, deliberately.
+     * `recipeIngredientUnitSchema` has NO maximum and `recipe_ingredients.unit` is `text`, so a client can
+     * store a unit this schema would refuse. That asymmetry is correct — a 65-character unit reaches the
+     * PROMPT, and this contract's every bound exists to keep a worst-case reservation honest (ADR-0024 §2) —
+     * but it means the producer can hold a line it cannot ask about. That is why the SQS adapter parses each
+     * message against this schema before sending: the line goes unverified (today's behaviour) with a log,
+     * instead of becoming DLQ poison carrying recipe text.
+     */
     unit: z.string().max(64).nullable(),
     /**
      * Which cascade tier established identity — the discriminant of `IdentityEvidence`.

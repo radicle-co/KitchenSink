@@ -85,30 +85,16 @@ interface ResolvedIngredientLines {
 }
 
 /**
- * Project a line the service is about to persist onto the gate's question.
+ * Project a PERSISTED `recipe_ingredients` row onto the gate's question.
  *
- * @param line - The resolved link row.
- * @param catalog - The catalog rows, by ingredient id.
- * @returns The verifiable projection. `foodId` is `undefined` for a user-entered ingredient, which the
- *   producer reads as "there is no catalog identity to check". Pure.
- */
-function toVerifiableLine(line: ResolvedIngredientLine, catalog: ReadonlyMap<string, Ingredient>): VerifiableLine {
-    const ingredient = catalog.get(line.ingredientId);
-
-    return {
-        sourceLine: line.sourceLine,
-        foodId: ingredient?.foodId,
-        // The CATALOG's name, never the caller's phrase: the gate asks whether the source line means THIS
-        // food, and our rendered name is the output of the very parse under test (0024's header makes this
-        // point — checking it against itself agrees by construction and verifies nothing).
-        candidateFoodName: ingredient?.name ?? line.ingredientName,
-        quantity: line.quantity,
-        unit: line.unit,
-    };
-}
-
-/**
- * Project a line ALREADY STORED onto the same question, so an unchanged line is recognised as unchanged.
+ * ⛔ THE ONLY PROJECTION, used for the lines being asked about AND for the lines already asked about. An
+ * earlier revision had a second adapter reading the pre-persistence `ResolvedIngredientLine`, and the two
+ * disagreed in a way nothing would have caught: the DTO carries an unrounded `number` while
+ * `recipe_ingredients.quantity` is `numeric(10,3)`, and `recipeIngredientQuantitySchema` imposes NO scale.
+ * A client sending `0.3333333333` would have produced a create message keyed on `0.3333333333` against a
+ * stored row of `0.333` — a verdict keyed on a quantity no row holds, and a dedup that could never match
+ * again. That it does not happen today rests only on `recipe-import-core` pre-rounding, which is a coupling
+ * across two packages with nothing asserting it. Reading the RETURNED rows removes the question.
  *
  * ⚠️ `quantityFromColumns` is the ONE adapter that turns the two nullable `numeric` columns back into the
  * value object — the same one the read projection and `ingredientsChanged` use. A local re-derivation here
@@ -128,10 +114,16 @@ function toVerifiableLine(line: ResolvedIngredientLine, catalog: ReadonlyMap<str
  * @returns The verifiable projection. Pure.
  */
 function storedLineToVerifiable(row: RecipeIngredientRow, catalog: ReadonlyMap<string, Ingredient>): VerifiableLine {
+    const ingredient = catalog.get(row.ingredientId);
+
     return {
         sourceLine: row.sourceLine ?? undefined,
-        foodId: catalog.get(row.ingredientId)?.foodId,
-        candidateFoodName: row.ingredientName,
+        foodId: ingredient?.foodId,
+        // The CATALOG's canonical name where we have it, never the caller's phrase: the gate asks whether the
+        // source line means THIS food, and our rendering is the output of the very parse under test
+        // (`0024_ingredient_source_line.sql` makes the point — checking it against itself agrees by
+        // construction). The denormalized column is the fallback for a row the catalog map does not cover.
+        candidateFoodName: ingredient?.name ?? row.ingredientName,
         quantity: quantityFromColumns(row),
         unit: row.unit,
     };
@@ -282,6 +274,16 @@ function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientL
         quantity: quantityFromColumns(row),
         unit: row.unit,
         ...(row.displayText !== null ? { displayText: row.displayText } : {}),
+        // ⛔ The raw source line travels with the clone (U11). It is a fact about the SOURCE, not about the
+        // author — a clone of an imported recipe was transcribed from the same book — so it belongs to the
+        // line exactly as `display_text` does. Omitting it (as this mapper did until `0024` was noticed here)
+        // means a cloned recipe can NEVER be verified and U14's correction surface has nothing to show the
+        // cook their source said, permanently and silently.
+        //
+        // ⚠️ The clone deliberately does NOT enqueue a verification of its own: the judgement is
+        // content-identical to the source's, and `verificationKey` is content-addressed, so any verdict the
+        // source already carries applies to the clone unchanged.
+        ...(row.sourceLine !== null ? { sourceLine: row.sourceLine } : {}),
         sortOrder: row.sortOrder,
         isUserEntered: row.isUserEntered,
         // Preserve any per-line user-entered nutrition (FR-007a) across a clone (numeric → number).
@@ -816,7 +818,16 @@ export class RecipesService {
 
         // Ask the verification gate about the transcribed lines (plan U11 / ADR-0024). A create has nothing
         // already on record, so `previous` is empty. Never throws — see `requestVerification`.
-        await this.requestVerification(aggregate.recipe.id, ingredients, catalog, []);
+        //
+        // ⛔ LAST, after the snapshot, and the UPDATE path does the same: this is a lossy, explicitly
+        // droppable side effect, so nothing that must not be lost may sit behind it. Interposing it between
+        // the committed write and the version snapshot would mean a stall delays — and a process death
+        // loses — a snapshot, to buy nothing.
+        //
+        // ⛔ Reads `aggregate.ingredients` (the PERSISTED rows), not the pre-persistence lines: the DTO
+        // carries an unrounded number while the column is `numeric(10,3)`, so the two can disagree on a
+        // quantity — see `storedLineToVerifiable`.
+        await this.requestVerification(aggregate.recipe.id, aggregate.ingredients, catalog, []);
 
         // A freshly-created recipe has no photos yet (uploaded afterward); nutrition is computed from its lines.
         return this.toDetailResponse(aggregate, [], { caller });
@@ -895,21 +906,38 @@ export class RecipesService {
      */
     private async requestVerification(
         recipeId: string,
-        lines: readonly ResolvedIngredientLine[],
+        lines: readonly RecipeIngredientRow[],
         catalog: ReadonlyMap<string, Ingredient>,
         previous: readonly RecipeIngredientRow[],
     ): Promise<void> {
-        const requests = buildVerificationRequests({
+        const { requests, unasked } = buildVerificationRequests({
             recipeId,
-            lines: lines.map((line) => toVerifiableLine(line, catalog)),
+            lines: lines.map((row) => storedLineToVerifiable(row, catalog)),
             alreadyRequested: previous.map((row) => storedLineToVerifiable(row, catalog)),
             thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
             requestedAt: new Date().toISOString(),
         });
 
+        // ⛔ An over-cap line is the ONE unasked reason worth a log line. `authored` and
+        // `no-catalog-identity` are the normal, dominant cases and would drown it; `over-cap` means the
+        // system has permanently decided never to check a line a cook can see, and
+        // `recipeRequestBounds.ts` says such a line should be "surfaced for correction". Observe-only ships
+        // no `unresolved` state to write, so this log is the interim surface.
+        const overCap = unasked.filter((entry) => entry.reason === 'over-cap');
+
+        if (overCap.length > 0) {
+            this.logger.warn(
+                `recipe ${recipeId}: ${overCap.length} ingredient line(s) exceed the verification gate's ` +
+                    `input cap and will never be checked (longest ${Math.max(
+                        ...overCap.map((entry) => entry.observedChars ?? 0),
+                    )} characters)`,
+            );
+        }
+
         if (requests.length === 0) {
-            // ⛔ Not an empty batch — no call at all. `SendMessageBatch` rejects an empty `Entries` list, so
-            // an unguarded call here would turn every hand-authored recipe save into a logged error.
+            // ⛔ Not an empty batch — no call at all. `SendMessageBatch` REFUSES an empty `Entries` list
+            // (`AWS.SimpleQueueService.EmptyBatchRequest`, verified against LocalStack), so an unguarded call
+            // here would turn every hand-authored recipe save into a logged error.
             return;
         }
 
@@ -1107,14 +1135,6 @@ export class RecipesService {
             return this.raiseVersionConflict(id, dto.expectedVersion);
         }
 
-        if (ingredients !== undefined && resolved !== undefined) {
-            // ⛔ `existing.ingredients` is the ALREADY-REQUESTED set, and it is what stops a title edit from
-            // re-paying for every line: `replaceForRecipe` rewrites the whole set on every save, and both
-            // shipped clients send `ingredients` on every save. A patch that carries no `ingredients` asks
-            // nothing at all, because no judgement moved.
-            await this.requestVerification(id, ingredients, resolved.catalog, existing.ingredients);
-        }
-
         if (options.recordSnapshot !== false) {
             // Editor handle (W8-a.2) — the version's "by @handle" attribution. Derived from the editor's
             // token claims via the ONE shared rule create uses; `author_handles` is deliberately NOT the
@@ -1127,6 +1147,14 @@ export class RecipesService {
                 dto.deviceLabel,
                 editorHandle,
             );
+        }
+
+        if (resolved !== undefined) {
+            // ⛔ `existing.ingredients` is the ALREADY-REQUESTED set, and it is what stops a title edit from
+            // re-paying for every line: `replaceForRecipe` rewrites the whole set on every save, and both
+            // shipped clients send `ingredients` on every save. A patch carrying no `ingredients` asks
+            // nothing at all, because no judgement moved. LAST, for the reason `create` states.
+            await this.requestVerification(id, updated.ingredients, resolved.catalog, existing.ingredients);
         }
 
         return this.toDetailResponse(updated, await this.loadPhotoRows(id));

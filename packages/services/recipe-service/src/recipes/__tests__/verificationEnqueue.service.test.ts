@@ -23,6 +23,12 @@
  *     than discovered later — and it is the right outcome, because verifying our parse of an author's
  *     correction against the source they overrode would manufacture a wrong DISAGREE.
  *
+ * ⛔ THERE IS DELIBERATELY NO "QUEUE IS DOWN" CASE ON THE UPDATE PATH. One was written and DELETED: because
+ * of (4) the update path never reaches a send, so `mockRejectedValue` never fired and the case would have
+ * passed with the whole `requestVerification` call removed. That is the definition of coverage theater, and
+ * a test that cannot fail must not be counted. The containment property is proved on the CREATE path, which
+ * does reach the send; if (4) ever stops holding, the case belongs back here with a fixture that reaches it.
+ *
  * The message CONTENT rules are a truth table in `domain/__tests__/verificationRequests.test.ts`; this file
  * is about the orchestration around them — ordering, failure containment, and which lines reach the policy.
  */
@@ -136,13 +142,19 @@ const createDto = (sourceLine: string | null = SOURCE_LINE): CreateRecipeDto => 
 });
 
 describe('RecipesService.create — the verification producer', () => {
-    it('enqueues one request for the transcribed, catalog-backed line', async () => {
+    it('enqueues one request for the transcribed, catalog-backed line, AFTER the write', async () => {
         const queue = fakeVerificationQueue();
-        const service = makeService(fakeRecipesDal(), queue);
+        const dal = fakeRecipesDal();
 
-        await service.create(OWNER_PRINCIPAL, createDto());
+        await makeService(dal, queue).create(OWNER_PRINCIPAL, createDto());
 
         expect(queue.enqueue).toHaveBeenCalledTimes(1);
+        // ⛔ AFTER the write, asserted rather than described: the message carries the PERSISTED recipe's id,
+        // so a producer that ran first would have nothing to name — and it reads the persisted ROWS, whose
+        // quantity has been through `numeric(10,3)`.
+        expect(queue.enqueue.mock.invocationCallOrder[0]).toBeGreaterThan(
+            (dal.create as unknown as { mock: { invocationCallOrder: number[] } }).mock.invocationCallOrder[0] ?? 0,
+        );
         const [messages] = queue.enqueue.mock.calls[0] ?? [];
 
         expect(messages).toHaveLength(1);
@@ -212,7 +224,7 @@ describe('RecipesService.update — the verification producer', () => {
         const queue = fakeVerificationQueue();
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(stored()),
-            update: vi.fn().mockResolvedValue(aggregate({ quantity: '3' })),
+            update: vi.fn().mockResolvedValue(aggregate({ quantity: '3', sourceLine: null })),
         });
 
         await makeService(dal, queue).update(OWNER_PRINCIPAL, RECIPE_ID, updateDto(3));
@@ -245,22 +257,5 @@ describe('RecipesService.update — the verification producer', () => {
         await makeService(dal, queue).update(OWNER_PRINCIPAL, RECIPE_ID, { expectedVersion: 1, title: 'Better bread' });
 
         expect(queue.enqueue).not.toHaveBeenCalled();
-    });
-
-    it('⛔ still returns the updated recipe when the queue is DOWN', async () => {
-        // The containment property, asserted on this path too. It cannot currently be reached through a
-        // send — see the two cases above, which together mean an UPDATE asks nothing today — so what this
-        // pins is that the seam stays wired and non-throwing if that ever changes (U14 gives the correction
-        // surface a reason to re-ask).
-        const queue = fakeVerificationQueue();
-        queue.enqueue.mockRejectedValue(new Error('sqs is unreachable'));
-        const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(stored()),
-            update: vi.fn().mockResolvedValue(aggregate({ quantity: '3' })),
-        });
-
-        const response = await makeService(dal, queue).update(OWNER_PRINCIPAL, RECIPE_ID, updateDto(3));
-
-        expect(response.id).toBe(RECIPE_ID);
     });
 });

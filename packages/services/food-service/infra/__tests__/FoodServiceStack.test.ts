@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -621,6 +621,67 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
      * 5,000+ unique RESOLVED foods", and a per-PR preview (or a cold prod store) legitimately sits far
      * below that — an alarm would page on an expected state.
      */
+    /**
+     * ⛔ A DASHBOARD WIDGET MUST CHART A METRIC THE EMITTER ACTUALLY PUBLISHES.
+     *
+     * `Per-source rolling-60-min calls` charted `source-rolling-window-count` with NO dimensions, while
+     * `recordSourceRollingWindow` publishes it under `Dimensions: [['source']]` ONLY — EMF publishes the
+     * dimension sets it is given and no aggregate beside them, so the widget resolved to a series that has
+     * never existed and drew an empty graph. Nobody noticed because an empty graph and a quiet system look
+     * identical.
+     *
+     * ⚠️ `serviceInfraWiringInvariants` W3 cannot catch this: it gates ALARMS on metric NAMES, and this is
+     * a WIDGET on a metric whose name was right and whose dimensions were not.
+     *
+     * The dimensioned set is DERIVED from the emitting source, never listed here — a copy of a list cannot
+     * detect that the list is incomplete.
+     */
+    it('charts every dimensioned metric with its dimension, not as a bare series', () => {
+        // ⚠️ Read as TEXT, never imported: `infra/tsconfig.json` sets `rootDir: infra`, which is the same
+        // boundary that makes the stack keep its own copy of `FOOD_METRIC`. Importing across it does not
+        // compile, and duplicating the names here would be the third copy of a list this file already
+        // copies once — so both the keys and their values are derived from the emitter's own source.
+        const emitterPath = resolve(fileURLToPath(import.meta.url), '../../../src/observability/emfMetrics.ts');
+        const emitterSource = readFileSync(emitterPath, 'utf8');
+
+        const emittedNames = new Map<string, string>(
+            [...emitterSource.matchAll(/^\s{4}(\w+): '([a-z0-9-]+)',$/gmu)].map(
+                (entry) => [entry[1], entry[2]] as [string, string],
+            ),
+        );
+
+        // An emit call carrying `dimensions:` names its metric a little earlier in the same object.
+        const dimensioned = new Map<string, string>();
+
+        for (const match of emitterSource.matchAll(/FOOD_METRIC\.(\w+)[\s\S]{0,400}?dimensions:\s*\{\s*(\w+)/gu)) {
+            const [, metricKey, dimension] = match;
+
+            if (metricKey !== undefined && dimension !== undefined) {
+                dimensioned.set(metricKey, dimension);
+            }
+        }
+
+        // Non-vacuity: an emitter that stopped using dimensions must fail here rather than pass silently.
+        expect(dimensioned.size).toBeGreaterThanOrEqual(1);
+
+        const body = dashboardBody();
+
+        for (const [metricKey, dimension] of dimensioned) {
+            const metricName = emittedNames.get(metricKey);
+
+            expect(metricName, `${metricKey} is not a known metric`).toBeDefined();
+
+            // The bare form is `["Commise/Food","<name>",{...}]`; a dimensioned one interposes the
+            // dimension name before the options object.
+            const bare = new RegExp(`"Commise/Food","${metricName}",\\{`, 'u');
+
+            expect(
+                bare.test(body),
+                `dashboard charts ${metricName} with no dimensions, but it is only emitted with "${dimension}"`,
+            ).toBe(false);
+        }
+    });
+
     it('charts the local-store serve rate as an Average on a 0–100 axis (SC-004/SC-005, T-199b)', () => {
         const body = dashboardBody();
 

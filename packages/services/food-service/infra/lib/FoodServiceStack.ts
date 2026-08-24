@@ -1035,7 +1035,20 @@ export class FoodServiceStack extends Stack {
         dashboard.addWidgets(
             new cloudwatch.GraphWidget({
                 title: 'Per-source rolling-60-min calls',
-                left: [emfMetric(FOOD_METRIC.sourceRollingWindowCount, 'sum')],
+                // ⛔ A SEARCH EXPRESSION, NOT `emfMetric`. `recordSourceRollingWindow` publishes this one
+                // under `Dimensions: [['source']]`, and EMF publishes ONLY the dimension sets it is given —
+                // there is no aggregate series beside them. The dimensionless `emfMetric` form therefore
+                // resolved to a series that has never existed and drew an EMPTY GRAPH, which is
+                // indistinguishable from a quiet system. SEARCH also means a newly wired source appears
+                // without a template change, where a hardcoded per-source `dimensionsMap` would not.
+                left: [
+                    new cloudwatch.MathExpression({
+                        expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},source} MetricName="${FOOD_METRIC.sourceRollingWindowCount}"', 'Sum', 300)`,
+                        usingMetrics: {},
+                        label: '',
+                        period: Duration.minutes(5),
+                    }),
+                ],
             }),
             new cloudwatch.GraphWidget({
                 title: 'UNRESOLVED backlog & tombstones',

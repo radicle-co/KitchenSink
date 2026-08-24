@@ -73,7 +73,11 @@ new FoodServiceStack(app, `FoodService-${stage}`, {
     desiredCount,
     workerDesiredCount,
     // USDA_API_KEY is injected into the containers from Secrets Manager (an out-of-band, externally
-    // issued key imported by name `kitchensink/{stage}/food/usda-api-key`), not passed through here.
+    // issued key imported by name `kitchensink/{baseStage}/food/usda-api-key`), not passed through here.
+    // ⚠️ `baseStage`, NOT `stage` — this comment said `{stage}` until 2026-08-24, which is wrong in the
+    // REASSURING direction: a reader concluded each `pr-{N}` preview held its own key and its own quota.
+    // Every preview shares ONE key while each counts only its own calls. See the OPEN entry in
+    // `specs/003-usda-food-data/tasks.md`.
     unresolvedTtlDays,
 });
 

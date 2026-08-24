@@ -1287,3 +1287,122 @@ already exists for that half.
 while producing worse numbers (`1/3` → `0.3333333333333333`, and the same line answering differently between
 runs at `temperature: 0`). The division that holds is: a model decides where the boundaries are, our parser
 converts what it is handed. Neither does the other's job.
+
+---
+
+## ⛔ OPEN — every open preview shares ONE USDA key while each counts its own quota (raised 2026-08-24)
+
+**Status: undecided. Needs an owner ruling — the fix is a platform choice, not a code change.**
+
+Every `pr-{N}` food preview authenticates to USDA FoodData Central with the SAME API key, and every one of them
+enforces A-001's cap against a counter only it can see. With N previews open, the fleet is authorized to issue up
+to N × 900 background calls an hour against a budget of 1,000. A-001 (`spec.md:792`) is unambiguous that there is
+no relief on the other side:
+
+> **A-001**: Each external source's rate limit is a hard constraint. For USDA, the FoodData Central limit of 1,000
+> requests per hour per API key cannot be increased through paid tiers or support requests within the project
+> timeline.
+
+### The two halves, and why each is individually correct
+
+**The key rides `baseStage`.** `packages/services/food-service/infra/lib/FoodServiceStack.ts:437-441` imports the
+secret by name:
+
+```ts
+const usdaApiKeySecret = secretsmanager.Secret.fromSecretNameV2(
+    this,
+    'ImportedUsdaApiKeySecret',
+    `kitchensink/${baseStage}/food/usda-api-key`,
+);
+```
+
+`baseStage` is `sandbox` for every non-prod stage (`infra/bin/app.ts:24`); `stage` is `pr-{N}`. ADR-0006 lists this
+secret **by name** among the platform imports that ride `baseStage` on purpose, and it is right to: a per-PR secret
+would have to be issued out of band by a human on every PR open, which is the coupling "no per-PR platform" exists
+to remove. Prod imports `kitchensink/prod/food/usda-api-key` and is therefore NOT in the blast radius — ⚠️ on the
+assumption that the two secrets hold DIFFERENT keys, which is an operator fact set by `put-secret-value` and
+asserted nowhere in this repo.
+
+**The counter rides `stage`.** `RollingWindowLimiter` counts rows in `source_call_log` (`tryRecord`,
+`src/sources/RollingWindowLimiter.ts:93-100`) against `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` (default 1,000,
+`src/config/env.schema.ts:58`), and pauses background drain at `PAUSE_FRACTION = 0.9` → 900
+(`RollingWindowLimiter.ts:17`, `:42-49`). ADR-0006 gives each preview its own logical database
+`kitchensink_food_pr_{N}`, so `source_call_log` is private to that preview: pr-1's limiter cannot see one call
+pr-2 made. That isolation is also right — shared tables would let previews corrupt each other's fixtures. The two
+designs are simply keyed on different things, and nothing is keyed on the thing that is actually scarce.
+
+⚠️ The 429 failsafe does not close the gap either. `markWindowFull` (`RollingWindowLimiter.ts:144-146`) writes an
+**in-process** `Map` (`:71`), so it is invisible across stages AND across the two tasks of one stage. When USDA
+starts refusing, each of the 2N tasks must learn it separately, and each learns it by spending a call.
+
+### Why it does not read as a bug
+
+- The defect lives only in the seam. Both halves are deliberate, documented and load-bearing; no single file spans
+  the seam, so no file is wrong when read on its own terms.
+- The only in-repo prose describing the secret's name gets it **wrong in the reassuring direction**:
+  `infra/bin/app.ts:75-76` says the key is "imported by name `kitchensink/{stage}/food/usda-api-key`". A reader who
+  trusts that comment concludes each preview already has its own key. The code, in a different file, says
+  `baseStage`.
+- The limiter's own JSDoc (`RollingWindowLimiter.ts:31-36`) states that "the API, the fan-out worker … and the
+  change-refresh task all charge the SAME external quota" — true, and it names three consumers **within one
+  stage**. The paragraph reads as though the sharing question has already been asked and answered.
+
+### What actually spends the budget
+
+Each PR runs one API task plus one worker task (`.github/workflows/sandbox-deploy.yml:695-696`), and a
+change-refresh task fires every 6 hours (`FoodServiceStack.ts:637-653`). Two amplifiers sit on top:
+
+- **A fresh preview database is empty.** ADR-0006's migration runner CREATEs `kitchensink_food_pr_{N}` and applies
+  migrations; nothing seeds it. The whole design is cache-aside — local → miss → source-within-quota → persist →
+  never re-fetch — so a preview starts at a 0% hit rate and pays full source cost for foods other previews have
+  already fetched. **The isolation that blinds the counters also destroys the sharing that would have made one
+  budget sufficient.**
+- **CI is not a consumer.** Every workflow injects a dummy key (`_ci.yml:1104`, `_ci.yml:1373`,
+  `_ci-heavy.yml:901`), so no automated tier makes a real USDA call. The spend comes from humans using previews,
+  which is why the arithmetic above is an upper bound on _authorized_ calls, not a forecast of actual ones.
+
+### ⚠️ This is UNMEASURED
+
+**Nobody has observed an exhaustion event.** Searched for one and found none: no `429` / `OVER_RATE_LIMIT` /
+quota-exhaustion finding in `docs/reports/`, `docs/reviews/2026-08-14-pr91-findings/`, `docs/runbooks/`, or any
+spec. The nearest thing is the 2026-08-22 resolution measurement, which ran against a local corpus. This repo keeps
+no incident log. So the case above is arithmetic and reading, not evidence.
+
+⛔ Do not read "unmeasured" as "would have shown up by now" — read it as **we would not currently notice.** The one
+surface tracking source-call volume is the dashboard widget "Per-source rolling-60-min calls"
+(`FoodServiceStack.ts:1036-1039`), and it has two defects of its own: (a) every stage emits into the same
+`Commise/Food` namespace under a single `source` dimension with **no stage dimension**
+(`src/observability/emfMetrics.ts:324-331`), so prod and every preview co-mingle into one series and no call can be
+attributed to a preview; and (b) the widget's `emfMetric` helper (`:934-940`) builds a **dimensionless** metric
+while the emitter publishes only the `source`-dimensioned series, so the widget plots nothing — UNVERIFIED against
+live CloudWatch, and W4 in `packages/infra/global/__tests__/serviceInfraWiringInvariants.test.ts:806` cannot catch
+it because W4 gates alarms, not dashboard widgets. No alarm watches the metric at all.
+
+### The options — none chosen
+
+1. **A key per PR.** Correct isolation, and the configured cap would then mean what it says. Cost: a third-party
+   credential must be issued per preview. Registration is a self-service form, so automating it means driving
+   someone else's signup flow from CI, and doing it by hand puts a human back in the PR-open path — the coupling
+   ADR-0006 removed. It also multiplies this project's footprint against USDA rather than reducing it, at a source
+   that A-001 records as unraisable.
+2. **One counter that crosses stage boundaries.** Move `source_call_log` (or just the window count) out of the
+   per-PR database into a store the whole sandbox base stage shares. This is the only option where the enforced
+   number and the enforced-against number are the same number. Cost: it deliberately punches through ADR-0006's
+   isolation — a shared writable table every preview touches is the shared-tables model that ADR rejected — and it
+   needs a substrate with its own IAM and failure mode (a table in the shared `kitchensink_food` database reachable
+   from a per-PR role, DynamoDB, or Valkey per ADR-0016). ⚠️ It also forces a product question the current design
+   never has to answer: what a preview does when the SHARED window is full, given that one busy preview would then
+   starve every other.
+3. **Accept the risk, with an alarm.** Cheapest, and honest that previews are low-stakes. Cost: per the section
+   above, "just add an alarm" is not free — it needs a `stage` dimension the emitter does not attach and a widget
+   that works. And an alarm is a detector, not a control: it reports that the key was already exhausted, on
+   whichever stage happened to call next.
+4. **Divide the cap by open-PR count.** Set `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` per deploy from the number of open
+   PRs; the knob already exists (`FoodServiceStack.ts:420-429` reads a `foodSourceRateLimitPerHour` CDK context
+   value). Cost: it is only correct at deploy time — opening PR N+1 does not lower the cap of the N already
+   running, so the fleet stays over-provisioned until each redeploys — and it splits the budget across previews
+   that are mostly idle, leaving the one preview a human is actually using with 1/N of a quota it could have had.
+
+⚠️ Whichever is chosen, note the SHAPE of the defect: the enforcement point and the resource it protects are keyed
+on different things. Any fix that leaves `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` describing a _per-stage_ number while
+the credential is _per-base-stage_ has re-described the defect, not removed it.

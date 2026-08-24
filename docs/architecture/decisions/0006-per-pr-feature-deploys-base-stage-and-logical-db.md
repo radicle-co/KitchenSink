@@ -97,3 +97,18 @@ would let previews corrupt each other.
   and keyed on the delimiter-aware `pr-{N}` match (ADR-0005), so `pr-1` ≠ `pr-15`.
 - `prod`/`sandbox` behaviour is unchanged (`stage == baseStage`, DB name `kitchensink_food`), so the
   synthesized prod/sandbox templates do not diff on this change.
+
+## ⚠️ Update (2026-08-24) — an OPEN consequence of the two keying choices, not a reversal of either
+
+The `baseStage`-keyed secret import and the `stage`-keyed per-PR database interact in a way neither
+half describes. `kitchensink/sandbox/food/usda-api-key` is the SAME credential in every open preview,
+while each preview's rolling-window rate limiter counts `source_call_log` rows in its OWN logical
+database — so N previews each enforce the full 1,000 req/hr USDA cap (003 A-001) against a budget of
+1,000 that all N are spending. The cache-aside design compounds it: a fresh per-PR database is empty
+and unseeded, so each preview re-fetches from USDA what every other preview already holds.
+
+Nothing here is decided, and neither keying choice above is retracted — a per-PR secret would put a
+human back in the PR-open path, and shared tables are what this ADR rejected. The defect, the blast
+radius, the (absent) evidence and four candidate resolutions with their real costs are filed at
+`specs/003-usda-food-data/tasks.md` → "⛔ OPEN — every open preview shares ONE USDA key while each
+counts its own quota". It needs an owner ruling.

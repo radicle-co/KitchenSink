@@ -323,9 +323,29 @@ There is ONE ceiling: $100/month, prod only, enforced by reserve-then-settle aga
 `callSite`, so a runaway in either path is bounded by the same dollar figure. ⛔ Settle is never retried;
 any outcome with no billed response refunds in full. Sandbox and `pr-{N}` call ungated, per ADR-0024.
 
-⚠️ This raises a real question the plan does not close: the ceiling was sized for verification alone, and
-017 also proposes charging its capture tiers to it. Three consumers on one $100 ceiling means the first to
-burn it denies the other two. Recorded as an open question, not decided here.
+⛔ **RESOLVED (owner ruling 2026-08-24): the ceiling is GLOBAL, and is not sub-divided per consumer.** One
+$100/month pool serves the verification gate, this parse leg, and 017's capture tiers alike, first come
+first served.
+
+That is the same argument ADR-0024 already made when it rejected the daily sub-ceiling: a sub-budget
+_"never enforced the monthly figure it sat under… and it denied legitimate bulk work."_ A per-`callSite`
+cap is the same mistake on a different axis — it would refuse a legitimate import while the global figure
+sat nowhere near $100, and it would need re-tuning every time a consumer's share of the work moved.
+
+⚠️ **Accepted consequence, stated so nobody reports it as a defect: the first consumer to burn the pool
+denies the other two.** A large import can starve the verification gate for the rest of the month. The
+gate fails CLOSED and its messages retry under `maxReceiveCount` before hitting the DLQ, so that outcome
+degrades rather than corrupts — but it is a real coupling, and it is the price of not sub-dividing.
+
+⛔ **What does NOT follow: that spend needs no attribution.** Not capping per consumer makes it MORE
+important to know which one spent, not less — when the pool empties, "who burned it" is the first question
+and the counter cannot answer it today. So `callSite` is carried on the EMF spend metric as a **dimension**
+while the ceiling stays a single number. Attribution without partitioning.
+
+⚠️ Note the shape: this is the same defect just found in food's `source-rolling-window-count`, which
+carries a `source` dimension and no `stage`, so prod and every preview co-mingle into one series and no
+call can be attributed. Do not ship the spend metric with that gap — a dimension on the metric is cheap; a
+dimension retrofitted after an incident is not.
 
 ### KTD-9 — `ParsedIngredientLine` becomes a projection, not a widened interface
 
@@ -871,9 +891,11 @@ a test, or state plainly that it survives in the projection and why that is acce
 
 ## Risks & Dependencies
 
-1. **Three consumers on one $100 ceiling.** Verification, this parse leg, and 017's capture tiers. The
-   first to burn it denies the other two. ADR-0024 needs an allocation rule or a per-`callSite` sub-budget;
-   neither exists. **Open — see below.**
+1. **Three consumers on one $100 ceiling — now a RULING rather than a gap** (KTD-8, 2026-08-24). The pool
+   is global by decision. The residual risk is unchanged in substance: a large import can starve the
+   verification gate for the rest of the month. It degrades rather than corrupts (the gate fails closed and
+   retries), and the mitigation is attribution — a `callSite` dimension on the spend metric — not a
+   sub-budget.
 2. **A new runtime with a new guard.** The packaging guard for the Python Lambda is written for this
    change, so it has never caught anything. `handle-sync-worker` is the precedent for what an unguarded
    Lambda asset costs.
@@ -912,8 +934,9 @@ a test, or state plainly that it survives in the projection and why that is acce
 0. ~~**KTD-2b — is a modifier identity or preparation?**~~ **RESOLVED, owner ruling 2026-08-23**: past
    participle → preparation, adjective → identity, temperature → preparation. Verified against the corpus:
    settles 128 lines. Step 1 of the build order is unblocked.
-1. **⛔ How is the ADR-0024 ceiling allocated across three consumers?** Blocking for U3's ship, not for its
-   build.
+1. ~~**How is the ADR-0024 ceiling allocated across three consumers?**~~ **RESOLVED 2026-08-24**: it is
+   global and not sub-divided — see KTD-8. U3's ship is unblocked; what it now owes is a `callSite`
+   dimension on the spend metric so the pool's consumers can be told apart.
 2. **⛔ U15's fixture-vs-query fork** — owner ruling.
 3. ~~**U12 (attribution)**~~ **RESOLVED 2026-08-24**: dry/wet dropped; replaced by free-text ingredient groups.
 4. Does the disagreement flag ever _block_ an import, or stay observe-only permanently? Answerable only

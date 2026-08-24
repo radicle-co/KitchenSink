@@ -233,6 +233,13 @@ While here, correct the guard's own defect: its failure message talks about gran
 
 ## Open Questions
 
+⛔ **Closed 2026-08-24 (owner ruling): the ADR-0024 ceiling is GLOBAL and is not sub-divided per consumer.**
+One $100/month pool serves the verification gate, the ingredient parse leg, and 017's capture tiers, first
+come first served — the same reasoning that rejected the daily sub-ceiling. **U6's ADR addendum carries
+this**, together with its consequence (the first consumer to burn the pool denies the others; the gate
+fails closed and retries) and its mitigation (a `callSite` dimension on the spend metric, so spend is
+ATTRIBUTED without the budget being PARTITIONED).
+
 Both must close before any registry entry carries the residency-approval marker; neither blocks U1–U6.
 
 - Does routing recipe text through us-east-2 and us-west-2 need a decision beyond ADR-0024's existing terms? R24 argues no-retention and no-training from AWS's uniform commitment across models, which is silent on geography. Feature 016 is the legal-compliance framework and is the natural home for the answer.

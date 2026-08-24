@@ -1361,24 +1361,23 @@ satisfied today only because no food service runs at the base stage, which is a 
 rather than a guarantee, and deserves a guard. And a clone inherits the base's schema version, so the
 migration runner still applies anything newer on top; base-versus-branch migration interaction needs a test.
 
-### ⛔ OPEN — the environment topology this assumes
+### Where each environment gets its seed (owner confirmation, 2026-08-24)
 
-The owner stated 2026-08-24 that **"we don't have Previews - just prod and sandbox."** The code says the
-opposite for this service: `infra/bin/app.ts:33` REFUSES to deploy food at a non-prod base stage, because
-"the food service has no persistent non-prod instance — every PR deploys its own (stage `pr-{N}`)". So
-today food exists at **prod and `pr-{N}`**, and there is no sandbox food service to seed.
+Only the services under `packages/infra/global` — identity and the shared platform — run permanently at
+both prod and sandbox. **Every other service, food included, deploys to the PR sandbox and to production.**
+That is what `infra/bin/app.ts:33` already enforces: it refuses a food deploy at a non-prod base stage
+because "every PR deploys its own (stage `pr-{N}`)". So there are three seed targets, and they differ:
 
-Both readings are coherent and they lead to different work:
+| target                              | what it is                                                           | how it gets seeded                                                          |
+| ----------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **prod** `kitchensink_food`         | the live catalog, already partly filled on demand                    | seeded once; the importer merges in place and never duplicates              |
+| **sandbox base** `kitchensink_food` | exists from the DataStack bootstrap; **nothing ever connects to it** | seeded once, and exists purely to be cloned                                 |
+| each **`pr-{N}`**                   | ephemeral, created per PR                                            | `CREATE DATABASE … TEMPLATE "kitchensink_food"` — a warm clone, no seed run |
 
-- **If the ruling describes today**, then "seed sandbox" has no target, and the seeding work is: seed prod,
-  seed the sandbox BASE database (which exists on the shared RDS and nothing connects to), and add the
-  `TEMPLATE` clone for `pr-{N}`.
-- **If the ruling describes an intended change** — one persistent sandbox food service replacing N
-  ephemeral per-PR ones — it is the stronger end state and dissolves this entry entirely: one consumer, one
-  key, no blind counters, one warm catalog, and roughly $8.25/month per open PR saved. It also requires
-  changing that guard and revisiting ADR-0006's per-PR database model.
-
-**This must be settled before the seeding work is scoped.**
+⛔ **The `TEMPLATE` clone is viable precisely BECAUSE food has no persistent non-prod instance.** Postgres
+refuses to clone a database that has any open session, and the sandbox base has none — not by luck, but as
+a direct consequence of the rule above. ⚠️ It would break silently if a persistent sandbox food service
+were ever added, so the clone path needs a guard that says so rather than a comment that hopes so.
 
 ---
 

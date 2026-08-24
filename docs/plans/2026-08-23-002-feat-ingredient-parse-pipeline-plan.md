@@ -126,6 +126,24 @@ On disagreement: **amounts from the CRF** (exact fractions, deterministic, compo
 **identity and preparation from the LLM** (measured better on both), **historical units from the LLM**
 (the CRF is blind to them).
 
+⛔ **CORRECTED 2026-08-23 by KTD-2b, in two ways.**
+
+**(1) Placement is no longer a winner question at all.** Once the ruling exists, the comparator
+CANONICALIZES both engines' answers through it before comparing — a modifier goes where the rule says
+regardless of which field each engine filed it in. Those cases stop being disagreements rather than being
+won. That is strictly better than picking a side: a winner rule would keep re-deciding, per line, a
+question that has one answer.
+
+**(2) On placement, the LLM was the wrong choice, and by a clear margin.** Scored against the ruling over
+the contested modifier words: the **CRF's filing matches it 125 times (68%), the LLM's 58 (32%)** — better
+than two to one. "Identity and preparation from the LLM" was inferred from the earlier bake-off's
+aggregate and does not survive contact with the axis it actually governs. The canonicalization in (1)
+makes the winner rule moot for placement, so nothing needs to be reassigned — but the sentence above must
+not be read as evidence the LLM files modifiers better, because it does not.
+
+⚠️ The LLM's measured strengths that DO survive: multi-food lines (`modelSplitsFoods`), historical units,
+and pulling a unit out of a food name (`crfUnitInName`). Those are different questions from placement.
+
 ⛔ **Measured 2026-08-23, and it reshapes this decision: the two engines agree on all three fields for
 only 49.17% of ingredient lines** (Nova Micro, n = 1,379; Pro ties at 49.53%). Per field the picture is
 better — measure 75.6%, food names 63.3%, preparation 69.0% — so the 49% is a _conjunction_ of three
@@ -178,25 +196,43 @@ This is `proseRecipe`'s clause segmentation, already leaking, and it inflates **
 Fixing it comes BEFORE adjudicating anything, or the oracle spends its effort judging text that is not an
 ingredient line. See the build order below.
 
-### KTD-2b — ⛔ OWNER DECISION: is a modifier identity, or preparation?
+### KTD-2b — ⛔ RESOLVED (owner ruling, 2026-08-23): where a modifier belongs
 
 `one-half cup of chopped onions` → the CRF says `name=onions, prep=chopped`; the LLM says
 `name=chopped onions`. **Both read the line correctly.** What is missing is a rule in our own schema
 saying where a modifier belongs — and its absence is the single largest disagreement class in the system.
 
-One definitional call settles 184 lines permanently, with no oracle and no adjudication. It is not a
-measurement and no amount of further data will produce it. Candidate rules, in the shape a decision could
-take:
+**The ruling.** A **past participle is preparation** (`chopped`, `grated`, `melted`, `sifted`, `minced`,
+`stoned`, `beaten`). An **adjective is identity** (`sweet`, `brown`, `pastry`, `Russian`, `fresh`, `red`,
+`green`). **Temperature is preparation** (`hot`, `cold`, `boiling`, `lukewarm`, `warm`) — the middle case,
+committed deliberately.
 
-- **A past-participle state word is preparation** (`chopped`, `grated`, `melted`, `sifted`, `minced`,
-  `stoned`) — it names something done TO the food, which is exactly what `prep` was defined as.
-- **An adjectival state word is identity** (`sweet`, `brown`, `pastry`, `Russian`) — it distinguishes
-  which food, not what was done to it.
-- **The ambiguous middle is `hot`/`cold`/`boiling`/`lukewarm`/`fresh`** — a temperature is done to the
-  food but is not a lasting property of it, and this is where a rule has to commit.
+This is now the definition `prep` carries system-wide, including the write-path field in U11.
 
-⚠️ Whatever is chosen becomes the definition `prep` carries for the rest of the system, including the new
-preparation field on the write path (U11). Decide it once, here.
+**Verified against the 354, and it does not settle as many as first claimed.** Applying the ruling
+mechanically:
+
+|                                                                 |       n | note                      |
+| --------------------------------------------------------------- | ------: | ------------------------- |
+| Contest a genuine **food modifier** — the ruling decides        | **128** | 36% of `differ`           |
+| Contest **instruction residue**, not a modifier — U7a's problem |      69 | the ruling does not apply |
+| No contested word after normalization                           |      12 | U4 absorbs these          |
+
+⛔ **Correction to KTD-2a: the ruling settles ~128 lines, not 184.** The 184 figure counted every
+placement-only case, and 69 of those are contested over words like `into`, `spider`, `overnight` and
+`bowl` — the extractor's residue wearing a placement disagreement's clothes. Fixing U7a and applying this
+ruling are the same 197 lines between them, but they are not interchangeable and the ruling alone does not
+reach the 69.
+
+⚠️ **Two implementation traps, both hit while verifying this.** `red` and `green` end in `-ed`/`-en` and
+are colours, not participles — a naive suffix test mis-files them as preparation. And `-ed` alone is not a
+participle test; the vocabulary needs an explicit irregular list (`cut`, `ground`, `beaten`) plus an
+adjective exception list. This is a small lexicon, and per the library-first gate it should be checked
+against an existing POS tagger before being hand-rolled — the CRF package already ships one.
+
+⚠️ **Accepted consequence.** `cooked green peas` files `cooked` as preparation and `green` as identity;
+`dried figs` files `dried` as preparation. Both are arguably identity to a cook. The ruling is a
+definition, not a claim about English, and this is the edge it buys clarity with.
 
 ⚠️ Still observe-only at first: a flagged line imports. U11's error asymmetry transfers directly — a wrong
 agreement passes data that would have shipped anyway; a wrong disagreement withholds a correct line, which
@@ -310,9 +346,10 @@ silently keying the old way.
 KTD-2a reordered this. The three cheap things that shrink the problem come first, and the expensive
 human-judgement unit comes last, on the residue they leave:
 
-1. **KTD-2b's modifier rule** — an owner decision, not a build. Settles 184 of 354 disagreements.
-2. **U1** — the contract, including the size qualifier and whatever KTD-2b decided.
-3. **U4** — the comparator, with stopword and duplicate normalization (40 more).
+1. ~~**KTD-2b's modifier rule**~~ — **DONE** (owner ruling 2026-08-23). Settles 128 of 354.
+2. **U1** — the contract, including the size qualifier and KTD-2b's `prep` definition.
+3. **U4** — the comparator: canonicalize placement through KTD-2b (128), then normalize stopwords and
+   duplicates (40).
 4. **U7a** — `proseRecipe`'s segmentation, which is inflating every rate measured so far.
 5. **Re-run the comparison harness**, record the deltas against §3 of the report.
 6. **U2, U3, U5, U6, U7** — the engines, the cache, the correction tier, the orchestration.
@@ -464,7 +501,12 @@ a merged `ParsedLine` plus a `ParseAgreement` discriminated union — `agree`, `
 
 ⛔ Compares the **stated** measure pair. ⛔ `single-engine` is never `differ` (KTD-3).
 
-⛔ **Before comparing, normalize** — this is 40 lines of the `differ` bucket, free (KTD-2a):
+⛔ **Canonicalize placement through KTD-2b's ruling before comparing** — 128 lines. A past participle and
+a temperature are moved to `prep`, an adjective to `name`, on BOTH engines' answers, and only then are
+they compared. Needs the modifier lexicon (check the CRF package's POS tagger before hand-rolling it) and
+its two traps: colours ending in `-ed`/`-en`, and irregular participles a suffix test misses.
+
+⛔ **Then normalize the rest** — 40 more lines of the `differ` bucket, free (KTD-2a):
 
 - **Stopwords.** `that have been boiled soft` and `boiled soft` are the same reading; the CRF keeps the
   relative-clause scaffolding and the LLM drops it. 21 lines.
@@ -829,10 +871,9 @@ a test, or state plainly that it survives in the projection and why that is acce
 
 ## Open Questions
 
-0. **⛔ KTD-2b — is a modifier identity or preparation?** The highest-value open question in this plan and
-   the cheapest to answer: one definitional ruling removes 184 of 354 disagreements, and no further
-   measurement will produce it. It also fixes what `prep` means for U11's write-path field. **Blocks step 1
-   of the build order.**
+0. ~~**KTD-2b — is a modifier identity or preparation?**~~ **RESOLVED, owner ruling 2026-08-23**: past
+   participle → preparation, adjective → identity, temperature → preparation. Verified against the corpus:
+   settles 128 lines. Step 1 of the build order is unblocked.
 1. **⛔ How is the ADR-0024 ceiling allocated across three consumers?** Blocking for U3's ship, not for its
    build.
 2. **⛔ U15's fixture-vs-query fork** — owner ruling.

@@ -4,13 +4,18 @@ Paste everything below the line into Figma Make. It describes one step of an exi
 written as content + behaviour + states rather than as a visual direction; Figma Make supplies the visual
 treatment.
 
-Two notes for you, not for Figma:
+Three notes for you, not for Figma:
 
 - The **attribution (dry/wet)** control is included and marked optional. USDA carries nothing that can
-  derive it (see below), so it is a per-line declaration or it does not exist. If you drop it, the mockup
-  simply loses one control and nothing else changes.
+  derive it, so it is a per-line declaration or it does not exist. If you drop it, the mockup simply loses
+  one control and nothing else changes.
 - The **preparation** control is genuinely new. Today `notes` reaches the wire but no UI writes it, and it
-  is documented as a display override rather than a preparation.
+  is documented as a display override rather than a preparation. Its description below encodes your
+  2026-08-23 ruling — participle and temperature are preparation, adjective is identity — because the
+  mockup is where that distinction either reads naturally to a cook or does not.
+- The **size** control is also new, and it exists because the CRF parser emits `large`/`small` and our
+  schema has nowhere to put it. Folding it into the name makes `large onion` a different food from
+  `onion`; folding it into preparation claims the cook did something. It is a third thing.
 
 ---
 
@@ -34,9 +39,9 @@ Show the list in three states across your frames:
 
 1. **Empty** — no ingredients yet. This is the first thing a cook sees, so it should invite the first
    action rather than showing an empty table. A single prominent "Add your first ingredient" affordance.
-2. **Populated** — six or seven rows, deliberately varied: a plain one, one with a quantity range, one
-   with no quantity at all, one with a long multi-word food name that must not truncate awkwardly, and one
-   with a preparation note.
+2. **Populated** — seven or eight rows, deliberately varied: a plain one, one with a quantity range, one
+   with no quantity at all ("salt, to taste"), one with a long multi-word food name that must not truncate
+   awkwardly, one with a preparation, one with a size, and one using an informal unit like "handful".
 3. **A row mid-edit** — one row expanded or focused while the others stay compact.
 
 ### An ingredient row
@@ -56,10 +61,24 @@ design should make clear which fields belong to which row.
   not on the list — "handful", "splash", "to taste" — and the design must accept that without looking like
   an error. Show the difference visually: a recognised unit reads as settled, an unrecognised one reads as
   accepted-but-informal. Never block or warn on an unrecognised unit.
-- **Preparation** — a short optional text field for what the cook should do to the ingredient: "chopped",
-  "finely diced", "at room temperature", "divided". It is deliberately separate from the food's name, and
-  the design should make that separation feel natural rather than pedantic. Include an example row where
-  it is used and several where it is empty.
+- **Preparation** — a short optional text field for what was done to the ingredient: "chopped", "finely
+  diced", "melted", "boiling", "at room temperature", "divided". It is deliberately separate from the
+  food's name, and the design should make that separation feel natural rather than pedantic.
+
+    The split matters and the mockup should demonstrate it, because it is easy to get backwards. Words like
+    "chopped", "grated", "melted", "sifted" describe something done to the food and belong here. Words like
+    "sweet", "brown", "Italian", "pastry" say _which_ food it is and belong in the food's name — they come
+    from the picker, not from this field. Temperature words ("hot", "cold", "boiling") belong here.
+
+    Include one row showing this clearly — a food whose name carries an identifying adjective _and_ a
+    preparation in its own field — plus several rows where preparation is empty.
+
+- **Size** — an optional short field for a size the recipe states about the item itself: "large", "small",
+  "medium". This is separate from both the food and the preparation: "3 large onions" is three of a
+  larger-than-usual onion, which is neither a different food nor something done to it. Keep it compact —
+  a small select or a short text input beside the quantity reads better than a full-width field. Show at
+  least one row using it.
+
 - **Attribution** _(optional — include unless told otherwise)_ — a compact two-value selector marking the
   ingredient as dry or wet, defaulting to neither. Keep it visually quiet; it is a refinement, not a
   required decision.

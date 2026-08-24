@@ -1205,9 +1205,32 @@ food-substitution FR remains open, and it is owned outside this task list).
 
 ---
 
-## ⛔ OPEN — SC-007's load fixture vs. the head-term retrieval branch (raised 2026-08-23)
+## ⚠️ PARTLY RESOLVED — SC-007's load fixture vs. the head-term retrieval branch (raised 2026-08-23)
 
-**Status: undecided. Needs an owner ruling before the heavy tier can be trusted again.**
+**Status: the BREACH is resolved by owner ruling 2026-08-24 (SC-007 → 500ms p95, flat). The FIXTURE is
+still unfaithful and that half remains open — it is no longer blocking, and it is no longer urgent.**
+
+⛔ **What the ruling does and does not do.** At 500ms the measured `narrow` p95 of ~184ms and the 303ms
+breach both pass, with roughly 1.6–2.7x headroom, so the heavy tier is trustworthy again and the head-term
+branch can stay as written. It does **not** make the benchmark truthful. Measured 2026-08-24 against the
+real 8,094-row catalog, head-term selectivity is **1.89% at p50** where the fixture is a uniform **9.09%**
+— so the fixture charges a MEDIAN query tail cost, which is why every probe shape tripled at once rather
+than a subset. And the worst realistic real head term (`ground beef` → `beef`, **13.75%**) is BROADER than
+the fixture's uniform value, so at 50,000 rows a real query would scan ~6,875 rows against the fixture's
+4,545. **Fixing the fixture alone would never have been sufficient, and neither claim in the fork below was
+wholly right.**
+
+⚠️ A separate owner ruling the same day removes a different part of this benchmark: **FR-010a sets a
+three-character minimum query length**, which deletes the `wordInitialPrefix` strategy and with it the k6
+`short` probe. That probe was one of the two signals used below to isolate code from host — the argument
+still stands on the flat `localStoreRead`, but the probe itself is going away.
+
+⚠️ **Deferred, recorded so it is not rediscovered as novel:** a trie or similar prefix structure is a known
+opportunity for search and was explicitly deferred by the owner on 2026-08-24. 500ms is the bar for now.
+
+---
+
+**Original entry, kept for the evidence it carries:**
 
 `8c70d742` ("retrieve on the head term, which folds diacritics for free") added one clause to
 `FoodSearchDao.relevanceQuery`:

@@ -22,7 +22,7 @@ export const BASE_URL = (__ENV['FOOD_API_BASE_URL'] || 'http://localhost:3000').
 //   SC-003  backfill 202 -> RESOLVED             <= 60s p95 at pending queue depth < 100
 //   SC-004  local-store serve rate               >  80% once the store holds 5,000+ RESOLVED foods
 //   SC-005  local-store read throughput          >> 5,000 served reads / hour
-//   SC-007  search against <= 50,000 foods       <= 250ms p95 ±15% (gate at 287.5ms)
+//   SC-007  search against <= 50,000 foods       <= 500ms p95 (owner ruling 2026-08-24)
 //
 // SC-003 is NOT measurable by k6 (it spans the Fargate fan-out worker and a source HTTP call, which this
 // suite must not make). Its DB-side component — the drain claim that the FR-046 ceiling stresses — is
@@ -119,8 +119,21 @@ export const SUSTAIN_FRACTION = Number(__ENV['FOOD_SUSTAIN_FRACTION'] || 0.85);
 //
 // This does NOT license widening again. Raising the target, or the tolerance, without an owner ruling and a
 // measurement is the goal-post-shifting three separate agents correctly refused today.
-export const SEARCH_P95_TARGET_MS = Number(__ENV['FOOD_SEARCH_P95_MS'] || 250);
-export const SEARCH_P95_TOLERANCE = Number(__ENV['FOOD_SEARCH_P95_TOLERANCE'] || 0.15);
+//
+// OWNER RULING 2026-08-24: the budget is now a flat 500ms — "Less than 500ms is good for now."
+// ⛔ THE TOLERANCE IS ZERO HERE, AND THAT IS NOT A REVOCATION of the general ±15% allowance (2026-08-12).
+// The tolerance existed because 250ms was MARGINAL against a measured 145–158ms average: only the p95 tail
+// crossed, so run-to-run variance decided the gate. 500ms against the same measurements is ~3x headroom,
+// which absorbs that variance in the budget itself. Applying both would gate at 575ms and admit a p95 the
+// ruling calls too slow. Encoded as tolerance 0 rather than by back-solving a 435ms target, so the number
+// in this file is the number the owner said.
+// ⚠️ This is the SECOND widening (200 → 250±15% → 500). It resolves the SC-007 breach by moving the bar,
+// which is legitimate only because it is an owner ruling — but it does NOT make the fixture truthful. See
+// the OPEN entry in `specs/003-usda-food-data/tasks.md`: the load fixture charges a MEDIAN query tail cost,
+// and the real catalog's worst head term is broader than the fixture's uniform one. A benchmark measuring
+// the wrong distribution will mislead the next decision too, at any ceiling.
+export const SEARCH_P95_TARGET_MS = Number(__ENV['FOOD_SEARCH_P95_MS'] || 500);
+export const SEARCH_P95_TOLERANCE = Number(__ENV['FOOD_SEARCH_P95_TOLERANCE'] || 0);
 export const SEARCH_P95_MS = Math.round(SEARCH_P95_TARGET_MS * (1 + SEARCH_P95_TOLERANCE));
 
 // --- Batch nutrition (plan U8) -------------------------------------------------------------------

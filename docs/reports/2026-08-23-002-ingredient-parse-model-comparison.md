@@ -355,3 +355,71 @@ AWS_REGION=us-east-1 npm run parse-comparison --workspace=@kitchensink/cookbook-
 
 ⛔ It spends real money on developer credentials, outside ADR-0024's counter. ⛔ Corpus dumps and raw
 response logs are **not committed**; `--out` writes to a scratch path.
+
+---
+
+## 8. Claude Haiku 4.5 — measured off Bedrock, and it ties Nova Micro
+
+§7 recorded Haiku 4.5 as **unmeasured, not rejected**: Bedrock refuses it on this account
+(`ResourceNotFoundException: Model use case details have not been submitted`). It has now been measured by
+a different route, on the identical 1,392 ingredient lines, against the identical CRF baseline, and scored
+by the identical shipped code (`classifyParseResponse`, `compareParses`).
+
+⛔ **Read §8.2 before putting any figure here beside a Nova row.** The serving path is not the same, and one
+difference plausibly flatters Haiku.
+
+### 8.1 Results
+
+|                                      | contract compliance | all three agree | measure | food names | preparation |
+| ------------------------------------ | ------------------: | --------------: | ------: | ---------: | ----------: |
+| `nova-micro` (Bedrock)               |              99.07% |      **49.17%** |   75.6% |      63.3% |       69.0% |
+| `nova-pro` (Bedrock)                 |              99.64% |      **49.53%** |   76.6% |      62.6% |       70.0% |
+| **`claude-haiku-4-5` (off Bedrock)** |          **98.78%** |      **48.80%** |  74.76% |     62.91% |      70.69% |
+
+n = 1,392 answers, 1,375 compared. **Every figure is within roughly one point of Nova Micro** — a tie on
+this corpus, not a ranking.
+
+All 17 non-compliant answers were **explicit refusals**, not malformed output: the model declined the shape
+rather than guessing, and each was recorded as a null with the id. That is arguably better behaviour than a
+confident wrong parse, but it is still 17 lines needing a fallback.
+
+Disagreement shapes, against Nova Micro's:
+
+| shape                | Haiku 4.5 | Nova Micro |
+| -------------------- | --------: | ---------: |
+| `differ`             |       357 |        354 |
+| `quantityDiffers`    |       134 |        114 |
+| `amountCountDiffers` |        68 |         92 |
+| `unitDiffers`        |        63 |         81 |
+| **`crfSizeField`**   |    **57** |     **24** |
+| `crfUnitInName`      |        25 |         25 |
+| `modelSplitsFoods`   |         0 |          7 |
+
+⚠️ **`crfSizeField` more than doubles.** The CRF routes `large`/`small` to a field our answer shape has no
+slot for, and Haiku collides with it on 4.1% of lines against Micro's 1.7%. That is not a model defect —
+it is the same missing member, showing up more clearly. It strengthens the case that the size qualifier
+needs modelling rather than dropping.
+
+### 8.2 What this measurement is not
+
+- **It did not go through Bedrock.** No `Converse` call, no `inferenceConfig.maxTokens`, no temperature
+  control, and no ADR-0024 reservation. Contract compliance here is the model's tendency, not the shipped
+  path's behaviour.
+- **⛔ It was batched, not per-line.** Each of six workers saw ~230 lines in one context, where every Nova
+  call saw exactly one. The model could normalize across lines, and it was instructed not to — but the
+  instruction is not the same guarantee as an independent call. **This confound points toward flattering
+  Haiku**, which is why a tie is a safe conclusion from it and a win would not have been.
+- **The model carried an assistant system prompt** the Nova calls never had.
+- **Determinism was not measured.** No repeat pass.
+
+### 8.3 Cost, and the conclusion
+
+From the rate table (`spendArithmetic.ts`): Haiku 4.5 is **$1.00/1M input and $5.00/1M output** against Nova
+Micro's **$0.035 and $0.14** — 28.6× and 35.7×. At this prompt's token mix that is ≈**29× Nova Micro**, or
+roughly **$0.33 per 1,000 lines** against Micro's measured $0.0114. _(Derived from the rate table, not
+billed — this run did not go through Bedrock.)_ It is also ≈1.4× Nova Pro.
+
+**Conclusion: Haiku 4.5 does not displace Nova Micro.** It ties on every measured dimension, at ~29× the
+cost, through a path that if anything favoured it. §5's recommendation stands, and the Bedrock enablement
+request is no longer on the critical path for model selection — only for measuring Haiku _as deployed_,
+which nothing now depends on.

@@ -1313,9 +1313,76 @@ converts what it is handed. Neither does the other's job.
 
 ---
 
-## ⛔ OPEN — every open preview shares ONE USDA key while each counts its own quota (raised 2026-08-24)
+## ⚠️ RULED — every open preview shares ONE USDA key while each counts its own quota (raised 2026-08-24)
 
-**Status: undecided. Needs an owner ruling — the fix is a platform choice, not a code change.**
+**Status: direction ruled by the owner 2026-08-24. Seed the catalog; stop rationing the quota. One
+precondition below is still open, and it changes the shape of the work.**
+
+### The ruling
+
+1. **Seed the catalog from the USDA BULK download rather than rationing the API.** The bulk datasets are
+   HTTP file downloads — `usdaBulk.reader.ts` states it "never touches the rate-limited USDA API and
+   consumes ZERO of the shared 1,000/hr quota" — and the seeder already exists (`npm run seed:usda-bulk`).
+   SR Legacy is ~6 MB / 7,793 foods and **frozen since 2018-04**; Foundation is ~4 MB / 469 foods, reissued
+   about twice a year. ⛔ Do NOT reach for the ~480 MB full archive: the importer filters to
+   `foundation_food` + `sr_legacy_food`, so Branded costs only disk and read time.
+   This attacks the CAUSE. Every option below it rations a budget; none reduce demand, and the demand is
+   almost entirely an empty cache being filled with data that could simply be copied in.
+2. **⛔ Rate limiting stays GLOBAL. Stop asking the question.** No per-PR key, no cross-stage counter, no
+   dividing the cap by open-PR count. After seeding there is little traffic left to police.
+3. **More API keys are obtainable if ever needed** (owner, 2026-08-24). This removes the objection that
+   option 1 of the original fork rested on — it is no longer "drive someone else's signup flow from CI" —
+   but it stays UNCHOSEN, because seeding means the extra keys are not needed.
+
+### ⛔ Read the limit, do not model it
+
+`api.data.gov` returns `X-RateLimit-Limit` and `X-RateLimit-Remaining` on **every** response, and
+`UsdaApiClient` reads neither — it only maps `429`. So `RollingWindowLimiter` counts rows in Postgres to
+MODEL a number the server reports for free.
+
+⚠️ This also settles the per-IP-versus-per-key ambiguity empirically instead of by argument. FDC's API guide
+says "per IP address"; api.data.gov says "for each API key"; the breach text says the KEY is blocked. Two
+callers on different addresses, comparing `X-RateLimit-Remaining`, answer it in one run. **It matters
+because food tasks run in public subnets with `assignPublicIp: true`, so every task already has its own
+public address** — if the limit is per-IP, the fleet was never sharing a budget and this entry's arithmetic
+never applied.
+
+### How the seed reaches each environment
+
+Seed each **base** database once, and let ephemeral stages CLONE it rather than seeding themselves:
+
+- `ensureDatabaseExists` (`src/lambdas/migrate/handler.ts:228`) runs a bare `CREATE DATABASE "<name>"` and
+  deliberately **skips the base** — `kitchensink_food` comes from the DataStack bootstrap.
+- Adding `TEMPLATE "kitchensink_food"` makes Postgres clone the seeded base at the filesystem level. An
+  ephemeral stage then starts WARM, with no seed run of its own and no cold-cache API spend.
+
+⚠️ **Two things this depends on.** `TEMPLATE` fails if ANY session is connected to the template database —
+satisfied today only because no food service runs at the base stage, which is a load-bearing coincidence
+rather than a guarantee, and deserves a guard. And a clone inherits the base's schema version, so the
+migration runner still applies anything newer on top; base-versus-branch migration interaction needs a test.
+
+### ⛔ OPEN — the environment topology this assumes
+
+The owner stated 2026-08-24 that **"we don't have Previews - just prod and sandbox."** The code says the
+opposite for this service: `infra/bin/app.ts:33` REFUSES to deploy food at a non-prod base stage, because
+"the food service has no persistent non-prod instance — every PR deploys its own (stage `pr-{N}`)". So
+today food exists at **prod and `pr-{N}`**, and there is no sandbox food service to seed.
+
+Both readings are coherent and they lead to different work:
+
+- **If the ruling describes today**, then "seed sandbox" has no target, and the seeding work is: seed prod,
+  seed the sandbox BASE database (which exists on the shared RDS and nothing connects to), and add the
+  `TEMPLATE` clone for `pr-{N}`.
+- **If the ruling describes an intended change** — one persistent sandbox food service replacing N
+  ephemeral per-PR ones — it is the stronger end state and dissolves this entry entirely: one consumer, one
+  key, no blind counters, one warm catalog, and roughly $8.25/month per open PR saved. It also requires
+  changing that guard and revisiting ADR-0006's per-PR database model.
+
+**This must be settled before the seeding work is scoped.**
+
+---
+
+**Original entry, kept for the evidence and the option costs:**
 
 Every `pr-{N}` food preview authenticates to USDA FoodData Central with the SAME API key, and every one of them
 enforces A-001's cap against a counter only it can see. With N previews open, the fleet is authorized to issue up

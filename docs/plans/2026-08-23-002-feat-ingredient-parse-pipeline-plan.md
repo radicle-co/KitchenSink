@@ -150,6 +150,54 @@ distribution (Nova Micro, ingredient lines):
 That reduces what a human ever sees from ~700 lines to the 354 `differ` cases, and it does so on evidence
 rather than by tuning a threshold.
 
+### KTD-2a — `differ` is four things, and three of them need no human (measured 2026-08-23)
+
+All 354 `differ` cases were read out and compared by **token multiset** — what words each engine used,
+regardless of which field it filed them in. That split is mechanical and reproducible; it tunes nothing.
+
+| bucket                                                   |   n | share | disposition                               |
+| -------------------------------------------------------- | --: | ----: | ----------------------------------------- |
+| **Placement only** — identical words, different fields   | 184 | 52.0% | **a rule, not a human** — see KTD-2b      |
+| **Function words only** — differ by `that/have/been/of…` |  21 |  5.9% | normalize stopwords before comparing (U4) |
+| **Duplication only** — one side counts a word twice      |  19 |  5.4% | dedupe; it is an LLM defect (U4)          |
+| **Genuine content difference**                           | 130 | 36.7% | the real adjudication list                |
+
+⛔ **The adjudication list is therefore ~130 lines — 9.5% of ingredient lines, not 25.7%.** Small enough to
+read end to end rather than sample, which is what U8's oracle should do.
+
+⚠️ **And a large share of `differ` is not a model disagreement at all — it is the EXTRACTOR.** Reading the
+sample: `one tablespoon of butter in a frying-pan`, `one pound of flour into a deep bowl`,
+`one pint of milk for five minutes`, `two pints of water overnight`, `four tablespoons of flour to it` —
+and `a large preserving kettle`, which is equipment. That is residual **instruction** text: a vessel, a
+duration, a target. Neither engine is wrong; both are handed prose that should never have reached a
+parser. The CRF folds it into the name, the LLM files it as prep, and the comparator scores a
+disagreement. It also inflates bucket 4 — `three cups of milk for twenty minutes` differs only because
+the CRF dropped the trailing clause and the LLM kept it.
+
+This is `proseRecipe`'s clause segmentation, already leaking, and it inflates **every rate in the report**.
+Fixing it comes BEFORE adjudicating anything, or the oracle spends its effort judging text that is not an
+ingredient line. See the build order below.
+
+### KTD-2b — ⛔ OWNER DECISION: is a modifier identity, or preparation?
+
+`one-half cup of chopped onions` → the CRF says `name=onions, prep=chopped`; the LLM says
+`name=chopped onions`. **Both read the line correctly.** What is missing is a rule in our own schema
+saying where a modifier belongs — and its absence is the single largest disagreement class in the system.
+
+One definitional call settles 184 lines permanently, with no oracle and no adjudication. It is not a
+measurement and no amount of further data will produce it. Candidate rules, in the shape a decision could
+take:
+
+- **A past-participle state word is preparation** (`chopped`, `grated`, `melted`, `sifted`, `minced`,
+  `stoned`) — it names something done TO the food, which is exactly what `prep` was defined as.
+- **An adjectival state word is identity** (`sweet`, `brown`, `pastry`, `Russian`) — it distinguishes
+  which food, not what was done to it.
+- **The ambiguous middle is `hot`/`cold`/`boiling`/`lukewarm`/`fresh`** — a temperature is done to the
+  food but is not a lasting property of it, and this is where a rule has to commit.
+
+⚠️ Whatever is chosen becomes the definition `prep` carries for the rest of the system, including the new
+preparation field on the write path (U11). Decide it once, here.
+
 ⚠️ Still observe-only at first: a flagged line imports. U11's error asymmetry transfers directly — a wrong
 agreement passes data that would have shipped anyway; a wrong disagreement withholds a correct line, which
 is worse than today. Observe-only is the resting posture, not the fallback.
@@ -256,6 +304,24 @@ silently keying the old way.
 ---
 
 ## Implementation Units
+
+### Build order
+
+KTD-2a reordered this. The three cheap things that shrink the problem come first, and the expensive
+human-judgement unit comes last, on the residue they leave:
+
+1. **KTD-2b's modifier rule** — an owner decision, not a build. Settles 184 of 354 disagreements.
+2. **U1** — the contract, including the size qualifier and whatever KTD-2b decided.
+3. **U4** — the comparator, with stopword and duplicate normalization (40 more).
+4. **U7a** — `proseRecipe`'s segmentation, which is inflating every rate measured so far.
+5. **Re-run the comparison harness**, record the deltas against §3 of the report.
+6. **U2, U3, U5, U6, U7** — the engines, the cache, the correction tier, the orchestration.
+7. **U8** — the oracle, on the ~130 lines still standing.
+8. **U9** — ADR-0025, written once the above have stopped moving.
+
+⚠️ Steps 1–5 are cheap and they change what the rest is measured against. Doing them after U2's Python
+Lambda would mean committing the expensive infrastructure decision against numbers we already know are
+inflated.
 
 ### Backend — proceed now
 
@@ -398,6 +464,16 @@ a merged `ParsedLine` plus a `ParseAgreement` discriminated union — `agree`, `
 
 ⛔ Compares the **stated** measure pair. ⛔ `single-engine` is never `differ` (KTD-3).
 
+⛔ **Before comparing, normalize** — this is 40 lines of the `differ` bucket, free (KTD-2a):
+
+- **Stopwords.** `that have been boiled soft` and `boiled soft` are the same reading; the CRF keeps the
+  relative-clause scaffolding and the LLM drops it. 21 lines.
+- **Duplicates.** The LLM sometimes emits a modifier into BOTH `name` and `prep` (`name: "chopped celery",
+prep: "chopped"`). That is a defect in one answer, not a disagreement between two. 19 lines.
+
+⚠️ Normalizing for COMPARISON must not normalize what is STORED. The stored parse keeps the line's own
+words; only the comparator's view is normalized. Conflating the two would quietly rewrite the corpus.
+
 **Execution note.** Test-first. This is the unit whose test table is the design.
 
 **Test scenarios.** Identical parses agree · differing amounts take the CRF and report `differ` · differing
@@ -496,6 +572,21 @@ the leftmost that parses. That is a prose-scanning strategy, not a parse, and it
 pipeline replaces what happens to the chosen suffix, not how the suffix is chosen. Getting this wrong
 silently changes which text is treated as an ingredient across the whole corpus.
 
+⛔ **U7a — the segmentation defect, and it now gates U8.** KTD-2a found that a large share of `differ` is
+this module handing both engines text that is not an ingredient line: a vessel (`butter in a frying-pan`),
+a duration (`milk for five minutes`), a target (`flour to it`), and at least one piece of equipment
+(`a large preserving kettle`). The clause is accepted, the trailing instruction rides along, and the two
+engines mangle it differently — the CRF into the name, the LLM into prep.
+
+Close it BEFORE the oracle runs. Two things follow. The oracle must not spend its judgement on text nobody
+meant to parse; and **every rate in the report is inflated by this**, so the comparison harness is re-run
+afterwards with the deltas recorded, never with the old figures quietly replaced.
+
+⚠️ This is a segmentation decision, not a regex to bolt on. A clause carrying an ingredient AND an
+instruction is ordinary in this corpus, and the honest outcome may be a `line_is_instruction` review
+reason — the sibling of `measurement_in_name` — rather than a silent trim. Dropping the tail is
+value-corrupting when the tail was a second food (`one-half pound chocolate in one cup of water`).
+
 **Execution note.** Test-first. Characterize `proseRecipe`'s suffix selection before touching it.
 
 **Test scenarios.** Order is correction → cache → engines · a cache hit calls no engine · a correction hit
@@ -515,10 +606,23 @@ against the last recorded run.
 engines against each other over 2,584 real lines, and CI installs the pinned CRF. Do not rebuild it.
 
 What it deliberately does **not** do is adjudicate: the report states outright that it _"sizes and names
-the disagreement; it does not adjudicate it."_ That is what remains — an **oracle** for the 354 `differ`
-cases, without which KTD-2's winner rule stays a guess and Micro-vs-Pro stays unresolved.
+the disagreement; it does not adjudicate it."_ That is what remains — an **oracle**, without which KTD-2's
+winner rule stays a guess.
 
-**Goal.** A committed, seeded, non-vacuous oracle deciding which engine is right on the adjudication list.
+⛔ **RUNS LAST, and its subject is now ~130 lines, not 354.** KTD-2b removes 184, U4's normalization
+removes 40, and U7a removes the extractor's residue from what is left. Running this unit before those
+three would adjudicate mostly-decidable cases and text nobody meant to parse — paying a human to settle
+questions a rule already answers.
+
+⚠️ At ~130 the oracle reads the list **end to end**. Sampling was a concession to 354; it is not needed
+here, and a census removes the seeded-sample caveat entirely.
+
+⛔ **The oracle is not me, and not a model from either engine's family.** The bake-off measured
+self-preference at −31.5 points; an LLM adjudicating an LLM's parse against a CRF's is the same failure
+with an extra step. Either the owner rules, or the oracle is a written rubric applied by diverse lenses
+with the rule recorded — never a single model's opinion presented as ground truth.
+
+**Goal.** A committed, non-vacuous oracle deciding which engine is right on the residual list.
 
 **Files.**
 
@@ -693,6 +797,11 @@ a test, or state plainly that it survives in the projection and why that is acce
 2. **A new runtime with a new guard.** The packaging guard for the Python Lambda is written for this
    change, so it has never caught anything. `handle-sync-worker` is the precedent for what an unguarded
    Lambda asset costs.
+   2a. **⛔ Every rate measured so far is inflated by the extractor.** KTD-2a found `differ` is substantially
+   `proseRecipe` handing both engines instruction text and equipment. Until U7a lands, the 49.17% agreement
+   figure, the shape distribution, and the Micro-vs-Haiku-vs-Pro tie are all measured on a corpus that
+   includes lines nobody meant to parse. The tie is robust (three models, same corpus); the absolute rates
+   are not.
 3. **KTD-2's winner rule is sized but not adjudicated.** The disagreement rate is now measured (49.17%
    agreement; 354 unstructured `differ` cases) and the shapes are classified — but _nobody has decided who
    is right_ on the adjudication list. The winner rule is evidence-shaped, not evidence-backed, until U8's
@@ -720,6 +829,10 @@ a test, or state plainly that it survives in the projection and why that is acce
 
 ## Open Questions
 
+0. **⛔ KTD-2b — is a modifier identity or preparation?** The highest-value open question in this plan and
+   the cheapest to answer: one definitional ruling removes 184 of 354 disagreements, and no further
+   measurement will produce it. It also fixes what `prep` means for U11's write-path field. **Blocks step 1
+   of the build order.**
 1. **⛔ How is the ADR-0024 ceiling allocated across three consumers?** Blocking for U3's ship, not for its
    build.
 2. **⛔ U15's fixture-vs-query fork** — owner ruling.

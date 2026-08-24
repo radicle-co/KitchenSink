@@ -4,7 +4,11 @@ A revision against the recipe-creation screen Figma Make produced from prompt 1
 (`recipe-ingredient-entry-figma-make-prompt.md`, as sent — see git history for the version with the
 dry/wet control still in it).
 
-Why, for you and not for Figma: dry/wet is a property of the **food**, not of a recipe's use of it — flour
+Why, for you and not for Figma. **Size** goes because `large` is an adjective, and the 2026-08-23 ruling
+already says an adjective is identity — it belongs in the food's name. Carving out an exception for it
+would reopen `sweet`, `brown` and `Italian` too; it was only ever there because the CRF parser happens to
+emit it as a separate field, which is letting a third-party parser shape our schema. **Dry/wet** goes
+because it is a property of the **food**, not of a recipe's use of it — flour
 is dry every time anyone uses it — so a per-line toggle is a column that never gets filled. Where it
 genuinely matters to a cook it means **mixing order**, which is the same axis as "For the sauce". One
 field serves both. Grouping is also the only one of the two with code evidence: `parseIngredientLine`
@@ -16,8 +20,11 @@ detects `group_header` today and the recipe schema discards it.
 
 Two changes to the recipe creation screen's Ingredients step. Everything else stays as it is.
 
-**1. Remove the dry/wet attribution control.** Delete it from the ingredient row entirely — the field, its
-label, and any space reserved for it. Nothing replaces it in that position.
+**1. Remove two controls from the ingredient row** — the **dry/wet attribution** field and the **size**
+field ("large"/"small"/"medium"). Delete each entirely: the control, its label, and any space reserved for
+it. Nothing replaces either. A size like "large" now belongs in the food's name, which comes from the
+picker — so "3 large onions" is a quantity of 3 and a food named "large onions", with no separate control
+for the word "large".
 
 **2. Add ingredient groups.**
 
@@ -43,4 +50,4 @@ Add these frames:
 - **Moving a row between groups.**
 
 Keep the flat, empty and mid-edit states you already have, and keep the food picker, the preparation
-field, the size field, the unit autocomplete and the nutrition summary exactly as they are.
+field, the unit autocomplete and the nutrition summary exactly as they are.

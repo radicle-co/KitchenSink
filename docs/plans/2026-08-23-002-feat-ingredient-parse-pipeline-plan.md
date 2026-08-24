@@ -19,7 +19,7 @@ The interactive write path is **not** a consumer of this pipeline and never beco
 structured — `recipeIngredientInputSchema` requires a resolved `ingredientId`, and `parseIngredientLine`
 has exactly one non-test caller in the repository, the offline cookbook importer. But that surface has
 three gaps the pipeline throws into relief: the unit field has no vocabulary, there is no preparation
-field, and there is no dry/wet attribution. Those are a wire-contract change and are planned here in the
+field, and there is no way to group ingredients into the sections recipes actually use. Those are a wire-contract change and are planned here in the
 same document, deliberately, because both halves turn on the same two facts — what a measurement is, and
 where identity ends and preparation begins.
 
@@ -93,7 +93,7 @@ persists it.
 
 - The import parse path: `cookbook-import`, and the seam 017's capture waterfall will feed.
 - The parse cache, the correction tier, the comparator, and both engines.
-- The structured-entry contract gaps: unit vocabulary, preparation, attribution.
+- The structured-entry contract gaps: unit vocabulary, preparation, ingredient grouping.
 - The two stashed open items (U15, U16).
 
 **Out of scope**
@@ -154,16 +154,16 @@ half of everything is how a real signal gets muted — the same failure `contrac
 So the comparator classifies the disagreement's **shape**, and only some shapes reach a human. Measured
 distribution (Nova Micro, ingredient lines):
 
-| shape                                                                      |   n | disposition                                                                  |
-| -------------------------------------------------------------------------- | --: | ---------------------------------------------------------------------------- |
-| `differ` (unstructured name disagreement)                                  | 354 | ⚠️ **the genuine adjudication list** — 25.7% of lines                        |
-| `quantityDiffers` (units agree, numbers do not)                            | 114 | CRF wins, record both                                                        |
-| `amountCountDiffers` (different NUMBER of amounts read)                    |  92 | CRF wins; this is the composite case U16 touches                             |
-| `unitDiffers`                                                              |  81 | CRF wins, record both                                                        |
-| `crfUnitInName` (CRF swallowed the unit into the food)                     |  25 | **LLM wins silently** — the CRF is demonstrably wrong (`"a little vinegar"`) |
-| `crfSizeField` (CRF routed `large`/`small` to a field we have no slot for) |  24 | see U1 — a contract hole, not a disagreement                                 |
-| `modelSplitsFoods`                                                         |   7 | **LLM wins silently** — this is the multi-food case the CRF cannot express   |
-| `modelPrepInCrfName`                                                       |   4 | **LLM wins silently** — identity-vs-prep, the LLM's measured strength        |
+| shape                                                                      |   n | disposition                                                                       |
+| -------------------------------------------------------------------------- | --: | --------------------------------------------------------------------------------- |
+| `differ` (unstructured name disagreement)                                  | 354 | ⚠️ **the genuine adjudication list** — 25.7% of lines                             |
+| `quantityDiffers` (units agree, numbers do not)                            | 114 | CRF wins, record both                                                             |
+| `amountCountDiffers` (different NUMBER of amounts read)                    |  92 | CRF wins; this is the composite case U16 touches                                  |
+| `unitDiffers`                                                              |  81 | CRF wins, record both                                                             |
+| `crfUnitInName` (CRF swallowed the unit into the food)                     |  25 | **LLM wins silently** — the CRF is demonstrably wrong (`"a little vinegar"`)      |
+| `crfSizeField` (CRF routed `large`/`small` to a field we have no slot for) |  24 | canonicalised into `name` — U1, U4. `large` is an adjective, so KTD-2b decides it |
+| `modelSplitsFoods`                                                         |   7 | **LLM wins silently** — this is the multi-food case the CRF cannot express        |
+| `modelPrepInCrfName`                                                       |   4 | **LLM wins silently** — identity-vs-prep, the LLM's measured strength             |
 
 That reduces what a human ever sees from ~700 lines to the 354 `differ` cases, and it does so on evidence
 rather than by tuning a threshold.
@@ -377,13 +377,23 @@ inflated.
 union), `unit`, `foods: readonly { name, prep }[]`, `reviewReasons`, and `provenance` naming which engine
 produced each field. `projectToIngredientLine(parsed)` returns today's shape and documents what it drops.
 
-⛔ **A contract hole the measurement exposed, and this unit must close it.** The CRF emits a `size` field
-— `large`, `small` — and our shape has nowhere to put it (`crfSizeField`, 24 lines). Dropping it loses
-what the source said; folding it into `name` recreates the identity-vs-prep conflation this whole plan
-exists to remove (`large onion` is not a distinct food from `onion`); folding it into `prep` is a lie,
-because a size is not something the line tells the cook to do. It is a third thing — an unmeasured
-qualifier of the food — and it needs its own nullable member. Decide it here, with the 24 lines in hand,
-not at the call site later.
+⛔ **`size` is NOT a member of this contract — owner ruling 2026-08-24, reversing an earlier draft.**
+
+The CRF emits a `size` field (`large`, `small`), our shape has nowhere to put it, and the collision is
+real: `crfSizeField` is 24 lines for Nova Micro and **57 for Haiku 4.5**. An earlier revision of this unit
+concluded it therefore needed its own nullable member. That was wrong, for a reason worth recording
+because it is the same mistake in a new place: **it let a third-party parser's output shape our schema.**
+
+`large` is an adjective, and KTD-2b already rules that **an adjective is identity** — it belongs in the
+food's name. There is no exception here that does not also reopen `sweet`, `brown` and `Italian`. So the
+CRF's `size` is **canonicalised into `name`** by the comparator (U4), exactly as placement is, and
+`crfSizeField` stops being a disagreement rather than being modelled around. That is 81 lines across the
+two models resolved by applying a rule we already have, instead of by adding a field.
+
+⚠️ Two consequences, accepted. `large onion` and `onion` are distinct names, so whether they resolve to
+the same catalog food is the **resolution cascade's** question, not this contract's — which is the correct
+layer for it, and the cascade already has curated mappings for exactly that. And the write path grows no
+size control (the mockup's was removed on the same ruling): a cook wanting precision states a mass.
 
 **Execution note.** Test-first. The projection's lossiness is the thing under test.
 
@@ -501,7 +511,11 @@ a merged `ParsedLine` plus a `ParseAgreement` discriminated union — `agree`, `
 
 ⛔ Compares the **stated** measure pair. ⛔ `single-engine` is never `differ` (KTD-3).
 
-⛔ **Canonicalize placement through KTD-2b's ruling before comparing** — 128 lines. A past participle and
+⛔ **Canonicalize the CRF's `size` into `name` first.** `large`/`small` is an adjective, so KTD-2b files
+it as identity. 24 lines for Micro, 57 for Haiku. See U1 for why this is a canonicalisation and not a new
+contract member.
+
+⛔ **Then canonicalize placement through KTD-2b's ruling before comparing** — 128 lines. A past participle and
 a temperature are moved to `prep`, an adjective to `name`, on BOTH engines' answers, and only then are
 they compared. Needs the modifier lexicon (check the CRF package's POS tagger before hand-rolling it) and
 its two traps: colours ending in `-ed`/`-en`, and irregular participles a suffix test misses.
@@ -755,12 +769,36 @@ a migration, `RecipeIngredientsFields.tsx`, `RecipeIngredientsFields.native.tsx`
 preparation omits the key rather than sending `''` · both platforms render and submit it · the localized
 label exists on both platforms.
 
-#### U12 — Attribution (dry/wet) — _pending an owner decision_
+#### U12 — Ingredient groups (replaces dry/wet attribution — owner ruling 2026-08-24)
 
-⛔ Not buildable as specified. USDA carries nothing that derives it: `foodCategory` is a taxonomy, not a
-moisture state, and the Water nutrient (which we do not ingest) gets the cooking sense backwards — flour
-at 12% water is dry, honey at 17% is wet. It is a per-line declaration or it does not exist. Build only
-if the mockup includes it and the owner confirms it is declared.
+**Goal.** An ingredient line may carry a section label, and the list renders sectioned when any line has
+one: "For the marinade", "For the topping", or "Dry" and "Wet".
+
+⛔ **Dry/wet as a per-line toggle was DROPPED, and the reasoning should not be re-litigated.** USDA derives
+nothing usable — `foodCategory` is a taxonomy, not a moisture state, and the Water nutrient (which we do
+not ingest) gets the cooking sense backwards: flour at 12% water is dry, honey at 17% is wet. More
+decisively, dry/wet is a property of the FOOD, not of a recipe's use of it — flour is dry every time — so
+a per-line control asks a cook to restate a fact about flour on every recipe they ever write. Where it
+genuinely matters to a cook it means **mixing order**, which is the same axis as "For the sauce". One
+field serves both.
+
+⚠️ **This is the one addition with code evidence.** `parseIngredientLine` already detects `group_header`
+(`ingredientLine.ts:250`) for lines like "For the sauce:" — and the recipe schema has nowhere to put it,
+so it is flagged and discarded. This unit gives that signal somewhere to land.
+
+⚠️ **Free text, not an enum.** "Dry" and "Wet" are two labels among many, and a closed set cannot express
+"For the crust". Autocomplete over labels used in this recipe plus common ones; accept anything new.
+
+⚠️ **An ungrouped recipe must stay a flat list with no section chrome.** Most recipes will never group,
+and those must not look unfinished — the mockup is where that is verified.
+
+**Files.** `recipe-core/src/recipeRequestBounds.ts`, `recipes.schema.ts`, `packages/schemas/recipe/**`,
+a migration, both `RecipeIngredientsFields` variants, `form/model.ts`.
+
+**Test scenarios.** A grouped recipe round-trips its labels and their order · an ungrouped recipe sends no
+group key at all (never `''`) · reordering within a group preserves order · moving a line between groups
+preserves its other fields · a label is scoped to its recipe, not global · `group_header` from an import
+lands as a group rather than a review reason.
 
 #### U13 — Picker-first "Add ingredient"
 
@@ -877,6 +915,6 @@ a test, or state plainly that it survives in the projection and why that is acce
 1. **⛔ How is the ADR-0024 ceiling allocated across three consumers?** Blocking for U3's ship, not for its
    build.
 2. **⛔ U15's fixture-vs-query fork** — owner ruling.
-3. **U12 (attribution)** — declared per line, or dropped?
+3. ~~**U12 (attribution)**~~ **RESOLVED 2026-08-24**: dry/wet dropped; replaced by free-text ingredient groups.
 4. Does the disagreement flag ever _block_ an import, or stay observe-only permanently? Answerable only
    after U8.

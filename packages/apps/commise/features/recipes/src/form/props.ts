@@ -8,7 +8,13 @@
  * ingredient (the container owns the food-service typeahead). Every edit produces the next
  * {@link RecipeFormValues} and is handed back up via `onChange`.
  */
-import { CUISINES, RecipeDifficulty, type FoodResolutionStatus } from '@kitchensink/recipe-core';
+import {
+    classifyUnit,
+    CUISINES,
+    RecipeDifficulty,
+    UNIT_VOCABULARY,
+    type FoodResolutionStatus,
+} from '@kitchensink/recipe-core';
 
 import type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
 import type { RecipeFormMessages } from './messages.js';
@@ -70,15 +76,111 @@ export const blankIngredient = (): RecipeFormIngredient => ({ ingredientId: null
 export const blankStep = (): RecipeFormStep => ({ instruction: '' });
 
 /**
- * Append a blank ingredient line. Pure — returns the next values, never mutates.
+ * Append a blank ingredient line, JOINING THE SECTION THE COOK IS CURRENTLY BUILDING (U27). Pure — returns
+ * the next values, never mutates.
+ *
+ * ⚠️ The inherited `groupLabel` is what keeps grouping from being eight identical typings. The Figma Make
+ * brief is explicit that "per-row typing is the wrong primary interaction"; since this appends at the END,
+ * inheriting the LAST line's label is exactly what "name a section once, then keep adding to it" means.
+ * Starting a new section stays one edit (type a different label), and an ungrouped list stays ungrouped
+ * because there is nothing to inherit.
+ *
+ * ⛔ ONLY the section is inherited. Carrying the preparation forward would assert "finely chopped" about a
+ * food the cook has not picked yet.
  *
  * @param values - The current form values.
  * @returns The next values with one blank ingredient appended.
  */
-export const addIngredient = (values: RecipeFormValues): RecipeFormValues => ({
-    ...values,
-    ingredients: [...values.ingredients, blankIngredient()],
-});
+export const addIngredient = (values: RecipeFormValues): RecipeFormValues => {
+    // ⛔ Through `sectionLabelOf`, so a cleared or padded label is never propagated onto the next line — the
+    // draft's spelling of "ungrouped" is the same one the fold and the wire use.
+    const last = values.ingredients[values.ingredients.length - 1];
+    const groupLabel = last === undefined ? undefined : sectionLabelOf(last);
+
+    return {
+        ...values,
+        ingredients: [
+            ...values.ingredients,
+            // Spread-when-present, never `groupLabel: undefined` — `exactOptionalPropertyTypes`, and the
+            // draft must not acquire a key the line does not have.
+            { ...blankIngredient(), ...(groupLabel === undefined ? {} : { groupLabel }) },
+        ],
+    };
+};
+
+/**
+ * The section a DRAFT line belongs to — trimmed, with blank read as ungrouped. Pure.
+ *
+ * ⛔ THE DRAFT NEEDS THIS AND THE WIRE'S `.trim()` CANNOT SUPPLY IT. A cook who clears the section field
+ * leaves `''` in the draft, not `undefined`, so a raw comparison splits that line into a section of its own
+ * and both leaves render an EMPTY HEADING above it. And `'Dry '` beside `'Dry'` renders two headings a
+ * reader cannot tell apart — the very state `0030_ingredient_preparation_and_group.sql` makes the wire trim
+ * to prevent, arriving one layer EARLIER, where the wire has not run yet.
+ *
+ * `toCreateRecipeInput` applies the same rule on the way out, so what the editor SHOWS and what the recipe
+ * SAVES are the same grouping.
+ *
+ * @param line - The draft ingredient line.
+ * @returns The trimmed label, or `undefined` when the line is ungrouped.
+ */
+const sectionLabelOf = (line: RecipeFormIngredient): string | undefined => {
+    const label = line.groupLabel?.trim();
+
+    return label === undefined || label === '' ? undefined : label;
+};
+
+/** One ingredient line as a section renders it: the line itself, plus its index in `values.ingredients`. */
+export interface RecipeIngredientSectionLine {
+    /** The line. */
+    readonly line: RecipeFormIngredient;
+    /**
+     * Its index in `values.ingredients` — NOT its position within the section.
+     *
+     * ⛔ This is what every edit helper takes (`updateIngredientAt`, `removeIngredientAt`) and what the
+     * `Ingredient {number}` accessible labels are numbered from, so it must keep addressing the same line.
+     * A section-relative index would edit the wrong row while the screen looked perfectly correct.
+     */
+    readonly index: number;
+}
+
+/** A run of consecutive ingredient lines sharing one section label (U27). */
+export interface RecipeIngredientSection {
+    /** The section heading, or ABSENT for a run of ungrouped lines — which renders with NO chrome at all. */
+    readonly label?: string;
+    /** The lines in this run, in stored order. */
+    readonly lines: readonly RecipeIngredientSectionLine[];
+}
+
+/**
+ * Fold a recipe's ingredient lines into the sections both form leaves render (U27). Pure.
+ *
+ * DESIGN PATTERN: pure projection. It is the ONE fold, shared by the web and native leaves, so the two
+ * platforms cannot section a recipe differently.
+ *
+ * ⛔ BY CONSECUTIVE RUN, never by label identity. `[Dry][Wet][Dry]` is THREE sections in that order;
+ * grouping by identity would pull the third line up beside the first and REORDER the recipe, which is the
+ * one thing a stored order must never do. The accepted consequence is that a label used in two
+ * non-adjacent runs renders twice — which is what the array says, and a cook fixes by moving the line.
+ *
+ * ⚠️ An UNGROUPED recipe folds to ONE section with NO label, and the leaves render no heading for an
+ * unlabelled section — so a recipe that never groups looks exactly as it did before U27. Most recipes will
+ * never group, and those must not look unfinished.
+ *
+ * @param values - The current form values.
+ * @returns The sections, in stored order; empty when the recipe has no ingredient lines.
+ */
+export const ingredientSections = (values: RecipeFormValues): readonly RecipeIngredientSection[] =>
+    values.ingredients.reduce<RecipeIngredientSection[]>((sections, line, index) => {
+        const label = sectionLabelOf(line);
+        const previous = sections[sections.length - 1];
+        const entry: RecipeIngredientSectionLine = { line, index };
+
+        if (previous !== undefined && previous.label === label) {
+            return [...sections.slice(0, -1), { ...previous, lines: [...previous.lines, entry] }];
+        }
+
+        return [...sections, { ...(label === undefined ? {} : { label }), lines: [entry] }];
+    }, []);
 
 /**
  * Remove the ingredient line at `index`. Out-of-range indices are a no-op copy. Pure.
@@ -362,6 +464,52 @@ export const addChip = (list: readonly string[], token: string): string[] => {
  * @returns The next chip list with that chip removed.
  */
 export const removeChipAt = (list: readonly string[], index: number): string[] => list.filter((_, i) => i !== index);
+
+/**
+ * The localized note a NON-CANONICAL unit carries, or `undefined` for an ordinary one (plan U25). Pure.
+ *
+ * DESIGN PATTERN: the same Specification-to-copy adapter {@link resolutionStatusLabel} is — ONE mapping from
+ * a domain verdict to a localized string, shared by both platform leaves so they cannot mark a unit
+ * differently.
+ *
+ * ⛔ The verdict is DERIVED here, at render, from `recipe-core`'s `classifyUnit`. It is never a persisted
+ * flag and never a wire field: the unit string already carries the fact, and a stored class beside it would
+ * be a second representation that can disagree with the first.
+ *
+ * ⛔ THREE outcomes, not two, and the third is why this is text rather than styling. A deliberate `handful`
+ * must not read like a mistyped `blorp` — a colour-only mark (the Figma Make mockup's) cannot express that,
+ * and it fails WCAG 1.4.1 besides. Neither note is an error: an unknown unit is ACCEPTED, never rejected.
+ *
+ * @param messages - The localized form copy.
+ * @param unit - The unit as the cook wrote it; an absent or empty unit is a UNITLESS line, not an
+ *   unrecognised one, and carries no note.
+ * @returns The note, or `undefined` when the unit is canonical or absent.
+ */
+export const unitClassNote = (messages: RecipeFormMessages, unit?: string): string | undefined => {
+    const cleaned = unit?.trim().toLowerCase() ?? '';
+
+    if (cleaned === '') {
+        return undefined;
+    }
+
+    switch (classifyUnit(cleaned)) {
+        case 'canonical':
+            return undefined;
+        case 'subjective':
+            return messages.ingredientUnitSubjectiveNote;
+        case 'unknown':
+            // ⛔ NOT while the cook is still mid-word. Classifying every keystroke flashes "Unrecognised
+            // unit" after `c` and after `cu` on the way to `cup` — telling someone they are wrong while they
+            // are still typing the right answer. A value that is a PREFIX of a real unit is withheld
+            // judgement, not judged; the note appears once what they typed can no longer become one.
+            //
+            // ⚠️ Only the UNKNOWN note is deferred. A subjective unit is typed whole (`handful`, `to taste`)
+            // and its note is reassurance rather than a correction, so there is nothing to soften.
+            return UNIT_VOCABULARY.some((candidate) => candidate.startsWith(cleaned))
+                ? undefined
+                : messages.ingredientUnitUnknownNote;
+    }
+};
 
 /**
  * The localized label for an ingredient line's resolution status. Pure — the single mapping from a

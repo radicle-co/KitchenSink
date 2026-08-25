@@ -3327,6 +3327,12 @@ components:
                               displayText:
                                 type: string
                                 minLength: 1
+                              preparation:
+                                type: string
+                                minLength: 1
+                              groupLabel:
+                                type: string
+                                minLength: 1
                               sortOrder:
                                 type: integer
                                 minimum: 0
@@ -3494,6 +3500,12 @@ components:
                               unit:
                                 type: string
                               displayText:
+                                type: string
+                                minLength: 1
+                              preparation:
+                                type: string
+                                minLength: 1
+                              groupLabel:
                                 type: string
                                 minLength: 1
                               sortOrder:
@@ -4206,6 +4218,12 @@ components:
               notes:
                 type: string
                 minLength: 1
+              preparation:
+                type: string
+                minLength: 1
+              groupLabel:
+                type: string
+                minLength: 1
               isUserEntered:
                 type: boolean
               resolutionStatus:
@@ -4425,6 +4443,14 @@ components:
               notes:
                 type: string
                 minLength: 1
+              preparation:
+                type: string
+                minLength: 1
+                maxLength: 120
+              groupLabel:
+                type: string
+                minLength: 1
+                maxLength: 60
               userCalories:
                 type: number
                 minimum: 0
@@ -4673,6 +4699,14 @@ components:
               notes:
                 type: string
                 minLength: 1
+              preparation:
+                type: string
+                minLength: 1
+                maxLength: 120
+              groupLabel:
+                type: string
+                minLength: 1
+                maxLength: 60
               userCalories:
                 type: number
                 minimum: 0
@@ -5301,6 +5335,12 @@ components:
                   unit:
                     type: string
                   displayText:
+                    type: string
+                    minLength: 1
+                  preparation:
+                    type: string
+                    minLength: 1
+                  groupLabel:
                     type: string
                     minLength: 1
                   sortOrder:

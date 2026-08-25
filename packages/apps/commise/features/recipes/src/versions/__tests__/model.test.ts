@@ -23,6 +23,7 @@ import {
     conflictMarkerLabel,
     conflictRowLabel,
     countMergeSelections,
+    draftToSnapshot,
     findPriorVersion,
     formatChangedFieldNames,
     formatChangedFromCurrent,
@@ -850,5 +851,99 @@ describe('resolveVersionPreview', () => {
         resolveVersionPreview({ previewTarget: 1, versions, currentVersion: 2, restoringVersion: null });
 
         expect(versions).toStrictEqual([v2, v1]);
+    });
+});
+
+/**
+ * U26/U27 — the version layer's three mappers, each of which loses data silently if a field is missed.
+ *
+ * ⛔ `draftToSnapshot` is the LOCAL side of the three-way conflict merge, and `toConflictSideDetail` builds
+ * the SERVER and BASE sides. A field one side cannot REPRESENT is a field the merge can never report a
+ * conflict about — so the cook's edit is dropped in favour of the other side, with no conflict banner and
+ * nothing to notice.
+ */
+describe('U26/U27 — the preparation and the section survive the version layer', () => {
+    it('draftToSnapshot carries both onto the local side of the merge', () => {
+        const snapshot = draftToSnapshot(
+            makeRecipeFormValues({
+                ingredients: [
+                    {
+                        ingredientId: 'ing-1',
+                        name: 'Onion',
+                        quantity: 2,
+                        preparation: 'finely chopped',
+                        groupLabel: 'For the marinade',
+                    },
+                ],
+            }),
+            1,
+        );
+
+        expect(snapshot.ingredients[0]).toMatchObject({
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+        });
+    });
+
+    it('draftToSnapshot OMITS both for a line stating neither, and TRIMS a padded one', () => {
+        const snapshot = draftToSnapshot(
+            makeRecipeFormValues({
+                ingredients: [
+                    { ingredientId: 'ing-1', name: 'Onion', quantity: 2, preparation: '  ', groupLabel: ' Dry ' },
+                ],
+            }),
+            1,
+        );
+
+        expect(snapshot.ingredients[0]).not.toHaveProperty('preparation');
+        expect(snapshot.ingredients[0]?.groupLabel).toBe('Dry');
+    });
+
+    /**
+     * ⛔ U26's headline rule, at the ONE place in this package that already folds a field into the name.
+     * `displayText` is an author-chosen DISPLAY override and is parenthesised beside the name deliberately;
+     * a preparation is a field of its own and is appended as a trailing CLAUSE instead. A name carrying a
+     * preparation matches no catalog row.
+     */
+    it('⛔ the preview appends the preparation as a CLAUSE and never folds it into the name', () => {
+        const [line] = toVersionPreviewIngredientLines(
+            [
+                makeIngredient({
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cups',
+                    ingredientName: 'Onion',
+                    preparation: 'finely chopped',
+                }),
+            ],
+            preview,
+            'en',
+        );
+
+        expect(line?.text).toBe('2 cups Onion, finely chopped');
+        // ⛔ Never the parenthesised `displayText` form — that idiom is one copy-paste away at all times.
+        expect(line?.text).not.toContain('(finely chopped)');
+    });
+
+    // ⛔ F4 — the SECTION is on the same footing as the preparation: `diffSnapshots` counts a section-only
+    // edit as `modified`, so a preview that omitted it would show two identical lines beside a history entry
+    // claiming one changed.
+    it('⛔ the preview shows the SECTION too, so a section-only edit is visible in the history', () => {
+        const [line] = toVersionPreviewIngredientLines(
+            [makeIngredient({ ingredientName: 'Flour', unit: 'cups', groupLabel: 'Dry' })],
+            preview,
+            'en',
+        );
+
+        expect(line?.text).toContain('[Dry]');
+    });
+
+    it('the preview renders a line with NO preparation exactly as it did before U26', () => {
+        const [line] = toVersionPreviewIngredientLines(
+            [makeIngredient({ quantity: { kind: 'exact', value: 2 }, unit: 'cups', ingredientName: 'Onion' })],
+            preview,
+            'en',
+        );
+
+        expect(line?.text).toBe('2 cups Onion');
     });
 });

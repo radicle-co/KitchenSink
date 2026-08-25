@@ -9,10 +9,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, it, expect, vi } from 'vitest';
 
-import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, RecipeVisibility, recipeIngredientViewSchema } from '@kitchensink/recipe-core';
 
 import { PREMIUM_PERMISSION, RecipesService } from '../recipes.service.js';
 import type { RecipesDal, RecipeAggregate } from '../dal/recipes.dal.js';
+import type { RecipeIngredientRow } from '../../database/schema/index.js';
 import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import type { RatingsDal } from '../../ratings/dal/ratings.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
@@ -1227,15 +1228,16 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
      */
     async function isSubstantive(
         patch: Partial<UpdateRecipeDto>,
-        storedQuantity: { quantity: string | null; quantityHigh: string | null } = {
-            quantity: '2',
-            quantityHigh: null,
-        },
+        // ⚠️ WIDENED for U26/U27 from a quantity-only pair to any column override. The narrower type could
+        // not express "the STORED line already carries a preparation", which is the half of the comparison
+        // that proves CLEARING a field is an edit — an accept-only suite would pass against a
+        // `ingredientsChanged` that never looks at the stored side at all.
+        storedColumns: Partial<RecipeIngredientRow> = { quantity: '2', quantityHigh: null },
     ): Promise<boolean> {
         const base = richAggregate({ hasSubstantiveEdit: false, currentVersion: 1 });
         const existing: RecipeAggregate = {
             ...base,
-            ingredients: base.ingredients.map((line) => ({ ...line, ...storedQuantity })),
+            ingredients: base.ingredients.map((line) => ({ ...line, ...storedColumns })),
         };
         const dal = fakeDal({
             findById: vi.fn().mockResolvedValue(existing),
@@ -1337,6 +1339,39 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
 
     it('an ingredient NOTES-only change is substantive', async () => {
         expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, notes: 'minced' }] })).toBe(true);
+    });
+
+    /**
+     * U26/U27 — the same trap as the range case above, one field further on. `ingredientsChanged` is a
+     * POSITIVE enumeration, so a line field it does not name is invisible to it and nothing fails to
+     * compile. Left out, an edit that changes ONLY how a cook chops the onion — or which section the line
+     * sits in — is saved with `hasSubstantiveEdit: false`: no version is minted, so the previous value is
+     * unrecoverable, and C-004 never re-judges visibility for a recipe whose content moved.
+     */
+    it('an ingredient PREPARATION-only change is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, preparation: 'roughly torn' }] })).toBe(true);
+    });
+
+    it('an ingredient GROUP-LABEL-only change is substantive — moving a line changes what the recipe says', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, groupLabel: 'For the topping' }] })).toBe(
+            true,
+        );
+    });
+
+    // ⛔ The other half, and the one a careless `!== undefined` comparison breaks: a patch that carries
+    // NEITHER field against a row that stores NEITHER must read as unchanged. Without the `?? null`
+    // normalization on both sides, `undefined !== null` makes every metadata-only PATCH mint a version.
+    it('a patch stating neither preparation nor group, against a line storing neither, is NOT substantive', async () => {
+        expect(await isSubstantive({ ingredients: [SAME_INGREDIENT], steps: [SAME_STEP] })).toBe(false);
+    });
+
+    // CLEARING is an edit too: removing "finely chopped" changes what a cook makes.
+    it('CLEARING a stored preparation is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [SAME_INGREDIENT] }, { preparation: 'finely chopped' })).toBe(true);
+    });
+
+    it('CLEARING a stored group label (ungrouping a line) is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [SAME_INGREDIENT] }, { groupLabel: 'For the marinade' })).toBe(true);
     });
 
     it('an ingredientId SWAP is substantive', async () => {
@@ -1692,3 +1727,151 @@ describe('RecipesService — ingredient-line resolution batching (S-R6)', () => 
  * gone and the figure is derived on every detail read from food's live data instead. Keeping the tests
  * would have pinned a design the unit deleted.
  */
+
+/**
+ * U26/U27 — THE FIVE PLACES A NEW LINE FIELD HAS TO BE ADDED, and the ONE reason they need a suite of
+ * their own: **not one of them is enforced by the compiler.**
+ *
+ * `toIngredientResponse`, `resolveIngredientLines`, `toResolvedIngredientLine` (clone), the version-snapshot
+ * builder and `ingredientsChanged` are each a POSITIVE field-by-field enumeration built from conditional
+ * spreads — the idiom TypeScript's excess-property check cannot see through. `ingredientsChanged`'s own
+ * docstring says so outright: _"a newly-modelled part of a quantity is invisible to it by construction and
+ * nothing would fail to compile."_ `toResolvedIngredientLine` already shipped this exact defect once, for
+ * `sourceLine`, and `clone.service.test.ts` carries the pin that was added when it was noticed.
+ *
+ * So every case below is written to KILL a specific deletion. Removing the two fields from any one of the
+ * five sites must red exactly one of these and leave the rest green.
+ */
+describe('RecipesService — preparation + groupLabel travel with the line (U26/U27)', () => {
+    /** A one-line aggregate carrying both new columns populated. */
+    const groupedAggregate = (): RecipeAggregate => {
+        const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, deletedAt: null });
+
+        return {
+            recipe,
+            steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
+            ingredients: [
+                makeRecipeIngredientRow({
+                    recipeId: recipe.id,
+                    ingredientId: 'ing-A',
+                    ingredientName: 'Onion',
+                    quantity: '2',
+                    unit: 'cup',
+                    displayText: '2 cups onion, finely chopped',
+                    preparation: 'finely chopped',
+                    groupLabel: 'For the marinade',
+                    sortOrder: 0,
+                }),
+            ],
+        };
+    };
+
+    it('the DETAIL read emits both fields when the columns carry them', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
+
+        const res = await newService(dal).getById(OWNER, 'r-1');
+
+        expect(res.ingredients[0]).toMatchObject({
+            name: 'Onion',
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+        });
+    });
+
+    // ⛔ U26's headline assertion. The name is what a `food_id` resolves to in the catalog; the preparation
+    // is what THIS recipe does to it. A projection that concatenated them would produce a name matching no
+    // catalog row — and it is the shape `versions/model.ts`'s preview uses for `displayText`, so it is one
+    // copy-paste away at all times.
+    it('⛔ NEVER folds the preparation into the food NAME, on read', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
+
+        const res = await newService(dal).getById(OWNER, 'r-1');
+
+        expect(res.ingredients[0]?.name).toBe('Onion');
+        expect(res.ingredients[0]?.name).not.toContain('finely chopped');
+    });
+
+    // ⛔ `notes` (the wire name for `display_text`) and `preparation` are DIFFERENT FACTS with different
+    // producers — U26 resolved that rather than renaming one into the other. This pins that both reach the
+    // wire independently, so a later "these look redundant, drop one" edit reds here.
+    it('emits `notes` and `preparation` as SEPARATE keys — U26 did not merge them', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
+
+        const res = await newService(dal).getById(OWNER, 'r-1');
+
+        expect(res.ingredients[0]?.notes).toBe('2 cups onion, finely chopped');
+        expect(res.ingredients[0]?.preparation).toBe('finely chopped');
+    });
+
+    // ⛔ `null` → the key is OMITTED, never emitted as `''`. `recipeIngredientViewSchema` rejects `''`
+    // (`min(1)`), so emitting a blank is a body this server can write and no client can read — the exact
+    // break `notes` had before its `min(1)` landed.
+    it('OMITS both keys for an ungrouped, unprepared line rather than emitting `""`', async () => {
+        const bare: RecipeAggregate = {
+            recipe: makeRecipeRow({ id: 'r-2', ownerId: OWNER, deletedAt: null }),
+            steps: [makeRecipeStepRow({ recipeId: 'r-2', stepNumber: 1, instruction: 'Mix' })],
+            ingredients: [
+                makeRecipeIngredientRow({
+                    recipeId: 'r-2',
+                    ingredientId: 'ing-A',
+                    ingredientName: 'Salt',
+                    preparation: null,
+                    groupLabel: null,
+                }),
+            ],
+        };
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(bare) });
+
+        const res = await newService(dal).getById(OWNER, 'r-2');
+
+        expect(res.ingredients[0]).not.toHaveProperty('preparation');
+        expect(res.ingredients[0]).not.toHaveProperty('groupLabel');
+    });
+
+    // ⛔ A whole recipe's read must parse under the PUBLISHED read schema, not merely look right in a
+    // `toMatchObject`. `recipeIngredientViewSchema` is a NON-STRICT `z.object`, which silently STRIPS an
+    // unlisted key — so a field added to the service and forgotten on the schema would vanish client-side
+    // with every server test green. Parsing through the schema is what detects that.
+    it('round-trips through the PUBLISHED read schema, which would otherwise strip an unlisted key', async () => {
+        const dal = fakeDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
+
+        const res = await newService(dal).getById(OWNER, 'r-1');
+        const parsed = recipeIngredientViewSchema.parse(res.ingredients[0]);
+
+        expect(parsed.preparation).toBe('finely chopped');
+        expect(parsed.groupLabel).toBe('For the marinade');
+    });
+
+    /** The lines `RecipesService.create` handed the DAL for the given body. */
+    const persistedLines = async (over: Partial<CreateRecipeDto>): Promise<Record<string, unknown>[]> => {
+        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate()) });
+
+        await newService(dal).create(principal(), { ...CREATE_DTO, ...over });
+
+        return (dal.create as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].ingredients;
+    };
+
+    it('carries both from the CREATE body through to the persisted line', async () => {
+        const lines = await persistedLines({
+            ingredients: [
+                {
+                    ingredientId: '00000000-0000-4000-8000-0000000000ff',
+                    name: 'Onion',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    preparation: 'finely chopped',
+                    groupLabel: 'For the marinade',
+                },
+            ],
+        });
+
+        expect(lines[0]).toMatchObject({ preparation: 'finely chopped', groupLabel: 'For the marinade' });
+    });
+
+    it('OMITS both on the persisted line when the body states neither', async () => {
+        const lines = await persistedLines({});
+
+        expect(lines[0]).not.toHaveProperty('preparation');
+        expect(lines[0]).not.toHaveProperty('groupLabel');
+    });
+});

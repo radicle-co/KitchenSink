@@ -218,6 +218,12 @@ export class VersionsService {
                     quantity: ingredient.quantity,
                     unit: ingredient.unit,
                     ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
+                    // U26/U27 — restored too. ⛔ These are on the BASE request schema precisely so this
+                    // rebuild can carry them: a create-only field could never be restored at all, and a
+                    // restore that silently strips how the onion was chopped is a version history that
+                    // cannot actually return the recipe to what it was.
+                    ...(ingredient.preparation !== undefined ? { preparation: ingredient.preparation } : {}),
+                    ...(ingredient.groupLabel !== undefined ? { groupLabel: ingredient.groupLabel } : {}),
                     // Preserve per-line user-entered nutrition (FR-007a) across a restore.
                     ...(ingredient.userCalories !== undefined ? { userCalories: ingredient.userCalories } : {}),
                     ...(ingredient.userProteinG !== undefined ? { userProteinG: ingredient.userProteinG } : {}),

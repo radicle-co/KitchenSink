@@ -908,3 +908,62 @@ describe('RecipeDetailView (native) — ranged and absent quantities (U9)', () =
         expect(screen.queryByText('Estimated from the lower amount of each stated range')).toBeNull();
     });
 });
+
+/**
+ * U26 — the preparation on the NATIVE read surface, mirroring the web leaf.
+ *
+ * ⛔ §14's cross-platform rule is the point: the two detail leaves are separate files with no compiler edge,
+ * so a field rendered on one and forgotten on the other ships a recipe that reads differently depending on
+ * which device the cook picked up.
+ */
+describe('RecipeDetailView (native) — ingredient preparation (U26)', () => {
+    it('renders the preparation when the line carries one', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Onion', preparation: 'finely chopped' })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('finely chopped')).toBeTruthy();
+    });
+
+    it('⛔ NEVER concatenates the preparation into the food name', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Onion', preparation: 'finely chopped' })],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('Onion')).toBeTruthy();
+        expect(screen.queryByText('Onion finely chopped')).toBeNull();
+    });
+
+    it('renders BOTH the preparation and a `notes` display override — they are different facts', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            name: 'Flour',
+                            preparation: 'sifted',
+                            notes: '2 cups all-purpose flour, sifted',
+                        }),
+                    ],
+                })}
+            />,
+        );
+
+        expect(screen.getByText('sifted')).toBeTruthy();
+        expect(screen.getByText('2 cups all-purpose flour, sifted')).toBeTruthy();
+    });
+
+    it('renders NOTHING extra for a line that states no preparation', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ name: 'Salt' })] })} />);
+
+        expect(screen.getByText('Salt')).toBeTruthy();
+    });
+});

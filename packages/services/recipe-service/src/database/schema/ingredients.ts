@@ -152,6 +152,17 @@ export const recipeIngredients = pgTable(
         statedQuantityHigh: numeric('stated_quantity_high', { precision: 10, scale: 3 }),
         /** The unit the source printed (`gill`, `wineglass`, `saltspoon`). `NULL`, never `''`. */
         statedUnit: text('stated_unit'),
+        // U26 — how THIS recipe prepares the food (`finely chopped`, `at room temperature`). ⛔ NOT
+        // `displayText`, which is a display OVERRIDE whose one producer (the cookbook importer) fills it with
+        // the source's whole clause, and NOT part of `ingredientName`, which is what a `food_id` resolves to
+        // in the catalog. The vocabulary is `recipe-import-core`'s `modifierLexicon.ts` (KTD-11b: past
+        // participle = preparation, adjective = identity, temperature = preparation). See
+        // `0030_ingredient_preparation_and_group.sql` for why `notes` was NOT renamed into this.
+        preparation: text('preparation'),
+        // U27 — the section this line belongs to (`For the marinade`, `Dry`). FREE TEXT by owner ruling
+        // (2026-08-24), never an enum: a closed set could not express "For the crust". `NULL` means
+        // ungrouped, which is most lines, and an all-NULL recipe renders as a plain flat list.
+        groupLabel: text('group_label'),
         sortOrder: integer('sort_order').notNull().default(0),
 
         // Denormalized for display / search_vector assembly (no JOIN needed on write).
@@ -190,6 +201,21 @@ export const recipeIngredients = pgTable(
         check(
             'recipe_ingredients_stated_measure_coherent',
             sql`(${table.statedQuantity} IS NULL AND ${table.statedQuantityHigh} IS NULL AND ${table.statedUnit} IS NULL) OR (${table.statedQuantity} IS NOT NULL AND ${table.statedQuantity} > 0 AND ${table.statedUnit} IS NOT NULL AND ${table.statedUnit} <> '' AND ${table.quantity} IS NOT NULL AND (${table.statedQuantityHigh} IS NULL OR ${table.statedQuantityHigh} > ${table.statedQuantity}))`,
+        ),
+        // U26/U27 — `NULL` is the ONE spelling of absent for each. A blank `preparation` would reach the
+        // wire as `preparation: ''`, which `recipeIngredientViewSchema` (`min(1)`) rejects — the exact
+        // write-but-cannot-read break `notes` had. A blank or untrimmed `group_label` is worse than a second
+        // representation: sections are folded from the labels, so `'Dry '` renders a SECOND section under a
+        // heading visually identical to `'Dry'`. Declared `NOT VALID` in the migration; drizzle has no way to
+        // spell that, and the migration is authoritative — these entries exist so a reader of the schema sees
+        // the constraints.
+        check(
+            'recipe_ingredients_preparation_present',
+            sql`${table.preparation} IS NULL OR btrim(${table.preparation}) <> ''`,
+        ),
+        check(
+            'recipe_ingredients_group_label_present',
+            sql`${table.groupLabel} IS NULL OR btrim(${table.groupLabel}) <> ''`,
         ),
         index('idx_recipe_ingredients_recipe_id').on(table.recipeId),
         index('idx_recipe_ingredients_ingredient_id').on(table.ingredientId),

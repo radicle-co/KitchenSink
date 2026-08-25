@@ -9,18 +9,22 @@
  */
 import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { classifyUnit, FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { FC, ReactElement } from 'react';
+
+import type { RecipeFormIngredient } from './model.js';
 
 import { errorText, field, rowField, sectionCard, sectionHeading } from './formSectionStyles.js';
 import { fillTemplate } from '../list/model.js';
-import { ingredientsErrorId } from './fieldErrorIds.js';
+import { ingredientsErrorId, ingredientUnitNoteId } from './fieldErrorIds.js';
 import { draftQuantityVerdict, lineCalories, recipeNutritionTotal } from './model.js';
 import { PlusIcon, TrashIcon } from './icons.js';
 import { rangeDerivedNotice } from '../detail/model.js';
 import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
+    ingredientSections,
+    unitClassNote,
     parseQuantityBound,
     quantityInputValue,
     removeIngredientAt,
@@ -42,7 +46,7 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
         high: m.nutritionRangeDerivedHigh,
     });
 
-    const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
+    const renderRow = (line: RecipeFormIngredient, index: number): ReactElement => {
         const number = index + 1;
         const calories = lineCalories(line);
         // U6 (data-integrity): once a line RESOLVES (`ingredientId` set — via typeahead pick, USDA/add-by-name
@@ -64,6 +68,10 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
         // marking only one would send the user to a field that may be the correct half of the two.
         const quantityInvalid =
             errors?.ingredients === 'ingredientsQuantityInvalid' && draftQuantityVerdict(line) === 'invalid';
+        // U25 — DERIVED at render from the vocabulary, never stored. `classifyUnit` is `recipe-core`'s, so
+        // this editor, the service and the mobile leaf cannot disagree about what `handful` is.
+        const unitClass = classifyUnit(line.unit ?? '');
+        const unitNote = unitClassNote(m, line.unit);
 
         return (
             <li key={index} className="flex flex-wrap items-center gap-2">
@@ -124,9 +132,47 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 <input
                     type="text"
                     aria-label={fillTemplate(m.ingredientUnitLabel, { number })}
+                    // U25 — the note DESCRIBES the field; it never marks it invalid. An unknown unit is
+                    // accepted, never rejected, so `aria-invalid` stays off in every branch.
+                    aria-describedby={unitNote === undefined ? undefined : ingredientUnitNoteId(index)}
                     value={line.unit ?? ''}
                     onChange={(event) => onChange(updateIngredientAt(values, index, { unit: event.target.value }))}
-                    className={`${field} w-28`}
+                    className={`${field} w-28 ${unitClass === 'canonical' ? 'text-charcoal' : 'text-slate italic'}`}
+                />
+                {unitNote !== undefined && (
+                    // ⛔ TEXT, not colour. The mockup marks an unrecognised unit by styling alone — WCAG
+                    // 1.4.1's exact failure — and styling also cannot tell a deliberate `handful` from a
+                    // mistyped `blorp`, which is the distinction U25 exists to draw.
+                    <span id={ingredientUnitNoteId(index)} className="text-caption text-slate">
+                        {unitNote}
+                    </span>
+                )}
+                {/* U26 — the PREPARATION, its own field beside the food and never part of its name. The
+                    vocabulary is `recipe-import-core`'s `modifierLexicon.ts` (KTD-11b): a past participle or
+                    a temperature. An adjective is IDENTITY and arrives from the picker, inside the name. */}
+                <input
+                    type="text"
+                    aria-label={fillTemplate(m.ingredientPreparationLabel, { number })}
+                    placeholder={m.ingredientPreparationPlaceholder}
+                    value={line.preparation ?? ''}
+                    onChange={(event) =>
+                        onChange(updateIngredientAt(values, index, { preparation: event.target.value }))
+                    }
+                    className={`${field} w-48`}
+                />
+                {/* U27 — the SECTION. Deliberately the LAST and quietest control on the row: the brief is
+                    explicit that per-row typing is the wrong PRIMARY interaction (a cook would type "For the
+                    marinade" eight times), so the primary path is `addIngredient` inheriting the label from
+                    the line above and this stays the secondary way to start or change one. */}
+                <input
+                    type="text"
+                    aria-label={fillTemplate(m.ingredientGroupLabel, { number })}
+                    placeholder={m.ingredientGroupPlaceholder}
+                    value={line.groupLabel ?? ''}
+                    onChange={(event) =>
+                        onChange(updateIngredientAt(values, index, { groupLabel: event.target.value }))
+                    }
+                    className={`${field} w-40`}
                 />
                 {line.resolutionStatus !== undefined && (
                     <span
@@ -165,7 +211,12 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 </Button>
             </li>
         );
-    });
+    };
+
+    // U27 — the ONE fold, shared with the native leaf (`props.ts`), so the two platforms cannot section a
+    // recipe differently. An UNGROUPED recipe folds to exactly one UNLABELLED section, which renders with no
+    // heading at all — the flat list is byte-for-byte what it was before U27.
+    const sections = ingredientSections(values);
 
     return (
         <section aria-label={m.ingredientsHeading} className={sectionCard}>
@@ -175,10 +226,35 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                     {m.errors[errors.ingredients]}
                 </p>
             )}
-            {ingredientRows.length === 0 ? (
+            {sections.length === 0 ? (
                 <p className="text-body-sm text-slate">{m.noIngredients}</p>
             ) : (
-                <ul className="flex flex-col gap-3">{ingredientRows}</ul>
+                <ul className="flex flex-col gap-3">
+                    {sections.flatMap((section) => [
+                        // ⛔ NO HEADING for an unlabelled run. Most recipes will never group, and the brief is
+                        // explicit that those "must not look unfinished" — so section chrome appears only
+                        // where a cook asked for it. `h3` sits under the section's own `h2`.
+                        //
+                        // ⛔ INTERLEAVED IN THE ONE LIST, never a wrapper around each run, and that is a
+                        // FOCUS bug rather than a styling preference. A per-run wrapper makes the section the
+                        // DOM ancestor of its rows, so typing the first character of a new label resplits the
+                        // runs, React reconciles the wrapper it matched by key, and the `<li>` holding the
+                        // focused input UNMOUNTS — the caret vanishes and every later keystroke goes nowhere
+                        // (the keyboard dismisses, on native). Flat, every row keeps its key in ONE stable
+                        // parent, so a resplit only inserts a heading beside it.
+                        //
+                        // `role="presentation"` so the heading is not counted as a list item: the list's item
+                        // count stays the ingredient count, while the `<h3>` inside stays a real heading.
+                        ...(section.label === undefined
+                            ? []
+                            : [
+                                  <li key={`section-${section.lines[0]?.index ?? -1}`} role="presentation">
+                                      <h3 className="text-body-sm font-semibold text-charcoal">{section.label}</h3>
+                                  </li>,
+                              ]),
+                        ...section.lines.map((entry) => renderRow(entry.line, entry.index)),
+                    ])}
+                </ul>
             )}
             <div className="self-start">
                 <Button variant="secondary" icon={<PlusIcon />} onPress={() => onChange(addIngredient(values))}>

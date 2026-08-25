@@ -81,7 +81,29 @@ export interface RecipeFormIngredient {
      */
     readonly quantityHigh?: number;
     readonly unit?: string;
+    /**
+     * The free-form DISPLAY OVERRIDE (wire: `notes`, column `display_text`).
+     *
+     * ⛔ NOT the preparation, and no editor writes it — see {@link preparation}. It is carried here only so
+     * that opening an IMPORTED recipe and saving it does not destroy the clause the importer stored.
+     */
     readonly notes?: string;
+    /**
+     * How this recipe prepares the food — `finely chopped`, `at room temperature` (plan U26).
+     *
+     * ⛔ NEVER folded into {@link name}: the name is what the catalog says the food IS, and a name carrying a
+     * preparation matches no catalog row. The vocabulary is the KTD-11b ruling implemented in
+     * `@kitchensink/recipe-import-core`'s `modifierLexicon.ts` — a past participle or a temperature, never
+     * an adjective (which is identity and arrives from the picker).
+     */
+    readonly preparation?: string;
+    /**
+     * The section this line sits in — `For the marinade`, `Dry` (plan U27).
+     *
+     * ABSENT means ungrouped, and most lines are. Sections are folded from CONSECUTIVE RUNS of equal labels
+     * by `ingredientSections` (`./props.ts`), so the rendered order is always the stored order.
+     */
+    readonly groupLabel?: string;
     readonly resolutionStatus?: FoodResolutionStatus;
     readonly caloriesPer100g?: number;
     readonly proteinGPer100g?: number;
@@ -339,6 +361,16 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
             quantity: draftQuantity(line),
             ...(line.unit === undefined || line.unit === '' ? {} : { unit: line.unit }),
             ...(line.notes === undefined || line.notes === '' ? {} : { notes: line.notes }),
+            // U26/U27 — TRIMMED here, then omitted when nothing is left. The wire trims too
+            // (`recipeIngredientGroupLabelSchema`), but a draft holding `'  '` would otherwise be SENT and
+            // `400` the whole save over a field the cook thinks is empty. `''` is never sent: absence has
+            // exactly one spelling on this wire, and it is the missing key.
+            ...(line.preparation === undefined || line.preparation.trim() === ''
+                ? {}
+                : { preparation: line.preparation.trim() }),
+            ...(line.groupLabel === undefined || line.groupLabel.trim() === ''
+                ? {}
+                : { groupLabel: line.groupLabel.trim() }),
         })),
     steps: values.steps.map((step) => ({
         instruction: step.instruction,
@@ -442,6 +474,11 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         resolutionStatus: line.resolutionStatus ?? 'RESOLVED',
         ...(line.unit === undefined ? {} : { unit: line.unit }),
         ...(line.notes === undefined ? {} : { notes: line.notes }),
+        // U26/U27 — OMITTED rather than seeded as `''`, so the draft distinguishes "this line states no
+        // preparation" from "the cook cleared it", and so the round trip is byte-identical: a recipe opened
+        // and saved unchanged must not acquire two keys it never had.
+        ...(line.preparation === undefined ? {} : { preparation: line.preparation }),
+        ...(line.groupLabel === undefined ? {} : { groupLabel: line.groupLabel }),
     })),
     steps: detail.steps.map((step) => ({
         instruction: step.instruction,

@@ -33,6 +33,10 @@ export interface RecipeIngredientResponse {
     quantity: IngredientQuantity;
     unit?: string;
     notes?: string;
+    /** How THIS recipe prepares the food (plan U26). ⛔ Never part of {@link name}. */
+    preparation?: string;
+    /** The section this line belongs to (plan U27). Absent means ungrouped, which is most lines. */
+    groupLabel?: string;
     /** True for a freeform, user-entered line not backed by the food database (the UI "user-entered" badge). */
     isUserEntered: boolean;
 }

@@ -94,6 +94,24 @@ export const styles = StyleSheet.create({
         fontWeight: '600',
         overflow: 'hidden',
     },
+    // U26/U27 — the two new row fields. `rowGrow`-width for the preparation (a phrase needs the line) and a
+    // narrower box for the section, which is the quieter of the two by the brief's own ruling that per-row
+    // typing is the SECONDARY way to group.
+    rowPreparation: { flexGrow: 1, flexShrink: 1, flexBasis: '100%' },
+    rowGroup: { flexGrow: 1, flexShrink: 1, flexBasis: '100%' },
+    // U27 — a section heading. `h3`-equivalent: smaller than the section's own `sectionHeading`, because it
+    // sits UNDER it. Rendered only for a LABELLED run, so an ungrouped recipe shows none at all.
+    groupHeading: { fontSize: 15, fontWeight: '600', color: palette.charcoal },
+    // U27 — one run of lines plus its heading.
+    groupSection: { gap: 8 },
+    // U25 — a non-canonical unit's own text style. ⛔ NOT `inputReadOnly`, which greys the FIELD and would
+    // tell a cook the control is disabled when it is fully editable; this de-emphasises the VALUE, mirroring
+    // the web leaf's `text-slate italic` and the mockup's intent. The meaning is carried by the note below,
+    // never by this styling alone.
+    inputSubdued: { color: palette.slate, fontStyle: 'italic' },
+    // U25 — the derived unit note. A caption, in the same de-emphasised slate the empty state uses: it
+    // DESCRIBES the unit, and is never an error.
+    unitNote: { fontSize: 11, color: palette.slate },
     statusBadge: { fontSize: 11, color: palette.slate },
     // U14 — the doubted-line badge. Deliberately NOT a variant spread over `statusBadge`: the two are two
     // different facts, and a shared base would make a tone change to one silently change the other.

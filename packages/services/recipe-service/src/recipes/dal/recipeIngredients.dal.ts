@@ -32,6 +32,20 @@ export interface ResolvedIngredientLine {
     unit: string;
     displayText?: string;
     /**
+     * How THIS recipe prepares the food — `finely chopped`, `at room temperature` (plan U26, migration 0030).
+     *
+     * ⛔ Distinct from {@link displayText}, which is a display OVERRIDE whose one producer (the cookbook
+     * importer) fills it with the source's whole clause, and never part of {@link ingredientName}, which is
+     * what a `food_id` resolves to in the catalog.
+     */
+    preparation?: string;
+    /**
+     * The section this line belongs to — `For the marinade`, `Dry` (plan U27, migration 0030).
+     *
+     * Absent means ungrouped, which is most lines. Free text by owner ruling (2026-08-24), never an enum.
+     */
+    groupLabel?: string;
+    /**
      * The raw line the cook's SOURCE stated (U11/U14), when this line was transcribed rather than authored.
      *
      * Absent for an authored line, and that absence is a STATEMENT — `decideVerification` reads it as
@@ -90,6 +104,11 @@ export class RecipeIngredientsDal {
                     ...quantityColumns(line.quantity),
                     unit: line.unit,
                     displayText: line.displayText ?? null,
+                    // U26/U27 — `?? null` and never `?? ''`: the column's CHECK refuses a blank, so a bare
+                    // fallback to the empty string would fail the INSERT for every line stating neither —
+                    // which is most of them — and `NULL` is the ONE spelling of absent.
+                    preparation: line.preparation ?? null,
+                    groupLabel: line.groupLabel ?? null,
                     sourceLine: line.sourceLine ?? null,
                     // U7/U11 — all THREE stated columns on every line, `null` included. A partial write would
                     // leave a previous line's `stated_unit` attached to an amount nobody restated; the ONE

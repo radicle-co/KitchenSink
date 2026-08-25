@@ -84,7 +84,9 @@ export {
     MAX_RECIPE_DESCRIPTION_LENGTH,
     MAX_RECIPE_DEVICE_LABEL_LENGTH,
     MAX_RECIPE_INGREDIENTS,
+    MAX_RECIPE_INGREDIENT_GROUP_LABEL_LENGTH,
     MAX_RECIPE_INGREDIENT_NAME_LENGTH,
+    MAX_RECIPE_INGREDIENT_PREPARATION_LENGTH,
     MAX_RECIPE_INGREDIENT_QUANTITY,
     MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH,
     MAX_RECIPE_LIST_PAGE_SIZE,
@@ -100,9 +102,11 @@ export {
     recipeDescriptionSchema,
     recipeDeviceLabelSchema,
     recipeExpectedVersionSchema,
+    recipeIngredientGroupLabelSchema,
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
     recipeIngredientNotesSchema,
+    recipeIngredientPreparationSchema,
     recipeIngredientQuantitySchema,
     recipeIngredientSourceLineSchema,
     recipeIngredientUnitSchema,
@@ -178,7 +182,15 @@ export { statedAmountSchema } from './ingredientQuantity.js';
 export type { IngredientQuantity, StatedAmount } from './ingredientQuantity.js';
 export { statedMeasureSchema } from './statedMeasure.js';
 export type { StatedMeasure } from './statedMeasure.js';
-export { MASS_UNIT_TO_GRAMS, normalizeUnit, unitToGrams } from './units.js';
+export {
+    classifyUnit,
+    normalizeUnit,
+    unitToGrams,
+    MASS_UNIT_TO_GRAMS,
+    SUBJECTIVE_UNIT_VOCABULARY,
+    UNIT_VOCABULARY,
+} from './units.js';
+export type { UnitClass } from './units.js';
 export {
     computeRecipeNutrition,
     hasUserEnteredIngredients,

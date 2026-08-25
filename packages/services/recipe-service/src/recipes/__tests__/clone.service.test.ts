@@ -273,3 +273,49 @@ describe('RecipesService.clone — the source line survives (U11)', () => {
         expect(input?.ingredients[0]?.sourceLine).toBe(SOURCE_LINE);
     });
 });
+
+describe('RecipesService.clone — the preparation and the section survive (U26/U27)', () => {
+    /**
+     * ⛔ THE SAME DATA LOSS THE SUITE ABOVE PINS, one migration later. `toResolvedIngredientLine` is a
+     * POSITIVE field-by-field enumeration built from conditional spreads, so a column added to
+     * `recipe_ingredients` is invisible to it and NOTHING FAILS TO COMPILE. That is exactly how `source_line`
+     * was dropped from every clone for as long as it existed.
+     *
+     * Both are facts about THIS LINE that the cloner is copying wholesale — how the onion is chopped, and
+     * which section of the list it sits in — so they travel with the line exactly as `display_text` does.
+     */
+    it('⛔ carries the PREPARATION and the GROUP LABEL onto the clone', async () => {
+        const source = sourceAggregate();
+        const withBoth: typeof source = {
+            ...source,
+            ingredients: source.ingredients.map((row) => ({
+                ...row,
+                preparation: 'finely chopped',
+                groupLabel: 'For the marinade',
+            })),
+        };
+        const { dal, create } = fakeDal(withBoth);
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+
+        const input = create.mock.calls[0]?.[0] as
+            | { ingredients: { preparation?: string; groupLabel?: string; ingredientName?: string }[] }
+            | undefined;
+
+        expect(input?.ingredients[0]?.preparation).toBe('finely chopped');
+        expect(input?.ingredients[0]?.groupLabel).toBe('For the marinade');
+        // ⛔ And neither is folded into the name on the way through.
+        expect(input?.ingredients[0]?.ingredientName).not.toContain('finely chopped');
+    });
+
+    it('OMITS both on the clone when the source line carried neither, rather than sending `""`', async () => {
+        const { dal, create } = fakeDal(sourceAggregate());
+
+        await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
+
+        const input = create.mock.calls[0]?.[0] as { ingredients: Record<string, unknown>[] } | undefined;
+
+        expect(input?.ingredients[0]).not.toHaveProperty('preparation');
+        expect(input?.ingredients[0]).not.toHaveProperty('groupLabel');
+    });
+});

@@ -17,7 +17,7 @@ this `tests/load/` directory (vitest's `include` matches only `*.test.ts`).
 | ------------------------------ | --------------- | -------------------------------------------------------------------------------------------------------- |
 | `localStoreRead.load.js`       | SC-001 + SC-004 | `GET /foods/{id}` for a `RESOLVED` food p95 ≤ 50ms; local-store serve rate > 80% over a mixed id set     |
 | `localStoreThroughput.load.js` | SC-005          | sustained served reads/sec > the SC-005 bar **and** > 85% of the offered arrival rate, p95 still ≤ 50ms  |
-| `search.load.js`               | SC-007          | `GET /foods/search` p95 ≤ 200ms at 50,000 foods, gated **per query shape** (7 shapes)                    |
+| `search.load.js`               | SC-007          | `GET /foods/search` p95 ≤ 500ms at 50,000 foods, gated **per query shape** (7 shapes)                    |
 | `drainDemotion.perf.ts`        | SC-003 + DSN-11 | `FetchQueueDao.leaseNext()` claim p95 ≤ 60ms +15% = **69ms** at depth 100 / 1,000 / 10,000, two profiles |
 | `serviceErasure.load.js`       | CR-002 / U4b    | internal EdDSA-guarded erasure POST p95 ≤ 500ms (200) + expired → 401 under load                         |
 
@@ -36,7 +36,7 @@ that can cross it** — a budget nothing can breach is theatre. Summarised:
 | **serve rate > 80%** (`SERVE_RATE_MIN`)                                                                 | **SC-004** verbatim: "> 80% once the local store contains 5,000+ unique `RESOLVED` foods."                                                                                                                                                                                            | Anything that stops a `RESOLVED` food being served: a lifecycle write leaving resolved foods `PENDING`, `readGoldenRecord` returning `null` for a live row (mapped to `404`), or the read path erroring under pool exhaustion. See the operationalization note below.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | **> 1.389 served reads/sec** (`SERVED_READS_…`)                                                         | **SC-005**: "comfortably exceeding 5,000 served reads per hour" ⇒ 5,000 / 3,600.                                                                                                                                                                                                      | Total collapse of the read path (unresponsive service, every pooled connection blocked, container OOM-restart). A liveness floor, not a tight fit.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | **> 85% of the offered arrival rate**                                                                   | Derived: the regression bar SC-005's absolute floor is too loose to provide.                                                                                                                                                                                                          | k6 dropping iterations because the bounded VU pool cannot keep up — i.e. the service failing to absorb the offered rate. 0.85 (not 1.0) because k6 divides a metric's count by the WHOLE test duration including `gracefulStop`, so a perfectly-keeping-up service still measures slightly under.                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **search p95 ≤ 200ms** (`SEARCH_P95_MS`)                                                                | **SC-007** verbatim: "within 200ms at p95" against "up to 50,000 foods". Applies to ALL seven shapes.                                                                                                                                                                                 | At 3+ characters `FoodSearchDao.search` ORs **five** predicates (ranked FTS, the curated-alias FTS added by U2, `name % query`, two `ILIKE '%q%'`) and ranks **every** match by `GREATEST(ts_rank(search_vector, …), ts_rank(aliases_search_vector, …), similarity(name, …))` before `LIMIT 20`, so cost tracks matched rows, not returned rows. ⛔ Below three characters (003-FR-010a, plan U37) it issues NO statement and NO crosswalk read at all, which is why there is no `short` shape any more — timing a short-circuit would report the speed of doing no work as search latency. `FoodsService.search` additionally issues two crosswalk lookups on every search, so the endpoint is three queries. |
+| **search p95 ≤ 500ms** (`SEARCH_P95_MS`)                                                                | **SC-007**, revised 2026-08-24 by owner ruling to a flat **500ms** p95 against "up to 50,000 foods" (history: 200ms → 250ms ±15% → 500ms). Applies to ALL seven shapes, with no per-shape exemption.                                                                                  | At 3+ characters `FoodSearchDao.search` ORs **five** predicates (ranked FTS, the curated-alias FTS added by U2, `name % query`, two `ILIKE '%q%'`) and ranks **every** match by `GREATEST(ts_rank(search_vector, …), ts_rank(aliases_search_vector, …), similarity(name, …))` before `LIMIT 20`, so cost tracks matched rows, not returned rows. ⛔ Below three characters (003-FR-010a, plan U37) it issues NO statement and NO crosswalk read at all, which is why there is no `short` shape any more — timing a short-circuit would report the speed of doing no work as search latency. `FoodsService.search` additionally issues two crosswalk lookups on every search, so the endpoint is three queries. |
 | **claim p95 ≤ 60ms + 15% = 69ms enforced** (`FOOD_DRAIN_CLAIM_P95_MS` × `CLAIM_P95_VARIANCE_ALLOWANCE`) | Derived from **SC-003** (60s p95 at depth < 100) — the full arithmetic is in `drainDemotion.perf.ts`'s docblock. The 60 is the contract; the +15% is the owner's 2026-08-12 variance allowance on perf metrics, kept a separate number so both stay visible (see Finding 2, Stage 3). | Anything that puts FR-043's fairness term back on a per-row footing in `leaseNext`: making the demotion a sort key again (pre-T-197, a correlated `COUNT(*)` as the LEADING `ORDER BY` key, which `LIMIT 1` cannot avoid and `idx_fetch_queue_priority` cannot serve), inlining the `demand` CTE so it re-runs per candidate row, or removing the `promoted_ready` gate so an empty promoted tier is proven by examining every eligible row (post-T-197, T-201). Also a lost `idx_fetch_queue_priority` or `idx_fetch_requesters_requester_id`.                                                                                                                                                                |
 | **erasure p95 ≤ 500ms** (`ERASURE_P95_MS`)                                                              | The cross-service reference point (SC-009's single-row-write budget); no SQS hand-off, so tighter than recipe's.                                                                                                                                                                      | `fetch_requesters` losing `idx_fetch_requesters_requester_id`, turning the delete's row location into a scan of every queued food's requester rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
@@ -57,15 +57,44 @@ mistake as a search needle that matches fewer rows than the endpoint's limit.
 ### Why `search.load.js` gates SEVEN shapes instead of one "search" number
 
 Search cost tracks how many rows MATCH, not how many are returned, so one query string measures one point
-on that curve and reports it as "search". The shapes (with their measured selectivity against 50,000 foods)
-are `broad` (one ingredient, ~2,174 rows), `phrase` (~310), `narrow`, `brand` (~2,941), `miss` (zero rows —
-the predicate cannot short-circuit on the limit), and `barcode` (drives the crosswalk branch).
-Each carries its own p95 threshold **at the same 200ms budget, with no per-shape exemption**, so a cheap
-narrow query can never hide an expensive broad one. ⛔ There is deliberately no two-character `short` shape
-(003-FR-010a, plan U37): below the three-character minimum the endpoint answers with no statement and no
-crosswalk read, so its latency is not search latency. The vocabulary that produces those selectivities lives in
-`perfFixture.ts`, and the seeder ASSERTS the broad probe matches more than the endpoint's 20-row limit and
-the miss probe matches exactly zero.
+on that curve and reports it as "search". The shapes are `broad` (one ingredient word), `phrase`
+(preparation + ingredient), `narrow` (preparation + ingredient + cut), `brand` (a brand token), `alias`
+(matches only through `aliases_search_vector`), `miss` (zero rows — the predicate cannot short-circuit on
+the limit), and `barcode` (drives the crosswalk branch). Each carries its own p95 threshold **at the same
+500ms budget, with no per-shape exemption**, so a cheap narrow query can never hide an expensive broad one.
+⛔ There is deliberately no two-character `short` shape (003-FR-010a, plan U37): below the three-character
+minimum the endpoint answers with no statement and no crosswalk read, so its latency is not search latency.
+
+The seeder ASSERTS the broad probe matches more than the endpoint's 20-row limit and the miss probe matches
+exactly zero.
+
+### ⛔ Each shape's selectivity VARIES ACROSS ITS PROBES, on purpose (plan U30, 2026-08-25)
+
+The row count a shape matches is **no longer one number**. `FoodSearchDao.relevanceQuery` retrieves on the
+query's HEAD TERM (`rank_tokens @> ARRAY[head]`), so the cost of a search tracks how many rows carry that
+one token — and this fixture used to make that **uniform**: every ingredient matched 4.35% of rows, every
+cut 9.09%, every brand 5.88%, a tail/p50 ratio of exactly 1.00x on all three axes.
+
+The real 8,094-row USDA catalog is heavy-tailed: **1.89% at p50**, worst realistic head term (`ground beef`
+→ `beef`) **13.75%**. So the fixture was wrong in BOTH directions at once — it charged a median query the
+tail's cost (which is why every probe shape tripled together when the head-term branch landed, rather than
+a subset) and it understated the worst case. `headTermSelectivity.ts` now draws each head-bearing word from
+a **Zipf ladder** (36 ranks, exponent 0.68) solved against those two anchors; realized over the 50,000-row
+corpus:
+
+| axis         | probe shapes      | tail   | p50   | floor | tail/p50  |
+| ------------ | ----------------- | ------ | ----- | ----- | --------- |
+| `ingredient` | `broad`, `phrase` | 13.64% | 1.85% | 1.20% | **7.35x** |
+| `cut`        | `narrow`          | 13.68% | 1.88% | 1.18% | **7.29x** |
+| `brand`      | `brand`, `alias`  | 13.72% | 1.88% | 1.18% | **7.31x** |
+
+⛔ **The three vocabularies are ordered by designed selectivity, broadest first — reordering one re-weights
+it.** `PREPARATIONS` stays uniform and stays at seven because no probe shape ever heads on a preparation
+word. `tests/load/__tests__/perfFixtureDistribution.test.ts` asserts the realized ladder against both
+anchors, that every selectivity regime carries a non-zero floor of head terms, and that the three axes stay
+statistically independent; `tests/perfFixtureDistribution.integration.test.ts` asserts the same counts
+against a real Postgres, because `food.rank_tokens` is a STORED GENERATED column whose fold is Postgres'
+own mirror of `rankingTokens` and nothing in the type system links the two.
 
 ## Auth — no live Clerk instance is ever contacted
 
@@ -118,7 +147,7 @@ reasons unrelated to food's performance. **Do not** "improve" this by using real
 | `FOOD_READ_ARRIVAL_RATE`                          | `100`                                         | Offered arrival rate for the throughput scenario                |
 | `FOOD_SUSTAIN_FRACTION`                           | `0.85`                                        | Fraction of the offered rate the service must absorb            |
 | `FOOD_THROUGHPUT_PREALLOCATED_VUS` / `_MAX_VUS`   | `20` / `100`                                  | VU pool for the arrival-rate executor (bounded on purpose)      |
-| `FOOD_SEARCH_P95_MS`                              | `200`                                         | SC-007 budget — ONE bar for all eight shapes, no exemption      |
+| `FOOD_SEARCH_P95_MS`                              | `500`                                         | SC-007 budget — ONE bar for all seven shapes, no exemption      |
 | `FOOD_ERASURE_P95_MS`                             | `500`                                         | CR-002/U4b erasure budget                                       |
 | `FOOD_TOKEN_POOL_SIZE` / `FOOD_TOKEN_TTL_SECONDS` | `50` / `3600`                                 | Clerk pool size / lifetime                                      |
 | `FOOD_LOAD_AZP`                                   | `https://food-load.test`                      | The `azp` minted tokens claim (must match the service's list)   |

@@ -343,13 +343,28 @@ describe('Wizard (native) — the action bar carries Previous / Save Draft / Nex
 });
 
 describe('Wizard (native) — the header is NEW, and its back arrow routes through the discard guard (U32)', () => {
-    it('renders a localized back affordance and names the current step', () => {
+    it('renders a localized back affordance and names the RECIPE', () => {
         // `RecipesScreen` renders pushed surfaces bare, so before U32 this editor had no title and no exit
         // other than the hardware back button and a kebab item.
         render(<Harness initialValues={validValues()} initialStep={2} />);
 
         expect(screen.getByLabelText('Back')).toBeTruthy();
-        expect(within(screen.getByLabelText('Recipe wizard actions')).getByText('Ingredients')).toBeTruthy();
+        expect(within(screen.getByLabelText('Recipe wizard actions')).getByText('Herb Risotto')).toBeTruthy();
+    });
+
+    it('falls back to a localized placeholder while the recipe has no title yet', () => {
+        render(<Harness initialStep={1} />);
+
+        expect(within(screen.getByLabelText('Recipe wizard actions')).getByText('New recipe')).toBeTruthy();
+    });
+
+    it('names the RECIPE rather than the step, so it never duplicates a step body’s own heading', () => {
+        // ⛔ Naming the step here produced TWO headings called "Review" on the Review step, and would have
+        // produced two called "Ingredients" and "Instructions" on steps 2 and 3. The step is already
+        // announced by the rail's "Step N of 4" and by the section heading.
+        render(<Harness initialValues={validValues()} initialStep={2} />);
+
+        expect(within(screen.getByLabelText('Recipe wizard actions')).queryByText('Ingredients')).toBeFalsy();
     });
 
     it('renders NO overflow menu — both of its items moved out at this width', () => {

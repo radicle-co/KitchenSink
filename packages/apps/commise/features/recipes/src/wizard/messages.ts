@@ -47,6 +47,16 @@ export interface WizardMessages {
      */
     readonly back: string;
     /**
+     * The header's title when the draft has no title yet (U32).
+     *
+     * ⛔ The header names the RECIPE, not the step. Naming the step there duplicated every step body's own
+     * section heading — on the Review step that produced two headings called "Review" on one screen, and on
+     * steps 2 and 3 it would have produced two called "Ingredients" and "Instructions". The step is already
+     * announced twice over, by the rail's "Step N of 4" and by the section heading; what a cook cannot see
+     * anywhere else is which recipe they are editing.
+     */
+    readonly untitledRecipe: string;
+    /**
      * Accessible name for the header's overflow ("More actions") menu — used BOTH for the kebab trigger button
      * and for the `role="menu"` list it discloses (Save Draft / Cancel), so neither is an unnamed control.
      * The secondary/destructive actions live here so the header never packs four filled buttons (plan U6).
@@ -105,6 +115,7 @@ export const wizardMessages: LocalizedMessages<WizardMessages> = {
         railStepLabel: '{name}: {state}',
         headerLabel: 'Recipe wizard actions',
         back: 'Back',
+        untitledRecipe: 'New recipe',
         actionsMenu: 'More actions',
         stateCompleted: 'completed',
         stateCurrent: 'current step',

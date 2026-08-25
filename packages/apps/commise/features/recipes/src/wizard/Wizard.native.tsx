@@ -283,8 +283,9 @@ const WizardRail: FC = () => {
  * `RecipesScreen` renders every pushed surface bare, so before this the editor had no title and no back
  * affordance at all. The back control routes through `requestCancel`, which means the discard guard fires
  * exactly as it did for the overflow menu's deleted `Cancel` item — it is NOT a navigation control and must
- * never be wired to one. The heading names the current step, so a cook always knows where they are without
- * reading the rail.
+ * never be wired to one. The heading names the RECIPE — not the step, which the rail's "Step N of 4" and the
+ * step body's own section heading already say twice. Two headings called "Review" on one screen was the
+ * concrete outcome of naming the step here.
  *
  * No overflow menu here. Native is always below the web leaf's `lg` cutover, and at that width both of the
  * menu's items have moved out: `Save Draft` is a first-class control in {@link WizardControls}, and `Cancel`
@@ -304,8 +305,8 @@ const WizardHeader: FC = () => {
             >
                 <Feather name="arrow-left" size={22} color={palette.charcoal} />
             </Pressable>
-            <Text accessibilityRole="header" style={styles.headerTitle}>
-                {m.stepNames[model.step]}
+            <Text accessibilityRole="header" numberOfLines={1} style={styles.headerTitle}>
+                {model.values.title.trim() === '' ? m.untitledRecipe : model.values.title.trim()}
             </Text>
             {/* Balances the back control's width so the heading stays optically centred. */}
             <View style={styles.headerSpacer} />

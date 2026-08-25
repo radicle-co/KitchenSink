@@ -423,3 +423,112 @@ billed — this run did not go through Bedrock.)_ It is also ≈1.4× Nova Pro.
 cost, through a path that if anything favoured it. §5's recommendation stands, and the Bedrock enablement
 request is no longer on the critical path for model selection — only for measuring Haiku _as deployed_,
 which nothing now depends on.
+
+---
+
+## 9. U22a — the extractor was inflating every rate above, and by how much (measured 2026-08-25)
+
+⛔ **Nothing above is restated or corrected in place.** Every figure in §§1–8 was measured on the corpus
+this section describes as it stood on 2026-08-23, and it stays exactly as it was recorded. What follows is
+the **delta**: what the extractor now hands the two engines, and how much of the old input was text nobody
+meant to parse. The plan is explicit that the deltas are recorded rather than the old figures quietly
+replaced, because _the size of the inflation is the finding_.
+
+### 9.1 What changed
+
+KTD-11a read the 354 `differ` cases and found that a large share of them were never a model disagreement at
+all: `one tablespoon of butter in a frying-pan`, `one pint of milk for five minutes`,
+`four tablespoons of flour to it`, and `a large preserving kettle`, which is equipment. A clause of 1919
+prose routinely carries an ingredient **and** an instruction, and `proseRecipe.ts` bounded the span at its
+START (`suffixStarts`) and never at its END — so the instruction rode along into both engines. The CRF
+folds it into the name, the LLM files it as prep, and the comparator scores a disagreement.
+
+U22a moved the "where does an ingredient END" knowledge into `recipe-import-core`'s `segmentClause`
+(`src/domain/clauseSegmentation.ts`), and `proseRecipe.ts` became its caller.
+
+### 9.2 The corpus, before and after — same book, same extractor, no engine calls
+
+Measured over the identical input (`pg12350.txt`, 1,499 blocks) with the identical harvest path
+(`harvestSourceTexts` → `buildParseCorpus`). **The 2,584 figure reproduces exactly**, which is what makes
+the two columns comparable.
+
+| quantity                                          | before (as §1 measured it) | after U22a |           delta |
+| ------------------------------------------------- | -------------------------: | ---------: | --------------: |
+| Blocks accepted as recipes                        |                        351 |    **351** |               0 |
+| Ingredient clauses harvested                      |                      1,860 |  **1,845** |     −15 (−0.8%) |
+| Distinct corpus lines (the billed population)     |                  **2,584** |  **2,491** |    −93 (−3.60%) |
+| Characters of ingredient text sent to the engines |                     57,948 | **51,032** | −6,916 (−11.9%) |
+
+**≈12% of every character the two engines were asked to parse was instruction residue.** That is the
+inflation, and it fell on `differ` disproportionately, because residue is precisely what the two engines
+disagree about.
+
+### 9.3 Which lines moved
+
+**324 spans were bounded; 309 came back shortened; 14 were removed entirely.** Every one of the 14 is
+equipment, and none is a food:
+
+```
+a large platter        ×6      a large kettle          ×2
+a large preserving kettle      a large earthen jar
+a large stone jar              a large salad bowl with lettuce leaves
+a large colander to drain      a large platter to dry
+one large mould
+```
+
+⚠️ `a large preserving kettle` is KTD-11a's own example, in the corpus, verbatim. It parses to
+`1 large :: preserving kettle` — a quantity, a "unit" and a name — so every structural gate the extractor
+had passed it through to both engines.
+
+Representative boundings, all from the real book, including four of KTD-11a's five named cases:
+
+| before                                         | after                             |
+| ---------------------------------------------- | --------------------------------- |
+| `one tablespoon of the fat in a frying pan`    | `one tablespoon of the fat`       |
+| `one pint of milk for five minutes`            | `one pint of milk`                |
+| `three cups of milk for twenty minutes`        | `three cups of milk`              |
+| `four tablespoons of flour to it`              | `four tablespoons of flour`       |
+| `two tablespoons of fresh butter in a spider`  | `two tablespoons of fresh butter` |
+| `two cups of lentils over night in cold water` | `two cups of lentils`             |
+
+The last row matters twice: `spider` and `overnight` are two of the words KTD-11b found the two engines
+contesting as though they were food modifiers. They were never modifiers.
+
+### 9.4 What did NOT change, and the guard that keeps it that way
+
+⛔ **No recipe was lost** (351 accepted, before and after) and **no food was deleted.** The cut is REFUSED
+whenever the tail states a food with a measured amount of its own — `one-half pound chocolate in one cup of
+water` keeps its whole span, because dropping that tail would delete an amount the source printed. The
+guard scans **every** quantity phrase in the tail, not just its start, so `in a pan with one cup of water`
+is refused too.
+
+⚠️ The obvious form of that guard — "refuse when the tail contains a quantity phrase" — is **wrong on this
+corpus**, and it was measured: `five minutes` and `twenty minutes` are quantity phrases, and both are
+KTD-11a's own examples of residue to remove. What separates a second food from a duration is a **unit of
+substance**, which is the same requirement `proseRecipe`'s scan already applies to the head.
+
+### 9.5 The new review reason, and whether it is a signal
+
+`instruction_text_dropped` is raised when a tail is cut. **309 of 1,845 ingredient lines (16.7%)** carry
+it. It is deliberately NOT in `VALUE_CORRUPTING_REVIEW_REASONS`: the amount and unit reported are exactly
+what the source stated for the food that was kept, and membership would make `cookbook-import` discard a
+line it can read.
+
+⚠️ A clause that was _entirely_ an instruction raises **no** reason at all — it is dropped, as it always
+was. Flagging it would fire the reason on text nobody meant to parse, which is the muted-signal failure
+KTD-11 rules against.
+
+### 9.6 ⛔ What is NOT measured here
+
+- **The engines were not re-run.** Re-measuring `differ` needs live Bedrock (billed, and no ADR-0024
+  reservation guards a script) plus a full CRF pass over 2,491 lines. **No new agreement, determinism or
+  cost figure is claimed, and none of §§1–8's rates has been recomputed.** They remain the last measured
+  values and they remain inflated by the residue quantified in §9.2.
+- **The direction is inferable but not proven.** Removing residue can only remove disagreements it caused;
+  it cannot create new ones, because segmentation only ever removes a **suffix** — every emitted span is a
+  strict prefix of what was emitted before (asserted over the corpus by
+  `tests/clauseSegmentation.integration.test.ts`). The _magnitude_ is unmeasured.
+- **U19's normalization and KTD-11b's ruling are not in these numbers.** The plan expects the adjudication
+  list to land near ~130 after all three; this section accounts for one of them.
+
+**The re-run of §§1–3 remains owed, and it must happen before U23's oracle reads the residual list.**

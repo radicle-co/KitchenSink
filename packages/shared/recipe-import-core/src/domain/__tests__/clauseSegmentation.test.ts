@@ -12,7 +12,7 @@
  *
  * The dangerous half of this module is not the cut, it is the REFUSAL. Dropping the tail of
  * `one-half pound chocolate in one cup of water` deletes a food the source states, and every case below
- * that begins "refuses" exists so that removing {@link statesASecondFood} fails the suite rather than
+ * that begins "refuses" exists so that removing `statesASecondFood` fails the suite rather than
  * silently corrupting the corpus. A suite without those cases passes on the value-corrupting
  * implementation, which is the whole reason this file was written before the module.
  *

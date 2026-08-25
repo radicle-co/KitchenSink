@@ -548,21 +548,39 @@ describe('toCandidateRecipe, on historical units', () => {
 });
 
 /**
- * ⛔ CHARACTERIZATION — what `sourceText` is TODAY, over the whole committed fixture.
+ * ⛔ CHARACTERIZATION — what `sourceText` is, over the whole committed fixture, and what U22a MOVED.
  *
- * This block was written BEFORE U22a touched `ingredientInClause`, and it exists because the plan's
- * execution note is explicit: _"Characterize `proseRecipe`'s suffix selection before touching it. Getting
- * this wrong silently changes which text is treated as an ingredient across the whole corpus."_
+ * ⚠️ REWRITTEN, not edited-to-compile. This block was first committed in `84eee1ab` pinning the
+ * PRE-U22a text, because the plan's execution note is explicit: _"Characterize `proseRecipe`'s suffix
+ * selection before touching it. Getting this wrong silently changes which text is treated as an
+ * ingredient across the whole corpus."_ It now proves the NEW behaviour, and it keeps the old values in
+ * {@link BOUNDED_BY_U22A} so the delta itself is asserted rather than discarded — a snapshot rewritten to
+ * whatever the code now says would prove nothing at all.
  *
  * `sourceText` is not cosmetic. It is what `parseCorpus.ts` feeds to BOTH parse engines, and what
  * `toImportedIngredientLine` persists as `sourceLine` — the field U11's gate verifies our parse against.
- * A snapshot of every accepted line in the fixture is therefore the only assertion that can prove a change
- * to the suffix scan moved nothing it was not meant to move.
  *
- * ⚠️ Four of these 21 rows ARE the U22a defect, in the committed corpus rather than in a constructed
- * example — `in thick pieces`, `(or use half water`, `has been made smooth`, and a whole trailing sentence
- * on the minced onion. They are pinned here as they stand, wrong, so that the fix has to move exactly them.
+ * ## The measured delta on the committed fixture
+ *
+ * 21 lines before, 21 lines after: **nothing was lost**. Five of the 21 spans (24%) were shortened, and
+ * every one was residue — a knife cut, a bracketed aside, a verb phrase, and one 106-character sentence
+ * that carried an entire cooking instruction into both engines. No name and no quantity moved.
  */
+const BOUNDED_BY_U22A: Readonly<Record<string, string>> = {
+    // A knife cut, riding on the food it was applied to.
+    'one-half pound of onion': 'one-half pound of onion in thick pieces',
+    // An unclosed bracket the clause splitter had already cut in half.
+    '4 cups of cold milk': '4 cups of cold milk (or use half water',
+    // "…into which 1 teaspoon of flour HAS BEEN MADE SMOOTH" — a verb phrase, filed as prep by the LLM
+    // and folded into the name by the CRF, which is KTD-11a's disagreement class exactly.
+    '1 teaspoon of flour': '1 teaspoon of flour has been made smooth',
+    // ⛔ The worst one in the fixture: 106 characters of instruction handed to two parse engines.
+    'A tablespoon of minced onion fried':
+        'A tablespoon of minced onion fried for ten minutes in butter is sometimes added to the stalks while cooking',
+    // ⚠️ And the case that proves R29 still holds one layer down: the compound quantity survives the cut.
+    "One and one-half cups of confectioner's sugar": "One and one-half cups of confectioner's sugar (not powdered)",
+};
+
 describe('toCandidateRecipe — characterization: the source text handed to the parse engines', () => {
     /** Every accepted line in the fixture, as `[title, name, sourceText]`, in extraction order. */
     function everyLine(): readonly (readonly [string, string, string])[] {
@@ -578,21 +596,17 @@ describe('toCandidateRecipe — characterization: the source text handed to the 
     it('hands the engines exactly this text, for every line of the committed fixture', () => {
         expect(everyLine()).toEqual([
             ['Beet Soup--Russian Style (Fleischig)', 'beet', 'one large beet'],
-            ['Beet Soup--Russian Style (Fleischig)', 'onion', 'one-half pound of onion in thick pieces'],
+            ['Beet Soup--Russian Style (Fleischig)', 'onion', 'one-half pound of onion'],
             ['Beet Soup--Russian Style (Fleischig)', 'fat brisket of beef', 'one pound of fat brisket of beef'],
             ['Beet Soup--Russian Style (Fleischig)', 'sugar', 'three-fourths of a cup of sugar'],
             ['Asparagus Soup', 'asparagus', '1 can of asparagus'],
-            ['Asparagus Soup', 'cold milk', '4 cups of cold milk (or use half water'],
+            ['Asparagus Soup', 'cold milk', '4 cups of cold milk'],
             ['Asparagus Soup', 'sugar', '1 teaspoon of sugar'],
             ['Asparagus Soup', 'butter', '1 tablespoon of butter'],
-            ['Asparagus Soup', 'flour', '1 teaspoon of flour has been made smooth'],
+            ['Asparagus Soup', 'flour', '1 teaspoon of flour'],
             ['Asparagus Soup', 'milk', '1 cup of milk'],
             ['Asparagus Soup', 'whipped cream', '1 tablespoon of whipped cream'],
-            [
-                'Asparagus Soup',
-                'minced onion fried',
-                'A tablespoon of minced onion fried for ten minutes in butter is sometimes added to the stalks while cooking',
-            ],
+            ['Asparagus Soup', 'minced onion fried', 'A tablespoon of minced onion fried'],
             ['Green Tree Layer Cake and Icing', 'granulated sugar', 'One cup of granulated sugar'],
             ['Green Tree Layer Cake and Icing', 'butter', 'one-half cup of butter'],
             ['Green Tree Layer Cake and Icing', 'milk', 'one cup of milk'],
@@ -601,7 +615,7 @@ describe('toCandidateRecipe — characterization: the source text handed to the 
             [
                 'Green Tree Layer Cake and Icing',
                 "confectioner's sugar",
-                "One and one-half cups of confectioner's sugar (not powdered)",
+                "One and one-half cups of confectioner's sugar",
             ],
             ['Green Tree Layer Cake and Icing', 'egg', 'a large egg'],
             ['Green Tree Layer Cake and Icing', 'cocoa', 'two tablespoons of cocoa'],
@@ -610,10 +624,155 @@ describe('toCandidateRecipe — characterization: the source text handed to the 
     });
 
     /**
-     * Anti-vacuity. A snapshot suite that silently starts comparing an empty list is green and worthless,
-     * and the fixture is the thing most likely to move underneath it.
+     * ⛔ THE INVARIANT THE WHOLE UNIT RESTS ON: segmentation only ever removes a SUFFIX. It never rewrites,
+     * reorders, or substitutes a word — so every bounded span is a strict prefix of what the engines were
+     * handed before, and nothing this module emits can be a string the book did not print.
      */
-    it('is measuring a real corpus, not an empty one', () => {
-        expect(everyLine().length).toBe(21);
+    it('shortened exactly five spans, and every one is a prefix of what it replaced', () => {
+        const spans = everyLine().map(([, , sourceText]) => sourceText);
+        const changed = spans.filter((span) => BOUNDED_BY_U22A[span] !== undefined);
+
+        expect(changed).toHaveLength(5);
+
+        for (const span of changed) {
+            const before = BOUNDED_BY_U22A[span] ?? '';
+
+            expect(before.startsWith(span)).toBe(true);
+            expect(before.length).toBeGreaterThan(span.length);
+        }
+    });
+
+    /**
+     * ⛔ NOTHING WAS LOST. The cut exists to remove residue, never to cost a line — a shortened span that
+     * no longer parses would silently delete an ingredient from a published recipe, which is the failure
+     * mode this count exists to catch. It doubles as the anti-vacuity guard: a snapshot suite that starts
+     * comparing an empty list is green and worthless.
+     */
+    it('still extracts the same 21 lines it did before U22a', () => {
+        expect(everyLine()).toHaveLength(21);
+    });
+
+    /**
+     * The loss is REPORTED. A span that was bounded carries `instruction_text_dropped`; one that was not
+     * carries nothing — the flag has to discriminate, or it is noise.
+     */
+    it('flags the bounded lines and only the bounded lines', () => {
+        const flagged = BLOCKS.flatMap((block) => {
+            const outcome = toCandidateRecipe(block);
+
+            return outcome.kind === 'candidate'
+                ? outcome.recipe.ingredients
+                      .filter((line) => line.reviewReasons.includes('instruction_text_dropped'))
+                      .map((line) => line.sourceText)
+                : [];
+        });
+
+        expect(flagged.sort()).toEqual(Object.keys(BOUNDED_BY_U22A).sort());
+    });
+});
+
+/**
+ * ⛔ U22a — the segmentation defect, closed at the extractor.
+ *
+ * KTD-11a read all 354 `differ` cases and found that a large share of them were never a model
+ * disagreement: `one tablespoon of butter in a frying-pan`, `one pint of milk for five minutes`,
+ * `four tablespoons of flour to it`, `a large preserving kettle`. Both engines were handed prose that
+ * should never have reached a parser, and they mangled it differently — the CRF into the name, the LLM
+ * into prep — so the comparator scored a disagreement and every rate in the report was inflated by it.
+ *
+ * The knowledge — where an ingredient span ENDS — now lives in `recipe-import-core`'s `segmentClause`.
+ * These cases prove the extractor CALLS it, refuses its cut where the tail is a second food, and reports
+ * what it dropped.
+ */
+describe('toCandidateRecipe — the instruction that rode in on the clause (U22a)', () => {
+    /**
+     * The defect in the committed corpus rather than in a constructed example. "Cut one large beet and
+     * one-half pound of onion IN THICK PIECES and put in kettle…" handed both engines the knife cut.
+     */
+    it('bounds the span at the end of the ingredient, and reports the loss', () => {
+        const { recipe } = candidateFor('BEET SOUP--RUSSIAN STYLE (FLEISCHIG)');
+        const onion = recipe.ingredients.find((line) => line.name === 'onion');
+
+        expect(onion?.sourceText).toBe('one-half pound of onion');
+        expect(onion?.reviewReasons).toContain('instruction_text_dropped');
+        expect(onion?.needsReview).toBe(true);
+        // ⛔ The loss is REPORTED, never value-corrupting: the amount and unit are what the book printed.
+        expect(onion?.quantity).toEqual({ kind: 'exact', value: 0.5 });
+        expect(onion?.unit).toBe('lb');
+    });
+
+    it('leaves a clause that was only an ingredient untouched and unflagged', () => {
+        const { recipe } = candidateFor('BEET SOUP--RUSSIAN STYLE (FLEISCHIG)');
+        const beef = recipe.ingredients.find((line) => line.name === 'fat brisket of beef');
+
+        expect(beef?.sourceText).toBe('one pound of fat brisket of beef');
+        expect(beef?.reviewReasons).not.toContain('instruction_text_dropped');
+    });
+
+    /**
+     * ⛔ THE MANDATORY MUTANT, at the extractor rather than at the segmenter. Remove the second-food guard
+     * and `one cup of water` is deleted from a published recipe — the exact line class KTD-11a was found
+     * on. The whole span survives instead, and NO loss is reported because none happened.
+     */
+    it('keeps the whole span when the tail is a SECOND FOOD, and reports no loss', () => {
+        const outcome = toCandidateRecipe({
+            title: 'SECOND FOOD TRAP',
+            paragraphs: [
+                'Melt one-half pound chocolate in one cup of water. Add two cups of sugar. Add one cup ' +
+                    'of milk. Stir the whole until it is perfectly smooth, taking care not to let it burn ' +
+                    'against the bottom. Cook slowly for two hours and serve while fresh.',
+            ],
+        });
+
+        if (outcome.kind !== 'candidate') {
+            throw new Error(`expected a candidate, got a skip: ${outcome.reason}`);
+        }
+
+        const chocolate = outcome.recipe.ingredients.find((line) => line.name === 'chocolate');
+
+        expect(chocolate?.sourceText).toBe('one-half pound chocolate in one cup of water');
+        expect(chocolate?.reviewReasons).not.toContain('instruction_text_dropped');
+    });
+
+    /**
+     * ⛔ Equipment never reaches an engine, and raises NO reason. `a large preserving kettle` parses to
+     * `1 large :: preserving kettle` and passed every structural gate this module has. It is dropped the
+     * way any unquantified clause is — flagging it would fire a reason on text nobody meant to parse,
+     * which is the muted-signal failure KTD-11 rules against.
+     */
+    it('drops a clause that is entirely equipment, without flagging anything', () => {
+        const outcome = toCandidateRecipe({
+            title: 'EQUIPMENT TRAP',
+            paragraphs: [
+                'Take a large preserving kettle. Put in two cups of sugar. Add one cup of water. Add ' +
+                    'three cups of fruit. Boil the whole slowly for two hours, skimming often so that ' +
+                    'nothing sticks against the bottom, and seal while hot.',
+            ],
+        });
+
+        if (outcome.kind !== 'candidate') {
+            throw new Error(`expected a candidate, got a skip: ${outcome.reason}`);
+        }
+
+        const names = outcome.recipe.ingredients.map((line) => line.name);
+
+        expect(names).not.toContain('preserving kettle');
+        expect(names).toEqual(expect.arrayContaining(['sugar', 'water', 'fruit']));
+        expect(outcome.recipe.ingredients.flatMap((line) => line.reviewReasons)).not.toContain(
+            'instruction_text_dropped',
+        );
+    });
+
+    /**
+     * ⛔ R29, one layer down. `and` is in the cut lexicon AND is the middle of "One and one-half", which
+     * is verbatim in the fixture. An unguarded cut here would hand the engines `One` — the same
+     * third-of-the-stated-amount loss the clause splitter already fixed.
+     */
+    it('does not cut inside a compound quantity', () => {
+        const { recipe } = candidateFor('GREEN TREE LAYER CAKE AND ICING');
+        const sugar = recipe.ingredients.find((line) => line.name.includes("confectioner's"));
+
+        expect(sugar?.quantity).toEqual({ kind: 'exact', value: 1.5 });
+        expect(sugar?.sourceText).toContain('One and one-half cups');
     });
 });

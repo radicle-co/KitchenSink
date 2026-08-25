@@ -27,10 +27,13 @@
  */
 import {
     corruptsStatedValue,
+    dropTrailingInstruction,
     findQuantityPhrases,
     normalizeDurationToMinutes,
     normalizeQuantity,
     parseIngredientLine,
+    segmentClause,
+    type IngredientReviewReason,
     type ParsedIngredientLine,
 } from '@kitchensink/recipe-import-core';
 
@@ -425,6 +428,14 @@ function statedServings(text: string): number | undefined {
 type ClauseReading =
     | {
           readonly kind: 'ingredient';
+          /**
+           * The parse of the BOUNDED span, carrying `instruction_text_dropped` when a tail was cut (U22a).
+           *
+           * ⛔ Not the parse of the whole suffix. When the segmenter cuts, the suffix is re-parsed from
+           * its bounded head, so the name, the quantity and the review reasons all describe the same text
+           * `sourceText` reports — a parse of one string beside a transcription of another is exactly the
+           * incoherence `sourceLine` exists to prevent.
+           */
           readonly line: ParsedIngredientLine;
           /**
            * The accepted suffix EXACTLY as the book printed it, before `dropPartitiveOf` normalized it.
@@ -472,8 +483,17 @@ function suffixStarts(clause: string): readonly number[] {
  * that parses to both a quantity and a unit. Requiring a UNIT is what keeps "cook two hours" and "add
  * three or four potatoes" from being read as ingredients with the numbers they contain.
  *
+ * ## ⛔ U22a — the chosen suffix is now BOUNDED at the end of its ingredient
+ *
+ * The scan finds where the span STARTS and always did; nothing here decided where it ENDED, so the end
+ * was implicitly the clause's end and both parse engines were handed `one-half pound of onion in thick
+ * pieces`. `segmentClause` (`recipe-import-core`) now answers that half, and it is consulted AFTER the
+ * gate below rather than before it — deliberately, because the plan's execution note warns that "the
+ * pipeline replaces what happens to the chosen suffix, not how the suffix is chosen". Segmenting first
+ * could change WHICH suffix wins; segmenting after cannot.
+ *
  * @param clause - One clause of prose.
- * @returns The parsed line, or `undefined` when the clause carries no quantified ingredient. Pure.
+ * @returns The bounded parse plus anything cut off it, or a refusal. Pure.
  */
 function ingredientInClause(clause: string): ClauseReading {
     const trimmed = clause.trim();
@@ -494,18 +514,71 @@ function ingredientInClause(clause: string): ClauseReading {
             return { kind: 'corrupt' };
         }
 
-        if (
-            parsed.quantity.kind !== 'absent' &&
-            parsed.unit !== null &&
-            // A DIMENSION is not a measure of an ingredient. "one-quarter inch thick" describes a knife cut.
-            !NOT_A_MEASURE.has(parsed.unit.toLowerCase()) &&
-            parsed.name.trim() !== ''
-        ) {
+        if (!namesAQuantifiedIngredient(parsed)) {
+            continue;
+        }
+
+        const segment = segmentClause(sourceText);
+
+        if (segment.kind === 'instruction') {
+            // Equipment, not a food — `a large preserving kettle` parses to `1 large :: preserving kettle`
+            // and clears every gate above. The next, shorter start is tried exactly as for any suffix that
+            // does not read as an ingredient; no reason is raised, because nobody meant this to be parsed.
+            continue;
+        }
+
+        if (segment.trailingInstruction === null) {
             return { kind: 'ingredient', line: parsed, sourceText };
         }
+
+        const bounded = parseIngredientLine(dropPartitiveOf(segment.span));
+
+        // ⛔ A cut that DESTROYS the reading is refused, and the whole span survives exactly as it did
+        // before U22a. The cut exists to remove residue, never to cost a line: a head that no longer
+        // states a quantity, a unit and a food is evidence the boundary was wrong, not that the clause was.
+        if (bounded.reviewReasons.some(corruptsStatedValue) || !namesAQuantifiedIngredient(bounded)) {
+            return { kind: 'ingredient', line: parsed, sourceText };
+        }
+
+        return { kind: 'ingredient', line: withInstructionDropped(bounded), sourceText: segment.span };
     }
 
     return { kind: 'none' };
+}
+
+/**
+ * Whether a parse states an amount of a FOOD, as this module has always defined one.
+ *
+ * Lifted out of {@link ingredientInClause} because U22a asks the same question twice — of the whole
+ * suffix, and again of the bounded head — and two copies of a gate is how the two answers drift apart.
+ *
+ * @param parsed - Any parse.
+ * @returns `true` when it names a quantified ingredient. Pure.
+ */
+function namesAQuantifiedIngredient(parsed: ParsedIngredientLine): boolean {
+    return (
+        parsed.quantity.kind !== 'absent' &&
+        parsed.unit !== null &&
+        // A DIMENSION is not a measure of an ingredient. "one-quarter inch thick" describes a knife cut.
+        !NOT_A_MEASURE.has(parsed.unit.toLowerCase()) &&
+        parsed.name.trim() !== ''
+    );
+}
+
+/**
+ * Record that this stage cut an instruction off the line (U22a).
+ *
+ * ⚠️ Raised HERE rather than in `recipe-import-core`, for the reason `additional_foods_dropped` is
+ * raised by `projectToIngredientLine`: a reason names a loss where the loss HAPPENS. The segmenter
+ * returns a value object and has no line to flag; this stage is what decided to keep the head.
+ *
+ * @param line - The parse of the bounded head.
+ * @returns The same parse, carrying the reason. Pure.
+ */
+function withInstructionDropped(line: ParsedIngredientLine): ParsedIngredientLine {
+    const reviewReasons: readonly IngredientReviewReason[] = [...line.reviewReasons, 'instruction_text_dropped'];
+
+    return { ...line, reviewReasons, needsReview: true };
 }
 
 /**
@@ -544,17 +617,22 @@ function dropPartitiveOf(text: string): string {
  * first preposition/conjunction keeps the NOUN and discards the instruction, without inventing a word that
  * was not in the source.
  *
+ * ⚠️ U22a MOVED the cut lexicon out of this function and into `recipe-import-core`'s `segmentClause`
+ * module, which is now its one authority; `dropTrailingInstruction` is the NAME-shaped view of it. The two
+ * views differ on purpose: a span's cut is REFUSED when the tail states a second food, because
+ * `ParsedLine.foods` has somewhere to put one — a name has exactly one field and nowhere, and a name
+ * carrying a measurement (`chocolate in one cup of water`) matches no catalog row at all. So this cut
+ * stays unconditional, and it is what still cleans up a span whose own cut was refused.
+ *
  * @param name - The description `parse-ingredient` returned.
  * @returns The trimmed name. Pure.
  */
 function trimName(name: string): string {
-    const cut = name.split(
-        /\s+(?:in|into|with|and|or|that|which|until|then|over|for|from|when|to|on|at|will|has|have|had|is|are|was|were|may|should|must|can)\s+|[,;:(]/,
-    )[0];
+    const cut = dropTrailingInstruction(name);
 
     // Then drop connectives the sentence left at the FRONT — "when cut", "the stock", "of butter". These are
     // grammar, not the ingredient, and they are what turn a name into something no catalog could match.
-    const words = (cut ?? name).replace(/\s+/g, ' ').trim().split(' ');
+    const words = cut.replace(/\s+/g, ' ').trim().split(' ');
 
     while (words.length > 1 && LEADING_NOISE.has(words[0]?.toLowerCase() ?? '')) {
         words.shift();

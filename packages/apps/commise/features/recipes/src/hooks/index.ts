@@ -15,7 +15,12 @@ export {
     suggestionName,
     toIngredientLine,
 } from './ingredientResolver.model.js';
-export type { DeriveViewStateInput, IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
+export type {
+    DeriveViewStateInput,
+    IngredientPickerHandle,
+    IngredientResolverViewState,
+    MutationView,
+} from './ingredientResolver.model.js';
 export { useDebouncedValue } from './useDebouncedValue.js';
 export { toRecipeNutritionPages, useRecipeNutritionBatches } from './useRecipeNutritionBatches.js';
 export type { RecipeNutritionLookup } from './useRecipeNutritionBatches.js';

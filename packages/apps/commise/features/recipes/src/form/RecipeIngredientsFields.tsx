@@ -16,15 +16,20 @@ import type { RecipeFormIngredient } from './model.js';
 
 import { errorText, field, rowField, sectionCard, sectionHeading } from './formSectionStyles.js';
 import { fillTemplate } from '../list/model.js';
-import { ingredientsErrorId, ingredientUnitNoteId } from './fieldErrorIds.js';
+import {
+    ingredientNameDescribedBy,
+    ingredientNoFoodNoteId,
+    ingredientsErrorId,
+    ingredientUnitNoteId,
+} from './fieldErrorIds.js';
 import { draftQuantityVerdict, lineCalories, recipeNutritionTotal } from './model.js';
 import { PlusIcon, TrashIcon } from './icons.js';
 import { rangeDerivedNotice } from '../detail/model.js';
 import { recipeFormMessages } from './messages.js';
 import {
-    addIngredient,
     ingredientSections,
     unitClassNote,
+    unresolvedLineNote,
     parseQuantityBound,
     quantityInputValue,
     removeIngredientAt,
@@ -32,11 +37,16 @@ import {
     setIngredientQuantityHigh,
     setIngredientQuantityLow,
     updateIngredientAt,
-    type RecipeFormSectionProps,
+    type RecipeIngredientsFieldsProps,
 } from './props.js';
 
 /** Step 2: the dynamic ingredient list (the ingredient typeahead/picker itself is app-owned and composed alongside this). */
-export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
+export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = ({
+    values,
+    errors,
+    onChange,
+    onRequestAddIngredient,
+}) => {
     const m = useMessages(recipeFormMessages);
     const total = recipeNutritionTotal(values);
 
@@ -49,21 +59,28 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
     const renderRow = (line: RecipeFormIngredient, index: number): ReactElement => {
         const number = index + 1;
         const calories = lineCalories(line);
-        // U6 (data-integrity): once a line RESOLVES (`ingredientId` set — via typeahead pick, USDA/add-by-name
-        // admission, or freeform create), its name is BOUND to the food supplying the calories and is rendered
-        // READ-ONLY; identity changes only by re-picking through the resolver. Only an UNRESOLVED line
-        // (`ingredientId === null`) still edits its name inline — before it resolves, that field is the
-        // freeform search text, not a persisted name — so `nameInvalid` (an unresolved-line concern) can only
-        // ever apply to that editable branch.
-        const resolved = line.ingredientId !== null;
-        // B8: a LINE is marked invalid only when it is itself the reason `errors.ingredients` is set (WCAG
-        // 3.3.1 — identify the specific control, not the whole list) — never the whole list on an
-        // `ingredientsEmpty` error, since there are no line inputs to mark in that case.
+        // U6 (data-integrity): a line's name is BOUND to the food supplying its calories and is rendered
+        // READ-ONLY; identity changes only by re-picking through the resolver.
         //
-        // U9 narrowed this from "any ingredients error" to the SPECIFIC code, because there are now two
-        // line-level failures with different owning controls: marking a quantity field on an
-        // `ingredientsUnresolved` error points the user at a control the message is not about.
-        const nameInvalid = errors?.ingredients === 'ingredientsUnresolved' && line.ingredientId === null;
+        // ⛔ U28 EXTENDED THAT TO EVERY LINE, unresolved ones included. U6 kept an unresolved line's name
+        // editable as "the freeform search text, not a persisted name" — a premise that died with the
+        // blank-row button: a line resolves ONLY through the picker, so typing here could never produce an
+        // id, and `toCreateRecipeInput` dropped the row whatever it said. It was dead UI wearing the costume
+        // of a working control. The brief is explicit: the food "is filled from the picker below … It can be
+        // cleared or re-picked, never typed over." The text the cook wrote stays VISIBLE — read-only is not
+        // hidden — and the note below says what to do with it.
+        //
+        // U28's note: derived from the LINE, never from `errors`. A row restored unresolved must say so
+        // before anyone presses anything; `errors` is only populated by a submit attempt, which is why the
+        // row used to look complete right up until the save that dropped it.
+        const noFoodNote = unresolvedLineNote(m, line);
+        // B8: a LINE is marked invalid only when it is itself the reason (WCAG 3.3.1 — identify the specific
+        // control, not the whole list) — never every row on an `ingredientsEmpty` error, since there are no
+        // line inputs to mark in that case.
+        //
+        // U9 narrowed this from "any ingredients error" to the SPECIFIC code; U28 narrowed it again to the
+        // LINE's own state, so the mark and the note appear together and cannot disagree.
+        const nameInvalid = noFoodNote !== undefined;
         // Both bounds carry the mark: the invalid thing is the PAIR (`3` and `2` are each fine alone), and
         // marking only one would send the user to a field that may be the correct half of the two.
         const quantityInvalid =
@@ -75,28 +92,34 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
 
         return (
             <li key={index} className="flex flex-wrap items-center gap-2">
-                {resolved ? (
-                    // A read-only textbox (not a plain span): keeps the "Ingredient N name" accessible label AND
-                    // announces the resolved value, while making the name un-editable so it cannot drift from
-                    // the `ingredientId` supplying the calories. No `onChange` — the value is fixed until a
-                    // re-pick replaces the line.
-                    <input
-                        type="text"
-                        readOnly
-                        aria-label={fillTemplate(m.ingredientNameLabel, { number })}
-                        value={line.name}
-                        className={`${rowField} bg-pearl/40`}
-                    />
-                ) : (
-                    <input
-                        type="text"
-                        aria-label={fillTemplate(m.ingredientNameLabel, { number })}
-                        aria-invalid={nameInvalid || undefined}
-                        aria-describedby={nameInvalid ? ingredientsErrorId : undefined}
-                        value={line.name}
-                        onChange={(event) => onChange(updateIngredientAt(values, index, { name: event.target.value }))}
-                        className={rowField}
-                    />
+                {/* A read-only textbox (not a plain span): keeps the "Ingredient N name" accessible label AND
+                    announces the value, while making the name un-editable so it cannot drift from the
+                    `ingredientId` supplying the calories. No `onChange` at all — the value changes only by
+                    re-picking through the resolver. */}
+                <input
+                    type="text"
+                    readOnly
+                    aria-label={fillTemplate(m.ingredientNameLabel, { number })}
+                    aria-invalid={nameInvalid || undefined}
+                    aria-describedby={ingredientNameDescribedBy(
+                        index,
+                        noFoodNote !== undefined,
+                        errors?.ingredients === 'ingredientsUnresolved',
+                    )}
+                    value={line.name}
+                    className={`${rowField} bg-pearl/40`}
+                />
+                {noFoodNote !== undefined && (
+                    // ⛔ TEXT beside the row, not a colour on it — WCAG 1.4.1, and a colour cannot name the
+                    // remedy. `role="note"` rather than `alert`: this is a standing fact about the row, not
+                    // something that just happened, and a list of eight would otherwise shout eight times.
+                    <span
+                        id={ingredientNoFoodNoteId(index)}
+                        role="note"
+                        className="rounded-full bg-warning/25 px-2 py-0.5 text-caption font-medium text-charcoal"
+                    >
+                        {noFoodNote}
+                    </span>
                 )}
                 {/* The two bounds of R42's ranged quantity, sharing the ONE unit field that follows. An
                     emptied field renders as empty (`quantityInputValue`), never as `0` or the literal
@@ -257,7 +280,12 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 </ul>
             )}
             <div className="self-start">
-                <Button variant="secondary" icon={<PlusIcon />} onPress={() => onChange(addIngredient(values))}>
+                {/* U28 — a REQUEST, not a mutation. It used to append a blank, unresolved row that
+                    `validateRecipeForm` refused and `toCreateRecipeInput` silently dropped: a cook typed into
+                    a row that could never be saved. The container answers this by focusing the ingredient
+                    picker, which is where a line actually resolves. This leaf must not know the picker
+                    exists — it is app-owned and composed alongside (see the module doc). */}
+                <Button variant="secondary" icon={<PlusIcon />} onPress={onRequestAddIngredient}>
                     {m.addIngredient}
                 </Button>
             </div>

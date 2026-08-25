@@ -154,9 +154,8 @@ export {
     RecipeInstructionsFields,
     RecipeVisibilityField,
     addChip,
-    addIngredient,
     addStep,
-    blankIngredient,
+    appendResolvedIngredient,
     blankStep,
     canAdvanceFromStep,
     computeTotalTime,
@@ -192,7 +191,9 @@ export type {
     RecipeFormSectionProps,
     RecipeFormStep,
     RecipeFormValues,
+    RecipeIngredientsFieldsProps,
     RecipeWizardStep,
+    ResolvedRecipeFormIngredient,
 } from './form/index.js';
 export {
     MoreActionsMenu,

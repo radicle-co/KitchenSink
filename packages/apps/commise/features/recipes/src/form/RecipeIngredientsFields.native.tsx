@@ -16,14 +16,18 @@ import { classifyUnit, FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { Text, TextInput, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
-import { ingredientsErrorId, ingredientUnitNoteId } from './fieldErrorIds.js';
+import {
+    ingredientNameDescribedBy,
+    ingredientNoFoodNoteId,
+    ingredientsErrorId,
+    ingredientUnitNoteId,
+} from './fieldErrorIds.js';
 import { draftQuantityVerdict, lineCalories, recipeNutritionTotal } from './model.js';
 import { rangeDerivedNotice } from '../detail/model.js';
 import { recipeFormMessages } from './messages.js';
 import { styles } from './formSectionStyles.native.js';
 import type { RecipeFormIngredient } from './model.js';
 import {
-    addIngredient,
     ingredientSections,
     parseQuantityBound,
     quantityInputValue,
@@ -32,12 +36,18 @@ import {
     setIngredientQuantityHigh,
     setIngredientQuantityLow,
     unitClassNote,
+    unresolvedLineNote,
     updateIngredientAt,
-    type RecipeFormSectionProps,
+    type RecipeIngredientsFieldsProps,
 } from './props.js';
 
 /** Step 2: the dynamic ingredient list (the ingredient typeahead/picker itself is app-owned and composed alongside this). */
-export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
+export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = ({
+    values,
+    errors,
+    onChange,
+    onRequestAddIngredient,
+}) => {
     const m = useMessages(recipeFormMessages);
     const total = recipeNutritionTotal(values);
 
@@ -50,15 +60,13 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
     const renderRow = (line: RecipeFormIngredient, index: number): ReactElement => {
         const number = index + 1;
         const calories = lineCalories(line);
-        // U6 (data-integrity): a RESOLVED line (`ingredientId` set) binds its name to the food supplying the
-        // calories — render it READ-ONLY (`editable={false}`); identity changes only by re-picking. Only an
-        // UNRESOLVED line still edits its name inline (the freeform search text), so `nameInvalid` can only
-        // apply to that editable branch. See the web leaf for the shared rationale.
-        const resolved = line.ingredientId !== null;
-        // B8: mirrors the web leaf — a line is invalid only when it is ITSELF the reason `errors.ingredients`
-        // is set, never every row on an `ingredientsEmpty` (empty-list) error, and (U9) only for the SPECIFIC
-        // code whose owning control it is. See the web leaf for the shared rationale.
-        const nameInvalid = errors?.ingredients === 'ingredientsUnresolved' && line.ingredientId === null;
+        // U6/U28 (data-integrity): EVERY line's name is READ-ONLY (`editable={false}`) — a food is picked,
+        // never typed. See the web leaf for why U28 extended this to unresolved lines too, and for why the
+        // note below is derived from the LINE rather than from `errors`.
+        const noFoodNote = unresolvedLineNote(m, line);
+        // B8: mirrors the web leaf — a line is invalid only when it is ITSELF the reason, never every row on
+        // an `ingredientsEmpty` (empty-list) error.
+        const nameInvalid = noFoodNote !== undefined;
         const quantityInvalid =
             errors?.ingredients === 'ingredientsQuantityInvalid' && draftQuantityVerdict(line) === 'invalid';
         // U25 — DERIVED at render from `recipe-core`'s vocabulary, never stored. The SAME `unitClassNote` the
@@ -70,15 +78,23 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
             <View key={index} style={styles.listRow}>
                 <TextInput
                     accessibilityLabel={fillTemplate(m.ingredientNameLabel, { number })}
-                    editable={!resolved}
+                    editable={false}
                     aria-invalid={nameInvalid || undefined}
-                    aria-describedby={nameInvalid ? ingredientsErrorId : undefined}
+                    aria-describedby={ingredientNameDescribedBy(
+                        index,
+                        noFoodNote !== undefined,
+                        errors?.ingredients === 'ingredientsUnresolved',
+                    )}
                     value={line.name}
-                    onChangeText={
-                        resolved ? undefined : (text) => onChange(updateIngredientAt(values, index, { name: text }))
-                    }
-                    style={[styles.input, styles.rowGrow, resolved && styles.inputReadOnly]}
+                    style={[styles.input, styles.rowGrow, styles.inputReadOnly]}
                 />
+                {noFoodNote !== undefined && (
+                    // ⛔ TEXT, not colour — see the web leaf. `role="note"`: a standing fact about the row,
+                    // not an event, so a list of eight does not shout eight times.
+                    <Text id={ingredientNoFoodNoteId(index)} role="note" style={styles.noFoodNote}>
+                        {noFoodNote}
+                    </Text>
+                )}
                 {/* R42's two bounds, sharing the ONE unit field that follows — the web leaf's markup, with
                     the same empty-means-absent rendering (R40). */}
                 <TextInput
@@ -219,10 +235,12 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 ])
             )}
             <View style={styles.addAction}>
+                {/* U28 — a REQUEST, not a mutation; the container answers it by focusing the ingredient
+                    picker. See the web leaf for the dead end this removes. */}
                 <Button
                     variant="secondary"
                     icon={<Feather name="plus" size={16} color={palette.charcoal} />}
-                    onPress={() => onChange(addIngredient(values))}
+                    onPress={onRequestAddIngredient}
                 >
                     {m.addIngredient}
                 </Button>

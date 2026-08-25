@@ -213,3 +213,101 @@ describe('RecipeEditor — async ingredient add + poll-after-add', () => {
         expect(screen.queryByText('Resolving…')).toBeNull();
     });
 });
+
+/**
+ * U28 — the add-ingredient LOOP on mobile, and the cross-platform nutrition defect it repaired.
+ *
+ * ⛔ WHAT THIS COVERS THAT THE LEAF TESTS CANNOT. The leaf proves it raises a request and mutates nothing;
+ * these prove the request LANDS — the editor answers it by focusing the picker's search field — and that a
+ * resolved line arrives WHOLE.
+ */
+describe('RecipeEditor — the add-ingredient loop (U28)', () => {
+    /** Render and land on step 2, where the picker and the ingredients leaf both live. */
+    function goToIngredients(): void {
+        // The picker reads this mutation's flags on every render, so it must be stubbed even for the tests
+        // below that never resolve anything.
+        useAddIngredientByNameMock.mockReturnValue(addByNameMutation(makeIngredient({ id: 'ing_unused' })));
+
+        render(<ControlledEditor />);
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+    }
+
+    it('“+ Add ingredient” puts the caret in the picker’s search field', () => {
+        goToIngredients();
+
+        const search = screen.getByLabelText('Search ingredients');
+        expect(document.activeElement).not.toBe(search);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+        // ⛔ THE WHOLE POINT OF THE UNIT. The button used to append a row that validation refused and the
+        // wire mapper dropped; it now hands the cook the one control that can actually resolve a line.
+        expect(document.activeElement).toBe(search);
+    });
+
+    it('⛔ and adds NO row — the list is untouched until the picker resolves something', () => {
+        goToIngredients();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+        expect(screen.getByText('No ingredients yet. Add your first ingredient.')).toBeTruthy();
+        expect(screen.queryByLabelText('Ingredient 1 name')).toBeNull();
+        expect(screen.queryByText('Every ingredient needs an item picked from the list.')).toBeNull();
+    });
+
+    /**
+     * ⛔ THE CROSS-PLATFORM DEFECT U28 REPAIRED, pinned so it cannot come back.
+     *
+     * The picker used to hand up a three-field `ResolvedIngredient` (`{ id, name, resolutionStatus? }`) and
+     * this editor rebuilt the line from it — DROPPING `caloriesPer100g`/`proteinGPer100g`/`carbsGPer100g`/
+     * `fatGPer100g`/`portions`, which `toIngredientLine` had just attached and which `lineCalories` and
+     * `recipeNutritionTotal` read. A freshly picked ingredient therefore showed its calorie badge and fed
+     * the running total on WEB and not here — a §14 cross-platform divergence no test could see, because the
+     * two leaves are separate files with no compiler edge between them.
+     */
+    it('carries the picked line’s CATALOG NUTRITION onto the row (the web/mobile calorie divergence)', () => {
+        addByNameFlow(
+            makeIngredient({
+                id: 'ing_food',
+                name: 'Quinoa',
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                caloriesPer100g: 368,
+            }),
+        );
+
+        // State a mass the aggregator can convert (a unitless `1` has no mass factor, so it is honestly
+        // uncountable) — the per-row figure then appears iff `caloriesPer100g` survived the append.
+        fireEvent.change(screen.getByLabelText('Ingredient 1 quantity'), { target: { value: '100' } });
+        fireEvent.change(screen.getByLabelText('Ingredient 1 unit'), { target: { value: 'g' } });
+
+        expect(screen.getByText('368 cal')).toBeTruthy();
+        // And it reaches the running total too — the same fields, read by the other aggregator.
+        expect(screen.getByText('Total nutrition (per serving): 368 cal | 0g P | 0g C | 0g F')).toBeTruthy();
+    });
+
+    it('a second pick INHERITS the section the cook is building (U27’s rule, on the working path)', () => {
+        addByNameFlow(
+            makeIngredient({ id: 'ing_a', name: 'Quinoa', foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
+        );
+
+        fireEvent.change(screen.getByLabelText('Ingredient 1 section'), { target: { value: 'For the bowl' } });
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Kale' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Find nutrition for “Kale”' }));
+
+        // ⛔ U27 put this rule on the DEAD "+ Add ingredient" path, so the picker path — the only one that
+        // can finish — silently lost sectioning. This is the assertion that would have caught that.
+        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 2 section').value).toBe('For the bowl');
+    });
+
+    it('a resolved row wears NO “no food chosen” note', () => {
+        addByNameFlow(
+            makeIngredient({ id: 'ing_food', name: 'Quinoa', foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
+        );
+
+        expect(
+            screen.queryByText(
+                'No food chosen — this line won’t be saved. Remove it and add it from the search above.',
+            ),
+        ).toBeNull();
+    });
+});

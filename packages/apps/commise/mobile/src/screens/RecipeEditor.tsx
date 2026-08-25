@@ -16,6 +16,7 @@
  * controlled contract, different state owner.
  */
 import {
+    appendResolvedIngredient,
     pendingIngredientIds,
     RecipeBasicsFields,
     RecipeIngredientsFields,
@@ -27,17 +28,18 @@ import {
     type RecipeFormMode,
     type RecipeFormValues,
     type RecipeWizardStep,
+    type ResolvedRecipeFormIngredient,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { palette, tint } from '@commise/ui';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { JSX, ReactNode } from 'react';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { useScrollResetOnChange } from '../hooks/useScrollResetOnChange.js';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { IngredientPicker, type ResolvedIngredient } from '../components/IngredientPicker.js';
+import { IngredientPicker, type IngredientPickerHandle } from '../components/IngredientPicker.js';
 import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js';
 import { mobileMessages } from '../i18n/messages.js';
 
@@ -114,25 +116,23 @@ export function RecipeEditor({
     const isEmptyDraft = values.title.trim() === '' && values.ingredients.length === 0 && values.steps.length === 0;
     const showFirstStepGuidance = mode === 'create' && isEmptyDraft;
 
-    // Carry the line's ACTUAL resolution status from the picker (a food added by name may be PENDING and
-    // resolve later) — never assume RESOLVED, or a still-resolving line would never be polled. A line with no
-    // status (a plain freeform create) simply carries none.
-    const appendResolved = (ingredient: ResolvedIngredient): void => {
-        onChange({
-            ...values,
-            ingredients: [
-                ...values.ingredients,
-                {
-                    ingredientId: ingredient.id,
-                    name: ingredient.name,
-                    quantity: 1,
-                    ...(ingredient.resolutionStatus === undefined
-                        ? {}
-                        : { resolutionStatus: ingredient.resolutionStatus }),
-                },
-            ],
-        });
+    // U28 — the ONE pure append transition, shared with both web containers, so the three cannot drift on
+    // how a picked line joins the draft (and so U27's section inheritance finally applies to the path a cook
+    // actually walks).
+    //
+    // ⛔ THE LINE IS PASSED WHOLE, and that is a BUG FIX, not a tidy-up. This used to rebuild the line from a
+    // three-field `ResolvedIngredient`, DROPPING the `caloriesPer100g`/`proteinGPer100g`/`carbsGPer100g`/
+    // `fatGPer100g`/`portions` that `toIngredientLine` had just attached — so a freshly picked ingredient
+    // showed its calorie badge and fed the running total on web and NOT here. The line still carries its own
+    // resolution status (a food added by name may be PENDING and resolve later), which is what keeps
+    // `pendingIngredientIds` polling it.
+    const appendResolved = (line: ResolvedRecipeFormIngredient): void => {
+        onChange(appendResolvedIngredient(values, line));
     };
+
+    // U28 — where "+ Add ingredient" LEADS. See `IngredientPickerHandle` for why this is a method rather
+    // than a signal prop, and why a ref is permitted here at all.
+    const pickerRef = useRef<IngredientPickerHandle>(null);
 
     // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. `setIngredientStatusById`
     // is idempotent (returns the same reference when the status is unchanged) so the per-line pollers below
@@ -192,11 +192,16 @@ export function RecipeEditor({
                         <RecipeVisibilityField values={values} onChange={onChange} />
                     </Wizard.Step>
                     <Wizard.Step step={2}>
-                        <IngredientPicker onResolve={appendResolved} />
+                        <IngredientPicker ref={pickerRef} onResolve={appendResolved} />
                         {pendingIngredientIds(values).map((id) => (
                             <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
                         ))}
-                        <RecipeIngredientsFields values={values} errors={errors} onChange={onChange} />
+                        <RecipeIngredientsFields
+                            values={values}
+                            errors={errors}
+                            onChange={onChange}
+                            onRequestAddIngredient={() => pickerRef.current?.focusSearch()}
+                        />
                     </Wizard.Step>
                     <Wizard.Step step={3}>
                         <RecipeInstructionsFields values={values} errors={errors} onChange={onChange} />

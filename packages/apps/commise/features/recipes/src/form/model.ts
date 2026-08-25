@@ -592,10 +592,15 @@ const instructionSchema = recipeStepInstructionSchema;
  * a picker that is already showing a selection. The FORMAT rule is the wire's, is enforced server-side, and is
  * unreachable from this surface anyway: every id here comes from the catalog API, which returns real UUIDs.
  *
+ * ⚠️ EXPORTED since U28, because it is now read in two places that must not disagree.
+ * {@link validateRecipeForm} decides whether the wizard may advance; `unresolvedLineNote` (`props.ts`)
+ * tells a cook WHICH row is incomplete and what to do about it. A leaf marking a different set of rows
+ * from the set blocking the wizard is exactly the drift one shared predicate prevents.
+ *
  * @param ingredientId - The line's raw id, or `null` while unresolved.
  * @returns True when the line references a catalog row. Pure.
  */
-const isResolvedIngredientId = (ingredientId: string | null): boolean =>
+export const isResolvedIngredientId = (ingredientId: string | null): boolean =>
     ingredientId !== null && ingredientId.length > 0;
 
 /**

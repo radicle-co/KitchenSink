@@ -252,3 +252,128 @@ describe('RecipeCreateContainer', () => {
         expect(pushMock).toHaveBeenCalledWith('/en/recipes');
     });
 });
+
+/**
+ * U28 — the add-ingredient LOOP, end to end through the real container.
+ *
+ * ⛔ WHAT THIS COVERS THAT THE LEAF TESTS CANNOT. The leaf proves it raises a request and mutates nothing;
+ * these prove the request LANDS — that the container answers it by focusing the picker's search field, and
+ * that resolving there appends a line with a food. Between them, the loop a cook walks has no dead end.
+ */
+describe('RecipeCreateContainer — the add-ingredient loop (U28)', () => {
+    /** Fill step 1 and land on step 2, where the picker and the ingredients leaf both live. */
+    async function goToIngredients(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+        await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Loop Test');
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
+    }
+
+    it('“+ Add ingredient” puts the caret in the picker’s search field', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+        await goToIngredients(user);
+
+        const search = screen.getByRole('searchbox', { name: 'Search ingredients' });
+        expect(search).not.toHaveFocus();
+
+        await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+        // ⛔ THE WHOLE POINT OF THE UNIT. The button used to append a row that validation refused and the
+        // wire mapper dropped; it now hands the cook the one control that can actually resolve a line.
+        expect(search).toHaveFocus();
+    });
+
+    it('⛔ and adds NO row — the list is untouched until the picker resolves something', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+        await goToIngredients(user);
+
+        await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+        expect(screen.getByText('No ingredients yet. Add your first ingredient.')).toBeInTheDocument();
+        expect(screen.queryByRole('textbox', { name: 'Ingredient 1 name' })).not.toBeInTheDocument();
+        // …and the wizard can still advance, because there is nothing unresolved to block it. Before U28 this
+        // press left the step permanently invalid.
+        expect(screen.queryByText('Every ingredient needs an item picked from the list.')).not.toBeInTheDocument();
+    });
+
+    it('resolving in the picker appends a line WITH a food, and its catalog nutrition', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({
+            suggestions: [
+                {
+                    provenance: 'local',
+                    ingredient: makeIngredient({
+                        id: 'ing_9',
+                        name: 'Olive oil',
+                        foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                        caloriesPer100g: 884,
+                    }),
+                },
+            ],
+            catalogAvailability: 'ok',
+        });
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+        await goToIngredients(user);
+
+        await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+        await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'oli');
+        await user.click(await screen.findByRole('button', { name: 'Olive oil' }));
+
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).value).toBe('Olive oil');
+        // Resolved, so it wears NO "no food chosen" note — the counterweight state stays reachable only for a
+        // row that genuinely has no food.
+        expect(
+            screen.queryByText(
+                'No food chosen — this line won’t be saved. Remove it and add it from the search above.',
+            ),
+        ).not.toBeInTheDocument();
+        // ⛔ The line carried its catalog nutrition through. State a mass the aggregator can convert (a
+        // unitless `1` has no mass factor, so it is honestly uncountable) and the per-row figure appears —
+        // which it can only do if `caloriesPer100g` survived the append.
+        await user.clear(screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' }));
+        await user.type(screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' }), '100');
+        await user.type(screen.getByRole('textbox', { name: 'Ingredient 1 unit' }), 'g');
+
+        expect(screen.getByText('884 cal')).toBeInTheDocument();
+    });
+
+    it('a second pick INHERITS the section the cook is building (U27’s rule, on the working path)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({
+            suggestions: [
+                {
+                    provenance: 'local',
+                    ingredient: makeIngredient({
+                        id: 'ing_9',
+                        name: 'Olive oil',
+                        foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    }),
+                },
+            ],
+            catalogAvailability: 'ok',
+        });
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+        await goToIngredients(user);
+
+        await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'oli');
+        await user.click(await screen.findByRole('button', { name: 'Olive oil' }));
+        await user.type(screen.getByRole('textbox', { name: 'Ingredient 1 section' }), 'For the dressing');
+
+        await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'oli');
+        await user.click(await screen.findByRole('button', { name: 'Olive oil' }));
+
+        // ⛔ U27 put this rule on the DEAD "+ Add ingredient" path, so the picker path — the only one that can
+        // finish — silently lost sectioning. This is the assertion that would have caught that.
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 2 section' }).value).toBe(
+            'For the dressing',
+        );
+    });
+});

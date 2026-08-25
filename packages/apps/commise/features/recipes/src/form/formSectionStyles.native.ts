@@ -113,6 +113,22 @@ export const styles = StyleSheet.create({
     // DESCRIBES the unit, and is never an error.
     unitNote: { fontSize: 11, color: palette.slate },
     statusBadge: { fontSize: 11, color: palette.slate },
+    // U28 — the "no food chosen" note. Same charcoal-on-`warning`-tint pair as `statusBadgeNeedsReview` and
+    // the web leaf's `bg-warning/25 text-charcoal`: this is the one row state a cook can and must act on, so
+    // it must not wear the neutral pearl of "nothing to do here" — and #F5B041 is a light FILL that takes a
+    // charcoal label, never a foreground (far under 4.5:1 on near-white).
+    //
+    // ⛔ Deliberately NOT a spread of `statusBadgeNeedsReview`, for the reason recorded there: two different
+    // facts, and a shared base makes a tone change to one silently change the other.
+    noFoodNote: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: palette.charcoal,
+        backgroundColor: tint(palette.warning, 0.25),
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 999,
+    },
     // U14 — the doubted-line badge. Deliberately NOT a variant spread over `statusBadge`: the two are two
     // different facts, and a shared base would make a tone change to one silently change the other.
     //

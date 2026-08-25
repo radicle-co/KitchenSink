@@ -16,7 +16,7 @@
  *  4. **freeform** (`addFreeform`, the explicit FALLBACK) — creates a plain user-entered ingredient with no
  *     food resolution. Reachable from every non-idle `viewState` — there is no dead end.
  *
- * All four converge on one `resolveLine`, which reports the resolved `RecipeFormIngredient` via the
+ * All four converge on one `resolveLine`, which reports the `ResolvedRecipeFormIngredient` via the
  * caller's `onResolved` and resets the picker to a blank search.
  *
  * **Search Stage 2 (blended typeahead).** The search read is `useSuggestIngredients`
@@ -28,9 +28,9 @@
  * `catalogAvailability` is `'unavailable'`, never as `isError` (F2).
  *
  * **Unifies three platform drifts** (see `.superpowers/sdd/cp6-current-state.md` §3):
- *  1. **Callback contract.** Web's `onSelect: (line: RecipeFormIngredient) => void` and mobile's
+ *  1. **Callback contract.** Web's `onSelect: (line: ResolvedRecipeFormIngredient) => void` and mobile's
  *     `onResolve: (ingredient: ResolvedIngredient) => void` were two shapes for the same event. The hook
- *     standardizes on ONE contract — `onResolved: (line: RecipeFormIngredient) => void` — and each leaf
+ *     standardizes on ONE contract — `onResolved: (line: ResolvedRecipeFormIngredient) => void` — and each leaf
  *     adapts at its own boundary (mobile's leaf keeps its public `onResolve` prop and narrows the line down
  *     to the `ResolvedIngredient` shape its own callers expect).
  *  2. **Mutation-reset on resolve.** Web called `.reset()` on `addIngredientByName`/`createIngredient`/
@@ -64,7 +64,7 @@ import type { IngredientSuggestion, LiveIngredientHit } from '@kitchensink/recip
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { useState } from 'react';
 
-import type { RecipeFormIngredient } from '../form/model.js';
+import type { ResolvedRecipeFormIngredient } from '../form/props.js';
 
 import {
     deriveViewState,
@@ -140,10 +140,17 @@ export interface UseIngredientResolverResult {
 /**
  * The shared ingredient-resolution state machine.
  *
+ * ⛔ `onResolved` takes the NARROWED {@link ResolvedRecipeFormIngredient} (U28). Every one of this
+ * hook's five resolve routes goes through `toIngredientLine`, which cannot produce an unresolved line —
+ * so declaring the wider type here was a lie that forced each consumer to re-check (or, on mobile, to
+ * re-project and lose the nutrition fields). A leaf can no longer hand a foodless line upward.
+ *
  * @param onResolved - Called with a fully-resolved recipe line (its `ingredientId` set) to append.
  * @returns The search/disambiguation view state plus the actions that drive it.
  */
-export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) => void): UseIngredientResolverResult {
+export function useIngredientResolver(
+    onResolved: (line: ResolvedRecipeFormIngredient) => void,
+): UseIngredientResolverResult {
     const [query, setQuery] = useState('');
     const [disambiguating, setDisambiguating] = useState<Ingredient | null>(null);
     const trimmed = query.trim();

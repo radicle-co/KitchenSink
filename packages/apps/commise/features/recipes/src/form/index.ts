@@ -35,9 +35,8 @@ export type {
 
 export {
     addChip,
-    addIngredient,
     addStep,
-    blankIngredient,
+    appendResolvedIngredient,
     blankStep,
     difficultyOptions,
     parseCommaList,
@@ -50,7 +49,14 @@ export {
     updateIngredientAt,
     updateStepAt,
 } from './props.js';
-export type { DifficultyOption, RecipeFormMode, RecipeFormProps, RecipeFormSectionProps } from './props.js';
+export type {
+    DifficultyOption,
+    RecipeFormMode,
+    RecipeFormProps,
+    RecipeFormSectionProps,
+    RecipeIngredientsFieldsProps,
+    ResolvedRecipeFormIngredient,
+} from './props.js';
 
 export { recipeFormMessages } from './messages.js';
 export type { RecipeFormMessages } from './messages.js';

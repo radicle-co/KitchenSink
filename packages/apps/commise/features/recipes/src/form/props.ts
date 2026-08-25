@@ -16,6 +16,7 @@ import {
     type FoodResolutionStatus,
 } from '@kitchensink/recipe-core';
 
+import { isResolvedIngredientId } from './model.js';
 import type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
 import type { RecipeFormMessages } from './messages.js';
 
@@ -38,6 +39,16 @@ export interface RecipeFormProps {
     readonly submitting?: boolean;
     /** Called with the next values on every field/row edit (add, remove, or change). */
     readonly onChange: (next: RecipeFormValues) => void;
+    /**
+     * Called when the cook asks to add an ingredient — forwarded straight to the ingredients field group
+     * (U28). The composing app OPENS/FOCUSES the ingredient picker; this form owns no picker of its own.
+     *
+     * ⛔ REQUIRED, exactly like {@link RecipeFormProps.onSubmit} and {@link RecipeFormProps.onCancel}, and
+     * for the same reason: a controlled, presentational form cannot answer it, so whoever composes the form
+     * must. Optional would let a composition silently ship a "+ Add ingredient" button that does nothing —
+     * a quieter version of the dead end U28 exists to remove.
+     */
+    readonly onRequestAddIngredient: () => void;
     /** Called when the user submits the form (the container validates + persists). */
     readonly onSubmit: () => void;
     /** Called when the user cancels/dismisses the editor. */
@@ -62,36 +73,75 @@ export interface RecipeFormSectionProps {
 }
 
 /**
- * A blank ingredient line: unresolved (no catalog id yet), empty name, quantity 1.
+ * Props for the ingredients field group — {@link RecipeFormSectionProps} plus the one concern no other
+ * section has: the "+ Add ingredient" control (U28).
  *
- * ⚠️ STILL `1`, not the absent sentinel, and the asymmetry with {@link parseQuantityBound} is deliberate. A
- * cook ADDING a line is overwhelmingly stating an amount, and U9 made "no amount" submittable — so seeding
- * an empty low bound would let a distracted author publish an ingredient with no quantity by doing nothing
- * at all. Absence has to be something the author states (by clearing the field), exactly as it is something
- * a SOURCE states; it is not a default anyone falls into.
+ * ⛔ The callback is REQUIRED, not optional, and that is the point. Optional would let a composition forget
+ * to answer the request and silently ship a button that does nothing; required makes every call site a
+ * COMPILE error until it decides where the request goes. The leaf itself cannot answer it — the ingredient
+ * picker is app-owned and composed alongside this leaf (see the module doc), so the request has to travel
+ * up to whoever owns both.
  */
-export const blankIngredient = (): RecipeFormIngredient => ({ ingredientId: null, name: '', quantity: 1 });
+export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
+    /**
+     * Called when the cook asks to add an ingredient — the composing container OPENS/FOCUSES the ingredient
+     * picker. It deliberately does NOT change `values`: a line is appended only once the picker has resolved
+     * a food (see {@link appendResolvedIngredient}).
+     */
+    readonly onRequestAddIngredient: () => void;
+}
 
 /** A blank instruction step: empty instruction, no timer. */
 export const blankStep = (): RecipeFormStep => ({ instruction: '' });
 
 /**
- * Append a blank ingredient line, JOINING THE SECTION THE COOK IS CURRENTLY BUILDING (U27). Pure — returns
- * the next values, never mutates.
+ * An ingredient line that has RESOLVED to a catalog row — {@link RecipeFormIngredient} with its
+ * `ingredientId` narrowed from `string | null` to `string`.
  *
- * ⚠️ The inherited `groupLabel` is what keeps grouping from being eight identical typings. The Figma Make
- * brief is explicit that "per-row typing is the wrong primary interaction"; since this appends at the END,
- * inheriting the LAST line's label is exactly what "name a section once, then keep adding to it" means.
- * Starting a new section stays one edit (type a different label), and an ungrouped list stays ungrouped
- * because there is nothing to inherit.
+ * DESIGN PATTERN: a domain-narrowed type used as a precondition (make illegal states unrepresentable). It
+ * is the type-level half of U28's "no path can create an unresolved row": {@link appendResolvedIngredient}
+ * is the ONLY append transition the form has, and it cannot EXPRESS an unresolved line. The producer chain
+ * is narrowed all the way back — `toIngredientLine` returns this, `useIngredientResolver` hands this
+ * upward, and both platforms' `IngredientPicker` emits this — so a container appending a line the cook
+ * never picked is a COMPILE error rather than a row that silently vanishes on save.
+ *
+ * ⚠️ `RecipeFormIngredient.ingredientId` deliberately STAYS nullable. A draft restored from an older
+ * source can genuinely hold an unresolved line, and the leaves must be able to render it and say why —
+ * hiding it or dropping it is the failure the ingredient-entry brief names ("Do not design a row that
+ * looks complete but is silently discarded"). What U28 removes is the ability to CREATE one, not the
+ * ability to REPRESENT one.
+ */
+export type ResolvedRecipeFormIngredient = RecipeFormIngredient & { readonly ingredientId: string };
+
+/**
+ * Append an ingredient line the picker already RESOLVED, joining the section the cook is currently
+ * building (U27). Pure — returns the next values, never mutates.
+ *
+ * ⛔ REPLACED `addIngredient` in U28, which appended a BLANK, UNRESOLVED line from the leaf's "+ Add
+ * ingredient" button. That was a dead end in the literal sense: `validateRecipeForm` refused to advance
+ * past it and `toCreateRecipeInput` dropped it on save, so the row a cook had just typed into disappeared.
+ * The button is now a REQUEST to the picker (`RecipeIngredientsFieldsProps.onRequestAddIngredient`) and
+ * this is what the picker's resolution commits.
+ *
+ * ⚠️ The inherited `groupLabel` is what keeps grouping from being eight identical typings, and moving it
+ * here is a fix in its own right — U27 put it on the button, which means it sat ONLY on the path that
+ * could not save, while the picker path (the one a cook actually completes) silently lost sectioning. The
+ * Figma Make brief is explicit that "per-row typing is the wrong primary interaction"; since this appends
+ * at the END, inheriting the LAST line's label is exactly what "name a section once, then keep adding to
+ * it" means. Starting a new section stays one edit (type a different label), and an ungrouped list stays
+ * ungrouped because there is nothing to inherit.
  *
  * ⛔ ONLY the section is inherited. Carrying the preparation forward would assert "finely chopped" about a
- * food the cook has not picked yet.
+ * food the picker resolved without any such claim.
  *
  * @param values - The current form values.
- * @returns The next values with one blank ingredient appended.
+ * @param line - The resolved line to append (its `ingredientId` is non-null by type).
+ * @returns The next values with that line appended.
  */
-export const addIngredient = (values: RecipeFormValues): RecipeFormValues => {
+export const appendResolvedIngredient = (
+    values: RecipeFormValues,
+    line: ResolvedRecipeFormIngredient,
+): RecipeFormValues => {
     // ⛔ Through `sectionLabelOf`, so a cleared or padded label is never propagated onto the next line — the
     // draft's spelling of "ungrouped" is the same one the fold and the wire use.
     const last = values.ingredients[values.ingredients.length - 1];
@@ -102,8 +152,9 @@ export const addIngredient = (values: RecipeFormValues): RecipeFormValues => {
         ingredients: [
             ...values.ingredients,
             // Spread-when-present, never `groupLabel: undefined` — `exactOptionalPropertyTypes`, and the
-            // draft must not acquire a key the line does not have.
-            { ...blankIngredient(), ...(groupLabel === undefined ? {} : { groupLabel }) },
+            // draft must not acquire a key the line does not have. The picker's own label wins when it has
+            // one, which is why the inherited value is spread FIRST.
+            { ...(groupLabel === undefined ? {} : { groupLabel }), ...line },
         ],
     };
 };
@@ -510,6 +561,32 @@ export const unitClassNote = (messages: RecipeFormMessages, unit?: string): stri
                 : messages.ingredientUnitUnknownNote;
     }
 };
+
+/**
+ * The localized note an UNRESOLVED ingredient line carries, or `undefined` for a line with a food (U28).
+ * Pure.
+ *
+ * DESIGN PATTERN: the same Specification-to-copy adapter that {@link unitClassNote} and
+ * {@link resolutionStatusLabel} are — ONE mapping from a domain verdict to a localized string, shared by
+ * both platform leaves so they cannot say different things about the same row.
+ *
+ * ⛔ THE VERDICT COMES FROM THE LINE, NOT FROM `errors`. Until U28 an unresolved row was marked only once a
+ * submit attempt had populated `errors.ingredients`, so a draft restored holding one rendered as an
+ * ordinary, complete-looking row — and `toCreateRecipeInput` then dropped it in silence on save. The
+ * ingredient-entry brief forbids exactly that: "Do not design a row that looks complete but is silently
+ * discarded." U28 removes every way to CREATE such a row; this is what keeps one that already exists
+ * honest, instead of hiding it or dropping it.
+ *
+ * ⛔ It reads `isResolvedIngredientId` — the SAME predicate `validateRecipeForm` blocks on — rather than a
+ * second `!== null` check. A leaf marking a different set of rows from the set that blocks the wizard is
+ * the drift one shared predicate exists to prevent, and an empty-string id is the case that separates them.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @param line - The ingredient line to judge.
+ * @returns The note, or `undefined` when the line has resolved to a food.
+ */
+export const unresolvedLineNote = (messages: RecipeFormMessages, line: RecipeFormIngredient): string | undefined =>
+    isResolvedIngredientId(line.ingredientId) ? undefined : messages.ingredientNoFoodNote;
 
 /**
  * The localized label for an ingredient line's resolution status. Pure — the single mapping from a

@@ -15,6 +15,7 @@
  * behavior. On success it navigates to the new recipe's detail route.
  */
 import {
+    appendResolvedIngredient,
     canAdvanceFromStep,
     defaultRecipeFormValues,
     pendingIngredientIds,
@@ -31,19 +32,19 @@ import {
 } from '@commise/features-recipes';
 import type {
     RecipeFormErrors,
-    RecipeFormIngredient,
     RecipeFormValues,
     RecipeWizardStep,
+    ResolvedRecipeFormIngredient,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { RecipeStatus, type FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { useCreateRecipe } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { FC } from 'react';
 
-import { IngredientPicker } from '@/components/recipes/IngredientPicker';
+import { IngredientPicker, type IngredientPickerHandle } from '@/components/recipes/IngredientPicker';
 import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
 import { webMessages } from '@/i18n/messages';
 
@@ -69,9 +70,20 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
 
     const listRoute = `/${locale}/recipes` as Route;
 
-    const addIngredient = (line: RecipeFormIngredient): void => {
-        setValues((current) => ({ ...current, ingredients: [...current.ingredients, line] }));
+    // U28 — the ONE pure append transition (`appendResolvedIngredient`), never an inline spread. Three
+    // containers used to re-implement this by hand, which is how U27's section-inheritance rule ended up on
+    // the dead "+ Add ingredient" path and MISSING from the picker path a cook actually completes.
+    //
+    // ⛔ `line` is a `ResolvedRecipeFormIngredient`, so there is no null check here and none is possible:
+    // the picker cannot hand up a foodless line.
+    const addIngredient = (line: ResolvedRecipeFormIngredient): void => {
+        setValues((current) => appendResolvedIngredient(current, line));
     };
+
+    // U28 — where "+ Add ingredient" LEADS. The leaf raises a request; this container owns the picker, so it
+    // is the only layer that can answer. See `IngredientPickerHandle` for why this is a method rather than a
+    // signal prop, and why a ref is permitted here at all.
+    const pickerRef = useRef<IngredientPickerHandle>(null);
 
     // Poll-after-add (data-model R5): a line added `PENDING` resolves in the background. The callback is
     // idempotent — `setIngredientStatusById` returns the same reference when the status is unchanged — so the
@@ -132,11 +144,16 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
                     <RecipeVisibilityField values={values} onChange={setValues} />
                 </Wizard.Step>
                 <Wizard.Step step={2}>
-                    <IngredientPicker onSelect={addIngredient} />
+                    <IngredientPicker ref={pickerRef} onSelect={addIngredient} />
                     {pendingIngredientIds(values).map((id) => (
                         <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
                     ))}
-                    <RecipeIngredientsFields values={values} errors={errors} onChange={setValues} />
+                    <RecipeIngredientsFields
+                        values={values}
+                        errors={errors}
+                        onChange={setValues}
+                        onRequestAddIngredient={() => pickerRef.current?.focusSearch()}
+                    />
                 </Wizard.Step>
                 <Wizard.Step step={3}>
                     <RecipeInstructionsFields values={values} errors={errors} onChange={setValues} />

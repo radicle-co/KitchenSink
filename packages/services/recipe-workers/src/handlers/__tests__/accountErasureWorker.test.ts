@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { S3Client } from '@aws-sdk/client-s3';
 import type { SQSEvent } from 'aws-lambda';
@@ -567,6 +567,85 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(sweep?.text).not.toMatch(/verified_by\s*=\s*null/i);
     });
 
+    /**
+     * ⛔ THE PARSE-CORRECTION TIER (plan U21, migration 0029) — the THIRD owner-bearing ingredient table,
+     * and the third to be written at the same time as the sweep that reaches it rather than after it.
+     *
+     * `ingredient_parse_corrections` holds what a cook typed (`source_line`) and who typed it
+     * (`owner_id`), so the row is personal data from its first INSERT. Both `ingredient_resolution_mappings`
+     * and `ingredient_resolution_memos` shipped WITHOUT sweep coverage and were retrofitted; this table is
+     * the first of the family whose coverage lands in the same change as the table.
+     *
+     * ⛔ AN UPDATE, NOT A DELETE, and the reason is the memo tier's: a correction is keyed by
+     * `normalized_key` and is consulted by EVERY user's parse pipeline BEFORE the cache, so deleting the
+     * erased owner's corrections would silently un-correct those lines for the whole installation — the
+     * exact outcome the tier exists to prevent.
+     *
+     * ⛔ THE TWO COLUMNS MOVE AS A PAIR. Nulling the typed line while leaving a previous owner's id beside
+     * it would point a LATER erasure at the wrong person: it would sweep a line that owner never typed and
+     * leave the one they did. Migration 0029 makes the pairing structural with a CHECK, and this suite
+     * pins that the sweep issues them in ONE statement so the constraint is never transiently violated.
+     */
+    it('de-identifies the erased owner’s parse corrections, keeping the correction itself', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const sweep = statements.find((s) => /ingredient_parse_corrections/i.test(s.text));
+
+        expect(sweep).toBeDefined();
+        expect(sweep?.text).toMatch(/update\s+ingredient_parse_corrections/i);
+        expect(statements.some((s) => /delete\s+from\s+ingredient_parse_corrections/i.test(s.text))).toBe(false);
+        expect(sweep?.text).toMatch(/owner_id\s*=\s*null/i);
+        expect(sweep?.text).toMatch(/source_line\s*=\s*null/i);
+        // ⛔ The CORRECTION is not touched. Clearing it would leave a row that corrects nothing, which is
+        // a DELETE wearing an UPDATE's clothes — and it would un-correct the line for every other user.
+        expect(sweep?.text).not.toMatch(/corrected_facts\s*=\s*null/i);
+    });
+
+    it('⛔ moves owner_id and the typed line in ONE statement — never one without the other', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        // Two statements — one per column — would leave a window in which the row carries an owner link
+        // with no text, or text with no owner link. The first is harmless; the second is the defect this
+        // pins, because a row whose text belongs to A and whose owner_id still reads B is swept for the
+        // wrong person forever after.
+        const touching = control.statements().filter((s) => /ingredient_parse_corrections/i.test(s.text));
+
+        expect(touching).toHaveLength(1);
+        expect(touching[0]?.text).toMatch(/owner_id\s*=\s*null/i);
+        expect(touching[0]?.text).toMatch(/source_line\s*=\s*null/i);
+    });
+
+    it('sweeps ONLY the erased owner’s parse corrections, and binds the owner as a parameter', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const sweep = control.statements().find((s) => /ingredient_parse_corrections/i.test(s.text));
+
+        expect(sweep?.text).toMatch(/where\s+owner_id\s*=\s*\$\d/i);
+        expect(sweep?.params).toEqual([OWNER]);
+    });
+
+    it('runs the parse-correction sweep INSIDE the one erasure transaction', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        // Outside the unit of work, a crash between the recipe delete and the sweep would report the
+        // account erased while the lines the user typed survived — the false success this worker exists
+        // to make impossible.
+        expect(control.txStatements().some((s) => /ingredient_parse_corrections/i.test(s.text))).toBe(true);
+    });
+
     it('sweeps ONLY the erased owner’s memos, and binds the owner as a parameter', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
@@ -916,6 +995,12 @@ describe('eraseRecipeObjects (CR-002 / U3a — per-removed-recipe sweep)', () =>
 describe('handler', () => {
     let control: FakeDbControl;
 
+    /**
+     * How many statements one {@link eraseRecipeRows} call issues — MEASURED from the function itself in
+     * {@link beforeAll} below, because a hand-maintained count is exactly what rotted twice before.
+     */
+    let eraseStatementCount = 0;
+
     // A removed recipe the default happy-path seeds, so there is exactly one recipe to sweep per bucket.
     const REMOVED_1 = '00000000-0000-4000-8000-0000000000e1';
     const REMOVED_2 = '00000000-0000-4000-8000-0000000000e2';
@@ -930,26 +1015,47 @@ describe('handler', () => {
 
     /**
      * Seed one record's happy path onto the shared FIFO results queue. Execute order per record: claim,
-     * then eraseRecipeRows' [flip, removed-SELECT, persist, ratings, detach, delete, collections, scrub,
-     * author_handles], then mark-completed. Only the claim and the removed-SELECT need concrete rows; the
-     * rest fall back to `{ rows: [] }`. The removed-SELECT (2nd execute inside eraseRecipeRows) must be
-     * enqueued right after the flip filler.
+     * then every statement `eraseRecipeRows` issues (the flip first, the removed-SELECT second), then
+     * mark-completed. Only the claim and the removed-SELECT need concrete rows; the rest fall back to
+     * `{ rows: [] }`, so the padding exists purely to keep the NEXT record's seeding aligned.
+     *
+     * @param db - The fake db to seed.
+     * @param claim - The claim row this record's `claimErasureJob` reads back.
+     * @param removedIds - The recipe ids this record's removed-SELECT returns.
+     * @param trailing - Extra fillers a caller needs after mark-completed.
+     * @sideEffect Enqueues results onto the fake db's shared queue.
      */
     const seedRecord = (db: FakeDbControl, claim: { rows: unknown[] }, removedIds: string[], trailing = 0): void => {
         db.enqueue(claim); // claim
         db.enqueue({ rows: [] }); // flip
         db.enqueue({ rows: removedIds.map((id) => ({ id })) }); // removed-SELECT
 
-        // persist, ratings, detach, delete, collections, scrub, author_handles, resolution-mapping sweep,
-        // resolution-MEMO sweep, completed, + caller trailing. ⚠️ The count moved from 8 to 9 when U14 added
-        // the knowledge-base sweep, and from 9 to 10 when migration 0026 added the memo sweep beside it — the
-        // FakeDb serves ONE positional queue, so a stale count silently starves the NEXT record. It did
-        // exactly that on the 0026 change: the second record's removed-SELECT consumed the first record's
-        // leftover padding and returned nothing, and the only symptom was two missing S3 prefixes.
-        for (let i = 0; i < 10 + trailing; i += 1) {
+        // The remaining erase statements, plus mark-completed, plus whatever the caller asked for.
+        //
+        // ⛔ MEASURED, never counted by hand. This padding used to be a literal, and it rotted TWICE — 8→9
+        // when U14 added the knowledge-base sweep, 9→10 when 0026 added the memo sweep beside it. The FakeDb
+        // serves ONE positional queue, so a stale count silently STARVES THE NEXT RECORD: its removed-SELECT
+        // consumes the previous record's leftover padding and returns nothing, and the only symptom is two
+        // missing S3 prefixes in one assertion three hundred lines away. A literal cannot detect that the
+        // statement list grew; `eraseStatementCount` asks the function itself.
+        for (let i = 0; i < eraseStatementCount - 1 + trailing; i += 1) {
             db.enqueue({ rows: [] });
         }
     };
+
+    beforeAll(async () => {
+        // Probe the real function against a throwaway fake: the removed-SELECT returns nothing, so no S3
+        // work follows, and what is left is the statement count this suite's positional seeding depends on.
+        const probe = createFakeDb();
+
+        await eraseRecipeRows(probe.db, OWNER, []);
+        eraseStatementCount = probe.statements().length;
+
+        expect(
+            eraseStatementCount,
+            'the probe issued no statements — the padding would be meaningless',
+        ).toBeGreaterThan(0);
+    });
 
     beforeEach(() => {
         process.env['RECIPE_MEDIA_BUCKET'] = 'media-bucket';

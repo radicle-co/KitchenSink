@@ -51,6 +51,19 @@ export type {
     NewIngredientResolutionMemoRow,
 } from './resolutionMappings.js';
 
+// ── ingredient_parse_corrections (plan U21, 0029) — the parse pipeline's TOP tier ─────────────────
+export {
+    ingredientParseCorrections,
+    PARSE_CORRECTION_SCOPES,
+    PARSE_CORRECTION_ORIGINS,
+} from './ingredientParseCorrections.js';
+export type {
+    CorrectedParse,
+    IngredientParseCorrectionRow,
+    JsonValue,
+    NewIngredientParseCorrectionRow,
+} from './ingredientParseCorrections.js';
+
 // ── recipe_ingredient_verifications (plan U11/U14, 0023) — READ-ONLY here; recipe-workers writes it ──
 export { recipeIngredientVerifications, LINE_VERIFICATION_BANDS } from './lineVerifications.js';
 export type { RecipeIngredientVerificationRow } from './lineVerifications.js';

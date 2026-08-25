@@ -257,6 +257,11 @@ const accounts: readonly ColumnAccount[] = [
     // `normalized_key` is DERIVED from a bounded wire field rather than being one, and bounding it here would
     // pin the key's length to the phrase's, which the derivation is free to change.
     { table: 'ingredient_resolution_mappings', column: 'author_id', why: PRINCIPAL_DERIVED },
+
+    // ── parse-correction tier (plan U21, 0029) ────────────────────────────────────────────────────
+    // Same shape, same reasoning: `source_line` and `corrected_facts` are the caller-supplied halves and are
+    // `text`/`jsonb`, and `normalized_key` is DERIVED from the line rather than being a wire field itself.
+    { table: 'ingredient_parse_corrections', column: 'owner_id', why: PRINCIPAL_DERIVED },
     { table: 'account_erasure_jobs', column: 'actor', why: PRINCIPAL_DERIVED },
     {
         table: 'account_erasure_jobs',

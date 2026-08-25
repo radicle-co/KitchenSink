@@ -408,6 +408,20 @@ export interface EraseRecipeRowsResult {
  *     `normalized_key` alone and is read by every user's cascade, so a delete un-resolves that phrase for
  *     the whole installation. The machine's conclusion survives; the phrase and the owner link do not.
  *
+ * 12. **Parse corrections (plan U21, migration 0029), DE-IDENTIFIED rather than deleted.**
+ *     `ingredient_parse_corrections` is the parse pipeline's TOP tier — a cook's correction of how a line
+ *     reads, consulted ahead of the parse cache and both engines. It carries the line they typed
+ *     (`source_line`) and their ULID (`owner_id`), so it is personal data from its first INSERT. ⛔ A delete
+ *     is wrong for the memo tier's reason, amplified: the row is keyed by `normalized_key` and is consulted
+ *     by EVERY user's pipeline, so removing it would silently un-correct that line installation-wide, and
+ *     clearing `corrected_facts` would be that same delete wearing an UPDATE's clothes. ⛔ The two
+ *     identifying columns move in ONE statement, never two: 0029's
+ *     `ingredient_parse_corrections_owner_line_pair` CHECK makes a row carrying one without the other
+ *     unrepresentable, because an owner id left beside somebody else's line aims the NEXT erasure at the
+ *     wrong person. Unlike the tiers above, this table's sweep shipped in the SAME change as the table —
+ *     mappings and memos were both retrofitted, and `erasureSweepCoverage.test.ts` (added with this step)
+ *     is what stops the fourth one being retrofitted too.
+ *
  * `recipe_versions.created_by` is not swept independently: mutations are owner-only and `created_by`
  * cannot diverge from its recipe's `owner_id`, so the cascade covers it, and a "defensive" delete would
  * destroy version history of a user who never asked to be erased if that invariant ever broke.
@@ -525,6 +539,36 @@ export const eraseRecipeRows = async (
         await tx.execute(sql`
             UPDATE ingredient_resolution_memos
             SET owner_id = NULL, source_phrase = NULL
+            WHERE owner_id = ${ownerId}
+        `);
+
+        // 12. **The PARSE-CORRECTION tier (plan U21, migration 0029), de-identified rather than deleted.**
+        //     `ingredient_parse_corrections` is the parse pipeline's TOP tier: a cook's correction of how a
+        //     line reads, consulted BEFORE the parse cache and before either engine. It carries the line the
+        //     cook typed and their ULID, so the row is personal data from its first INSERT — unlike the two
+        //     tiers above, whose coverage had to be retrofitted, this sweep ships in the same change as the
+        //     table it reaches.
+        //     ⛔ An UPDATE. The row is keyed by `normalized_key` and read by every user's pipeline, so
+        //     deleting the erased cook's corrections would silently un-correct those lines for the whole
+        //     installation — and clearing `corrected_facts` would be the same deletion by another name. What
+        //     is personal is the typed line and the owner link; the correction itself is not.
+        //     ⛔ ONE statement, both columns. 0029's `…_owner_line_pair` CHECK asserts
+        //     `(owner_id IS NULL) = (source_line IS NULL)`, so splitting this in two would be REJECTED by the
+        //     database rather than quietly leaving a previous owner's id beside somebody else's line — which
+        //     would sweep a line that owner never typed and leave the one they did.
+        //     ⛔ It does NOT retire the row, and that is the ONE place it diverges from the mappings sweep
+        //     above — deliberately. A `curator`-origin correction binds GLOBALLY, so stamping `superseded_at`
+        //     would un-correct that line for the whole installation the moment its author exercised a right,
+        //     which is the exact outcome this UPDATE exists to avoid. An `author`-scoped row needs no
+        //     retirement either: with `owner_id` NULL it is excluded from the read predicate, from the
+        //     corroborator query, and from the live-author unique index, so it binds nobody and blocks
+        //     nobody — including the same user returning and correcting that line again.
+        //     ⚠️ Consequently there is no `superseded_at` predicate on the WHERE either, and none is wanted:
+        //     a re-swept row already satisfies the CHECK on both columns, so an SQS redelivery is a no-op
+        //     rather than a rewrite of when the data was removed.
+        await tx.execute(sql`
+            UPDATE ingredient_parse_corrections
+            SET owner_id = NULL, source_line = NULL
             WHERE owner_id = ${ownerId}
         `);
 

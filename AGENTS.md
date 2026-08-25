@@ -229,9 +229,14 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   one role and a shared gated leg invites a second, ungated grantee. `cookbook-import` gets Null Objects for
   the cache and corrections and must not acquire a database. ⛔ U22a's segmentation cut is refused when the
   tail carries a quantity phrase (`one-half pound chocolate in one cup of water` — the tail is a second
-  food). ⚠️ Two contract defects still block U22: `ParseEngine` is declared twice, and `ParseProvenance` has
-  no inhabitant for a human correction — fix with a separate `ParseFactSource` axis, never by widening
-  `PARSE_ENGINES`.
+  food). ⛔ Two contract defects were REPAIRED 2026-08-25 and the repairs are load-bearing.
+  `ParseEngine` was declared twice — structurally identical, so `tsc` is blind to it BY CONSTRUCTION
+  (`Exact<'crf'|'llm','crf'|'llm'>` is `true`); the guard therefore reads the module's SOURCE for a surviving
+  local declaration and must not be "simplified" into a type test. `ParseProvenance` had no inhabitant for a
+  human correction and is now keyed on a separate `ParseFactSource` axis — never by widening `PARSE_ENGINES`,
+  which is the parse cache's CHECK-constrained key domain. ⚠️ Still open: `sentence` means two different
+  things in the two CRF schemas (`crfParse.ts` "echoed back" vs `engine.schema.ts` "NORMALISED"), which is
+  why the promotion adapters take `raw` as a PARAMETER rather than trusting either.
 
 ## Contract & validation conformance for NEW code (GR-017 – GR-020, ruled 2026-08-12)
 

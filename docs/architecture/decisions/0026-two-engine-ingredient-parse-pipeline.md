@@ -284,15 +284,33 @@ ordinary in this corpus.
   equipment. Historical prose is the hardest input this pipeline will meet, and **nothing here has been
   measured against a modern ingredient line** — which is what 017's capture waterfall will actually deliver.
   The three-model tie is robust (same corpus, three models); the absolute rates are upper bounds.
-- ⚠️ **Two contract defects U22 cannot proceed through, both of the invisible kind.** First, `ParseEngine`
-  is declared **twice** — `recipe-core/src/parsing/parseKey.ts` (derived from `PARSE_ENGINES`) and
-  `recipe-import-core/src/parsedLine.ts` (a bare `'crf' | 'llm'`). They are structurally identical, so
-  assignment works in both directions and nothing errors; they will diverge silently. Second,
-  `ParseProvenance` is `{ [Fact in keyof ParsedFacts]: ParseEngine }` and therefore has **no inhabitant for a
-  human correction** — a cook is neither `crf` nor `llm`, so U21's correction-tier output is untypeable.
-  ⛔ The fix is a separate `ParseFactSource` axis, **not** widening `PARSE_ENGINES`: that set is the parse
-  cache's CHECK-constrained key domain, and its own docstring says a third member is _"a compile error and a
-  migration — never a value that quietly appears in a cache row nobody can interpret."_
+- ✅ **Two contract defects, both of the invisible kind — FOUND and REPAIRED 2026-08-25, and the repairs are
+  the record of why they were invisible.** First, `ParseEngine` was declared **twice** —
+  `recipe-core/src/parsing/parseKey.ts` (derived from `PARSE_ENGINES`) and
+  `recipe-import-core/src/parsedLine.ts` (a bare `'crf' | 'llm'`). Structurally identical, so assignment
+  worked in both directions and nothing errored; they would have diverged silently. `parsedLine.ts` now
+  re-exports the authority. ⛔ **No type assertion can guard this class of defect** —
+  `Exact<'crf'|'llm', 'crf'|'llm'>` is `true`, so `tsc` is blind to a duplicate **by construction**; the
+  guard therefore reads the module's own source and asserts no local `type`/`enum`/`interface ParseEngine`
+  declaration survives. Do not "simplify" it into a type test. Second, `ParseProvenance` was
+  `{ [Fact in keyof ParsedFacts]: ParseEngine }` and therefore had **no inhabitant for a human correction** —
+  a cook is neither `crf` nor `llm`, so U21's correction-tier output was untypeable. It is now keyed on
+  `ParseFactSource = ParseEngine | 'correction'`. ⛔ The fix was a separate axis and **never** widening
+  `PARSE_ENGINES`: that set is the parse cache's CHECK-constrained key domain, and its own docstring says a
+  third member is _"a compile error and a migration — never a value that quietly appears in a cache row
+  nobody can interpret."_
+- ⚠️ **Nothing promoted an engine's answer to `ParsedLine`, and the plan's U22 did not list the module.**
+  `compareParses` consumes `ParsedLine`; the CRF returns a flat row; the LLM returns `LlmParse`. Verified by
+  grepping every `ParsedLine` reference in `packages/`: the only producer in the tree was a test fixture.
+  U22 could not have compiled. The promotion is now `domain/promoteCrfReading.ts` +
+  `domain/promoteLlmParse.ts` over `domain/readStatedMeasure.ts`, and its output is asserted **idempotent
+  under the comparator's `canonicaliseFood`**, so a cached per-engine parse already satisfies KTD-11b at rest.
+- ⛔ **`sentence` means two different things in the two CRF schemas, and both cannot be right.**
+  `cookbook-import/src/parseComparison/crfParse.ts` documents it as _"the line as it was submitted, echoed
+  back"_; `ingredient-parser/src/engine.schema.ts` documents the same field as _"the parser's NORMALISED
+  sentence"_. HAZ-041 needs byte-identical source text, so the promotion adapters take `raw` as a
+  **parameter** rather than reading `reading.sentence`. The underlying contradiction is unresolved and is
+  owed a decision by whoever owns those two files.
 - ⚠️ **The packaging guard is NEW, not proven.** It was written for this change, so it has never caught
   anything in anger. `handle-sync-worker` — 4.6 KB of raw `tsc` output, dying on every cold start with
   `ERR_MODULE_NOT_FOUND` while two guard tests watched — is the precedent for what an unguarded Lambda asset

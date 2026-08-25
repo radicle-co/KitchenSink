@@ -3,10 +3,15 @@
 /**
  * @module home/chrome/HomeMobileNav — the mobile navigation drawer (web; US-000 / FR-046, B6/CR-003).
  *
- * The slide-over the top-bar hamburger opens below the `md` breakpoint. The bottom tab bar carries the
- * primary mobile nav as compact icons; this drawer is the fuller rendering — the same destinations with
- * their text labels and the product wordmark, and the "coming soon" context that the icon-only tab bar
+ * The slide-over the top-bar hamburger opens below the `lg` breakpoint. The bottom tab bar carries the
+ * primary narrow-viewport nav as compact icons; this drawer is the fuller rendering — the same destinations
+ * with their text labels and the product wordmark, and the "coming soon" context that the icon-only tab bar
  * cannot show. It renders the SAME shared nav model, so it cannot drift from the sidebar or the tab bar.
+ *
+ * ⚠️ Its cutover must stay the hamburger's (`HomeTopBar`, `lg:hidden`) and therefore the sidebar's
+ * (`HomeSidebar`, `lg:flex`). Overlay and panel both hid at `md` while the sidebar only appeared at `lg`, so
+ * 768–1023px had no full navigation at all — and a drawer that hides at a width where its own trigger is
+ * still shown opens onto nothing (U39).
  *
  * A11y: built on Radix `Dialog` (mirrors `PullUpdatesDialog`'s pattern) — Radix owns the focus TRAP,
  * Escape-to-dismiss, backdrop-click dismiss, and background inert, so this component hand-rolls none of
@@ -91,7 +96,7 @@ export function HomeMobileNav({
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
             <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/30 backdrop-blur-[2px] md:hidden" />
+                <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/30 backdrop-blur-[2px] lg:hidden" />
                 <Dialog.Content
                     aria-label={chrome.primaryNavLabel}
                     onOpenAutoFocus={(event) => {
@@ -109,7 +114,7 @@ export function HomeMobileNav({
                      * one gradient, and the reason the drift outlived the shell fix. It stays fully OPAQUE
                      * (every stop is a solid colour), which an overlay panel above page content requires.
                      */
-                    className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/20 bg-hero shadow-[var(--shadow-xl)] md:hidden"
+                    className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/20 bg-hero shadow-[var(--shadow-xl)] lg:hidden"
                 >
                     <div className="flex items-center justify-between p-6">
                         <span className="font-display text-xl font-bold text-charcoal">{chrome.wordmark}</span>

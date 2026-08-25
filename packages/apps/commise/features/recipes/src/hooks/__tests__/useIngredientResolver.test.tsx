@@ -33,6 +33,7 @@ const {
     useCreateIngredientMock,
     useIngredientCandidatesMock,
     useResolveIngredientMock,
+    useSearchIngredientsLiveMock,
 } = vi.hoisted(() => ({
     useSuggestIngredientsMock: vi.fn(),
     useAddIngredientByNameMock: vi.fn(),
@@ -40,6 +41,7 @@ const {
     useCreateIngredientMock: vi.fn(),
     useIngredientCandidatesMock: vi.fn(),
     useResolveIngredientMock: vi.fn(),
+    useSearchIngredientsLiveMock: vi.fn(),
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
@@ -49,6 +51,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreateIngredient: useCreateIngredientMock,
     useIngredientCandidates: useIngredientCandidatesMock,
     useResolveIngredient: useResolveIngredientMock,
+    useSearchIngredientsLive: useSearchIngredientsLiveMock,
 }));
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '../ingredientResolver.model.js';
@@ -110,6 +113,8 @@ beforeEach(() => {
     useAddIngredientByFoodMock.mockReturnValue(mutation(null));
     useCreateIngredientMock.mockReturnValue(mutation(null));
     useResolveIngredientMock.mockReturnValue(mutation(null));
+    // U29 — the on-demand live source search. Idle by default: it must never run unless a leaf presses it.
+    useSearchIngredientsLiveMock.mockReturnValue(mutation(null, { data: undefined, error: undefined }));
 });
 
 afterEach(() => {
@@ -718,5 +723,133 @@ describe('useIngredientResolver — cancelDisambiguation', () => {
 
         expect(result.current.viewState).toEqual({ kind: 'idle' });
         expect(resolveReset).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * U29 — the ON-DEMAND live source search, at the hook seam.
+ *
+ * ⛔ **The property these cases exist for is that typing NEVER causes a source call.** The upstream source
+ * allows 1,000 requests/hour PER IP, shared by every cook, and only the top 10% is reserved for user-facing
+ * work; at 50 concurrent cooks a per-settled-query autocomplete would want roughly three times the whole
+ * key. The structural guard is that the search is a MUTATION rather than a query — but "structural" is only
+ * a claim until something asserts the mutation is not being called, which is what the first case does.
+ */
+describe('useIngredientResolver — the on-demand live source search (U29)', () => {
+    /** The `mutate` spy behind `useSearchIngredientsLive` for the current render. */
+    function liveMutate(): ReturnType<typeof vi.fn> {
+        return useSearchIngredientsLiveMock.mock.results[0]?.value.mutate as ReturnType<typeof vi.fn>;
+    }
+
+    it('does NOT search while the cook types — not on any keystroke, at any length', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        for (const text of ['c', 'ch', 'chi', 'chick', 'chicken breast']) {
+            act(() => {
+                result.current.setQuery(text);
+            });
+        }
+
+        act(() => {
+            vi.advanceTimersByTime(5_000);
+        });
+
+        // ⛔ Even after the debounce that drives the LOCAL typeahead has long settled, and even well past the
+        // search minimum, nothing has reached the source. A `useQuery` keyed on the text would have fired
+        // five times here.
+        expect(liveMutate()).not.toHaveBeenCalled();
+    });
+
+    it('searches only when the affordance is pressed, with the trimmed query', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => {
+            result.current.setQuery('  chicken  ');
+        });
+        act(() => {
+            result.current.liveSearch.search();
+        });
+
+        expect(liveMutate()).toHaveBeenCalledTimes(1);
+        expect(liveMutate()).toHaveBeenCalledWith('chicken');
+    });
+
+    it('refuses to search below the search minimum, even if a leaf forgot to disable the control', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => {
+            result.current.setQuery('ch');
+        });
+        act(() => {
+            result.current.liveSearch.search();
+        });
+
+        // Belt and braces on the one path that spends a shared external quota: the gate is reported through
+        // `canSearch` for the control's `disabled`, AND enforced inside `search` so a missing attribute
+        // cannot turn into a wasted call.
+        expect(result.current.liveSearch.canSearch).toBe(false);
+        expect(liveMutate()).not.toHaveBeenCalled();
+    });
+
+    it('reports the control as pressable once the query is long enough', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => {
+            result.current.setQuery('egg');
+        });
+
+        expect(result.current.liveSearch.canSearch).toBe(true);
+    });
+
+    it('admits an ALREADY-CATALOGUED hit through by-food — one round-trip, no further source call', () => {
+        const onResolved = vi.fn();
+        const admitted = makeIngredient({ id: 'ing_admitted', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        useAddIngredientByFoodMock.mockReturnValue(mutation(admitted));
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => {
+            result.current.selectLiveHit({ name: 'Broccoli, raw', foodId: 'food_1' });
+        });
+
+        expect(onResolved).toHaveBeenCalledTimes(1);
+        expect(useAddIngredientByFoodMock.mock.results[0]?.value.mutate).toHaveBeenCalledWith(
+            'food_1',
+            expect.anything(),
+        );
+        // ⛔ NOT the by-name path: we already hold this food, and re-admitting it by name would re-enter the
+        // source fan-out to rediscover something the crosswalk just told us.
+        expect(useAddIngredientByNameMock.mock.results[0]?.value.mutate).not.toHaveBeenCalled();
+    });
+
+    it('admits an UNKNOWN hit through by-name, the slower path it genuinely needs', () => {
+        const onResolved = vi.fn();
+        const added = makeIngredient({ id: 'ing_new', foodResolutionStatus: FoodResolutionStatus.PENDING });
+        useAddIngredientByNameMock.mockReturnValue(mutation(added));
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => {
+            result.current.selectLiveHit({ name: 'Broccoli rabe' });
+        });
+
+        expect(useAddIngredientByNameMock.mock.results[0]?.value.mutate).toHaveBeenCalledWith(
+            'Broccoli rabe',
+            expect.anything(),
+        );
+        expect(onResolved).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens disambiguation when admitting a live hit lands UNRESOLVED, rather than dropping the line', () => {
+        const onResolved = vi.fn();
+        const split = makeIngredient({ id: 'ing_split', foodResolutionStatus: FoodResolutionStatus.UNRESOLVED });
+        useAddIngredientByNameMock.mockReturnValue(mutation(split));
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        act(() => {
+            result.current.selectLiveHit({ name: 'Broccoli rabe' });
+        });
+
+        // The accepted cost of picking something the source has and we do not — surfaced, never silent.
+        expect(result.current.viewState.kind).toBe('disambiguating');
+        expect(onResolved).not.toHaveBeenCalled();
     });
 });

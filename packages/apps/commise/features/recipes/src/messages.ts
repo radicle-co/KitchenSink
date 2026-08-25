@@ -239,6 +239,56 @@ export interface IngredientSearchMessages {
     readonly tooShort: string;
 }
 
+/**
+ * Copy for the ON-DEMAND live source search (plan U29) — the picker's "Search USDA for '…'" affordance and
+ * the panel it opens.
+ *
+ * ⛔ Shared, like {@link IngredientSearchMessages} and for the same reason: BOTH pickers render every one of
+ * these strings, and the two app dictionaries have already drifted on every string they share
+ * (`noMatches` vs `empty`, `addFreeform` vs `create`). A cook must be told the same thing about a shared
+ * external rate limit on both platforms, because it IS the same limit.
+ *
+ * ⛔ **Three settled outcomes get three sentences, and they must never be merged.** `noResults` means the
+ * source answered and has nothing — stop looking. `busy` means the search never happened and is worth
+ * repeating shortly. `failed` means the source did not answer — also worth repeating, with no window we can
+ * honestly name. One sentence for all three would send a cook round a loop that cannot end.
+ *
+ * ⚠️ The copy names USDA even though every identifier around it is source-agnostic. That is deliberate:
+ * the cook is being told WHOSE data they are about to wait several seconds for, the picker already badges
+ * catalog rows "USDA", and a sentence reading "search the external source" tells them nothing. When a second
+ * source is wired this copy is what changes, not the architecture.
+ */
+export interface IngredientLiveSearchMessages {
+    /** The affordance itself — an explicit, occasional action (contains `{query}`). */
+    readonly action: string;
+    /**
+     * A short tag on the affordance warning that this one is SLOW.
+     *
+     * ⚠️ Not decoration. Everything else in the picker settles in well under a second; this reaches an
+     * upstream service over the network and routinely takes seconds. Saying so before the press is what
+     * makes the wait feel like the cook's choice rather than the app hanging.
+     */
+    readonly slowTag: string;
+    /** In-flight caption, and the live region's content while a search runs. */
+    readonly searching: string;
+    /** Secondary in-flight line, setting the expectation that seconds are normal. */
+    readonly searchingDetail: string;
+    /** Section heading over the hits the source returned. */
+    readonly resultsTitle: string;
+    /** The source answered and has nothing for this query (contains `{query}`). */
+    readonly noResults: string;
+    /** ⛔ The rate refusal — OUR reserved lane or the source's own limit. Never the same as {@link failed}. */
+    readonly busy: string;
+    /** ⛔ The source did not answer. Never the same as {@link busy} — no retry window is promised. */
+    readonly failed: string;
+    /** Retry control, offered on both failure states. */
+    readonly retry: string;
+    /** Dismiss the panel and return to the local results. */
+    readonly dismiss: string;
+    /** Accessible label for the panel as a region. */
+    readonly regionLabel: string;
+}
+
 /** The shape of the recipe feature's shared copy. */
 export interface RecipeMessages {
     /** Title of the recent-recipes Home widget card. */
@@ -253,6 +303,8 @@ export interface RecipeMessages {
     readonly card: RecipeCardMessages;
     /** Copy for the ingredient-search minimum (003-FR-010a), shared by all four search surfaces. */
     readonly ingredientSearch: IngredientSearchMessages;
+    /** Copy for the on-demand live source search (plan U29), shared by both ingredient pickers. */
+    readonly ingredientLiveSearch: IngredientLiveSearchMessages;
 }
 
 export const recipeMessages: LocalizedMessages<RecipeMessages> = {
@@ -261,6 +313,19 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
         emptyState: 'No recipes yet. Create your first recipe to see it here.',
         ingredientSearch: {
             tooShort: 'Keep typing — {minimum} characters or more. Anything shorter matches half the pantry.',
+        },
+        ingredientLiveSearch: {
+            action: 'Search USDA for “{query}”',
+            slowTag: 'Slow',
+            searching: 'Searching the USDA database…',
+            searchingDetail: 'This can take a few seconds.',
+            resultsTitle: 'From USDA',
+            noResults: 'USDA has nothing for “{query}”. Add it as a custom ingredient instead.',
+            busy: 'USDA searches are rate-limited and the limit is used up right now. Try again in a minute.',
+            failed: 'USDA didn’t answer. Check your connection and try again.',
+            retry: 'Try again',
+            dismiss: 'Close USDA results',
+            regionLabel: 'USDA search results',
         },
         list: {
             heading: 'Recipes',

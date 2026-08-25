@@ -34,6 +34,21 @@
  *  3. ⚠️ **It is a SEPARATE intent from picking.** Teaching does not resolve a line, and a failed correction
  *     never disturbs one — the notice says so explicitly.
  *
+ * **U29 — the ON-DEMAND USDA search.** Below the local results sits an explicit affordance, "Search USDA
+ * for '{query}'", tagged SLOW. ⛔ It is a BUTTON a cook presses, never a typeahead: the upstream source
+ * allows 1,000 requests/hour PER IP shared by every cook, of which 003's FR-019 reserves only the top 10%
+ * for user-facing work — so at 50 concurrent cooks a per-settled-query autocomplete would want roughly
+ * three times the entire key. Do not add a debounce, an effect, or a "the local results look thin" trigger.
+ *
+ * ⚠️ **The panel APPENDS below the local sections; it never replaces them.** The design mockup shows the
+ * running/failed states taking the whole result area over, and this leaf deliberately does not: a cook who
+ * waits several seconds and then gets a failure would have lost the local list they already had. The
+ * revival plan's own rule is that the source section "never blocks local", and that wins.
+ *
+ * ⛔ **Three settled outcomes get three sentences.** "USDA has nothing for X" means stop looking (a
+ * `status`, not an `alert`, and no retry offered — nothing failed). "Rate-limited" and "didn't answer" both
+ * mean try again, and are `alert`s with a retry. Merging any pair sends a cook round a loop that cannot end.
+ *
  * **Every progress region carries its label as CONTENT, not only as `aria-label`.** A `role="status"` node
  * rendered EMPTY is doubly broken: it is zero-height (nothing for a sighted viewer to see, and Playwright
  * resolves it as `hidden`) and it is silent — a live region announces content CHANGES, and a region with no
@@ -83,7 +98,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
     const formMessages = useMessages(recipeFormMessages);
     // 003-FR-010a: the search-minimum copy is shared by all four ingredient-search surfaces, so it lives in
     // the feature package rather than in this app's dictionary — see `IngredientSearchMessages`.
-    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
+    const { ingredientSearch: minimumCopy, ingredientLiveSearch: liveCopy } = useMessages(recipeMessages);
     const {
         query,
         setQuery,
@@ -99,6 +114,8 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
         pickCandidate,
         addFreeform,
         cancelDisambiguation,
+        liveSearch,
+        selectLiveHit,
     } = useIngredientResolver(onSelect);
     const correctionMessages = useMessages(recipeCorrectionMessages);
     // `ingredient_picker` is a CLOSED wire enum, so this surface cannot invent an audit value (R20).
@@ -225,6 +242,119 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
         );
     };
 
+    /**
+     * The ON-DEMAND source-search panel (U29) — rendered BELOW the local sections, never in place of them.
+     *
+     * Each settled kind gets its own affordance set, because each implies a different next move: hits are
+     * pickable rows; "has nothing" is a quiet `status` with NO retry, since nothing failed and repeating the
+     * search cannot change the answer; both failures are `alert`s with a retry, because the search never
+     * actually happened.
+     */
+    const liveSearchPanel = ((): JSX.Element | null => {
+        const state = liveSearch.state;
+
+        if (state.kind === 'idle') {
+            return null;
+        }
+
+        if (state.kind === 'searching') {
+            return (
+                <div className="flex flex-col gap-1 rounded-xl border border-border bg-card p-2">
+                    <p role="status" aria-label={liveCopy.searching} className="px-2 py-1 text-body-sm text-slate">
+                        {liveCopy.searching}
+                    </p>
+                    <p className="px-2 text-caption text-slate">{liveCopy.searchingDetail}</p>
+                </div>
+            );
+        }
+
+        if (state.kind === 'results') {
+            return (
+                <section
+                    aria-label={liveCopy.regionLabel}
+                    className="flex flex-col rounded-xl border border-border bg-card p-2"
+                >
+                    <div className="flex items-center gap-2 px-2 py-1">
+                        <h4 className="flex-1 text-caption font-semibold uppercase tracking-wide text-slate">
+                            {liveCopy.resultsTitle}
+                        </h4>
+                        <button
+                            type="button"
+                            onClick={liveSearch.dismiss}
+                            className="rounded-full px-2 py-0.5 text-caption font-medium text-slate transition hover:bg-pearl"
+                        >
+                            {liveCopy.dismiss}
+                        </button>
+                    </div>
+                    <ul className="flex flex-col">
+                        {state.hits.map((hit) => (
+                            <li key={`${hit.name}:${hit.foodId ?? ''}`} className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => selectLiveHit(hit)}
+                                    disabled={addByFoodStatus.isPending || addByNameStatus.isPending}
+                                    className="flex-1 rounded-lg px-3 py-2 text-left text-body-md text-charcoal transition hover:bg-pearl disabled:opacity-60"
+                                >
+                                    {hit.name}
+                                </button>
+                                <span className="shrink-0 rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-ocean-dark">
+                                    {picker.catalogBadge}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            );
+        }
+
+        if (state.kind === 'empty') {
+            // ⛔ `status`, not `alert`, and NO retry: the source answered. A cook here should name the
+            // ingredient themselves, and offering "try again" would send them round a loop that cannot end.
+            return (
+                <div className="flex flex-col gap-1 rounded-xl border border-border bg-card p-2">
+                    <p role="status" className="px-2 py-1 text-body-sm text-slate">
+                        {fillTemplate(liveCopy.noResults, { query: state.query })}
+                    </p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="flex flex-col gap-1 rounded-xl border border-border bg-card p-2">
+                <p role="alert" className="px-2 py-1 text-body-sm text-error-dark">
+                    {state.kind === 'busy' ? liveCopy.busy : liveCopy.failed}
+                </p>
+                <div className="flex items-center gap-2 px-2">
+                    <button
+                        type="button"
+                        onClick={liveSearch.search}
+                        disabled={!liveSearch.canSearch}
+                        className="rounded-full bg-seafoam/10 px-3 py-1 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/20 disabled:opacity-60"
+                    >
+                        {liveCopy.retry}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={liveSearch.dismiss}
+                        className="rounded-full px-3 py-1 text-body-sm font-medium text-slate transition hover:bg-pearl"
+                    >
+                        {liveCopy.dismiss}
+                    </button>
+                </div>
+            </div>
+        );
+    })();
+
+    /**
+     * Whether the on-demand affordance is on screen at all.
+     *
+     * Offered once the query clears the 003-FR-010a minimum, and kept mounted while its own search runs so
+     * the control the cook pressed stays the control they are waiting on (it is `disabled` meanwhile).
+     * Below the minimum it is not merely disabled but ABSENT, matching the other query-keyed actions: a
+     * two-character query cannot discriminate, and this is the one path that spends a shared external quota.
+     */
+    const isLiveSearchOffered = liveSearch.canSearch || liveSearch.state.kind === 'searching';
+
     /** The primary (addByName) + fallback (freeform) action row shared by every non-disambiguating kind. */
     const actionRow = (
         <>
@@ -266,6 +396,30 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                     {fillTemplate(picker.addFreeform, { query: trimmed })}
                 </button>
             </div>
+
+            {liveSearchPanel}
+
+            {/* U29: the ON-DEMAND source search. ⛔ A button, never a keystroke trigger — see the module doc
+                for the quota arithmetic that makes a live typeahead impossible rather than merely costly.
+                ⚠️ ONE control that DISABLES while its search runs, never a second element swapped in: a
+                swap detaches the node a screen reader (and a test) is holding, and re-announces a control
+                the cook never left. */}
+            {isLiveSearchOffered && (
+                <button
+                    type="button"
+                    onClick={liveSearch.search}
+                    disabled={!liveSearch.canSearch}
+                    aria-busy={liveSearch.state.kind === 'searching'}
+                    className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-left text-body-sm text-slate transition hover:bg-pearl disabled:opacity-60"
+                >
+                    <span className="flex-1">{fillTemplate(liveCopy.action, { query: trimmed })}</span>
+                    {/* Not decoration: everything else here settles in under a second and this takes several,
+                        so saying so BEFORE the press makes the wait read as the cook's choice. */}
+                    <span className="shrink-0 rounded-full bg-pearl px-2 py-0.5 text-caption font-semibold uppercase tracking-wide text-slate">
+                        {liveCopy.slowTag}
+                    </span>
+                </button>
+            )}
 
             {addByNameStatus.isError && (
                 <p role="alert" className="px-2 py-1 text-body-sm text-error-dark">

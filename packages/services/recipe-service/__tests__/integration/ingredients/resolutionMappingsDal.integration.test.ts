@@ -37,6 +37,14 @@ const FOOD_A = '01JU10DAL00000000000000FOODA';
 const FOOD_B = '01JU10DAL00000000000000FOODB';
 const AUTHOR_A = '01JU10DAL0000000000000AUTHA';
 const AUTHOR_B = '01JU10DAL0000000000000AUTHB';
+/**
+ * The cook a memo's phrase is attributed to.
+ *
+ * ⛔ `VerifiedMemo.ownerId` is REQUIRED since migration 0031: `recordMemo` used to omit `owner_id` from its
+ * statement entirely, so every memo it wrote carried a phrase the erasure sweep's `WHERE owner_id = $owner`
+ * could never match. The database now refuses that row, and the required field makes it a compile error.
+ */
+const MEMO_OWNER = '01JU10DAL000000000MEMOOWNR';
 
 /** Every key this suite writes shares this prefix, so cleanup is exact and collides with no other spec. */
 const PREFIX = 'u10 dal';
@@ -293,7 +301,6 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
             const replayed = await dal.promoteByCorroboration({
                 normalizedKey: key('rice flour'),
                 foodId: FOOD_A,
-                sourcePhrase: `${PREFIX} rice flour`,
                 citesExisting: (promoted.written && promoted.promotion!.citesExisting) as string,
                 citesNew: (promoted.written && promoted.mappingId) as string,
                 supersedesGlobal: undefined,
@@ -310,6 +317,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_A,
                 sourcePhrase: 'Vanilla extract',
                 verifiedBy: 'test-model-v1',
+                ownerId: MEMO_OWNER,
             });
 
             const hit = await dal.findMemo(key('vanilla extract'));
@@ -323,6 +331,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_A,
                 sourcePhrase: 'All-purpose flour',
                 verifiedBy: 'test-model-v1',
+                ownerId: MEMO_OWNER,
             });
 
             // ⚠️ MEASURED, not assumed: `pg_trgm` splits on non-alphanumerics, so `all-purpose` and
@@ -343,6 +352,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_B,
                 sourcePhrase: 'Unbleached bread flour',
                 verifiedBy: 'test-model-v1',
+                ownerId: MEMO_OWNER,
             });
 
             const hit = await dal.findMemo(key('unbleached bread flours'));
@@ -361,6 +371,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_A,
                 sourcePhrase: 'Smoked paprika',
                 verifiedBy: 'test-model-v1',
+                ownerId: MEMO_OWNER,
             });
 
             // A k-NN search ALWAYS returns something when the table is non-empty — that is what makes an
@@ -375,12 +386,14 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_A,
                 sourcePhrase: 'Golden syrup',
                 verifiedBy: 'test-model-v1',
+                ownerId: MEMO_OWNER,
             });
             await dal.recordMemo({
                 normalizedKey: key('golden syrup'),
                 foodId: FOOD_B,
                 sourcePhrase: 'Golden syrup',
                 verifiedBy: 'test-model-v2',
+                ownerId: MEMO_OWNER,
             });
 
             expect((await dal.findMemo(key('golden syrup')))?.foodId).toBe(FOOD_B);

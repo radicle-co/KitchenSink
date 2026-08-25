@@ -397,6 +397,18 @@ export interface EraseRecipeRowsResult {
  *     row is retired (`superseded_at = now()`) and stripped of both identifying columns instead, which is
  *     exactly the shape migration 0021 was written for. Scoped to LIVE rows, so a previously-swept row is
  *     left alone.
+ *     ⛔ **The predicate reaches every row that CAN carry a phrase, and migration 0031 is what makes that
+ *     true.** A `corroboration` binding has `author_id = NULL` by construction — nobody wrote it — so it is
+ *     STRUCTURALLY unreachable by `WHERE author_id = $owner`, and it used to be inserted carrying a COPY of
+ *     the promoting cook's typed words. Both cooks could then be erased and that third row would keep one of
+ *     their phrases forever, with nothing to point erasure at and no way to tell whose words they were.
+ *     Growing a second predicate here could not fix it (this very statement nulls the `author_id` the
+ *     citation would have to join through), and retiring the binding would withdraw a `global` resolution
+ *     from the whole installation over ONE person's personal right. So the phrase is never stored:
+ *     `promoteByCorroboration` writes none, and 0031's `…_phrase_needs_owner` CHECK refuses a row that
+ *     carries one. That CHECK also guards THIS statement in the other direction — clearing only one of the
+ *     two columns is now a row PostgreSQL refuses, so a half-sweep cannot leave a previous author's id
+ *     beside somebody else's wording and aim the next erasure at them.
  *
  * 11. **Machine-derived resolution memos (plan U10, migration 0026), DE-IDENTIFIED rather than deleted.**
  *     `ingredient_resolution_memos` records that a model agreed a phrase means a food. It carries the
@@ -407,6 +419,10 @@ export interface EraseRecipeRowsResult {
  *     row is wrong here for a DIFFERENT reason than in the mappings tier: a memo is keyed by
  *     `normalized_key` alone and is read by every user's cascade, so a delete un-resolves that phrase for
  *     the whole installation. The machine's conclusion survives; the phrase and the owner link do not.
+ *     ⛔ Migration 0031 closes the same structural hole here that it closes above: a memo written with no
+ *     `owner_id` carried a phrase this predicate could never match. `recordMemo` now REQUIRES an owner and
+ *     `verdictStore.rememberAgreement` stores the conclusion without a phrase when the message carries no
+ *     owner, and `…_phrase_needs_owner` refuses the ownerless-phrase row either would otherwise produce.
  *
  * 12. **Parse corrections (plan U21, migration 0029), DE-IDENTIFIED rather than deleted.**
  *     `ingredient_parse_corrections` is the parse pipeline's TOP tier — a cook's correction of how a line
@@ -517,6 +533,11 @@ export const eraseRecipeRows = async (
         //     while `superseded_at` is set. Scoped to LIVE rows: an already-superseded row was swept the
         //     first time this ran, and re-writing it would disturb the historical record a global ruling's
         //     audit trail is made of.
+        //     ⛔ ONE statement, both columns — the same rule step 12 states, and since migration 0031 the
+        //     same kind of enforcement: `ingredient_resolution_mappings_phrase_needs_owner` asserts
+        //     `(author_id IS NULL) = (source_phrase IS NULL)`, so splitting this in two is REJECTED by the
+        //     database. That constraint is also what lets this predicate stand alone: the only rows with no
+        //     `author_id` are corroboration bindings and already-swept rows, and neither can carry a phrase.
         await tx.execute(sql`
             UPDATE ingredient_resolution_mappings
             SET superseded_at = now(), author_id = NULL, source_phrase = NULL
@@ -536,6 +557,9 @@ export const eraseRecipeRows = async (
         //     ⚠️ There is no `superseded_at` analogue to scope on, and none is wanted: the memo's primary key
         //     is the phrase's normalized form, so a re-swept row is already NULL on both columns and the
         //     statement is a no-op rather than a rewrite of history.
+        //     ⛔ Both columns in ONE statement here too, and since 0031 enforced the same way: a memo whose
+        //     owner is unknown records the machine's conclusion and NO phrase, so this predicate reaches
+        //     every phrase the table can hold rather than only the ones a writer remembered to attribute.
         await tx.execute(sql`
             UPDATE ingredient_resolution_memos
             SET owner_id = NULL, source_phrase = NULL

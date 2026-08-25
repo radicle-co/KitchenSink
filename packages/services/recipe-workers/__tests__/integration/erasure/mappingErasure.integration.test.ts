@@ -92,13 +92,21 @@ describe.skipIf(!canRun)('erasure over the curated mapping knowledge base (U14 i
         return result.rows[0]?.id ?? '';
     }
 
-    /** Insert the corroboration binding citing both author rows, and return its id. */
+    /**
+     * Insert the corroboration binding citing both author rows, and return its id.
+     *
+     * ⛔ `source_phrase` is NULL, exactly as `promoteByCorroboration` now writes it. This fixture used to
+     * carry a phrase, which is the defect migration 0031 closed: the binding has no `author_id`, so a phrase
+     * on it is unreachable by the sweep's predicate and outlives the erasure that should have removed it.
+     * The database now refuses the old shape, and `corroborationPhraseErasure.integration.test.ts` next door
+     * is where that refusal and the erasure outcome are asserted.
+     */
     async function insertCorroboration(a: string, b: string): Promise<string> {
         const result = await db.execute<{ id: string }>(sql`
             INSERT INTO ingredient_resolution_mappings
                 (normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing,
                  corroborated_a, corroborated_b)
-            VALUES (${KEY}, ${'plain flour'}, ${FOOD_ID}, 'global', 'corroboration', NULL, 'recipe-line',
+            VALUES (${KEY}, NULL, ${FOOD_ID}, 'global', 'corroboration', NULL, 'recipe-line',
                     ${a}, ${b})
             RETURNING id
         `);
@@ -158,8 +166,10 @@ describe.skipIf(!canRun)('erasure over the curated mapping knowledge base (U14 i
         expect(after?.superseded_at).toBeNull();
         expect(after?.corroborated_a).toBe(erasedRow);
         expect(after?.corroborated_b).toBe(bystanderRow);
-        // …and the binding itself never carried an author, so there is nothing on it to strip.
+        // …and the binding itself never carried an author, so there is nothing on it to strip — which since
+        // migration 0031 includes the phrase: it copies nobody's words, so both columns are NULL from birth.
         expect(after?.author_id).toBeNull();
+        expect(after?.source_phrase).toBeNull();
     });
 
     it('does NOT touch another author’s live mapping', async () => {

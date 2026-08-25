@@ -32,8 +32,22 @@ const FOOD_A = '01JU10SCHEMA000000000FOODA';
 const FOOD_B = '01JU10SCHEMA000000000FOODB';
 const AUTHOR_A = '01JU10SCHEMA00000000AUTHA';
 const AUTHOR_B = '01JU10SCHEMA00000000AUTHB';
+/**
+ * The cook a memo's phrase is attributed to.
+ *
+ * ⛔ Required since migration 0031: `…_phrase_needs_owner` refuses a memo carrying a phrase with no owner,
+ * because no sweep predicate can reach one — which is the same defect the corroboration binding had.
+ */
+const MEMO_OWNER = '01JU10SCHEMA0000000MEMOOWN';
 
-/** Insert a mapping, returning its id. Written long-hand so each spec's SQL is readable where it is used. */
+/**
+ * Insert a mapping, returning its id. Written long-hand so each spec's SQL is readable where it is used.
+ *
+ * ⛔ `source_phrase` is bound to the key for an AUTHORED row and to NULL for a `corroboration` binding,
+ * because migration 0031's `…_phrase_needs_owner` makes any other pairing a row PostgreSQL refuses. A
+ * binding copies nobody's words: it has no `author_id`, so a phrase on it would be unreachable by the
+ * erasure sweep's `WHERE author_id = $owner`.
+ */
 async function insertMapping(
     pool: pg.Pool,
     row: {
@@ -50,7 +64,7 @@ async function insertMapping(
         `INSERT INTO ingredient_resolution_mappings
              (normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing,
               corroborated_a, corroborated_b)
-         VALUES ($1, $1, $2, $3, $4, $5, 'picker_correction', $6, $7)
+         VALUES ($1, $8, $2, $3, $4, $5, 'picker_correction', $6, $7)
          RETURNING id`,
         [
             row.key,
@@ -60,6 +74,7 @@ async function insertMapping(
             row.authorId,
             row.corroboratedA ?? null,
             row.corroboratedB ?? null,
+            row.authorId === null ? null : row.key,
         ],
     );
 
@@ -337,21 +352,23 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
     describe('ingredient_resolution_memos — the machine-derived tier', () => {
         it('records the model that AGREED with the resolution (R21) and keys one memo per phrase', async () => {
             await pool.query(
-                `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
-                 VALUES ($1, $2, 'Plain Flour', 'model-v1')`,
-                [KEY, FOOD_A],
+                `INSERT INTO ingredient_resolution_memos
+                     (normalized_key, food_id, source_phrase, verified_by, owner_id)
+                 VALUES ($1, $2, 'Plain Flour', 'model-v1', $3)`,
+                [KEY, FOOD_A, MEMO_OWNER],
             );
 
             // A re-verification under a newer model REPLACES the memo rather than accumulating beside it: a
             // memo is a food id, not a vector, so a newer judge's answer supersedes an older one.
             await expect(
                 pool.query(
-                    `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
-                     VALUES ($1, $2, 'Plain Flour', 'model-v2')
+                    `INSERT INTO ingredient_resolution_memos
+                         (normalized_key, food_id, source_phrase, verified_by, owner_id)
+                     VALUES ($1, $2, 'Plain Flour', 'model-v2', $3)
                      ON CONFLICT (normalized_key)
                      DO UPDATE SET food_id = EXCLUDED.food_id, verified_by = EXCLUDED.verified_by,
                                    verified_at = now()`,
-                    [KEY, FOOD_B],
+                    [KEY, FOOD_B, MEMO_OWNER],
                 ),
             ).resolves.toBeDefined();
 
@@ -380,9 +397,10 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
 
         it('answers a NEAR-TWIN phrase the knowledge base has never seen verbatim (R14 / AE8)', async () => {
             await pool.query(
-                `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
-                 VALUES ($1, $2, 'All-purpose flour', 'model-v1')`,
-                ['u10 schema all-purpose flour', FOOD_A],
+                `INSERT INTO ingredient_resolution_memos
+                     (normalized_key, food_id, source_phrase, verified_by, owner_id)
+                 VALUES ($1, $2, 'All-purpose flour', 'model-v1', $3)`,
+                ['u10 schema all-purpose flour', FOOD_A, MEMO_OWNER],
             );
 
             const { rows } = await pool.query<{ food_id: string; sim: number }>(
@@ -453,15 +471,42 @@ describe.skipIf(!hasDatabaseUrl)('ingredient_resolution_memos — erasability (m
     it('accepts a NULL source_phrase — without which the erasure sweep raises 23502', async () => {
         await insertMemo(MEMO_KEY, OWNER_A);
 
+        // ⚠️ REWRITTEN for migration 0031. This used to null `source_phrase` ALONE, which is now a row
+        // PostgreSQL refuses — deliberately, since a half-run sweep is what leaves an owner's id beside
+        // somebody else's words. The claim it was making is unchanged and still asserted: the column has
+        // lost 0021's `NOT NULL`, so the sweep does not raise `23502` on a legal erasure request. It is now
+        // made with the statement the sweep actually issues, which moves both columns together.
         await expect(
-            pool.query('UPDATE ingredient_resolution_memos SET source_phrase = NULL WHERE normalized_key = $1', [
-                MEMO_KEY,
-            ]),
+            pool.query(
+                'UPDATE ingredient_resolution_memos SET owner_id = NULL, source_phrase = NULL WHERE normalized_key = $1',
+                [MEMO_KEY],
+            ),
         ).resolves.toBeDefined();
     });
 
-    it('still admits a memo with no owner — the shape a pre-0026 producer sends', async () => {
-        await expect(insertMemo(MEMO_KEY, null)).resolves.toBeUndefined();
+    it('⛔ admits an OWNERLESS memo only WITHOUT a phrase — the shape a pre-0026 producer now yields', async () => {
+        // ⚠️ REWRITTEN, and this one REVERSES what it used to assert. 0026 admitted a phrase with no owner,
+        // reasoning that it was "exactly the position every memo was in before 0026 rather than a worse
+        // one". True, and still an unbounded retention window: no predicate can reach a phrase with nobody
+        // to attribute it to, so it outlives every erasure. Migration 0031 refuses that row.
+        //
+        // ⛔ No knowledge is lost, which was 0026's whole concern. The memo is still written and still
+        // answers every future cook's cascade — `food_id` and `verified_by` are the MACHINE's conclusion and
+        // nobody asked to have those erased. Only the raw phrase, which is write-only and personal, is not
+        // stored. `verdictStore.rememberAgreement` writes exactly this shape for an ownerless message.
+        await expect(insertMemo(MEMO_KEY, null)).rejects.toMatchObject({
+            code: '23514',
+            constraint: 'ingredient_resolution_memos_phrase_needs_owner',
+        });
+
+        await expect(
+            pool.query(
+                `INSERT INTO ingredient_resolution_memos
+                     (normalized_key, food_id, source_phrase, verified_by, owner_id)
+                 VALUES ($1, $2, NULL, 'us.amazon.nova-micro-v1:0', NULL)`,
+                [MEMO_KEY, FOOD_A],
+            ),
+        ).resolves.toBeDefined();
     });
 
     it('de-identifies the erased owner’s memo while keeping the machine’s conclusion', async () => {

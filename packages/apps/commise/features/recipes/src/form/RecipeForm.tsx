@@ -38,6 +38,7 @@ export const RecipeForm: FC<RecipeFormProps> = ({
     mode,
     submitting = false,
     onChange,
+    onRequestAddIngredient,
     onSubmit,
     onCancel,
 }) => {
@@ -57,7 +58,12 @@ export const RecipeForm: FC<RecipeFormProps> = ({
             <h1 className="font-display text-display-md font-bold text-charcoal">{headingText}</h1>
 
             <RecipeBasicsFields values={values} errors={errors} onChange={onChange} />
-            <RecipeIngredientsFields values={values} errors={errors} onChange={onChange} />
+            <RecipeIngredientsFields
+                values={values}
+                errors={errors}
+                onChange={onChange}
+                onRequestAddIngredient={onRequestAddIngredient}
+            />
             <RecipeInstructionsFields values={values} errors={errors} onChange={onChange} />
             <RecipeVisibilityField values={values} onChange={onChange} />
 

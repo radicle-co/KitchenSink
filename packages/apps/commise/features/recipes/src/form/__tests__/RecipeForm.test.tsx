@@ -47,6 +47,9 @@ function renderForm(overrides: Partial<RecipeFormProps> = {}) {
         onChange: noop,
         onSubmit: noop,
         onCancel: noop,
+        // U28 — REQUIRED, so a composition cannot forget to say where "+ Add ingredient" leads. `RecipeForm`
+        // forwards it to the ingredients leaf exactly as it forwards `onSubmit`/`onCancel`.
+        onRequestAddIngredient: noop,
         ...overrides,
     };
     render(<RecipeForm {...props} />);
@@ -422,6 +425,7 @@ describe('RecipeForm (web) — title/description char counters (w3/e6)', () => {
                     values: filledValues({ title: 'A' }),
                     mode: 'create',
                     onChange: noop,
+                    onRequestAddIngredient: noop,
                     onSubmit: noop,
                     onCancel: noop,
                 }}
@@ -436,6 +440,7 @@ describe('RecipeForm (web) — title/description char counters (w3/e6)', () => {
                     values: filledValues({ title: 'Abc' }),
                     mode: 'create',
                     onChange: noop,
+                    onRequestAddIngredient: noop,
                     onSubmit: noop,
                     onCancel: noop,
                 }}
@@ -510,10 +515,15 @@ describe('RecipeForm (web) — B8 error accessibility wiring (aria-invalid + ari
         const alert = screen.getByRole('alert');
 
         // Line 1 — the unresolved name is the offending control.
+        //
+        // ⚠️ WIDENED BY U28 (was `toBe(alert.id)`): the field is now described by its OWN "no food chosen"
+        // note as well as the section alert. The property this test proves is unchanged — the offending
+        // control is wired to the alert — and is now sharper, because the row also says which row and what
+        // to do. Asserting the alert id is still REACHED (rather than dropping the assertion) is the point.
         expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-invalid')).toBe('true');
-        expect(screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-describedby')).toBe(
-            alert.id,
-        );
+        expect(
+            screen.getByRole('textbox', { name: 'Ingredient 1 name' }).getAttribute('aria-describedby')?.split(' '),
+        ).toContain(alert.id);
         expect(
             screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' }).getAttribute('aria-invalid'),
         ).toBeNull();
@@ -697,24 +707,45 @@ describe('RecipeForm (web) — ingredients', () => {
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).readOnly).toBe(true);
     });
 
-    it('keeps an UNRESOLVED line’s name editable (the freeform search text, not yet a resolved identity; U6)', () => {
+    /**
+     * REWRITTEN for U28 (was: "keeps an UNRESOLVED line’s name editable ... U6").
+     *
+     * U6 kept an unresolved line's name editable on the reasoning that it was "the freeform search text, not
+     * yet a resolved identity". That premise died with the blank-row button: a line resolves ONLY through the
+     * picker, so typing into this field could never produce an id, and `toCreateRecipeInput` dropped the row
+     * whatever it said. It was dead UI dressed as a working control — the ingredient-entry brief's "It is
+     * filled from the picker below … never typed over", and its "row that looks complete but is silently
+     * discarded", one layer down.
+     */
+    it('renders an UNRESOLVED line’s name READ-ONLY too — a food is picked, never typed (U28)', () => {
         renderForm({
             values: filledValues({ ingredients: [{ ingredientId: null, name: 'rice', quantity: 1 }] }),
         });
 
-        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).readOnly).toBe(false);
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).readOnly).toBe(true);
+        // The text the cook wrote is PRESERVED and visible — read-only is not hidden.
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).value).toBe('rice');
     });
 
-    it('appends a blank ingredient line on add', async () => {
+    /**
+     * REWRITTEN for U28 (was: "appends a blank ingredient line on add").
+     *
+     * ⛔ THIS IS THE MUTANT GUARD FOR "restore the append-an-empty-row behaviour". The old assertion PINNED
+     * the dead end: the button emitted `{ ingredientId: null, name: '', quantity: 1 }`, which
+     * `validateRecipeForm` then refused and `toCreateRecipeInput` silently dropped. The button is now a
+     * REQUEST — it opens the picker and touches no values at all — so this asserts both halves: the request
+     * fires, and `onChange` is never called.
+     */
+    it('⛔ asks for the PICKER on add — and changes no values (U28)', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        renderForm({ values: filledValues({ ingredients: [] }), onChange });
+        const onRequestAddIngredient = vi.fn();
+        renderForm({ values: filledValues({ ingredients: [] }), onChange, onRequestAddIngredient });
 
         await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
 
-        expect(onChange).toHaveBeenCalledWith(
-            expect.objectContaining({ ingredients: [{ ingredientId: null, name: '', quantity: 1 }] }),
-        );
+        expect(onRequestAddIngredient).toHaveBeenCalledTimes(1);
+        expect(onChange).not.toHaveBeenCalled();
     });
 
     it('removes the targeted ingredient line', async () => {
@@ -754,7 +785,12 @@ describe('RecipeForm (web) — ingredients', () => {
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).value).toBe('Arborio rice');
     });
 
-    it('reports an UNRESOLVED line’s name edit upward (freeform-in-progress line; U6)', async () => {
+    /**
+     * REWRITTEN for U28 (was: "reports an UNRESOLVED line’s name edit upward ... U6") — the inverse
+     * assertion, for the reason recorded on the read-only test above. Typing a name could never resolve the
+     * line, so reporting the edit upward only produced text the wire mapper threw away.
+     */
+    it('emits NOTHING when an unresolved line’s name is typed into (U28)', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({
@@ -762,17 +798,12 @@ describe('RecipeForm (web) — ingredients', () => {
             onChange,
         });
 
-        // tripleClick() + paste() — see the Basics "reports a title edit upward" test for why (controlled
-        // field, inert mock, no rerender between keystrokes).
         const name = screen.getByRole('textbox', { name: 'Ingredient 1 name' });
-        await user.tripleClick(name);
+        await user.click(name);
         await user.paste('rice');
 
-        expect(onChange).toHaveBeenCalledWith(
-            expect.objectContaining({
-                ingredients: [expect.objectContaining({ name: 'rice', ingredientId: null })],
-            }),
-        );
+        expect(onChange).not.toHaveBeenCalled();
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).value).toBe('ric');
     });
 
     it('keeps a resolved line’s identity + nutrition when its quantity/unit changes (U6)', async () => {
@@ -941,6 +972,7 @@ describe('RecipeForm (web) — per-row + running-total nutrition (w3/e3, FR-007)
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -959,6 +991,7 @@ describe('RecipeForm (web) — per-row + running-total nutrition (w3/e3, FR-007)
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -978,6 +1011,7 @@ describe('RecipeForm (web) — per-row + running-total nutrition (w3/e3, FR-007)
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -995,6 +1029,7 @@ describe('RecipeForm (web) — per-row + running-total nutrition (w3/e3, FR-007)
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -1015,6 +1050,7 @@ describe('RecipeForm (web) — per-row + running-total nutrition (w3/e3, FR-007)
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -1032,6 +1068,7 @@ describe('RecipeForm (web) — per-row + running-total nutrition (w3/e3, FR-007)
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -1753,7 +1790,16 @@ describe('RecipeForm (web) — typing a section keeps focus (U27)', () => {
         const Harness: FC = () => {
             const [values, setValues] = useState(initial);
 
-            return <RecipeForm values={values} mode="create" onChange={setValues} onSubmit={noop} onCancel={noop} />;
+            return (
+                <RecipeForm
+                    values={values}
+                    mode="create"
+                    onChange={setValues}
+                    onRequestAddIngredient={noop}
+                    onSubmit={noop}
+                    onCancel={noop}
+                />
+            );
         };
 
         return render(<Harness />);

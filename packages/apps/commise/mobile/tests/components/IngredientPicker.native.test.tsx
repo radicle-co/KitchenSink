@@ -187,9 +187,15 @@ describe('IngredientPicker — search + select', () => {
         settleDebounce();
         fireEvent.click(screen.getByRole('button', { name: 'Basil' }));
 
+        // ⛔ REWRITTEN FOR U28: the WHOLE `ResolvedRecipeFormIngredient`, not a three-field projection.
+        // This leaf used to narrow the hook's line to `{ id, name, resolutionStatus }` and `RecipeEditor`
+        // rebuilt it — dropping `caloriesPer100g`/`proteinGPer100g`/`carbsGPer100g`/`fatGPer100g`/`portions`,
+        // so a picked ingredient showed calories on WEB and not here. The old assertion pinned the
+        // projection, which is why nothing caught it. `quantity: 1` is `toIngredientLine`'s default.
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_7',
+            ingredientId: 'ing_7',
             name: 'Basil',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
         });
         expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('');
@@ -350,9 +356,11 @@ describe('IngredientPicker — create freeform', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Create “Nduja”' }));
 
         expect(mutate).toHaveBeenCalledWith('Nduja', expect.objectContaining({ onSuccess: expect.any(Function) }));
+        // REWRITTEN FOR U28 — the whole line (see the search-select test for the defect this closes).
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_new',
+            ingredientId: 'ing_new',
             name: 'Nduja',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
         });
     });
@@ -392,9 +400,11 @@ describe('IngredientPicker — addByName (the async-resolution entry point, R5)'
         expect(addMutate).toHaveBeenCalledWith('Quinoa', expect.objectContaining({ onSuccess: expect.any(Function) }));
         expect(createMutate).not.toHaveBeenCalled();
         // The line carries its ACTUAL (PENDING) status so the editor keeps polling it.
+        // REWRITTEN FOR U28 — the whole line (see the search-select test).
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_food',
+            ingredientId: 'ing_food',
             name: 'Quinoa',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.PENDING,
         });
     });
@@ -502,9 +512,11 @@ describe('IngredientPicker — UNRESOLVED disambiguation (R5)', () => {
             { id: 'ing_u', candidateIds: ['cand-a'] },
             expect.objectContaining({ onSuccess: expect.any(Function) }),
         );
+        // REWRITTEN FOR U28 — the whole line (see the search-select test).
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_u',
+            ingredientId: 'ing_u',
             name: 'Quinoa',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
         });
     });
@@ -628,9 +640,11 @@ describe('IngredientPicker — search Stage 2 (blended food-catalog suggestions)
         // The opaque food id — never the suggestion's name — is what the admit is keyed on.
         expect(mutate).toHaveBeenCalledWith('01J0FOOD', expect.anything());
         // The line carries the ADMITTED row's ingredient id, not a fabricated one off the suggestion.
+        // REWRITTEN FOR U28 — the whole line (see the search-select test).
         expect(onResolve).toHaveBeenCalledWith({
-            id: 'ing_admitted',
+            ingredientId: 'ing_admitted',
             name: 'Chicken breast, raw',
+            quantity: 1,
             resolutionStatus: FoodResolutionStatus.RESOLVED,
         });
         // Mutation guard: the pick must NOT fall back to the by-name async fan-out.
@@ -675,7 +689,7 @@ describe('IngredientPicker — search Stage 2 (blended food-catalog suggestions)
         typeQuery();
         fireEvent.click(screen.getByRole('button', { name: 'My chicken' }));
 
-        expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({ id: 'ing_1' }));
+        expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({ ingredientId: 'ing_1' }));
         expect(mutate).not.toHaveBeenCalled();
     });
 

@@ -76,6 +76,12 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     `create`'s freeform-resolve prelude, and — like `quantity-range` — its subject is a per-LINE field on
 #     the create wizard, so the two want the same fixture and the same position. It needs NO food service:
 #     the line resolves through the freeform create, exactly as `create` and `quantity-range` do.
+#   - `recipes/add-ingredient-loop` (U28) sits immediately after `preparation-groups`, for the same
+#     three reasons again: it publishes, it shares `create`'s freeform-resolve prelude, and its subject
+#     is the create wizard's step 2. It needs NO food service. It is deliberately its own flow rather
+#     than three more steps inside `create`: its FIRST assertion is that pressing "+ Add ingredient"
+#     leaves the list EMPTY, and folding that into a flow whose job is to reach a published recipe
+#     would bury the one checkpoint that distinguishes a request from an append.
 #   - `recipes/ingredient-correction` (U14) is NOT in this plan — see `KNOWN_UNRUN_FLOWS` in
 #     `packages/infra/global/__tests__/maestroFlowSelection.test.ts` for the full reason and the coverage
 #     that remains. In short: the control renders `null` unless it has a `foodId`, and it lives on a
@@ -140,6 +146,7 @@ collections:recipes/collections-pull
 recipes:recipes/create
 recipes:recipes/quantity-range
 recipes:recipes/preparation-groups
+recipes:recipes/add-ingredient-loop
 recipes:recipes/ingredient-catalog-blend
 recipes:recipes/ingredient-usda-search
 recipes:recipes/photos

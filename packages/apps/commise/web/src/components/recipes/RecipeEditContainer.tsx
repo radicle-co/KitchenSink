@@ -32,6 +32,7 @@
  * resolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.
  */
 import {
+    appendResolvedIngredient,
     pendingIngredientIds,
     RecipeBasicsFields,
     RecipeConflictView,
@@ -42,7 +43,7 @@ import {
     setIngredientStatusById,
     useDiscardGuard,
     Wizard,
-    type RecipeFormIngredient,
+    type ResolvedRecipeFormIngredient,
 } from '@commise/features-recipes';
 import { useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
@@ -50,10 +51,10 @@ import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { FC } from 'react';
 
-import { IngredientPicker } from '@/components/recipes/IngredientPicker';
+import { IngredientPicker, type IngredientPickerHandle } from '@/components/recipes/IngredientPicker';
 import { IngredientStatusPoller } from '@/components/recipes/IngredientStatusPoller';
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { webMessages } from '@/i18n/messages';
@@ -89,6 +90,12 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
         },
         [editor.setValues, editor.values],
     );
+
+    // U28 — where "+ Add ingredient" LEADS. The leaf raises a request; this container owns the picker, so
+    // it is the only layer that can answer. See `IngredientPickerHandle` for why this is a method rather than
+    // a signal prop, and why a ref is permitted here at all. Declared before the early returns below, for the
+    // same Rules-of-Hooks reason as its two neighbours.
+    const pickerRef = useRef<IngredientPickerHandle>(null);
 
     // The discard guard's "unsaved edits" baseline: captured once the recipe has seeded (past `'loading'`),
     // re-captured on every successful save (`'saved'`) — see `useDiscardGuard`'s module doc. Also declared
@@ -134,8 +141,14 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
         );
     }
 
-    const addIngredient = (line: RecipeFormIngredient): void => {
-        editor.setValues({ ...editor.values, ingredients: [...editor.values.ingredients, line] });
+    // U28 — the ONE pure append transition (`appendResolvedIngredient`), never an inline spread. Three
+    // containers used to re-implement this by hand, which is how U27's section-inheritance rule ended up on
+    // the dead "+ Add ingredient" path and MISSING from the picker path a cook actually completes.
+    //
+    // ⛔ `line` is a `ResolvedRecipeFormIngredient`, so there is no null check here and none is possible:
+    // the picker cannot hand up a foodless line.
+    const addIngredient = (line: ResolvedRecipeFormIngredient): void => {
+        editor.setValues(appendResolvedIngredient(editor.values, line));
     };
 
     if (editor.state.status === 'conflict') {
@@ -182,7 +195,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                     <RecipeVisibilityField values={editor.values} onChange={editor.setValues} />
                 </Wizard.Step>
                 <Wizard.Step step={2}>
-                    <IngredientPicker onSelect={addIngredient} />
+                    <IngredientPicker ref={pickerRef} onSelect={addIngredient} />
                     {pendingIngredientIds(editor.values).map((id) => (
                         <IngredientStatusPoller key={id} ingredientId={id} onStatus={applyLineStatus} />
                     ))}
@@ -190,6 +203,7 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                         values={editor.values}
                         errors={editor.errors}
                         onChange={editor.setValues}
+                        onRequestAddIngredient={() => pickerRef.current?.focusSearch()}
                     />
                 </Wizard.Step>
                 <Wizard.Step step={3}>

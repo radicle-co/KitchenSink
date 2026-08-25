@@ -72,6 +72,8 @@ function renderForm(overrides: Partial<RecipeFormProps> = {}) {
         values: filledValues(),
         mode: 'create',
         onChange: noop,
+        // U28 — REQUIRED, so a composition cannot forget to say where "+ Add ingredient" leads.
+        onRequestAddIngredient: noop,
         onSubmit: noop,
         onCancel: noop,
         ...overrides,
@@ -390,7 +392,12 @@ describe('RecipeForm (native) — B8 error accessibility wiring (aria-invalid + 
         const alert = screen.getByRole('alert');
 
         expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-invalid')).toBe('true');
-        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-describedby')).toBe(alert.id);
+        // ⚠️ WIDENED BY U28 (was `toBe(alert.id)`) — see the web leaf's test for the reasoning: the field is
+        // now described by its OWN "no food chosen" note as well as the section alert, and what must stay
+        // true is that the alert is still REACHED.
+        expect(screen.getByLabelText('Ingredient 1 name').getAttribute('aria-describedby')?.split(' ')).toContain(
+            alert.id,
+        );
         expect(screen.getByLabelText('Ingredient 1 quantity').getAttribute('aria-invalid')).toBeNull();
 
         expect(screen.getByLabelText('Ingredient 2 name').getAttribute('aria-invalid')).toBeNull();
@@ -457,7 +464,11 @@ describe('RecipeForm (native) — ingredients', () => {
         expect(inputValue('Ingredient 1 unit')).toBe('g');
     });
 
-    it('renders a RESOLVED line’s name READ-ONLY, and an UNRESOLVED line’s name editable (U6)', () => {
+    /**
+     * REWRITTEN for U28 (was: "… and an UNRESOLVED line’s name editable (U6)") — see the web leaf's test
+     * for the full reasoning. Every name field is read-only now: a food is picked, never typed.
+     */
+    it('renders EVERY line’s name READ-ONLY, resolved or not (U28)', () => {
         cleanup();
         renderForm({
             values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300 }] }),
@@ -467,18 +478,23 @@ describe('RecipeForm (native) — ingredients', () => {
 
         cleanup();
         renderForm({ values: filledValues({ ingredients: [{ ingredientId: null, name: 'rice', quantity: 1 }] }) });
-        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1 name').readOnly).toBe(false);
+        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1 name').readOnly).toBe(true);
+        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1 name').value).toBe('rice');
     });
 
-    it('appends a blank ingredient line on add', () => {
+    /**
+     * REWRITTEN for U28 (was: "appends a blank ingredient line on add") — the mutant guard for "restore the
+     * append-an-empty-row behaviour" on this platform. See the web leaf's test for the full reasoning.
+     */
+    it('⛔ asks for the PICKER on add — and changes no values (U28)', () => {
         const onChange = vi.fn();
-        renderForm({ values: filledValues({ ingredients: [] }), onChange });
+        const onRequestAddIngredient = vi.fn();
+        renderForm({ values: filledValues({ ingredients: [] }), onChange, onRequestAddIngredient });
 
         fireEvent.click(screen.getByRole('button', { name: 'Add ingredient' }));
 
-        expect(onChange).toHaveBeenCalledWith(
-            expect.objectContaining({ ingredients: [{ ingredientId: null, name: '', quantity: 1 }] }),
-        );
+        expect(onRequestAddIngredient).toHaveBeenCalledTimes(1);
+        expect(onChange).not.toHaveBeenCalled();
     });
 
     it('removes the targeted ingredient line', () => {
@@ -500,7 +516,11 @@ describe('RecipeForm (native) — ingredients', () => {
         );
     });
 
-    it('reports an UNRESOLVED line’s name edit upward (freeform-in-progress; U6)', () => {
+    /**
+     * REWRITTEN for U28 (was: "reports an UNRESOLVED line’s name edit upward ... U6") — the inverse
+     * assertion; see the web leaf's test for the reasoning.
+     */
+    it('emits NOTHING when an unresolved line’s name is typed into (U28)', () => {
         const onChange = vi.fn();
         renderForm({
             values: filledValues({ ingredients: [{ ingredientId: null, name: 'ric', quantity: 1 }] }),
@@ -509,11 +529,7 @@ describe('RecipeForm (native) — ingredients', () => {
 
         fireEvent.change(screen.getByLabelText('Ingredient 1 name'), { target: { value: 'rice' } });
 
-        expect(onChange).toHaveBeenCalledWith(
-            expect.objectContaining({
-                ingredients: [expect.objectContaining({ name: 'rice', ingredientId: null })],
-            }),
-        );
+        expect(onChange).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -639,6 +655,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -657,6 +674,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -676,6 +694,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -693,6 +712,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -713,6 +733,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -730,6 +751,7 @@ describe('RecipeForm (native) — per-row + running-total nutrition (w3/e3, FR-0
                 })}
                 mode="create"
                 onChange={noop}
+                onRequestAddIngredient={noop}
                 onSubmit={noop}
                 onCancel={noop}
             />,
@@ -1515,6 +1537,7 @@ describe('RecipeForm (native) — a section resplit does not remount the rows (U
         values: filledValues({ ingredients }),
         mode: 'create',
         onChange: noop,
+        onRequestAddIngredient: noop,
         onSubmit: noop,
         onCancel: noop,
     });

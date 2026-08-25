@@ -45,7 +45,7 @@ import type {
     IngredientSuggestion,
 } from '@kitchensink/recipe-service-client';
 
-import type { RecipeFormIngredient } from '../form/model.js';
+import type { ResolvedRecipeFormIngredient } from '../form/props.js';
 
 /** The debounce window (ms) between a keystroke and the search it triggers (REQ-057). */
 export const INGREDIENT_SEARCH_DEBOUNCE_MS = 300;
@@ -115,8 +115,15 @@ export function nextMatchAction(status: FoodResolutionStatus | undefined): 'reso
  * resolution, or a freeform ingredient with no catalog nutrition, carries none of these fields — never a
  * fabricated `0` — which is exactly the input `toNutritionLine`'s aggregator needs to correctly report
  * that line as unaccounted (`isComplete: false`) rather than silently under-counting.
+ *
+ * ⛔ ITS RETURN TYPE IS THE NARROWED {@link ResolvedRecipeFormIngredient}, and that is U28's load-bearing
+ * seam rather than a tidy-up. `ingredient.id` is a `string`, so this function has ALWAYS produced a resolved
+ * line — it merely DECLARED a possibly-unresolved one, and every downstream null-check, every over-wide
+ * callback and (on mobile) a whole lossy re-projection existed to cope with a nullability this adapter
+ * invented. Narrowing here is what makes "an unresolved row cannot be appended" a compile-time fact all the
+ * way from the catalog response to `appendResolvedIngredient`, instead of a filter at the last hop.
  */
-export function toIngredientLine(ingredient: Ingredient): RecipeFormIngredient {
+export function toIngredientLine(ingredient: Ingredient): ResolvedRecipeFormIngredient {
     return {
         ingredientId: ingredient.id,
         name: ingredient.name,
@@ -128,6 +135,28 @@ export function toIngredientLine(ingredient: Ingredient): RecipeFormIngredient {
         ...(ingredient.fatGPer100g === undefined ? {} : { fatGPer100g: ingredient.fatGPer100g }),
         ...(ingredient.portions === undefined ? {} : { portions: ingredient.portions }),
     };
+}
+
+/**
+ * The one imperative capability an ingredient picker exposes (plan U28): put the caret in its search field.
+ *
+ * DESIGN PATTERN: Facade over an imperative subsystem. Focus is the canonical case CLAUDE.md's
+ * "refs are near-forbidden — permitted only to wrap a genuinely external, non-declarative system with no
+ * alternative" carves out, and this repo has ruled on it once already (`useScrollResetOnChange`, whose
+ * docstring records why a ref is the only way). The picker's own input ref never escapes; a caller sees one
+ * named method, which is also what makes it stubbable in a container test.
+ *
+ * ⛔ NOT a `focusSignal: number` prop. An incrementing epoch carries no intent, still needs a ref and an
+ * effect inside the picker, and makes correctness depend on "did this number differ from last render" — a
+ * comparison React does not promise you observe exactly once. A method says what it does.
+ *
+ * ⚠️ It lives HERE, beside the resolver contract both platform pickers already implement, rather than twice
+ * in the two apps: the interface is three lines but the ruling above is twelve, and two copies of a ruling
+ * is what drifts.
+ */
+export interface IngredientPickerHandle {
+    /** Move keyboard focus to the ingredient search field. @sideEffect Focuses a DOM/native node. */
+    focusSearch: () => void;
 }
 
 /** Pending/error flags for one of the resolver's underlying mutations, exposed to a leaf as plain data. */

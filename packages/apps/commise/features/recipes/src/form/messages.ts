@@ -124,6 +124,19 @@ export interface RecipeFormMessages {
     readonly ingredientUnitUnknownNote: string;
     /** Accessible label for an ingredient line's resolution-status badge (contains `{number}`). */
     readonly ingredientStatusLabel: string;
+    /**
+     * The note a row with NO FOOD PICKED wears (plan U28).
+     *
+     * ⛔ It names the REMEDY, not just the fault. U28 removed every way to create such a row, so the only
+     * ones a cook can meet arrived with a restored draft — and the row's own name field cannot fix it (a
+     * line resolves through the picker, never by typing). Saying "remove it and add it from the search"
+     * is the whole action available, and the brief is explicit that a row must "show what is missing"
+     * rather than look complete and be discarded on save.
+     *
+     * ⚠️ Distinct from `errors.ingredientsUnresolved`, which is the FORM-level refusal the wizard voices
+     * when Next is pressed: that one says the recipe cannot advance, this one says WHICH row and why.
+     */
+    readonly ingredientNoFoodNote: string;
     /** Add-ingredient action label. */
     readonly addIngredient: string;
     /** Remove-ingredient action label template (contains `{number}`). */
@@ -237,6 +250,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         ingredientUnitSubjectiveNote: 'Cook\u2019s measure',
         ingredientUnitUnknownNote: 'Unrecognised unit',
         ingredientStatusLabel: 'Ingredient {number} status',
+        ingredientNoFoodNote: 'No food chosen — this line won’t be saved. Remove it and add it from the search above.',
         addIngredient: 'Add ingredient',
         removeIngredient: 'Remove ingredient {number}',
         noIngredients: 'No ingredients yet. Add your first ingredient.',

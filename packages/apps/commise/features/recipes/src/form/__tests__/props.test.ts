@@ -4,16 +4,17 @@
  * option set). Kept mutation-strong: clearing must REMOVE the key (so the update mapper can distinguish
  * "not stated" from a stated value), never store an explicit `undefined`.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { RecipeDifficulty } from '@kitchensink/recipe-core';
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
 import type { RecipeFormMessages } from '../messages.js';
 import type { RecipeFormIngredient, RecipeFormValues } from '../model.js';
+import type { ResolvedRecipeFormIngredient } from '../props.js';
 import {
     addChip,
-    addIngredient,
+    appendResolvedIngredient,
     difficultyOptions,
     ingredientSections,
     parseQuantityBound,
@@ -22,6 +23,7 @@ import {
     setDifficulty,
     setIngredientQuantityHigh,
     setIngredientQuantityLow,
+    unresolvedLineNote,
     updateIngredientAt,
 } from '../props.js';
 
@@ -323,54 +325,123 @@ describe('U27 — ingredientSections (the consecutive-run fold)', () => {
 });
 
 /**
- * U27 — a new line joins the section the cook is currently building.
+ * U28 (was U27) — the ONE append transition, and a new line joins the section the cook is currently
+ * building.
+ *
+ * ⚠️ REWRITTEN FROM `addIngredient`, which U28 DELETED. The old transition appended a BLANK, UNRESOLVED
+ * line — the dead end this unit removes: `validateRecipeForm` refused it and `toCreateRecipeInput` dropped
+ * it. `appendResolvedIngredient` takes a line the picker already resolved, so the section-inheritance rule
+ * U27 established now sits on the path a cook actually walks (it used to sit ONLY on the dead one, which
+ * meant the working picker path silently lost sectioning).
+ *
+ * ⛔ Its parameter is {@link ResolvedRecipeFormIngredient} — `ingredientId` narrowed to `string`. That is
+ * the type-level half of "no path can create an unresolved row": the only remaining append transition
+ * cannot EXPRESS one.
  *
  * ⚠️ The brief is explicit that "per-row typing is the wrong primary interaction" — a cook would type
- * "For the marinade" eight times. `addIngredient` appends at the END, so inheriting the LAST line's label is
- * exactly what building a section top-down means: name it once on the first row, then keep adding. Starting
- * a new section is still one edit (type a different label), and an ungrouped list stays ungrouped because
- * there is nothing to inherit.
+ * "For the marinade" eight times. It appends at the END, so inheriting the LAST line's label is exactly
+ * what building a section top-down means: name it once on the first row, then keep adding. Starting a new
+ * section is still one edit (type a different label), and an ungrouped list stays ungrouped because there
+ * is nothing to inherit.
  */
-describe('U27 — addIngredient inherits the section being built', () => {
-    const lineWith = (over: Partial<RecipeFormIngredient>): RecipeFormIngredient => ({
-        ingredientId: 'ing-1',
+describe('U28 — appendResolvedIngredient inherits the section being built', () => {
+    const lineWith = (
+        over: Omit<Partial<ResolvedRecipeFormIngredient>, 'ingredientId'>,
+    ): ResolvedRecipeFormIngredient => ({
         name: 'Onion',
         quantity: 1,
         ...over,
+        ingredientId: 'ing-1',
+    });
+
+    const picked = (
+        over: Omit<Partial<ResolvedRecipeFormIngredient>, 'ingredientId'> = {},
+    ): ResolvedRecipeFormIngredient => ({
+        name: 'Garlic',
+        quantity: 1,
+        ...over,
+        ingredientId: 'ing-picked',
     });
 
     it('appends into the LAST line’s section', () => {
-        const next = addIngredient({
-            ...makeRecipeFormValues(),
-            ingredients: [lineWith({ groupLabel: 'For the marinade' })],
-        });
+        const next = appendResolvedIngredient(
+            { ...makeRecipeFormValues(), ingredients: [lineWith({ groupLabel: 'For the marinade' })] },
+            picked(),
+        );
 
         expect(next.ingredients[1]?.groupLabel).toBe('For the marinade');
     });
 
     it('appends UNGROUPED when the last line is ungrouped — nothing to inherit', () => {
-        const next = addIngredient({ ...makeRecipeFormValues(), ingredients: [lineWith({})] });
+        const next = appendResolvedIngredient({ ...makeRecipeFormValues(), ingredients: [lineWith({})] }, picked());
 
         expect(next.ingredients[1]).not.toHaveProperty('groupLabel');
     });
 
     it('appends UNGROUPED into an empty list', () => {
-        const next = addIngredient({ ...makeRecipeFormValues(), ingredients: [] });
+        const next = appendResolvedIngredient({ ...makeRecipeFormValues(), ingredients: [] }, picked());
 
         expect(next.ingredients[0]).not.toHaveProperty('groupLabel');
     });
 
-    // ⛔ Only the SECTION is inherited. Inheriting the preparation would put "finely chopped" on a food the
-    // cook has not picked yet — a claim about an ingredient that does not exist.
+    // ⛔ Only the SECTION is inherited. Inheriting the preparation would assert "finely chopped" about a
+    // food the picker resolved without any such claim.
     it('⛔ inherits ONLY the section — never the preparation, the food, or the quantity', () => {
-        const next = addIngredient({
-            ...makeRecipeFormValues(),
-            ingredients: [lineWith({ groupLabel: 'Dry', preparation: 'sifted', name: 'Flour' })],
-        });
+        const next = appendResolvedIngredient(
+            {
+                ...makeRecipeFormValues(),
+                ingredients: [lineWith({ groupLabel: 'Dry', preparation: 'sifted', name: 'Flour' })],
+            },
+            picked({ name: 'Garlic', quantity: 3 }),
+        );
 
         expect(next.ingredients[1]).not.toHaveProperty('preparation');
-        expect(next.ingredients[1]?.name).toBe('');
-        expect(next.ingredients[1]?.ingredientId).toBeNull();
+        expect(next.ingredients[1]?.name).toBe('Garlic');
+        expect(next.ingredients[1]?.quantity).toBe(3);
+        expect(next.ingredients[1]?.ingredientId).toBe('ing-picked');
+    });
+
+    // The trim/blank rule `sectionLabelOf` owns: a cleared or padded label is never propagated, so the next
+    // line does not acquire a section of `'  '` that renders as an EMPTY heading.
+    it('never inherits a BLANK or padded section label', () => {
+        const blank = appendResolvedIngredient(
+            { ...makeRecipeFormValues(), ingredients: [lineWith({ groupLabel: '   ' })] },
+            picked(),
+        );
+        const padded = appendResolvedIngredient(
+            { ...makeRecipeFormValues(), ingredients: [lineWith({ groupLabel: ' Dry ' })] },
+            picked(),
+        );
+
+        expect(blank.ingredients[1]).not.toHaveProperty('groupLabel');
+        expect(padded.ingredients[1]?.groupLabel).toBe('Dry');
+    });
+
+    it('is pure — the input values and their lines are untouched', () => {
+        const values = { ...makeRecipeFormValues(), ingredients: [lineWith({ groupLabel: 'Dry' })] };
+        const before = structuredClone(values);
+
+        appendResolvedIngredient(values, picked());
+
+        expect(values).toEqual(before);
+    });
+
+    /**
+     * ⛔ THE MUTANT THIS EXISTS TO KILL: "restore the append-an-empty-row behaviour". `addIngredient` and
+     * `blankIngredient` were the ONLY production constructors of an unresolved line; both are gone, and a
+     * re-export of either would resurrect the dead end wholesale. Asserted against the PACKAGE's public
+     * surface, not the module's, because the leaves import from `./props.js` while apps import from
+     * `@commise/features-recipes` — a partial deletion that left the barrel intact would still ship it.
+     */
+    it('⛔ neither addIngredient nor blankIngredient is exported any more', async () => {
+        const props = await import('../props.js');
+        const formBarrel = await import('../index.js');
+        const packageBarrel = await import('../../index.js');
+
+        for (const module of [props, formBarrel, packageBarrel]) {
+            expect(module).not.toHaveProperty('addIngredient');
+            expect(module).not.toHaveProperty('blankIngredient');
+        }
     });
 });
 
@@ -397,5 +468,75 @@ describe('U27 — moving a line between sections preserves everything else', () 
         });
 
         expect(moved.ingredients[0]).toEqual({ ...line, groupLabel: 'For the topping' });
+    });
+});
+
+/**
+ * U28 — the note an UNRESOLVED row wears, and the reason a cook can act on.
+ *
+ * DESIGN PATTERN: the same Specification-to-copy adapter `unitClassNote` and `resolutionStatusLabel` are —
+ * ONE mapping from a domain verdict to a localized string, shared by both platform leaves so they cannot
+ * say different things about the same row.
+ *
+ * ⛔ ITS VERDICT COMES FROM `values`, NEVER FROM `errors`. Until U28 an unresolved row was marked only after
+ * a submit attempt populated `errors.ingredients`, so a draft restored holding one rendered as an ordinary,
+ * complete-looking row — and `toCreateRecipeInput` then dropped it in silence on save. The ingredient-entry
+ * brief rules that out in as many words: "Do not design a row that looks complete but is silently
+ * discarded." The note is what makes the row honest without hiding it.
+ *
+ * ⛔ It is also the SAME predicate `validateRecipeForm` blocks on (`isResolvedIngredientId`), not a second
+ * copy — a leaf marking a different set of rows from the set that blocks the wizard is the drift sharing
+ * one predicate exists to prevent.
+ */
+describe('U28 — unresolvedLineNote', () => {
+    const noteMessages = { ingredientNoFoodNote: 'No food chosen — pick one from the search above.' };
+    const m = noteMessages as unknown as RecipeFormMessages;
+
+    it('returns the note for a line with no food', () => {
+        expect(unresolvedLineNote(m, { ingredientId: null, name: 'Kale', quantity: 1 })).toBe(
+            noteMessages.ingredientNoFoodNote,
+        );
+    });
+
+    it('returns NOTHING for a resolved line — a settled row wears no warning', () => {
+        expect(unresolvedLineNote(m, { ingredientId: 'ing-1', name: 'Kale', quantity: 1 })).toBeUndefined();
+    });
+
+    it('treats an EMPTY-STRING id as unresolved, exactly as the validator does', () => {
+        // Mutation guard: a bare `!== null` check would pass a `''` id here while `validateRecipeForm`'s own
+        // `isResolvedIngredientId` refused it — the leaf would show a clean row the wizard will not pass.
+        expect(unresolvedLineNote(m, { ingredientId: '', name: 'Kale', quantity: 1 })).toBe(
+            noteMessages.ingredientNoFoodNote,
+        );
+    });
+
+    it('does not depend on anything else the line holds', () => {
+        // A row can be unresolved AND fully filled in — that is exactly the state that looked complete.
+        const filled = { ingredientId: null, name: 'Kale', quantity: 2, unit: 'cups', preparation: 'chopped' };
+
+        expect(unresolvedLineNote(m, filled)).toBe(noteMessages.ingredientNoFoodNote);
+    });
+});
+
+/**
+ * U28 — the COMPILE-TIME half of "no path can create an unresolved row".
+ *
+ * ⛔ A runtime test cannot prove this and a source grep cannot either (a grep sees through no variable). The
+ * guarantee is that the form's ONE append transition takes a line whose `ingredientId` is a `string`, so an
+ * unresolved line is not a value that can be passed — the failure is a BUILD failure, before any test runs.
+ */
+describe('U28 — the append transition cannot express an unresolved line', () => {
+    it('takes a line whose ingredientId is a plain string, not `string | null`', () => {
+        expectTypeOf<Parameters<typeof appendResolvedIngredient>[1]>()
+            .toHaveProperty('ingredientId')
+            .toEqualTypeOf<string>();
+    });
+
+    it('⛔ a bare RecipeFormIngredient is NOT assignable to it', () => {
+        expectTypeOf<RecipeFormIngredient>().not.toExtend<Parameters<typeof appendResolvedIngredient>[1]>();
+    });
+
+    it('a resolved line IS a RecipeFormIngredient (the narrowing adds nothing but the guarantee)', () => {
+        expectTypeOf<ResolvedRecipeFormIngredient>().toExtend<RecipeFormIngredient>();
     });
 });

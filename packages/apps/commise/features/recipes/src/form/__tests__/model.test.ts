@@ -21,7 +21,7 @@ import {
 import { createRecipeRequestSchema, updateRecipeRequestSchema } from '@kitchensink/schema-recipe';
 
 import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
-import { updateIngredientAt } from '../props.js';
+import { appendResolvedIngredient, updateIngredientAt } from '../props.js';
 
 import {
     canAdvanceFromStep,
@@ -326,9 +326,48 @@ describe('validateRecipeForm', () => {
         expect(errors.ingredients).toBe('ingredientsUnresolved');
     });
 
-    it('requires positive servings and non-negative times', () => {
-        expect(validateRecipeForm(filledValues({ servings: 0 })).servings).toBe('servingsPositive');
-        expect(validateRecipeForm(filledValues({ prepTimeMinutes: -1 })).times).toBe('timesNonNegative');
+    /**
+     * U28 — an unresolved line is REFUSED, and its refusal must be the only outcome it can have.
+     *
+     * ⛔ THE SILENT DROP IS THE DATA-LOSS BUG, not the row. `toCreateRecipeInput` filters every line with no
+     * `ingredientId` out of the wire body, so before U28 a Save Draft (which validates step 1 only) posted a
+     * recipe MISSING the row the cook had just typed, with no error anywhere. The invariant below pins the
+     * repair from the other side: anything the editor can now BUILD survives the wire mapping intact.
+     */
+    it('⛔ drops NO line built through the picker path — appended count === posted count', () => {
+        const values = [
+            { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Salt', quantity: 1 },
+            { ingredientId: '00000000-0000-4000-8000-000000000002', name: 'Flour', quantity: 200, unit: 'g' },
+            { ingredientId: '00000000-0000-4000-8000-000000000003', name: 'Water', quantity: 1 },
+        ].reduce<RecipeFormValues>(
+            (acc, line) => appendResolvedIngredient(acc, line),
+            filledValues({ ingredients: [] }),
+        );
+
+        expect(values.ingredients).toHaveLength(3);
+        // ⛔ The filter in `toCreateRecipeInput` is now unreachable from the UI — this asserts it, rather than
+        // trusting it. A regression that lets the editor build an unresolved line shows up HERE as a count
+        // mismatch, even if every other test still passes.
+        expect(toCreateRecipeInput(values).ingredients).toHaveLength(values.ingredients.length);
+        expect(validateRecipeForm(values).ingredients).toBeUndefined();
+    });
+
+    it('still REFUSES a line with no food, whatever it holds otherwise (the restored-draft case)', () => {
+        // The state stays REPRESENTABLE on purpose (see `ResolvedRecipeFormIngredient`): a draft restored
+        // from an older source may carry one, and the leaves must render it and say why. What must never
+        // happen is it passing validation or reaching the wire.
+        const values = filledValues({
+            ingredients: [{ ingredientId: null, name: 'Kale', quantity: 2, unit: 'cups' }],
+        });
+
+        expect(validateRecipeForm(values).ingredients).toBe('ingredientsUnresolved');
+        expect(toCreateRecipeInput(values).ingredients).toHaveLength(0);
+    });
+
+    it('treats an EMPTY-STRING id as unresolved, exactly as the wire filter must', () => {
+        const values = filledValues({ ingredients: [{ ingredientId: '', name: 'Kale', quantity: 1 }] });
+
+        expect(validateRecipeForm(values).ingredients).toBe('ingredientsUnresolved');
     });
 
     /**

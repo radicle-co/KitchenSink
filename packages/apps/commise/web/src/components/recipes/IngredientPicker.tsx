@@ -64,35 +64,72 @@ import {
     resolutionStatusLabel,
     toCorrectionNoticeModel,
 } from '@commise/features-recipes';
-import type { RecipeFormIngredient } from '@commise/features-recipes';
+import type { ResolvedRecipeFormIngredient } from '@commise/features-recipes';
 import {
     isTerminalStatus,
     suggestionKey,
     useIngredientCorrection,
     useIngredientResolver,
 } from '@commise/features-recipes/hooks';
+import type { IngredientPickerHandle } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { Ingredient } from '@kitchensink/recipe-core';
 import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
-import type { FC, JSX } from 'react';
+import { useImperativeHandle, useRef, type FC, type JSX, type Ref } from 'react';
 
 import { webMessages } from '@/i18n/messages';
 import { IngredientRowsSkeleton } from './IngredientRowsSkeleton';
 
+/**
+ * Re-exported so a caller imports the handle from the component it configures, not from a third module.
+ * The type itself is declared once, in `@commise/features-recipes/hooks` — see it for why a ref is
+ * permitted here at all, and why this is a method rather than a `focusSignal` epoch.
+ */
+export type { IngredientPickerHandle };
+
 /** Props for {@link IngredientPicker}. */
 export interface IngredientPickerProps {
-    /** Called with a fully-resolved recipe line (its `ingredientId` set) to append to the recipe. */
-    readonly onSelect: (line: RecipeFormIngredient) => void;
+    /**
+     * Called with a fully-resolved recipe line to append.
+     *
+     * ⛔ The type is {@link ResolvedRecipeFormIngredient} — `ingredientId` narrowed to `string` (U28).
+     * Every route through `useIngredientResolver` produces one via `toIngredientLine`, so the wider
+     * `RecipeFormIngredient` was a nullability this boundary invented, and the container had to
+     * re-check it. Narrowed, the container's `appendResolvedIngredient` call type-checks with no
+     * guard, and a foodless line cannot reach the draft.
+     */
+    readonly onSelect: (line: ResolvedRecipeFormIngredient) => void;
+    /**
+     * Optional handle exposing {@link IngredientPickerHandle} — how the ingredients leaf's
+     * "+ Add ingredient" button reaches this search field (U28). Absent when nothing asks.
+     */
+    readonly ref?: Ref<IngredientPickerHandle>;
 }
 
 /**
  * The live ingredient typeahead.
  *
- * @param props - The line-resolved callback.
+ * @param props - The line-resolved callback and (optionally) the focus handle.
  * @returns The search box plus its results / empty / error affordances, the disambiguation panel, and the
  *   freeform-create fallback.
  */
-export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
+export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect, ref }) => {
+    // ⛔ The ONE ref in this leaf, and the one thing a ref is allowed for: there is no declarative way
+    // to move the caret. It never leaves this component — `useImperativeHandle` publishes a method, not
+    // the node. React 19's plain `ref` prop, so no `forwardRef` wrapper is needed.
+    const searchRef = useRef<HTMLInputElement>(null);
+
+    useImperativeHandle(
+        ref,
+        () => ({
+            // ⚠️ Optional-chained on purpose: the search input is UNMOUNTED while the picker is
+            // disambiguating or resolving (see the render below), and a cook can press "+ Add
+            // ingredient" at that moment. Nothing to focus is a no-op, never a crash.
+            focusSearch: () => searchRef.current?.focus(),
+        }),
+        [],
+    );
+
     const { recipes } = useMessages(webMessages);
     const picker = recipes.picker;
     const formMessages = useMessages(recipeFormMessages);
@@ -444,6 +481,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
             {viewState.kind !== 'disambiguating' && viewState.kind !== 'resolving' && (
                 <div className="flex items-center gap-2">
                     <input
+                        ref={searchRef}
                         type="search"
                         aria-label={picker.searchLabel}
                         placeholder={picker.searchPlaceholder}

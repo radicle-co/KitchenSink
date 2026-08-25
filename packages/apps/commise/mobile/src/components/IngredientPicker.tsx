@@ -30,9 +30,17 @@
  * The DECISIONS all live in the shared `useOnDemandIngredientSearch`; only the RN markup is here, so the two
  * platforms cannot drift on when a source call is made or on what a cook is told about it.
  *
- * The hook's callback contract is `onResolved: (line: RecipeFormIngredient) => void`; this leaf keeps its own
- * public `onResolve` prop (its `ResolvedIngredient` shape, narrower than `RecipeFormIngredient` — no
- * `quantity`) unchanged for its existing caller (`RecipeEditor`), adapting at this boundary.
+ * The hook's callback contract is `onResolved: (line: ResolvedRecipeFormIngredient) => void`, and this leaf
+ * now hands that line STRAIGHT up (plan U28).
+ *
+ * ⛔ IT USED TO RE-PROJECT, AND THAT LOST DATA. A local `ResolvedIngredient` (`{ id, name, resolutionStatus? }`)
+ * existed only because the hook's callback declared the wider, possibly-unresolved `RecipeFormIngredient` —
+ * so this leaf narrowed it by hand, and `RecipeEditor` then rebuilt the line from those three fields. The
+ * rebuild DROPPED `caloriesPer100g` / `proteinGPer100g` / `carbsGPer100g` / `fatGPer100g` / `portions`, which
+ * `toIngredientLine` had just attached and which `lineCalories` + `recipeNutritionTotal` read: a freshly
+ * picked ingredient showed its calorie badge and fed the running total on WEB and not here. Narrowing the
+ * hook's callback deleted the adapter and the defect together — an adapter that CHANGES behaviour is not an
+ * adapter.
  *
  * **Search Stage 2 — the blended, sectioned result list.** Results are now a discriminated `local | catalog`
  * union: the caller's own previously-used ingredients and food-catalog golden records (the USDA-seeded
@@ -66,46 +74,43 @@ import {
     recipeMessages,
     toCorrectionNoticeModel,
 } from '@commise/features-recipes';
-import type { RecipeCorrectionMessages, RecipeFormIngredient } from '@commise/features-recipes';
+import type { RecipeCorrectionMessages, ResolvedRecipeFormIngredient } from '@commise/features-recipes';
 import { useIngredientCorrection, useIngredientResolver } from '@commise/features-recipes/hooks';
+import type { IngredientPickerHandle } from '@commise/features-recipes/hooks';
 import type { LiveIngredientHit } from '@kitchensink/recipe-service-client';
 import { useMessages } from '@commise/i18n/react';
 import { palette, tint } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
 import { Feather } from '@expo/vector-icons';
 import { suggestionKey } from '@commise/features-recipes/hooks';
-import type { FoodResolutionStatus, Ingredient } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
 import type { IngredientCandidate, IngredientSuggestion } from '@kitchensink/recipe-service-client';
-import type { JSX } from 'react';
+import { useImperativeHandle, useRef, type JSX, type Ref } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
 
-/** A resolved ingredient handed upward: the catalog id, display name, and (when known) resolution status. */
-export interface ResolvedIngredient {
-    readonly id: string;
-    readonly name: string;
-    /** The line's async resolution status, when the catalog row carries one (drives the form's badge). */
-    readonly resolutionStatus?: FoodResolutionStatus;
-}
+/**
+ * Re-exported so a caller imports the handle from the component it configures, not from a third module.
+ * The type itself is declared once, in `@commise/features-recipes/hooks` — see it for why a ref is
+ * permitted here at all, and why this is a method rather than a `focusSignal` epoch.
+ */
+export type { IngredientPickerHandle };
 
 /** Props for {@link IngredientPicker}. */
 export interface IngredientPickerProps {
-    /** Invoked with the resolved catalog ingredient when the user selects a hit or creates a freeform one. */
-    readonly onResolve: (ingredient: ResolvedIngredient) => void;
-}
-
-/** Narrow the hook's `RecipeFormIngredient` line down to this leaf's `ResolvedIngredient` prop shape. */
-function toResolvedIngredient(line: RecipeFormIngredient): ResolvedIngredient | null {
-    if (line.ingredientId === null) {
-        return null;
-    }
-
-    return {
-        id: line.ingredientId,
-        name: line.name,
-        ...(line.resolutionStatus === undefined ? {} : { resolutionStatus: line.resolutionStatus }),
-    };
+    /**
+     * Invoked with the resolved recipe line when the user selects a hit or creates a freeform one.
+     *
+     * ⛔ The WHOLE line, carrying the catalog nutrition `toIngredientLine` attached — see the module doc for
+     * the re-projection this replaced and the cross-platform calorie defect it caused.
+     */
+    readonly onResolve: (line: ResolvedRecipeFormIngredient) => void;
+    /**
+     * Optional handle exposing {@link IngredientPickerHandle} — how the ingredients leaf's
+     * "+ Add ingredient" button reaches this search field (U28). Absent when nothing asks.
+     */
+    readonly ref?: Ref<IngredientPickerHandle>;
 }
 
 /**
@@ -249,7 +254,13 @@ function CandidateRow({
  * @param props - The resolution callback.
  * @returns The search + results + disambiguation + create affordances.
  */
-export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Element {
+export function IngredientPicker({ onResolve, ref }: IngredientPickerProps): JSX.Element {
+    // ⛔ The ONE ref in this leaf, and the one thing a ref is allowed for — see the web leaf and
+    // `useScrollResetOnChange` for the standing ruling. The node never escapes.
+    const searchRef = useRef<TextInput>(null);
+
+    useImperativeHandle(ref, () => ({ focusSearch: () => searchRef.current?.focus() }), []);
+
     const { ingredientPicker: t } = useMessages(mobileMessages);
     const correctionMessages = useMessages(recipeCorrectionMessages);
     // 003-FR-010a: the search-minimum copy is shared by all four ingredient-search surfaces, so it lives in
@@ -274,13 +285,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
         cancelDisambiguation,
         liveSearch,
         selectLiveHit,
-    } = useIngredientResolver((line) => {
-        const resolved = toResolvedIngredient(line);
-
-        if (resolved !== null) {
-            onResolve(resolved);
-        }
-    });
+    } = useIngredientResolver(onResolve);
 
     /**
      * Whether the on-demand control is on screen at all.
@@ -507,6 +512,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
             <View style={styles.searchField}>
                 <Feather name="search" size={18} color={palette.slate} />
                 <TextInput
+                    ref={searchRef}
                     accessibilityLabel={t.searchLabel}
                     placeholder={t.searchPlaceholder}
                     placeholderTextColor={palette.slate}

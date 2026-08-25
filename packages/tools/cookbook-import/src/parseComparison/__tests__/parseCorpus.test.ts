@@ -74,7 +74,7 @@ describe('harvestSourceTexts', () => {
     function candidate(ingredients: readonly string[], droppedLines: readonly string[]): RecipeCandidateOutcome {
         const recipe = { ingredients: ingredients.map((sourceText) => ({ sourceText })) } as unknown as CandidateRecipe;
 
-        return { kind: 'candidate', recipe, droppedLines };
+        return { kind: 'candidate', recipe, droppedLines, droppedInstructions: [] };
     }
 
     it('harvests the clauses the extractor ACCEPTED as ingredients', () => {

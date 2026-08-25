@@ -64,10 +64,29 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // phrase — an implementation detail of exactly these two functions, the same way `modifierLexicon`
         // is of the comparator — and nothing outside this package reads a measure without also promoting a
         // line. It goes on the barrel the day a caller outside needs it, and not before.
+        //
+        // ⚠️ GREW BY TWO in U22a, and they are two VIEWS of one lexicon rather than two lexicons.
+        // `segmentClause` bounds an accepted span at the end of its ingredient — refusing the cut when the
+        // tail is a second food — and `dropTrailingInstruction` applies the same boundary to a NAME, whose
+        // single field has nowhere to keep a second food and so is cut unconditionally. Both are public
+        // because the consumer is `cookbook-import`, a different package reachable only through this door.
+        // The `VESSELS` and `INSTRUCTION_BOUNDARY` word sets behind them are deliberately NOT here, for
+        // the reason `modifierLexicon`'s are not: a vocabulary is an implementation detail of the policy
+        // that consumes it, and neither is a function.
+        //
+        // ⚠️ GREW BY ONE MORE in U22a's review pass, and it is the exception that proves that rule.
+        // `measuresNoSubstance` is a PREDICATE over `notAFoodLexicon`'s word set, not the set — and it is
+        // public because `cookbook-import`'s accept gate ("a DIMENSION is not a measure of an
+        // ingredient") and this package's segmentation guard must never disagree about which words those
+        // are. The gate used to hold its own `NOT_A_MEASURE` copy; the guard needed the same vocabulary
+        // to tell `for five minutes` from `with two eggs`, and two copies across a package boundary is
+        // exactly the drift the DRY rule is about. `namesNoFood` stays private: only the segmenter asks it.
         expect(Object.keys(publicApi).sort()).toEqual([
             'compareParses',
             'corruptsStatedValue',
+            'dropTrailingInstruction',
             'findQuantityPhrases',
+            'measuresNoSubstance',
             'millilitresPerUnit',
             'normalizeDurationToMinutes',
             'normalizeQuantity',
@@ -78,6 +97,7 @@ describe('@kitchensink/recipe-import-core barrel', () => {
             'promoteLlmParse',
             'roundToQuantityStorageScale',
             'sanitizeToPlainText',
+            'segmentClause',
             'splitMeasurement',
         ]);
     });

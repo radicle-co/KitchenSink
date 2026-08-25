@@ -15,6 +15,9 @@ export type {
 export { promoteCrfReading } from './domain/promoteCrfReading.js';
 export type { CrfReading } from './domain/promoteCrfReading.js';
 export { promoteLlmParse } from './domain/promoteLlmParse.js';
+export { dropTrailingInstruction, segmentClause } from './domain/clauseSegmentation.js';
+export { measuresNoSubstance } from './domain/notAFoodLexicon.js';
+export type { ClauseSegment } from './domain/clauseSegmentation.js';
 export { compareParses } from './domain/parseComparator.js';
 export type {
     ComparedFact,

@@ -252,3 +252,120 @@ describe('RecipeCreateContainer', () => {
         expect(pushMock).toHaveBeenCalledWith('/en/recipes');
     });
 });
+
+/**
+ * U33 — THE CREATE-THEN-UPLOAD HANDOVER, and the race that nearly lost every photo.
+ *
+ * ⛔ **THE DEFECT THIS PINS, found by re-reading the effect rather than by a failing test.** A save is two
+ * calls: the recipe is POSTed as JSON, then each photo is presigned, PUT and confirmed. The container must
+ * therefore not navigate while photos are outstanding — navigating unmounts the upload queue mid-flight and
+ * the photo is lost with no error anywhere.
+ *
+ * The first version of that guard read the QUEUE alone (`visibleQueueItems(queue.items).length === 0`). On
+ * the very render where `createdId` first becomes non-null, `useRecipeDraftPhotos`'s flush effect has already
+ * run and called `enqueue` — but `enqueue` is a state update, so `queue.items` is STILL EMPTY on that same
+ * render. The guard saw "nothing in flight" and navigated away in exactly the window the picks were being
+ * handed over: on the create path this whole seam exists for, with the photo the cook had just chosen.
+ *
+ * The fix reads BOTH the queue and the draft, because `values.photos` is non-empty for precisely the render
+ * the queue is empty. These tests hold both ends: a create WITH a pending photo must not navigate, and a
+ * create with none must navigate immediately (so the guard cannot be satisfied by never navigating at all).
+ */
+describe('RecipeCreateContainer — the create-then-upload handover (U33)', () => {
+    /** Walk a blank create to a publishable draft and press Publish. */
+    async function publishMinimalRecipe(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+        await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Photo Recipe');
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
+        await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), 'oli');
+        await user.click(await screen.findByRole('button', { name: 'Olive oil' }));
+        await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
+        await user.click(screen.getByRole('button', { name: 'Add step' }));
+        await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
+        await user.click(screen.getByRole('button', { name: /Next: Review/ }));
+        await user.click(screen.getByRole('button', { name: 'Publish' }));
+    }
+
+    /** A client whose ingredient search resolves one pickable food, as the happy-path suite above uses. */
+    function clientWithOneFood(): ReturnType<typeof createFakeRecipeServiceClient> {
+        const client = createFakeRecipeServiceClient();
+
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue({
+            suggestions: [
+                {
+                    provenance: 'local',
+                    ingredient: makeIngredient({
+                        id: 'ing_9',
+                        name: 'Olive oil',
+                        foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    }),
+                },
+            ],
+            catalogAvailability: 'ok',
+        });
+        vi.spyOn(client, 'createRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_created' }));
+
+        return client;
+    }
+
+    it('navigates as soon as the create returns when NO photo was chosen', async () => {
+        // The control case. Without it, a guard that simply never navigated would satisfy the next test.
+        const user = userEvent.setup();
+        const client = clientWithOneFood();
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+        await publishMinimalRecipe(user);
+
+        await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_created'));
+    });
+
+    it('does NOT navigate while a chosen photo is still being handed to the upload queue', async () => {
+        // ⛔ THE RACE. The photo is picked BEFORE the create, so at the moment the id lands it is sitting in
+        // the draft and the queue is empty — the exact render the queue-only guard read as "all done".
+        const user = userEvent.setup();
+        const client = clientWithOneFood();
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'dinner.png', { type: 'image/png' });
+
+        await user.upload(screen.getByLabelText('Add photo'), file);
+        await publishMinimalRecipe(user);
+
+        // The recipe IS saved — the cook is told so, on the surface that also shows the upload's own state.
+        await vi.waitFor(() =>
+            expect(screen.getByRole('status')).toHaveTextContent('Recipe saved. Finishing your photo uploads…'),
+        );
+        expect(pushMock).not.toHaveBeenCalledWith('/en/recipes/rec_created');
+    });
+
+    it('offers an explicit way to leave without the stragglers, rather than trapping the cook', async () => {
+        // Discarding a photo that will not upload is a DECISION the cook takes, never an outcome handed to
+        // them — and the absence of this control would be a dead end on a recipe that is already saved.
+        const user = userEvent.setup();
+        const client = clientWithOneFood();
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'dinner.png', { type: 'image/png' });
+
+        await user.upload(screen.getByLabelText('Add photo'), file);
+        await publishMinimalRecipe(user);
+
+        const finish = await screen.findByRole('button', { name: 'Finish without the remaining photos' });
+
+        await user.click(finish);
+
+        expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_created');
+    });
+
+    it('shows a photo control on step 1 — never a "save this recipe first" notice', async () => {
+        // ⛔ The ruling in one assertion: photos are a field, so the create path meets a CONTROL where it used
+        // to meet a sentence explaining why there was no control.
+        const client = clientWithOneFood();
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+
+        expect(screen.getByLabelText('Add photo')).toBeInTheDocument();
+        expect(screen.queryByText(/Save this recipe first/u)).not.toBeInTheDocument();
+    });
+});

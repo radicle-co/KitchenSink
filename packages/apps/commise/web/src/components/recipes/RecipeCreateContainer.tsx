@@ -136,16 +136,22 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
     const isDirty = useDiscardGuard(values, { ready: true, justSaved: createRecipe.isSuccess });
 
     const pendingUploads = visibleQueueItems(queue.items);
-    const awaitingPhotos = createdId !== null && pendingUploads.length > 0;
+    // ⛔ BOTH halves, and the DRAFT half is the one that is easy to miss. On the very render where `createdId`
+    // first becomes non-null, `useRecipeDraftPhotos`'s flush effect has run and called `enqueue` — but
+    // `enqueue` is a state update, so `queue.items` is STILL EMPTY on that same render. A check on the queue
+    // alone would therefore see "nothing in flight" and navigate away in the exact window the picks are
+    // mid-handover, unmounting the queue and losing every photo — on the create path this whole seam exists
+    // for. `values.photos` is non-empty for precisely that render (its clear is the same un-applied update),
+    // so reading both makes the window unrepresentable rather than merely unlikely.
+    const awaitingPhotos = createdId !== null && (pendingUploads.length > 0 || values.photos.length > 0);
 
-    // Navigate only once nothing is left in flight — see this module's doc on why a successful create does
-    // not leave immediately. Keyed on the two facts it reads, so it fires on the transition rather than on
-    // every render while the route change is already under way.
+    // Navigate only once nothing is left in flight OR waiting to be handed over — see above, and this
+    // module's doc on why a successful create does not leave immediately.
     useEffect(() => {
-        if (createdId !== null && pendingUploads.length === 0) {
+        if (createdId !== null && !awaitingPhotos) {
             router.push(`/${locale}/recipes/${createdId}` as Route);
         }
-    }, [createdId, pendingUploads.length, router, locale]);
+    }, [createdId, awaitingPhotos, router, locale]);
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
         draftPhotos.addPhotos(

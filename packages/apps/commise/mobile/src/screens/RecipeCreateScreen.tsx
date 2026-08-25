@@ -91,15 +91,21 @@ export function RecipeCreateScreen({ onCreated, onCancel }: RecipeCreateScreenPr
         enqueue: queue.enqueue,
     });
 
-    const pendingUploads = visibleQueueItems(queue.items);
+    // ⛔ BOTH halves, and the DRAFT half is the one that is easy to miss. On the very render where `createdId`
+    // first becomes non-null, `useRecipeDraftPhotos`'s flush effect has run and called `enqueue` — but
+    // `enqueue` is a state update, so `queue.items` is STILL EMPTY on that same render. A check on the queue
+    // alone would therefore see "nothing in flight" and hand the id upward in the exact window the picks are
+    // mid-handover, unmounting the queue and losing every photo. `values.photos` is non-empty for precisely
+    // that render (its clear is the same un-applied update), so reading both closes the window.
+    const awaitingPhotos =
+        createdId !== null && (visibleQueueItems(queue.items).length > 0 || values.photos.length > 0);
 
-    // Hand the id upward only once nothing is left in flight — see this module's doc on why a successful
-    // create does not leave immediately.
+    // Hand the id upward only once nothing is left in flight OR waiting to be handed over.
     useEffect(() => {
-        if (createdId !== null && pendingUploads.length === 0) {
+        if (createdId !== null && !awaitingPhotos) {
             onCreated(createdId);
         }
-    }, [createdId, pendingUploads.length, onCreated]);
+    }, [createdId, awaitingPhotos, onCreated]);
 
     const persist = (nextErrors: RecipeFormErrors, status: RecipeStatus): void => {
         setErrors(nextErrors);

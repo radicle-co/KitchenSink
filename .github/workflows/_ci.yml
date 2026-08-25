@@ -1020,6 +1020,15 @@ jobs:
               run: pip install --user 'ingredient-parser-nlp==2.3.0'
             - name: Run cookbook-import integration tests
               run: npm run test:integration --workspace=@kitchensink/cookbook-import
+            # The CRF engine's own deployable (ADR-0025). Two tiers no unit test can stand in for: the
+            # PACKAGING tier runs the real `pip install --platform manylinux2014_aarch64 --python-version 3.13`
+            # and interrogates what came out (the model artifact is present and whole, every compiled
+            # extension targets the Lambda rather than this runner, the tree fits Lambda's 250 MB unzipped
+            # limit) — including the mutation, where it deletes the model and asserts the guard reports it;
+            # the HANDLER tier imports handler.py into a real interpreter with the pinned engine (installed
+            # by the step above) and feeds its answer through the caller's zod. Needs network for pip.
+            - name: Run ingredient-parser integration tests
+              run: npm run test:integration --workspace=@kitchensink/ingredient-parser
 
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)

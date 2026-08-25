@@ -4,3 +4,9 @@ export { AdvisoryAwsSolutionsChecks } from './AdvisoryAwsSolutionsChecks.js';
 export { attachSecurityChecks } from './attachSecurityChecks.js';
 export { subscribeAlarmEmail } from './alarmSubscription.js';
 export { NODE_LAMBDA_RUNTIME, latestNodeRuntimeKnownToCdk } from './lambdaRuntime.js';
+export {
+    ENGINE_PYTHON_CEILING,
+    PYTHON_LAMBDA_RUNTIME,
+    latestPythonRuntimeBelow,
+    latestPythonRuntimeKnownToCdk,
+} from './pythonLambdaRuntime.js';

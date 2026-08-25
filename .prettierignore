@@ -23,3 +23,9 @@ docs/mockups/_assets
 # to leave today's output byte-identical; this entry is what stops a future prettier release from turning
 # that coincidence into a permanently-failing check nobody can explain.
 packages/schemas/*/openapi.yaml
+
+# The staged Python Lambda asset — ~3,000 files of pip output (third-party Python, licences, model cards)
+# rewritten by `npm run bundle:lambda`. It is gitignored build output that this repository did not author,
+# and reformatting a dependency's own README changes nothing anyone reads while making `format:check` walk
+# 91 MB. See ADR-0025.
+packages/services/ingredient-parser/build

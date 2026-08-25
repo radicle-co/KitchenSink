@@ -139,3 +139,11 @@ packages/services/recipe-service/src/metadata.ts
 # operator to extract the USDA FoodData Central zips into `tmp/fdc/` — ~110 MB of CSV that must never be
 # committed, and was untracked-but-visible until now.
 tmp/
+
+# The staged Python Lambda asset (packages/services/ingredient-parser). ~90 MB of pip output,
+# rebuilt by `npm run bundle:lambda`; never committed. See ADR-0025.
+build/asset/
+
+# Python bytecode — the handler is imported by its integration tier and by the packaging guard.
+__pycache__/
+*.py[cod]

@@ -42,3 +42,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0023 — A granted curator declares `imported_public`; the public-domain corpus is fetched out of band](0023-curator-declared-provenance.md)
 - [0024 — The LLM spend ceiling is enforced by a reserve-then-settle counter in our own code; no AWS mechanism can gate it](0024-llm-spend-ceiling-reserve-then-settle.md)
 - [0025 — The CRF ingredient parser is a Python deployable of its own, with a second runtime pin and its own packaging guard](0025-ingredient-parser-python-deployable.md)
+- [0026 — An ingredient line is parsed by two engines that cannot see each other, and a comparator adjudicates](0026-two-engine-ingredient-parse-pipeline.md)

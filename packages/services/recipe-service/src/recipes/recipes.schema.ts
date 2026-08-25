@@ -42,6 +42,7 @@ import {
     recipeDetailSchema,
     recipeDeviceLabelSchema,
     recipeDifficultySchema,
+    recipeMealTypeSchema,
     recipeExpectedVersionSchema,
     recipeIngredientGroupLabelSchema,
     recipeIngredientIdSchema,
@@ -291,6 +292,15 @@ const createRecipeRequestBaseSchema = z.strictObject({
      * clear, so an omit is "the author stated none" and an explicit `null` is rejected.
      */
     difficulty: recipeDifficultySchema.optional(),
+    /**
+     * Author-stated meal type (plan U34). On the BASE, deliberately — unlike `source`, which sits on the
+     * CREATE extension so a PATCH can never re-classify a recipe's PROVENANCE (ADR-0023), meal type is an
+     * ordinary editorial field a cook changes their mind about, so it must be editable by PATCH.
+     *
+     * `.optional()` and NOT `.nullable()` here, exactly as for `difficulty` above: on create there is nothing
+     * to clear. The UPDATE schema adds the `null` clear sentinel.
+     */
+    mealType: recipeMealTypeSchema.optional(),
     /** Defaults to `public` SERVER-side, so an omitted field stays distinguishable from an explicit choice. */
     visibility: recipeVisibilitySchema.optional(),
     /** Publication status (W8-a.3). Defaults to `published` server-side; the wizard's Save-Draft sends `draft`. */
@@ -367,6 +377,10 @@ export const updateRecipeRequestSchema = createRecipeRequestBaseSchema
     .extend({
         expectedVersion: recipeExpectedVersionSchema,
         difficulty: recipeDifficultySchema.nullable().optional(),
+        // Three-state for the SAME reason as `difficulty` above: `Partial<>` makes an omit mean "unchanged",
+        // so clearing a stated meal type needs its own spelling on the wire, and an explicit `null` is it.
+        // Without this line a cook who ever chose "dinner" could never get back to "not stated".
+        mealType: recipeMealTypeSchema.nullable().optional(),
     })
     // Derived from the BASE, not from `createRecipeRequestSchema`: `.omit()` throws on an object carrying
     // refinements. The publish floor is restated here rather than inherited, and its predicate is deliberately

@@ -38,6 +38,8 @@ import {
     recipeSchema,
     recipeStepViewSchema,
     MAX_RECIPE_CUISINE_LENGTH,
+    RECIPE_MEAL_TYPES,
+    recipeMealTypeSchema,
     MAX_RECIPE_DESCRIPTION_LENGTH,
     MAX_RECIPE_DEVICE_LABEL_LENGTH,
     MAX_RECIPE_INGREDIENTS,
@@ -976,5 +978,60 @@ describe('U27 — ingredient group label, on the BASE schema', () => {
         for (const groupLabel of ['For the sauce', 'For the topping', 'Dry ingredients', 'For the garnish']) {
             expect(lineAccepts({ groupLabel })).toBe(true);
         }
+    });
+});
+
+/**
+ * U34 — meal type, on the BASE schema.
+ *
+ * On the BASE, not on `createRecipeRequestSchema.extend()` — and that placement is a decision, not a
+ * default. `source` sits on the CREATE extension precisely so a PATCH cannot re-classify a recipe's
+ * PROVENANCE (ADR-0023). Meal type is the opposite kind of fact: it is an ordinary editorial field a cook
+ * changes their mind about, so it belongs where `title` and `cuisine` are and must be editable by PATCH.
+ *
+ * The three-state `nullable().optional()` on UPDATE mirrors `difficulty` exactly, and for the same reason:
+ * absence on the wire has to mean "unchanged", so CLEARING a stated meal type needs its own spelling, and
+ * that spelling is an explicit `null`. Without it, "not stated" would be unreachable once set.
+ */
+describe('U34 - meal type, a CLOSED vocabulary on the BASE schema', () => {
+    it('accepts every member of the vocabulary', () => {
+        for (const value of RECIPE_MEAL_TYPES) {
+            expect(createAccepts({ mealType: value })).toBe(true);
+        }
+    });
+
+    it('REFUSES a value outside it - what tags and dietary flags beside it deliberately do not do', () => {
+        expect(createAccepts({ mealType: 'supper' })).toBe(false);
+        expect(createAccepts({ mealType: 'Dinner' })).toBe(false);
+        expect(createAccepts({ mealType: '' })).toBe(false);
+    });
+
+    it('is OPTIONAL - "the author did not say" is a real state with no honest default', () => {
+        expect(createAccepts({})).toBe(true);
+    });
+
+    it('leaves tags and dietary flags FREE TEXT, so the closed set does not spread by imitation', () => {
+        expect(createAccepts({ tags: ['weeknight', 'a tag nobody curated'] })).toBe(true);
+        expect(createAccepts({ dietaryFlags: ['low-FODMAP'] })).toBe(true);
+    });
+
+    it('a PATCH may set a meal type - it is an editorial field, not a create-time fact', () => {
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, mealType: 'brunch' }).success).toBe(true);
+    });
+
+    it('a PATCH may CLEAR it with an explicit null, the way difficulty is cleared', () => {
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, mealType: null }).success).toBe(true);
+    });
+
+    it('a PATCH still refuses a value outside the vocabulary', () => {
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, mealType: 'supper' }).success).toBe(false);
+    });
+
+    it('CREATE does NOT accept null - there is nothing to clear on a recipe that does not exist yet', () => {
+        expect(createAccepts({ mealType: null })).toBe(false);
+    });
+
+    it('the RESPONSE schema carries it too, so a written meal type can be read back', () => {
+        expect(recipeSchema.shape.mealType.unwrap()).toBe(recipeMealTypeSchema);
     });
 });

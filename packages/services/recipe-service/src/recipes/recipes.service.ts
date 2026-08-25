@@ -1046,6 +1046,9 @@ export class RecipesService {
             // Author-stated difficulty (FR-001b) — persisted only when the author stated one; omitted
             // otherwise so the row stays "not stated" (NULL). Never defaulted.
             ...(dto.difficulty !== undefined ? { difficulty: dto.difficulty } : {}),
+            // Meal type (plan U34) — same rule as difficulty directly above: persisted only when the author
+            // stated one, omitted otherwise so the column stays NULL rather than acquiring a guessed value.
+            ...(dto.mealType !== undefined ? { mealType: dto.mealType } : {}),
             // Publication status (W8-a.3) — omitted → DB default 'published'; Save-Draft sends 'draft'.
             ...(dto.status !== undefined ? { status: dto.status } : {}),
             tags: dto.tags ?? [],
@@ -1388,6 +1391,9 @@ export class RecipesService {
             // value sets it, explicit `null` clears it. The DAL is what distinguishes the three — the DTO
             // preserved absent-vs-null, and forwarding the raw value keeps that distinction intact.
             difficulty: dto.difficulty,
+            // Three-state meal type (plan U34) passed straight through, exactly as difficulty is: `undefined`
+            // leaves it unchanged, a value sets it, an explicit `null` clears it back to "not stated".
+            mealType: dto.mealType,
             // Publication status (W8-a.3) — passed straight through: absent leaves it unchanged, a value
             // sets it (Publish / re-draft). The DAL keys off `!== undefined`.
             status: dto.status,

@@ -75,7 +75,7 @@ export const MAX_FACET_SAMPLE_SIZE = 10_000;
  */
 const RECIPE_COLUMNS = sql`
     recipes.id, recipes.owner_id, recipes.title, recipes.description, recipes.prep_time_minutes,
-    recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty,
+    recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty, recipes.meal_type,
     recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.source_type,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
     recipes.cuisine, recipes.dietary_flags, recipes.tags,
@@ -136,6 +136,7 @@ interface RawRecipeSearchRow {
     total_time_minutes: number | null;
     servings: number;
     difficulty: string | null;
+    meal_type: string | null;
     average_rating: string | null;
     rating_count: number;
     visibility: string;
@@ -188,6 +189,7 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         totalTimeMinutes: row.total_time_minutes,
         servings: row.servings,
         difficulty: row.difficulty,
+        mealType: row.meal_type,
         visibility: row.visibility,
         status: row.status,
         sourceType: row.source_type,

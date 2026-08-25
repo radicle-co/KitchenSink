@@ -49,6 +49,7 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         totalTimeMinutes: 30,
         servings: 4,
         difficulty: null,
+        mealType: null,
         averageRating: null,
         ratingCount: 0,
         visibility: 'public',

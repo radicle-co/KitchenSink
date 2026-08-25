@@ -114,6 +114,11 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             servings: { type: 'integer', notNull: true },
             // CR-001: nullable difficulty (no default) + trigger-maintained rating aggregate.
             difficulty: { type: 'text', notNull: false },
+            // U34 — nullable with NO default: "the author did not say" is a first-class state, exactly as
+            // for `difficulty` above. The seven-member domain is policed by `recipes_meal_type_check`, which
+            // this tier cannot see — `__tests__/integration/database/recipeMealType.integration.test.ts` proves
+            // the constraint is enforced against a real Postgres.
+            meal_type: { type: 'text', notNull: false },
             average_rating: { type: 'numeric(3,2)', notNull: false },
             rating_count: { type: 'integer', notNull: true },
             visibility: { type: 'text', notNull: true },

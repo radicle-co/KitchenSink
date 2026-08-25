@@ -43,7 +43,9 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 import {
     planReservation,
     actualCostMicros,
+    VERIFICATION_GATE_CALL_SITE,
     type PricedReservation,
+    type SpendCallSite,
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import {
     PROVISIONAL_VERIFICATION_THRESHOLDS,
@@ -74,6 +76,7 @@ import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { createSpendLedger, isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
+import { SETTLE_FAILURE_METRIC_NAME, SPEND_METRIC_NAME, SPEND_METRIC_NAMESPACE } from '../common/spendMetrics.js';
 import {
     VERIFICATION_MAX_INPUT_TOKENS,
     VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -88,18 +91,19 @@ import {
 } from '../verification/settings.js';
 import { createVerdictStore, type VerdictStore } from '../verification/verdictStore.js';
 
-/** The EMF namespace every metric below is published under. The alarms extract by exact namespace. */
-export const VERIFICATION_METRIC_NAMESPACE = 'Commise/RecipeVerification';
-
 /**
- * The dollar metric ADR-0024's layer 4 alarms on, in MICRO-dollars.
+ * The EMF namespace every metric below is published under. The alarms extract by exact namespace.
  *
- * ⛔ Layer 4 detects counter BUGS, not a bypass — an earlier draft of the ADR claimed otherwise and was
- * corrected. This metric is emitted BY the gated path, so a caller that skipped the gate emits nothing. The
- * bypass control is IAM (layer 4b): `bedrock:InvokeModel` on exactly one execution role, asserted by a guard
- * test. A permission nobody else holds cannot be bypassed; a metric nobody else emits cannot notice.
+ * ⛔ RE-EXPORTED, NOT DECLARED. It moved to `common/spendMetrics.ts` when the parse leg (plan U18) became the
+ * second claimant on ADR-0024's single pool: both consumers must publish the dollar metric into ONE series or
+ * layer 4's alarm watches half the money. This alias stays so the stack's and the suite's references to it
+ * keep pointing at the gate that owns the namespace.
  */
-export const SPEND_METRIC_NAME = 'VerificationSpendMicros';
+export {
+    SPEND_METRIC_NAMESPACE as VERIFICATION_METRIC_NAMESPACE,
+    SPEND_METRIC_NAME,
+    SETTLE_FAILURE_METRIC_NAME,
+} from '../common/spendMetrics.js';
 
 /**
  * WHO the spend is attributed to — the `CallSite` dimension's value for this gate (U36 / KTD-17).
@@ -114,11 +118,12 @@ export const SPEND_METRIC_NAME = 'VerificationSpendMicros';
  * one pool silently becomes several of unstated size. `source-rolling-window-count` is the cautionary case in
  * the other direction: it carries a `source` dimension and no `stage`, so prod and every preview co-mingle
  * into one series and no call can be attributed at all.
+ *
+ * ⛔ The VALUE now comes from `@kitchensink/recipe-core/spend/spend-arithmetic`, where the closed union of
+ * claimants lives beside the ceiling they claim against. Two consumers naming their own string literals is
+ * how a `CallSite` typo becomes a silent third series that no dashboard charts and no alarm sums.
  */
-export const VERIFICATION_CALL_SITE = 'verification-gate';
-
-/** Fires when a settlement failed, i.e. a reservation stands unrefunded. ADR-0024 asks for exactly this. */
-export const SETTLE_FAILURE_METRIC_NAME = 'VerificationSettleFailures';
+export const VERIFICATION_CALL_SITE: SpendCallSite = VERIFICATION_GATE_CALL_SITE;
 
 /**
  * Fires when a response reported cache tokens.
@@ -167,7 +172,7 @@ function evidenceFrom(message: VerifyIngredientLineMessage): IdentityEvidence {
 
 /** Publish one metric under this gate's namespace. */
 function publish(deps: VerificationDeps, name: string, value: number, unit: EmfMetric['unit'] = 'Count'): void {
-    deps.emit({ namespace: VERIFICATION_METRIC_NAMESPACE, name, unit, stage: deps.stage, value });
+    deps.emit({ namespace: SPEND_METRIC_NAMESPACE, name, unit, stage: deps.stage, value });
 }
 
 /**
@@ -184,7 +189,7 @@ function publish(deps: VerificationDeps, name: string, value: number, unit: EmfM
  */
 function publishSpend(deps: VerificationDeps, micros: number): void {
     deps.emit({
-        namespace: VERIFICATION_METRIC_NAMESPACE,
+        namespace: SPEND_METRIC_NAMESPACE,
         name: SPEND_METRIC_NAME,
         // CloudWatch has no currency unit — see `common/metrics.ts`. The denomination is in the metric NAME.
         unit: 'None',

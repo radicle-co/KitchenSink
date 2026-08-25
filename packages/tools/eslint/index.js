@@ -419,6 +419,22 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     // does not hold.
                                     '!@kitchensink/*/spend',
                                     '!@kitchensink/*/spend/spend-arithmetic',
+                                    // `parsing/parse-prompt` and `parsing/parse-answer` (plan U18) — the LLM
+                                    // parse leg's half of the model contract. The prompt is a MEASURED
+                                    // ARTIFACT: every figure in the 2026-08-23 model comparison is denominated
+                                    // in its exact 511 bytes, and THREE packages read it — the worker that
+                                    // ships the parse, the harness that measured it, and (through
+                                    // `PARSE_PROMPT_VERSION`) the parse cache, whose key must move the day the
+                                    // wording does. A second copy drifts invisibly in both directions: the
+                                    // harness keeps reporting figures for a prompt the worker no longer sends.
+                                    // `parse-answer` is its inverse and must move with it — it is where the
+                                    // model's `null`-vs-`""` measure collapses to ONE value, and two copies of
+                                    // that rule would partition the cache on a distinction carrying no
+                                    // meaning. Both stay OUT of the barrel because the barrel is inside the
+                                    // recipe service's contract corpus.
+                                    '!@kitchensink/*/parsing',
+                                    '!@kitchensink/*/parsing/parse-prompt',
+                                    '!@kitchensink/*/parsing/parse-answer',
                                     // `food-service` spells the same barrel `db/schema`, not `database/*`. It
                                     // has no importer yet, which is exactly why the omission was invisible.
                                     '!@kitchensink/*/db',

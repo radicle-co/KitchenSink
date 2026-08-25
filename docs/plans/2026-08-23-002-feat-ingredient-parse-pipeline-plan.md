@@ -23,9 +23,11 @@ field, and there is no way to group ingredients into the sections recipes actual
 same document, deliberately, because both halves turn on the same two facts — what a measurement is, and
 where identity ends and preparation begins.
 
-⛔ **The frontend half is BLOCKED on mockups.** Units U10–U14 must not begin until the Figma Make output
-lands (`docs/mockups/briefs/recipe-ingredient-entry-figma-make-prompt.md` is the brief). The backend half,
-U1–U9, has no such dependency and proceeds now.
+⚠️ **The mockups have LANDED** (`docs/mockups/figma-make/`), and the owner has ruled that their valid
+changes come into THIS plan rather than a separate effort. So the document now spans two tracks: the parse
+pipeline (U1–U9, backend, **ready to build today**) and the interactive surface (U10–U19, which the
+mockups govern). ⛔ They are deliberately independent — nothing in U1–U9 waits on a UI decision, and the
+build order keeps it that way. Parts of the mockup are unfinished; the frontend section names which.
 
 ---
 
@@ -375,6 +377,18 @@ human-judgement unit comes last, on the residue they leave:
 6. **U2, U3, U5, U6, U7** — the engines, the cache, the correction tier, the orchestration.
 7. **U8** — the oracle, on the ~130 lines still standing.
 8. **U9** — ADR-0025, written once the above have stopped moving.
+
+⛔ **The UI track (U10–U19) runs INDEPENDENTLY and does not gate any of the above.** Within it the order
+is: **U17 first** — it fixes a live defect (`Next` unreachable on native) and settles where every other
+control lives, so building U10–U14 against an unsettled action model means building twice. Then U18 (the
+step model, because it is typed and everything renders inside it), then U10–U14 (ingredient entry), then
+U19's three independent pieces last.
+
+⚠️ **Two defects are folded in here per the owner's ruling and are NOT gated on any mockup decision**:
+`Next` scrolling away on native (U17), and the 768–1023px band where the shipped chrome has neither a
+hamburger (`HomeTopBar.tsx:93`, `md:hidden`) nor a sidebar (`HomeSidebar.tsx:67`, `lg:flex`) — so tablet
+navigation survives only via the bottom tab bar. The second is app-shell, not wizard, and is the one piece
+here that touches `HomeChrome` rather than `features/recipes`.
 
 ⚠️ Steps 1–5 are cheap and they change what the rest is measured against. Doing them after U2's Python
 Lambda would mean committing the expensive infrastructure decision against numbers we already know are
@@ -750,7 +764,52 @@ a packaging guard that is new rather than proven.
 
 ---
 
-### Frontend — ⛔ BLOCKED on mockups
+### Frontend — the mockups have LANDED (2026-08-25)
+
+The Figma Make output is archived at `docs/mockups/figma-make/` and compared against shipped in that
+directory's README. ⛔ **The mockup is NOT uniformly ahead of what ships.** Three shipped decisions
+POST-DATE it and must not be regressed by a visual port:
+
+| shipped behaviour                                                       | why it must survive                                                                                                                                 |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Difficulty models **"Not stated"** as a fourth, first-class option      | the mockup has three and defaults to `Easy`; `toUpdateRecipeInput` turns removal into an explicit wire `null`, and a visual port deletes that state |
+| `goNext` is gated by `canAdvanceFromStep` and **voices the refusal**    | the mockup's `goNext` advances unconditionally into an empty form                                                                                   |
+| The discard guard compares **structurally** against a captured baseline | the mockup uses a three-field heuristic and guards only one of the three exits shipped guards                                                       |
+
+⚠️ **And parts of the mockup are unfinished — the owner ran out of Figma Make credit.** Do not port:
+`Save Draft` (no handler at either breakpoint), the duplicate desktop `Publish` (two controls, two labels),
+`Add Photo`/`Add Timer` (chrome with no state), the mockup's Dietary chips (they write into the SAME array
+as Categories — a state bug), the `md:` chrome cutover (see U17), or the un-guarded inline picker (below
+`md` it renders SIMULTANEOUSLY with the bottom sheet).
+
+⛔ `DESIGN_SYSTEM.md` is **not authoritative for anything**. It carries a THIRD seafoam (`#5BA8A0`, the
+un-darkened one) contradicting the mockup's own `theme.css`, and declares "focus indicators: 2px solid
+seafoam rings" — which would import the failing colour as a compliance rule. Its radius ramp, shadow ramp,
+sidebar width and tab count are all stale against that same CSS. Shipped matches the CSS.
+
+#### ⛔ Owner rulings, 2026-08-25 — the wizard's action model
+
+1. **Below `lg`: a bottom action bar carrying Previous · Save Draft · Next**, genuinely PINNED. Above
+   `lg`: the Previous / step-counter / Next row sits in the sticky header instead.
+2. **`lg`, not `md`.** The mockup's bar is `md:hidden`, so it does not exist at 768–1023px at all — the
+   tablet band falls back to the desktop header row. That is the unfinished half, not a specification.
+   `lg` also matches shipped's own chrome cutover.
+3. **Pinned means OUTSIDE the scroll container**, with `env(safe-area-inset-bottom)`. The mockup's
+   `sticky bottom-0` pins only because of its exact flex structure; one layout change and it drifts back
+   into flow. ⚠️ On native this is the fix for a REAL SHIPPED DEFECT: `Wizard.Controls` sits inside the
+   `ScrollView` (`RecipeEditor.tsx:205`), so a cook must scroll past the whole ingredient list to reach
+   `Next`.
+4. **Save Draft leaves the kebab below `lg`**; the kebab's remaining item, Cancel, is replaced by a
+   **header back arrow** routed through the existing discard guard. Desktop keeps `Preview` + kebab.
+5. **Step 4 becomes Review; Photos move into Details.** Typed change across `WIZARD_STEPS`,
+   `RecipeWizardStep`, `STEP_ERROR_FIELDS` and `WizardMessages.stepNames`'s 4-tuple.
+6. **Meal type becomes a fixed vocabulary**; tags and dietary flags stay free text, and free text stays
+   filterable.
+7. **Build the SpeedDial FAB, wiring only Create from Scratch.** Scan / Import / AI belong to features
+   004 and 005 and are not this plan's to promise.
+8. **Build auto-save for real.**
+
+#### Frontend — ingredient entry
 
 These units must not start before the Figma Make output exists. The brief is
 `docs/mockups/briefs/recipe-ingredient-entry-figma-make-prompt.md`.
@@ -819,6 +878,63 @@ a migration, both `RecipeIngredientsFields` variants, `form/model.ts`.
 group key at all (never `''`) · reordering within a group preserves order · moving a line between groups
 preserves its other fields · a label is scoped to its recipe, not global · `group_header` from an import
 lands as a group rather than a review reason.
+
+#### U17 — The wizard's action model, and the pinned bar (owner rulings 2026-08-25)
+
+**Goal.** Previous · Save Draft · Next in a genuinely pinned bar below `lg`; the same three in the sticky
+header above it; a back arrow replacing the kebab's Cancel below `lg`.
+
+**Files.** `features/recipes/src/wizard/Wizard.tsx` + `.native.tsx`, `wizard/messages.ts`,
+`mobile/src/screens/RecipeEditor.tsx`, `mobile/src/screens/RecipesScreen.tsx`,
+`web/src/components/recipes/RecipeCreateContainer.tsx` + `RecipeEditContainer.tsx`.
+
+⛔ **This fixes a shipped defect, and that is the acceptance test.** `Wizard.Controls` is inside the
+`ScrollView` (`RecipeEditor.tsx:205`), so `Next` scrolls away beneath a long ingredient list —
+`useScrollResetOnChange` exists because four Maestro flows caught the consequence. Pinning it is the cure,
+not a restyle.
+
+⚠️ **`lg`, not `md`.** The mockup's bar is `md:hidden` and therefore ABSENT at 768–1023px. Adopting its
+breakpoint would ship the gap rather than close it.
+
+⚠️ **Native needs a header at all.** `RecipesScreen.tsx:171` renders pushed surfaces bare — no title, no
+back affordance. The back arrow is therefore a NEW shared `Wizard.Header`, not a restyle of something.
+
+**Test scenarios.** The bar is reachable without scrolling on a recipe with 30 ingredients (Maestro + a
+Playwright viewport case) · it clears the gesture bar (`env(safe-area-inset-bottom)`) · at 768px the bar is
+present, and at 1024px the header row is · Save Draft is absent from the kebab below `lg` and present
+above · the back arrow routes through the existing discard guard, not around it · `Next` still refuses an
+invalid step and still voices why.
+
+#### U18 — Step 4 becomes Review; Photos move into Details
+
+**Goal.** The mockup's step model, adopted deliberately rather than by visual port.
+
+⛔ **A typed change that moves four things together**: `WIZARD_STEPS` (`wizard/model.ts:10`),
+`RecipeWizardStep` and `STEP_ERROR_FIELDS` (`form/model.ts:645,648-659`), and `WizardMessages.stepNames`,
+which is a `readonly [string, string, string, string]` (`wizard/messages.ts:13`). The tuple's arity is the
+compiler's guard — let it fail rather than widening it first.
+
+⚠️ **Review overlaps the shipped Preview modal** (`Wizard.tsx:230-290`), reachable from the top bar at any
+step. Decide whether Preview survives as well, or Review replaces it; shipping both is two answers to one
+question. ⚠️ And the shipped CREATE path cannot upload photos before first save
+(`RecipeCreateContainer.tsx:145` renders a "save first" notice), so moving Photos into step 1 needs that
+resolved, not inherited.
+
+#### U19 — Meal type, the SpeedDial, and auto-save
+
+**Goal.** Three independent owner rulings that share the creation surface.
+
+- **Meal type is a fixed vocabulary**; tags and dietary flags stay free text and stay filterable. New wire
+  field + migration. ⚠️ The mockup writes its Dietary chips into the SAME array as Categories — a state
+  bug. Model them as separate axes.
+- **SpeedDial FAB, wiring only Create from Scratch.** ⚠️ It replaces today's inline button
+  (`RecipeList.tsx:68`). Scan / Import / AI belong to 004 and 005; do not render them at all rather than
+  rendering them dead — the repo's convention for a not-yet-real destination is an `aria-disabled`
+  "coming soon" nav item, and promising a stopped feature is worse than omitting it.
+- **Auto-save, built for real.** ⛔ Not a label. Nothing ships today (`grep autosav` → nothing), and the
+  mockup's "Auto-saved 2 minutes ago" is a hardcoded literal. A debounced draft write has to interact with
+  `useRecipeEditor`'s `expectedVersion` and its 409/conflict statechart, so a lost-update path is the risk
+  to test, not the timer.
 
 #### U13 — Picker-first "Add ingredient"
 

@@ -83,10 +83,10 @@ appId: io.commise.mobile
 - tapOn: 'Step 1 instruction'
 - inputText: 'Mix and bake.'
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
@@ -143,10 +143,10 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Next: Instructions'
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 

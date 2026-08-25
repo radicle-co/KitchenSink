@@ -70,7 +70,7 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Combine and store airtight.');
 
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 

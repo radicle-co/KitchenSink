@@ -435,6 +435,7 @@ describe('setMealType / mealTypeOptions (U34 — the closed axis, cleared by KEY
         const options = mealTypeOptions(recipeFormMessages.en);
 
         expect(options.map((option) => option.value)).toEqual([...RECIPE_MEAL_TYPES, undefined]);
+
         for (const option of options) {
             expect(option.label.length).toBeGreaterThan(0);
         }

@@ -26,7 +26,7 @@ const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
  * Clerk session (`signInWithTicket`), so it needs `CLERK_SECRET_KEY` + the sandbox Clerk instance — it runs
  * in CI; whether it also runs locally depends on those secrets being present in the environment.
  *
- * w3/e8: the edit route now opens the 4-step wizard at step 1 (Basic); Photos is step 4, reached via the
+ * w3/e8: the edit route opens the 4-step wizard at step 1 (Details), where the photo manager lives (U33) — reached via the
  * step rail (forward navigation is never gated, only backward navigation while dirty is) rather than being
  * immediately on screen as it was on the old single-scroll form.
  *
@@ -45,8 +45,8 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
         await page.goto(route('/recipes/rec_seed/edit'));
-        // Jump straight to step 4 (Photos) via the rail.
-        await page.getByRole('button', { name: /Photos:/ }).click();
+        // Jump to step 1 (Details) via the rail — photos are a FIELD of Details now, not a step (U33).
+        await page.getByRole('button', { name: /Details:/ }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
 
         // The photo manager block starts empty, with an accessible "Photos" region.
@@ -84,7 +84,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
         await page.goto(route('/recipes/rec_seed/edit'));
-        await page.getByRole('button', { name: /Photos:/ }).click();
+        await page.getByRole('button', { name: /Details:/ }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
 
         const photosRegion = page.getByRole('region', { name: 'Photos' });
@@ -114,7 +114,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
         await page.goto(route('/recipes/rec_seed/edit'));
-        await page.getByRole('button', { name: /Photos:/ }).click();
+        await page.getByRole('button', { name: /Details:/ }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
 
         const photosRegion = page.getByRole('region', { name: 'Photos' });
@@ -145,14 +145,14 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
  * The mobile equivalent lives in `.maestro/recipes/photos.yaml` (emulator/CI only).
  */
 test.describe('recipe photo replace (U6)', () => {
-    /** Open the wizard's Photos step for the seeded recipe and add one photo, returning its region. */
-    async function openPhotosStepWithOnePhoto(page: import('@playwright/test').Page) {
+    /** Open the wizard's Details step for the seeded recipe and add one photo, returning the photo region. */
+    async function openDetailsStepWithOnePhoto(page: import('@playwright/test').Page) {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
         await page.goto(route('/recipes/rec_seed/edit'));
-        await page.getByRole('button', { name: /Photos:/ }).click();
+        await page.getByRole('button', { name: /Details:/ }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
 
         await page.getByLabel('Add photo').setInputFiles({
@@ -166,7 +166,7 @@ test.describe('recipe photo replace (U6)', () => {
     }
 
     test('pressing Replace opens the picker but deletes nothing on its own', async ({ page }) => {
-        const photosRegion = await openPhotosStepWithOnePhoto(page);
+        const photosRegion = await openDetailsStepWithOnePhoto(page);
 
         await photosRegion.getByRole('button', { name: 'Replace photo 1' }).click();
 
@@ -178,7 +178,7 @@ test.describe('recipe photo replace (U6)', () => {
     });
 
     test('picking a replacement swaps exactly one photo, once the new one is confirmed', async ({ page }) => {
-        const photosRegion = await openPhotosStepWithOnePhoto(page);
+        const photosRegion = await openDetailsStepWithOnePhoto(page);
         const originalSrc = await page.getByRole('img', { name: 'Recipe photo 1' }).getAttribute('src');
 
         await photosRegion.getByRole('button', { name: 'Replace photo 1' }).click();

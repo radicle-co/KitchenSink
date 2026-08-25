@@ -36,7 +36,7 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         await page.getByRole('button', { name: 'New recipe' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
-        // Step 1 (Basic).
+        // Step 1 (Details).
         await expect(page.getByText('Step 1 of 4')).toBeVisible();
         await page.getByLabel('Title').fill('E2E Marinade Bowl');
         await page.getByLabel('Servings').fill('4');
@@ -59,7 +59,7 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         await page.getByRole('button', { name: 'Next: Instructions' }).click();
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Marinate and grill.');
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         await page.getByRole('button', { name: 'Publish' }).click();
 
         // VIEW — the preparation is on the surface a cook actually cooks from, as its own text and NOT
@@ -104,7 +104,7 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         await page.getByRole('button', { name: 'Next: Instructions' }).click();
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Bake.');
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('heading', { name: 'E2E Flat Loaf' })).toBeVisible();

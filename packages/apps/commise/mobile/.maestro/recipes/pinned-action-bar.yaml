@@ -1,0 +1,101 @@
+appId: io.commise.mobile
+---
+# U32 — THE PINNED ACTION BAR, ON A DEVICE, ON A LONG INGREDIENT LIST.
+#
+# ⛔ WHAT THIS COVERS THAT NOTHING ELSE CAN. `Wizard.Controls` used to be rendered INSIDE `RecipeEditor`'s
+# single `ScrollView`, alongside the rail and every step body — so on a recipe with a long ingredient list the
+# primary control sat below the whole list and a cook had to scroll past every row to reach `Next`.
+# `useScrollResetOnChange` exists BECAUSE four Maestro flows caught the downstream consequence: advancing left
+# the cook at the BOTTOM of the next step with its heading off-screen.
+#
+# The component test (`tests/screens/RecipeEditor.native.test.tsx`) asserts the DOM ancestry — that the bar is
+# not a descendant of the scroller. That is the structural half. It cannot assert the thing a cook
+# experiences, because jsdom has no layout and nothing is ever off-screen in it. This flow is the other half:
+# on a real emulator, with a real scroll, the bar is still there.
+#
+# ⚠️ THE ASSERTION IS DELIBERATELY `assertVisible` AFTER A SCROLL, WITH NO `scrollUntilVisible` ANYWHERE NEAR
+# IT. `scrollUntilVisible` would PASS against the defect — it would simply scroll until the bar came into
+# view, which is precisely the behaviour being removed. A bare `assertVisible` on an element that must already
+# be on screen is the only form of this check that can fail.
+#
+# The seeded recipe carries five ingredient lines; three more are added here so the list is long enough to
+# push a scrolling bar off a phone screen. Nothing is published — this flow leaves the recipe as it found it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Step 1 of 4'
+
+# The header U32 added. Before it, this pushed surface had no title and no deliberate exit at all.
+- assertVisible: 'Back'
+
+# The bar is present on step 1 WITHOUT scrolling, and carries all three controls. `Save Draft` used to be an
+# overflow item a phone user had to go looking for.
+- assertVisible: 'Save Draft'
+- assertVisible: 'Next: Ingredients'
+
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+
+# Lengthen the list past a phone's height. Each add uses the freeform "Create …" path with a name deliberately
+# outside the seeded catalog, so it cannot collide with `search-navigation.yaml`'s "Flour" filter.
+- repeat:
+      times: 3
+      commands:
+          - scrollUntilVisible:
+                element: 'Search ingredients'
+                direction: UP
+                timeout: 20000
+          - tapOn: 'Search ingredients'
+          - inputText: 'Tamarind'
+          - scrollUntilVisible:
+                element:
+                    text: 'Create .*Tamarind.*'
+                direction: DOWN
+                timeout: 20000
+          - tapOn:
+                text: 'Create .*Tamarind.*'
+          - extendedWaitUntil:
+                notVisible: 'Create .*Tamarind.*'
+                timeout: 30000
+
+# ⛔ THE ASSERTION. Scroll to the very BOTTOM of the ingredient list — the position at which, before U32, the
+# action bar had been pushed off the screen entirely — and then assert, with no further scrolling, that all
+# three controls are still on it.
+- scrollUntilVisible:
+      element: 'Add ingredient'
+      direction: DOWN
+      timeout: 30000
+- assertVisible: 'Next: Instructions'
+- assertVisible: 'Save Draft'
+- assertVisible: 'Prev: Details'
+
+# And the bar still WORKS from there — it is not merely painted over the content.
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+
+# Step 4 is REVIEW now (U33), not Photos, and its primary is Publish rather than another Next.
+- scrollUntilVisible:
+      element: 'Next: Review'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Review'
+- assertVisible: 'Step 4 of 4'
+- assertVisible: 'Review'
+- assertVisible: 'Publish'
+
+# Leave without saving. The back arrow routes through the discard guard, which is the whole reason it
+# replaced the overflow menu's `Cancel` rather than being wired to navigation.
+- tapOn: 'Back'
+- assertVisible: 'Discard unsaved changes?'
+- tapOn: 'Discard changes'

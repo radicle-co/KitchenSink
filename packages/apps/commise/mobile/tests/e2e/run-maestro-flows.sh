@@ -142,6 +142,7 @@ recipes:recipes/quantity-range
 recipes:recipes/preparation-groups
 recipes:recipes/ingredient-catalog-blend
 recipes:recipes/ingredient-usda-search
+recipes:recipes/pinned-action-bar
 recipes:recipes/photos
 recipes:recipes/accessibility
 auth:account-danger-zone

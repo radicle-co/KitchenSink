@@ -5,7 +5,7 @@
  *
  *  - **The step NAMES and their association to a step number.** U33 renames the rail —
  *    `Photos` stops being a step of its own (its fields move into step 1) and step 4 becomes `Review`.
- *    `stepNames` is keyed BY {@link RecipeWizardStep}, not positional, so the association is the type rather
+ *    `stepNames` is keyed BY `RecipeWizardStep`, not positional, so the association is the type rather
  *    than an index arithmetic both platform leaves used to repeat with a `?? ''` fallback that could only ever
  *    render an empty label. This test asserts the four names AND that every step in {@link WIZARD_STEPS} has
  *    one, so a step added without a name is a failure here rather than a blank pill in the rail.

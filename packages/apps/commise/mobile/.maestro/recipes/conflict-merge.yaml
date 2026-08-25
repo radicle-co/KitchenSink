@@ -115,10 +115,10 @@ appId: io.commise.mobile
 # overflow. This flow used to tap `Publish` from step 3 on the pre-U6 assumption and failed there. Advancing
 # to step 4 also keeps the discard guard un-triggered — this is forward navigation, never backward.
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 # If a concurrent save landed first, the conflict view offers the per-side banner, the changed-only diff, and

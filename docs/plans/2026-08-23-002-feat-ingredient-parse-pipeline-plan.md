@@ -914,11 +914,25 @@ invalid step and still voices why.
 which is a `readonly [string, string, string, string]` (`wizard/messages.ts:13`). The tuple's arity is the
 compiler's guard — let it fail rather than widening it first.
 
-⚠️ **Review overlaps the shipped Preview modal** (`Wizard.tsx:230-290`), reachable from the top bar at any
-step. Decide whether Preview survives as well, or Review replaces it; shipping both is two answers to one
-question. ⚠️ And the shipped CREATE path cannot upload photos before first save
-(`RecipeCreateContainer.tsx:145` renders a "save first" notice), so moving Photos into step 1 needs that
-resolved, not inherited.
+⛔ **Review REPLACES Preview** (owner ruling 2026-08-25). The top-bar `Preview` button and its
+`role="dialog"` overlay (`Wizard.tsx:230-290`) are DELETED, not kept alongside — two surfaces rendering the
+same data drift, and each would need its own tests. It also frees the top-bar slot that Save Draft vacates
+below `lg`. ⚠️ Accepted cost: a cook can no longer sanity-check from step 1 without walking forward.
+
+⛔ **Photos behave like every other field** (owner ruling 2026-08-25). Today they are the ONE thing that
+demands a server round-trip before it can be touched — `RecipePhotoUploaderContainer` takes a required
+`recipeId` and every operation keys on it, so the create path renders "Save this recipe first" instead of
+an uploader (`RecipeCreateContainer.tsx:145`). Moving that notice to step 1 would greet every new recipe
+with a disabled control. Instead photos live in form state like `title` and `ingredients`, and flush when
+the recipe first has an id — normally from auto-save (U19), which the same ruling confirms saves DRAFTS.
+
+⚠️ **The one genuinely new failure mode, to be designed rather than discovered**: the create endpoint takes
+JSON and photos go through a separate `useRecipePhotoUpload` mutation, so a save is create-THEN-upload. A
+create that succeeds while an upload fails leaves a recipe whose photo did not land. Define that outcome —
+retry, surface, or discard — before building; do not let the two calls look like one.
+
+⚠️ **Ordering consequence**: this makes U19's auto-save a PREREQUISITE for U18 on the create path, and U19
+is currently scheduled last. Either move auto-save earlier or accept a first-save flush without it.
 
 #### U19 — Meal type, the SpeedDial, and auto-save
 

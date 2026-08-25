@@ -1207,8 +1207,19 @@ food-substitution FR remains open, and it is owned outside this task list).
 
 ## ⚠️ PARTLY RESOLVED — SC-007's load fixture vs. the head-term retrieval branch (raised 2026-08-23)
 
-**Status: the BREACH is resolved by owner ruling 2026-08-24 (SC-007 → 500ms p95, flat). The FIXTURE is
-still unfaithful and that half remains open — it is no longer blocking, and it is no longer urgent.**
+**Status: RESOLVED in direction, not yet built. The BREACH is closed by owner ruling 2026-08-24 (SC-007 →
+500ms p95, flat). The FIXTURE is to be made realistically skewed — owner ruling 2026-08-25 — which is work,
+not a decision.**
+
+⛔ **What "realistically skewed" means, measured 2026-08-25 against the real 8,094-row catalog.**
+`perfFixture.ts` builds names by `index % list.length` over tiny vocabularies, so EVERY head term matches a
+uniform ~9.09% of rows. Reality is heavy-tailed: **1.89% at p50**, with a worst realistic term (`ground
+beef` → `beef`) at **13.75%**. The fixture is therefore wrong in BOTH directions at once — it charges a
+median query tail cost, which is why every probe shape tripled together rather than a subset, and it
+UNDERSTATES the worst case, which at 50,000 rows would scan ~6,875 rows against the fixture's 4,545.
+
+⚠️ Re-baseline every SC-007 figure afterwards and record the deltas rather than replacing the old numbers
+silently — the current ones are not wrong measurements, they are measurements of a different population.
 
 ⛔ **What the ruling does and does not do.** At 500ms the measured `narrow` p95 of ~184ms and the 303ms
 breach both pass, with roughly 1.6–2.7x headroom, so the heavy tier is trustworthy again and the head-term

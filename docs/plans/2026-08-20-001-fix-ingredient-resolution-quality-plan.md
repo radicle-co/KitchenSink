@@ -1242,7 +1242,7 @@ ends on PG 18 describes a database prod no longer runs.
 
 ---
 
-## Absorbed scope — the parse pipeline and the interactive surface (consolidated 2026-08-25)
+### Absorbed scope — the parse pipeline and the interactive surface (consolidated 2026-08-25)
 
 ⛔ **This plan is the SINGLE source of truth for this effort.** Two parallel plans were written for work
 that continues it and have been folded in here and marked superseded:
@@ -1711,6 +1711,8 @@ sidebar width and tab count are all stale against that same CSS. Shipped matches
 These units must not start before the Figma Make output exists. The brief is
 `docs/mockups/briefs/recipe-ingredient-entry-figma-make-prompt.md`.
 
+**Test scenarios.** The ADR is indexed in `docs/architecture/decisions/README.md` AND has an inbound pointer — `docCrossReferences.test.ts` asserts both · every ⛔ decision in the absorbed scope appears in it.
+
 ### U25 — A unit vocabulary, and a canonical/subjective distinction on the wire
 
 **Goal.** The autocomplete has a list to bind to, and the wire can tell `cup` from `handful`.
@@ -1730,6 +1732,8 @@ change. Do not decide it from the code.
 unit round-trips · a subjective unit round-trips and is marked · an unknown unit is accepted, never
 rejected · `CONTRACT_HASH` moves and the client is regenerated.
 
+**Verification.** `recipe-core` unit suite green; `CONTRACT_HASH` regenerated and the typed client rebuilt; the `contract-drift` CI job green.
+
 ### U26 — The preparation field
 
 **Goal.** A real preparation field on the wire and in both UIs, distinct from `notes`.
@@ -1744,6 +1748,8 @@ a migration, `RecipeIngredientsFields.tsx`, `RecipeIngredientsFields.native.tsx`
 **Test scenarios.** Preparation is never concatenated into the food name on read or write · an empty
 preparation omits the key rather than sending `''` · both platforms render and submit it · the localized
 label exists on both platforms.
+
+**Verification.** Both platforms' component tests green; a create-then-read round trip preserves the field; localization keys present in every dictionary.
 
 ### U27 — Ingredient groups (replaces dry/wet attribution — owner ruling 2026-08-24)
 
@@ -1776,6 +1782,8 @@ group key at all (never `''`) · reordering within a group preserves order · mo
 preserves its other fields · a label is scoped to its recipe, not global · `group_header` from an import
 lands as a group rather than a review reason.
 
+**Verification.** Migration applied against a real Postgres in the integration tier; `CONTRACT_HASH` moved; both form leaves render sections; an ungrouped recipe still round-trips flat.
+
 ### U32 — The wizard's action model, and the pinned bar (owner rulings 2026-08-25)
 
 **Goal.** Previous · Save Draft · Next in a genuinely pinned bar below `lg`; the same three in the sticky
@@ -1801,6 +1809,8 @@ Playwright viewport case) · it clears the gesture bar (`env(safe-area-inset-bot
 present, and at 1024px the header row is · Save Draft is absent from the kebab below `lg` and present
 above · the back arrow routes through the existing discard guard, not around it · `Next` still refuses an
 invalid step and still voices why.
+
+**Verification.** Maestro reaches the action bar on a 30-ingredient recipe without scrolling; Playwright asserts the bar below `lg` and the header row above it; both platforms' component tests green.
 
 ### U33 — Step 4 becomes Review; Photos move into Details
 
@@ -1831,6 +1841,12 @@ retry, surface, or discard — before building; do not let the two calls look li
 ⚠️ **Ordering consequence**: this makes U34's auto-save a PREREQUISITE for U33 on the create path, and U34
 is currently scheduled last. Either move auto-save earlier or accept a first-save flush without it.
 
+**Files.** Modify `features/recipes/src/wizard/model.ts` (`WIZARD_STEPS`), `form/model.ts` (`RecipeWizardStep`, `STEP_ERROR_FIELDS`), `wizard/messages.ts` (the `stepNames` 4-tuple), `wizard/Wizard.tsx` + `.native.tsx` (delete Preview), both web containers, `mobile/src/screens/RecipeEditor.tsx`.
+
+**Test scenarios.** The tuple's arity change is a COMPILE error at every construction site, not a runtime surprise · Review renders every field the deleted Preview rendered · photos chosen before first save survive the save and land · a create whose upload fails leaves a defined, surfaced state · no Preview affordance remains.
+
+**Verification.** Typecheck green (the tuple is the guard); both platforms' component tests green; a create-with-photos round trip observed end to end.
+
 ### U34 — Meal type, the SpeedDial, and auto-save
 
 **Goal.** Three independent owner rulings that share the creation surface.
@@ -1847,6 +1863,12 @@ is currently scheduled last. Either move auto-save earlier or accept a first-sav
   `useRecipeEditor`'s `expectedVersion` and its 409/conflict statechart, so a lost-update path is the risk
   to test, not the timer.
 
+**Files.** Modify `recipe-core/src/recipeRequestBounds.ts`, `recipes.schema.ts`, `packages/schemas/recipe/**`, a migration, `form/RecipeBasicsFields.tsx` + `.native.tsx`, `web/src/components/recipes/RecipeList.tsx`, `mobile/src/screens/RecipesScreen.tsx`.
+
+**Test scenarios.** Meal type round-trips as a closed vocabulary while tags stay free text · free-text tags remain filterable · the FAB exposes ONLY Create from Scratch · auto-save writes a DRAFT and never publishes · a concurrent edit surfaces `useRecipeEditor`'s 409 rather than silently losing the later write · auto-save never fires on an untouched form.
+
+**Verification.** Both platforms green; a lost-update attempt observed to conflict rather than overwrite.
+
 ### U28 — Picker-first "Add ingredient"
 
 **Goal.** Remove the dead end. Today the button appends a row that `validateRecipeForm` rejects and
@@ -1858,6 +1880,8 @@ is currently scheduled last. Either move auto-save earlier or accept a first-sav
 **Test scenarios.** The button opens the picker · no unresolved row can be created from the happy path ·
 an unresolved row from a restored draft still surfaces its reason · Playwright (web) and Maestro (mobile)
 flows cover the loop end to end.
+
+**Verification.** Playwright (web) and Maestro (mobile) flows green for the add-ingredient loop; no path exists that can create an unresolved row.
 
 ### U29 — The USDA on-demand affordance
 
@@ -1877,12 +1901,24 @@ the change-refresh worker into a sustained consumer of the same window unless se
 
 #### Stashed items, folded in
 
+**Files.** Modify `packages/apps/commise/web/src/components/recipes/IngredientPicker.tsx`, `packages/apps/commise/mobile/src/components/IngredientPicker.tsx`, `packages/services/food-service/src/sources/RollingWindowLimiter.ts`. ⚠️ Revive `docs/plans/2026-07-26-ingredient-search-usda-blended-autocomplete.md` rather than redesigning; read its two named risks (F-W1, F-C2) first.
+
+**Test scenarios.** The affordance never fires on a keystroke · a slow response shows the multi-second loading state · empty and failed results are distinguishable · the reserved interactive lane is charged, not the drain's budget.
+
+**Verification.** Component tests green on both platforms; one live sandbox call observed drawing on the reserved lane.
+
 ### U30 — SC-007's load fixture vs. the head-term retrieval branch — ⛔ owner ruling needed
 
 Recorded at `specs/003-usda-food-data/tasks.md:1208`. Commit `8c70d742` added
 `OR rank_tokens @> ARRAY[${head}]::text[]` to `FoodSearchDao.relevanceQuery`, and the k6 SC-007 headroom
 fell from 5.6× to 1.5×. Undecided whether the fixture or the query is wrong. **Blocking for the heavy
 tier's credibility** — until it is resolved, an SC-007 pass means less than it did.
+
+**Files.** Modify `packages/services/food-service/tests/load/perfFixture.ts`. ⚠️ Re-baseline every SC-007 figure afterwards and record the DELTAS — the current numbers are measurements of a different population, not wrong measurements.
+
+**Test scenarios.** Generated head-term selectivity matches the real catalog's SHAPE (p50 ≈ 1.89%, tail ≈ 13.75%) rather than a uniform 9.09% · the corpus still reaches 50,000 rows · an anti-vacuity assertion proves every selectivity regime is represented.
+
+**Verification.** k6 SC-007 green at the 500ms budget under the new distribution, with the deltas recorded.
 
 ### U31 — `parseIngredientLine` folds measurements into the food name
 
@@ -1896,7 +1932,42 @@ a test, or state plainly that it survives in the projection and why that is acce
 
 ---
 
-## Risks & Dependencies
+## Sequencing
+
+1. **U1** — substrate, red. Both baselines captured before anything moves.
+2. **U2** — aliases: the cheapest large win, and it needs its own generated vector rather than folding into
+   `search_vector` (PG 17 syntax is unavailable until U13).
+3. **U3** — the write path stops minting prose. One unit, one service.
+4. **U12a — clear + recipe-side unlink.** ⚠️ moved **before** the ranking work. U6 verifies the
+   local-decides share against a clean table, and U5's baselines must not be anchored to rows U12 later
+   deletes. ⛔ The recipe-side unlink runs FIRST and must complete before the food-side clear: reversed, every
+   recipe carries a `food_id` pointing at a deleted row for the length of the window, and `ingredients.food_id`
+   has no foreign key to catch it. A non-zero remaining linked count aborts before any food row is deleted.
+5. **U12b — reseed.** ⚠️ It cannot wait for the end: U5's judgement-set gate at the next step would
+   otherwise measure an EMPTY catalog. Only the re-import stays at the end.
+   ⛔ **It does NOT make aliases observable, contrary to this step's original rationale** (measured
+   2026-08-21, U2 and U12b independently). USDA publishes additional descriptions only for **Survey (FNDDS)**
+   foods; Stage 1 seeds `foundation_food` + `sr_legacy_food`, both verified empty. So after the reseed
+   `food.aliases` is NULL across the whole bulk catalog and **U5/U6 must not assume an alias-bearing
+   catalog** — aliases arrive only through the live acquisition path, one food at a time. Seeding FNDDS is
+   an OPEN OWNER DECISION (composite prepared dishes competing with ingredient rows, immediately before the
+   ranking work); U12b left it one configuration word away, with a post-condition that fails loudly if FNDDS
+   is enabled while the reader still cannot read `food_attribute.csv`.
+6. **U5 + U6** — ranking and matching. Client re-sorts retired in the **same release** as U5, never before.
+7. **U7 → U8 → U9** — parser, then the quantity model whole, then UI on both platforms.
+8. **U10** — curated mappings. Its write path is unreachable until U14 lands in the same release.
+9. **U11** — verification gate and bake-off.
+10. **U14** — the correction surface. ⚠️ It follows U11, which it declares as a dependency: its whole content
+    is the surface for the gate's verdicts (the fourth `unaccounted` reason, the withheld-line state), and
+    none of those exist until U11 ships. Pairing it with U10 put it two steps ahead of its own prerequisite.
+11. **U15** — re-import and measure: resolution rate, adjudicated accuracy, correction-surfacing share.
+12. **U13** — PG 18, alone, with its own gate and runbook.
+
+---
+
+## Risks and dependencies
+
+### From the absorbed parse-pipeline scope
 
 1. **Three consumers on one $100 ceiling — now a RULING rather than a gap** (KTD-17, 2026-08-24). The pool
    is global by decision. The residual risk is unchanged in substance: a large import can starve the
@@ -1933,6 +2004,12 @@ a test, or state plainly that it survives in the projection and why that is acce
 
 ⚠️ Each was RULED but never given a unit, so executing the plan would have silently skipped it.
 
+**Files.** Verify — and only then modify — `packages/shared/recipe-import-core/src/ingredientLine.ts` and `splitMeasurement.ts`.
+
+**Test scenarios.** The measured cases in `specs/003-usda-food-data/tasks.md` either parse correctly or raise `measurement_in_name` · nothing that previously raised it silently stops · the projection's lossiness is asserted, since a projection inherits whatever it drops.
+
+**Verification.** ⛔ Close it with a TEST, or state plainly that it survives in the projection and why that is acceptable. Do not assume the pipeline closed it.
+
 ### U35. The Bedrock invocation id, and the IAM that must follow it
 
 Absorbs `docs/plans/2026-08-23-001-fix-bedrock-invocation-id-and-iam-plan.md`, whose `U1`/`U2` LANDED and
@@ -1949,6 +2026,22 @@ disabling verification entirely.
 inference-profile ARN **and the regions a profile fans out to**; record the ADR-0024 addendum, which now also
 carries the global-ceiling ruling (KTD-17).
 
+**Files.** Modify `packages/shared/recipe-core/src/spend/spendArithmetic.ts` (`ReservationPlan` carries the
+invocation id), `packages/services/recipe-workers/src/handlers/verifyLine.ts`,
+`packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts`,
+`docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md`.
+Test: `spendArithmetic`'s and `verifyLine`'s existing `__tests__`, plus the stack's synth spec.
+
+**Execution note.** Test-first. The red test is a profile-only model reaching `converse` with the RATE-TABLE
+key — today it passes and should not.
+
+**Test scenarios.** A profile-backed model invokes with the profile id and RECORDS the bare id · the rate
+table is still keyed on the bare id · an unpriced model still fails closed · the synthesized policy includes
+the `inference-profile` ARN and every region the profile fans out to · a foundation-model entry still works
+unchanged (no regression for Nova Micro).
+
+**Verification.** Unit + synth suites green; `cdk synth` diff shows the widened policy and nothing else.
+
 ### U36. `callSite` on the spend metric — attribution without partitioning
 
 The $100/month ceiling is ONE global pool (KTD-17, owner ruling 2026-08-24) shared by the verification gate,
@@ -1959,6 +2052,17 @@ answer it. Carry `callSite` as an EMF **dimension** while the ceiling stays a si
 ⚠️ Ship the dimension WITH the metric. `source-rolling-window-count` is the cautionary case — it carries a
 `source` dimension and no `stage`, so prod and every preview co-mingle into one series and no call can be
 attributed. A dimension is cheap now and expensive to retrofit after an incident.
+
+**Files.** Modify `packages/services/recipe-workers/src/verification/` (the EMF emitter) and its alarm/
+dashboard wiring in `RecipeWorkersStack.ts`. Test: the emitter's `__tests__`.
+
+**Execution note.** Test-first.
+
+**Test scenarios.** Every spend emission carries a `callSite` dimension · two call sites produce two series ·
+the ceiling arithmetic is unchanged by the dimension (attribution must not partition) · the alarm still fires
+on the aggregate, not per call site.
+
+**Verification.** Unit suite green; the emitted EMF record asserted to carry the dimension.
 
 ### U37. FR-010a — the three-character search minimum
 
@@ -1973,6 +2077,20 @@ the cook to keep typing — on both platforms, localized.
 ⚠️ Three is the floor, not four: no two-character food name exists, but fifteen genuine three-character foods
 do (`egg`, `ham`, `rye`, `cod`, `soy`, `oat`, `fig`, `yam`, `nut`, `tea`, `pie`, `elk`, `gin`, `rum`, `poi`).
 
+**Files.** Modify `packages/services/food-service/src/foods/dao/foodSearch.dao.ts` (delete
+`wordInitialPrefix` and the `to_tsquery` whitelist), `tests/load/` (drop the `short` probe), the search
+surfaces in `packages/apps/commise/web` and `mobile`, plus their message dictionaries.
+
+**Execution note.** Test-first. ⚠️ Deleting a strategy means deleting its tests — per §7.1 that is a decision
+to argue in the commit, not a silent removal.
+
+**Test scenarios.** A 1- and 2-character query returns the empty state, not results · `egg`, `ham`, `rye`
+still search · the empty state is localized on both platforms · no `to_tsquery` call remains that can take
+unsanitized input · the k6 suite no longer references `short`.
+
+**Verification.** DAO unit + integration green; both platforms' component tests green; k6 config has no
+dangling probe reference.
+
 ### U38. Seed the catalog, and read the rate limit rather than modelling it
 
 Ruled 2026-08-24; recorded in `specs/003-usda-food-data/tasks.md`. Seed **prod** and the **sandbox base**
@@ -1986,6 +2104,19 @@ empirically instead of by argument.
 ⚠️ The `TEMPLATE` clone is viable precisely BECAUSE food has no persistent non-prod instance — Postgres
 refuses to clone a database with any open session, and the sandbox base has none. Guard that, do not assume it.
 
+**Files.** Modify `packages/services/food-service/src/lambdas/migrate/handler.ts` (`TEMPLATE` clone),
+`packages/clients/usda/src/UsdaApiClient.ts` (read `X-RateLimit-*`), the seeding runbook in
+`src/foods/seed/README.md`. Test: `handler`'s `__tests__` and a food-service integration case.
+
+**Execution note.** Test-first.
+
+**Test scenarios.** A per-PR database is created from the template and starts with the base's rows · the base
+database itself is still skipped · a clone attempted while a session holds the template FAILS LOUDLY rather
+than silently creating an empty database · `X-RateLimit-Remaining` is parsed and emitted · a response without
+the header is not an error.
+
+**Verification.** Integration tier green against a real Postgres; one live sandbox clone observed warm.
+
 ### U39. The tablet navigation gap (768–1023px)
 
 The hamburger is `md:hidden` (`HomeTopBar.tsx:93`) and the drawer likewise, but the sidebar only appears at
@@ -1994,6 +2125,16 @@ bottom tab bar. The shipped chrome disagrees with itself.
 
 ⚠️ App-shell, not wizard: it touches `HomeChrome`, so it will not ride along with U32's work on
 `features/recipes`.
+
+**Files.** Modify `packages/apps/commise/web/src/components/home/chrome/HomeTopBar.tsx`,
+`HomeMobileNav.tsx`, `HomeSidebar.tsx`. Test: the chrome's component tests.
+
+**Execution note.** Test-first — the red test is a 900px viewport with no reachable navigation.
+
+**Test scenarios.** At 900px exactly one of {hamburger, sidebar} is present · at 767px the hamburger is ·
+at 1024px the sidebar is · the bottom tab bar is unaffected at every width.
+
+**Verification.** Component tests green at all three widths; Playwright viewport case green.
 
 ### U40. Wake the sandbox before the web E2E suite
 
@@ -2009,41 +2150,6 @@ is on a schedule.
 ⚠️ **Choose deliberately, because waking erodes ADR-0007's saving**: wake in CI (small, proven code, but an
 overnight push starts the RDS), decouple the suite from sandbox identity (a real fixture redesign — and this
 dependency is why the suite is fragile in working hours too), or do not run the heavy web suite overnight.
-
-## Sequencing
-
-1. **U1** — substrate, red. Both baselines captured before anything moves.
-2. **U2** — aliases: the cheapest large win, and it needs its own generated vector rather than folding into
-   `search_vector` (PG 17 syntax is unavailable until U13).
-3. **U3** — the write path stops minting prose. One unit, one service.
-4. **U12a — clear + recipe-side unlink.** ⚠️ moved **before** the ranking work. U6 verifies the
-   local-decides share against a clean table, and U5's baselines must not be anchored to rows U12 later
-   deletes. ⛔ The recipe-side unlink runs FIRST and must complete before the food-side clear: reversed, every
-   recipe carries a `food_id` pointing at a deleted row for the length of the window, and `ingredients.food_id`
-   has no foreign key to catch it. A non-zero remaining linked count aborts before any food row is deleted.
-5. **U12b — reseed.** ⚠️ It cannot wait for the end: U5's judgement-set gate at the next step would
-   otherwise measure an EMPTY catalog. Only the re-import stays at the end.
-   ⛔ **It does NOT make aliases observable, contrary to this step's original rationale** (measured
-   2026-08-21, U2 and U12b independently). USDA publishes additional descriptions only for **Survey (FNDDS)**
-   foods; Stage 1 seeds `foundation_food` + `sr_legacy_food`, both verified empty. So after the reseed
-   `food.aliases` is NULL across the whole bulk catalog and **U5/U6 must not assume an alias-bearing
-   catalog** — aliases arrive only through the live acquisition path, one food at a time. Seeding FNDDS is
-   an OPEN OWNER DECISION (composite prepared dishes competing with ingredient rows, immediately before the
-   ranking work); U12b left it one configuration word away, with a post-condition that fails loudly if FNDDS
-   is enabled while the reader still cannot read `food_attribute.csv`.
-6. **U5 + U6** — ranking and matching. Client re-sorts retired in the **same release** as U5, never before.
-7. **U7 → U8 → U9** — parser, then the quantity model whole, then UI on both platforms.
-8. **U10** — curated mappings. Its write path is unreachable until U14 lands in the same release.
-9. **U11** — verification gate and bake-off.
-10. **U14** — the correction surface. ⚠️ It follows U11, which it declares as a dependency: its whole content
-    is the surface for the gate's verdicts (the fourth `unaccounted` reason, the withheld-line state), and
-    none of those exist until U11 ships. Pairing it with U10 put it two steps ahead of its own prerequisite.
-11. **U15** — re-import and measure: resolution rate, adjudicated accuracy, correction-surfacing share.
-12. **U13** — PG 18, alone, with its own gate and runbook.
-
----
-
-## Risks and dependencies
 
 - **One-way doors:** ⛔ **the PostgreSQL 16 → 18 major upgrade on the shared instance carrying
   `kitchensink_identity`** — the largest in this plan, and previously absent from this list; the quantity
@@ -2143,3 +2249,15 @@ gate cannot run without it. Its generability is a precondition, not a deferral.
   reserve-then-settle rather than read-then-increment.
 - ADR-0002 (prod no-diff), ADR-0006 (per-PR logical DB), ADR-0014 (service-owned contracts),
   ADR-0021 (deferred nutrition), ADR-0022 (in-stack migration trigger), ADR-0023 (curator provenance).
+
+**Files.** Modify `.github/workflows/_ci.yml`. ⚠️ Reuses `.github/scripts/sandbox-wake.sh ensure` — do NOT
+write a second wake path; the script is already regression-tested.
+
+**Execution note.** ⛔ Blocked on the owner's choice between waking, decoupling the fixture, or not running
+the suite overnight — the three have very different costs and only one is a CI edit.
+
+**Test scenarios.** The suite passes on a run started inside the 00:00–09:00 ET window · the wake step is
+idempotent when the sandbox is already awake · a wake failure fails the job loudly rather than letting the
+suite time out 30s later with a misleading webhook message.
+
+**Verification.** One overnight run green, or a deliberate re-run inside the window.

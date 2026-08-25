@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/form — `RecipeBasicsFields` (native): step 1 of the recipe form, minus
  * visibility. Title, description, cuisine, tags, dietary flags, servings, prep/cook time, the read-only
- * computed total, and difficulty.
+ * computed total, difficulty, and meal type.
  *
  * The React Native leaf of `./RecipeBasicsFields.tsx` — same extraction rationale (see that module's doc):
  * the SAME field markup composes both under `RecipeForm.native.tsx`'s single scroll form (unchanged) and,
@@ -20,9 +20,16 @@ import { computeTotalTime, DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from './mo
 import { recipeFormMessages } from './messages.js';
 import { servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js';
 import { styles } from './formSectionStyles.native.js';
-import { difficultyOptions, parseNumericInput, setDifficulty, type RecipeFormSectionProps } from './props.js';
+import {
+    difficultyOptions,
+    mealTypeOptions,
+    parseNumericInput,
+    setDifficulty,
+    setMealType,
+    type RecipeFormSectionProps,
+} from './props.js';
 
-/** Step 1 (minus visibility): title, description, cuisine, tags, dietary flags, servings, prep/cook time, the read-only computed total, and difficulty. */
+/** Step 1 (minus visibility): title, description, cuisine, meal type, tags, dietary flags, servings, prep/cook time, the read-only computed total, and difficulty. */
 export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
     const m = useMessages(recipeFormMessages);
     const totalTime = computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes);
@@ -88,6 +95,36 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                                 aria-label={option.label}
                                 aria-checked={selected}
                                 onPress={() => onChange(setDifficulty(values, option.value))}
+                                style={[styles.difficultyChip, selected && styles.difficultyChipSelected]}
+                            >
+                                <Text
+                                    style={[styles.difficultyChipLabel, selected && styles.difficultyChipLabelSelected]}
+                                >
+                                    {option.label}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
+                </View>
+            </View>
+            <View style={styles.field}>
+                <Text style={styles.fieldLabel}>{m.mealTypeLabel}</Text>
+                {/*
+                  U34 — the ONE closed axis. It reuses the difficulty chip group's shape deliberately: both
+                  are "pick at most one from a fixed set, or state nothing". The two `ChipInput`s below stay
+                  free text, which is what keeps the two kinds of chip visibly and semantically different.
+                */}
+                <View role="radiogroup" aria-label={m.mealTypeLabel} style={styles.difficultyRow}>
+                    {mealTypeOptions(m).map((option) => {
+                        const selected = values.mealType === option.value;
+
+                        return (
+                            <Pressable
+                                key={option.label}
+                                role="radio"
+                                aria-label={option.label}
+                                aria-checked={selected}
+                                onPress={() => onChange(setMealType(values, option.value))}
                                 style={[styles.difficultyChip, selected && styles.difficultyChipSelected]}
                             >
                                 <Text

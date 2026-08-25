@@ -1574,3 +1574,66 @@ describe('RecipeForm (native) — a section resplit does not remount the rows (U
         expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
     });
 });
+
+describe('RecipeForm (native) — meal type (U34: the ONE closed axis)', () => {
+    const chip = (label: string): HTMLElement =>
+        within(screen.getByLabelText('Meal type')).getByLabelText(label);
+
+    it('renders a chip for every member of the vocabulary plus an explicit Not stated', () => {
+        renderForm();
+
+        for (const label of ['Breakfast', 'Brunch', 'Lunch', 'Dinner', 'Snack', 'Dessert', 'Drink', 'No meal type']) {
+            expect(chip(label)).toBeTruthy();
+        }
+    });
+
+    it('marks Not stated selected (and nothing else) when no meal type is set', () => {
+        renderForm({ values: filledValues() });
+
+        expect(chip('No meal type').getAttribute('aria-checked')).toBe('true');
+        expect(chip('Dinner').getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('marks the chip matching a stated meal type', () => {
+        renderForm({ values: filledValues({ mealType: 'dessert' }) });
+
+        expect(chip('Dessert').getAttribute('aria-checked')).toBe('true');
+        expect(chip('No meal type').getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('reports a selection upward', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues(), onChange });
+
+        fireEvent.click(chip('Lunch'));
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mealType: 'lunch' }));
+    });
+
+    it('clears it (REMOVING the field) when Not stated is chosen', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ mealType: 'dinner' }), onChange });
+
+        fireEvent.click(chip('No meal type'));
+
+        const next = onChange.mock.calls[0]?.[0] as RecipeFormValues;
+
+        expect(next.mealType).toBeUndefined();
+        expect('mealType' in next).toBe(false);
+    });
+
+    it('gives every chip a 44pt touch target', () => {
+        renderForm();
+
+        for (const label of ['Breakfast', 'No meal type']) {
+            expect(Number.parseInt(getComputedStyle(chip(label)).minHeight, 10)).toBeGreaterThanOrEqual(44);
+        }
+    });
+
+    it('does not select a meal type merely because a TAG names one', () => {
+        renderForm({ values: filledValues({ tags: ['dinner'] }) });
+
+        expect(chip('Dinner').getAttribute('aria-checked')).toBe('false');
+        expect(chip('No meal type').getAttribute('aria-checked')).toBe('true');
+    });
+});

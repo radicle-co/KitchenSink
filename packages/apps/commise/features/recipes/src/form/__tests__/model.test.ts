@@ -209,11 +209,25 @@ describe('toUpdateRecipeInput (three-state difficulty)', () => {
         expect('difficulty' in input).toBe(true);
     });
 
-    it('mirrors create for every field except difficulty AND visibility', () => {
-        const values = filledValues({ description: 'Creamy.', cuisine: 'Italian', difficulty: RecipeDifficulty.EASY });
-        const { difficulty: _updateDifficulty, ...updateRest } = toUpdateRecipeInput(values);
+    // U34 widened the exception list by exactly one: `mealType` is the SECOND three-state field, so it
+    // differs between the two bodies for the same reason `difficulty` does (create omits, update clears with
+    // an explicit null). Everything else must still mirror, which is what makes this a drift detector rather
+    // than a restatement of the mapper.
+    it('mirrors create for every field except the three-state pair AND visibility', () => {
+        const values = filledValues({
+            description: 'Creamy.',
+            cuisine: 'Italian',
+            difficulty: RecipeDifficulty.EASY,
+            mealType: 'dinner',
+        });
+        const {
+            difficulty: _updateDifficulty,
+            mealType: _updateMealType,
+            ...updateRest
+        } = toUpdateRecipeInput(values);
         const {
             difficulty: _createDifficulty,
+            mealType: _createMealType,
             visibility: _createVisibility,
             ...createRest
         } = toCreateRecipeInput(values);
@@ -1145,5 +1159,48 @@ describe('U26/U27 — preparation + groupLabel survive the draft round trip', ()
 
         expect(body.ingredients.map((line) => line.groupLabel)).toEqual(['Dry', 'Dry', 'Wet']);
         expect(body.ingredients.map((line) => line.name)).toEqual(['Flour', 'Sugar', 'Milk']);
+    });
+});
+
+describe('meal type — a closed vocabulary in the draft, mapped like difficulty (U34)', () => {
+    it('carries a stated meal type onto the create body', () => {
+        expect(toCreateRecipeInput(filledValues({ mealType: 'dinner' })).mealType).toBe('dinner');
+    });
+
+    it('OMITS it when not stated — create has no clear sentinel, so it must never send null', () => {
+        const input = toCreateRecipeInput(filledValues());
+
+        expect(input.mealType).toBeUndefined();
+        expect('mealType' in input).toBe(false);
+    });
+
+    it('sends an explicit null on UPDATE to CLEAR a previously-stated meal type', () => {
+        // The crux, identical to difficulty's: an OMIT means "unchanged" on a PATCH, so a cook who ever chose
+        // "dinner" could never get back to "not stated" without this sentinel.
+        expect(toUpdateRecipeInput(filledValues()).mealType).toBeNull();
+    });
+
+    it('carries the NEW value when an edit changes it', () => {
+        expect(toUpdateRecipeInput(filledValues({ mealType: 'brunch' })).mealType).toBe('brunch');
+    });
+
+    it('seeds from a loaded recipe, and omits it when the recipe states none', () => {
+        const stated = toRecipeFormValues(makeRecipeDetail({ mealType: 'dessert' }));
+        const unstated = toRecipeFormValues(makeRecipeDetail({}));
+
+        expect(stated.mealType).toBe('dessert');
+        expect(unstated.mealType).toBeUndefined();
+        expect('mealType' in unstated).toBe(false);
+    });
+
+    it('is a SEPARATE axis from tags and dietary flags — setting it writes into neither array', () => {
+        // The mockup wrote its Dietary chips into the SAME array as its Categories, which is the state bug
+        // this models away. Three axes, three fields, no aliasing.
+        const values = filledValues({ mealType: 'dinner', tags: ['weeknight'], dietaryFlags: ['vegan'] });
+        const input = toCreateRecipeInput(values);
+
+        expect(input.mealType).toBe('dinner');
+        expect(input.tags).toEqual(['weeknight']);
+        expect(input.dietaryFlags).toEqual(['vegan']);
     });
 });

@@ -11,9 +11,11 @@
 import {
     classifyUnit,
     CUISINES,
+    RECIPE_MEAL_TYPES,
     RecipeDifficulty,
     UNIT_VOCABULARY,
     type FoodResolutionStatus,
+    type RecipeMealType,
 } from '@kitchensink/recipe-core';
 
 import type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
@@ -355,6 +357,46 @@ export const setDifficulty = (values: RecipeFormValues, difficulty?: RecipeDiffi
 
     return difficulty === undefined ? rest : { ...rest, difficulty };
 };
+
+/**
+ * Set or CLEAR the draft's meal type (plan U34) — the single transition both platform leaves share.
+ *
+ * Clearing REMOVES the key rather than storing an explicit `undefined`, exactly as {@link setDifficulty}
+ * does, and for two compounding reasons: `exactOptionalPropertyTypes` forbids the explicit `undefined`, and
+ * `recipeFormValuesEqual` (the discard guard) compares by `JSON.stringify`, which DROPS an
+ * `undefined`-valued key — so the two spellings would compare equal while being different objects. Pure.
+ *
+ * @param values - The current form values.
+ * @param mealType - The meal type to state, or `undefined` to clear it back to "not stated".
+ * @returns The next values with the meal type set or removed.
+ */
+export const setMealType = (values: RecipeFormValues, mealType?: RecipeMealType): RecipeFormValues => {
+    const { mealType: _current, ...rest } = values;
+
+    return mealType === undefined ? rest : { ...rest, mealType };
+};
+
+/** One selectable meal type in the picker. `value` absent = the "not stated" option (clears the field). */
+export interface MealTypeOption {
+    /** The meal type this option states, or absent for the "not stated" (clear) option. */
+    readonly value?: RecipeMealType;
+    /** The localized, accessible label shown for the option. */
+    readonly label: string;
+}
+
+/**
+ * The ordered meal-type picker options — the vocabulary in DAY order, then an explicit "not stated" (clear)
+ * option — with their localized labels. Derived from `RECIPE_MEAL_TYPES` rather than listed a second time, so
+ * a vocabulary addition cannot ship with no way to choose it. Shared by both platform leaves so the option
+ * set and order cannot drift. Pure.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @returns The picker options in display order, with the clear option last.
+ */
+export const mealTypeOptions = (messages: RecipeFormMessages): MealTypeOption[] => [
+    ...RECIPE_MEAL_TYPES.map((value) => ({ value, label: messages.mealTypeOptions[value] })),
+    { label: messages.mealTypeNotStated },
+];
 
 /** One selectable difficulty in the picker. `value` absent = the "not stated" option (clears the field). */
 export interface DifficultyOption {

@@ -6,6 +6,7 @@
  * another key. Templates carry `{token}` placeholders filled with `fillTemplate`.
  */
 import type { LocalizedMessages } from '@commise/i18n';
+import type { RecipeMealType } from '@kitchensink/recipe-core';
 
 /** Shared copy for the recipe create/edit form, rendered by both the web and native form leaves. */
 export interface RecipeFormMessages {
@@ -44,6 +45,30 @@ export interface RecipeFormMessages {
     readonly difficultyHard: string;
     /** Difficulty option that clears a stated difficulty back to "not stated". */
     readonly difficultyNotStated: string;
+    /**
+     * Group label for the meal-type chip group (plan U34).
+     *
+     * ⛔ "Meal type", never "category". This is the ONE closed axis on the form — the field beneath it
+     * (`tags`) is free text and is where a cook's own words go. Naming this one "Category" would invite
+     * exactly the merge the mockup made, where its Dietary chips wrote into the same array as its Categories.
+     */
+    readonly mealTypeLabel: string;
+    /**
+     * The vocabulary's labels, keyed by wire value (plan U34). A RECORD, not a positional list, for the same
+     * reason `WizardMessages.stepNames` is: the association is then the type, and a vocabulary member added
+     * in `recipe-core` without a label here is a compile error rather than a blank chip.
+     */
+    readonly mealTypeOptions: Readonly<Record<RecipeMealType, string>>;
+    /**
+     * Meal-type option that clears a stated meal type back to "not stated".
+     *
+     * ⛔ Deliberately NOT the same words as {@link difficultyNotStated}, even though it is the same idea.
+     * Both chips sit in the SAME form, and an option's label is its accessible NAME — two controls named
+     * "Not stated" in one form are indistinguishable to anyone navigating by name, which is exactly the
+     * failure WCAG 3.3.2 addresses (the same reason the two ingredient quantity spinbuttons carry distinct
+     * names). The existing difficulty tests caught the collision the moment this chip group was added.
+     */
+    readonly mealTypeNotStated: string;
     /** Accessible label for the tags field. */
     readonly tagsLabel: string;
     /** Placeholder/hint for the tags + dietary chip inputs — explains the type-and-enter entry (U6). */
@@ -214,6 +239,17 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         difficultyMedium: 'Medium',
         difficultyHard: 'Hard',
         difficultyNotStated: 'Not stated',
+        mealTypeLabel: 'Meal type',
+        mealTypeOptions: {
+            breakfast: 'Breakfast',
+            brunch: 'Brunch',
+            lunch: 'Lunch',
+            dinner: 'Dinner',
+            snack: 'Snack',
+            dessert: 'Dessert',
+            drink: 'Drink',
+        },
+        mealTypeNotStated: 'No meal type',
         tagsLabel: 'Tags',
         tagsHint: 'Type and press Enter',
         removeChipLabel: 'Remove {value}',

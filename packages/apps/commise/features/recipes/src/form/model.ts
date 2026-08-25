@@ -37,6 +37,7 @@ import type {
     NutritionLine,
     RecipeDetail,
     RecipeDifficulty,
+    RecipeMealType,
     RecipeNutrition,
     RecipeStatus,
     RecipeVisibility,
@@ -135,6 +136,19 @@ export interface RecipeFormValues {
      * turns into an explicit `null` clear on the wire (as opposed to an omit, which would leave it unchanged).
      */
     readonly difficulty?: RecipeDifficulty;
+    /**
+     * Author-stated meal type (plan U34). ABSENT means "not stated" — a real, first-class state, never a
+     * substituted default, exactly as for {@link RecipeFormValues.difficulty} above. On an EDIT form it is
+     * seeded from the recipe's current meal type, so the user choosing "not stated" makes the field absent,
+     * which {@link toUpdateRecipeInput} turns into an explicit wire `null` clear (as opposed to an omit,
+     * which would leave the stored value unchanged).
+     *
+     * ⛔ A CLOSED vocabulary, and the only one on this form: `tags` and `dietaryFlags` beside it are free
+     * text and stay that way. They are three separate axes and none of them aliases another — the mockup
+     * wrote its Dietary chips into the SAME array as its Categories, which is the state bug this shape
+     * refuses by construction.
+     */
+    readonly mealType?: RecipeMealType;
     readonly tags: readonly string[];
     readonly dietaryFlags: readonly string[];
     readonly servings: number;
@@ -405,6 +419,9 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
     ...(values.cuisine.trim() === '' ? {} : { cuisine: values.cuisine.trim() }),
     // Difficulty is optional on create with NO clear sentinel: carry it only when stated, omit otherwise.
     ...(values.difficulty === undefined ? {} : { difficulty: values.difficulty }),
+    // Meal type follows the SAME create rule, for the same reason: there is nothing to clear on a recipe
+    // that does not exist yet, so an unstated meal type is a true omit and never an explicit `null`.
+    ...(values.mealType === undefined ? {} : { mealType: values.mealType }),
     ingredients: values.ingredients
         .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
         .map((line) => ({
@@ -475,6 +492,8 @@ export const toUpdateRecipeInput = (
         ...rest,
         // Present → set that value; absent → explicit null CLEAR (the crux: omit could never clear a set value).
         difficulty: values.difficulty ?? null,
+        // Identical three-state rule for meal type (U34) — see `difficulty` directly above.
+        mealType: values.mealType ?? null,
     };
 };
 
@@ -500,6 +519,9 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
     cuisine: detail.cuisine ?? '',
     // Seed the current difficulty so the edit form shows it; absence stays "not stated" (FR-001b).
     ...(detail.difficulty === undefined ? {} : { difficulty: detail.difficulty }),
+    // Same for meal type (U34): seed what the recipe states, and leave the field ABSENT when it states none,
+    // so the discard guard does not report a freshly-seeded form as edited and "not stated" stays reachable.
+    ...(detail.mealType === undefined ? {} : { mealType: detail.mealType }),
     tags: [...detail.tags],
     dietaryFlags: [...detail.dietaryFlags],
     servings: detail.servings,

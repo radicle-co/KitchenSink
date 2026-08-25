@@ -94,6 +94,45 @@ export const NOVA_PRO_MODEL_ID = 'amazon.nova-pro-v1:0';
 export const DEFAULT_MONTHLY_CEILING_MICROS = 100 * MICROS_PER_DOLLAR;
 
 /**
+ * WHO may claim against the single pool — the closed value space of the `CallSite` metric dimension.
+ *
+ * ⛔ ATTRIBUTION, NOT PARTITIONING (KTD-17, owner ruling 2026-08-24). There is ONE ceiling,
+ * {@link DEFAULT_MONTHLY_CEILING_MICROS}, and it is NOT sub-divided per consumer: a per-`callSite` cap is the
+ * daily sub-ceiling's mistake on a different axis — it would refuse a legitimate import while the global
+ * figure sat nowhere near $100, and it would need re-tuning every time a consumer's share of the work moved.
+ * The accepted consequence, stated so nobody files it as a defect: **the first consumer to burn the pool
+ * denies the others**, and the verification gate then fails closed and drains to its DLQ.
+ *
+ * ⛔ WHICH IS PRECISELY WHY THE NAMES LIVE HERE. Not capping per consumer makes it MORE important to know
+ * which one spent, not less — when the pool empties, "who burned it" is the first question, and a
+ * dimensionless spend metric cannot answer it. The dimension rides on the METRIC and nowhere else: nothing
+ * about the reservation — the ceiling, the worst case, the headroom, or the counter row (keyed on the period
+ * ALONE) — may learn about the call site, or one pool silently becomes several of unstated size.
+ *
+ * ⚠️ It is a CLOSED union because in EMF every distinct combination of dimension values is a separately
+ * billed custom metric. The value space is bounded by releases rather than by traffic, which is the property
+ * `packages/infra/global/__tests__/emfIdentifierDimensionRepoGate.test.ts` admits `callsite` on — and it is
+ * the property `food-service`'s `source-rolling-window-count` lost by carrying `source` with no `stage`, so
+ * that prod and every preview co-mingle into one series and no call can be attributed at all.
+ */
+export const SPEND_CALL_SITES = ['verification-gate', 'ingredient-parse'] as const;
+
+/** One claimant on ADR-0024's single spend pool. */
+export type SpendCallSite = (typeof SPEND_CALL_SITES)[number];
+
+/** The ingredient VERIFICATION gate (plan U11, ADR-0024) — the pool's first consumer. */
+export const VERIFICATION_GATE_CALL_SITE: SpendCallSite = 'verification-gate';
+
+/**
+ * The ingredient-line LLM PARSE leg (plan U18, KTD-17) — the pool's second consumer.
+ *
+ * ⚠️ Its shape of spend is different from the gate's and that is worth knowing when reading the metric: the
+ * gate fires per RESOLVED line and is bounded by how many recipes are written, while the parse leg fires per
+ * IMPORTED line and a single bulk import can claim a large share of the month in minutes.
+ */
+export const INGREDIENT_PARSE_CALL_SITE: SpendCallSite = 'ingredient-parse';
+
+/**
  * Where a decision to route this model's inference beyond the calling region is written down.
  *
  * ⛔ A WARRANT, NOT A BOOLEAN, for the same reason {@link ModelRate.priceVerified} and

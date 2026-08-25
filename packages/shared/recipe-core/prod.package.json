@@ -53,6 +53,14 @@
         "./spend/spend-arithmetic": {
             "types": "./dist/spend/spendArithmetic.d.ts",
             "default": "./dist/spend/spendArithmetic.js"
+        },
+        "./parsing/parse-prompt": {
+            "types": "./dist/parsing/parsePrompt.d.ts",
+            "default": "./dist/parsing/parsePrompt.js"
+        },
+        "./parsing/parse-answer": {
+            "types": "./dist/parsing/parseAnswer.d.ts",
+            "default": "./dist/parsing/parseAnswer.js"
         }
     },
     "dependencies": {

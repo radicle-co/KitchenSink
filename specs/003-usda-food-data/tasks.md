@@ -1280,7 +1280,75 @@ cannot see a query that picks the right index and then scores 4,545 rows through
 
 ---
 
-## ⛔ OPEN — `parseIngredientLine` folds measurements into the food name, silently (raised 2026-08-23)
+## ✅ CLOSED — `parseIngredientLine` folds measurements into the food name, silently (raised 2026-08-23, closed 2026-08-25)
+
+**Status: closed by U31. The original two rows are fixed; the fix's OWN regression is fixed; row 3 is ruled
+a lexicon question and recorded as a decision, not a bug. Everything below the ruling is the raised entry,
+kept for its evidence.**
+
+### The verified answer (U31, measured 2026-08-25 — not read, RUN)
+
+The 2026-08-23 partial fix (`measurement_in_name` + `takeMeasurementOutOf`) closed the two rows it was
+written for, and INTRODUCED a worse defect of the same class going the other way. Measured before this
+close:
+
+| line                                            | name it produced | reviewReasons |
+| ----------------------------------------------- | ---------------- | ------------- |
+| `1 pound (about 4 cups shredded cooked chicken` | `""`             | `[]`          |
+| `1 can (14.5 ounces diced tomatoes`             | `""`             | `[]`          |
+| `2 cups flour (a family recipe)`                | `"flour"`        | `[]`          |
+
+⛔ The food itself was DELETED, silently. Both causes sat in one condition — the bracket strip fired when
+`findQuantityPhrases` found anything at all inside — and each half was wrong on its own:
+
+- the closing bracket was OPTIONAL (`\)?`), so an unclosed `(` matched to the end of the line;
+- a bare article IS an amount (`findQuantityPhrases('a family recipe')` returns a span at `0..1`), so any
+  parenthetical opening `a`/`an`/`one` was cut as though it were `(about 4 cups)` — the exact case
+  `PARENTHESISED`'s own docstring had promised would survive.
+
+**Fixed by ONE rule rather than two.** A bracket is stripped only when it is CLOSED and its contents pass
+`carriesAMeasurement` — the amount-followed-by-a-unit test the residual check already applied to the whole
+name. `(about 4 cups)` passes; `(a family recipe)` does not, because `family` is not a unit. The leading
+`\s*` came off at the same time (the polynomial-ReDoS shape `splitMeasurement.ts`'s header records), and a
+20,000-space guard is pinned beside it. An unclosed bracket now KEEPS its text and raises
+`measurement_in_name`, which is visible rather than silent — the standing rule being that leaving a
+measurement in the name costs a catalog match, while deleting the food costs the ingredient.
+
+### ⚠️ Row 3 SURVIVES, deliberately — it is a unit-lexicon gap, not a segmentation one
+
+`a handful of fresh basil leaves, torn` still yields `name: "handful of fresh basil leaves, torn"` with
+`reviewReasons: []`, and so do `a knob of butter` and `a splash of milk` — while `a pinch`, `a dash`,
+`a sprig` and `a bunch` read cleanly, because `parse-ingredient` already defines those four words. Nothing
+is folding a SECOND measurement in; one measure word is missing from a lexicon. The one-line fix
+(`IMPORT_UNITS`, as R31 did for `tablespoonfuls`) is REFUSED on three grounds:
+
+- a handful has no gram weight and no source table that could give it one — R32/R33 admit a
+  conversion-less unit only because a book's own table of weights and measures resolves it;
+- `cookbook-import`'s `ingredientInClause` accepts a clause only when `unit !== null`, so minting the unit
+  would newly ADMIT these lines carrying `1 handful`, which nutrition cannot cost;
+- `ParsedFacts.statedMeasure` (U16) is already the canonical home for exactly this class.
+
+⛔ And it must NOT be closed by widening `measurement_in_name`: that reason means "the quantity understates
+the line", a vague measure understates nothing, and a reason that fires on everything is one nobody reads.
+
+### The projection is NOT a second route to this defect
+
+`projectToIngredientLine` performs no text surgery — the narrow `name` is `ParsedFood.name` verbatim, so
+`takeMeasurementOutOf` never runs there and a measurement in that name is the ENGINE's defect for the U19
+comparator to catch. What the projection DOES lose is `statedMeasure`'s words, and its drop table used to
+justify that with "its READING survives as `quantity` + `unit`" — false for the vague-measure class the
+field was introduced for, where the reading is `absent` + `null`. Corrected: `raw` carries the words
+through byte-identical, so only the SEGMENTATION is lost. All three points are asserted in
+`src/__tests__/parsedLine.test.ts`.
+
+Tests: `src/__tests__/ingredientLine.test.ts` (bracket deletions, the mutation-lens guards that fail if the
+strip is disabled wholesale, the ReDoS budget, and the row-3 decision) and `parsedLine.test.ts`. Unit
+507 passed / integration 101 passed in `recipe-import-core`; `cookbook-import` 317 + 12 (4 skipped, live
+service) unchanged.
+
+---
+
+**Original entry, kept for the evidence:**
 
 **Status: undecided. A defect, not a fork — but the fix has a design choice inside it.**
 

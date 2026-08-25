@@ -207,8 +207,6 @@ export interface MobileMessages {
         readonly createError: string;
         /** Alert shown when saving recipe edits fails. */
         readonly saveError: string;
-        /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
-        readonly photosAfterCreateNotice: string;
         /** Title of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
         readonly createGuidanceTitle: string;
         /** Body of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
@@ -442,8 +440,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
             saveError: 'We couldn’t save your changes. Please try again.',
-            photosAfterCreateNotice:
-                'Publish your recipe to add photos — tap Publish below, then add photos from its page. Nothing here to do yet.',
             createGuidanceTitle: 'Let’s build your recipe',
             createGuidanceBody:
                 'Start with a title and the basics. You’ll add ingredients, steps, and photos as you go — tap Next when a step is ready.',

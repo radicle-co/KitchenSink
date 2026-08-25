@@ -39,13 +39,13 @@ afterEach(() => {
 });
 
 /**
- * Reach the wizard's final step (Photos) via the rail. U6 chrome made `Publish` the footer's FINAL-step
- * primary only — no longer live on steps 1–3 — so any publish flow must first land on Photos. The rail
+ * Reach the wizard's final step (Review) via the rail. `Publish` is the action bar's FINAL-step
+ * primary only — not live on steps 1–3 — so any publish flow must first land on Review. The rail
  * permits UNGATED forward navigation regardless of a step's validity, which lets the invalid-form
  * submission-gate test reach the button even from the invalid Basic step.
  */
-async function goToPhotos(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-    await user.click(screen.getByRole('button', { name: /Photos:/ }));
+async function goToReview(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(screen.getByRole('button', { name: /Review:/ }));
 }
 
 /**
@@ -78,15 +78,15 @@ describe('RecipeCreateContainer', () => {
 
         // Publish is the final step's footer primary (U6: no longer on steps 1–3). Reach it via the rail —
         // FORWARD navigation is ungated even from the invalid Basic step — then attempt to submit.
-        await goToPhotos(user);
+        await goToReview(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         // Submission is blocked (no create) and the rail flags the invalid Basic step …
         expect(createSpy).not.toHaveBeenCalled();
-        expect(screen.getByRole('button', { name: /Basic: needs attention/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Details: needs attention/ })).toBeInTheDocument();
         // … and returning to Basic surfaces the field-level validation on the current step. The form is not
         // dirty (no edits), so this backward rail navigation does not trip the discard guard.
-        await user.click(screen.getByRole('button', { name: /Basic:/ }));
+        await user.click(screen.getByRole('button', { name: /Details:/ }));
         expect(screen.getByText('A title is required.')).toBeInTheDocument();
     });
 
@@ -125,9 +125,9 @@ describe('RecipeCreateContainer', () => {
         await user.click(screen.getByRole('button', { name: 'Add step' }));
         await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
 
-        // Advance to the final step (Photos), whose footer primary is `Publish` (U6: Publish is the final
+        // Advance to the final step (Review), whose action-bar primary is `Publish` (it is the final
         // step's contextual primary, no longer live on the earlier steps).
-        await user.click(screen.getByRole('button', { name: /Next: Photos/ }));
+        await user.click(screen.getByRole('button', { name: /Next: Review/ }));
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         const createSpy = vi.mocked(client.createRecipe);
@@ -228,7 +228,7 @@ describe('RecipeCreateContainer', () => {
         await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
         await user.click(screen.getByRole('button', { name: 'Add step' }));
         await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
-        await user.click(screen.getByRole('button', { name: /Next: Photos/ }));
+        await user.click(screen.getByRole('button', { name: /Next: Review/ }));
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t save this recipe. Please try again.');

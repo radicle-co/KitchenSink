@@ -22,6 +22,13 @@ import { makeIngredient, makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreateRecipe: vi.fn(),
+    // U33 — the create screen now composes the real photo surface (a pick lands in the draft and flushes
+    // once the recipe has an id), so its hooks must exist even though this suite never picks a file.
+    useRecipePhotos: () => ({ data: [], isLoading: false, isError: false }),
+    useCreatePhotoUploadUrl: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
+    useConfirmPhotoUpload: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
+    useDeleteRecipePhoto: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
+    useReorderRecipePhotos: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
     useSuggestIngredients: vi.fn(),
     useAddIngredientByFood: vi.fn(),
     useCreateIngredient: vi.fn(),
@@ -116,13 +123,13 @@ describe('RecipeCreateScreen — chrome', () => {
 });
 
 describe('RecipeCreateScreen — validation gate', () => {
-    it('shows validation errors and does not run the mutation for an empty Save Draft (U6 overflow menu)', () => {
+    it('shows validation errors and does not run the mutation for an empty Save Draft (U32 action bar)', () => {
         const mutate = vi.fn();
         useCreateRecipeMock.mockReturnValue(createRecipeMutation({ mutate: mutate as never }));
 
         render(<RecipeCreateScreen onCreated={vi.fn()} onCancel={vi.fn()} />);
-        // Save Draft now lives in the header "More actions" overflow menu (U6).
-        fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+        // REWRITTEN for U32: Save Draft is a first-class control in the pinned action bar now, not an item a
+        // phone user had to open a kebab to reach. There is no overflow menu on native at all.
         fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
 
         expect(screen.getByText('A title is required.')).toBeTruthy();
@@ -158,12 +165,12 @@ describe('RecipeCreateScreen — happy path', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Olive oil' }));
         fireEvent.click(screen.getByLabelText(/Next: Instructions/));
 
-        // Step 3: add and fill an instruction step, then advance to step 4 (Photos).
+        // Step 3: add and fill an instruction step, then advance to step 4 (Review).
         fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
         fireEvent.change(screen.getByLabelText('Step 1 instruction'), { target: { value: 'Boil the pasta.' } });
-        fireEvent.click(screen.getByLabelText(/Next: Photos/));
+        fireEvent.click(screen.getByLabelText(/Next: Review/));
 
-        // U6: Publish is the contextual footer primary on step 4 (create no longer dead-ends on Photos).
+        // Publish is the action bar's primary on the last step (create no longer dead-ends on Photos).
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(mutate).toHaveBeenCalledTimes(1);

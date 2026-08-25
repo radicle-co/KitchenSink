@@ -26,7 +26,7 @@
  * resolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.
  */
 import { RecipeConflictView, recipeVersionMessages, useDiscardGuard } from '@commise/features-recipes';
-import { useRecipeEditor } from '@commise/features-recipes/hooks';
+import { useRecipeAutoSave, useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useEffect } from 'react';
@@ -65,6 +65,17 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
     const isDirty = useDiscardGuard(editor.values, {
         ready: editor.state.status !== 'loading',
         justSaved: editor.state.status === 'saved',
+    });
+
+    // Auto-save (U34). `enabled` is this screen's "a write would land in an unresolved race" gate: false
+    // while a save is in flight (that request already holds the version token), while a conflict is
+    // unresolved (the token is known stale), and while the recipe has not loaded (there is no token). The
+    // write goes through the editor's own `saveDraft`, so it carries `expectedVersion` and a 409 surfaces
+    // exactly as a manual save's does. Declared before the early returns below (Rules of Hooks).
+    useRecipeAutoSave({
+        isDirty,
+        enabled: editor.state.status === 'editing',
+        saveDraft: editor.saveDraft,
     });
 
     // OQ-1 (W7 Task 6): `keepServer` (Option A) discards the draft WITHOUT a write, so it never runs the

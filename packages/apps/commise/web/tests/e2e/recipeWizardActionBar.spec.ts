@@ -150,14 +150,18 @@ test.describe('recipe wizard action bar — 1024px desktop (U32)', () => {
         await expect(page.getByRole('button', { name: 'More actions' })).toBeVisible();
     });
 
-    test('discloses Save Draft AND Cancel from the kebab, which below `lg` it does not', async ({ page }) => {
+    test('discloses Cancel from the kebab, and NOT a second Save Draft', async ({ page }) => {
+        // ⛔ The ruling reads two ways at `lg` and only one can hold: the bar carries Save Draft at every
+        // width, so putting it in the menu too would name two controls the same thing on one surface — the
+        // duplicate-accessible-name failure this whole layout was shaped to avoid.
         await openIngredientsStep(page);
         await page.getByRole('button', { name: 'More actions' }).click();
 
         const menu = page.getByRole('menu', { name: 'More actions' });
 
-        await expect(menu.getByRole('menuitem', { name: 'Save Draft' })).toBeVisible();
         await expect(menu.getByRole('menuitem', { name: 'Cancel' })).toBeVisible();
+        await expect(menu.getByRole('menuitem', { name: 'Save Draft' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Save Draft' })).toHaveCount(1);
     });
 
     test('still refuses an invalid Next, and still says why', async ({ page }) => {

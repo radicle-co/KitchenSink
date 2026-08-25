@@ -462,21 +462,35 @@ describe('Wizard (web) — the header: a back arrow below `lg`, the overflow men
         expect(wrapper?.className).toContain('lg:flex');
     });
 
-    it('discloses Save Draft + Cancel from the overflow menu, and Cancel still routes through the guard', async () => {
+    it('discloses Cancel from the overflow menu, and it still routes through the discard guard', async () => {
         const user = userEvent.setup();
         const onCancel = vi.fn();
 
         render(<Harness initialValues={validValues()} isDirty onCancel={onCancel} />);
         await openActionsMenu(user);
 
-        const menu = screen.getByRole('menu', { name: 'More actions' });
-
-        expect(within(menu).getByRole('menuitem', { name: 'Save Draft' })).toBeTruthy();
-
-        await user.click(within(menu).getByRole('menuitem', { name: 'Cancel' }));
+        await user.click(
+            within(screen.getByRole('menu', { name: 'More actions' })).getByRole('menuitem', { name: 'Cancel' }),
+        );
 
         expect(onCancel).not.toHaveBeenCalled();
         expect(screen.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeTruthy();
+    });
+
+    it('does NOT put Save Draft in the menu — the action bar carries it at every width', async () => {
+        // ⛔ The ruling reads two ways ("Save Draft leaves the kebab below `lg`" vs "the same three in the
+        // sticky header above it") and only one can be true at `lg`. Carrying it in BOTH would name two
+        // controls `Save Draft` on one surface — the same duplicate-accessible-name failure that rejected
+        // rendering the bar twice, and that renamed meal type's clear option to `No meal type`.
+        const user = userEvent.setup();
+
+        render(<Harness initialValues={validValues()} />);
+        await openActionsMenu(user);
+
+        const menu = screen.getByRole('menu', { name: 'More actions' });
+
+        expect(within(menu).queryByRole('menuitem', { name: 'Save Draft' })).toBeNull();
+        expect(screen.getAllByRole('button', { name: 'Save Draft' })).toHaveLength(1);
     });
 
     it('no longer offers a Preview affordance anywhere — Review replaced it (U33)', () => {
@@ -546,14 +560,20 @@ describe('Wizard (web) — submitting busies the write actions', () => {
         expect(publish.getAttribute('aria-busy')).toBe('true');
     });
 
-    it('busies (disables) the overflow Save Draft item while a save is in flight', async () => {
-        const user = userEvent.setup();
-        render(<Harness submitting />);
+    // MOVED off the overflow menu with the control itself (U32): Save Draft is a first-class bar button now,
+    // so the guarantee — it cannot be double-fired mid-save — is asserted against that button instead.
+    it('busies (disables) the action bar’s Save Draft while a save is in flight', async () => {
+        const onSaveDraft = vi.fn();
 
-        await openActionsMenu(user);
+        render(<Harness submitting onSaveDraft={onSaveDraft} />);
 
-        const saveDraft = screen.getByRole('menuitem', { name: 'Save Draft' }) as HTMLButtonElement;
+        const saveDraft = screen.getByRole('button', { name: 'Save Draft' }) as HTMLButtonElement;
+
         expect(saveDraft.disabled).toBe(true);
+
+        // Disabled is not enough on its own: assert the action cannot fire, which is the guarantee.
+        await userEvent.setup().click(saveDraft);
+        expect(onSaveDraft).not.toHaveBeenCalled();
     });
 });
 

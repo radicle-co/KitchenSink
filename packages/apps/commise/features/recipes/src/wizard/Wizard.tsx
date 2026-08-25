@@ -44,11 +44,17 @@
  * **U32 — the header.** `Wizard.Header` (which REPLACES `Wizard.TopBar`) is the sticky band: a BACK
  * affordance below `lg` — routed through the SAME `requestCancel` the overflow menu's `Cancel` used, so the
  * discard guard still fires — and, at `lg` and above, the overflow ("More actions") disclosure carrying
- * `Save Draft` + `Cancel`. Below `lg` that menu has nothing left to hold (Save Draft is in the bar, Cancel is
- * the arrow), so it is not rendered at all rather than rendered empty. The disclosure is a small
- * self-contained one (house style): a trigger with `aria-haspopup`/`aria-expanded`, a `role="menu"` of real
- * `role="menuitem"` buttons, Escape-to-close and an outside-click backdrop — no new dependency, since
- * `@commise/ui` ships no menu primitive.
+ * `Cancel`. Below `lg` that menu is not rendered at all: its only item's job is done by the back arrow.
+ * The disclosure is a small self-contained one (house style): a trigger with `aria-haspopup`/`aria-expanded`,
+ * a `role="menu"` of real `role="menuitem"` buttons, Escape-to-close and an outside-click backdrop — no new
+ * dependency, since `@commise/ui` ships no menu primitive.
+ *
+ * ⛔ **`Save Draft` is NOT in that menu, at any width.** The ruling reads two ways — "Save Draft leaves the
+ * kebab below `lg`" and "the same three [Previous · Save Draft · Next] in the sticky header above it" — and
+ * only one of them can be true at `lg`. Keeping it in both the header row AND the menu would put two
+ * controls named `Save Draft` on one surface, which is the same duplicate-accessible-name failure that
+ * rejected rendering the bar twice (and that renamed meal type's clear option to `No meal type`). The bar
+ * carries it at EVERY width; the menu carries what the bar does not.
  *
  * ⛔ **The composing container renders `Wizard.Header` and NOT `Wizard.Controls`** — the header places the
  * bar itself, so a container that also placed it would ship two. (The native leaf is the mirror image: its
@@ -330,15 +336,17 @@ const WizardRail: FC = () => {
 };
 
 /**
- * The header's overflow ("More actions") disclosure: a kebab trigger opening a `role="menu"` list with
- * `Save Draft` and `Cancel`. Self-contained (no `@commise/ui` menu primitive exists): the trigger carries
- * `aria-haspopup`/`aria-expanded` + a localized `aria-label`; each item is a real `role="menuitem"` button
+ * The header's overflow ("More actions") disclosure: a kebab trigger opening a `role="menu"` list carrying
+ * `Cancel`. Self-contained (no `@commise/ui` menu primitive exists): the trigger carries
+ * `aria-haspopup`/`aria-expanded` + a localized `aria-label`; the item is a real `role="menuitem"` button
  * (keyboard-operable); Escape and an outside-click backdrop both close it. Cancel routes through
- * `requestCancel` so the discard guard still fires; Save Draft through `saveDraft` and busies while submitting.
+ * `requestCancel`, so the discard guard fires exactly as it does for the back arrow that replaces it below
+ * `lg`.
  *
- * ⚠️ U32 makes this DESKTOP-ONLY. Below `lg` both of its items have moved out — `Save Draft` into the pinned
- * action bar, `Cancel` into the header's back arrow — so `Wizard.Header` does not render it there at all,
- * rather than rendering a kebab that discloses an empty list.
+ * ⚠️ U32 makes this DESKTOP-ONLY, and one item wide. Below `lg` its job is done by the header's back arrow,
+ * so `Wizard.Header` does not render it there at all rather than disclosing a list of one. `Save Draft` is
+ * deliberately NOT here — see the module doc: it is in the action bar at every width, and putting it in both
+ * would name two controls the same thing on one surface.
  */
 const WizardActionsMenu: FC = () => {
     const model = useWizardModel();
@@ -393,19 +401,6 @@ const WizardActionsMenu: FC = () => {
                         aria-label={m.actionsMenu}
                         className="absolute right-0 z-40 mt-2 flex min-w-44 flex-col gap-1 rounded-2xl border border-border bg-card p-1 shadow-lg"
                     >
-                        <li role="none">
-                            <button
-                                type="button"
-                                role="menuitem"
-                                disabled={model.submitting}
-                                aria-busy={model.submitting || undefined}
-                                onClick={() => runAndClose(model.saveDraft)}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-charcoal transition hover:bg-pearl disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <SaveIcon />
-                                {m.saveDraft}
-                            </button>
-                        </li>
                         <li role="none">
                             <button
                                 type="button"

@@ -49,8 +49,10 @@ async function goToReview(user: ReturnType<typeof userEvent.setup>): Promise<voi
 }
 
 /**
- * Open the header's overflow ("More actions") menu (U6 chrome): Save Draft and Cancel were demoted off the
- * top-level header into this `role="menu"` disclosure, so reaching either now goes through this trigger first.
+ * Open the header's overflow ("More actions") menu. U32 leaves it carrying CANCEL only — Save Draft is a
+ * first-class control in the action bar at every width, and putting it here as well would name two controls
+ * `Save Draft` on one surface. The menu is `lg`-and-above chrome; below it, the header's back arrow does
+ * Cancel's job.
  */
 async function openActionsMenu(user: ReturnType<typeof userEvent.setup>): Promise<void> {
     await user.click(screen.getByRole('button', { name: 'More actions' }));
@@ -151,8 +153,9 @@ describe('RecipeCreateContainer', () => {
 
         // No ingredients/steps filled at all — Save Draft's floor is step 1 only (title/servings/times).
         await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Draft Recipe');
-        await openActionsMenu(user);
-        await user.click(screen.getByRole('menuitem', { name: 'Save Draft' }));
+        // U32: Save Draft is a first-class control in the action bar now, not an overflow item a
+        // phone user had to open a kebab to reach.
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
 
         const createSpy = vi.mocked(client.createRecipe);
         await vi.waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));

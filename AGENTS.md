@@ -193,6 +193,46 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
 
 - **The LLM verification gate's $100/month ceiling is enforced by OUR OWN reserve-then-settle counter, because NO AWS mechanism stops Bedrock inference at a dollar threshold in near-real-time — and the bake-off roster does NOT include Gemini, which is not on Bedrock at all.** Bedrock's quotas are on tokens and requests only (TPM/RPM/TPD) and Service Quotas is increase-only ("The new value must be greater than the current value"); application inference profiles are ATTRIBUTION, not enforcement; AWS Budgets refreshes "up to three times a day," typically 8-12h apart, and AWS states you "might incur additional costs … that exceed your budget notification threshold before AWS Budgets can notify you." ⛔ The obvious repair — a **Budget Action** (IAM deny / SCP) — does NOT close that gap: it fires off the SAME threshold evaluation as the notification, so it automates the RESPONSE and inherits the full 8-12h detection lag plus SCP propagation. ⛔ `reservedConcurrency = 1` is NOT the ceiling either (it caps burn RATE, and rate-to-dollars is model-dependent by ~30x). ⚠️ And do NOT "simplify" the gate back to "read, call, then increment from `usage`": that shape has a DURABILITY defect that `reservedConcurrency = 1` does not fix — a Lambda that dies between a successful `Converse` response and the increment leaves real spend uncounted, and those crashes are CORRELATED with the runaway the ceiling exists to stop, so the counter reports green precisely when it matters. Instead charge worst case BEFORE the call and refund after, mirroring Bedrock's own burndown (`input + max_tokens` reserved at start, unused "replenished" at the end). ⛔ The store is the recipe **PostgreSQL** database, NOT DynamoDB — an earlier draft specified DynamoDB on a claim that `RecipeWorkersStack` already owned a table, which is FALSE (it owns none and carries no DynamoDB client); the worker already ships `pg` and is VPC-attached solely to reach that RDS, so Postgres adds no dependency, no IAM surface and no new failure domain. ONE conditional `INSERT … ON CONFLICT DO UPDATE … WHERE reserved_micros <= $headroom`; **zero rows returned IS the denial**, and reserved spend never exceeds the ceiling under ARBITRARY concurrency because the row lock serializes callers and the headroom subtracts the worst case before comparing — so the bound does not depend on the concurrency setting. ⛔ There is ONE ceiling — **$100/month, prod only** (owner ruling 2026-08-21). Do NOT reintroduce the daily sub-ceiling an earlier draft carried: a monthly cap is a hard cap rather than a slow detector, it never enforced the monthly figure it sat under (31 × $5 = $155 > $100), and it denied legitimate bulk work. Sandbox and every `pr-{N}` call the provider UNGATED (ADR-0006 gives each PR its own logical database and Postgres cannot read across them), bounded by layers 0–2 at ≈$88/month/stage on Nova. ⛔ Settle is NEVER retried — `reserved + $delta` is not idempotent, so a retried settle double-refunds and reintroduces the under-count; any outcome with no billed response refunds in FULL. ⛔ Layer 4's EMF metric CANNOT detect a bypass (it is emitted BY the gated path); the bypass control is IAM — `bedrock:InvokeModel` on exactly one role, guard-tested by set equality like `natEgressConsumers.test.ts`. The period key is captured at RESERVE and carried into settle — recomputing it at settle straddles the UTC month boundary. Preconditions: explicit `maxTokens` AND a hard input-token cap (without them the reservation is a lie), and an over-cap line is **REJECTED, never truncated** (a truncated line asks the model to judge text the user did not write). An unreadable counter fails **CLOSED** — the call is not made — but that is NOT the same as resolving the line: a ceiling denial and an unreadable counter are **transient** and the message retries under layer 0's `maxReceiveCount` + DLQ, because `unresolved` means _verified and disagreed_ and U11 ranks a wrong DISAGREE as the unacceptable direction. `usage.inputTokens`/`outputTokens`/`totalTokens` are `Required: Yes`; `cacheReadInputTokens`/`cacheWriteInputTokens` are `Required: No` AND are always zero here (caching cannot engage at ~660 input tokens; Haiku 4.5's minimum is 4,096), so cost them defensively and ALERT if either is ever non-zero. ⛔ Gemini Flash-Lite is NOT available on Amazon Bedrock — only **Gemma** is — so naming it in the bake-off breaks the very premises that chose Bedrock (no vendor relationship, no secret, and an egress path already covered by ADR-0004's NAT — the `bedrock-runtime` VPC interface endpoint that clause used to cite was DROPPED on 2026-08-20, because recipe-workers was already a NAT consumer and the endpoint cost $14.60/month/stage to carry $0.27 of inference; ADR-0024 §4a). Roster is Nova Micro vs Claude Haiku 4.5. Read **`docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md`**.
 
+- **ADR-0025 — the CRF ingredient parser (`packages/services/ingredient-parser`) is a PYTHON Lambda, this
+  repo's first non-Node deployable.** A named exception to ADR-0017's "no new deployable" default on
+  ADR-0019 §3's three grounds, and it **owns no database** (the parse cache is a table in the recipe
+  database). Three things look wrong and are not: it is **deliberately not VPC-attached** (no database, no
+  private endpoint, no run-time network call — attaching it would put it on ADR-0004's NAT list); it carries
+  **no `esbuild.mjs`**, so `serviceInfraWiringInvariants`' W2 skips it exactly as that guard's docstring
+  anticipates, and its replacement packaging guard **enumerates nothing** (handler module from the CDK
+  `handler:` string, imports from the handler's Python AST, every engine file from pip's own `RECORD`
+  manifest) and runs in the BUILD, not only in a test; and the runtime is pinned to **`python3.13`, not the
+  newest CDK knows**, because `ingredient-parser-nlp==2.3.0` declares `Requires-Python: <3.14,>=3.10`. ⛔ Do
+  not suppress the resulting `AwsSolutions-L1` finding — it is accurate, not ours to fix, and clears itself
+  when the engine supports 3.14. ⛔ Do not "fix" the packaging into a container image: that would force
+  weakening `RecipeWorkersStack.test.ts`'s provider-exclusion guard. GR-008 is satisfied, not waived away —
+  the WORKSPACE targets Node 24.x (nothing here declares a Node runtime at all) and the FUNCTION's Python is
+  a narrow documented waiver under AC-008-c covering this function only.
+
+- **ADR-0026 — an ingredient line is parsed TWICE, and the LLM leg is STRUCTURALLY forbidden to see the
+  CRF's answer.** ⛔ Do not "simplify" the pipeline into a chain (call the CRF, judge it, escalate): a model
+  shown our parse agrees with it more often, so the poisoning would be invisible — the metric that looks
+  like improvement is the metric that moves. The rule is the TYPE of `buildParsePrompt`: it takes the line
+  and nothing else, pinned in invariant position, so a second parameter (required **or optional**) is a
+  build failure. Three more rules that look like implementation accidents and are not: **stated vs
+  restated** — `2 cups and 1 tablespoon` sums, `1 pound (about 4 cups)` is one amount said twice, and
+  summing an equivalence doubles the ingredient silently, so a conjunction joins, a parenthetical never
+  does, and the join requires a digit after the conjunction; **`single-engine` is never `differ`** — a CRF
+  Lambda that threw or an LLM the spend ceiling denied is absence, not dissent, and conflating them corrupts
+  every measured rate; and the CRF's **`foundation_foods` is refused**, because `resolutionCascade.ts` owns
+  identity resolution and the engine's own mis-mapped soy flour. ⛔ Do not replace `modifierLexicon.ts` with
+  a part-of-speech tagger: KTD-11b is a definition, not a claim about English, and NLTK's tagger contradicts
+  it on 7 of 25 words (`hot`/`cold`/`warm` are adjectives and the ruling files them as preparation
+  deliberately). ⛔ Placement: the orchestration goes in `recipe-import-core/src/domain/parsePipeline.ts`,
+  **not** `recipe-workers` (which exports only `./infra`, so `cookbook-import` cannot reach it) — but
+  `llmParse.ts` stays in `recipe-workers`, because ADR-0024 layer 4b grants `bedrock:InvokeModel` to exactly
+  one role and a shared gated leg invites a second, ungated grantee. `cookbook-import` gets Null Objects for
+  the cache and corrections and must not acquire a database. ⛔ U22a's segmentation cut is refused when the
+  tail carries a quantity phrase (`one-half pound chocolate in one cup of water` — the tail is a second
+  food). ⚠️ Two contract defects still block U22: `ParseEngine` is declared twice, and `ParseProvenance` has
+  no inhabitant for a human correction — fix with a separate `ParseFactSource` axis, never by widening
+  `PARSE_ENGINES`.
+
 ## Contract & validation conformance for NEW code (GR-017 – GR-020, ruled 2026-08-12)
 
 These are inline because a review bot cannot follow a link, and because they bind code that **does not exist

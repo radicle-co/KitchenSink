@@ -48,7 +48,7 @@ export type { AddRequesterInput } from './fetchRequesters.dao.js';
 
 // Per-source rolling-window limiter.
 export { SourceCallLogDao } from './sourceCallLog.dao.js';
-export type { CheckAndRecordInput, WindowCheckResult } from './sourceCallLog.dao.js';
+export type { CheckAndRecordInput, SourceCallChannel, WindowCheckResult } from './sourceCallLog.dao.js';
 
 // Disambiguation candidate set.
 export { CandidateStore } from './foodCandidates.dao.js';

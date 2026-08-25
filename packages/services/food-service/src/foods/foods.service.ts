@@ -438,7 +438,10 @@ export class FoodsService {
 
         for (const pick of picks) {
             const source = pick.source as FoodSourceId;
-            const window = await this.limiter.tryRecord(source);
+            // The INTERACTIVE lane (F-W1): FR-019's reserved top 10% exists precisely for this re-fetch —
+            // "a waiting human > admission lag" — and charging it here is what finally makes that reserve
+            // both enforced (the drain may not spend past 90%) and attributable in the ledger.
+            const window = await this.limiter.tryRecord(source, 'interactive');
 
             if (!window.allowed) {
                 throw new FetchUnavailableError(RESOLVE_RETRY_AFTER_SECONDS);

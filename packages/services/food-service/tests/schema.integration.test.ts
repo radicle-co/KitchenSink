@@ -47,7 +47,10 @@ const EXPECTED_TABLES = [
     'source_sync_metadata',
 ] as const;
 
-/** The 6 controlled-set enums modelled with `pgEnum` (DB-7). `food_origin` arrives in the 0003 migration. */
+/**
+ * The 7 controlled-set enums modelled with `pgEnum` (DB-7). `food_origin` arrives in the 0003 migration,
+ * `source_call_channel` in 0010.
+ */
 const EXPECTED_ENUMS = [
     'food_status',
     'food_kind',
@@ -55,6 +58,7 @@ const EXPECTED_ENUMS = [
     'food_field',
     'nutrient_basis',
     'food_origin',
+    'source_call_channel',
 ] as const;
 
 /**
@@ -169,6 +173,53 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
                     `INSERT INTO food (id, normalized_name, status, origin) VALUES ('food_bad_origin', 'bad', 'PENDING', 'branded')`,
                 ),
             ).rejects.toThrow();
+        });
+    });
+
+    describe('source_call_log.channel (0010 migration — the reserved interactive lane, F-W1)', () => {
+        it("adds a NOT NULL channel defaulting to 'worker' (the conservative backfill)", async () => {
+            const { rows } = await pool.query<{ is_nullable: string; column_default: string; udt_name: string }>(
+                `SELECT is_nullable, column_default, udt_name FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'source_call_log' AND column_name = 'channel'`,
+            );
+            expect(rows).toHaveLength(1);
+            expect(rows[0]?.is_nullable).toBe('NO');
+            expect(rows[0]?.udt_name).toBe('source_call_channel');
+            // Both defaults are wrong about SOME historical rows; 'worker' errs toward PROTECTING the
+            // reserve (it makes the interactive lane look emptier and the drain's ceiling arrive sooner).
+            expect(rows[0]?.column_default).toContain("'worker'");
+        });
+
+        it('keeps the pre-0010 two-column insert working, so a rolling deploy never makes an UNRECORDED call', async () => {
+            // The previous image names only (source, called_at). Erroring here would be the one failure mode
+            // that actually breaches the cap: a source call that happens but is never counted (ADR-0022).
+            await expect(
+                pool.query(`INSERT INTO source_call_log (source, called_at) VALUES ('usda', now())`),
+            ).resolves.toBeDefined();
+
+            const { rows } = await pool.query<{ channel: string }>(
+                `SELECT channel FROM source_call_log ORDER BY id DESC LIMIT 1`,
+            );
+            expect(rows[0]?.channel).toBe('worker');
+        });
+
+        it("constrains channel to the ('interactive','worker') enum domain", async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO source_call_log (source, channel, called_at) VALUES ('usda', 'background', now())`,
+                ),
+            ).rejects.toThrow();
+        });
+
+        it('keeps the admission access path on a (source, called_at) index prefix', async () => {
+            // `channel` goes LAST precisely so the hot windowed count still has its two-column prefix. A
+            // reordering that put `channel` first would leave every admission query without one.
+            const { rows } = await pool.query<{ indexdef: string }>(
+                `SELECT indexdef FROM pg_indexes
+                  WHERE schemaname = 'public' AND indexname = 'idx_source_call_log_source_called_at'`,
+            );
+            expect(rows).toHaveLength(1);
+            expect(rows[0]?.indexdef).toMatch(/\(source, called_at, channel\)/u);
         });
     });
 

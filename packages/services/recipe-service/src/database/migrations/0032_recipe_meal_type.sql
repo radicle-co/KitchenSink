@@ -1,4 +1,4 @@
--- 0031 — `recipes.meal_type`: the ONE closed classification axis (plan U34, owner ruling 2026-08-25).
+-- 0032 — `recipes.meal_type`: the ONE closed classification axis (plan U34, owner ruling 2026-08-25).
 --
 -- WHAT THIS ADDS
 --   A nullable `meal_type text` on `recipes`, plus `recipes_meal_type_check` restricting a STATED value to

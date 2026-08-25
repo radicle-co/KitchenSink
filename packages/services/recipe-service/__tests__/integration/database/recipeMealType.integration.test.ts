@@ -3,7 +3,7 @@
  *
  * ⛔ WHY THIS TIER IS MANDATORY, and what a mocked DAL structurally cannot see:
  *
- *  1. That `0031_recipe_meal_type.sql` actually applied. A unit test cannot observe a migration that did not
+ *  1. That `0032_recipe_meal_type.sql` actually applied. A unit test cannot observe a migration that did not
  *     run — a create/read round trip against a mock agrees with itself while the column does not exist.
  *  2. That `recipes_meal_type_check` is ENFORCED despite being `NOT VALID`. `NOT VALID` skips the backfill
  *     scan but must still police every INSERT and UPDATE, and this is the ONLY place that difference is
@@ -37,7 +37,7 @@ const hasDatabaseUrl = Boolean(DATABASE_URL);
 const OWNER_ID = '01JU7MEALTYPE00000000OWNER0';
 const RECIPE_ID = '66666666-6666-4666-8666-000000000931';
 
-describe.skipIf(!hasDatabaseUrl)('recipes.meal_type (migration 0031)', () => {
+describe.skipIf(!hasDatabaseUrl)('recipes.meal_type (migration 0032)', () => {
     let pool: pg.Pool;
 
     beforeAll(() => {

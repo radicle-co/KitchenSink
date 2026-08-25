@@ -37,12 +37,16 @@ import {
     type RecipeWizardStep,
 } from '@commise/features-recipes';
 import { visibleQueueItems } from '@commise/features-recipes';
+import { MAX_RECIPE_PHOTOS, RecipeStatus } from '@kitchensink/recipe-core';
 import { useRecipeDraftPhotos, useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
-import { RecipeStatus } from '@kitchensink/recipe-core';
 import { useCreateRecipe } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useEffect, useState } from 'react';
+
+import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { mobileMessages } from '../i18n/messages.js';
@@ -89,6 +93,12 @@ export function RecipeCreateScreen({ onCreated, onCancel }: RecipeCreateScreenPr
         values,
         onChange: setValues,
         enqueue: queue.enqueue,
+        // ⛔ The cap has to be judged for the pick's OWN size, not only between picks — see the web
+        // container's twin. Both what the draft already holds and what is already uploading are subtracted.
+        capacity: {
+            remaining: Math.max(0, MAX_RECIPE_PHOTOS - values.photos.length - visibleQueueItems(queue.items).length),
+            overCapMessage: t.photosOverCap,
+        },
     });
 
     // ⛔ BOTH halves, and the DRAFT half is the one that is easy to miss. On the very render where `createdId`
@@ -119,6 +129,30 @@ export function RecipeCreateScreen({ onCreated, onCancel }: RecipeCreateScreenPr
             onSuccess: (recipe) => setCreatedId(recipe.id),
         });
     };
+
+    if (awaitingPhotos) {
+        // ⛔ PARITY WITH THE WEB CONTAINER, and it is not cosmetic. Without this surface the cook pressed
+        // Publish and nothing visibly happened: the recipe WAS saved, but nobody said so; a permanently
+        // failed upload's Retry lived three steps back on step 1 with no pointer to it; the only exit was the
+        // back arrow, which asks "Discard unsaved changes?" about a recipe that is already saved; and
+        // `create.isPending` was false again, so Publish was live and a second press created a SECOND recipe.
+        return (
+            <View style={styles.flushPanel}>
+                <Text accessibilityRole="alert" style={styles.flushNotice}>
+                    {t.photosFlushingNotice}
+                </Text>
+                <RecipePhotoUploader recipeId={createdId} pendingDrafts={values.photos} />
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t.photosFinishWithout}
+                    onPress={() => createdId !== null && onCreated(createdId)}
+                    style={styles.flushFinish}
+                >
+                    <Text style={styles.flushFinishLabel}>{t.photosFinishWithout}</Text>
+                </Pressable>
+            </View>
+        );
+    }
 
     return (
         <RecipeEditor
@@ -151,8 +185,32 @@ export function RecipeCreateScreen({ onCreated, onCancel }: RecipeCreateScreenPr
                     recipeId={createdId}
                     onPick={(pick) => draftPhotos.addPhotos([pick])}
                     pendingDrafts={values.photos}
+                    onRemoveDraft={(index) => {
+                        const photo = values.photos[index];
+
+                        if (photo !== undefined) {
+                            draftPhotos.removePhoto(photo.localId);
+                        }
+                    }}
+                    {...(draftPhotos.capError === undefined ? {} : { externalError: draftPhotos.capError })}
                 />
             }
         />
     );
 }
+
+const styles = StyleSheet.create({
+    flushPanel: { flex: 1, gap: nativeTokens.spacing[4], padding: nativeTokens.spacing[4] },
+    flushNotice: { fontSize: 15, fontWeight: '500', color: palette.charcoal },
+    // 44pt floor: this is the cook's only way out of the flush surface.
+    flushFinish: {
+        alignSelf: 'flex-start',
+        minHeight: 44,
+        justifyContent: 'center',
+        paddingHorizontal: nativeTokens.spacing[4],
+        borderRadius: nativeTokens.radius.full,
+        borderWidth: 1,
+        borderColor: nativeTokens.borderSubtle,
+    },
+    flushFinishLabel: { fontSize: 15, fontWeight: '500', color: palette.charcoal },
+});

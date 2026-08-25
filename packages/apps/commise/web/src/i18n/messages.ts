@@ -199,6 +199,14 @@ export interface WebMessages {
             readonly photosFlushingNotice: string;
             /** The explicit "leave without the photos that would not upload" action (U33). */
             readonly photosFinishWithout: string;
+            /**
+             * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`).
+             *
+             * ⛔ The cap can be breached WITHIN a single pick — the add control's own gate only bounds picks
+             * between each other — and the pick is refused WHOLE rather than truncated, so this sentence is
+             * the only thing standing between the cook and silently losing the files that would not fit.
+             */
+            readonly photosOverCap: string;
         };
         /** Copy for the ingredient typeahead the shared form block deliberately omits (the container owns it). */
         readonly picker: {
@@ -423,6 +431,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 submitError: 'We couldn’t save this recipe. Please try again.',
                 photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
                 photosFinishWithout: 'Finish without the remaining photos',
+                photosOverCap: 'That’s more photos than this recipe can hold — you can add {count} more.',
             },
             picker: {
                 regionLabel: 'Ingredient search',

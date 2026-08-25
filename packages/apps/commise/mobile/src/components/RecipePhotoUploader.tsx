@@ -62,6 +62,22 @@ export interface RecipePhotoUploaderProps {
      * looks identical before and after the recipe exists — and so it counts toward the photo cap.
      */
     readonly pendingDrafts?: readonly RecipeFormPhoto[];
+    /**
+     * An error the CALLER owns, shown above this component's own slots (U33).
+     *
+     * Today its only source is the draft seam's over-cap refusal, and on this platform that refusal is
+     * currently unreachable: `launchImageLibraryAsync` is called without `allowsMultipleSelection`, so one
+     * pick is one file and the cap can only be crossed BETWEEN picks — which the add control's own gate
+     * already prevents. It is wired anyway, because the day someone enables multi-select the silent
+     * photo-loss the web container's cap check exists to stop would otherwise come back here first.
+     */
+    readonly externalError?: string;
+    /**
+     * Drop a draft pick the cook has changed their mind about (U33). Draft cells carry NEGATIVE `fileId`s so
+     * they cannot collide with the queue's own — and so `queue.remove`, which filters by `fileId`, silently
+     * matches nothing for them. Without this the Remove on a draft pick would appear to work and do nothing.
+     */
+    readonly onRemoveDraft?: (index: number) => void;
 }
 
 /**
@@ -70,7 +86,13 @@ export interface RecipePhotoUploaderProps {
  * @param props - The id of the recipe whose photos are managed.
  * @returns The photo manager block wired to the native picker and the upload-queue/remove mutations.
  */
-export function RecipePhotoUploader({ recipeId, onPick, pendingDrafts = [] }: RecipePhotoUploaderProps): JSX.Element {
+export function RecipePhotoUploader({
+    recipeId,
+    onPick,
+    pendingDrafts = [],
+    externalError,
+    onRemoveDraft,
+}: RecipePhotoUploaderProps): JSX.Element {
     const { recipePhotos: t } = useMessages(mobileMessages);
     // `''` disables the query (`enabled: id.length > 0`) — a create has no photos to list yet.
     const photosQuery = useRecipePhotos(recipeId ?? '');
@@ -97,7 +119,9 @@ export function RecipePhotoUploader({ recipeId, onPick, pendingDrafts = [] }: Re
     // Tracks the picker-launch + local-blob-read window, BEFORE `enqueue()` ever runs — see the re-entrancy
     // guard in the module doc above.
     const [picking, setPicking] = useState(false);
-    const errorMessage = replaceErrorMessage ?? removeErrorMessage ?? pickErrorMessage;
+    // The caller's own error wins: it describes the action the cook just took and explains why nothing
+    // appeared, where the local slots describe older, already-badged failures.
+    const errorMessage = externalError ?? replaceErrorMessage ?? removeErrorMessage ?? pickErrorMessage;
 
     // The delete mutation carries its target in `variables`; busy only that row while its deletion is pending.
     const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
@@ -270,7 +294,16 @@ export function RecipePhotoUploader({ recipeId, onPick, pendingDrafts = [] }: Re
                 ...queue.items,
             ]}
             onRetryQueueItem={queue.retry}
-            onRemoveQueueItem={queue.remove}
+            onRemoveQueueItem={(fileId) => {
+                // Negative ids are draft picks; positive ones are the queue's. See `onRemoveDraft`.
+                if (fileId >= 0) {
+                    queue.remove(fileId);
+
+                    return;
+                }
+
+                onRemoveDraft?.(-fileId - 1);
+            }}
             onSetCover={setCover}
             onReplacePhoto={replacePhoto}
             addControl={addControl}

@@ -183,13 +183,19 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         {item.errorMessage}
                                     </p>
                                 ) : null}
-                                {item.status === 'failed' ? (
+                                {/* ⛔ `queued` is offered a Remove too, not only `failed`. A file that has not
+                                    started uploading is the one a cook is most likely to want back — and on
+                                    the CREATE path every draft pick sits `queued` until the recipe exists, so
+                                    without this the photo chosen before the first save was the ONE field of
+                                    the editor that could not be changed. Retry stays `failed`-only: there is
+                                    nothing to retry about a file that has not tried yet. */}
+                                {item.status === 'failed' || item.status === 'queued' ? (
                                     <div className="relative flex items-center gap-2">
                                         {/* Retry is offered ONLY where it can plausibly succeed. The queue
                                             re-validates on retry by design, so a client-rejected file (too
                                             large / wrong type) would re-fail identically — a dead affordance.
                                             `retryable` is the queue's own discriminator for that. */}
-                                        {item.retryable ? (
+                                        {item.status === 'failed' && item.retryable ? (
                                             <button
                                                 type="button"
                                                 aria-label={fillTemplate(m.queueRetryLabel, {

@@ -37,6 +37,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 
+import { fillTemplate } from '../list/model.js';
 import type { RecipeFormValues } from '../form/model.js';
 
 /** One file a cook has chosen, as the picker hands it over — bytes included. */
@@ -59,6 +60,23 @@ export interface DraftPhotoFlush extends DraftPhotoPick {
     readonly localId: string;
 }
 
+/**
+ * How many photos the draft may still accept, and what the cook is told when a pick exceeds it.
+ *
+ * ⛔ **This exists because the cap could be BREACHED IN ONE PICK, and the breach was silent.** The add
+ * control is hidden once the cap is reached, which bounds picks BETWEEN each other but not WITHIN one: a
+ * `<input multiple>` (or a future multi-select picker) lets a cook choose twelve files at once. Every
+ * descriptor was then recorded, but `useRecipePhotoUploadQueue.enqueue` accepts only what fits and DROPS the
+ * rest — while the flush marked all twelve handed over and cleared them from the draft. Two photos vanished:
+ * not uploaded, not queued, not surfaced, and the create then navigated away as if everything had landed.
+ */
+export interface DraftPhotoCapacity {
+    /** How many more photos may be added — confirmed photos and in-flight uploads already subtracted. */
+    readonly remaining: number;
+    /** Told to the cook when a pick is larger than {@link remaining}; contains `{count}`. */
+    readonly overCapMessage: string;
+}
+
 /** Options for {@link useRecipeDraftPhotos}. */
 export interface UseRecipeDraftPhotosOptions {
     /** The recipe's id once it exists, or `null` while it does not (a create that has not saved yet). */
@@ -69,12 +87,39 @@ export interface UseRecipeDraftPhotosOptions {
     readonly onChange: (next: RecipeFormValues) => void;
     /** Hand files to the upload queue (`useRecipePhotoUploadQueue`'s `enqueue`). */
     readonly enqueue: (files: readonly DraftPhotoFlush[]) => void;
+    /** How many more photos the draft may take, and the copy shown when a pick exceeds it. */
+    readonly capacity: DraftPhotoCapacity;
 }
 
 /** What {@link useRecipeDraftPhotos} gives a container. */
 export interface UseRecipeDraftPhotosResult {
-    /** Record one or more chosen files. They upload immediately if the recipe exists, else on its first save. */
+    /**
+     * Record one or more chosen files. They upload immediately if the recipe exists, else on its first save.
+     *
+     * A pick larger than the remaining capacity is REFUSED WHOLE, not truncated: taking the first two of five
+     * and dropping three is the silent loss this rejects, and a cook who chose five wants to know that only
+     * two fit rather than to discover it later on the recipe.
+     */
     readonly addPhotos: (picks: readonly DraftPhotoPick[]) => void;
+    /** Set when the last pick exceeded the cap; cleared by the next accepted pick. */
+    readonly capError: string | undefined;
+    /**
+     * Drop a pick the cook has changed their mind about, before it reaches the queue (U33).
+     *
+     * ⛔ Without this, a photo chosen before the first save was the ONE field of the editor that could not be
+     * changed: the wrong picture rode along to the create and the only way out was abandoning the recipe.
+     * "Photos behave like every other field" has to include un-choosing one. It also releases the bytes,
+     * which would otherwise be held for the lifetime of the draft.
+     */
+    readonly removePhoto: (localId: string) => void;
+    /**
+     * The local preview URI a pick was recorded with, if the platform's picker supplied one.
+     *
+     * The bytes are held here, so this is the only place that can answer it — and without it a draft cell
+     * could render nothing but the word "Queued", which is no help at all to a cook choosing between two
+     * pictures. Returns `undefined` for a descriptor with no stored pick (a restored draft).
+     */
+    readonly previewFor: (localId: string) => string | undefined;
 }
 
 /** Monotonic within a session — the descriptor's identity, and the key the byte map is keyed by. */
@@ -88,15 +133,28 @@ let nextLocalId = 0;
  * @sideEffect Stores the chosen files' bytes for the lifetime of the draft, and enqueues uploads.
  */
 export function useRecipeDraftPhotos(options: UseRecipeDraftPhotosOptions): UseRecipeDraftPhotosResult {
-    const { recipeId, values, onChange, enqueue } = options;
+    const { recipeId, values, onChange, enqueue, capacity } = options;
     const [picks, setPicks] = useState<ReadonlyMap<string, DraftPhotoPick>>(new Map());
     const [flushed, setFlushed] = useState<ReadonlySet<string>>(new Set());
+    const [capError, setCapError] = useState<string | undefined>(undefined);
 
     const addPhotos = useCallback(
         (chosen: readonly DraftPhotoPick[]): void => {
             if (chosen.length === 0) {
                 return;
             }
+
+            // ⛔ REFUSED WHOLE, never truncated — see `addPhotos`'s own doc. `capacity.remaining` already has
+            // the confirmed photos and the in-flight uploads subtracted, so this is the only place a pick's
+            // OWN size is judged; the add control's `isAtPhotoCap` gate bounds picks between each other and
+            // cannot bound one.
+            if (chosen.length > capacity.remaining) {
+                setCapError(fillTemplate(capacity.overCapMessage, { count: capacity.remaining }));
+
+                return;
+            }
+
+            setCapError(undefined);
 
             const withIds = chosen.map((photoPick) => {
                 nextLocalId += 1;
@@ -127,7 +185,7 @@ export function useRecipeDraftPhotos(options: UseRecipeDraftPhotosOptions): UseR
                 ],
             });
         },
-        [onChange, values],
+        [onChange, values, capacity],
     );
 
     useEffect(() => {
@@ -171,5 +229,22 @@ export function useRecipeDraftPhotos(options: UseRecipeDraftPhotosOptions): UseR
         onChange({ ...values, photos: values.photos.filter((photo) => flushed.has(photo.localId)) });
     }, [recipeId, values, flushed, picks, enqueue, onChange]);
 
-    return { addPhotos };
+    const removePhoto = useCallback(
+        (localId: string): void => {
+            setPicks((current) => {
+                const next = new Map(current);
+
+                next.delete(localId);
+
+                return next;
+            });
+            setCapError(undefined);
+            onChange({ ...values, photos: values.photos.filter((photo) => photo.localId !== localId) });
+        },
+        [onChange, values],
+    );
+
+    const previewFor = useCallback((localId: string): string | undefined => picks.get(localId)?.previewUri, [picks]);
+
+    return { addPhotos, capError, removePhoto, previewFor };
 }

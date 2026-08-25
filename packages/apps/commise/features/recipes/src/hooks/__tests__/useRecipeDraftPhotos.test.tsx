@@ -47,6 +47,10 @@ interface HarnessProps {
 
 /** Exposes the hook's `addPhotos` while owning the draft the way a real container does. */
 let addPhotos: (picks: readonly DraftPhotoPick[]) => void = () => undefined;
+/** The hook's over-cap message, surfaced for assertion. */
+let capError: string | undefined;
+/** How many more photos the harness's draft may take — the real cap arithmetic lives in the container. */
+let capacityRemaining = 10;
 
 const Harness: FC<HarnessProps> = ({ recipeId, enqueue, onValues }) => {
     const [values, setValues] = useState<RecipeFormValues>(defaultRecipeFormValues);
@@ -59,7 +63,10 @@ const Harness: FC<HarnessProps> = ({ recipeId, enqueue, onValues }) => {
             setValues(next);
         },
         enqueue,
+        capacity: { remaining: capacityRemaining, overCapMessage: 'Only {count} more.' },
     });
+
+    capError = draftPhotos.capError;
 
     addPhotos = draftPhotos.addPhotos;
 
@@ -205,6 +212,7 @@ describe('useRecipeDraftPhotos — enqueue is idempotent by local id, not by the
                 }
             },
             enqueue,
+            capacity: { remaining: 10, overCapMessage: 'Only {count} more.' },
         });
 
         addPhotos = draftPhotos.addPhotos;
@@ -234,5 +242,85 @@ describe('useRecipeDraftPhotos — enqueue is idempotent by local id, not by the
 
         expect(enqueue).toHaveBeenCalledTimes(1);
         freeze = false;
+    });
+});
+
+/**
+ * ⛔ THE CAP CAN BE BREACHED IN ONE PICK, AND THE BREACH WAS SILENT.
+ *
+ * The add control is hidden once the cap is reached, which bounds picks BETWEEN each other but not WITHIN
+ * one: a `<input multiple>` lets a cook choose twelve files at once. Every descriptor was recorded, then
+ * `useRecipePhotoUploadQueue.enqueue` accepted only what fit and DROPPED the rest — while the flush marked
+ * all twelve handed over and cleared them from the draft. Two photos vanished: not uploaded, not queued, not
+ * surfaced, and the create then navigated away as if everything had landed.
+ *
+ * The pick is now REFUSED WHOLE rather than truncated. Taking the first two of five and dropping three is the
+ * same silent loss wearing a smaller number, and a cook who chose five wants to be told only two fit.
+ */
+describe('useRecipeDraftPhotos — a pick larger than the remaining capacity (U33)', () => {
+    it('records NOTHING when the pick exceeds what is left, rather than truncating it', () => {
+        const enqueue = vi.fn();
+
+        capacityRemaining = 2;
+        const { container } = render(<Harness recipeId={null} enqueue={enqueue} />);
+
+        act(() => addPhotos([pick('a.png'), pick('b.png'), pick('c.png')]));
+
+        expect(container.textContent).toBe('');
+        expect(enqueue).not.toHaveBeenCalled();
+        capacityRemaining = 10;
+    });
+
+    it('says how many would fit, so the refusal is actionable rather than mute', () => {
+        const enqueue = vi.fn();
+
+        capacityRemaining = 2;
+        render(<Harness recipeId={null} enqueue={enqueue} />);
+
+        act(() => addPhotos([pick('a.png'), pick('b.png'), pick('c.png')]));
+
+        expect(capError).toBe('Only 2 more.');
+        capacityRemaining = 10;
+    });
+
+    it('accepts a pick that exactly fills the remaining capacity', () => {
+        // The boundary, in the accepting direction — a strict `>` and a `>=` differ by exactly this case.
+        const enqueue = vi.fn();
+
+        capacityRemaining = 2;
+        const { container } = render(<Harness recipeId={null} enqueue={enqueue} />);
+
+        act(() => addPhotos([pick('a.png'), pick('b.png')]));
+
+        expect(container.textContent).toBe('a.png,b.png');
+        expect(capError).toBeUndefined();
+        capacityRemaining = 10;
+    });
+
+    it('clears a previous refusal once a pick is accepted', () => {
+        const enqueue = vi.fn();
+
+        capacityRemaining = 1;
+        render(<Harness recipeId={null} enqueue={enqueue} />);
+
+        act(() => addPhotos([pick('a.png'), pick('b.png')]));
+        expect(capError).toBe('Only 1 more.');
+
+        act(() => addPhotos([pick('c.png')]));
+        expect(capError).toBeUndefined();
+        capacityRemaining = 10;
+    });
+
+    it('refuses every pick once nothing is left', () => {
+        const enqueue = vi.fn();
+
+        capacityRemaining = 0;
+        const { container } = render(<Harness recipeId={null} enqueue={enqueue} />);
+
+        act(() => addPhotos([pick('a.png')]));
+
+        expect(container.textContent).toBe('');
+        expect(capError).toBe('Only 0 more.');
+        capacityRemaining = 10;
     });
 });

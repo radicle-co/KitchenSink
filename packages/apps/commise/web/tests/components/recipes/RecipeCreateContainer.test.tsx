@@ -361,6 +361,27 @@ describe('RecipeCreateContainer — the create-then-upload handover (U33)', () =
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_created');
     });
 
+    it('lets a cook un-pick a photo chosen before the first save', async () => {
+        // ⛔ Without this, the photo picked before the first save was the ONE field of the editor that could
+        // not be changed: the wrong picture rode along to the create and the only way out was abandoning the
+        // recipe. Draft cells carry NEGATIVE fileIds so they cannot collide with the queue's own — which also
+        // means `queue.remove` silently matches nothing for them, so the Remove would have appeared to work
+        // and done nothing.
+        const user = userEvent.setup();
+        const client = clientWithOneFood();
+
+        renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'wrong-photo.png', { type: 'image/png' });
+
+        await user.upload(screen.getByLabelText('Add photo'), file);
+        expect(await screen.findByAltText(/wrong-photo\.png/u)).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /Remove wrong-photo\.png/u }));
+
+        expect(screen.queryByAltText(/wrong-photo\.png/u)).not.toBeInTheDocument();
+    });
+
     it('shows a photo control on step 1 — never a "save this recipe first" notice', async () => {
         // ⛔ The ruling in one assertion: photos are a field, so the create path meets a CONTROL where it used
         // to meet a sentence explaining why there was no control.

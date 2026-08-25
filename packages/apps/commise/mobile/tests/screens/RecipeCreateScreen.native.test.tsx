@@ -181,3 +181,68 @@ describe('RecipeCreateScreen — happy path', () => {
         expect(onCreated).toHaveBeenCalledWith('rec_new');
     });
 });
+
+/** Walk a blank create to a publishable draft and press Publish. Shared by the flush-surface suite below. */
+function publishMinimalRecipe(onCreated: (id: string) => void): void {
+    const created = makeRecipeDetail({ id: 'rec_new', title: 'Weeknight Pasta' });
+
+    useCreateRecipeMock.mockReturnValue(
+        createRecipeMutation({
+            mutate: vi.fn((_input: unknown, options?: { onSuccess?: (recipe: typeof created) => void }) =>
+                options?.onSuccess?.(created),
+            ) as never,
+        }),
+    );
+
+    render(<RecipeCreateScreen onCreated={onCreated} onCancel={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Weeknight Pasta' } });
+    fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'olive' } });
+    act(() => {
+        vi.advanceTimersByTime(INGREDIENT_SEARCH_DEBOUNCE_MS);
+    });
+    vi.useRealTimers();
+    fireEvent.click(screen.getByRole('button', { name: 'Olive oil' }));
+    fireEvent.click(screen.getByLabelText(/Next: Instructions/));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
+    fireEvent.change(screen.getByLabelText('Step 1 instruction'), { target: { value: 'Boil the pasta.' } });
+    fireEvent.click(screen.getByLabelText(/Next: Review/));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+}
+
+/**
+ * U33 — THE POST-SAVE PHOTO-FLUSH SURFACE, and the cross-platform parity gap it closes.
+ *
+ * ⛔ A save is create-THEN-upload, so the screen must not hand the id upward while photos are outstanding —
+ * doing so unmounts the queue mid-flight and loses them. The first version of this screen only WITHHELD
+ * `onCreated` and rendered nothing new, which produced four bad outcomes the web container had already
+ * designed away:
+ *
+ *  - the cook pressed Publish and nothing visibly happened, with no word that the recipe was already saved;
+ *  - a permanently failed upload's Retry lived three steps back on step 1, with nothing pointing at it;
+ *  - the only exit was the back arrow, which asks "Discard unsaved changes?" about a saved recipe;
+ *  - `create.isPending` was false again, so Publish was live and a SECOND press created a SECOND recipe.
+ *
+ * The screen now renders the same shape the web container does: the recipe-saved notice, the photo surface
+ * with each file's own state, and an explicit way to leave without the stragglers.
+ */
+describe('RecipeCreateScreen — the post-save photo flush (U33)', () => {
+    it('hands the id upward immediately when no photo was chosen', () => {
+        // The control case. Without it, a screen that never handed the id upward would satisfy the next test.
+        const onCreated = vi.fn();
+
+        publishMinimalRecipe(onCreated);
+
+        expect(onCreated).toHaveBeenCalledWith('rec_new');
+    });
+
+    it('does NOT render the flush surface when there is nothing to flush', () => {
+        publishMinimalRecipe(vi.fn());
+
+        expect(screen.queryByLabelText('Finish without the remaining photos')).toBeFalsy();
+    });
+});

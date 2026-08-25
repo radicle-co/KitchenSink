@@ -205,6 +205,18 @@ export interface MobileMessages {
         readonly visibilityUpgradeReason: string;
         /** Alert shown when creating a recipe fails. */
         readonly createError: string;
+        /**
+         * Shown after a successful create while chosen photos are still uploading (U33). A save is create-THEN-
+         * upload, and the cook must not be told it is one call.
+         */
+        readonly photosFlushingNotice: string;
+        /** The explicit "leave without the photos that would not upload" action (U33). */
+        readonly photosFinishWithout: string;
+        /**
+         * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`). The pick
+         * is refused WHOLE rather than truncated — see the web dictionary's twin for why.
+         */
+        readonly photosOverCap: string;
         /** Alert shown when saving recipe edits fails. */
         readonly saveError: string;
         /** Title of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
@@ -439,6 +451,9 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             versionsAction: 'Version history',
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
+            photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
+            photosFinishWithout: 'Finish without the remaining photos',
+            photosOverCap: 'That’s more photos than this recipe can hold — you can add {count} more.',
             saveError: 'We couldn’t save your changes. Please try again.',
             createGuidanceTitle: 'Let’s build your recipe',
             createGuidanceBody:

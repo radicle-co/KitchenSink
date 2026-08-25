@@ -55,6 +55,7 @@ import {
     visibleQueueItems,
     Wizard,
 } from '@commise/features-recipes';
+import { MAX_RECIPE_PHOTOS } from '@kitchensink/recipe-core';
 import type {
     RecipeFormErrors,
     RecipeFormIngredient,
@@ -113,12 +114,35 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
         values,
         onChange: setValues,
         enqueue: queue.enqueue,
+        // ⛔ The cap has to be judged for the pick's OWN size, not only between picks. `<input multiple>`
+        // lets a cook choose twelve files at once; the add control's `isAtPhotoCap` gate below cannot see
+        // that, and the queue would have accepted what fit and dropped the rest while the draft cleared them
+        // all. Both what is already held and what is already uploading are subtracted here.
+        capacity: {
+            remaining: Math.max(0, MAX_RECIPE_PHOTOS - values.photos.length - visibleQueueItems(queue.items).length),
+            overCapMessage: recipes.form.photosOverCap,
+        },
     });
 
     // ALLOWED REF (§3 — wraps a genuinely external, non-declarative system): the DOM `<input type="file">`.
     // Clearing `.value` after a pick is the only way to let the SAME file be picked again and still fire a
     // fresh `change` event; there is no declarative equivalent for resetting a file input.
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // ALLOWED REF (§3 — external-resource lifecycle, not state-in-a-ref): a browser Object URL leaks until
+    // explicitly revoked, so tracking which are owed a revoke is bookkeeping for a system outside React's
+    // model. It is never read to drive rendering — the cells render from the item's own `previewUri`.
+    const previewUrlsRef = useRef<string[]>([]);
+
+    useEffect(() => {
+        const tracked = previewUrlsRef.current;
+
+        return () => {
+            for (const url of tracked) {
+                URL.revokeObjectURL(url);
+            }
+        };
+    }, []);
 
     const addIngredient = (line: RecipeFormIngredient): void => {
         setValues((current) => ({ ...current, ingredients: [...current.ingredients, line] }));
@@ -155,12 +179,18 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
         draftPhotos.addPhotos(
-            Array.from(event.target.files ?? []).map((file) => ({
-                blob: file,
-                fileName: file.name,
-                contentType: file.type,
-                fileSize: file.size,
-            })),
+            Array.from(event.target.files ?? []).map((file) => {
+                // Minted here, and carried through the draft into the queue, so the cell shows the PHOTO
+                // rather than only the word "Queued". A cook choosing between two pictures has to be able to
+                // see which one they picked; the native picker gives an asset URI for free, and this is web's
+                // equivalent. Revoked on unmount — bounded at the ten-photo cap, so a per-item revoke would
+                // be bookkeeping for nothing.
+                const previewUri = URL.createObjectURL(file);
+
+                previewUrlsRef.current.push(previewUri);
+
+                return { blob: file, fileName: file.name, contentType: file.type, fileSize: file.size, previewUri };
+            }),
         );
 
         if (inputRef.current !== null) {
@@ -191,7 +221,34 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
         fileName: photo.fileName,
         status: 'queued' as const,
         retryable: false,
+        ...(draftPhotos.previewFor(photo.localId) === undefined
+            ? {}
+            : { previewUri: draftPhotos.previewFor(photo.localId) as string }),
     }));
+
+    // The over-cap refusal takes precedence: it is the more recent thing the cook did, and it is the one that
+    // explains why nothing appeared. An older upload failure still has its own per-file badge in the grid.
+    const photoError = draftPhotos.capError ?? uploader.errorMessage;
+
+    /**
+     * Route a Remove to whichever layer owns that cell. Draft picks are injected with NEGATIVE `fileId`s
+     * (`-(index + 1)`) precisely so they cannot collide with the queue's own monotonic positive ones — and so
+     * that `queue.remove`, which filters by `fileId`, silently matches nothing for them. Without this
+     * dispatch the Remove on a draft pick would appear to work and do nothing at all.
+     */
+    const removeQueueItem = (fileId: number): void => {
+        if (fileId >= 0) {
+            queue.remove(fileId);
+
+            return;
+        }
+
+        const photo = values.photos[-fileId - 1];
+
+        if (photo !== undefined) {
+            draftPhotos.removePhoto(photo.localId);
+        }
+    };
 
     const photoManager = (
         <RecipePhotoManager
@@ -199,9 +256,9 @@ export const RecipeCreateContainer: FC<RecipeCreateContainerProps> = ({ locale }
             onRemovePhoto={() => undefined}
             queueItems={[...draftItems, ...queue.items]}
             onRetryQueueItem={queue.retry}
-            onRemoveQueueItem={queue.remove}
+            onRemoveQueueItem={removeQueueItem}
             uploading={uploader.uploading}
-            {...(uploader.errorMessage === undefined ? {} : { errorMessage: uploader.errorMessage })}
+            {...(photoError === undefined ? {} : { errorMessage: photoError })}
             addControl={
                 isAtPhotoCap(values.photos.length + visibleQueueItems(queue.items).length) ? undefined : (
                     <label className="inline-flex cursor-pointer items-center rounded-full border border-border px-4 py-2 text-body-sm font-medium text-charcoal transition hover:bg-pearl">

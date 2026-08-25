@@ -28,8 +28,10 @@
  * ⚠️ **Auto-save (U34) is wired here, and its `enabled` gate is this container's judgement.** It is `false`
  * whenever an unattended write would land in an unresolved race: while a save is in flight (that request
  * already holds the version token), while a conflict is unresolved (the token is known stale), and while the
- * recipe has not loaded (there is no token). The write itself goes through the editor's own `saveDraft`, so
- * it carries `expectedVersion` and a 409 surfaces exactly as a manual save's does.
+ * recipe has not loaded (there is no token). The write goes through the editor's `autoSaveDraft` — NOT its
+ * `saveDraft`, which also calls `onSaved`, which this container wires to a NAVIGATION. A background timer
+ * calling that would close the editor two seconds after the cook stopped typing. It still carries
+ * `expectedVersion`, and a 409 surfaces exactly as a manual save's does.
  *
  * **OQ-1 resolve→detail navigation (W7 Task 6).** A successful `overwrite`/`merge` resolves through the SAME
  * `submitDraft` → `onSuccess` → `opts.onSaved` path a plain save uses, so it lands on the SAME
@@ -120,7 +122,10 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     useRecipeAutoSave({
         isDirty,
         enabled: editor.state.status === 'editing',
-        saveDraft: editor.saveDraft,
+        // ⛔ `autoSaveDraft`, NOT `saveDraft`: the latter also calls `onSaved`, which this container
+        // wires to a navigation — a background timer calling it closes the editor mid-edit. See the hook's
+        // own doc for the three concerns an unattended write must not inherit.
+        saveDraft: editor.autoSaveDraft,
     });
 
     // OQ-1 (W7 Task 6): `keepServer` (Option A) discards the draft WITHOUT a write, so it never runs the

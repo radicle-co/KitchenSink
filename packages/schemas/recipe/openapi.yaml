@@ -6151,6 +6151,9 @@ components:
               difficulty:
                 nullable: true
                 type: string
+              mealType:
+                nullable: true
+                type: string
               averageRating:
                 nullable: true
                 type: string
@@ -6210,6 +6213,7 @@ components:
               - totalTimeMinutes
               - servings
               - difficulty
+              - mealType
               - averageRating
               - ratingCount
               - visibility

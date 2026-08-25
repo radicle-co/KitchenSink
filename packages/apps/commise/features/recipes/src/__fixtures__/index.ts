@@ -157,6 +157,9 @@ export function makeRecipeFormValues(overrides: Partial<RecipeFormValues> = {}):
             { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Olive oil', quantity: 2, unit: 'tbsp' },
         ],
         steps: [{ instruction: 'Combine the ingredients.' }],
+        // No pending photo picks by default (U33): the common draft is one that has nothing waiting to
+        // upload, and a test that wants the flush path must say so explicitly.
+        photos: [],
         ...overrides,
     };
 }

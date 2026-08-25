@@ -5,12 +5,18 @@
  * the real hook calls), so `goNext`'s validity gate and the rail's invalid-flagging behave exactly as they
  * would wired to the real hook, without needing the hook's network/query machinery.
  *
- * **U6 chrome model (what these tests pin down):** the footer (`Wizard.Controls`) is the ONE contextual
- * primary — a filled `Next: {name}` on steps 1–3 and a filled `Publish` on step 4 (Publish is NO LONGER live
- * on steps 1–3), with a secondary `Prev` on the left for every step past the first. The header
- * (`Wizard.TopBar`) keeps `Preview` as its own icon button and demotes `Save Draft` + `Cancel` into an
- * overflow ("More actions") menu, so it NEVER packs four filled buttons and Publish is gone from it entirely.
- * Everything else — the discard guard, the preview panel, the rail, attempted-set marking — is preserved.
+ * **U32/U33 chrome model (what these tests pin down):**
+ *  - `Wizard.Controls` is the ACTION BAR — `Previous · Save Draft · Next`, with `Publish` in Next's slot on
+ *    the last step. It is rendered ONCE, by `Wizard.Header`, and its `position` (not its existence) is what
+ *    the `lg` breakpoint changes: `fixed inset-x-0 bottom-0` below `lg`, `static` in the header band above.
+ *    The class contract is asserted here; the real behaviour at real viewports is Playwright's
+ *    (`recipeEditWizard.spec.ts`), because jsdom loads no CSS and cannot tell a pinned bar from a scrolled one.
+ *  - `Wizard.Header` carries the BACK affordance (below `lg`; it routes through the discard guard) and the
+ *    overflow menu (above `lg`; Save Draft + Cancel).
+ *  - `Preview` is DELETED, replaced by the Review step body. Its old describe block is gone with it — the
+ *    coverage moved to `form/__tests__/RecipeReviewFields.test.tsx`, which tests the surface that replaced it.
+ * Everything else — the discard guard, the rail, attempted-set marking, the blocked-advance notice — is
+ * preserved.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -88,8 +94,8 @@ const Harness: FC<HarnessProps> = ({
             isDirty={isDirty}
             submitting={submitting}
         >
+            <Wizard.Header />
             <Wizard.Rail />
-            <Wizard.TopBar />
             <Wizard.Step step={1}>
                 <input
                     aria-label="Title"
@@ -104,9 +110,11 @@ const Harness: FC<HarnessProps> = ({
                 <p>Instructions step body</p>
             </Wizard.Step>
             <Wizard.Step step={4}>
-                <p>Photos step body</p>
+                <p>Review step body</p>
             </Wizard.Step>
-            <Wizard.Controls />
+            {/* ⛔ No <Wizard.Controls /> here — `Wizard.Header` places the action bar itself (U32). A second
+                placement would ship two bars carrying the same accessible names, which is exactly what the
+                "renders exactly one of each action control" test below exists to catch. */}
         </Wizard>
     );
 };
@@ -123,7 +131,7 @@ describe('Wizard (web) — Wizard.Step gating', () => {
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.queryByText('Ingredients step body')).toBeFalsy();
         expect(screen.queryByText('Instructions step body')).toBeFalsy();
-        expect(screen.queryByText('Photos step body')).toBeFalsy();
+        expect(screen.queryByText('Review step body')).toBeFalsy();
     });
 
     it('switches which step body renders when the step changes', () => {
@@ -146,7 +154,7 @@ describe('Wizard (web) — Next gating + rail invalidity', () => {
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.queryByText('Ingredients step body')).toBeFalsy();
         // The rail flags step 1 as needing attention now that it was attempted.
-        expect(screen.getByRole('button', { name: /Basic: needs attention/ })).toBeTruthy();
+        expect(screen.getByRole('button', { name: /Details: needs attention/ })).toBeTruthy();
     });
 
     it('Next advances to the following step when the current step is valid', async () => {
@@ -171,7 +179,7 @@ describe('Wizard (web) — Next gating + rail invalidity', () => {
 
         await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
 
-        expect(screen.getByRole('button', { name: /Basic: completed/ })).toBeTruthy();
+        expect(screen.getByRole('button', { name: /Details: completed/ })).toBeTruthy();
         expect(screen.getByRole('button', { name: /Ingredients: current step/ })).toBeTruthy();
     });
 });
@@ -257,7 +265,7 @@ describe('Wizard (web) — a refused Next says WHY (the footer blocked-advance n
         expect(screen.getByText('Add at least one ingredient.')).toBeTruthy();
 
         // Jump to step 4 via the rail (free navigation) and publish from its footer.
-        await user.click(screen.getByRole('button', { name: /Photos: not yet started/ }));
+        await user.click(screen.getByRole('button', { name: /Review: not yet started/ }));
         await user.click(screen.getByRole('button', { name: /Publish/ }));
 
         // Back on the blocked step, the stale refusal is gone — Publish owns the feedback now.
@@ -283,100 +291,215 @@ describe('Wizard (web) — the footer nav labels carry NO decorative chevron', (
         render(<Harness initialValues={validValues()} initialStep={3} />);
 
         expect(screen.getByRole('button', { name: 'Prev: Ingredients' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Next: Photos' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Next: Review' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: /[<>]/ })).toBeFalsy();
     });
 });
 
-describe('Wizard (web) — footer is the ONE contextual primary (U6)', () => {
+describe('Wizard (web) — the action bar carries Previous · Save Draft · Next (U32)', () => {
     it('shows a FILLED Next primary — and NO Publish — on step 1', () => {
         render(<Harness initialValues={validValues()} initialStep={1} />);
 
-        const next = screen.getByRole('button', { name: /Next: Ingredients/ });
-        // Filled == the Button primitive's primary tier (gradient surface), not a bordered secondary.
-        expect(next.className).toContain('from-seafoam');
-        expect(screen.queryByRole('button', { name: 'Publish' })).toBeFalsy();
+        expect(screen.getByRole('button', { name: 'Next: Ingredients' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
     });
 
     it('shows a FILLED Next primary — and NO Publish — on step 3', () => {
         render(<Harness initialValues={validValues()} initialStep={3} />);
 
-        expect(screen.getByRole('button', { name: /Next: Photos/ }).className).toContain('from-seafoam');
-        expect(screen.queryByRole('button', { name: 'Publish' })).toBeFalsy();
+        expect(screen.getByRole('button', { name: 'Next: Review' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
     });
 
-    it('swaps the footer primary to a FILLED Publish — and NO Next — on step 4', () => {
+    it('swaps the primary to a FILLED Publish — and NO Next — on the Review step', () => {
         render(<Harness initialValues={validValues()} initialStep={4} />);
 
-        const publish = screen.getByRole('button', { name: 'Publish' });
-        expect(publish.className).toContain('from-seafoam');
-        expect(screen.queryByRole('button', { name: /^Next:/ })).toBeFalsy();
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /^Next: / })).toBeNull();
     });
 
-    it('hides Prev on step 1 and shows it (secondary) once past the first step', () => {
-        const { unmount } = render(<Harness initialValues={validValues()} initialStep={1} />);
-        expect(screen.queryByRole('button', { name: /^Prev:/ })).toBeFalsy();
-        unmount();
+    it('hides Previous on step 1 and shows it once past the first step', async () => {
+        // Drives the REAL advance rather than re-rendering with a different `initialStep` — that prop seeds
+        // state once, so a rerender would silently assert nothing about navigation at all.
+        const user = userEvent.setup();
 
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+        expect(screen.queryByRole('button', { name: /^Prev: / })).toBeNull();
+
+        await user.click(screen.getByRole('button', { name: 'Next: Ingredients' }));
+
+        expect(screen.getByRole('button', { name: 'Prev: Details' })).toBeTruthy();
+    });
+
+    it('carries Save Draft as a FIRST-CLASS control on every step, not an overflow item', () => {
+        // U32's substantive change for a phone user: Save Draft used to be reachable only by opening a kebab.
+        for (const step of [1, 2, 3, 4] as const) {
+            cleanup();
+            render(<Harness initialValues={validValues()} initialStep={step} />);
+
+            expect(screen.getByRole('button', { name: 'Save Draft' })).toBeTruthy();
+        }
+    });
+
+    it('renders exactly ONE of each action control — the bar is placed once, not once per breakpoint', () => {
+        // ⛔ The regression this catches: rendering the bar twice (one copy hidden per breakpoint) gives every
+        // control two identical accessible names, so a screen reader's control list — and every `getByRole`
+        // here and in Playwright — finds two. jsdom loads no CSS, so a `hidden` copy would be fully visible
+        // to this query; that is precisely why the single-element design is the one that is testable.
         render(<Harness initialValues={validValues()} initialStep={2} />);
-        const prev = screen.getByRole('button', { name: 'Prev: Basic' });
-        // Secondary tier == the coral-outlined glass surface, never the filled seafoam primary (there is only
-        // ONE filled primary in the footer, and this control must not be it).
-        expect(prev.className).toContain('border-coral');
-        expect(prev.className).not.toContain('from-seafoam');
+
+        expect(screen.getAllByRole('button', { name: 'Save Draft' })).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: 'Next: Instructions' })).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: 'Prev: Details' })).toHaveLength(1);
     });
 
-    it('Next in the footer advances the step; Publish in the footer calls publish', async () => {
+    it('Next advances the step; Publish calls publish; Save Draft calls saveDraft', async () => {
         const user = userEvent.setup();
         const onPublish = vi.fn();
-        render(<Harness initialValues={validValues()} initialStep={4} onPublish={onPublish} />);
+        const onSaveDraft = vi.fn();
+
+        render(
+            <Harness initialValues={validValues()} initialStep={3} onPublish={onPublish} onSaveDraft={onSaveDraft} />,
+        );
+
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+        expect(onSaveDraft).toHaveBeenCalledTimes(1);
+        expect(onPublish).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: 'Next: Review' }));
+        expect(screen.getByText('Review step body')).toBeTruthy();
 
         await user.click(screen.getByRole('button', { name: 'Publish' }));
-
         expect(onPublish).toHaveBeenCalledTimes(1);
     });
 });
 
-describe('Wizard (web) — header overflow menu (U6: Save Draft + Cancel demoted)', () => {
-    it('never renders four filled action buttons in the header — only Preview + the overflow trigger', () => {
-        render(<Harness />);
+describe('Wizard (web) — the bar is PINNED below `lg`, and in the header band above it (U32)', () => {
+    const barOf = (): HTMLElement => {
+        const region = screen.getByLabelText('Wizard step navigation');
+        const bar = region.parentElement;
 
-        const toolbar = screen.getByRole('toolbar', { name: 'Recipe wizard actions' });
-        // Exactly two controls in the header chrome: Preview and the "More actions" overflow trigger. The
-        // four-filled-button wrap that U6 removes can never recur while this count holds.
-        expect(within(toolbar).getAllByRole('button')).toHaveLength(2);
-        // Publish is gone from the header entirely — it now lives in the footer as the step-4 primary.
-        expect(within(toolbar).queryByRole('button', { name: 'Publish' })).toBeFalsy();
-        // Save Draft + Cancel are NOT surfaced until the overflow menu is opened.
-        expect(screen.queryByRole('menuitem', { name: 'Save Draft' })).toBeFalsy();
-        expect(screen.queryByRole('menuitem', { name: 'Cancel' })).toBeFalsy();
+        if (bar === null) {
+            throw new Error('the action-bar region has no wrapper to carry the positioning classes');
+        }
+
+        return bar;
+    };
+
+    it('is `fixed` to the bottom of the VIEWPORT below `lg`, not sticky inside a scroll container', () => {
+        // ⛔ This is the shipped-defect fix, stated as a class contract. `position: fixed` is outside every
+        // scroll container BY CONSTRUCTION; the mockup's `sticky bottom-0` only pins because of one exact
+        // flex structure and drifts back into flow the moment that structure changes.
+        render(<Harness initialValues={validValues()} initialStep={2} />);
+        const bar = barOf();
+
+        expect(bar.className).toContain('fixed');
+        expect(bar.className).toContain('bottom-0');
+        expect(bar.className).toContain('inset-x-0');
+        expect(bar.className).not.toContain('sticky');
     });
 
-    it('discloses Save Draft + Cancel from the overflow menu, and Save Draft calls the given action', async () => {
-        const user = userEvent.setup();
-        const onSaveDraft = vi.fn();
-        render(<Harness onSaveDraft={onSaveDraft} />);
+    it('clears the gesture bar with `env(safe-area-inset-bottom)`', () => {
+        render(<Harness initialValues={validValues()} initialStep={2} />);
 
+        expect(barOf().className).toContain('env(safe-area-inset-bottom)');
+    });
+
+    it('returns to the flow — inside the sticky header band — at `lg` and above', () => {
+        render(<Harness initialValues={validValues()} initialStep={2} />);
+        const bar = barOf();
+
+        expect(bar.className).toContain('lg:static');
+
+        const header = screen.getByRole('toolbar', { name: 'Recipe wizard actions' });
+
+        expect(header.contains(bar)).toBe(true);
+        expect(header.className).toContain('sticky');
+    });
+});
+
+describe('Wizard (web) — the header: a back arrow below `lg`, the overflow menu above it (U32)', () => {
+    it('renders a localized BACK affordance, and it is hidden at `lg` and above', () => {
+        render(<Harness initialValues={validValues()} />);
+        const back = screen.getByRole('button', { name: 'Back' });
+
+        expect(back.className).toContain('lg:hidden');
+    });
+
+    it('routes the back arrow THROUGH the discard guard, never around it', async () => {
+        // ⛔ The arrow replaced the overflow menu's `Cancel`, so it must inherit `Cancel`'s guard exactly. A
+        // back arrow wired to history (or straight to `onCancel`) would silently discard unsaved work.
+        const user = userEvent.setup();
+        const onCancel = vi.fn();
+
+        render(<Harness initialValues={validValues()} isDirty onCancel={onCancel} />);
+        await user.click(screen.getByRole('button', { name: 'Back' }));
+
+        expect(onCancel).not.toHaveBeenCalled();
+        expect(screen.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeTruthy();
+
+        await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+        expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the back arrow a straight exit when there is nothing unsaved to lose', async () => {
+        const user = userEvent.setup();
+        const onCancel = vi.fn();
+
+        render(<Harness initialValues={validValues()} isDirty={false} onCancel={onCancel} />);
+        await user.click(screen.getByRole('button', { name: 'Back' }));
+
+        expect(onCancel).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+
+    it('keeps the overflow menu for `lg` and above ONLY — below it, both its items have moved out', () => {
+        render(<Harness initialValues={validValues()} />);
+        const trigger = screen.getByRole('button', { name: 'More actions' });
+        const wrapper = trigger.closest('div.hidden');
+
+        expect(wrapper).not.toBeNull();
+        expect(wrapper?.className).toContain('lg:flex');
+    });
+
+    it('discloses Save Draft + Cancel from the overflow menu, and Cancel still routes through the guard', async () => {
+        const user = userEvent.setup();
+        const onCancel = vi.fn();
+
+        render(<Harness initialValues={validValues()} isDirty onCancel={onCancel} />);
         await openActionsMenu(user);
 
-        expect(screen.getByRole('menu', { name: 'More actions' })).toBeTruthy();
-        await user.click(screen.getByRole('menuitem', { name: 'Save Draft' }));
+        const menu = screen.getByRole('menu', { name: 'More actions' });
 
-        expect(onSaveDraft).toHaveBeenCalledTimes(1);
+        expect(within(menu).getByRole('menuitem', { name: 'Save Draft' })).toBeTruthy();
+
+        await user.click(within(menu).getByRole('menuitem', { name: 'Cancel' }));
+
+        expect(onCancel).not.toHaveBeenCalled();
+        expect(screen.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeTruthy();
+    });
+
+    it('no longer offers a Preview affordance anywhere — Review replaced it (U33)', () => {
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+
+        expect(screen.queryByRole('button', { name: 'Preview' })).toBeNull();
+        expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeNull();
     });
 
     it('closes the overflow menu on Escape without invoking anything', async () => {
         const user = userEvent.setup();
         const onSaveDraft = vi.fn();
-        render(<Harness onSaveDraft={onSaveDraft} />);
+        const onCancel = vi.fn();
 
+        render(<Harness initialValues={validValues()} onSaveDraft={onSaveDraft} onCancel={onCancel} />);
         await openActionsMenu(user);
         expect(screen.getByRole('menu', { name: 'More actions' })).toBeTruthy();
 
         await user.keyboard('{Escape}');
 
-        expect(screen.queryByRole('menu', { name: 'More actions' })).toBeFalsy();
+        expect(screen.queryByRole('menu', { name: 'More actions' })).toBeNull();
         expect(onSaveDraft).not.toHaveBeenCalled();
+        expect(onCancel).not.toHaveBeenCalled();
     });
 });
 
@@ -410,7 +533,7 @@ describe('Wizard (web) — Publish validation (from the footer on step 4)', () =
         expect(screen.getByRole('button', { name: /Ingredients: needs attention/ })).toBeTruthy();
         expect(screen.getByRole('button', { name: /Instructions: needs attention/ })).toBeTruthy();
         // Still on step 4 — this shell never navigates on Publish; that is the hook's job.
-        expect(screen.getByText('Photos step body')).toBeTruthy();
+        expect(screen.getByText('Review step body')).toBeTruthy();
     });
 });
 
@@ -480,7 +603,7 @@ describe('Wizard (web) — discard guard (Cancel now lives in the overflow menu)
         const user = userEvent.setup();
         render(<Harness initialValues={validValues()} initialStep={3} isDirty />);
 
-        await user.click(screen.getByRole('button', { name: /Basic:/ }));
+        await user.click(screen.getByRole('button', { name: /Details:/ }));
 
         expect(screen.getByRole('alertdialog')).toBeTruthy();
         // Still on step 3 until confirmed.
@@ -571,66 +694,6 @@ describe('Wizard (web) — WCAG AA rail-marker contrast (SC 1.4.3)', () => {
     });
 });
 
-describe('Wizard (web) — Preview', () => {
-    it('shows the current draft values and can be closed', async () => {
-        const user = userEvent.setup();
-        render(<Harness initialValues={validValues()} />);
-
-        await user.click(screen.getByRole('button', { name: 'Preview' }));
-
-        const preview = screen.getByRole('dialog', { name: 'Preview' });
-        expect(within(preview).getByText('Herb Risotto')).toBeTruthy();
-        expect(within(preview).getByText('4')).toBeTruthy();
-
-        await user.click(screen.getByRole('button', { name: 'Close preview' }));
-        expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
-    });
-
-    it('caps the preview panel height and scrolls its body so it fits a short viewport (U5)', async () => {
-        const user = userEvent.setup();
-        render(<Harness initialValues={validValues()} />);
-
-        await user.click(screen.getByRole('button', { name: 'Preview' }));
-
-        // On a short 360px-tall device the centered panel could exceed the viewport; capping the CARD at
-        // `max-h-[85vh]` with `overflow-y-auto` keeps it on-screen and scrollable. The card is the dialog's
-        // content child (the dialog element itself is the backdrop). Desktop is unaffected — the short preview
-        // never reaches 85vh there.
-        const card = screen.getByRole('dialog', { name: 'Preview' }).firstElementChild as HTMLElement;
-        expect(card.className).toContain('max-h-[85vh]');
-        expect(card.className).toContain('overflow-y-auto');
-    });
-
-    // Minor a11y gap (opus review): the hand-rolled preview dialog previously had no Escape/backdrop
-    // dismissal, unlike the Radix ConfirmDialog rendered in the same file.
-    it('closes on Escape', async () => {
-        const user = userEvent.setup();
-        render(<Harness initialValues={validValues()} />);
-
-        await user.click(screen.getByRole('button', { name: 'Preview' }));
-        expect(screen.getByRole('dialog', { name: 'Preview' })).toBeTruthy();
-
-        await user.keyboard('{Escape}');
-
-        expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
-    });
-
-    it('closes on a backdrop click, but NOT on a click inside the panel card', async () => {
-        const user = userEvent.setup();
-        render(<Harness initialValues={validValues()} />);
-
-        await user.click(screen.getByRole('button', { name: 'Preview' }));
-        const preview = screen.getByRole('dialog', { name: 'Preview' });
-
-        // A click on content INSIDE the card must not dismiss the panel.
-        await user.click(within(preview).getByText('Herb Risotto'));
-        expect(screen.getByRole('dialog', { name: 'Preview' })).toBeTruthy();
-
-        // A click on the backdrop itself (the dialog element, outside the card) dismisses it.
-        await user.click(preview);
-        expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
-    });
-});
 
 /**
  * The wizard's top bar sits on the app background (the shell paints no card behind it), so that is the surface

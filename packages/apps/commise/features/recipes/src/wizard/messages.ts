@@ -1,25 +1,51 @@
 /**
  * @module @commise/features-recipes/wizard/messages — user-facing copy for the 4-step recipe-edit wizard
- * shell (w3/e1,e2): the step rail, the top-bar actions, the footer Prev/Next nav, the preview panel, and the
- * discard-confirmation dialog. Its own {@link LocalizedMessages} dictionary, consumed by BOTH the web
- * `Wizard.tsx` and native `Wizard.native.tsx` leaves via `useMessages`, mirroring `../form/messages.ts`'s
- * shape so the two platforms cannot drift on wizard chrome copy.
+ * shell (w3/e1,e2; U32/U33): the step rail, the sticky header (its back affordance and desktop overflow
+ * menu), the pinned action bar's Previous / Save Draft / Next controls, and the discard-confirmation dialog.
+ * Its own {@link LocalizedMessages} dictionary, consumed by BOTH the web `Wizard.tsx` and native
+ * `Wizard.native.tsx` leaves via `useMessages`, mirroring `../form/messages.ts`'s shape so the two platforms
+ * cannot drift on wizard chrome copy.
+ *
+ * ⛔ The `preview*` block is DELETED, not unused (owner ruling 2026-08-25): step 4 is now Review, and two
+ * surfaces rendering the same draft drift. `__tests__/messages.test.ts` asserts its absence, because a
+ * leftover key is exactly how a deleted surface gets quietly restored.
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
+import type { RecipeWizardStep } from '../form/model.js';
+
 /** Shared copy for the recipe-edit wizard shell, rendered by both the web and native wizard leaves. */
 export interface WizardMessages {
-    /** The step-rail's step names, in order (FR-044). */
-    readonly stepNames: readonly [string, string, string, string];
+    /**
+     * The step-rail's step names, KEYED BY STEP (FR-044; U33).
+     *
+     * ⛔ A `Record<RecipeWizardStep, string>`, not the positional 4-tuple it used to be. The tuple was read as
+     * `stepNames[step - 1] ?? ''` in BOTH platform leaves and in both the rail and the Prev/Next labels — four
+     * index computations whose only failure mode was a silently EMPTY label, which no test could see because
+     * an empty string renders as nothing. Keying by the step makes the association the type: every step in
+     * `WIZARD_STEPS` must have a name, the `?? ''` fallbacks are gone, and adding or removing a step is a
+     * compile error at every construction site rather than a blank pill in the rail.
+     */
+    readonly stepNames: Readonly<Record<RecipeWizardStep, string>>;
     /** "Step {current} of {total}" progress label template (FR-044). */
     readonly stepProgress: string;
     /** Accessible label for the step-rail region. */
     readonly railLabel: string;
     /** Accessible label template for one rail step's status announcement (contains `{name}`, `{state}`). */
     readonly railStepLabel: string;
-    /** Accessible label for the persistent top-bar (Preview + the actions overflow menu) toolbar region — its OWN
-     * landmark name, deliberately distinct from {@link railLabel} so two different regions never share one name. */
-    readonly topBarLabel: string;
+    /**
+     * Accessible label for the sticky wizard HEADER region (U32) — the back affordance, the heading, the
+     * desktop overflow menu and the action bar. Its OWN landmark name, deliberately distinct from
+     * {@link railLabel} and {@link controlsLabel} so no two regions on this surface share one name.
+     */
+    readonly headerLabel: string;
+    /**
+     * Accessible name for the header's BACK affordance (U32, owner ruling 2026-08-25). Below `lg` it replaces
+     * the overflow menu's `Cancel` item outright — and it routes through the SAME `requestCancel` that item
+     * did, so the discard guard still fires. It is not a browser-history control and must never be wired to
+     * one: leaving an edit with unsaved work is a decision, not a navigation.
+     */
+    readonly back: string;
     /**
      * Accessible name for the header's overflow ("More actions") menu — used BOTH for the kebab trigger button
      * and for the `role="menu"` list it discloses (Save Draft / Cancel), so neither is an unnamed control.
@@ -35,11 +61,9 @@ export interface WizardMessages {
     /** Rail step-state word: upcoming. */
     readonly stateUpcoming: string;
 
-    /** Save-Draft top-bar action label. */
+    /** Save-Draft action label — the action bar's middle slot (U32). */
     readonly saveDraft: string;
-    /** Preview top-bar action label. */
-    readonly preview: string;
-    /** Cancel top-bar action label. */
+    /** Cancel action label — the desktop overflow menu's destructive item (U32; below `lg` it is the back arrow). */
     readonly cancel: string;
     /**
      * The final-submit action's label, in BOTH create and edit mode (w3/e7: reconciled with its behavior —
@@ -50,39 +74,18 @@ export interface WizardMessages {
     readonly publish: string;
 
     /**
-     * Footer Prev-nav label template (contains `{name}`, the PRECEDING step's name).
+     * Action-bar Previous label template (contains `{name}`, the PRECEDING step's name).
      *
      * Carries NO decorative `<` — direction is conveyed by the button's own `chevron-left` icon on BOTH
      * platforms. A glyph here duplicates that icon visually and, because the label is also the button's
      * accessible name, makes a screen reader announce the punctuation ("less-than Prev: Basic").
      */
     readonly prevLabel: string;
-    /** Footer Next-nav label template (contains `{name}`, the FOLLOWING step's name). See {@link prevLabel}
+    /** Action-bar Next label template (contains `{name}`, the FOLLOWING step's name). See {@link prevLabel}
      *  for why it carries no decorative `>`. */
     readonly nextLabel: string;
-    /** Accessible label for the footer step-navigation (Prev / Next) region. */
+    /** Accessible label for the pinned action-bar (Previous / Save Draft / Next) region. */
     readonly controlsLabel: string;
-
-    /** Heading of the minimal read-only preview panel. */
-    readonly previewHeading: string;
-    /** Accessible label for the preview panel's close action. */
-    readonly previewClose: string;
-    /** Preview row label: title. */
-    readonly previewTitle: string;
-    /** Preview row label: description. */
-    readonly previewDescription: string;
-    /** Preview row label: servings. */
-    readonly previewServings: string;
-    /** Preview row label: ingredient count. */
-    readonly previewIngredientCount: string;
-    /** Preview row label: step count. */
-    readonly previewStepCount: string;
-    /** Preview row label: visibility. */
-    readonly previewVisibility: string;
-    /** Preview visibility value: public. */
-    readonly previewVisibilityPublic: string;
-    /** Preview visibility value: private. */
-    readonly previewVisibilityPrivate: string;
 
     /** Discard-confirmation dialog title. */
     readonly discardTitle: string;
@@ -96,11 +99,12 @@ export interface WizardMessages {
 
 export const wizardMessages: LocalizedMessages<WizardMessages> = {
     en: {
-        stepNames: ['Basic', 'Ingredients', 'Instructions', 'Photos'],
+        stepNames: { 1: 'Details', 2: 'Ingredients', 3: 'Instructions', 4: 'Review' },
         stepProgress: 'Step {current} of {total}',
         railLabel: 'Recipe wizard steps',
         railStepLabel: '{name}: {state}',
-        topBarLabel: 'Recipe wizard actions',
+        headerLabel: 'Recipe wizard actions',
+        back: 'Back',
         actionsMenu: 'More actions',
         stateCompleted: 'completed',
         stateCurrent: 'current step',
@@ -108,24 +112,12 @@ export const wizardMessages: LocalizedMessages<WizardMessages> = {
         stateUpcoming: 'not yet started',
 
         saveDraft: 'Save Draft',
-        preview: 'Preview',
         cancel: 'Cancel',
         publish: 'Publish',
 
         prevLabel: 'Prev: {name}',
         nextLabel: 'Next: {name}',
         controlsLabel: 'Wizard step navigation',
-
-        previewHeading: 'Preview',
-        previewClose: 'Close preview',
-        previewTitle: 'Title',
-        previewDescription: 'Description',
-        previewServings: 'Servings',
-        previewIngredientCount: 'Ingredients',
-        previewStepCount: 'Steps',
-        previewVisibility: 'Visibility',
-        previewVisibilityPublic: 'Public',
-        previewVisibilityPrivate: 'Private',
 
         discardTitle: 'Discard unsaved changes?',
         discardBody: 'You have unsaved changes. Leaving now will discard them.',

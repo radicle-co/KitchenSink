@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultRecipeFormValues } from '../../form/model.js';
+import { defaultRecipeFormValues, type RecipeWizardStep } from '../../form/model.js';
 import {
     blockedAdvanceErrors,
     deriveRailStepState,
+    nextStep,
+    previousStep,
     recipeFormValuesEqual,
     WIZARD_STEPS,
     WIZARD_TOTAL_STEPS,
@@ -38,6 +40,35 @@ describe('deriveRailStepState', () => {
     it('flags a COMPLETED (earlier) step invalid when it was attempted and is still broken', () => {
         // e.g. a Publish attempt marks every step attempted; step 2 (behind the current step 4) is invalid.
         expect(deriveRailStepState({ step: 2, currentStep: 4, attempted: true, hasErrors: true })).toBe('invalid');
+    });
+});
+
+describe('step adjacency (U33 — the rail owns adjacency, not the two platform leaves)', () => {
+    it('has no step before the first', () => {
+        expect(previousStep(1)).toBeNull();
+    });
+
+    it('has no step after the last', () => {
+        expect(nextStep(4)).toBeNull();
+    });
+
+    it('walks forward and back through every interior step', () => {
+        expect(nextStep(1)).toBe(2);
+        expect(nextStep(2)).toBe(3);
+        expect(nextStep(3)).toBe(4);
+        expect(previousStep(4)).toBe(3);
+        expect(previousStep(3)).toBe(2);
+        expect(previousStep(2)).toBe(1);
+    });
+
+    it('round-trips: every step but the last is its own next step’s previous', () => {
+        for (const step of WIZARD_STEPS) {
+            const forward: RecipeWizardStep | null = nextStep(step);
+
+            if (forward !== null) {
+                expect(previousStep(forward)).toBe(step);
+            }
+        }
     });
 });
 

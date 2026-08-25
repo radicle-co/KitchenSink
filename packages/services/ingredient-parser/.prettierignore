@@ -1,0 +1,11 @@
+# ⚠️ A package-LOCAL ignore file, which no other package here carries. Prettier reads `.prettierignore`
+# from its CWD and does NOT walk up, so the root file does not apply when `format:check` runs inside this
+# workspace — and this package's build output is not a small `dist/`, it is ~3,000 files of THIRD-PARTY
+# Python that `npm run bundle:lambda` unpacks. Without this, formatting a dependency's own README becomes
+# a diff, and the check walks 91 MB.
+#
+# The root `.prettierignore` keeps the same entry for repo-level `npm run format`. Two files, because the
+# two invocations genuinely have different working directories — not a duplicated rule.
+build
+cdk.out
+dist

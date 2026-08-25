@@ -1,0 +1,15 @@
+# The CRF ingredient-parse engine, pinned EXACTLY.
+#
+# ⛔ The pin is load-bearing three times over:
+#   1. The model artifact ships INSIDE the distribution, so a floating version silently changes what this
+#      service parses with — and every cached parse keyed by the engine version would be wrong.
+#   2. `packages/tools/cookbook-import` measured the CRF-vs-LLM agreement rates in
+#      docs/reports/2026-08-23-002-ingredient-parse-model-comparison.md against THIS version, and
+#      .github/workflows/_ci.yml installs the same one. Three places, one number.
+#   3. `infra/lib/assetContents.ts` derives the dist-info directory it reads pip's RECORD from out of this
+#      line, so an unpinned requirement has no manifest to check the packaged asset against and is refused.
+#
+# ⚠️ This distribution declares `Requires-Python: <3.14,>=3.10`, which is why
+# `@kitchensink/infra-security`'s PYTHON_LAMBDA_RUNTIME is python3.13 and not the newer runtime CDK
+# already knows about. Raising this pin is the ONLY thing that may raise ENGINE_PYTHON_CEILING.
+ingredient-parser-nlp==2.3.0

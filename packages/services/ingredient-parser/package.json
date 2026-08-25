@@ -1,0 +1,50 @@
+{
+    "name": "@kitchensink/ingredient-parser",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "//runtime": [
+        "This is the repository's FIRST non-Node deployable: a zip-packaged PYTHON Lambda running the",
+        "ingredient-parser-nlp CRF engine. The TypeScript here is its CDK stack, its packaging guard and the",
+        "zod its callers parse its response with -- never its runtime. See",
+        "docs/architecture/decisions/0025-ingredient-parser-python-deployable.md."
+    ],
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "bundle:lambda": "tsx infra/bin/buildAsset.ts",
+        "infra:build": "tsc -p infra/tsconfig.json",
+        "infra:synth": "npm run bundle:lambda && cdk synth --app 'npx tsx infra/bin/app.ts'",
+        "infra:deploy": "npm run bundle:lambda && cdk deploy --app 'npx tsx infra/bin/app.ts'",
+        "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "dependencies": {
+        "aws-cdk-lib": "*",
+        "constructs": "*",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/infra-security": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.0.0",
+        "aws-cdk": "^2.1134.0",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "tsx": "^4.23.12",
+        "typescript": "^5.9.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

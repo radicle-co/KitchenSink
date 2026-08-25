@@ -372,6 +372,19 @@ Lambda Node.js 24.x runtime is available in all commercial AWS regions. The "Lam
 
 A feature plan or CDK definition that specifies Node.js 22.x or lower is non-conformant. It must be corrected before the feature's infrastructure code is written.
 
+### Scope ruling and documented waiver (2026-08-25) — non-Node runtimes
+
+This rule governs the **Node major wherever Node is the runtime**. It was written when every deployable in the repository was Node, and it does not contemplate a second _language_ runtime. Recorded here rather than settled by interpretation, because a rule that is silent on a case is not the same as a rule that permits it.
+
+**W-008-1 — the CRF ingredient parser's Python Lambda.** `packages/services/ingredient-parser` deploys one function on the `python3.13` runtime, because the engine it exists to run (`ingredient-parser-nlp==2.3.0`) declares `Requires-Python: <3.14,>=3.10`. Granted on these terms:
+
+- The **workspace** targets Node 24.x unchanged — `engines.node` is `24.x`, and its build, tests, lint, typecheck, CDK app and packaging script all run on Node 24. AC-008-a/b/c are satisfied as written: no CDK definition in it specifies a Node runtime below 24, because none specifies a Node runtime at all.
+- `python3.13` is not a Node version and so is not a "lower runtime version" in this rule's sense. The waiver is recorded anyway, under AC-008-c, so the decision is auditable.
+- The waiver is **narrow and carries an obligation**: it covers this function only, and a non-Node runtime must carry the same controls the Node one does — ONE pinned constant in ONE place (`PYTHON_LAMBDA_RUNTIME`, `@kitchensink/infra-security`) plus a drift test that fails when the pin falls behind. A future non-Node deployable inherits that obligation, not this waiver.
+- Rationale, alternatives and residual risk: [ADR-0025](../docs/architecture/decisions/0025-ingredient-parser-python-deployable.md).
+
+⚠️ **Pending owner ratification.** This records a waiver the rule already provides for and changes neither GR-008's text nor its severity, so no version increment is claimed. If the senior product owner reads GR-008 as forbidding a non-Node runtime outright, the waiver is refused and ADR-0025 is the single decision to reverse.
+
 ### Current State (2026-05-10)
 
 - Feature 002 `plan.md:22` still says "Node.js 22.x (Lambda runtime)". **Correction required** (tracked as deferred follow-up in `002/review.md` Revision 1).

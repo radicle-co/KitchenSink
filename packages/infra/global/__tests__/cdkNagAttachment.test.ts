@@ -44,6 +44,7 @@ const KNOWN_ENTRYPOINTS = [
     'packages/services/food-service/infra/bin/app.ts',
     'packages/services/identity-webhooks/infra/bin/app.ts',
     'packages/services/identity/infra/bin/app.ts',
+    'packages/services/ingredient-parser/infra/bin/app.ts',
     'packages/services/recipe-service/infra/bin/app.ts',
     'packages/services/recipe-workers/infra/bin/app.ts',
 ];

@@ -126,6 +126,14 @@ close that:
    `environment:Production` / `ref:refs/heads/main`. Restrict each role's `secretsmanager:GetSecretValue`
    to its own `kitchensink/<stage>/*` ARNs. This makes prod secrets physically unreachable from a PR.
 
+    ⚠️ **The sandbox role needs more than Secrets Manager.** Three sandbox _deploying_ jobs and — since
+    2026-08-25 — `_ci.yml`'s `e2e-web` shards run `.github/scripts/sandbox-wake.sh ensure`, which needs
+    `rds:DescribeDBInstances`, `rds:StartDBInstance`, `ec2:DescribeInstances` and `ec2:StartInstances`.
+    Today they all share the one org-wide key pair, so nothing had to be granted for the `e2e-web` call
+    site; a role scoped from the `load-secrets` call alone would break the wake gate, and `e2e-web` would
+    go back to failing every overnight run inside ADR-0007's window. See the wake step's comment in
+    `_ci.yml`.
+
     ⚠️ The environment bindings in step 2 do NOT achieve that on their own, and the reason is specific:
     `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are **organization** secrets (verified via
     `gh api repos/:owner/:repo/actions/organization-secrets`), and an org secret **cannot** be scoped to a

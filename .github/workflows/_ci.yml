@@ -1699,7 +1699,13 @@ jobs:
 
     e2e-web:
         name: E2E (web — Playwright) ${{ matrix.shard }}/${{ strategy.job-total }}
-        timeout-minutes: 30
+        # 30 + the sandbox wake's own 15-minute bound (see the wake step below). A run that lands in ADR-0007's
+        # 00:00–09:00 ET window legitimately waits minutes for a stopped `db.t4g.micro` to reach `available`,
+        # and a JOB timeout is precisely the misleading failure that step exists to prevent: it would kill the
+        # shard mid-wake with "the job running on runner … has exceeded the maximum execution time" rather than
+        # the script's own annotated verdict. The wake is self-bounding, so this only has to be wide enough to
+        # let that bound be the one that fires.
+        timeout-minutes: 45
         runs-on: ubuntu-latest
         needs: build
         # SHARDED, 4 ways. This job WAS the entire critical path of a PR run: measured on the green run
@@ -1890,6 +1896,38 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
+            # ⛔ ADR-0007 × THIS SUITE'S CLERK FIXTURE — the same nightly shutdown that wedges deploys, hitting
+            # a job that deploys NOTHING. `globalSetup` creates a run-scoped Clerk user and then BLOCKS for 30s
+            # waiting for `external_id` to be backfilled; that backfill is the sandbox `user.created` webhook —
+            # a VPC-attached Lambda that reaches Secrets Manager and the Clerk Backend API through the sandbox
+            # NAT instance and writes the app user to the sandbox RDS. ADR-0007 stops BOTH nightly, 00:00–09:00
+            # ET, so inside that window the backfill can never arrive.
+            #
+            # Observed 2026-08-25 at 01:37 ET on dcf2aaef: all eight shards dead in ~1 minute each, NO test
+            # results produced at all, every one failing with `waitForTestUserExternalId: … still has no
+            # externalId after 30000ms`. That message names a webhook outage because it was written without
+            # knowing the outage is on a SCHEDULE — the suite is not flaky overnight, it is impossible.
+            #
+            # Waking here is near-free on a daytime run (two describe calls against an already-`available`
+            # instance and an already-`running` NAT — `ensure` is idempotent) and starts the tier only on a run
+            # that actually lands in the window, which is exactly when it must. The nightly schedule is
+            # untouched, so ADR-0007's cost intent stands. The script takes no instance argument by
+            # construction — it discovers and validates — so it cannot address the prod database.
+            #
+            # ⛔ It runs BEFORE the artifact download and the browser install, and its exit status is NOT
+            # suppressed: a wake failure must end this job immediately and by its own name, rather than let the
+            # suite proceed and die 30s later inside globalSetup with a message that sends the reader hunting a
+            # webhook outage. Diagnosing that misdirection is most of what this incident cost.
+            #
+            # ⚠️ This runs on the `main` (prod) pipeline too, and that is correct rather than a leak: this job
+            # ALWAYS authenticates against the sandbox dev instance whatever `inputs.stage` says (see the step
+            # above for why pk_live cannot serve localhost), so it is always the SANDBOX that has to be awake.
+            #
+            # AWS credentials come from the `load-secrets` step above, which configures them with the SAME
+            # static keys the deploy workflows already run this script under — so this needs no IAM change.
+            - name: Wake the shared sandbox (ADR-0007 stops the RDS + NAT this suite's Clerk fixture needs)
+              if: steps.secrets.outcome == 'success'
+              run: bash .github/scripts/sandbox-wake.sh ensure "${DEFAULT_AWS_REGION}"
             # THE PRODUCTION BUILD THIS SHARD SERVES. `playwright.config.ts` runs `next start` under CI
             # (`E2E_WEB_SERVER` in this job's `env:` above), and `next start` SERVES a build — it does not make
             # one. The `build` job made it once, with the sandbox Clerk key and these same localhost origins,

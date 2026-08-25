@@ -1576,8 +1576,7 @@ describe('RecipeForm (native) — a section resplit does not remount the rows (U
 });
 
 describe('RecipeForm (native) — meal type (U34: the ONE closed axis)', () => {
-    const chip = (label: string): HTMLElement =>
-        within(screen.getByLabelText('Meal type')).getByLabelText(label);
+    const chip = (label: string): HTMLElement => within(screen.getByLabelText('Meal type')).getByLabelText(label);
 
     it('renders a chip for every member of the vocabulary plus an explicit Not stated', () => {
         renderForm();

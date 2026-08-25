@@ -1865,7 +1865,9 @@ describe('RecipeForm (web) — meal type (U34: the ONE closed axis)', () => {
         const onChange = vi.fn();
         renderForm({ values: filledValues(), onChange });
 
-        await user.click(within(screen.getByRole('radiogroup', { name: 'Meal type' })).getByRole('radio', { name: 'Lunch' }));
+        await user.click(
+            within(screen.getByRole('radiogroup', { name: 'Meal type' })).getByRole('radio', { name: 'Lunch' }),
+        );
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mealType: 'lunch' }));
     });

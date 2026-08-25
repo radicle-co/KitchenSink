@@ -413,10 +413,6 @@ describe('Wizard (native) — the header is NEW, and its back arrow routes throu
     });
 });
 
-
-
-
-
 describe('Wizard (native) — Publish & submitting', () => {
     it('Publish calls the given action and carries the "Publish" accessible name in create mode (w3/e7)', () => {
         const onPublish = vi.fn();
@@ -454,7 +450,6 @@ describe('Wizard (native) — Publish & submitting', () => {
 
         expect(onPublish).not.toHaveBeenCalled();
     });
-
 });
 
 describe('Wizard (native) — discard guard', () => {
@@ -631,4 +626,3 @@ describe('Wizard (native) — WCAG AA rail-marker contrast (SC 1.4.3)', () => {
         ).toBeGreaterThanOrEqual(4.5);
     });
 });
-

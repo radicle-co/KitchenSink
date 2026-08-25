@@ -30,11 +30,7 @@
  * the admission check itself lives in `useRecipePhotoUploadQueue`.
  */
 import { RecipePhotoManager, isAtPhotoCap, visibleQueueItems, type RecipeFormPhoto } from '@commise/features-recipes';
-import {
-    useRecipePhotoUpload,
-    useRecipePhotoUploadQueue,
-    type DraftPhotoPick,
-} from '@commise/features-recipes/hooks';
+import { useRecipePhotoUpload, useRecipePhotoUploadQueue, type DraftPhotoPick } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import {
     useDeleteRecipePhoto,
@@ -74,11 +70,7 @@ export interface RecipePhotoUploaderProps {
  * @param props - The id of the recipe whose photos are managed.
  * @returns The photo manager block wired to the native picker and the upload-queue/remove mutations.
  */
-export function RecipePhotoUploader({
-    recipeId,
-    onPick,
-    pendingDrafts = [],
-}: RecipePhotoUploaderProps): JSX.Element {
+export function RecipePhotoUploader({ recipeId, onPick, pendingDrafts = [] }: RecipePhotoUploaderProps): JSX.Element {
     const { recipePhotos: t } = useMessages(mobileMessages);
     // `''` disables the query (`enabled: id.length > 0`) — a create has no photos to list yet.
     const photosQuery = useRecipePhotos(recipeId ?? '');

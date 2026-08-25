@@ -12,7 +12,7 @@ import { signInWithTicket } from './utils/auth';
  * mock seeds recipes owned by the live viewer (see `readViewerAppId`). Selectors are role/label only (per
  * repo policy). Serial (Clerk-authed).
  *
-* The wizard walk (both create and edit): Details (`Title`/`Description`/`Cuisine`/`Servings`/`Prep time
+ * The wizard walk (both create and edit): Details (`Title`/`Description`/`Cuisine`/`Servings`/`Prep time
  * (minutes)`/`Cook time (minutes)`/`Difficulty`) → `Next: Ingredients` → Ingredients (`Search ingredients` +
  * pick a result) → `Next: Instructions` → Instructions (`Add step` + `Step 1 instruction`) → `Next: Review` →
  * Review → `Publish` (w3/e7: the wizard's final CTA is named for what it DOES — sets `status: 'published'` —

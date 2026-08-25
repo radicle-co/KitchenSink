@@ -220,11 +220,7 @@ describe('toUpdateRecipeInput (three-state difficulty)', () => {
             difficulty: RecipeDifficulty.EASY,
             mealType: 'dinner',
         });
-        const {
-            difficulty: _updateDifficulty,
-            mealType: _updateMealType,
-            ...updateRest
-        } = toUpdateRecipeInput(values);
+        const { difficulty: _updateDifficulty, mealType: _updateMealType, ...updateRest } = toUpdateRecipeInput(values);
         const {
             difficulty: _createDifficulty,
             mealType: _createMealType,

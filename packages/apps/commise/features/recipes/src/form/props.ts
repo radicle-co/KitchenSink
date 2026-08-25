@@ -648,8 +648,7 @@ export const reviewRows = (values: RecipeFormValues, messages: RecipeFormMessage
         { label: messages.reviewStepCount, value: String(values.steps.length) },
         {
             label: messages.reviewVisibility,
-            value:
-                values.visibility === 'private' ? messages.reviewVisibilityPrivate : messages.reviewVisibilityPublic,
+            value: values.visibility === 'private' ? messages.reviewVisibilityPrivate : messages.reviewVisibilityPublic,
         },
         // The one omitted-when-empty row — see this function's own doc.
         ...(values.photos.length === 0

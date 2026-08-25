@@ -21,15 +21,7 @@ import { RECIPE_MEAL_TYPES, RecipeMealType, recipeMealTypeSchema } from '../inde
 
 describe('RecipeMealType (U34 — a closed vocabulary, unlike tags and dietary flags)', () => {
     it('names the seven times of day a recipe can belong to', () => {
-        expect(RECIPE_MEAL_TYPES).toEqual([
-            'breakfast',
-            'brunch',
-            'lunch',
-            'dinner',
-            'snack',
-            'dessert',
-            'drink',
-        ]);
+        expect(RECIPE_MEAL_TYPES).toEqual(['breakfast', 'brunch', 'lunch', 'dinner', 'snack', 'dessert', 'drink']);
     });
 
     it('keeps the const object and the ordered list in exact agreement', () => {

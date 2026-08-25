@@ -162,7 +162,6 @@ const WizardRoot: FC<WizardProps> = (props) => {
         <WizardContext.Provider value={model}>
             {children}
 
-
             <ConfirmDialog
                 open={pendingAction !== null}
                 title={m.discardTitle}
@@ -179,7 +178,6 @@ const WizardRoot: FC<WizardProps> = (props) => {
         </WizardContext.Provider>
     );
 };
-
 
 /** Renders its children only while `step` is the wizard's active step (a full-screen body). */
 const WizardStep: FC<{ readonly step: RecipeWizardStep; readonly children: ReactNode }> = ({ step, children }) => {
@@ -275,7 +273,6 @@ const WizardRail: FC = () => {
         </View>
     );
 };
-
 
 /**
  * The sticky wizard header (U32) — NEW on native, not a restyle of anything.

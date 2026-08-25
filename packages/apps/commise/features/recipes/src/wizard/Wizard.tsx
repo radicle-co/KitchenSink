@@ -221,7 +221,6 @@ const WizardRoot: FC<WizardProps> = (props) => {
         publish();
     };
 
-
     const model: WizardModel = {
         ...props,
         attempted,
@@ -236,7 +235,6 @@ const WizardRoot: FC<WizardProps> = (props) => {
     return (
         <WizardContext.Provider value={model}>
             {children}
-
 
             <ConfirmDialog
                 open={pendingAction !== null}
@@ -512,12 +510,7 @@ const WizardControls: FC = () => {
                 ) : (
                     <span />
                 )}
-                <Button
-                    variant="secondary"
-                    icon={<SaveIcon />}
-                    busy={model.submitting}
-                    onPress={model.saveDraft}
-                >
+                <Button variant="secondary" icon={<SaveIcon />} busy={model.submitting} onPress={model.saveDraft}>
                     {m.saveDraft}
                 </Button>
                 {next !== null ? (

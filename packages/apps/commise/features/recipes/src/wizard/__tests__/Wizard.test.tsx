@@ -694,7 +694,6 @@ describe('Wizard (web) — WCAG AA rail-marker contrast (SC 1.4.3)', () => {
     });
 });
 
-
 /**
  * The wizard's top bar sits on the app background (the shell paints no card behind it), so that is the surface
  * the "More actions" trigger's focus ring is drawn on — a Tailwind ring is a spread box-shadow OUTSIDE the

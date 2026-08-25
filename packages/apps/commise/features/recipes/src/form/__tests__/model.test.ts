@@ -209,11 +209,21 @@ describe('toUpdateRecipeInput (three-state difficulty)', () => {
         expect('difficulty' in input).toBe(true);
     });
 
-    it('mirrors create for every field except difficulty AND visibility', () => {
-        const values = filledValues({ description: 'Creamy.', cuisine: 'Italian', difficulty: RecipeDifficulty.EASY });
-        const { difficulty: _updateDifficulty, ...updateRest } = toUpdateRecipeInput(values);
+    // U34 widened the exception list by exactly one: `mealType` is the SECOND three-state field, so it
+    // differs between the two bodies for the same reason `difficulty` does (create omits, update clears with
+    // an explicit null). Everything else must still mirror, which is what makes this a drift detector rather
+    // than a restatement of the mapper.
+    it('mirrors create for every field except the three-state pair AND visibility', () => {
+        const values = filledValues({
+            description: 'Creamy.',
+            cuisine: 'Italian',
+            difficulty: RecipeDifficulty.EASY,
+            mealType: 'dinner',
+        });
+        const { difficulty: _updateDifficulty, mealType: _updateMealType, ...updateRest } = toUpdateRecipeInput(values);
         const {
             difficulty: _createDifficulty,
+            mealType: _createMealType,
             visibility: _createVisibility,
             ...createRest
         } = toCreateRecipeInput(values);
@@ -484,11 +494,12 @@ describe('validateRecipeForm', () => {
 });
 
 describe('stepErrorsFor / canAdvanceFromStep (W3 — the wizard field->step map)', () => {
-    // The field->step map: step 1 = title/servings/times (the "Basic Info" fields validateRecipeForm can
-    // flag — description/cuisine/tags/dietary/difficulty/visibility have no invalid state to flag); step 2 =
-    // ingredients; step 3 = steps; step 4 = photos, decoupled from form validation entirely (always valid).
+    // The field->step map (U33 step model): step 1 = Details — title/servings/times (the fields
+    // `validateRecipeForm` can flag; description/cuisine/tags/dietary/difficulty/mealType/visibility/PHOTOS
+    // have no invalid state to flag, and photos now live on this step); step 2 = Ingredients; step 3 =
+    // Instructions; step 4 = REVIEW, which renders the draft read-only and owns no field of its own.
 
-    it('step 1 surfaces ONLY title/servings/times errors, never ingredients/steps', () => {
+    it('step 1 (Details) surfaces ONLY title/servings/times errors, never ingredients/steps', () => {
         const values = filledValues({ title: '', servings: 0, ingredients: [], steps: [] });
 
         expect(stepErrorsFor(values, 1)).toEqual({ title: 'titleRequired', servings: 'servingsPositive' });
@@ -506,9 +517,36 @@ describe('stepErrorsFor / canAdvanceFromStep (W3 — the wizard field->step map)
         expect(stepErrorsFor(values, 3)).toEqual({ steps: 'stepsRequired' });
     });
 
-    it('step 4 (photos) is always empty — decoupled from form validation', () => {
+    // REWRITTEN for the U33 step model: this used to read "step 4 (photos)". Step 4 is now REVIEW, and the
+    // reason it carries no errors changed with it — it is not that photos are decoupled from validation, it
+    // is that Review owns no field at all. The gate a cook meets on Review is `Publish`'s WHOLE-form
+    // `validateRecipeForm`, which is a different question from "may I leave this step".
+    it('step 4 (Review) surfaces no errors of its own — it owns no field', () => {
         expect(stepErrorsFor(defaultRecipeFormValues(), 4)).toEqual({});
         expect(stepErrorsFor(filledValues(), 4)).toEqual({});
+    });
+
+    it('Review stays reachable and leavable even while an EARLIER step is invalid', () => {
+        // Free rail navigation is the wizard's, but the step gate must not invent a blocker on Review: a
+        // draft with no ingredients is invalid on step 2 and still says nothing about step 4.
+        const values = filledValues({ ingredients: [], steps: [] });
+
+        expect(stepErrorsFor(values, 4)).toEqual({});
+        expect(canAdvanceFromStep(values, 4)).toBe(true);
+    });
+
+    it('photos are NOT a validation input on any step (U33 — they moved into Details)', () => {
+        // A draft carrying photos and one carrying none must validate identically, on every step: photos
+        // upload independently of the metadata save and can never block an advance or a publish.
+        const withPhotos = filledValues({
+            photos: [{ localId: 'local-1', fileName: 'a.png', contentType: 'image/png', fileSize: 10 }],
+        });
+
+        for (const step of [1, 2, 3, 4] as const) {
+            expect(stepErrorsFor(withPhotos, step)).toEqual(stepErrorsFor(filledValues(), step));
+        }
+
+        expect(validateRecipeForm(withPhotos)).toEqual(validateRecipeForm(filledValues()));
     });
 
     it('a fully valid form has no errors on any step', () => {
@@ -527,7 +565,7 @@ describe('stepErrorsFor / canAdvanceFromStep (W3 — the wizard field->step map)
         expect(canAdvanceFromStep(filledValues(), 1)).toBe(true);
         expect(canAdvanceFromStep(filledValues({ ingredients: [] }), 2)).toBe(false);
         expect(canAdvanceFromStep(filledValues({ steps: [] }), 3)).toBe(false);
-        // Step 4 is always advanceable — photos are decoupled from form validation.
+        // Step 4 (Review) is always advanceable — it owns no field to be invalid.
         expect(canAdvanceFromStep(defaultRecipeFormValues(), 4)).toBe(true);
     });
 });
@@ -1156,5 +1194,48 @@ describe('U26/U27 — preparation + groupLabel survive the draft round trip', ()
 
         expect(body.ingredients.map((line) => line.groupLabel)).toEqual(['Dry', 'Dry', 'Wet']);
         expect(body.ingredients.map((line) => line.name)).toEqual(['Flour', 'Sugar', 'Milk']);
+    });
+});
+
+describe('meal type — a closed vocabulary in the draft, mapped like difficulty (U34)', () => {
+    it('carries a stated meal type onto the create body', () => {
+        expect(toCreateRecipeInput(filledValues({ mealType: 'dinner' })).mealType).toBe('dinner');
+    });
+
+    it('OMITS it when not stated — create has no clear sentinel, so it must never send null', () => {
+        const input = toCreateRecipeInput(filledValues());
+
+        expect(input.mealType).toBeUndefined();
+        expect('mealType' in input).toBe(false);
+    });
+
+    it('sends an explicit null on UPDATE to CLEAR a previously-stated meal type', () => {
+        // The crux, identical to difficulty's: an OMIT means "unchanged" on a PATCH, so a cook who ever chose
+        // "dinner" could never get back to "not stated" without this sentinel.
+        expect(toUpdateRecipeInput(filledValues()).mealType).toBeNull();
+    });
+
+    it('carries the NEW value when an edit changes it', () => {
+        expect(toUpdateRecipeInput(filledValues({ mealType: 'brunch' })).mealType).toBe('brunch');
+    });
+
+    it('seeds from a loaded recipe, and omits it when the recipe states none', () => {
+        const stated = toRecipeFormValues(makeRecipeDetail({ mealType: 'dessert' }));
+        const unstated = toRecipeFormValues(makeRecipeDetail({}));
+
+        expect(stated.mealType).toBe('dessert');
+        expect(unstated.mealType).toBeUndefined();
+        expect('mealType' in unstated).toBe(false);
+    });
+
+    it('is a SEPARATE axis from tags and dietary flags — setting it writes into neither array', () => {
+        // The mockup wrote its Dietary chips into the SAME array as its Categories, which is the state bug
+        // this models away. Three axes, three fields, no aliasing.
+        const values = filledValues({ mealType: 'dinner', tags: ['weeknight'], dietaryFlags: ['vegan'] });
+        const input = toCreateRecipeInput(values);
+
+        expect(input.mealType).toBe('dinner');
+        expect(input.tags).toEqual(['weeknight']);
+        expect(input.dietaryFlags).toEqual(['vegan']);
     });
 });

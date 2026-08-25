@@ -28,6 +28,7 @@ export function makeRecipeRow(overrides: Partial<RecipeExportRow> = {}): RecipeE
         totalTimeMinutes: 30,
         servings: 4,
         difficulty: 'easy',
+        mealType: 'dinner',
         averageRating: '4.50',
         ratingCount: 2,
         visibility: 'public',

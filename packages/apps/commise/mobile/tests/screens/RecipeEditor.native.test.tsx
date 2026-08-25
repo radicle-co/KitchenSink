@@ -9,10 +9,20 @@
  *     still-resolving line wrong and never poll it);
  *   - the poll's `RESOLVED` result is applied to the line's badge (poll-after-add).
  * The recipe-service hooks are mocked, so no backend / QueryClient is needed.
+ *
+ * Three further suites live below, one per unit that reshaped this screen, deliberately kept in this ONE
+ * file because they all assert against the SAME composing screen and share its harness:
+ *   - U28 — the add-ingredient LOOP: "+ Add ingredient" focuses the picker and appends nothing by itself,
+ *     and a picked line arrives WHOLE (its catalog nutrition survived the append — the cross-platform
+ *     divergence U28 repaired) and INHERITS the section being built.
+ *   - U32 — the action bar is pinned OUTSIDE the step `ScrollView` (a DOM-ancestry assertion, because
+ *     nothing inside `Wizard.Controls` can enforce its own placement).
+ *   - U33 — the step model: step 4 is Review, and the caller's photo surface renders on step 1.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Text } from 'react-native';
 
 import {
     canAdvanceFromStep,
@@ -117,6 +127,15 @@ beforeEach(() => {
         isError: false,
         reset: vi.fn(),
     } as unknown as ReturnType<typeof useCreateIngredient>);
+    // Defaulted here as well as inside `addByNameFlow` (which overrides it with a scripted mutation): the
+    // U32/U33 layout suites below walk THROUGH step 2 without exercising the typeahead, and an unmocked
+    // `useAddIngredientByName` leaves the picker reading `.isPending` off `undefined`.
+    useAddIngredientByNameMock.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+    } as unknown as ReturnType<typeof useAddIngredientByName>);
     useIngredientStatusMock.mockReturnValue({ data: undefined } as unknown as ReturnType<typeof useIngredientStatus>);
     useIngredientCandidatesMock.mockReturnValue({
         isLoading: false,
@@ -138,8 +157,16 @@ beforeEach(() => {
  * holds no state. Seeded with a title so step 1 is valid and `Next` can reach step 2 (Ingredients), where
  * the picker under test lives.
  */
-function ControlledEditor(): ReturnType<typeof RecipeEditor> {
-    const [values, setValues] = useState<RecipeFormValues>({ ...defaultRecipeFormValues(), title: 'Quinoa Bowl' });
+function ControlledEditor({
+    photosSlot = null,
+    initialValues,
+}: {
+    readonly photosSlot?: ReactNode;
+    readonly initialValues?: RecipeFormValues;
+} = {}): ReturnType<typeof RecipeEditor> {
+    const [values, setValues] = useState<RecipeFormValues>(
+        initialValues ?? { ...defaultRecipeFormValues(), title: 'Quinoa Bowl' },
+    );
     const [step, setStep] = useState<RecipeWizardStep>(1);
 
     return (
@@ -166,7 +193,29 @@ function ControlledEditor(): ReturnType<typeof RecipeEditor> {
             publish={vi.fn()}
             isDirty={false}
             onCancel={vi.fn()}
-            photosSlot={null}
+            photosSlot={photosSlot}
+        />
+    );
+}
+
+/**
+ * The same editor seeded with 30 resolved ingredient lines — the concrete shape U32's pinned bar exists for.
+ * The list is long enough that, before the fix, the primary control sat below every one of those rows.
+ */
+function LongIngredientEditor(): ReturnType<typeof RecipeEditor> {
+    return (
+        <ControlledEditor
+            initialValues={{
+                ...defaultRecipeFormValues(),
+                title: 'Thirty-ingredient stew',
+                ingredients: Array.from({ length: 30 }, (_unused, index) => ({
+                    ingredientId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+                    name: `Ingredient ${index + 1}`,
+                    quantity: 1,
+                    unit: 'g',
+                })),
+                steps: [{ instruction: 'Simmer.' }],
+            }}
         />
     );
 }
@@ -309,5 +358,96 @@ describe('RecipeEditor — the add-ingredient loop (U28)', () => {
                 'No food chosen — this line won’t be saved. Remove it and add it from the search above.',
             ),
         ).toBeNull();
+    });
+});
+
+/**
+ * U32 — THE PINNED ACTION BAR, and the shipped defect it fixes.
+ *
+ * ⛔ `Wizard.Controls` used to be rendered INSIDE this screen's single `ScrollView`, together with the rail
+ * and all four step bodies. On a recipe with a long ingredient list that put the primary control BELOW the
+ * whole list: a cook had to scroll past every ingredient to reach `Next`. `useScrollResetOnChange` exists
+ * because four Maestro flows caught the downstream consequence — advancing then left the cook at the BOTTOM
+ * of the next step, with its heading off-screen.
+ *
+ * ⚠️ **Nothing inside `Wizard.Controls` can enforce its own placement**, which is exactly why the assertion
+ * lives here, against the composing screen. It is a DOM-ancestry check rather than a style check, because
+ * "outside the scroll container" is a structural fact and jsdom has no layout to measure.
+ *
+ * This is one of the two mandatory mutants for this unit: moving `<Wizard.Controls />` back inside the
+ * `<ScrollView>` must fail here.
+ */
+describe('RecipeEditor — the action bar is pinned OUTSIDE the scroller (U32)', () => {
+    /** The one `ScrollView` this screen owns, found by the rail it wraps. */
+    const scroller = (): HTMLElement => {
+        const rail = screen.getByLabelText('Recipe wizard steps');
+        const found = rail.closest('[class]')?.parentElement ?? null;
+
+        if (found === null) {
+            throw new Error('could not locate the step scroller');
+        }
+
+        return found;
+    };
+
+    it('does not render the action bar inside the element that scrolls the step body', () => {
+        render(<ControlledEditor />);
+
+        const bar = screen.getByLabelText('Wizard step navigation');
+
+        expect(scroller().contains(bar)).toBe(false);
+    });
+
+    it('keeps the rail INSIDE the scroller, so only the bar was lifted out', () => {
+        // A mutation that simply hoisted everything out of the ScrollView would satisfy the case above while
+        // destroying the step body's scrolling. The rail must still scroll away; the bar must not.
+        render(<ControlledEditor />);
+
+        expect(scroller().contains(screen.getByLabelText('Recipe wizard steps'))).toBe(true);
+    });
+
+    it('keeps the bar reachable on EVERY step, including one with a long ingredient list', () => {
+        // The concrete regression: 30 ingredients on step 2. In jsdom nothing is off-screen, so what is
+        // asserted is the structural property that makes it reachable — the bar is not a descendant of the
+        // scroller those 30 rows live in.
+        render(<LongIngredientEditor />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+
+        const bar = screen.getByLabelText('Wizard step navigation');
+
+        expect(screen.getByLabelText('Next: Instructions')).toBeTruthy();
+        expect(scroller().contains(bar)).toBe(false);
+    });
+});
+
+describe('RecipeEditor — the U33 step model', () => {
+    it('renders the Review body on step 4, and no Photos step remains', () => {
+        // A COMPLETE draft, because `goNext` is gated by `canAdvanceFromStep` and voices its refusal — an
+        // empty draft cannot leave step 2 at all, which is shipped behaviour this test must not fight.
+        render(<LongIngredientEditor />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+        fireEvent.click(screen.getByLabelText(/Next: Instructions/));
+        fireEvent.click(screen.getByLabelText(/Next: Review/));
+
+        expect(screen.getByRole('heading', { name: 'Review' })).toBeTruthy();
+        expect(screen.queryByLabelText(/Next: Photos/)).toBeFalsy();
+    });
+
+    it('places the caller-supplied photo surface on step 1, beside the other Details fields', () => {
+        // ⛔ U33's ruling: photos behave like every other field. Rendering the uploader on step 1 is what
+        // stops the create path showing "save this recipe first" where a control should be.
+        render(<ControlledEditor photosSlot={<Text>Photo manager</Text>} />);
+
+        expect(screen.getByText('Photo manager')).toBeTruthy();
+    });
+
+    it('does not render the photo surface on any later step', () => {
+        render(<ControlledEditor photosSlot={<Text>Photo manager</Text>} />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+
+        expect(screen.queryByText('Photo manager')).toBeFalsy();
     });
 });

@@ -1,12 +1,19 @@
 /**
- * Component tests for the native `Wizard` compound shell (w3/e1,e2; U6 chrome remediation) — mirrors
- * `Wizard.test.tsx`'s harness and coverage against the RN leaf, run through react-native-web under jsdom per
- * this package's native test convention.
+ * Component tests for the native `Wizard` compound shell (w3/e1,e2; U32/U33) — mirrors `Wizard.test.tsx`'s
+ * harness and coverage against the RN leaf, run through react-native-web under jsdom per this package's
+ * native test convention.
  *
- * **U6 chrome model (mirrored from the web spec):** the footer (`Wizard.Controls`) is the ONE contextual
- * primary — `Next: {name}` on steps 1–3, `Publish` on step 4 (never both), with a secondary `Prev` once past
- * step 1. The header (`Wizard.TopBar`) keeps `Preview` and demotes `Save Draft` + `Cancel` into an overflow
- * ("More actions") menu, so it never packs four buttons and Publish is gone from it.
+ * **U32/U33 chrome model (mirrored from the web spec):**
+ *  - `Wizard.Controls` is the ACTION BAR — `Previous / Save Draft / Next`, `Publish` in Next's slot on the
+ *    last step. `Save Draft` is a first-class control here; it is no longer an overflow item.
+ *  - `Wizard.Header` is NEW: a BACK affordance (routed through the discard guard) plus the step's name as a
+ *    heading, on a surface that previously rendered bare.
+ *  - There is NO overflow menu on native at all — see the leaf's own doc. The `aria-expanded` and busy-item
+ *    coverage the deleted menu carried MOVED: the disclosure's expanded-state assertions now live in the web
+ *    spec (`Wizard.test.tsx`, "the header" describe), which is the only platform that still renders a kebab,
+ *    and the busy assertion moved onto the bar's own `Save Draft` control below.
+ *  - `Preview` is DELETED; step 4 is Review. Its assertions are gone with it, and the surface that replaced
+ *    it is covered by `form/__tests__/RecipeReviewFields.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -83,8 +90,8 @@ const Harness: FC<HarnessProps> = ({
             isDirty={isDirty}
             submitting={submitting}
         >
+            <Wizard.Header />
             <Wizard.Rail />
-            <Wizard.TopBar />
             <Wizard.Step step={1}>
                 <TextInput
                     accessibilityLabel="Title"
@@ -99,24 +106,11 @@ const Harness: FC<HarnessProps> = ({
                 <Text>Instructions step body</Text>
             </Wizard.Step>
             <Wizard.Step step={4}>
-                <Text>Photos step body</Text>
+                <Text>Review step body</Text>
             </Wizard.Step>
             <Wizard.Controls />
         </Wizard>
     );
-};
-
-/**
- * The header's overflow ("More actions") disclosure TRIGGER, scoped to the toolbar. The open menu's backdrop
- * carries the same accessible name, so an unscoped `getByLabelText('More actions')` is ambiguous once the menu
- * is open — this stays unambiguous in both states.
- */
-const actionsTrigger = (): HTMLElement =>
-    within(screen.getByLabelText('Recipe wizard actions')).getByRole('button', { name: 'More actions' });
-
-/** Open the header's overflow ("More actions") menu, disclosing the Save Draft / Cancel items. */
-const openActionsMenu = (): void => {
-    fireEvent.click(screen.getByLabelText('More actions'));
 };
 
 describe('Wizard (native) — Wizard.Step gating', () => {
@@ -125,7 +119,7 @@ describe('Wizard (native) — Wizard.Step gating', () => {
 
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.queryByText('Ingredients step body')).toBeFalsy();
-        expect(screen.queryByText('Photos step body')).toBeFalsy();
+        expect(screen.queryByText('Review step body')).toBeFalsy();
     });
 
     it('switches which step body renders when the step changes', () => {
@@ -144,7 +138,7 @@ describe('Wizard (native) — Next gating + rail invalidity', () => {
 
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.queryByText('Ingredients step body')).toBeFalsy();
-        expect(screen.getByLabelText(/Basic: needs attention/)).toBeTruthy();
+        expect(screen.getByLabelText(/Details: needs attention/)).toBeTruthy();
     });
 
     it('Next advances to the following step when the current step is valid', () => {
@@ -166,7 +160,7 @@ describe('Wizard (native) — Next gating + rail invalidity', () => {
 
         fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
 
-        expect(screen.getByLabelText(/Basic: completed/)).toBeTruthy();
+        expect(screen.getByLabelText(/Details: completed/)).toBeTruthy();
         expect(screen.getByLabelText(/Ingredients: current step/)).toBeTruthy();
     });
 });
@@ -247,7 +241,7 @@ describe('Wizard (native) — a refused Next says WHY (the footer blocked-advanc
         expect(screen.getByText('Add at least one ingredient.')).toBeTruthy();
 
         // Jump to step 4 via the rail (free navigation) and publish from its footer.
-        fireEvent.click(screen.getByLabelText(/Photos: not yet started/));
+        fireEvent.click(screen.getByLabelText(/Review: not yet started/));
         fireEvent.click(screen.getByLabelText(/Publish/));
 
         // Back on the blocked step, the stale refusal is gone — Publish owns the feedback now.
@@ -274,153 +268,152 @@ describe('Wizard (native) — the footer nav labels carry NO decorative chevron'
         render(<Harness initialValues={validValues()} initialStep={3} />);
 
         expect(screen.getByLabelText('Prev: Ingredients')).toBeTruthy();
-        expect(screen.getByLabelText('Next: Photos')).toBeTruthy();
+        expect(screen.getByLabelText('Next: Review')).toBeTruthy();
         expect(screen.queryByLabelText(/[<>]/)).toBeFalsy();
     });
 });
 
-describe('Wizard (native) — footer is the ONE contextual primary (U6)', () => {
-    it('shows Next — and NO Publish, NO Prev — on step 1', () => {
+describe('Wizard (native) — the action bar carries Previous / Save Draft / Next (U32)', () => {
+    it('shows Next — and NO Publish — on step 1', () => {
         render(<Harness initialValues={validValues()} initialStep={1} />);
 
-        expect(screen.getByLabelText(/Next: Ingredients/)).toBeTruthy();
-        expect(screen.queryByLabelText('Publish')).toBeFalsy();
-        expect(screen.queryByLabelText(/Prev:/)).toBeFalsy();
-    });
-
-    it('shows Next — and NO Publish — on step 3, plus a Prev', () => {
-        render(<Harness initialValues={validValues()} initialStep={3} />);
-
-        expect(screen.getByLabelText(/Next: Photos/)).toBeTruthy();
-        expect(screen.getByLabelText(/Prev: Ingredients/)).toBeTruthy();
+        expect(screen.getByLabelText('Next: Ingredients')).toBeTruthy();
         expect(screen.queryByLabelText('Publish')).toBeFalsy();
     });
 
-    it('swaps the footer primary to Publish — and NO Next — on step 4', () => {
+    it('swaps the primary to Publish — and NO Next — on the Review step', () => {
         render(<Harness initialValues={validValues()} initialStep={4} />);
 
         expect(screen.getByLabelText('Publish')).toBeTruthy();
-        expect(screen.queryByLabelText(/Next:/)).toBeFalsy();
+        expect(screen.queryByLabelText(/^Next: /)).toBeFalsy();
     });
 
-    it('Publish in the footer calls publish', () => {
-        const onPublish = vi.fn();
-        render(<Harness initialValues={validValues()} initialStep={4} onPublish={onPublish} />);
+    it('hides Previous on step 1 and shows it once past the first step', () => {
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+        expect(screen.queryByLabelText(/^Prev: /)).toBeFalsy();
 
-        fireEvent.click(screen.getByLabelText('Publish'));
+        fireEvent.click(screen.getByLabelText('Next: Ingredients'));
 
-        expect(onPublish).toHaveBeenCalledTimes(1);
-    });
-});
-
-describe('Wizard (native) — header overflow menu (U6: Save Draft + Cancel demoted)', () => {
-    it('does not pack four buttons in the header — only Preview + the overflow trigger', () => {
-        render(<Harness />);
-
-        const toolbar = screen.getByLabelText('Recipe wizard actions');
-        expect(within(toolbar).getAllByRole('button')).toHaveLength(2);
-        expect(within(toolbar).queryByLabelText('Publish')).toBeFalsy();
-        // Save Draft + Cancel stay hidden until the overflow menu opens.
-        expect(screen.queryByLabelText('Save Draft')).toBeFalsy();
-        expect(screen.queryByLabelText('Cancel')).toBeFalsy();
+        expect(screen.getByLabelText('Prev: Details')).toBeTruthy();
     });
 
-    it('discloses Save Draft + Cancel from the overflow menu, and Save Draft calls the given action', () => {
+    it('carries Save Draft as a FIRST-CLASS control on every step — no disclosure to open first', () => {
+        // U32's substantive change for a phone user. Before this, Save Draft was reachable only by opening a
+        // kebab, on a surface that also had no back affordance.
+        for (const step of [1, 2, 3, 4] as const) {
+            cleanup();
+            render(<Harness initialValues={validValues()} initialStep={step} />);
+
+            expect(screen.getByLabelText('Save Draft')).toBeTruthy();
+        }
+    });
+
+    it('Save Draft in the bar calls the given action', () => {
         const onSaveDraft = vi.fn();
-        render(<Harness onSaveDraft={onSaveDraft} />);
-
-        openActionsMenu();
-
-        expect(screen.getByLabelText('Save Draft')).toBeTruthy();
-        expect(screen.getByLabelText('Cancel')).toBeTruthy();
+        render(<Harness initialValues={validValues()} onSaveDraft={onSaveDraft} />);
 
         fireEvent.click(screen.getByLabelText('Save Draft'));
 
         expect(onSaveDraft).toHaveBeenCalledTimes(1);
-        // Choosing an item closes the menu.
-        expect(screen.queryByLabelText('Save Draft')).toBeFalsy();
-    });
-});
-
-/**
- * The overflow trigger is a DISCLOSURE, and its expanded state has to reach assistive tech on the mobile-WEB
- * build too — `accessibilityState={{ expanded }}` alone does not get there (#123).
- *
- * Verified against the installed react-native-web (0.20.0): its `forwardedProps` allowlist carries every
- * literal `aria-*` attribute but has NO entry that projects `accessibilityState` — the only consumer anywhere
- * in the package is `AccessibilityUtil/isDisabled`, and even that reads the LEGACY `accessibilityStates` array.
- * So this trigger rendered `<button role="button">` with no state attribute at all: a kebab that announces
- * neither that pressing it will reveal something, nor that the menu is now open. The chevron swap in
- * `CuisineSelect.native` and the ⋮ glyph here are SIGHTED affordances only. Both sibling disclosure triggers in
- * this feature (`MoreActionsMenu.native`, `CuisineSelect.native`) already carried `aria-expanded`; this one was
- * the outlier.
- *
- * `accessibilityState` stays alongside it: RN reverse-maps `aria-expanded` into `accessibilityState.expanded`
- * (`Pressable.js`: `expanded: ariaExpanded ?? accessibilityState?.expanded`), so the dual form is correct on
- * both platforms and dropping either one silences one of them.
- *
- * BOTH polarities are asserted, and for a disclosure the FALSE one is the load-bearing case:
- * `aria-expanded="false"` is what tells a screen-reader user the control reveals something. An absent
- * attribute says nothing at all — which is exactly the defect.
- */
-describe('Wizard (native) — the overflow trigger announces its expanded state on web too', () => {
-    it('reports collapsed (present-and-false, not absent) while the menu is closed', () => {
-        render(<Harness />);
-
-        expect(actionsTrigger().getAttribute('aria-expanded')).toBe('false');
     });
 
-    it('reports expanded once the menu is open', () => {
-        render(<Harness />);
+    it('busies the bar’s Save Draft so it cannot be double-fired while a save is in flight', () => {
+        // MOVED here from the deleted "overflow Save Draft item" describe — same guarantee, new control.
+        const onSaveDraft = vi.fn();
+        render(<Harness initialValues={validValues()} submitting onSaveDraft={onSaveDraft} />);
 
-        openActionsMenu();
+        fireEvent.click(screen.getByLabelText('Save Draft'));
 
-        expect(actionsTrigger().getAttribute('aria-expanded')).toBe('true');
+        expect(onSaveDraft).not.toHaveBeenCalled();
     });
 
-    it('reports collapsed again once an item closes the menu', () => {
-        // Mutation guard: a hard-coded `aria-expanded="true"` would pass the case above. The attribute has to
-        // track the disclosure back down again.
-        render(<Harness />);
-
-        openActionsMenu();
-        fireEvent.click(screen.getByLabelText('Cancel'));
-
-        expect(actionsTrigger().getAttribute('aria-expanded')).toBe('false');
-    });
-});
-
-/**
- * The overflow menu's Save Draft item busies while a save is in flight, and that state has to reach the DOM too
- * (#123). Its `disabled` half already does — RNW derives `aria-disabled` from the `disabled` PROP — but the
- * `busy` half went nowhere, so the control was announced as merely unavailable rather than working. The label
- * does not change and no live region covers it, so `aria-busy` was the only channel and it was silent.
- *
- * `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy` (`ViewAccessibility.d.ts`), so it is
- * device-correct as well; the `|| undefined` shape (matching `PressScale.native`, `RecipeVersionList.native`
- * and `AccountEraseDialog.native`) omits it when idle, since ARIA already defaults `aria-busy` to false.
- */
-describe('Wizard (native) — the overflow Save Draft item announces its busy state on web too', () => {
-    it('marks the in-flight Save Draft item busy', () => {
-        render(<Harness submitting />);
-
-        openActionsMenu();
+    it('announces the in-flight Save Draft as BUSY on web too, not merely unavailable (#123)', () => {
+        // MOVED here from the deleted overflow-item describe. `aria-busy` is still the only channel: the
+        // label does not change and no live region covers it.
+        render(<Harness initialValues={validValues()} submitting />);
 
         expect(screen.getByLabelText('Save Draft').getAttribute('aria-busy')).toBe('true');
     });
 
-    it('leaves an idle Save Draft item unmarked, and distinguishable from disabled', () => {
-        render(<Harness />);
+    it('leaves an idle Save Draft unmarked, so busy stays distinguishable from disabled', () => {
+        render(<Harness initialValues={validValues()} />);
 
-        openActionsMenu();
-
-        const item = screen.getByLabelText('Save Draft');
-        expect(item.getAttribute('aria-busy')).toBeNull();
-        expect(item.hasAttribute('disabled')).toBe(false);
+        expect(screen.getByLabelText('Save Draft').getAttribute('aria-busy')).toBeNull();
     });
 });
 
-describe('Wizard (native) — top-bar actions & submitting', () => {
+describe('Wizard (native) — the header is NEW, and its back arrow routes through the discard guard (U32)', () => {
+    it('renders a localized back affordance and names the RECIPE', () => {
+        // `RecipesScreen` renders pushed surfaces bare, so before U32 this editor had no title and no exit
+        // other than the hardware back button and a kebab item.
+        render(<Harness initialValues={validValues()} initialStep={2} />);
+
+        expect(screen.getByLabelText('Back')).toBeTruthy();
+        expect(within(screen.getByLabelText('Recipe wizard actions')).getByText('Herb Risotto')).toBeTruthy();
+    });
+
+    it('falls back to a localized placeholder while the recipe has no title yet', () => {
+        render(<Harness initialStep={1} />);
+
+        expect(within(screen.getByLabelText('Recipe wizard actions')).getByText('New recipe')).toBeTruthy();
+    });
+
+    it('names the RECIPE rather than the step, so it never duplicates a step body’s own heading', () => {
+        // ⛔ Naming the step here produced TWO headings called "Review" on the Review step, and would have
+        // produced two called "Ingredients" and "Instructions" on steps 2 and 3. The step is already
+        // announced by the rail's "Step N of 4" and by the section heading.
+        render(<Harness initialValues={validValues()} initialStep={2} />);
+
+        expect(within(screen.getByLabelText('Recipe wizard actions')).queryByText('Ingredients')).toBeFalsy();
+    });
+
+    it('renders NO overflow menu — both of its items moved out at this width', () => {
+        render(<Harness initialValues={validValues()} />);
+
+        expect(screen.queryByLabelText('More actions')).toBeFalsy();
+    });
+
+    it('offers no Preview affordance anywhere — Review replaced it (U33)', () => {
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+
+        expect(screen.queryByLabelText('Preview')).toBeFalsy();
+        expect(screen.queryByLabelText('Close preview')).toBeFalsy();
+    });
+
+    it('holds the back arrow behind the discard guard while there are unsaved edits', () => {
+        const onCancel = vi.fn();
+        render(<Harness initialValues={validValues()} isDirty onCancel={onCancel} />);
+
+        fireEvent.click(screen.getByLabelText('Back'));
+
+        expect(onCancel).not.toHaveBeenCalled();
+        expect(screen.getByText('Discard unsaved changes?')).toBeTruthy();
+
+        fireEvent.click(screen.getByLabelText('Discard changes'));
+
+        expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets the back arrow leave straight away when there is nothing unsaved to lose', () => {
+        const onCancel = vi.fn();
+        render(<Harness initialValues={validValues()} isDirty={false} onCancel={onCancel} />);
+
+        fireEvent.click(screen.getByLabelText('Back'));
+
+        expect(onCancel).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText('Discard unsaved changes?')).toBeFalsy();
+    });
+
+    it('gives the back control a 44pt touch target — it is the editor’s only deliberate exit', () => {
+        render(<Harness initialValues={validValues()} />);
+        const style = getComputedStyle(screen.getByLabelText('Back'));
+
+        expect(Number.parseInt(style.minHeight, 10)).toBeGreaterThanOrEqual(44);
+        expect(Number.parseInt(style.minWidth, 10)).toBeGreaterThanOrEqual(44);
+    });
+});
+
+describe('Wizard (native) — Publish & submitting', () => {
     it('Publish calls the given action and carries the "Publish" accessible name in create mode (w3/e7)', () => {
         const onPublish = vi.fn();
         render(<Harness mode="create" initialValues={validValues()} initialStep={4} onPublish={onPublish} />);
@@ -446,7 +439,7 @@ describe('Wizard (native) — top-bar actions & submitting', () => {
         expect(onPublish).toHaveBeenCalledTimes(1);
         expect(screen.getByLabelText(/Ingredients: needs attention/)).toBeTruthy();
         expect(screen.getByLabelText(/Instructions: needs attention/)).toBeTruthy();
-        expect(screen.getByText('Photos step body')).toBeTruthy();
+        expect(screen.getByText('Review step body')).toBeTruthy();
     });
 
     it('busies the footer Publish primary so it cannot be double-fired while a save is in flight', () => {
@@ -457,61 +450,18 @@ describe('Wizard (native) — top-bar actions & submitting', () => {
 
         expect(onPublish).not.toHaveBeenCalled();
     });
-
-    it('busies the overflow Save Draft item so it cannot be double-fired while a save is in flight', () => {
-        const onSaveDraft = vi.fn();
-        render(<Harness submitting onSaveDraft={onSaveDraft} />);
-
-        openActionsMenu();
-        fireEvent.click(screen.getByLabelText('Save Draft'));
-
-        expect(onSaveDraft).not.toHaveBeenCalled();
-    });
 });
 
-describe('Wizard (native) — discard guard (Cancel now lives in the overflow menu)', () => {
-    it('Cancel with no unsaved edits calls onCancel immediately (no dialog)', () => {
-        const onCancel = vi.fn();
-        render(<Harness isDirty={false} onCancel={onCancel} />);
-
-        openActionsMenu();
-        fireEvent.click(screen.getByLabelText('Cancel'));
-
-        expect(onCancel).toHaveBeenCalledTimes(1);
-        expect(screen.queryByLabelText('Discard unsaved changes?')).toBeFalsy();
-    });
-
-    it('Cancel with unsaved edits shows the discard dialog; confirming discards (calls onCancel)', () => {
-        const onCancel = vi.fn();
-        render(<Harness isDirty onCancel={onCancel} />);
-
-        openActionsMenu();
-        fireEvent.click(screen.getByLabelText('Cancel'));
-
-        expect(onCancel).not.toHaveBeenCalled();
-        expect(screen.getByLabelText('Discard unsaved changes?')).toBeTruthy();
-
-        fireEvent.click(screen.getByLabelText('Discard changes'));
-
-        expect(onCancel).toHaveBeenCalledTimes(1);
-    });
-
-    it('Cancel with unsaved edits: choosing "Keep editing" dismisses the dialog without discarding', () => {
-        const onCancel = vi.fn();
-        render(<Harness isDirty onCancel={onCancel} />);
-
-        openActionsMenu();
-        fireEvent.click(screen.getByLabelText('Cancel'));
-        fireEvent.click(screen.getByLabelText('Keep editing'));
-
-        expect(onCancel).not.toHaveBeenCalled();
-        expect(screen.queryByLabelText('Discard unsaved changes?')).toBeFalsy();
-    });
+describe('Wizard (native) — discard guard', () => {
+    // The three "Cancel via the overflow menu" cases that lived here are GONE with the menu. Their guarantee
+    // — an exit while dirty must confirm first, and "Keep editing" must not discard — did not go with them:
+    // it is asserted against the control that replaced Cancel, in the header describe above (the back arrow's
+    // guarded and unguarded paths). What is left here is the OTHER guarded exit, which no other test covers.
 
     it('backward rail navigation with unsaved edits is guarded too', () => {
         render(<Harness initialValues={validValues()} initialStep={3} isDirty />);
 
-        fireEvent.click(screen.getByLabelText(/Basic:/));
+        fireEvent.click(screen.getByLabelText(/Details:/));
 
         expect(screen.getByLabelText('Discard unsaved changes?')).toBeTruthy();
         expect(screen.getByText('Instructions step body')).toBeTruthy();
@@ -519,23 +469,45 @@ describe('Wizard (native) — discard guard (Cancel now lives in the overflow me
         fireEvent.click(screen.getByLabelText('Discard changes'));
         expect(screen.getByLabelText('Title')).toBeTruthy();
     });
+
+    it('choosing "Keep editing" from a guarded rail jump dismisses without discarding', () => {
+        render(<Harness initialValues={validValues()} initialStep={3} isDirty />);
+
+        fireEvent.click(screen.getByLabelText(/Details:/));
+        fireEvent.click(screen.getByLabelText('Keep editing'));
+
+        expect(screen.queryByLabelText('Discard unsaved changes?')).toBeFalsy();
+        expect(screen.getByText('Instructions step body')).toBeTruthy();
+    });
+
+    it('leaves FORWARD navigation unguarded — nothing is discarded by advancing', () => {
+        render(<Harness initialValues={validValues()} initialStep={1} isDirty />);
+
+        fireEvent.click(screen.getByLabelText('Next: Ingredients'));
+
+        expect(screen.queryByLabelText('Discard unsaved changes?')).toBeFalsy();
+        expect(screen.getByText('Ingredients step body')).toBeTruthy();
+    });
 });
 
 describe('Wizard (native) — chrome landmark labels (a11y, localized, not shared)', () => {
-    it('gives the rail region and the top-bar their OWN distinct localized accessible labels', () => {
+    it('gives the rail region and the header their OWN distinct localized accessible labels', () => {
         render(<Harness />);
 
         expect(screen.getByLabelText('Recipe wizard steps')).toBeTruthy();
         expect(screen.getByLabelText('Recipe wizard actions')).toBeTruthy();
     });
 
-    it('names the overflow trigger with a localized label (not a raw literal)', () => {
+    // REPLACES "names the overflow trigger with a localized label": that trigger no longer exists on native
+    // (U32 — both its items moved out), so the assertion moved to the control that took its place. The
+    // trigger's own localized-name coverage still runs, in the web spec, where the kebab still ships.
+    it('names the back affordance with a localized label (not a raw literal)', () => {
         render(<Harness />);
 
-        expect(screen.getByLabelText('More actions')).toBeTruthy();
+        expect(screen.getByLabelText('Back')).toBeTruthy();
     });
 
-    it('gives the footer step-navigation region a localized accessible label (not a raw literal)', () => {
+    it('gives the action-bar region a localized accessible label (not a raw literal)', () => {
         render(<Harness />);
 
         expect(screen.getByLabelText('Wizard step navigation')).toBeTruthy();
@@ -576,7 +548,7 @@ function appliedStyle(element: Element, property: string): string | undefined {
 
 /**
  * Regression (Maestro CI view-hierarchy dump): the rail used to be a horizontal `ScrollView`, so its four
- * pills were laid out on ONE unbounded line — `[1 Basic] [2 Ingredients] [3 Instructions] [4 Photos]` needs
+ * pills were laid out on ONE unbounded line — `[1 Details] [2 Ingredients] [3 Instructions] [4 Review]` needs
  * ~390dp but a 360dp phone leaves ~296dp inside the screen's and the rail's own 16dp paddings. Steps 3–4
  * therefore sat past the right screen edge: on-device step 4 rendered clipped ("4 Pl…") at the 1080px
  * boundary, reachable only by a horizontal drag that (a) is undiscoverable and (b) fights the vertical
@@ -589,7 +561,7 @@ function appliedStyle(element: Element, property: string): string | undefined {
  */
 describe('Wizard (native) — the step rail cannot push a step off the screen edge', () => {
     /** The row that lays out the four step pills — the pills' own parent. */
-    const pillRow = (): HTMLElement => screen.getByLabelText(/Photos:/).parentElement as HTMLElement;
+    const pillRow = (): HTMLElement => screen.getByLabelText(/Review:/).parentElement as HTMLElement;
 
     it('wraps the pill row instead of laying the four pills out on one over-wide line', () => {
         render(<Harness />);
@@ -626,10 +598,10 @@ describe('Wizard (native) — the step rail cannot push a step off the screen ed
     it('keeps every step reachable by its accessible name (all four pills present, none clipped away)', () => {
         render(<Harness />);
 
-        expect(screen.getByLabelText(/Basic:/)).toBeTruthy();
+        expect(screen.getByLabelText(/Details:/)).toBeTruthy();
         expect(screen.getByLabelText(/Ingredients:/)).toBeTruthy();
         expect(screen.getByLabelText(/Instructions:/)).toBeTruthy();
-        expect(screen.getByLabelText(/Photos:/)).toBeTruthy();
+        expect(screen.getByLabelText(/Review:/)).toBeTruthy();
     });
 });
 
@@ -652,24 +624,5 @@ describe('Wizard (native) — WCAG AA rail-marker contrast (SC 1.4.3)', () => {
             computedContrast(numeral, { surface: palette.white }),
             'current step’s rail-marker numeral, on the marker’s white fill',
         ).toBeGreaterThanOrEqual(4.5);
-    });
-});
-
-describe('Wizard (native) — Preview', () => {
-    it('shows the current draft values and can be closed', () => {
-        render(<Harness initialValues={validValues()} />);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
-
-        // The panel's own accessible label collides with the top-bar button's ("Preview"), and bare numeric
-        // values collide with the rail's step-number badges — so scope the servings assertion to its own
-        // label/value row rather than querying the page for a bare "4".
-        expect(screen.getByLabelText('Close preview')).toBeTruthy();
-        expect(screen.getByText('Herb Risotto')).toBeTruthy();
-        const servingsRow = screen.getByText('Servings').parentElement;
-        expect(within(servingsRow as HTMLElement).getByText('4')).toBeTruthy();
-
-        fireEvent.click(screen.getByLabelText('Close preview'));
-        expect(screen.queryByLabelText('Close preview')).toBeFalsy();
     });
 });

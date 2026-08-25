@@ -132,6 +132,55 @@ export type RecipeDifficulty = (typeof RecipeDifficulty)[keyof typeof RecipeDiff
 export const recipeDifficultySchema = z.enum([RecipeDifficulty.EASY, RecipeDifficulty.MEDIUM, RecipeDifficulty.HARD]);
 
 /**
+ * When in the day a recipe is eaten (plan U34, owner ruling 2026-08-25).
+ *
+ * ⛔ **This is the one recipe-classification axis that is a CLOSED vocabulary, and the reason is the axis,
+ * not a preference for enums.** "When do you eat this" has a finite, stable answer; the neighbouring axes do
+ * not, which is why {@link CUISINES} is a display list behind a `z.string()` wire type and why `tags` and
+ * `dietaryFlags` are `z.array(z.string().min(1))` — a cuisine nobody curated, a tag a cook invents and a diet
+ * that emerges next year all have to be expressible. Closing meal type buys a filter facet that cannot rot
+ * into seventeen spellings of "dinner"; closing any of the others would reject data that is simply new.
+ *
+ * ⛔ It is deliberately NOT "course". A dish can be a starter and a side at once and the boundary moves by
+ * cuisine, so course is not a closed set and modelling it as one would force a wrong answer on the cook.
+ *
+ * OPTIONAL wherever it appears, exactly like {@link RecipeDifficulty}: "the author did not say" is a real
+ * state and there is no honest default. Consumers render an absent meal type as no chip — never as a guess.
+ */
+export const RecipeMealType = {
+    BREAKFAST: 'breakfast',
+    BRUNCH: 'brunch',
+    LUNCH: 'lunch',
+    DINNER: 'dinner',
+    SNACK: 'snack',
+    DESSERT: 'dessert',
+    DRINK: 'drink',
+} as const;
+
+/** One member of the {@link RecipeMealType} vocabulary. */
+export type RecipeMealType = (typeof RecipeMealType)[keyof typeof RecipeMealType];
+
+/**
+ * The vocabulary in DISPLAY order — roughly the order of a day, which is the order a cook scans for.
+ *
+ * DERIVED from {@link RecipeMealType} rather than written out a second time, and asserted equal to it in both
+ * directions: a hand-written copy of a list cannot detect that the list is incomplete. `satisfies` pins the
+ * membership at compile time; the test pins the completeness at run time.
+ */
+export const RECIPE_MEAL_TYPES = [
+    RecipeMealType.BREAKFAST,
+    RecipeMealType.BRUNCH,
+    RecipeMealType.LUNCH,
+    RecipeMealType.DINNER,
+    RecipeMealType.SNACK,
+    RecipeMealType.DESSERT,
+    RecipeMealType.DRINK,
+] as const satisfies readonly RecipeMealType[];
+
+/** Runtime validator for {@link RecipeMealType}. */
+export const recipeMealTypeSchema = z.enum(RECIPE_MEAL_TYPES);
+
+/**
  * Curated cuisine choices offered by the recipe editor's cuisine dropdown (w3/e5). UNLIKE
  * {@link RecipeDifficulty}/{@link RecipeStatus}, this is deliberately NOT a closed enum on the wire: `cuisine`
  * stays `string | undefined` on every recipe/create/update type and schema (`z.string().min(1).optional()`,
@@ -209,6 +258,13 @@ export interface Recipe {
      * no badge rather than substituting a default. Never fabricated, never computed.
      */
     difficulty?: RecipeDifficulty;
+    /**
+     * Author-stated meal type (plan U34). ABSENT when the author did not state one — consumers render no
+     * chip rather than substituting a default, exactly as for {@link Recipe.difficulty}. Unlike `tags` and
+     * `dietaryFlags` beside it, this is a CLOSED vocabulary; see {@link RecipeMealType} for why that is
+     * defensible for this axis and for no other.
+     */
+    mealType?: RecipeMealType;
     visibility: RecipeVisibility;
     /**
      * Publication status (W8-a.3 / decision 5). `draft` recipes are owner-only regardless of `visibility`
@@ -328,6 +384,7 @@ export const recipeSchema = z.object({
     totalTimeMinutes: nonNegativeIntSchema,
     servings: positiveIntSchema,
     difficulty: recipeDifficultySchema.optional(),
+    mealType: recipeMealTypeSchema.optional(),
     visibility: recipeVisibilitySchema,
     // Publication status (W8-a.3) — NOT NULL, default 'published'; a draft is owner-only (security boundary).
     status: recipeStatusSchema,

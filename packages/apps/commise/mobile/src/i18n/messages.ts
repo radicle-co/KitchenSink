@@ -205,10 +205,20 @@ export interface MobileMessages {
         readonly visibilityUpgradeReason: string;
         /** Alert shown when creating a recipe fails. */
         readonly createError: string;
+        /**
+         * Shown after a successful create while chosen photos are still uploading (U33). A save is create-THEN-
+         * upload, and the cook must not be told it is one call.
+         */
+        readonly photosFlushingNotice: string;
+        /** The explicit "leave without the photos that would not upload" action (U33). */
+        readonly photosFinishWithout: string;
+        /**
+         * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`). The pick
+         * is refused WHOLE rather than truncated — see the web dictionary's twin for why.
+         */
+        readonly photosOverCap: string;
         /** Alert shown when saving recipe edits fails. */
         readonly saveError: string;
-        /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
-        readonly photosAfterCreateNotice: string;
         /** Title of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
         readonly createGuidanceTitle: string;
         /** Body of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
@@ -441,9 +451,10 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             versionsAction: 'Version history',
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
+            photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
+            photosFinishWithout: 'Finish without the remaining photos',
+            photosOverCap: 'That’s more photos than this recipe can hold — you can add {count} more.',
             saveError: 'We couldn’t save your changes. Please try again.',
-            photosAfterCreateNotice:
-                'Publish your recipe to add photos — tap Publish below, then add photos from its page. Nothing here to do yet.',
             createGuidanceTitle: 'Let’s build your recipe',
             createGuidanceBody:
                 'Start with a title and the basics. You’ll add ingredients, steps, and photos as you go — tap Next when a step is ready.',

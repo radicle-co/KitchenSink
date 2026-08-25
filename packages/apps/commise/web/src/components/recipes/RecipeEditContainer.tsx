@@ -7,14 +7,31 @@
  * transition, the three FR-007c resolutions, AND (w3) the step/draft/publish extensions — as a
  * discriminated-union statechart (`EditorState`) plus orthogonal step-navigation state; this container is a
  * thin renderer that switches on `state.status` and, once past loading/conflict, wires the `Wizard` compound
- * shell — `Wizard.Rail`/`Wizard.TopBar`/`Wizard.Controls` plus one `Wizard.Step` per step, each hosting the
- * SAME extracted `RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/
- * `RecipeVisibilityField` leaves (`@commise/features-recipes`) — no field is duplicated or rewritten. The
- * app-owned {@link IngredientPicker} composes into step 2 and {@link RecipePhotoUploaderContainer} into step
- * 4, exactly where they rendered before, just now step-scoped. See the hook's module doc for the full
- * statechart and the reseed-incompatibility fix it resolves (web previously reseeded in place; mobile
- * previously remounted via a `seedNonce`/`seedOverride` hack — both platforms now drive the SAME `setValues`
+ * shell — `Wizard.Header`/`Wizard.Rail` plus one `Wizard.Step` per step, each hosting the SAME extracted
+ * `RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/`RecipeVisibilityField`/
+ * `RecipeReviewFields` leaves (`@commise/features-recipes`) — no field is duplicated or rewritten. The
+ * app-owned {@link IngredientPicker} composes into step 2. See the hook's module doc for the full statechart
+ * and the reseed-incompatibility fix it resolves (web previously reseeded in place; mobile previously
+ * remounted via a `seedNonce`/`seedOverride` hack — both platforms now drive the SAME `setValues`
  * transition).
+ *
+ * ⛔ **`Wizard.Controls` is NOT placed here (U32).** `Wizard.Header` renders the action bar itself, because
+ * on web the bar's POSITION is what the `lg` breakpoint changes — `fixed` to the viewport bottom below it,
+ * `static` inside the header band above it — and one element that moves is the only shape with ONE
+ * accessible name per control. Placing it here as well would ship two bars.
+ *
+ * ⛔ **Photos are on step 1 now, not step 4 (U33).** {@link RecipePhotoUploaderContainer} composes into
+ * Details beside the other fields, and step 4 is the read-only `RecipeReviewFields`. On this route the
+ * recipe always has an id, so the uploader is live from the first render; the create route reaches the same
+ * surface through the draft-photo seam (`useRecipeDraftPhotos`).
+ *
+ * ⚠️ **Auto-save (U34) is wired here, and its `enabled` gate is this container's judgement.** It is `false`
+ * whenever an unattended write would land in an unresolved race: while a save is in flight (that request
+ * already holds the version token), while a conflict is unresolved (the token is known stale), and while the
+ * recipe has not loaded (there is no token). The write goes through the editor's `autoSaveDraft` — NOT its
+ * `saveDraft`, which also calls `onSaved`, which this container wires to a NAVIGATION. A background timer
+ * calling that would close the editor two seconds after the cook stopped typing. It still carries
+ * `expectedVersion`, and a 409 surfaces exactly as a manual save's does.
  *
  * **OQ-1 resolve→detail navigation (W7 Task 6).** A successful `overwrite`/`merge` resolves through the SAME
  * `submitDraft` → `onSuccess` → `opts.onSaved` path a plain save uses, so it lands on the SAME
@@ -39,13 +56,14 @@ import {
     recipeVersionMessages,
     RecipeIngredientsFields,
     RecipeInstructionsFields,
+    RecipeReviewFields,
     RecipeVisibilityField,
     setIngredientStatusById,
     useDiscardGuard,
     Wizard,
     type ResolvedRecipeFormIngredient,
 } from '@commise/features-recipes';
-import { useRecipeEditor } from '@commise/features-recipes/hooks';
+import { useRecipeAutoSave, useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -103,6 +121,18 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     const isDirty = useDiscardGuard(editor.values, {
         ready: editor.state.status !== 'loading',
         justSaved: editor.state.status === 'saved',
+    });
+
+    // Auto-save (U34). `enabled` is the container's "a write would land in an unresolved race" gate — see
+    // this module's own doc for the three cases it covers. Declared before the early returns (Rules of
+    // Hooks), which is also why it reads `editor.state.status` rather than being placed after them.
+    useRecipeAutoSave({
+        isDirty,
+        enabled: editor.state.status === 'editing',
+        // ⛔ `autoSaveDraft`, NOT `saveDraft`: the latter also calls `onSaved`, which this container
+        // wires to a navigation — a background timer calling it closes the editor mid-edit. See the hook's
+        // own doc for the three concerns an unattended write must not inherit.
+        saveDraft: editor.autoSaveDraft,
     });
 
     // OQ-1 (W7 Task 6): `keepServer` (Option A) discards the draft WITHOUT a write, so it never runs the
@@ -188,11 +218,12 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                 isDirty={isDirty}
                 submitting={editor.state.status === 'submitting'}
             >
+                <Wizard.Header />
                 <Wizard.Rail />
-                <Wizard.TopBar />
                 <Wizard.Step step={1}>
                     <RecipeBasicsFields values={editor.values} errors={editor.errors} onChange={editor.setValues} />
                     <RecipeVisibilityField values={editor.values} onChange={editor.setValues} />
+                    <RecipePhotoUploaderContainer recipeId={recipeId} />
                 </Wizard.Step>
                 <Wizard.Step step={2}>
                     <IngredientPicker ref={pickerRef} onSelect={addIngredient} />
@@ -214,9 +245,8 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
                     />
                 </Wizard.Step>
                 <Wizard.Step step={4}>
-                    <RecipePhotoUploaderContainer recipeId={recipeId} />
+                    <RecipeReviewFields values={editor.values} />
                 </Wizard.Step>
-                <Wizard.Controls />
             </Wizard>
             {editor.submitError && <p role="alert">{recipes.form.submitError}</p>}
             {editor.conflictDataUnavailable && <p role="alert">{conflict.dataUnavailable}</p>}

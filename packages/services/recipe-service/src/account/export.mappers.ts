@@ -44,6 +44,7 @@ export function mapRecipe(row: RecipeExportRow): RecipeExport {
         totalTimeMinutes: row.totalTimeMinutes,
         servings: row.servings,
         difficulty: row.difficulty,
+        mealType: row.mealType,
         averageRating: row.averageRating,
         ratingCount: row.ratingCount,
         visibility: row.visibility,

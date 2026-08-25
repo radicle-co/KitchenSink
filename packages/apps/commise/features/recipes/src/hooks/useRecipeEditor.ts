@@ -266,6 +266,31 @@ export interface UseRecipeEditorResult {
      * and why the published case is preserved.
      */
     readonly saveDraft: () => void;
+    /**
+     * The UNATTENDED draft save (U34) — what `useRecipeAutoSave` calls, and deliberately NOT {@link saveDraft}.
+     *
+     * ⛔ `saveDraft` is one command bundling THREE concerns — validate-and-record-errors, persist, and
+     * notify-the-container — and a background timer wants only the middle one. Inheriting the other two
+     * produced three defects a cook meets within seconds of typing:
+     *
+     *  1. **It navigated them out of the editor.** `submitDraft`'s `onSuccess` calls `opts.onSaved`, which
+     *     both containers wire to "go to the detail page". Type, pause, and the editor closes underneath you.
+     *  2. **It painted validation errors nobody asked for.** `validateThenSubmit` records errors BEFORE its
+     *     gate, so clearing a title to retype it put "A title is required." under the field on a timer.
+     *  3. **It re-armed forever.** That error write stores a fresh object every time, so the render it causes
+     *     re-arms the debounce, which fires, which re-renders — a permanent loop on any draft below the floor.
+     *
+     * So this persists and does nothing else: no `onSaved`, no `setErrors`, and no write at all when the
+     * step-1 floor fails (an unattended save has nothing to say about an incomplete draft — the cook is
+     * mid-sentence). It DOES set the `saved` terminal, deliberately, because the discard guard's baseline has
+     * to move forward or the next tick would write the same content again, forever.
+     *
+     * Referentially STABLE across renders. `useRecipeAutoSave` holds it in an effect dependency, so a fresh
+     * function each render would clear and re-arm the debounce on every render — and a recipe with a
+     * `PENDING` ingredient re-renders faster than the debounce window, which would starve the timer in
+     * exactly the case it exists for.
+     */
+    readonly autoSaveDraft: () => void;
     /** Whether the last submit failed for a reason OTHER than a version conflict (a handled 409 is never this). */
     readonly submitError: boolean;
     /**
@@ -372,6 +397,21 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // inside a callback is a synchronous comparison, not a second invocation of anything.
     const epochRef = useRef(0);
 
+    // ALLOWED REF (§3), and for the same reason `epochRef` is one: `submitDraft` closes over state that
+    // changes every render, so capturing it in `autoSaveDraft`'s `useCallback` deps would destroy the
+    // referential stability that keeps `useRecipeAutoSave`'s debounce from being re-armed on every render.
+    // The ref is WRITTEN on every render and READ only inside the callback, so the callback always invokes
+    // the CURRENT implementation while itself staying stable — it is a stable-handle wrapper over a moving
+    // target, never state-in-a-ref (nothing reads it to decide what to render).
+    const submitDraftRef = useRef<
+        (
+            draft: RecipeFormValues,
+            expectedVersion: number,
+            status?: RecipeStatus,
+            options?: { readonly silent?: boolean },
+        ) => void
+    >(() => undefined);
+
     // Seed the draft from the loaded recipe once; the STATE guard (not a ref, per the coding standards' "refs
     // near-forbidden" rule) keeps a background refetch of the SAME recipe from overwriting in-progress edits —
     // only a genuinely different id (a real navigation to another recipe) reseeds.
@@ -439,7 +479,16 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // 409. `status` (w3) is OPTIONAL and OMITTED by default — `submit()` and the conflict resolutions call
     // this with no status so a routine save/resubmit never touches publication state; `publish`/`saveDraft`
     // are the only callers that pass one.
-    const submitDraft = (draft: RecipeFormValues, expectedVersion: number, status?: RecipeStatus): void => {
+    const submitDraft = (
+        draft: RecipeFormValues,
+        expectedVersion: number,
+        status?: RecipeStatus,
+        // UNATTENDED (U34): suppress `opts.onSaved` only. Everything else — the CAS token, the 409-to-conflict
+        // transition, the epoch guard, the `saved` terminal — is identical, because an unattended write must
+        // be exactly as safe as a deliberate one. See `autoSaveDraft` for why the notification is the one
+        // concern a timer must not inherit.
+        options?: { readonly silent?: boolean },
+    ): void => {
         const input: UpdateRecipeRequest = { ...toUpdateRecipeInput(draft, status), expectedVersion };
         // Captured NOW (this submission's own epoch) — compared against `epochRef.current` inside the
         // callbacks below, whenever THEY eventually fire. `discardAndClose` bumps the ref if the user leaves
@@ -460,7 +509,10 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
 
                     setConflict(null);
                     setTerminal('saved');
-                    opts.onSaved(recipe);
+
+                    if (options?.silent !== true) {
+                        opts.onSaved(recipe);
+                    }
                 },
                 onError: (err) => {
                     // Same neutralization for a late failure — it must not reopen `conflict` (or anything
@@ -516,6 +568,24 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
 
         validateThenSubmit(stepErrorsFor(values, 1), draftStatus);
     };
+
+    // See the field's own doc for the three concerns this deliberately does not inherit from `saveDraft`,
+    // and for why it is `useCallback`-stable. `useCallback` deps are exactly what it reads.
+    const autoSaveDraft = useCallback((): void => {
+        if (query.data === undefined) {
+            return;
+        }
+
+        // The SAME relaxed floor `saveDraft` uses — but a failure is a silent no-op here, not a recorded
+        // error: the cook is mid-sentence, and a timer has no standing to interrupt them.
+        if (Object.keys(stepErrorsFor(values, 1)).length > 0) {
+            return;
+        }
+
+        const draftStatus = query.data.status === RecipeStatus.PUBLISHED ? RecipeStatus.PUBLISHED : RecipeStatus.DRAFT;
+
+        submitDraftRef.current(values, query.data.currentVersion, draftStatus, { silent: true });
+    }, [values, query.data]);
 
     const goToStep = (next: RecipeWizardStep): void => setStep(next);
 
@@ -574,6 +644,8 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         setTerminal('discarded');
     };
 
+    submitDraftRef.current = submitDraft;
+
     const resolutions: UseRecipeEditorResult['resolutions'] = {
         overwrite: resubmitDraftAsIs,
         keepServer: (): void => {
@@ -628,6 +700,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
         submit,
         publish,
         saveDraft,
+        autoSaveDraft,
         submitError: updateRecipe.isError && !isVersionConflictError(updateRecipe.error),
         // Derived the SAME way `submitError` is (straight off `updateRecipe`'s own settled error state, not a
         // separately-tracked flag that could desync from it) — a handled-but-undisplayable 409: it IS a

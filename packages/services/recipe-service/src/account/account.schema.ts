@@ -221,6 +221,15 @@ export const recipeExportSchema = z
         servings: z.number().int(),
         /** Author-stated difficulty (`easy`/`medium`/`hard`), or `null` when not stated. */
         difficulty: z.string().nullable(),
+        /**
+         * Author-stated meal type (plan U34), or `null` when not stated.
+         *
+         * ⛔ An export that omits a stored field is not the "faithful mirror of the row" this schema promises,
+         * and for a GDPR export that is a compliance defect rather than a cosmetic one: it is data the service
+         * holds about the caller. Every sibling classification axis (`cuisine`, `tags`, `dietaryFlags`,
+         * `difficulty`) is here, and this one has to be too.
+         */
+        mealType: z.string().nullable(),
         /** Denormalized rating aggregate (`numeric` → string), `null` when unrated. */
         averageRating: z.string().nullable(),
         ratingCount: z.number().int(),

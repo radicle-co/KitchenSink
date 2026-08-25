@@ -1858,6 +1858,16 @@ is currently scheduled last. Either move auto-save earlier or accept a first-sav
   (`RecipeList.tsx:68`). Scan / Import / AI belong to 004 and 005; do not render them at all rather than
   rendering them dead — the repo's convention for a not-yet-real destination is an `aria-disabled`
   "coming soon" nav item, and promising a stopped feature is worse than omitting it.
+    - ⛔ **DECIDED NOT TO BUILD (U32–U34 implementation, 2026-08-25). Do not "finish" it as missing work.**
+      Taking this prescription together with its own "do not render Scan / Import / AI at all" rule leaves a
+      dial with exactly ONE item — and a one-item dial is strictly worse than what already ships. It is
+      either two taps to reach a single destination, or, if it opens straight through, it IS today's FAB
+      wearing a new name. That FAB is not the inline button this bullet cites: a real floating action button
+      already ships at `features/recipes/src/list/RecipeList.tsx:169` (the `showFab` branch), positioned to
+      clear the narrow-breakpoint bottom nav and the safe-area inset, and it already routes to Create from
+      Scratch on both platforms. The dial becomes worth building the moment a SECOND destination is real —
+      i.e. when 004 (import) or 005 (AI) ships a live target — and not before. Nothing in U34's other two
+      rulings (meal type, auto-save) depends on it, and both shipped.
 - **Auto-save, built for real.** ⛔ Not a label. Nothing ships today (`grep autosav` → nothing), and the
   mockup's "Auto-saved 2 minutes ago" is a hardcoded literal. A debounced draft write has to interact with
   `useRecipeEditor`'s `expectedVersion` and its 409/conflict statechart, so a lost-update path is the risk
@@ -1865,7 +1875,7 @@ is currently scheduled last. Either move auto-save earlier or accept a first-sav
 
 **Files.** Modify `recipe-core/src/recipeRequestBounds.ts`, `recipes.schema.ts`, `packages/schemas/recipe/**`, a migration, `form/RecipeBasicsFields.tsx` + `.native.tsx`, `web/src/components/recipes/RecipeList.tsx`, `mobile/src/screens/RecipesScreen.tsx`.
 
-**Test scenarios.** Meal type round-trips as a closed vocabulary while tags stay free text · free-text tags remain filterable · the FAB exposes ONLY Create from Scratch · auto-save writes a DRAFT and never publishes · a concurrent edit surfaces `useRecipeEditor`'s 409 rather than silently losing the later write · auto-save never fires on an untouched form.
+**Test scenarios.** Meal type round-trips as a closed vocabulary while tags stay free text · free-text tags remain filterable · the FAB exposes ONLY Create from Scratch (satisfied by the shipped `showFab` button — see the SpeedDial ruling above) · auto-save writes a DRAFT and never publishes · a concurrent edit surfaces `useRecipeEditor`'s 409 rather than silently losing the later write · auto-save never fires on an untouched form.
 
 **Verification.** Both platforms green; a lost-update attempt observed to conflict rather than overwrite.
 

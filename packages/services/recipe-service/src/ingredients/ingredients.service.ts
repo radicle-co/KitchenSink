@@ -48,10 +48,11 @@
  *
  * @implements FR-007 FR-007a FR-047
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { FoodResolutionStatus, RecipeErrorCode } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
+import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, StatusResult } from '@kitchensink/food-service-client';
 
@@ -64,7 +65,8 @@ import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
 import { blendIngredientSuggestions } from './ingredientSuggestion.js';
 import type { IngredientSuggestions } from './ingredientSuggestion.js';
-import type { IngredientCandidate } from './ingredients.schema.js';
+import type { IngredientCandidate, LiveIngredientSearchResponse } from './ingredients.schema.js';
+import { apiError } from '../common/apiError.js';
 import { foodNotAdmissible, ingredientNotFound, isRecipeDomainError } from '../recipes/recipe.error.js';
 
 /*
@@ -202,6 +204,57 @@ export class IngredientsService {
             }),
             catalogAvailability: catalog.availability,
         };
+    }
+
+    /**
+     * ON-DEMAND live source search (plan U29) — the seam behind the picker's "Search USDA for '…'" control.
+     *
+     * ⛔ **Not a typeahead, and it must never be wired to one.** Each call spends one request against a
+     * SHARED per-IP source quota, out of FR-019's reserved interactive lane: at 50 concurrent cooks even a
+     * perfect one-call-per-settled-query autocomplete would want roughly three times the whole hourly key.
+     * It exists for a button a cook presses. It is also the acknowledged SLOW path — a multi-second wait is
+     * the expected experience, and it is explicitly outside SC-007's 500ms local-search budget.
+     *
+     * ⛔ **Three outcomes, kept apart.** Unlike {@link suggest} — whose catalog half is additive and may
+     * therefore flatten every failure into `catalogAvailability: 'unavailable'` — this method's outcome IS
+     * the product: hits (possibly EMPTY, meaning the source answered and has nothing), `SOURCE_BUSY` (a rate
+     * refusal that names its window), or `SOURCE_UNAVAILABLE` (the source did not answer). A cook takes a
+     * different action on each, so collapsing any pair strands them in the wrong loop.
+     *
+     * @param caller - The requesting user's credential, forwarded to food. Absent → the source cannot be
+     *   searched, reported as `SOURCE_UNAVAILABLE` by the gateway.
+     * @param query - The raw user query (trimmed here).
+     * @returns The source's hits, each carrying `foodId` when we already hold that food.
+     * @throws {BadRequestException} (→ 400) below the 003-FR-010a search minimum, BEFORE any call goes out —
+     *   a query that short can never justify a request against a shared external quota.
+     * @throws {HttpException} `503 SOURCE_BUSY` / `502 SOURCE_UNAVAILABLE`, per the gateway's outcome.
+     * @sideEffect Performs one food-service request that causes an upstream source call.
+     */
+    public async searchLive(caller: CallerToken | undefined, query: string): Promise<LiveIngredientSearchResponse> {
+        const trimmed = query.trim();
+
+        if (!meetsSearchMinimum(trimmed)) {
+            throw new BadRequestException(`q must be at least ${MIN_SEARCH_QUERY_LENGTH} characters`);
+        }
+
+        const outcome = await this.catalog.searchLive(caller, trimmed);
+
+        switch (outcome.kind) {
+            case 'results':
+                return { hits: outcome.hits };
+            case 'busy':
+                // The window rides in `details` only when one is actually known — see the schema arm for why
+                // fabricating one is worse than omitting it.
+                throw apiError(
+                    'SOURCE_BUSY',
+                    'The ingredient source is busy; try again shortly.',
+                    outcome.retryAfterSeconds === undefined
+                        ? undefined
+                        : { retryAfterSeconds: outcome.retryAfterSeconds },
+                );
+            default:
+                throw apiError('SOURCE_UNAVAILABLE', 'The ingredient source did not answer.');
+        }
     }
 
     /**

@@ -42,6 +42,8 @@ import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
     FetchUnavailableError,
+    SourceBusyError,
+    SourceUnavailableError,
     ForbiddenError,
     GoneError,
     InvalidRequestError,
@@ -62,6 +64,7 @@ import type {
     ErasureRequestAcceptedResponse,
     IngredientCandidate,
     IngredientSuggestions,
+    LiveIngredientSearchResponse,
     ListCollectionsParams,
     ListRecipesParams,
     PhotoConfirmRequest,
@@ -102,6 +105,7 @@ import {
     erasureRequestSchema,
     ingredientCandidatesResponseSchema,
     ingredientSuggestionsResponseSchema,
+    liveIngredientSearchResponseSchema,
     photoUploadUrlResponseSchema,
     pullDiffSchema,
     pullFromSourceRequestSchema,
@@ -561,6 +565,38 @@ export class RecipeServiceClient {
         const res = await this.send('GET', '/api/v1/ingredients/suggest', undefined, { q: query, limit });
 
         return this.expect(res, 200, ingredientSuggestionsResponseSchema);
+    }
+
+    /**
+     * `GET /api/v1/ingredients/search/live?q=` — the ON-DEMAND live source search (plan U29).
+     *
+     * ⛔ **Never call this from a typeahead.** Unlike {@link suggestIngredients} it reaches past our own data
+     * to an upstream food-data source, and each call spends one request from a SHARED per-IP quota out of a
+     * reserved interactive lane. At 50 concurrent users a per-settled-query autocomplete would want roughly
+     * three times the entire hourly key, so no amount of debouncing makes a live blend affordable — it
+     * exists for a button a cook presses. It is also the acknowledged SLOW path: a multi-second wait is the
+     * expected experience, deliberately outside the 500ms budget that governs the local search.
+     *
+     * Three outcomes a caller must keep apart, because a cook acts differently on each:
+     *  - an EMPTY `hits` array — the source answered and has nothing (stop looking);
+     *  - {@link SourceBusyError} — the rate budget refused (retry; `retryAfterSeconds` when known);
+     *  - {@link SourceUnavailableError} — the source did not answer (retry, but no known window).
+     *
+     * A hit carrying `foodId` is already in our catalog and can be admitted with
+     * {@link addIngredientByFood} at no further source cost; one without must go through
+     * {@link addIngredientByName}, which is slower and may need disambiguation.
+     *
+     * @param query - The search text. Must meet the shared search minimum, or the service answers `400`.
+     * @returns The source's hits, in the source's order.
+     * @throws {BadRequestError} when the query is blank or below the search minimum.
+     * @throws {SourceBusyError} `503`; {@link SourceUnavailableError} `502`; {@link UnauthorizedError} on
+     *   auth failure.
+     * @sideEffect Performs an authenticated HTTP request that causes an upstream source call.
+     */
+    public async searchIngredientsLive(query: string): Promise<LiveIngredientSearchResponse> {
+        const res = await this.send('GET', '/api/v1/ingredients/search/live', undefined, { q: query });
+
+        return this.expect(res, 200, liveIngredientSearchResponseSchema);
     }
 
     /**
@@ -1461,6 +1497,13 @@ export class RecipeServiceClient {
             case 'COLLECTION_NOT_CLONED':
             case 'UNKNOWN_INGREDIENT':
                 return new BadRequestError(body.message, body.code);
+            // ⛔ Two codes, two error classes, on purpose. `SOURCE_BUSY` is a RATE refusal that can name when
+            // to come back; `SOURCE_UNAVAILABLE` is an upstream outage we can say nothing about. The picker
+            // renders them as different sentences, so collapsing them here would mislead a cook.
+            case 'SOURCE_BUSY':
+                return new SourceBusyError(body.details?.retryAfterSeconds, body.message);
+            case 'SOURCE_UNAVAILABLE':
+                return new SourceUnavailableError(body.message);
             // Every remaining code has no dedicated error class, so it keeps the response's OWN status and
             // carries its code for the caller to read. The status is deliberately taken from the response rather
             // than from the service's code→status table: that table is the SERVICE's, this client must not

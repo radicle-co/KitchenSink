@@ -14,7 +14,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
-import { FetchUnavailableError, UnauthorizedError } from '@kitchensink/food-service-client';
+import { FetchUnavailableError, SourceUnavailableError, UnauthorizedError } from '@kitchensink/food-service-client';
 import type { FoodServiceClient } from '@kitchensink/food-service-client';
 import { tieredRelevanceScore } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
@@ -302,5 +302,123 @@ describe('FoodCatalogGateway', () => {
             expect((await gateway.search(CALLER, 'chicken', 10)).availability).toBe('unavailable');
             expect((await gateway.search(CALLER, 'chicken', 10)).availability).toBe('ok');
         });
+    });
+});
+
+/**
+ * `searchLive` — the ON-DEMAND source search (plan U29), the gateway's second, deliberately different path.
+ *
+ * ⛔ **It stays TOTAL like `search`, but it must NOT collapse its failures into one value.** `search` may
+ * degrade everything to `unavailable` because its result is strictly ADDITIVE — the local section renders
+ * regardless and the cook loses nothing they asked for. Here the cook explicitly pressed a button, so the
+ * three outcomes ARE the product: "the source has nothing" (stop looking), "busy, try again" (our reserved
+ * lane, or a source 429), and "the source did not answer" (no known recovery window). Collapsing any pair
+ * strands them in the wrong loop, which is why the outcome is a discriminated union rather than a boolean.
+ *
+ * ⚠️ It also takes the STANDARD (8s) client, never the typeahead one: this is the acknowledged SLOW path —
+ * a multi-second wait is the expected experience — and a sub-second deadline would turn every real answer
+ * into a fabricated "the source did not answer".
+ */
+describe('FoodCatalogGateway.searchLive (plan U29)', () => {
+    let liveClients: FoodServiceClients;
+    let searchLive: ReturnType<typeof vi.fn>;
+    let standard: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+        searchLive = vi.fn();
+        standard = vi.fn(() => ({ searchLive }) as unknown as FoodServiceClient);
+        const shortClient = vi.fn(() => {
+            throw new Error('the live-search path must never use the SHORT typeahead client');
+        });
+
+        liveClients = { standard, typeahead: shortClient } as unknown as FoodServiceClients;
+    });
+
+    /** A gateway with the blend switched on. */
+    function enabledGateway(): FoodCatalogGateway {
+        return new FoodCatalogGateway(liveClients, { enabled: true });
+    }
+
+    it('uses the STANDARD client, because a multi-second source call is the expected experience', async () => {
+        searchLive.mockResolvedValue({ results: [] });
+
+        await enabledGateway().searchLive(CALLER, 'broccoli');
+
+        // The typeahead factory throws if touched — a sub-second deadline here would manufacture failures.
+        expect(standard).toHaveBeenCalledTimes(1);
+        expect(standard.mock.calls[0]?.[0]).toBe(CALLER);
+    });
+
+    it('returns the hits, mapping the food service’s `id` to this service’s `foodId` vocabulary', async () => {
+        searchLive.mockResolvedValue({
+            results: [{ name: 'Broccoli, raw', id: 'food_1' }, { name: 'Broccoli rabe' }],
+        });
+
+        await expect(enabledGateway().searchLive(CALLER, 'broccoli')).resolves.toEqual({
+            kind: 'results',
+            hits: [{ name: 'Broccoli, raw', foodId: 'food_1' }, { name: 'Broccoli rabe' }],
+        });
+    });
+
+    it('reports an EMPTY result set as results, not as a failure — the source answered', async () => {
+        searchLive.mockResolvedValue({ results: [] });
+
+        // ⛔ The distinction the whole surface turns on: "nothing found" is an answer.
+        await expect(enabledGateway().searchLive(CALLER, 'nosuchfood')).resolves.toEqual({
+            kind: 'results',
+            hits: [],
+        });
+    });
+
+    it('reports BUSY when food refuses on the rate budget, carrying the retry window', async () => {
+        searchLive.mockRejectedValue(new FetchUnavailableError(60, 'shed'));
+
+        await expect(enabledGateway().searchLive(CALLER, 'broccoli')).resolves.toEqual({
+            kind: 'busy',
+            retryAfterSeconds: 60,
+        });
+    });
+
+    it('reports UNAVAILABLE when the upstream source did not answer', async () => {
+        searchLive.mockRejectedValue(new SourceUnavailableError('The food data source is unavailable'));
+
+        await expect(enabledGateway().searchLive(CALLER, 'broccoli')).resolves.toEqual({ kind: 'unavailable' });
+    });
+
+    it('reports UNAVAILABLE for any other failure, rather than throwing at the caller', async () => {
+        searchLive.mockRejectedValue(new UnauthorizedError('nope'));
+
+        await expect(enabledGateway().searchLive(CALLER, 'broccoli')).resolves.toEqual({ kind: 'unavailable' });
+    });
+
+    it('reports UNAVAILABLE on a malformed payload rather than leaking it to the caller', async () => {
+        searchLive.mockResolvedValue({ nope: true });
+
+        await expect(enabledGateway().searchLive(CALLER, 'broccoli')).resolves.toEqual({ kind: 'unavailable' });
+    });
+
+    it('drops a nameless hit rather than rendering an unpickable row', async () => {
+        searchLive.mockResolvedValue({ results: [{ name: '   ', id: 'food_1' }, { name: 'Broccoli, raw' }] });
+
+        await expect(enabledGateway().searchLive(CALLER, 'broccoli')).resolves.toEqual({
+            kind: 'results',
+            hits: [{ name: 'Broccoli, raw' }],
+        });
+    });
+
+    it('degrades WITHOUT issuing a request when the caller has no credential', async () => {
+        await expect(enabledGateway().searchLive(undefined, 'broccoli')).resolves.toEqual({ kind: 'unavailable' });
+        // An unauthenticated call could only 401, and food sheds on 401 volume (FR-052).
+        expect(standard).not.toHaveBeenCalled();
+    });
+
+    it('reports UNAVAILABLE — not silence — when the blend is switched OFF', async () => {
+        const gateway = new FoodCatalogGateway(liveClients, { enabled: false });
+
+        // ⚠️ Deliberately NOT the `disabled` value `search` returns. There, silence is right: the local list
+        // still works and nothing the cook asked for is missing. Here they pressed a button and are owed an
+        // answer, and "the source cannot be searched right now" is the honest one.
+        await expect(gateway.searchLive(CALLER, 'broccoli')).resolves.toEqual({ kind: 'unavailable' });
+        expect(standard).not.toHaveBeenCalled();
     });
 });

@@ -160,6 +160,20 @@ export const recipeErrorCodeSchema = z.enum([
     'TOO_MANY_REQUESTS',
     /** The instance cannot serve traffic — the readiness probe's database check failed. */
     'NOT_READY',
+    /**
+     * The on-demand live ingredient search was refused on the RATE budget — ours (FR-019's reserved
+     * interactive lane is spent) or the upstream source's own `429`. A `503`; `details.retryAfterSeconds`
+     * carries the window when one is known (plan U29).
+     */
+    'SOURCE_BUSY',
+    /**
+     * The upstream food-data source did not answer the on-demand live search — a `502`.
+     *
+     * ⛔ Deliberately distinct from {@link SOURCE_BUSY} rather than a second spelling of it. That one is a
+     * rate refusal that names when to come back; this one is an outage we can say nothing about. The picker
+     * renders two different sentences and a cook takes two different actions.
+     */
+    'SOURCE_UNAVAILABLE',
     /** An unmapped server fault. The body carries no internal detail, by design. */
     'INTERNAL_ERROR',
 ]);
@@ -258,6 +272,17 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('UNSUPPORTED_MEDIA_TYPE'),
     bare('TOO_MANY_REQUESTS'),
     bare('NOT_READY'),
+    // `details.retryAfterSeconds` is OPTIONAL, deliberately: a refusal from our own reserved lane names its
+    // window, while one relayed from an upstream `429` may not — and inventing a number would tell a cook to
+    // come back at a moment nothing has any basis for.
+    z
+        .object({
+            code: z.literal('SOURCE_BUSY'),
+            message: z.string(),
+            details: z.object({ retryAfterSeconds: z.number().int().nonnegative() }).loose().optional(),
+        })
+        .loose(),
+    bare('SOURCE_UNAVAILABLE'),
     bare('INTERNAL_ERROR'),
 ]);
 

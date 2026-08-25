@@ -95,6 +95,7 @@ import {
     createIngredientRequestSchema,
     ingredientCandidatesResponseSchema,
     ingredientSuggestionsResponseSchema,
+    liveIngredientSearchResponseSchema,
     recordCorrectionRequestSchema,
     recordCorrectionResponseSchema,
     resolveIngredientRequestSchema,
@@ -175,6 +176,7 @@ export const openApiComponents = {
     IngredientList: z.array(ingredientSchema),
     IngredientCandidateList: ingredientCandidatesResponseSchema,
     IngredientSuggestions: ingredientSuggestionsResponseSchema,
+    LiveIngredientSearch: liveIngredientSearchResponseSchema,
     CreateIngredientRequest: createIngredientRequestSchema,
     AddIngredientByFoodRequest: addIngredientByFoodRequestSchema,
     RecordCorrectionRequest: recordCorrectionRequestSchema,
@@ -745,6 +747,41 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             ],
             responses: {
                 '200': { description: 'Blended suggestions, local section first.', schema: 'IngredientSuggestions' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/ingredients/search/live': {
+        get: {
+            operationId: 'searchIngredientsLive',
+            summary: 'On-demand live search of the upstream food-data source (an explicit action).',
+            description:
+                'The seam behind the ingredient picker\'s "Search USDA for …" control. Unlike `/suggest` this ' +
+                'leaves our own data entirely and spends one request against a SHARED per-IP source quota, ' +
+                "out of the food service's reserved interactive lane.\n\n" +
+                '⛔ Never wire this to a typeahead: at 50 concurrent users a per-settled-query autocomplete ' +
+                'would want roughly three times the entire hourly key. It is also the acknowledged SLOW ' +
+                'path — a multi-second wait is expected and is outside the 500ms local-search budget.\n\n' +
+                'Three outcomes are deliberately distinguishable, because a cook acts differently on each: ' +
+                'an EMPTY `hits` array means the source answered and has nothing (stop looking); `503 ' +
+                'SOURCE_BUSY` means the rate budget refused (try again, and `details.retryAfterSeconds` ' +
+                'says when if it is known); `502 SOURCE_UNAVAILABLE` means the source did not answer.\n\n' +
+                'A hit carrying `foodId` is already in our catalog and can be admitted via `by-food`; one ' +
+                'without must go through `by-name`, which is slower and may need disambiguation.',
+            parameters: [
+                {
+                    name: 'q',
+                    in: 'query',
+                    required: true,
+                    description: 'The search term. Must meet the shared search minimum; shorter is a `400`.',
+                    schema: z.string().min(1),
+                },
+            ],
+            responses: {
+                '200': {
+                    description: 'The source hits, possibly EMPTY — which means it has nothing.',
+                    schema: 'LiveIngredientSearch',
+                },
                 ...sharedErrorResponses(),
             },
         },

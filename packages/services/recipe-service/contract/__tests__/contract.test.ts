@@ -658,6 +658,7 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         IngredientList: 'ingredientSchema',
         IngredientCandidateList: 'ingredientCandidatesResponseSchema',
         IngredientSuggestions: 'ingredientSuggestionsResponseSchema',
+        LiveIngredientSearch: 'liveIngredientSearchResponseSchema',
         CreateIngredientRequest: 'createIngredientRequestSchema',
         AddIngredientByFoodRequest: 'addIngredientByFoodRequestSchema',
         ResolveIngredientRequest: 'resolveIngredientRequestSchema',

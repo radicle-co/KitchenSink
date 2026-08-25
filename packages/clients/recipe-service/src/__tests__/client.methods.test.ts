@@ -10,7 +10,8 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { recipeSearchQuerySchema } from '@kitchensink/schema-recipe';
 import type { RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
-import { RecipeServiceClient } from '../index.js';
+import { isSourceBusyError, isSourceUnavailableError, RecipeServiceClient } from '../index.js';
+import type { SourceBusyError } from '../index.js';
 import {
     FIXTURE_OTHER_PHOTO_UUID,
     FIXTURE_OTHER_RECIPE_UUID,
@@ -228,6 +229,76 @@ describe('RecipeServiceClient — ingredients', () => {
         const result = await makeClient(fetchMock).suggestIngredients('chick');
 
         expect(result.catalogAvailability).toBe('unavailable');
+    });
+
+    /*
+     * `searchIngredientsLive` — the ON-DEMAND source search (plan U29).
+     *
+     * ⛔ Its three outcomes are the product, and these cases pin them apart: an EMPTY `hits` array (the
+     * source answered and has nothing — stop looking), a `503 SOURCE_BUSY` (a rate refusal that names its
+     * window — try again), and a `502 SOURCE_UNAVAILABLE` (the source did not answer — try again, no known
+     * window). A client that mapped any pair onto one error would put a cook in the wrong loop.
+     */
+    it('searchIngredientsLive GETs /api/v1/ingredients/search/live with q, on its OWN path', async () => {
+        const fetchMock = stubFetch(200, { hits: [] });
+
+        await makeClient(fetchMock).searchIngredientsLive('broccoli rabe');
+
+        // Mutation guard: falling back to `/suggest` would make an explicit, quota-charging action fire the
+        // cheap debounced read instead — silently, and looking correct.
+        expect(requestAt(fetchMock).url).toBe(`${BASE}/api/v1/ingredients/search/live?q=broccoli+rabe`);
+        expect(requestAt(fetchMock).method).toBe('GET');
+    });
+
+    it('searchIngredientsLive returns the hits, keeping foodId only where the catalog has one', async () => {
+        const body = { hits: [{ name: 'Broccoli, raw', foodId: '01J0FOOD' }, { name: 'Broccoli rabe' }] };
+        const fetchMock = stubFetch(200, body);
+
+        await expect(makeClient(fetchMock).searchIngredientsLive('broccoli')).resolves.toEqual(body);
+    });
+
+    it('searchIngredientsLive treats an EMPTY hit list as a SUCCESS — the source has nothing', async () => {
+        const fetchMock = stubFetch(200, { hits: [] });
+
+        await expect(makeClient(fetchMock).searchIngredientsLive('nosuchfood')).resolves.toEqual({ hits: [] });
+    });
+
+    it('searchIngredientsLive throws SourceBusyError on 503, carrying the retry window', async () => {
+        const fetchMock = stubFetch(503, {
+            code: 'SOURCE_BUSY',
+            message: 'busy',
+            details: { retryAfterSeconds: 60 },
+        });
+
+        const error = await makeClient(fetchMock)
+            .searchIngredientsLive('broccoli')
+            .catch((thrown: unknown) => thrown);
+
+        expect(isSourceBusyError(error)).toBe(true);
+        expect((error as SourceBusyError).retryAfterSeconds).toBe(60);
+    });
+
+    it('searchIngredientsLive reports no retry window when the service promised none', async () => {
+        const fetchMock = stubFetch(503, { code: 'SOURCE_BUSY', message: 'busy' });
+
+        const error = await makeClient(fetchMock)
+            .searchIngredientsLive('broccoli')
+            .catch((thrown: unknown) => thrown);
+
+        // Undefined, not a fabricated default: a made-up window tells a cook to return at a moment nothing
+        // has any basis for.
+        expect((error as SourceBusyError).retryAfterSeconds).toBeUndefined();
+    });
+
+    it('searchIngredientsLive throws SourceUnavailableError on 502 — a DIFFERENT error from busy', async () => {
+        const fetchMock = stubFetch(502, { code: 'SOURCE_UNAVAILABLE', message: 'down' });
+
+        const error = await makeClient(fetchMock)
+            .searchIngredientsLive('broccoli')
+            .catch((thrown: unknown) => thrown);
+
+        expect(isSourceUnavailableError(error)).toBe(true);
+        expect(isSourceBusyError(error)).toBe(false);
     });
 
     it('addIngredientByFood POSTs /api/v1/ingredients/by-food with { foodId } and returns the ingredient (200)', async () => {

@@ -22,6 +22,7 @@
  * controller's `400`-on-malformed-id validation like any real food id.
  */
 import { isFoodId } from '../../src/db/ulid.js';
+import { type DrawAxis, buildDrawAxis, drawFrom, drawFromSql } from './headTermSelectivity.js';
 
 /**
  * Fixed 10-character ULID timestamp parts, one per table whose surrogate key the fixture mints. Constant
@@ -140,62 +141,108 @@ export function assertValidPerfId(id: string): void {
     }
 }
 
-// ── Name vocabulary ─────────────────────────────────────────────────────────────────────────────
+// ── Name vocabulary ───────────────────────────────────────────────────────────────────────────
 //
 // A golden `name` is `<preparation> <ingredient> <cut>, <brand> <serial>`, and the description repeats
-// the same words in prose. The three word lists are SIZED to give the SC-007 search probes KNOWN
-// selectivity against the seeded population, which is what makes a search measurement interpretable
-// rather than a number: with `n` foods, a query for one ingredient matches ~n/INGREDIENTS.length rows,
-// a preparation+ingredient pair ~n/(PREPARATIONS.length * INGREDIENTS.length), and so on. All three
-// counts are coprime-ish and the index is threaded through every position, so the cross product spreads
-// evenly instead of clustering.
+// the same words in prose. The three head-bearing lists give the SC-007 search probes a KNOWN selectivity
+// against the seeded population, which is what makes a search measurement interpretable rather than
+// merely a number.
+//
+// ⛔ THE LISTS ARE ORDERED BY DESIGNED SELECTIVITY, BROADEST FIRST, AND REORDERING ONE RE-WEIGHTS IT.
+// Each is drawn through a weighted `DrawAxis` (`headTermSelectivity.ts`) rather than by
+// `index % length`, because uniform is the one shape the real catalog is NOT. See that module for the
+// measurements and the arithmetic; the short version is that `FoodSearchDao.relevanceQuery` retrieves on
+// the query's head term, the real 8,094-row USDA catalog puts that term's selectivity at 1.89% (p50) and
+// 13.75% (worst realistic), and this fixture used to put every term at a flat 4.35% / 9.09% / 5.88%.
+//
+// `PREPARATIONS` stays UNIFORM and stays at seven, deliberately: no probe shape ever heads on a
+// preparation word (`"raw chicken"`'s head is `chicken`, `"raw chicken breast"`'s is `breast`), so
+// skewing it would model nothing while making the `phrase` conjunction harder to reason about.
 
-/** Leading preparation word (7). */
+/** Leading preparation word (7) — never a head term, so deliberately left uniform. */
 export const PREPARATIONS = ['raw', 'cooked', 'roasted', 'canned', 'frozen', 'dried', 'grilled'] as const;
 
-/** Ingredient head noun (23) — the single-word search probe matches ~n/23 rows. */
+/** Ingredient head noun — the `broad` and `phrase` probes' head axis. Broadest first. */
 export const INGREDIENTS = [
     'chicken',
     'beef',
     'pork',
-    'salmon',
-    'tuna',
-    'broccoli',
-    'spinach',
-    'carrot',
-    'potato',
     'rice',
-    'quinoa',
-    'lentil',
-    'almond',
-    'walnut',
-    'yogurt',
+    'potato',
+    'tomato',
+    'onion',
     'cheddar',
-    'mozzarella',
     'apple',
+    'carrot',
+    'salmon',
+    'spinach',
+    'broccoli',
     'banana',
-    'blueberry',
     'oat',
+    'yogurt',
+    'tuna',
+    'almond',
+    'lentil',
+    'mushroom',
+    'pepper',
+    'garlic',
+    'celery',
+    'cucumber',
+    'blueberry',
+    'walnut',
+    'quinoa',
     'barley',
     'chickpea',
+    'mozzarella',
+    'cabbage',
+    'zucchini',
+    'apricot',
+    'papaya',
+    'turnip',
+    'tarragon',
 ] as const;
 
-/** Cut / form qualifier (11). */
+/** Cut / form qualifier — the `narrow` probe's head axis. Broadest first. */
 export const CUTS = [
+    'sliced',
+    'diced',
+    'ground',
+    'whole',
     'breast',
     'thigh',
     'fillet',
-    'whole',
-    'sliced',
-    'diced',
-    'puree',
-    'flour',
-    'flakes',
     'shredded',
-    'ground',
+    'flour',
+    'puree',
+    'flakes',
+    'cubed',
+    'minced',
+    'chopped',
+    'grated',
+    'crushed',
+    'mashed',
+    'julienne',
+    'wedge',
+    'chunk',
+    'strip',
+    'loin',
+    'rib',
+    'shank',
+    'flank',
+    'brisket',
+    'tenderloin',
+    'drumstick',
+    'wing',
+    'cutlet',
+    'medallion',
+    'paste',
+    'powder',
+    'meal',
+    'bran',
+    'kernel',
 ] as const;
 
-/** Brand token (17) — a second broad-match axis independent of the ingredient axis. */
+/** Brand token — the `brand` and `alias` probes' head axis, independent of the ingredient axis. */
 export const BRANDS = [
     'northvale',
     'harborline',
@@ -214,7 +261,109 @@ export const BRANDS = [
     'silverpine',
     'oakhollow',
     'thornbury',
+    'elmridge',
+    'larkfield',
+    'cedarmont',
+    'willowgate',
+    'ambervale',
+    'foxglen',
+    'hartwell',
+    'mossbank',
+    'pinewick',
+    'rookcliff',
+    'sandhaven',
+    'thistledown',
+    'valeport',
+    'westmere',
+    'yewbrook',
+    'alderpond',
+    'birchgate',
+    'cranemoor',
+    'dunhollow',
 ] as const;
+
+// ── The weighted draw axes ────────────────────────────────────────────────────────────────
+//
+// ⚠️ The three cycles are DISTINCT PRIMES and each stride is its own. Both facts are load-bearing and
+// neither is decoration: a shared cycle makes one axis a function of another (`i % 997` determines
+// `(i * k) % 997`), and blocked expansion over two nearby cycles correlates them along the diagonal where
+// both residues stay small — measured at ~6.7x the independent joint count. `perfFixtureDistribution.test.ts`
+// asserts the realized independence rather than trusting either argument.
+
+/** The ingredient draw axis — the `broad` / `phrase` probes' head selectivity. */
+export const INGREDIENT_AXIS = buildDrawAxis('ingredient', INGREDIENTS, 997, 617);
+
+/** The cut draw axis — the `narrow` probe's head selectivity. */
+export const CUT_AXIS = buildDrawAxis('cut', CUTS, 1009, 631);
+
+/** The brand draw axis — the `brand` / `alias` probes' head selectivity. */
+export const BRAND_AXIS = buildDrawAxis('brand', BRANDS, 1013, 647);
+
+/** Every axis a search probe can head on, by name. */
+export const HEAD_TERM_AXES = {
+    ingredient: INGREDIENT_AXIS,
+    cut: CUT_AXIS,
+    brand: BRAND_AXIS,
+} as const satisfies Readonly<Record<string, DrawAxis>>;
+
+/** SC-007's population size — the default `preparePerfFixture.ts` seeds and the guards measure against. */
+export const PERF_RESOLVED_FOODS_DEFAULT = 50_000;
+
+/** The four vocabulary words a fixture row's name, description and aliases are all built from. */
+export interface PerfWords {
+    /** Leading preparation word, drawn uniformly — never a head term. */
+    readonly preparation: string;
+    /** Ingredient head noun, drawn through {@link INGREDIENT_AXIS}. */
+    readonly ingredient: string;
+    /** Cut / form qualifier, drawn through {@link CUT_AXIS}. */
+    readonly cut: string;
+    /** Brand token, drawn through {@link BRAND_AXIS}. */
+    readonly brand: string;
+}
+
+/**
+ * The words a row index draws. Pure — and the ONE place the four draws are expressed, so a name, its
+ * description and its aliases can never disagree about which brand a row carries.
+ *
+ * @param index - Zero-based index within the population.
+ * @returns The drawn words.
+ */
+export function perfWords(index: number): PerfWords {
+    return {
+        preparation: PREPARATIONS[index % PREPARATIONS.length]!,
+        ingredient: drawFrom(INGREDIENT_AXIS, index),
+        cut: drawFrom(CUT_AXIS, index),
+        brand: drawFrom(BRAND_AXIS, index),
+    };
+}
+
+/** 1-based placeholder numbers for the four word arrays a rendering statement binds. */
+export interface PerfWordParams {
+    /** Holds {@link PREPARATIONS} verbatim. */
+    readonly preparations: number;
+    /** Holds `INGREDIENT_AXIS.draw` — the EXPANDED table, not the vocabulary. */
+    readonly ingredients: number;
+    /** Holds `CUT_AXIS.draw`. */
+    readonly cuts: number;
+    /** Holds `BRAND_AXIS.draw`. */
+    readonly brands: number;
+}
+
+/**
+ * The SQL mirror of {@link perfWords}. Pure; the seeder asserts the two agree against a real Postgres.
+ *
+ * @param column - The SQL integer expression holding the row index.
+ * @param params - Placeholder numbers, per {@link PerfWordParams}.
+ * @returns One SQL scalar expression per word.
+ */
+export function perfWordsSql(column: string, params: PerfWordParams): Readonly<Record<keyof PerfWords, string>> {
+    return {
+        preparation: `($${params.preparations}::text[])[(${column} % ${PREPARATIONS.length}) + 1]`,
+        ingredient: drawFromSql(INGREDIENT_AXIS, params.ingredients, column),
+        cut: drawFromSql(CUT_AXIS, params.cuts, column),
+        brand: drawFromSql(BRAND_AXIS, params.brands, column),
+    };
+}
 
 // ── Curated-alias vocabulary (U2) ───────────────────────────────────────────────────────────────
 //
@@ -270,7 +419,7 @@ export function perfAliasCount(index: number): number {
  * @returns The stored alias text.
  */
 export function perfFoodAliases(index: number): string {
-    const brand = BRANDS[index % BRANDS.length];
+    const { brand } = perfWords(index);
 
     return Array.from(
         { length: perfAliasCount(index) },
@@ -286,11 +435,11 @@ export function perfFoodAliases(index: number): string {
  *
  * @param column - The series column holding the index.
  * @param aliasTermsParam - 1-based placeholder number for the {@link ALIAS_TERMS} array.
- * @param brandsParam - 1-based placeholder number for the {@link BRANDS} array.
+ * @param brandsParam - 1-based placeholder number for `BRAND_AXIS.draw` (the expanded table).
  * @returns A SQL scalar expression producing the stored alias text.
  */
 export function perfFoodAliasesSql(column: string, aliasTermsParam: number, brandsParam: number): string {
-    const brand = `($${brandsParam}::text[])[(${column} % ${BRANDS.length}) + 1]`;
+    const brand = drawFromSql(BRAND_AXIS, brandsParam, column);
     const term = (slot: number): string =>
         `($${aliasTermsParam}::text[])[((${column} + ${slot}) % ${ALIAS_TERMS.length}) + 1]`;
     const alias = (slot: number): string => `${term(slot)} || ' ' || ${brand}`;
@@ -305,18 +454,16 @@ const SERIAL_PAD = 6;
  * The golden `name` for a fixture food. Pure.
  *
  * The trailing zero-padded serial is what makes `normalized_name` unique across 50,000 rows — the
- * vocabulary's cross product is only 7 x 23 x 11 x 17 = 29,491, so a purely lexical name would collide
- * against `food_normalized_name_unique` and the seed would silently insert fewer rows than requested.
+ * vocabulary's cross product is only 7 x 36 x 36 x 36 = 326,592 combinations and the WEIGHTED draw
+ * concentrates most rows on far fewer, so a purely lexical name would collide against
+ * `food_normalized_name_unique` and the seed would silently insert fewer rows than requested.
  *
  * @param kind - Which population the row belongs to (kept in the name so a stray row is traceable).
  * @param index - Zero-based index within that population.
  * @returns The display name.
  */
 export function perfFoodName(kind: PerfFoodKind, index: number): string {
-    const preparation = PREPARATIONS[index % PREPARATIONS.length];
-    const ingredient = INGREDIENTS[index % INGREDIENTS.length];
-    const cut = CUTS[index % CUTS.length];
-    const brand = BRANDS[index % BRANDS.length];
+    const { preparation, ingredient, cut, brand } = perfWords(index);
 
     return (
         `${preparation} ${ingredient} ${cut}, ${brand} ` +
@@ -325,26 +472,19 @@ export function perfFoodName(kind: PerfFoodKind, index: number): string {
 }
 
 /**
- * The SQL expression rendering {@link perfFoodName}. The vocabulary itself is passed as `text[]`
- * parameters rather than inlined, so the word lists above stay the single source of truth.
+ * The SQL expression rendering {@link perfFoodName}. The draw TABLES are passed as `text[]` parameters
+ * rather than inlined, so this side indexes the very array {@link perfWords} indexes.
  *
  * @param kind - Which population the row belongs to.
  * @param column - The series column holding the index.
- * @param params - 1-based placeholder numbers for the preparation, ingredient, cut and brand arrays.
+ * @param params - Placeholder numbers, per {@link PerfWordParams}.
  * @returns A SQL scalar expression producing the name.
  */
-export function perfFoodNameSql(
-    kind: PerfFoodKind,
-    column: string,
-    params: { preparations: number; ingredients: number; cuts: number; brands: number },
-): string {
-    const pick = (param: number, length: number): string => `($${param}::text[])[(${column} % ${length}) + 1]`;
+export function perfFoodNameSql(kind: PerfFoodKind, column: string, params: PerfWordParams): string {
+    const { preparation, ingredient, cut, brand } = perfWordsSql(column, params);
 
     return (
-        `${pick(params.preparations, PREPARATIONS.length)} || ' ' || ` +
-        `${pick(params.ingredients, INGREDIENTS.length)} || ' ' || ` +
-        `${pick(params.cuts, CUTS.length)} || ', ' || ` +
-        `${pick(params.brands, BRANDS.length)} || ' ' || ` +
+        `${preparation} || ' ' || ${ingredient} || ' ' || ${cut} || ', ' || ${brand} || ' ' || ` +
         `'${PERF_KIND_LETTER[kind]}' || lpad(${column}::text, ${SERIAL_PAD}, '0')`
     );
 }
@@ -361,10 +501,7 @@ export function perfFoodNameSql(
  * @returns The description.
  */
 export function perfFoodDescription(index: number): string {
-    const preparation = PREPARATIONS[index % PREPARATIONS.length];
-    const ingredient = INGREDIENTS[index % INGREDIENTS.length];
-    const cut = CUTS[index % CUTS.length];
-    const brand = BRANDS[index % BRANDS.length];
+    const { preparation, ingredient, cut, brand } = perfWords(index);
 
     return (
         `${brand} brand ${ingredient} ${cut}, ${preparation}. Nutrition information for a ` +
@@ -374,15 +511,8 @@ export function perfFoodDescription(index: number): string {
 }
 
 /** The SQL expression rendering {@link perfFoodDescription}; parameters as in {@link perfFoodNameSql}. */
-export function perfFoodDescriptionSql(
-    column: string,
-    params: { preparations: number; ingredients: number; cuts: number; brands: number },
-): string {
-    const pick = (param: number, length: number): string => `($${param}::text[])[(${column} % ${length}) + 1]`;
-    const preparation = pick(params.preparations, PREPARATIONS.length);
-    const ingredient = pick(params.ingredients, INGREDIENTS.length);
-    const cut = pick(params.cuts, CUTS.length);
-    const brand = pick(params.brands, BRANDS.length);
+export function perfFoodDescriptionSql(column: string, params: PerfWordParams): string {
+    const { preparation, ingredient, cut, brand } = perfWordsSql(column, params);
 
     return (
         `${brand} || ' brand ' || ${ingredient} || ' ' || ${cut} || ', ' || ${preparation} || ` +
@@ -531,13 +661,13 @@ export const PERF_FIXTURE_FILENAME = 'perf-fixture.json';
 
 /** The search probes emitted for `search.load.js`, one property per measured worst case. */
 export interface PerfSearchProbes {
-    /** One ingredient word: the broadest FTS match (~`resolvedFoods / 23` rows must all be ranked). */
+    /** One ingredient word: the broadest FTS match, and the ingredient axis's head term. */
     readonly broad: readonly string[];
-    /** Preparation + ingredient: a two-lexeme AND (~`resolvedFoods / 161` rows). */
+    /** Preparation + ingredient: a two-lexeme AND. The head is still the INGREDIENT (English is head-final). */
     readonly phrase: readonly string[];
-    /** Preparation + ingredient + cut: a narrow three-lexeme AND. */
+    /** Preparation + ingredient + cut: a narrow three-lexeme AND, heading on the CUT axis. */
     readonly narrow: readonly string[];
-    /** A brand token: broad match on the independent brand axis. */
+    /** A brand token: broad match on the independent brand axis, which is also its head. */
     readonly brand: readonly string[];
     /**
      * A curated-alias token (U2): matches ONLY through `aliases_search_vector`, because the alias
@@ -575,6 +705,36 @@ export interface PerfFixtureFile {
 }
 
 /**
+ * Which head axis each shape's probes draw their HEAD TERM from — `null` where the head names nothing the
+ * corpus carries, so no head-term retrieval happens at all.
+ *
+ * `describeRankingQuery` takes the LAST token as the head (a typed query is an English noun phrase, which
+ * is head-final), which is why `phrase` heads on its ingredient and `narrow` on its cut. Stated once, as a
+ * total record over the shape set, so adding a shape without saying which axis it heads on is a COMPILE
+ * error rather than a silently unmeasured selectivity regime.
+ */
+export const SHAPE_HEAD_AXIS = {
+    broad: 'ingredient',
+    phrase: 'ingredient',
+    narrow: 'cut',
+    brand: 'brand',
+    alias: 'brand',
+    miss: null,
+    barcode: null,
+} as const satisfies Readonly<Record<keyof PerfSearchProbes, keyof typeof HEAD_TERM_AXES | null>>;
+
+/**
+ * The step a probe set walks its vocabulary with.
+ *
+ * ⚠️ Not 1. The head-bearing vocabularies are ORDERED BY SELECTIVITY, so consecutive words sit in the same
+ * regime and a small probe count would sample only the broadest end of the ladder — every probe expensive,
+ * none typical, which is the mirror of the uniform fixture U30 replaced. 23 is prime and therefore coprime
+ * to every list length here (36, 13, 7), so the walk is a full permutation of each; low-discrepancy, so
+ * even three probes span all three regimes. `perfFixtureDistribution.test.ts` asserts exactly that.
+ */
+const PROBE_STRIDE = 23;
+
+/**
  * Build the search probe set for a seeded population. Pure — the words come from the vocabulary above,
  * so a probe can never name a term the seed does not produce.
  *
@@ -582,7 +742,7 @@ export interface PerfFixtureFile {
  * @returns The probe set.
  */
 export function buildSearchProbes(count: number): PerfSearchProbes {
-    const at = <T>(list: readonly T[], index: number): T => list[index % list.length]!;
+    const at = <T>(list: readonly T[], index: number): T => list[(index * PROBE_STRIDE) % list.length]!;
     const range = Array.from({ length: count }, (_unused, index) => index);
 
     return {

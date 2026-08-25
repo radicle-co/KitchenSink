@@ -1907,18 +1907,39 @@ the change-refresh worker into a sustained consumer of the same window unless se
 
 **Verification.** Component tests green on both platforms; one live sandbox call observed drawing on the reserved lane.
 
-### U30 — SC-007's load fixture vs. the head-term retrieval branch — ⛔ owner ruling needed
+### U30 — SC-007's load fixture vs. the head-term retrieval branch — ✅ BUILT 2026-08-25 (k6 re-baseline owed in CI)
 
-Recorded at `specs/003-usda-food-data/tasks.md:1208`. Commit `8c70d742` added
+Recorded at `specs/003-usda-food-data/tasks.md`. Commit `8c70d742` added
 `OR rank_tokens @> ARRAY[${head}]::text[]` to `FoodSearchDao.relevanceQuery`, and the k6 SC-007 headroom
-fell from 5.6× to 1.5×. Undecided whether the fixture or the query is wrong. **Blocking for the heavy
-tier's credibility** — until it is resolved, an SC-007 pass means less than it did.
+fell from 5.6× to 1.5×.
 
-**Files.** Modify `packages/services/food-service/tests/load/perfFixture.ts`. ⚠️ Re-baseline every SC-007 figure afterwards and record the DELTAS — the current numbers are measurements of a different population, not wrong measurements.
+⛔ **The "fixture OR query" fork was malformed — they are sequential, not alternative.** The fixture is a
+measurement INSTRUMENT; an instrument that does not model the population is wrong whatever it reads, so it
+was corrected first and `8c70d742`'s branch was left exactly as written. Whether the query is too slow is
+then an empirical question for the corrected instrument, answered by k6 — and if it breaches, that is
+reported as a finding, never repaired by re-flattening the fixture.
 
-**Test scenarios.** Generated head-term selectivity matches the real catalog's SHAPE (p50 ≈ 1.89%, tail ≈ 13.75%) rather than a uniform 9.09% · the corpus still reaches 50,000 rows · an anti-vacuity assertion proves every selectivity regime is represented.
+**Built.** New `packages/services/food-service/tests/load/headTermSelectivity.ts` (Zipf ladder + weighted
+draw axis, a value object with two renderings — TypeScript and SQL — over one expanded table);
+`perfFixture.ts` draws its three head-bearing vocabularies through it and they grew 23/11/17 → 36/36/36,
+because an 11-word axis whose mean is 9.09% cannot carry a 1.89% median at any exponent.
 
-**Verification.** k6 SC-007 green at the 500ms budget under the new distribution, with the deltas recorded.
+**Realized:** ingredient tail 13.64% / p50 1.85%, cut 13.68% / 1.88%, brand 13.72% / 1.88% — against
+catalog anchors 13.75% / 1.89%, and against a previous flat 4.35% / 9.09% / 5.88% (ratio 1.00×). Corpus
+still 50,000 distinct rows.
+
+**Tests.** `__tests__/headTermSelectivity.test.ts` (ladder arithmetic, 16 cases),
+`__tests__/perfFixtureDistribution.test.ts` (realized distribution, anti-vacuity regime floors, axis
+independence, FR-010a minimum over the probe data, 23 cases), `tests/perfFixtureDistribution.integration.test.ts`
+(the SQL rendering, `food.rank_tokens`' Postgres-side fold and real `FoodSearchDao.search` retrieval, 10
+cases). Five mutants killed, including "make the generator uniform again".
+
+**⚠️ Still owed.** The k6 SC-007 re-baseline, on the `heavy-e2e` CI runner. k6 ran locally five times
+(both corpora, real script, real service, 50 VUs) and passed the 500ms budget on all four uncontended
+runs — but the `miss`/`barcode` CONTROL shapes, byte-identical between the two fixtures, ranged from 22ms
+to 3.76s across those runs, a factor of 170. This workstation is shared with other agents running full
+monorepo builds, so it cannot produce an SC-007 figure and none of the five is recorded as one. The full
+table and the reasoning are in the tasks.md entry.
 
 ### U31 — `parseIngredientLine` folds measurements into the food name
 

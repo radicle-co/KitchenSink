@@ -47,9 +47,10 @@ import pg from 'pg';
 
 import {
     ALIAS_TERMS,
-    BRANDS,
-    CUTS,
-    INGREDIENTS,
+    BRAND_AXIS,
+    CUT_AXIS,
+    INGREDIENT_AXIS,
+    PERF_RESOLVED_FOODS_DEFAULT,
     PERF_FIXTURE_FILENAME,
     PERF_NUTRIENTS,
     PERF_PORTION_LABELS,
@@ -70,6 +71,7 @@ import {
     perfNormalizedName,
     perfRowIdSql,
     perfSourceIdSql,
+    perfWordsSql,
     requireDisposableDatabaseUrl,
     type PerfFixtureFile,
     type PerfFoodKind,
@@ -79,7 +81,7 @@ const outDir = dirname(fileURLToPath(import.meta.url));
 const connectionString = requireDisposableDatabaseUrl();
 
 /** SC-007's population size. */
-const RESOLVED_FOODS = Math.max(1, Number(process.env['FOOD_PERF_RESOLVED_FOODS'] ?? 50_000));
+const RESOLVED_FOODS = Math.max(1, Number(process.env['FOOD_PERF_RESOLVED_FOODS'] ?? PERF_RESOLVED_FOODS_DEFAULT));
 /** SC-004's warm-store threshold, and the read population for SC-001/SC-005. */
 const READ_TARGETS = Math.min(RESOLVED_FOODS, Math.max(1, Number(process.env['FOOD_PERF_READ_TARGETS'] ?? 5_000)));
 /** The not-served side of the SC-004 ratio. */
@@ -90,9 +92,17 @@ const SEARCH_PROBES = Math.max(1, Number(process.env['FOOD_PERF_SEARCH_PROBES'] 
 
 const pool = new pg.Pool({ connectionString });
 
-/** The vocabulary arrays passed to every rendering statement, in placeholder order after `$1` (the count). */
+/** The word arrays passed to every rendering statement, in placeholder order after `$1` (the count). */
 const VOCAB_PARAMS = { preparations: 2, ingredients: 3, cuts: 4, brands: 5 } as const;
-const vocabValues = [[...PREPARATIONS], [...INGREDIENTS], [...CUTS], [...BRANDS]];
+
+/**
+ * ⛔ The three head-bearing parameters bind the axis's EXPANDED DRAW TABLE, not its vocabulary. The draw
+ * table is what carries the Zipf weighting (plan U30) — binding the 36-word list instead would index it
+ * modulo the axis cycle, land out of range for all but the first 36 slots, and silently return NULL for
+ * every other row. `assertRenderingsAgree` catches that against a real Postgres, but the reason it can
+ * only be the draw table belongs here, next to the binding.
+ */
+const vocabValues = [[...PREPARATIONS], [...INGREDIENT_AXIS.draw], [...CUT_AXIS.draw], [...BRAND_AXIS.draw]];
 
 /**
  * Placeholder number for the {@link ALIAS_TERMS} array. Appended AFTER the existing `$6`-`$8` arguments
@@ -160,6 +170,8 @@ async function insertFoods(
     const name = perfFoodNameSql(kind, 's.i', VOCAB_PARAMS);
     const description = perfFoodDescriptionSql('s.i', VOCAB_PARAMS);
     const aliases = perfFoodAliasesSql('s.i', ALIAS_TERMS_PARAM, VOCAB_PARAMS.brands);
+    // The SAME draw a row's name uses, so `brand_owner` / `brand_name` name the brand in the name.
+    const brand = perfWordsSql('s.i', VOCAB_PARAMS).brand;
     const result = await pool.query(
         `INSERT INTO food (
              id, name, normalized_name, description, aliases, kind, brand_owner, brand_name, barcode,
@@ -171,8 +183,8 @@ async function insertFoods(
                 ${description},
                 ${aliases},
                 CASE WHEN s.i % 3 = 0 THEN 'branded' ELSE 'generic' END::food_kind,
-                CASE WHEN s.i % 3 = 0 THEN ($5::text[])[(s.i % ${BRANDS.length}) + 1] || ' foods, inc.' END,
-                CASE WHEN s.i % 3 = 0 THEN ($5::text[])[(s.i % ${BRANDS.length}) + 1] END,
+                CASE WHEN s.i % 3 = 0 THEN ${brand} || ' foods, inc.' END,
+                CASE WHEN s.i % 3 = 0 THEN ${brand} END,
                 CASE WHEN s.i < $6::int THEN ${perfBarcodeSql('s.i')} END,
                 $7::food_status,
                 -- 'bulk': a synthetic fixture food has no live upstream item, and the change-refresh scan

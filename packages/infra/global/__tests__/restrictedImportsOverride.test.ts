@@ -207,6 +207,7 @@ describe(`the guard is IN FORCE inside ${PROBE_PACKAGE}/src`, () => {
             cwd,
             overrideConfig: { languageOptions: { parserOptions: { project: false, projectService: false } } },
         });
+
         const rulesFor = async (probe: { file: string; source: string }): Promise<readonly (string | null)[]> => {
             const results = await eslint.lintText(probe.source, { filePath: path.join(cwd, probe.file) });
 

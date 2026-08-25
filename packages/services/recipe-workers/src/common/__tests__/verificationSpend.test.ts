@@ -20,6 +20,9 @@ const PLAN = {
     kind: 'priced',
     period: '2026-08',
     modelId: 'amazon.nova-micro-v1:0',
+    // The ADDRESS, equal to the id above for an on-demand model. Present so the ledger's indifference to it is
+    // real rather than accidental: both statements below key on the period alone.
+    invocationId: 'amazon.nova-micro-v1:0',
     worstMicros: 500,
     headroomMicros: 99_999_500,
     rate: {

@@ -34,7 +34,7 @@
   layer 4's bypass claim was corrected and IAM added as layer 4b (§3), and billing denials were separated
   from verification disagreements (§2). Owner rulings, all dated 2026-08-21.
 
-## ⚠️ Before you change this — eight "improvements" that are all wrong
+## ⚠️ Before you change this — ten "improvements" that are all wrong
 
 1. **Do not replace the counter with an AWS Budget, and do not add a Budget _Action_ thinking it closes the
    gap.** It does not. A budget action fires off the same threshold evaluation as the notification, so it
@@ -62,6 +62,15 @@
 8. **Do not write cost logic for `cacheReadInputTokens` / `cacheWriteInputTokens` and assume it runs.** Both
    are `Required: No` on the wire, and at ~660 input tokens prompt caching **cannot engage on any
    candidate**. See Decision §5.
+9. **Do not collapse `plan.invocationId` back into `plan.modelId` "because they are the same string".** They
+   are the same string for every on-demand model and can never be for a profile-only one, which is precisely
+   why the conflation survived undetected. And do not "tidy" the inference-profile grant into one statement,
+   or drop its `bedrock:InferenceProfileArn` condition — two statements on one role is AWS's own
+   least-privilege shape and is not a layer-4b breach. See Decision §4b.
+10. **Do not sub-divide the ceiling per consumer, and do not put `CallSite` on the alarm.** The pool is one
+    number (owner ruling, KTD-17); the dimension exists so an emptied pool can be attributed, and it rides on
+    the metric alone. Appending it to the emitter's only dimension set deletes the aggregate series the
+    ceiling alarm watches. See Decision §4c.
 
 ## Context
 
@@ -363,6 +372,109 @@ evaluate if the volume ever justifies revisiting.
 ⚠️ Accepted consequence: the gate now shares a single-AZ NAT instance with 16 other Lambdas, so an AZ
 failure takes it down with them. At `reservedConcurrency = 1` and ~1 KB per call, throughput is not the
 concern; availability is, and the answer is that this is an async off-queue path whose messages wait.
+
+### 4b. The invocation id is NOT the rate-table key, and the IAM grant follows the registry — added 2026-08-25
+
+The gate used **one string for two jobs**: the rate-table key and recorded model identity, and the id
+`Converse` is called with. For every on-demand model those coincide, which is why it went undetected. Claude
+Haiku 4.5 reports `inferenceTypesSupported: ["INFERENCE_PROFILE"]`, so its bare id is refused with
+`ValidationException: Invocation of model ID … with on-demand throughput isn't supported`, while the profile
+id `us.anthropic.claude-haiku-4-5-20251001-v1:0` is not a rate-table key and fails closed as `unpriced`.
+**Pointing the SSM parameter at Haiku failed every call in either direction** — a config change, no deploy.
+
+**The split.** `BEDROCK_MODEL_REGISTRY` (the rate table, which §2 already treats as the authorization
+boundary: "with no rate there is no worst case") now carries `invocation.invocationId` beside each entry's
+`rate`, and `planReservation` resolves both in ONE read. `PricedReservation` carries the address alongside
+the captured period and the captured rate, for the same reason those are captured: a mid-call SSM change
+cannot split the id that was PRICED from the id that was CALLED. `verifyLine` passes `plan.invocationId` to
+`converse` and keeps `plan.modelId` at all three recording sites (`model_id` on the verdict, `verified_by`
+on the memo, and the log). Nova Micro's recorded identity is byte-identical to before.
+
+⚠️ **The recorded id must stay bare.** Memos are upserted per phrase, so a `verified_by` that drifted to the
+profile spelling would produce a silent MIX of two identities for one model rather than an error. The unit
+suite asserts the recorded halves explicitly for exactly that reason.
+
+**The grant had to move with it.** `IngredientVerificationRole` held one statement —
+`arn:aws:bedrock:<region>::foundation-model/*`. An inference profile is a **different resource type**
+(`inference-profile`) and is **account-scoped** where a foundation model is account-less; invoking one routes
+the call to foundation models in regions the caller never names (`us.` from us-east-1 reaches us-east-1,
+us-east-2 and us-west-2, read from `aws bedrock get-inference-profile` on 2026-08-23). ⛔ **Fixing only the
+code would therefore have converted a `ValidationException` that names the problem into an `AccessDenied`
+that does not.**
+
+The ARNs are DERIVED from the registry by a pure helper (`infra/lib/bedrockInvokePolicy.ts`) in AWS's
+documented least-privilege shape — **two statements on the one role**, per profile:
+
+| Statement | Resources                                                         | Condition                                          |
+| --------- | ----------------------------------------------------------------- | -------------------------------------------------- |
+| existing  | `arn:aws:bedrock:<region>::foundation-model/*`                    | none                                               |
+| profile   | `arn:aws:bedrock:<region>:<account>:inference-profile/<profile>`  | none                                               |
+| fan-out   | `arn:aws:bedrock:<each reached region>::foundation-model/<model>` | `StringLike bedrock:InferenceProfileArn = profile` |
+
+The condition is load-bearing: without it the fan-out statement would also authorize a **direct** invocation
+of that model in us-west-2 — reach nothing in the registry asked for. The statements are per-profile so one
+profile cannot borrow another's regions. No wildcard is emitted: the registry is compile-time, so every
+profile ARN is enumerable.
+
+⚠️ **Two statements on one role is not a layer-4b breach.** That control's invariant is over GRANTEES and
+ACTIONS, never statement count — `llmSpendGuards.test.ts` records that an earlier `grants.length === 1`
+assertion was three defects in one line and was "what blocked adopting AWS's documented least-privilege shape
+for inference profiles". The grantee set is unchanged: still exactly `verificationRole`, still only
+`bedrock:InvokeModel`.
+
+⚠️ **The `foundation-model/*` wildcard's stated justification no longer holds, and it stays for a weaker
+reason.** This ADR justified it as irreducible because "the model id comes from SSM and cannot be resolved at
+synth time". Under this change the registry IS enumerable at synth time, so the same argument would shrink
+that wildcard too. It stays because narrowing a shipped, cdk-nag-suppressed, currently-green statement is a
+separate change with its own blast radius — not because it is irreducible. The nag suppression was
+deliberately NOT widened to cover the new statements; they enumerate every ARN they grant.
+
+⛔ **RESIDENCY IS STILL OPEN, AND IS NOT GATED BY IAM.** `residencyClearance` exists in
+`spendArithmetic.ts` and no shipped entry carries a `residencyApproval` warrant, but **nothing calls it yet** —
+neither `planReservation` nor this derivation. The grant follows registry MEMBERSHIP, which keeps the
+permission and the caller from disagreeing about which models exist, and means the control against routing
+recipe text to us-east-2/us-west-2 is currently the registry entry plus the SSM parameter, **not** the IAM
+policy. That is weaker than the registry's own comment implies, and it is recorded here rather than left to
+be discovered: AWS documents that with cross-region inference "your input prompts and output results may be
+stored in the opt-in Regions for abuse detection purposes", so the question is about where user text comes to
+REST, not only where it is processed, and feature 016 is its home. **Wiring `residencyClearance` into
+`planReservation` and into this derivation must land as ONE change**, or IAM will grant what the runtime
+refuses (or the reverse).
+
+⚠️ **None of this has been exercised against a live profile call.** No profile-backed model is invocable on
+this account (Anthropic's Bedrock use-case form is an account action, out of scope), so both halves are proved
+only by unit tests and synthesized-template assertions. The bake-off says nothing about it either: it runs
+under credentials that BYPASS this role, and it keeps its own `INVOCATION_IDS` map — which is why the
+conflation survived a full measurement pass. That second map stays, deliberately: the runner is an operator
+script that already sits outside this ceiling by design.
+
+### 4c. The ceiling is ONE global pool, and spend is ATTRIBUTED rather than PARTITIONED — added 2026-08-25
+
+Owner ruling, 2026-08-24 (KTD-17): the **$100/month is a single pool**, first come first served, shared by the
+verification gate, the ingredient parse leg and 017's capture tiers. It is not sub-divided per consumer — the
+same reasoning that rejected the daily sub-ceiling in §3: a second cap denies legitimate work and never
+enforces the figure it sits under.
+
+⛔ **Not capping per consumer makes attribution MORE important, not less.** When the pool empties, the first
+question is "who burned it", and a dimensionless `VerificationSpendMicros` cannot answer it. So the spend
+metric carries a `CallSite` **EMF dimension** (`verification-gate` today), and nothing else changes: the
+counter row stays keyed on the period alone, and no call site reaches `planReservation`, the headroom, or
+either SQL statement. Attribution, not partitioning — asserted directly, by pinning the full field set of the
+plan handed to `reserve`.
+
+⚠️ **It is a second dimension SET, not a second key on the only set** — `[['Stage'], ['Stage','CallSite']]`.
+EMF publishes only the dimension sets its directive lists; there is no dimensionless rollup underneath them.
+Appending `CallSite` to the single `['Stage']` set would have DELETED the aggregate series, and
+`VerificationSpendAlarm` — which selects `Stage` alone — would have sat at a permanently confident `OK` with
+`treatMissingData: NOT_BREACHING` and no datapoints. That failure has shipped in this repo before
+(`serviceInfraWiringInvariants.test.ts` W4, and both deployed `kitchensink-erasure-incomplete-*` alarms). The
+cautionary case in the other direction is `source-rolling-window-count`, which carries a `source` dimension
+and **no** `stage`, so prod and every preview co-mingle into one series and no call can be attributed at all.
+
+The dimension key space is a closed TypeScript union (`RecipeMetricDimension`), so cardinality grows by
+release rather than by traffic, and `callsite` is admitted to the repo-wide facet allowlist with that bound
+stated. The alarm is deliberately left on the aggregate: a threshold evaluated per consumer against a pool
+none of them owns exclusively would read green at 60% each while the pool is 20% over.
 
 ### 5. Cache-token accounting must be defensive, not expectant
 

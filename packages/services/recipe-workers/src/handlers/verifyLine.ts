@@ -101,6 +101,22 @@ export const VERIFICATION_METRIC_NAMESPACE = 'Commise/RecipeVerification';
  */
 export const SPEND_METRIC_NAME = 'VerificationSpendMicros';
 
+/**
+ * WHO the spend is attributed to — the `CallSite` dimension's value for this gate (U36 / KTD-17).
+ *
+ * ⛔ ATTRIBUTION, NOT PARTITIONING. The owner's 2026-08-24 ruling makes ADR-0024's $100/month a single global
+ * pool shared with the ingredient parse leg and 017's capture tiers, first come first served. Not capping per
+ * consumer makes it MORE important to know which one spent, not less: when the pool empties, "who burned it"
+ * is the first question and a dimensionless {@link SPEND_METRIC_NAME} cannot answer it.
+ *
+ * ⚠️ The dimension rides on the METRIC and nowhere else. Nothing about the reservation — the ceiling, the
+ * worst case, the headroom, or the counter row (keyed on the period alone) — may learn about the call site, or
+ * one pool silently becomes several of unstated size. `source-rolling-window-count` is the cautionary case in
+ * the other direction: it carries a `source` dimension and no `stage`, so prod and every preview co-mingle
+ * into one series and no call can be attributed at all.
+ */
+export const VERIFICATION_CALL_SITE = 'verification-gate';
+
 /** Fires when a settlement failed, i.e. a reservation stands unrefunded. ADR-0024 asks for exactly this. */
 export const SETTLE_FAILURE_METRIC_NAME = 'VerificationSettleFailures';
 
@@ -152,6 +168,30 @@ function evidenceFrom(message: VerifyIngredientLineMessage): IdentityEvidence {
 /** Publish one metric under this gate's namespace. */
 function publish(deps: VerificationDeps, name: string, value: number, unit: EmfMetric['unit'] = 'Count'): void {
     deps.emit({ namespace: VERIFICATION_METRIC_NAMESPACE, name, unit, stage: deps.stage, value });
+}
+
+/**
+ * Publish the dollar metric, attributed to this call site.
+ *
+ * Separate from {@link publish} rather than an extra parameter on it: only the SPEND metric is a claim on
+ * ADR-0024's shared pool, and only a claim on a shared pool needs a claimant. The settle-failure and
+ * cache-token metrics are facts about this worker alone, and giving them a `CallSite` would double their
+ * billed series to say nothing.
+ *
+ * @param deps - The handler's collaborators.
+ * @param micros - The period's reserved total, or this call's actual cost where the counter is bypassed.
+ * @sideEffect Emits one EMF line.
+ */
+function publishSpend(deps: VerificationDeps, micros: number): void {
+    deps.emit({
+        namespace: VERIFICATION_METRIC_NAMESPACE,
+        name: SPEND_METRIC_NAME,
+        // CloudWatch has no currency unit — see `common/metrics.ts`. The denomination is in the metric NAME.
+        unit: 'None',
+        stage: deps.stage,
+        value: micros,
+        dimensions: { CallSite: VERIFICATION_CALL_SITE },
+    });
 }
 
 /**
@@ -288,7 +328,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
             throw new Error(`verification ceiling reached for ${reservation.period}; the call was not made`);
         }
 
-        publish(deps, SPEND_METRIC_NAME, reservation.reservedMicros, 'None');
+        publishSpend(deps, reservation.reservedMicros);
     }
 
     // 5. The call.
@@ -296,7 +336,12 @@ export async function processVerification(deps: VerificationDeps, message: Verif
 
     try {
         outcome = await deps.bedrock.converse({
-            invocationId: plan.modelId,
+            // ⛔ THE ADDRESS, NOT THE IDENTITY (U35). `plan.modelId` is what the model IS — the registry key,
+            // and what the verdict and the memo record below. `plan.invocationId` is how Bedrock is REACHED,
+            // which for a profile-only model is an `inference-profile` id that is not a model id at all.
+            // Passing `modelId` here is what made Claude Haiku 4.5 fail in both directions at once: the bare
+            // id is refused with `ValidationException`, and its profile id has no rate-table entry.
+            invocationId: plan.invocationId,
             systemPrompt: prompt.system,
             userMessage: prompt.user,
             maxOutputTokens: VERIFICATION_MAX_OUTPUT_TOKENS,
@@ -332,7 +377,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     if (!gated) {
         // The dollar metric is emitted in EVERY stage — it costs one log line and it is the only visibility on
         // the ungated ~$88/month/stage exposure ADR-0024 accepts.
-        publish(deps, SPEND_METRIC_NAME, usage === undefined ? 0 : actualCostMicros(plan.rate, usage), 'None');
+        publishSpend(deps, usage === undefined ? 0 : actualCostMicros(plan.rate, usage));
     }
 
     // 7. Read the answer, and record it. Every path from here is TERMINAL.

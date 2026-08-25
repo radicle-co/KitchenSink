@@ -32,7 +32,13 @@ import {
     subscribeAlarmEmail,
 } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
-import { DEFAULT_MONTHLY_CEILING_MICROS, NOVA_MICRO_MODEL_ID } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import {
+    BEDROCK_MODEL_REGISTRY,
+    DEFAULT_MONTHLY_CEILING_MICROS,
+    NOVA_MICRO_MODEL_ID,
+} from '@kitchensink/recipe-core/spend/spend-arithmetic';
+
+import { inferenceProfileStatements } from './bedrockInvokePolicy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -831,6 +837,41 @@ export class RecipeWorkersStack extends Stack {
                 ],
             }),
         );
+
+        // ⛔ THE GRANT FOLLOWS THE REGISTRY (U35). The statement above authorizes on-demand models in THIS
+        // region; a profile-only model is invoked through an `inference-profile` ARN — a different resource
+        // type, account-scoped — that routes to foundation models in regions this stack never names. Deriving
+        // the ARNs from `BEDROCK_MODEL_REGISTRY` is what keeps the permission and the caller from disagreeing
+        // about which models exist, since the registry is already the authority for that (ADR-0024).
+        //
+        // ⚠️ TWO statements per profile, which is AWS's documented least-privilege shape and NOT a layer-4b
+        // breach: that gate's invariant is over GRANTEES and ACTIONS, never statement count. See
+        // `infra/lib/bedrockInvokePolicy.ts` for why the `bedrock:InferenceProfileArn` condition is
+        // load-bearing rather than decoration.
+        for (const statement of inferenceProfileStatements(BEDROCK_MODEL_REGISTRY, (parts) =>
+            Stack.of(this).formatArn({ service: 'bedrock', ...parts }),
+        )) {
+            verificationRole.addToPolicy(
+                new iam.PolicyStatement({
+                    actions: ['bedrock:InvokeModel'],
+                    resources: [...statement.resources],
+                    ...(statement.throughInferenceProfileArns === undefined
+                        ? {}
+                        : {
+                              conditions: {
+                                  StringLike: {
+                                      'bedrock:InferenceProfileArn': [...statement.throughInferenceProfileArns],
+                                  },
+                              },
+                          }),
+                }),
+            );
+        }
+
+        // ⚠️ SCOPED TO THE WILDCARD IT ALWAYS COVERED, and deliberately not widened. The statements added above
+        // enumerate every ARN they grant, so they raise no wildcard finding of their own and need no
+        // suppression; extending this to cover them would suppress a finding that does not exist yet and
+        // silence the one it WOULD raise if a future entry were ever written with a `*`.
         acceptNagFindings(verificationRole, AcceptedNagFindings.VERIFICATION_BEDROCK_MODEL_WILDCARD, {
             applyToChildren: true,
         });

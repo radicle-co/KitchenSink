@@ -62,6 +62,14 @@ export type { HexDigest };
  * what order, or how it normalizes. Not bumping it is the silent re-partition described in the header: every
  * stored row becomes unreachable, every new row collides with nothing, and NOTHING errors.
  *
+ * ⛔ AND WHENEVER THE STORED PAYLOAD'S SHAPE CHANGES — added U22, because the key alone does not cover it and
+ * the omission is not obvious. `ingredient_parse_cache.parse` holds `ParsedFacts`, read back through a
+ * `strictObject` (`recipe-import-core`'s `storedParseFacts.ts`). Add a fact to that contract without bumping
+ * here and every stored row silently becomes a MISS — both engines re-invoked for every line, and the only
+ * symptom is a bill. Read it back permissively instead and it is worse: an incomplete parse served as a
+ * complete one. Bumping is the lever that makes the old generation inert AND enumerable, which is exactly what
+ * this constant is for.
+ *
  * ⚠️ It has never been bumped. When it is, say WHY here — `VERIFICATION_KEY_VERSION`'s `v2` note is the model:
  * a future reader needs to know which generation their historical rows belong to and what changed under them.
  */

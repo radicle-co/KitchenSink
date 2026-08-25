@@ -219,6 +219,45 @@ prompt, the answer schema and the normalization live in `recipe-core/parsing/*`,
 governance — genuinely different knowledge, and ADR-0024 §4b sanctions the bake-off's ungated path by name
 (_"the runner is an operator script that already sits outside this ceiling by design"_).
 
+#### Update (2026-08-25) — it LANDED, and every port is BATCH
+
+`parsePipeline.ts` now exists at the address above, and the one shape decision it forced is recorded here
+because the plan's wording invites the opposite. **Every port is batch — a list of lines in, one answer per
+line out — except the correction tier, which is per-line.** The direction is what decides it:
+
+- `ingredient-parser`'s `engineRequestSchema` takes `lines: array().min(1).max(200)` and answers "one result
+  per submitted line, in the order they were submitted", with failure **per line** because "a batch of 200
+  must not lose 199 parses to one sentence the CRF chokes on".
+- `cookbook-import`'s local sidecar runs ONE Python process for a whole corpus, because per-line spawning
+  "would turn a two-second job into a quarter of an hour".
+- `ParseCacheDal.findForLines` was already a batch read, and its own docstring calls it "the pipeline's
+  hottest read" — it was written for this caller before this caller existed.
+
+⛔ A per-line `parse(line)` port would therefore be an Adapter that ADDS behaviour: it would have to hide a
+scheduler, or invoke the Lambda once per line and pay a cold start each time, against a contract whose own
+docstring calls an empty batch "a caller defect (it costs a cold start to answer nothing)". **A batch port can
+be honestly served by a loop; a per-line port cannot be honestly served by a batch transport.** The
+corrections port stays per-line for the same rule applied honestly — `findInForce` is a per-line read and
+there is no batch transport for it to hide — and the pipeline issues those reads concurrently instead.
+
+Three consequences worth stating, because each is a place the obvious simplification is wrong:
+
+- **A PARTIAL cache hit calls only the missing engine**, and that is REQUIRED rather than merely permitted:
+  `parseKey.ts` describes a version bump as leaving "every LLM row … to be re-compared against the new
+  pairing", which IS a partial hit. Both-or-neither would discard the surviving half on every bump — the
+  opposite of what the composite key was built for. Independence is untouched, because a cached row was
+  produced without seeing the other engine and re-running the other engine cannot poison a row that
+  already exists.
+- **Lines sharing a `lineDigest` are asked about ONCE**, and each position still keeps its own `raw`. The
+  digest is the definition of "the same line"; it is not the definition of "the same string", and HAZ-041 is
+  about the string.
+- **A mispaired batch THROWS; a rejected batch is absence.** A batch that answered the wrong NUMBER of lines
+  is a defect in the adapter — every answer after the gap is paired with the wrong line, which
+  `crfProcess.ts` records as the one failure that "corrupts the headline result silently and totally" — so
+  there is no correct partial reading of it. A batch that REJECTED is a runtime condition and is
+  `single-engine` for every line in it, which is what §3 requires and what this ADR already predicts for a
+  CRF leg that fails to import.
+
 ⛔ **`cookbook-import` gets Null Objects for the cache and the correction tier, deliberately, and must not
 acquire a database.** Its manifest carries no `pg` and no `drizzle-orm`, and reaching the recipe service's
 DALs over HTTP would mean a new wire surface plus everything ADR-0014 and GR-017 attach to one — for a
@@ -333,6 +372,37 @@ error there — the membership decision must be argued in its comment, as the ex
   sentence"_. HAZ-041 needs byte-identical source text, so the promotion adapters take `raw` as a
   **parameter** rather than reading `reading.sentence`. The underlying contradiction is unresolved and is
   owed a decision by whoever owns those two files.
+- ✅ **A THIRD contract defect of the same invisible kind — FOUND and REPAIRED 2026-08-25, with U22's
+  orchestration.** `ingredient_parse_cache.parse` is documented in two places that cannot both be honoured.
+  `line_digest` calls itself "the ONLY representation of the cook's line that is stored anywhere in this
+  table" — which is the whole of KTD-14's argument for the table having no owner column and being absent
+  from the erasure sweep — while `CachedParsePayload`, written before `ParsedLine` existed, promised "when
+  U16 lands, this alias becomes `ParsedLine`". `ParsedLine.raw` IS the cook's line byte-identical (HAZ-041),
+  so honouring the second sentence would have put the line in the table and retired the erasure argument
+  with nothing failing. **The digest sentence wins**, and the sibling table had already ruled the same way:
+  `CorrectedParse`'s docstring says it is `ParsedFacts` "and deliberately NOT the wider `ParsedLine` …
+  Storing `raw` here would put a SECOND copy of the erasable text in a column no sweep touches." The stored
+  payload is therefore `ParsedFacts` for BOTH tables, enforced by a `strictObject` that REFUSES a payload
+  carrying `raw` (`recipe-import-core`'s `storedParseFacts.ts`), and the stale comment was corrected in the
+  same change. ⚠️ Two derivations follow from it, and the second is the load-bearing one: `provenance` comes
+  from the row's own `engine` column, and `reviewReasons` is RE-DERIVED through `readStatedMeasure` rather
+  than stored — because `engineVersion` is "the CRF package + model pin, or the LLM's model id + prompt
+  version" and does NOT cover our own reader, so a stored copy would be frozen under a key that cannot
+  re-partition it. `PARSE_KEY_VERSION`'s docstring was amended to say that a change to the PAYLOAD SHAPE is
+  also a reason to bump, which its stated trigger did not cover.
+- ⚠️ **The `cookbook-import` wiring is OBSERVATIONAL, and stays that way until U23's oracle lands.** The
+  pipeline reads every accepted ingredient line in one batch and the run RECORDS what the two engines
+  amounted to; it does not decide what goes on the wire, and `__tests__/runImport.test.ts` asserts the create
+  requests are byte-identical with the observation on and off. Two reasons, and both have to stop holding
+  before that changes. The first is this document's own residual risk above — the winner rule is
+  observe-only. The second is newly found and is the one a future reader will trip on: **substituting the
+  pipeline's reading would DETACH R35's disclosure from the values it discloses.** `restateHistoricalUnit`
+  rewrites a line's `quantity`/`unit` INSIDE `toCandidateRecipe`, and `buildDescription` states that
+  conversion in the recipe's persisted description — so a naive substitution would publish an un-restated
+  `1 gill` under a description claiming the measures were converted. It fires on exactly the historical
+  measures `llmRescuedTheMeasure` exists to rescue. Promoting the pipeline to the authority therefore needs
+  the oracle AND a rebuild of the restatement and the description FROM the pipeline's reading, not beside it.
+  ⚠️ The observation is also OFF by default (`--parse-pipeline`), because it spends against the one $100 pool.
 - ⚠️ **The packaging guard is NEW, not proven.** It was written for this change, so it has never caught
   anything in anger. `handle-sync-worker` — 4.6 KB of raw `tsc` output, dying on every cold start with
   `ERR_MODULE_NOT_FOUND` while two guard tests watched — is the precedent for what an unguarded Lambda asset

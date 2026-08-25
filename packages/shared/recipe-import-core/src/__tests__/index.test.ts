@@ -81,7 +81,24 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // are. The gate used to hold its own `NOT_A_MEASURE` copy; the guard needed the same vocabulary
         // to tell `for five minutes` from `with two eggs`, and two copies across a package boundary is
         // exactly the drift the DRY rule is about. `namesNoFood` stays private: only the segmenter asks it.
+        //
+        // ⚠️ GREW BY THREE in U22's phase 4 — the orchestration — and two of them are NOT functions, which
+        // is why the control below was AMENDED rather than left alone. `runParsePipeline` is the order
+        // (correction, then cache, then both engines together); `NO_CACHE` and `NO_CORRECTIONS` are Null
+        // Objects, and a consumer with no database must be able to say so EXPLICITLY, because every port on
+        // `ParsePipelineDeps` is required (KTD-18) precisely so that a forgotten tier is a compile error
+        // rather than a silently degraded pipeline. Publishing the run without them would leave that
+        // consumer with no legal way to construct one. See the amended control below for why admitting them
+        // does not weaken it.
+        //
+        // ⛔ `cachedFactsOf`, `readCachedParseFacts`, `rehydrateEngineParse` and `cachedParseFactsSchema`
+        // are deliberately NOT here, for the reason `readStatedMeasure` is not: they are how the PIPELINE
+        // reads and writes a cache row, and the cache ADAPTER behind `ParseCachePort` never touches them —
+        // it stores the payload it is handed and returns the payload it read, as `unknown`. Putting the
+        // schema on the door would also put a non-function there for no caller at all.
         expect(Object.keys(publicApi).sort()).toEqual([
+            'NO_CACHE',
+            'NO_CORRECTIONS',
             'compareParses',
             'corruptsStatedValue',
             'dropTrailingInstruction',
@@ -96,14 +113,46 @@ describe('@kitchensink/recipe-import-core barrel', () => {
             'promoteCrfReading',
             'promoteLlmParse',
             'roundToQuantityStorageScale',
+            'runParsePipeline',
             'sanitizeToPlainText',
             'segmentClause',
             'splitMeasurement',
         ]);
     });
 
-    it('exports every entry point as a function', () => {
+    /**
+     * The two Null Objects U22 publishes, named here so the control below stays a CLOSED exception.
+     *
+     * ⛔ Adding a name to this list is a decision, not a formality: everything else on this door is
+     * behaviour, and the moment a plain constant or a regex is admitted "because the list already has
+     * exceptions" the control has stopped meaning anything. `HISTORICAL_UNIT_DEFINITIONS`, `VESSELS` and
+     * `modifierLexicon`'s word sets were all kept OFF the barrel rather than added here.
+     */
+    const NULL_OBJECT_EXPORTS: readonly string[] = ['NO_CACHE', 'NO_CORRECTIONS'];
+
+    it('exports every entry point as a function, or as a Null Object whose every member is one', () => {
+        // ⚠️ AMENDED in U22, and STRENGTHENED in the same edit rather than merely relaxed. The original
+        // rule — "every export is a function" — kept data off the door, and the reason it is worth having
+        // is that a value on a package's public surface is a value every consumer can come to depend on
+        // and nothing can evolve. A Null Object is not that: it is an IMPLEMENTATION of a published port,
+        // carrying no state and no data, and `ParsePipelineDeps` requiring every port (KTD-18) is exactly
+        // what makes it necessary rather than convenient.
+        //
+        // So the exception is narrow and it pays for itself: an admitted export must be one of the two
+        // NAMED Null Objects, every one of its own members must be a function, and it must be FROZEN — so
+        // "no data on this door" still holds, and a consumer cannot reassign a method on a singleton every
+        // other consumer shares.
         for (const [name, value] of Object.entries(publicApi)) {
+            if (NULL_OBJECT_EXPORTS.includes(name)) {
+                expect(Object.isFrozen(value), `${name} should be frozen`).toBe(true);
+
+                for (const [member, implementation] of Object.entries(value as unknown as Record<string, unknown>)) {
+                    expect(typeof implementation, `${name}.${member} should be a function`).toBe('function');
+                }
+
+                continue;
+            }
+
             expect(typeof value, `${name} should be a function`).toBe('function');
         }
     });

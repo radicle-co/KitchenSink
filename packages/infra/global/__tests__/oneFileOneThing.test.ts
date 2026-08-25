@@ -106,16 +106,21 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'nothing a reader wants — the file is named for the taxonomy, not for one member of it. The exemption ' +
             'covers the SHAPE, not the path: a file must hold the taxonomy and nothing else, which is why ' +
             '`authState.ts` does NOT appear here — it is a state module that merely happened to declare two error ' +
-            'classes, so its errors were moved out to `authState.errors.ts` and the state model stayed behind.',
+            'classes, so its errors were moved out to `authState.errors.ts` and the state model stayed behind. ' +
+            'GREW 2026-08-25 (U29): the on-demand USDA lane added `SourceUnavailableError` (an outage we can say ' +
+            'nothing about) and `SourceBusyError` (a rate refusal that names when to come back) as DISTINCT ' +
+            'members, because the picker renders two different sentences and a cook takes two different actions; ' +
+            '`SearchQueryTooShortError` came with FR-010a. Each is a new failure the boundary can raise, which is ' +
+            'the exempted unit — not a second subject in the file.',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
-            { file: 'packages/clients/food-service/src/errors.ts', classes: 10, components: 0 },
-            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 11, components: 0 },
+            { file: 'packages/clients/food-service/src/errors.ts', classes: 11, components: 0 },
+            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 13, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 2, components: 0 },
-            { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 5, components: 0 },
+            { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/seed/clearCli.errors.ts', classes: 4, components: 0 },
             { file: 'packages/services/food-service/src/foods/seed/reseedCli.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/recipe-service/src/ingredients/unlinkCli.errors.ts', classes: 2, components: 0 },

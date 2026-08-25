@@ -2,10 +2,10 @@
  * `LiveFoodSearchService` — the ON-DEMAND source search behind the ingredient picker's
  * "Search USDA for '…'" affordance (plan U29; ingredient-search plan §2 Stage 3). It is the ONLY
  * read path in this service that leaves our own database: every other search
- * ({@link FoodsService.search}) is a local Postgres query over the seeded golden catalog.
+ * (`FoodsService.search`) is a local Postgres query over the seeded golden catalog.
  *
  * **Pattern.** A Facade over the adapter Registry + the rolling-window Strategy + the crosswalk DAO,
- * kept out of {@link FoodsService} on purpose: that class owns the LOCAL store's lifecycle (read,
+ * kept out of `FoodsService` on purpose: that class owns the LOCAL store's lifecycle (read,
  * enqueue, resolve, refetch), and an outbound, quota-charging, source-failure-bearing read is a
  * different responsibility with a different failure taxonomy. Folding it in would give one class two
  * reasons to change and hand every local read the source's error paths.

@@ -44,7 +44,7 @@ export interface CheckAndRecordInput {
     channel: SourceCallChannel;
     /**
      * The caller's ceiling for the trailing window. ⚠️ This is the LANE's cap, not the source's hard cap:
-     * {@link RollingWindowLimiter} passes the 90% pause threshold for `worker` and the hard cap for
+     * `RollingWindowLimiter` (`sources/RollingWindowLimiter.ts`) passes the 90% pause threshold for `worker` and the hard cap for
      * `interactive`. The COUNT it is compared against is still the whole window's — see the class doc.
      */
     cap: number;
@@ -85,7 +85,7 @@ export class SourceCallLogDao {
      * lanes spend one budget: narrowing the count to `WHERE channel = $channel` would give each lane its own
      * full cap and let the two together reach 2x the key's real limit, an SC-002 breach that reads as
      * perfectly correct in isolation. The lane's only effect is which ceiling the caller may push that ONE
-     * count to — see {@link RollingWindowLimiter} for the two ceilings and why they differ.
+     * count to — see `RollingWindowLimiter` (`sources/RollingWindowLimiter.ts`) for the two ceilings and why they differ.
      *
      * ⚠️ The advisory lock key is `source` alone, NOT `(source, channel)`. Keying it per-lane would let two
      * lanes hold different locks while counting the same rows, so each could read a pre-insert count and both

@@ -158,7 +158,7 @@ export const recipeErrorCodeSchema = z.enum([
     /**
      * The upstream food-data source did not answer the on-demand live search — a `502`.
      *
-     * ⛔ Deliberately distinct from {@link SOURCE_BUSY} rather than a second spelling of it. That one is a
+     * ⛔ Deliberately distinct from `SOURCE_BUSY` rather than a second spelling of it. That one is a
      * rate refusal that names when to come back; this one is an outage we can say nothing about. The picker
      * renders two different sentences and a cook takes two different actions.
      */

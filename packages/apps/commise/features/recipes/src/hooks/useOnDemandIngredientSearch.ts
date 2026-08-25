@@ -13,7 +13,7 @@
  * the same mistake, and the last one is the most tempting because it fires on exactly the queries a cook is
  * least likely to abandon.
  *
- * It composes INSIDE {@link useIngredientResolver} rather than being called by each leaf, so a leaf gets one
+ * It composes INSIDE `useIngredientResolver` rather than being called by each leaf, so a leaf gets one
  * hook and one view model, and the two platforms cannot disagree about the trigger.
  *
  * @implements FR-010a

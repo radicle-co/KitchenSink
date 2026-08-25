@@ -20,7 +20,7 @@
  */
 import { quantityLowerBound, quantityUpperBound, type IngredientQuantity } from '@kitchensink/recipe-core';
 
-import type { MeasureSystem } from '@kitchensink/recipe-import-core';
+import type { MeasureSystem, ParseAgreement } from '@kitchensink/recipe-import-core';
 
 import type { IngredientResolutionKind } from './resolveIngredient.js';
 import type { RecipeSkipReason } from './proseRecipe.js';
@@ -64,6 +64,62 @@ export interface HistoricalEquivalenceUse {
     readonly statedAs: string;
     /** How many ingredient lines this equivalence converted. */
     lines: number;
+}
+
+/** What the two engines' answers to one line amounted to. */
+type ParseAgreementKind = ParseAgreement['kind'];
+
+/**
+ * What the two-engine parse pipeline concluded about the lines this run imported (U22).
+ *
+ * ⛔ OBSERVATION, not authority. Nothing here decides what was sent — see `runImport.ts`'s header on why the
+ * winner rule is observe-only until U23's oracle lands. These are the numbers that oracle is calibrated
+ * against, which is precisely why they must not be inflated by anything they do not describe.
+ */
+export interface ParseObservationData {
+    /** Ingredient lines the pipeline read. */
+    lines: number;
+    /**
+     * Lines by what the two engines' answers amounted to.
+     *
+     * ⛔ `single-engine` is NOT `differ` (KTD-12). An engine that threw, or a call the spend ceiling denied,
+     * is ABSENCE — folding it into disagreement would inflate that rate by however often an engine was down,
+     * and no later reader could separate the two out of the corpus.
+     */
+    readonly agreement: Record<ParseAgreementKind, number>;
+    /**
+     * Lines a human correction answered.
+     *
+     * ⛔ Counted APART from {@link ParseObservationData.agreement}, and never inside it: a cook is neither
+     * engine, so their answer is not an adjudication and must not enter a rate no engine contributed to.
+     */
+    corrected: number;
+    /** Per-engine answers served from the cache rather than from an engine call. */
+    cacheHits: number;
+    /** Micro-dollars the model leg spent, as ITS OWN adapter counted them. */
+    spentMicros: number;
+    /** Tier failures reported, by tier — "we could not look", never "we looked and found nothing". */
+    readonly tierFailures: Record<string, number>;
+    /** Stored rows that could not be read, by store. A superseded generation, not an outage. */
+    readonly unreadablePayloads: Record<string, number>;
+    /** A handful of lines the two engines read differently, verbatim — the input U23's oracle adjudicates. */
+    readonly disagreements: { line: string; fields: string[] }[];
+}
+
+/** The empty observation. */
+export function emptyObservation(): ParseObservationData {
+    return {
+        lines: 0,
+        // ⛔ A TOTAL record over the agreement union, so a member added to `ParseAgreement` is a compile
+        // error here rather than a shape the census silently never counts.
+        agreement: { agree: 0, differ: 0, 'single-engine': 0, neither: 0 },
+        corrected: 0,
+        cacheHits: 0,
+        spentMicros: 0,
+        tierFailures: {},
+        unreadablePayloads: {},
+        disagreements: [],
+    };
 }
 
 /** Everything the run measured. */
@@ -131,6 +187,14 @@ export interface ImportReportData {
     readonly historicalEquivalences: HistoricalEquivalenceUse[];
     /** A handful of complete recipes, for a reader who wants to see the output rather than the totals. */
     readonly examples: ImportedExample[];
+    /**
+     * What the two-engine parse pipeline concluded, when this run observed it.
+     *
+     * ⚠️ `undefined` means the run did NOT observe — a different fact from an observation of zero lines, and
+     * the reason this is absent rather than an empty section. `JSON.stringify` drops it, so an unobserved
+     * run's report simply has no such section rather than a row of zeroes a reader could misread as a result.
+     */
+    parseObservation: ParseObservationData | undefined;
 }
 
 /** The empty report for a book. */
@@ -154,6 +218,7 @@ export function emptyReport(book: string): ImportReportData {
         historicalConversions: 0,
         historicalEquivalences: [],
         examples: [],
+        parseObservation: undefined,
     };
 }
 
@@ -258,6 +323,44 @@ export function renderReport(report: ImportReportData): string {
     );
     lines.push(`    of those, still non-terminal      ${report.foodPendingIngredients}`);
     lines.push(`  lookups during a catalog outage     ${report.catalogUnavailable}`);
+
+    const parse = report.parseObservation;
+
+    if (parse !== undefined) {
+        // ⚠️ Headed OBSERVATION, not a result. Nothing here decided what was sent — the field-level winner
+        // rule is observe-only until U23's oracle lands — and a section labelled otherwise would read as a
+        // claim about the recipes above it.
+        lines.push('\nTWO-ENGINE PARSE  (OBSERVATION — nothing here decided what was sent)');
+        lines.push(`  lines read                          ${parse.lines}`);
+
+        for (const [kind, count] of Object.entries(parse.agreement)) {
+            lines.push(`    ${kind.padEnd(22)} ${String(count).padStart(5)}  ${pct(count, parse.lines)}`);
+        }
+
+        // ⛔ Printed APART from the census above, and never inside it: a cook is neither engine, so their
+        // answer is not an adjudication and must not share a denominator with one.
+        lines.push(`  answered by a correction            ${parse.corrected}`);
+        lines.push(`  engine answers served from cache    ${parse.cacheHits}`);
+        lines.push(`  model spend                         $${(parse.spentMicros / 1_000_000).toFixed(4)}`);
+
+        for (const [tier, count] of Object.entries(parse.tierFailures)) {
+            lines.push(
+                `  ⚠️ ${tier} UNAVAILABLE                  ${count} time(s) — "could not look", not "found nothing"`,
+            );
+        }
+
+        for (const [store, count] of Object.entries(parse.unreadablePayloads)) {
+            lines.push(`  ⚠️ unreadable ${store} rows: ${count} — a superseded generation, not an outage`);
+        }
+
+        if (parse.disagreements.length > 0) {
+            lines.push('\n  lines the two engines read differently:');
+
+            for (const entry of parse.disagreements) {
+                lines.push(`    [${entry.fields.join(', ')}] ${entry.line}`);
+            }
+        }
+    }
 
     if (report.failures.length > 0) {
         lines.push('\nAPI REFUSALS');

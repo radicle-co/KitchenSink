@@ -13,6 +13,27 @@
  * a ledger whose ordering means something when a run is interrupted. `RecipeApiClient` already retries a
  * `429`/`503` with backoff, honouring `Retry-After`.
  *
+ * ## ⛔ THE PARSE OBSERVATION IS OBSERVE-ONLY, AND THAT IS A DECISION (U22)
+ *
+ * The two-engine pipeline reads every accepted ingredient line in ONE batch, and what it concludes is
+ * RECORDED. It does not decide what goes on the wire. Two independent reasons, both of which have to stop
+ * holding before that changes:
+ *
+ *  1. **ADR-0026 says so.** Its residual-risk list records the field-level winner rule as "evidence-SHAPED,
+ *     not evidence-BACKED … nobody has decided who is right on the residual list. **Observe-only until it
+ *     lands**", and U23's oracle has not run.
+ *  2. **Substituting it would detach R35's disclosure from the values it discloses.** `restateHistoricalUnit`
+ *     rewrites a line's `quantity`/`unit` INSIDE `toCandidateRecipe`, and `buildDescription` states that
+ *     conversion in the recipe's persisted description. The comparator's `llmRescuedTheMeasure` is exactly
+ *     the path that reads a gill the CRF is blind to — so a naive substitution would publish an un-restated
+ *     `1 gill` under a description claiming the measures were converted. Both halves wrong, both silent, and
+ *     firing on precisely the historical-measure lines the feature exists to improve.
+ *
+ * ⚠️ Promoting the pipeline to the authority is therefore not a wiring change: it needs the oracle, and it
+ * needs the restatement and the description to be rebuilt FROM the pipeline's reading rather than beside it.
+ * `__tests__/runImport.test.ts` asserts the create requests are byte-identical with the observation on and
+ * off, so that promotion cannot happen by accident.
+ *
  * ## The settle pass
  *
  * Ingredient resolution is ASYNCHRONOUS — `POST /ingredients/by-name` answers `202 PENDING` while the food
@@ -24,20 +45,24 @@
  */
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { runParsePipeline, type ParsePipelineDeps, type ParsePipelineOutcome } from '@kitchensink/recipe-import-core';
+
 import { assertPublicDomain, type Cookbook } from './cookbooks.js';
-import { segmentCookbook } from './gutenbergBook.adapter.js';
-import { toCandidateRecipe } from './proseRecipe.js';
-import { resolveIngredientLikeAUser } from './resolveIngredient.js';
+import { segmentCookbook, type CookbookBlock } from './gutenbergBook.adapter.js';
+import { toCandidateRecipe, type RecipeCandidateOutcome } from './proseRecipe.js';
+import { resolveIngredientLikeAUser, type IngredientResolutionPort } from './resolveIngredient.js';
 import { toImportedIngredientLine } from './importedIngredientLine.js';
 import {
+    emptyObservation,
     emptyReport,
     recordDropped,
     recordHistoricalConversion,
     type ImportReportData,
     type ImportedExample,
+    type ParseObservationData,
 } from './importReport.js';
 import type { ImportLedger } from './importLedger.js';
-import type { CreateRecipeBody, Ingredient, RecipeApiClient } from './RecipeApiClient.js';
+import type { CreateRecipeBody, Ingredient, RecipeDetail } from './RecipeApiClient.js';
 
 /** Statuses that mean the food pipeline is still working; anything else is terminal. */
 const NON_TERMINAL = new Set(['PENDING', 'UNRESOLVED']);
@@ -48,22 +73,196 @@ const MAX_EXAMPLES = 3;
 /** Gap between settle sweeps. */
 const POLL_INTERVAL_MS = 2000;
 
+/** How many disagreeing lines the report keeps verbatim, for a reader who wants to see them. */
+const MAX_DISAGREEMENTS = 20;
+
+/**
+ * The recipe-service calls this run makes.
+ *
+ * ⚠️ A PORT rather than `RecipeApiClient` itself, so the run is drivable from the unit tier without a
+ * network — the same reason `resolveIngredient.ts` defines `IngredientResolutionPort` rather than taking the
+ * client. `RecipeApiClient` satisfies it structurally and nothing at the call site changes.
+ */
+export interface ImportApiPort extends IngredientResolutionPort {
+    /** `POST /api/v1/recipes`. */
+    createRecipe(recipe: CreateRecipeBody): Promise<RecipeDetail>;
+    /** `GET /api/v1/ingredients/{id}/status`. */
+    getIngredientStatus(ingredientId: string): Promise<Ingredient>;
+}
+
+/**
+ * Whether this run observes the two-engine parse pipeline, and with what.
+ *
+ * ⛔ A REQUIRED key holding a CLOSED union, never an optional one. `on` spends real money against ADR-0024's
+ * shared $100 pool — the residual risk ADR-0026 names is that "a large import can starve the verification
+ * gate" — so it must be an explicit decision at the call site. An optional key would let a caller acquire the
+ * spend by forgetting, which is the same failure KTD-18 rules against for the pipeline's own ports.
+ */
+export type ParseObservation =
+    | { readonly kind: 'off' }
+    | {
+          readonly kind: 'on';
+          /** The pipeline's ports. `cookbook-import` supplies the two Null Objects (ADR-0026 §6). */
+          readonly deps: ParsePipelineDeps;
+          /**
+           * What the model leg has spent, in micro-dollars.
+           *
+           * ⚠️ Read from the ADAPTER, never from the pipeline: nothing inside the orchestration may learn
+           * about spend, the mirror of ADR-0024's rule that "nothing about the reservation … may learn about
+           * the call site".
+           */
+          readonly spentMicros: () => number;
+      };
+
 /** Options for {@link runImport}. */
 export interface RunImportOptions {
     /** The registry entry for the book being imported. */
     readonly book: Cookbook;
     /** The book's plain text, as the operator downloaded it. */
     readonly plainText: string;
-    /** The recipe API client, authenticated as the curator. */
-    readonly client: RecipeApiClient;
+    /** The recipe API, authenticated as the curator. */
+    readonly client: ImportApiPort;
     /** The idempotency ledger. */
     readonly ledger: ImportLedger;
     /** Stop after creating this many recipes. */
     readonly limit: number;
     /** How long to keep re-reading non-terminal ingredient statuses, in milliseconds. */
     readonly settleMs: number;
+    /** Whether to run the two-engine parse pipeline over this run's lines. ⛔ Required — see the type. */
+    readonly parseObservation: ParseObservation;
     /** Where progress is written. */
     readonly log: (message: string) => void;
+}
+
+/** One block, and what the pure mapper made of it. */
+interface Candidate {
+    readonly block: CookbookBlock;
+    readonly outcome: RecipeCandidateOutcome;
+}
+
+/**
+ * The lines the run will actually attempt, so the observation never pays for lines it will not import.
+ *
+ * ⚠️ A BOUND, not a prediction. The create loop stops on `imported >= limit`, and a refused create does not
+ * count toward that — so the loop may reach further than this and leave a few lines unobserved. The report
+ * says how many lines were read; it never claims to have read them all.
+ *
+ * @param candidates - Every block, already mapped.
+ * @param ledger - The idempotency ledger, so lines already imported are not re-read.
+ * @param book - The book, for the ledger key.
+ * @param limit - The run's own recipe limit.
+ * @returns Each accepted line's SOURCE clause, in order.
+ * @sideEffect Reads the ledger.
+ */
+function linesToObserve(
+    candidates: readonly Candidate[],
+    ledger: ImportLedger,
+    book: Cookbook,
+    limit: number,
+): readonly string[] {
+    const lines: string[] = [];
+    let attempts = 0;
+
+    for (const { block, outcome } of candidates) {
+        if (attempts >= limit) {
+            break;
+        }
+
+        if (outcome.kind === 'skipped' || ledger.has(book.ebookId, block.title)) {
+            continue;
+        }
+
+        attempts += 1;
+        // ⛔ `sourceText`, never `raw`. `raw` is what `parseIngredientLine` RECEIVED, after the scanner ran
+        // `normalizeQuantity` — so `one gill of milk` reaches it as `1 gill of milk`. Handing an engine a
+        // string WE produced from our own parse is the "gate that reports success by construction"
+        // `recipeIngredientSourceLineSchema` refuses, one layer over.
+        lines.push(...outcome.recipe.ingredients.map((ingredient) => ingredient.sourceText));
+    }
+
+    return lines;
+}
+
+/**
+ * Read this run's lines with both engines, and record what they amounted to.
+ *
+ * ⛔ It records and returns; it changes nothing about what is sent. See the module header for why.
+ *
+ * @param observation - The caller's decision, and the ports if it said yes.
+ * @param lines - The accepted lines' source clauses.
+ * @param log - Where progress is written.
+ * @returns What the pipeline concluded, or `undefined` when this run did not observe.
+ * @sideEffect Calls both engines; may be billed.
+ */
+async function observeParses(
+    observation: ParseObservation,
+    lines: readonly string[],
+    log: (message: string) => void,
+): Promise<ParseObservationData | undefined> {
+    if (observation.kind === 'off') {
+        return undefined;
+    }
+
+    const data = emptyObservation();
+
+    log(`\nparsing ${lines.length} ingredient line(s) with both engines…`);
+
+    const outcomes = await runParsePipeline(
+        lines,
+        observation.deps,
+        // ⛔ An unattended import has NO caller, and the correction tier must treat it as such: global
+        // corrections and nobody's personal ones (R22). `cookbook-import` runs `NO_CORRECTIONS` anyway, so
+        // this is belt and braces — but the belt is the one that would matter if it ever acquired a store.
+        { ownerId: undefined },
+        {
+            onTierFailure: (tier) => {
+                data.tierFailures[tier] = (data.tierFailures[tier] ?? 0) + 1;
+            },
+            onUnreadablePayload: (payload) => {
+                data.unreadablePayloads[payload.tier] = (data.unreadablePayloads[payload.tier] ?? 0) + 1;
+            },
+        },
+    );
+
+    recordObservations(data, lines, outcomes);
+    data.spentMicros = observation.spentMicros();
+
+    return data;
+}
+
+/**
+ * Fold the pipeline's outcomes into the report's counters.
+ *
+ * ⛔ A correction is counted APART from the agreement census, never inside it. A cook is neither engine, and
+ * folding their answer into an agreement rate would put lines no engine ever read into the denominator U23's
+ * oracle is calibrated against — the same argument KTD-12 makes one tier down.
+ *
+ * @param data - The counters to fill.
+ * @param lines - The lines that were read, positionally.
+ * @param outcomes - What the pipeline concluded, one per line.
+ * @sideEffect Mutates `data`.
+ */
+function recordObservations(
+    data: ParseObservationData,
+    lines: readonly string[],
+    outcomes: readonly ParsePipelineOutcome[],
+): void {
+    data.lines = outcomes.length;
+
+    outcomes.forEach((outcome, index) => {
+        if (outcome.tier === 'correction') {
+            data.corrected += 1;
+
+            return;
+        }
+
+        data.agreement[outcome.agreement.kind] += 1;
+        data.cacheHits += outcome.fromCache.length;
+
+        if (outcome.agreement.kind === 'differ' && data.disagreements.length < MAX_DISAGREEMENTS) {
+            data.disagreements.push({ line: lines[index] ?? '', fields: [...outcome.agreement.fields] });
+        }
+    });
 }
 
 /**
@@ -84,15 +283,29 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
     const blocks = segmentCookbook(plainText);
     report.headingsFound = blocks.length;
 
+    // ⚠️ TWO PASSES, and the first one is PURE. `toCandidateRecipe` is a pipeline of pure synchronous stages
+    // (which is why the parse observation is wired HERE and not inside it), so mapping every block up front
+    // costs no I/O and lets the engines read the whole run in ONE batch. `crfProcess.ts` loads a CRF model at
+    // import and warns that per-line spawning "would turn a two-second job into a quarter of an hour"; one
+    // process per RECIPE is the same failure with a smaller constant.
+    const candidates: readonly Candidate[] = blocks.map((block) => ({
+        block,
+        outcome: toCandidateRecipe(block, book),
+    }));
+
+    report.parseObservation = await observeParses(
+        options.parseObservation,
+        linesToObserve(candidates, ledger, book, limit),
+        log,
+    );
+
     /** Food-backed ingredient rows to re-read once the creates are done. */
     const pending = new Map<string, Ingredient>();
 
-    for (const block of blocks) {
+    for (const { block, outcome } of candidates) {
         if (report.imported >= limit) {
             break;
         }
-
-        const outcome = toCandidateRecipe(block, book);
 
         if (outcome.kind === 'skipped') {
             report.skipped[outcome.reason] += 1;
@@ -215,7 +428,7 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
  * @sideEffect Network I/O; waits.
  */
 async function settleFoodResolution(input: {
-    client: RecipeApiClient;
+    client: ImportApiPort;
     pending: Map<string, Ingredient>;
     report: ImportReportData;
     settleMs: number;

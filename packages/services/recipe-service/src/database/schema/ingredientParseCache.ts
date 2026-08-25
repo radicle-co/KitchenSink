@@ -31,13 +31,22 @@ import { PARSE_ENGINES, type ParseEngine } from '@kitchensink/recipe-core/parsin
 export const PARSE_CACHE_ENGINES = PARSE_ENGINES satisfies readonly ParseEngine[];
 
 /**
- * One engine's structured output for one line — U16's `ParsedLine`.
+ * One engine's structured output for one line — U16's `ParsedFacts`, and NEVER the wider `ParsedLine`.
  *
- * ⚠️ Deliberately opaque HERE, and that is not laziness. `ParsedLine` does not exist yet (U16), and inventing a
- * shape for it in a schema file would make the database the place that contract is defined — the exact
- * inversion ADR-0014 forbids for wire types and that applies just as well to an engine's output. The column
- * stores the payload verbatim, the database enforces only that it is an object, and this service interprets
- * nothing. When U16 lands, this alias becomes `ParsedLine` and every reader is type-checked in one edit.
+ * ⚠️ Deliberately opaque HERE, and that is not laziness. Inventing the shape in a schema file would make the
+ * database the place that contract is defined — the exact inversion ADR-0014 forbids for wire types, and it
+ * applies just as well to an engine's output. The column stores the payload verbatim, the database enforces
+ * only that it is an object, and this service interprets nothing. The twin of `CorrectedParse`
+ * (`ingredientParseCorrections.ts`), for the same reason.
+ *
+ * ⛔ CORRECTED IN U22, and the correction is worth keeping. This docstring used to say "when U16 lands, this
+ * alias becomes `ParsedLine`". U16 landed, and the answer is NO — `ParsedLine.raw` is the cook's line
+ * BYTE-IDENTICAL (HAZ-041), and `line_digest` below is documented as "the ONLY representation of the cook's
+ * line that is stored anywhere in this table". Those two sentences cannot both be true, and the digest one
+ * wins, because KTD-14's whole erasure argument depends on it: this table has no owner column and is absent
+ * from the account-erasure sweep precisely because it carries no person-to-row link. `CorrectedParse` already
+ * ruled the same way for the sibling table, in the same feature. The writer's half of the rule is enforced by
+ * `recipe-import-core`'s `storedParseFacts.ts`, whose `strictObject` REFUSES a payload carrying `raw`.
  */
 export type CachedParsePayload = Readonly<Record<string, unknown>>;
 

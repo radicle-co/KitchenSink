@@ -275,18 +275,25 @@ describe('divergentResponses', () => {
 
 describe('disposeAgreement — KTD-11’s disposition column, which the shape classifier did not carry', () => {
     it('disposes of every shape the classifier can produce', () => {
-        const shapes: readonly AgreementKind[] = [
-            'agree',
-            'crfUnitInName',
-            'crfSizeField',
-            'amountCountDiffers',
-            'unitDiffers',
-            'quantityDiffers',
-            'modelSplitsFoods',
-            'crfPrepInModelName',
-            'modelPrepInCrfName',
-            'differ',
-        ];
+        // ⛔ Keyed by a TOTAL `Record` over the union rather than listed as an array literal. An array is
+        // assignable to `readonly AgreementKind[]` however short it is, so the list this suite used to
+        // carry would have gone on passing while never exercising a newly added verdict — the exact hole
+        // `DISPOSITIONS` itself is a total `Record` to avoid. A member added to any of the three per-field
+        // unions is now a compile error HERE too.
+        const everyShape: Readonly<Record<AgreementKind, true>> = {
+            agree: true,
+            crfUnitInName: true,
+            crfUnitAbsent: true,
+            crfSizeField: true,
+            amountCountDiffers: true,
+            unitDiffers: true,
+            quantityDiffers: true,
+            modelSplitsFoods: true,
+            crfPrepInModelName: true,
+            modelPrepInCrfName: true,
+            differ: true,
+        };
+        const shapes = Object.keys(everyShape) as readonly AgreementKind[];
 
         for (const shape of shapes) {
             expect(() => disposeAgreement(shape), `no disposition for ${shape}`).not.toThrow();
@@ -327,11 +334,154 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
 
     it('never lets a shape KTD-11 disposes of reach a human as well', () => {
         const adjudicated = (
-            ['crfUnitInName', 'crfSizeField', 'amountCountDiffers', 'unitDiffers', 'quantityDiffers'] as const
+            [
+                'crfUnitInName',
+                'crfUnitAbsent',
+                'crfSizeField',
+                'amountCountDiffers',
+                'unitDiffers',
+                'quantityDiffers',
+            ] as const
         ).filter((shape) => disposeAgreement(shape) === 'adjudicate');
 
         expect(adjudicated, `shapes KTD-11 disposes of that still reach a human: ${adjudicated.join(', ')}`).toEqual(
             [],
         );
+    });
+});
+
+/**
+ * ⛔ THE CRF OUTPUTS QUOTED IN THIS BLOCK ARE MEASURED, NOT IMAGINED.
+ *
+ * Every `crf({ … })` below is what `ingredient-parser-nlp==2.3.0` really printed for that sentence on
+ * 2026-08-25, flattened exactly as `scripts/crfParse.py` flattens it. A hand-written guess would let this
+ * whole block agree with a CRF that does not exist — so `tests/crfUnitAbsent.integration.test.ts` re-derives
+ * every row from the REAL engine and fails if any of them has moved.
+ */
+describe('compareParses — an ABSENT CRF unit is absence, not dissent (owner ruling 2026-08-25)', () => {
+    it('names the CRF stating NO unit where the model stated one, rather than calling it a unit disagreement', () => {
+        // Measured: `one and a half quarts of boiling water` -> amount [('1', '')], name `boiling water`.
+        // The CRF dropped the fraction AND the unit; a bare `1` is not a competing reading of `1.5 quarts`.
+        const agreement = compareParses(
+            { measure: 'one and a half quarts', foods: [{ name: 'water', prep: 'boiling' }] },
+            crf({ sentence: 'one and a half quarts of boiling water', measure: '1', names: ['boiling water'] }),
+        );
+
+        expect(agreement.measure).toBe('crfUnitAbsent');
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
+    });
+
+    it('names it on a quarter as well as a half — the shape is the empty unit, not the fraction', () => {
+        // Measured: `one and a quarter cups of milk` -> amount [('1', '')], name `milk`.
+        const agreement = compareParses(
+            { measure: 'one and a quarter cups', foods: [{ name: 'milk', prep: null }] },
+            crf({ sentence: 'one and a quarter cups of milk', measure: '1', names: ['milk'] }),
+        );
+
+        expect(agreement.measure).toBe('crfUnitAbsent');
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
+    });
+
+    it('⛔ is decided BEFORE the generic unit verdict, so an absent unit never ALSO reads as `unitDiffers`', () => {
+        // The ORDERING assertion, made by observation rather than by reading `judgeMeasure`. `kind` is the
+        // measure verdict whenever the measure disagrees, so a `crfUnitAbsent` that fell through to the
+        // generic verdict would surface here as `unitDiffers` and be disposed of `crfWins`.
+        const agreement = compareParses(
+            { measure: 'one and a half quarts', foods: [{ name: 'water', prep: 'boiling' }] },
+            crf({ sentence: 'one and a half quarts of boiling water', measure: '1', names: ['boiling water'] }),
+        );
+
+        expect(agreement.measure).not.toBe('unitDiffers');
+        expect(agreement.kind).toBe('crfUnitAbsent');
+        expect(agreement.agrees).toBe(false);
+    });
+
+    it('⛔ leaves a GENUINE unit disagreement alone — KTD-11’s `unitDiffers` → `crfWins` is NOT overturned', () => {
+        // ⛔ THE ANTI-OVER-REACH ASSERTION, and the one that catches the mandatory mutant. Both engines
+        // named a unit and named different ones: `one-half pound` against the CRF's `1/2 cups`. That is
+        // dissent, not absence, and widening the new shape to "the units differ" swallows the whole of
+        // KTD-11's amount column.
+        const agreement = compareParses(model({ measure: 'one-half pound' }), crf());
+
+        expect(agreement.measure).toBe('unitDiffers');
+        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
+    });
+
+    it('⛔ does NOT fire in the mirror direction — a silent MODEL is still a unit disagreement', () => {
+        // The claim is about the CRF's MEASURED blindness, not a symmetry. The naming asymmetry costs
+        // nothing: `unitDiffers` → `crfWins` already gives the unit to the engine that spoke.
+        const agreement = compareParses(model({ measure: 'one-half' }), crf());
+
+        expect(agreement.measure).toBe('unitDiffers');
+        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
+    });
+
+    it('⛔ does NOT fire when BOTH engines stated no unit — mutual silence is not absence-vs-answer', () => {
+        const agreement = compareParses(model({ measure: 'two' }), crf({ measure: '3' }));
+
+        expect(agreement.measure).toBe('quantityDiffers');
+        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
+    });
+
+    it('keeps the MORE SPECIFIC `crfUnitInName` when the CRF put the unit in the food name', () => {
+        // Measured: `two and a half pounds of beef` -> amount [('2', '')], name `and a half pounds of beef`.
+        // The unit is absent from the measure AND present in the name, so both shapes are true of the line.
+        // The one that says WHERE the word went carries more information, and both dispose the same way —
+        // so the ordering changes what the census NAMES, never what is done.
+        const agreement = compareParses(
+            { measure: 'two and a half pounds', foods: [{ name: 'beef', prep: null }] },
+            crf({ sentence: 'two and a half pounds of beef', measure: '2', names: ['and a half pounds of beef'] }),
+        );
+
+        expect(agreement.measure).toBe('crfUnitInName');
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
+    });
+
+    it('keeps the MORE SPECIFIC `crfSizeField` when the CRF routed the word to its size field', () => {
+        const agreement = compareParses(
+            { measure: 'one large', foods: [{ name: 'chicken', prep: null }] },
+            crf({ sentence: 'one large chicken', measure: '1', names: ['chicken'], size: 'large' }),
+        );
+
+        expect(agreement.measure).toBe('crfSizeField');
+        expect(disposeAgreement(agreement.measure)).toBe('canonicalised');
+    });
+
+    it('⛔ leaves the spellings the CRF reads CORRECTLY on `agree` — the rule is narrow, not a blanket', () => {
+        // Measured: `one and one-half cups of flour` -> [('3/2', 'cup')]; `one-half pound chocolate` ->
+        // [('1/2', 'pound')]. The same 1.5-style composite, spelled the way the CRF understands. A rule
+        // that fired on the PHRASE rather than on the empty unit would break both of these.
+        const flour = compareParses(
+            { measure: 'one and one-half cups', foods: [{ name: 'flour', prep: null }] },
+            crf({ sentence: 'one and one-half cups of flour', measure: '1 1/2 cups', names: ['flour'] }),
+        );
+        const chocolate = compareParses(
+            { measure: 'one-half pound', foods: [{ name: 'chocolate', prep: null }] },
+            crf({ sentence: 'one-half pound chocolate', measure: '1/2 pounds', names: ['chocolate'] }),
+        );
+
+        expect(flour.measure).toBe('agree');
+        expect(flour.kind).toBe('agree');
+        expect(chocolate.measure).toBe('agree');
+        expect(chocolate.kind).toBe('agree');
+    });
+
+    it('⛔ leaves the SPLIT-AMOUNT spelling on `quantityDiffers` — the CRF stated a unit, so it is dissent', () => {
+        // Measured: `one and a half cups of sugar` -> amounts [('1', ''), ('half', 'cup')], which the
+        // sidecar joins to `1 half cups` and the comparison fold reads as 1/2 cup. The CRF's unit is `cup`,
+        // NOT empty — it answered, and answered a different number, which is exactly KTD-11's
+        // `quantityDiffers`. The ruling is deliberately too narrow to reach it. ⚠️ The consequence is real,
+        // measured, and recorded in ADR-0026: this spelling still resolves to half a cup for one and a half.
+        const agreement = compareParses(
+            { measure: 'one and a half cups', foods: [{ name: 'sugar', prep: null }] },
+            crf({ sentence: 'one and a half cups of sugar', measure: '1 half cups', names: ['sugar'] }),
+        );
+
+        expect(agreement.measure).toBe('quantityDiffers');
+        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
+    });
+
+    it('gives the LLM the unit the CRF never stated', () => {
+        expect(disposeAgreement('crfUnitAbsent')).toBe('llmWins');
     });
 });

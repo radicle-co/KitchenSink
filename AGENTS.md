@@ -240,7 +240,20 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   (`Exact<'crf'|'llm','crf'|'llm'>` is `true`); the guard therefore reads the module's SOURCE for a surviving
   local declaration and must not be "simplified" into a type test. `ParseProvenance` had no inhabitant for a
   human correction and is now keyed on a separate `ParseFactSource` axis — never by widening `PARSE_ENGINES`,
-  which is the parse cache's CHECK-constrained key domain. ⚠️ Still open: `sentence` means two different
+  which is the parse cache's CHECK-constrained key domain. ⛔ An ABSENT CRF unit is ABSENCE, not dissent
+  (owner ruling 2026-08-25), and this does **not** overturn KTD-11: `quantityDiffers` and `unitDiffers` still
+  go to `crfWins`. Measured, the CRF returns `[('1', '')]` for `one and a half quarts of boiling water` — it
+  drops the fraction AND the unit — and `crfWins` published one quart with no unit on 9 corpus lines. So
+  `parseAgreement.ts` gains a fourth measure verdict, **`crfUnitAbsent` → `llmWins`**, which is §3's own
+  `single-engine` ≠ `differ` principle one FIELD down and follows KTD-11's own `crfUnitInName → llmWins`
+  precedent. ⛔ It is deliberately NARROW: it fires only when the CRF's unit is EMPTY, never when the two
+  engines merely name different units, and it sits LAST inside the `crf.unit === ''` branch so the more
+  specific `crfSizeField`/`crfUnitInName` keep their rows. ⚠️ Two things it does NOT reach, both recorded:
+  the split-amount spelling (`one and a half cups of sugar` → `[('1',''),('half','cup')]`) has a POPULATED
+  unit, so it is a genuine `quantityDiffers` and still resolves to half a cup; and the ruling landed in the
+  CENSUS, not the MERGE — `parseComparator.ts`'s `llmRescuedTheMeasure` still requires
+  `isHistoricalUnit(llm.unit)`, so a plain `quart` does not rescue and the merged line would carry no unit
+  the day the winner rule stops being observe-only. ⚠️ Still open: `sentence` means two different
   things in the two CRF schemas (`crfParse.ts` "echoed back" vs `engine.schema.ts` "NORMALISED"), which is
   why the promotion adapters take `raw` as a PARAMETER rather than trusting either.
 

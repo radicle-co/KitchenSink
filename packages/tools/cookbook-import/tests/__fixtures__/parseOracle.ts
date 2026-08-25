@@ -516,7 +516,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
                 unit: 'quart',
                 foods: [{ name: 'water', prep: 'boiling' }],
             },
-            note: '⛔ THE FINDING THAT CHALLENGES KTD-11. The CRF read `1` — it dropped the half AND the unit. R7 says the "and" sits INSIDE one amount, so the line states 1.5 quarts, and R13 ("amounts from the CRF, CRF wins") would publish two thirds of what the source printed. This is the same shape as the shipped defect `MEASUREMENT_JOIN_SOURCE` was written for. 9 lines in this corpus.',
+            note: '⛔ THE FINDING THAT CHALLENGED KTD-11 — and the ruling it produced. The CRF read `1`: it dropped the half AND the unit. R7 says the "and" sits INSIDE one amount, so the line states 1.5 quarts, and R13 ("amounts from the CRF, CRF wins") would have published two thirds of what the source printed with no unit at all. This is the same shape as the shipped defect `MEASUREMENT_JOIN_SOURCE` was written for. 9 lines in this corpus. ⚠️ SETTLED 2026-08-25, and this case did not move: the verdict and the clause are unchanged, because R7 was always what decided the READING. What changed is what the comparison harness does about the pair — `parseAgreement.ts` now names the empty CRF unit `crfUnitAbsent` and disposes of it `llmWins`, which is R14 ("an engine that did not answer is ABSENCE, never dissent") applied one field down. KTD-11 stands: `unitDiffers` and `quantityDiffers` still go to the CRF.',
         },
     },
     {

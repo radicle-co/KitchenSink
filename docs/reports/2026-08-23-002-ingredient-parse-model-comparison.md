@@ -741,3 +741,87 @@ tripwire that future work will tune rather than fix."_
   renumbers the whole census. The integration tier fails loudly when that happens, which is the intended
   behaviour: the census is then owed a re-run, not a patch.
 - **One book, still.** Every figure here inherits §7's and §9.6's limits unchanged.
+
+## 11. The `one and a half` finding is RULED — an absent CRF unit is absence, not dissent (2026-08-25)
+
+⛔ **Nothing above is restated or corrected in place.** §10.6 offered the finding as evidence for the owner
+and said outright that _"nothing in this unit alters the winner rule"_. The owner has now ruled on it. Every
+figure in §§1–10 stands exactly as recorded; what follows is the ruling, what it changed, and the two pieces
+of it that are deliberately left open.
+
+### 11.1 The ruling
+
+**KTD-11 is NOT overturned.** `quantityDiffers → crfWins` and `unitDiffers → crfWins` stay exactly as they
+are. What changed is narrower and prior to them: `parseAgreement.ts` gains a fourth measure verdict,
+**`crfUnitAbsent`**, disposed of **`llmWins`** — fired only when the CRF stated **no unit at all** where the
+model stated one, and never when the two engines merely name different units.
+
+The argument, in one line: **an absent field is not an answer, so it cannot be a disagreement.** It is
+ADR-0026 §3's own principle (`single-engine` ≠ `differ`, because a leg that did not answer is absence rather
+than dissent) applied one field down, and KTD-11 already carries the precedent one row above —
+`crfUnitInName → llmWins`, _"the CRF is demonstrably wrong, so the LLM wins silently"_. This is that
+category, found later.
+
+### 11.2 The discriminator, re-measured against the live engine
+
+Run against `ingredient-parser-nlp==2.3.0` on 2026-08-25, through the same `scripts/crfParse.py` sidecar
+§3 used:
+
+| line                                     | CRF amounts                 | the line says | verdict           | disposition |
+| ---------------------------------------- | --------------------------- | ------------- | ----------------- | ----------- |
+| `one and a half quarts of boiling water` | `[('1', '')]`               | 1.5 quarts    | `crfUnitAbsent`   | `llmWins`   |
+| `one and a quarter cups of milk`         | `[('1', '')]`               | 1.25 cups     | `crfUnitAbsent`   | `llmWins`   |
+| `two and a half pounds of beef`          | `[('2', '')]`               | 2.5 pounds    | `crfUnitInName`   | `llmWins`   |
+| `one and a half cups of sugar`           | `[('1',''),('half','cup')]` | 1.5 cups      | `quantityDiffers` | `crfWins`   |
+| `one and one-half cups of flour`         | `[('3/2', 'cup')]`          | 1.5 cups      | `agree`           | `agreed`    |
+| `one-half pound chocolate`               | `[('1/2', 'pound')]`        | 0.5 pound     | `agree`           | `agreed`    |
+
+**Every mis-read composite comes back with an EMPTY unit; every correctly-read line comes back with a
+populated one.** That equivalence is the whole of the rule, and it is asserted in both directions against the
+real engine by `tests/crfUnitAbsent.integration.test.ts` — so an engine upgrade that broke it fails a test
+instead of silently switching the verdict off.
+
+⚠️ Two rows are worth reading twice:
+
+- **`two and a half pounds of beef` keeps `crfUnitInName`.** Its unit is absent from the measure AND present
+  inside the CRF's food name (`and a half pounds of beef`), so both shapes are true of it. The verdict that
+  says WHERE the word went carries more information, and both dispose the same way — so the new verdict sits
+  LAST inside the `crf.unit === ''` branch, changing what the census NAMES and never what is done. This line
+  was already `llmWins` before the ruling.
+- **`one and a half cups of sugar` is NOT covered, and that is deliberate.** The CRF splits it into **two**
+  amounts, which the sidecar joins to `1 half cups` and the comparison fold reads as **half a cup**. Its unit
+  is `cup`, not empty — the CRF answered, and answered a different number. That is a genuine
+  `quantityDiffers`, KTD-11 governs it, and widening the new verdict to reach it would overturn the amount
+  column outright. **The consequence is real and is not tidied away: that spelling still resolves to half a
+  cup for one and a half.** ⚠️ This is a THIRD behaviour for the same phrase in one engine — §10.6 already
+  recorded that `one and a half` fails where `one and one-half` succeeds; the split-amount reading is a third
+  outcome again, selected by what follows the fraction.
+
+### 11.3 What did NOT change
+
+- **No rate above moves.** No engine was re-run. §9.6's and §10.8's "the re-run of §§1–3 remains owed" is
+  still owed, and this section claims no new agreement, determinism or cost figure.
+- **The oracle census did not move.** 58 `ruled` / 27 `undecided`, unchanged. `parseOracle.ts` never reads a
+  disposition — its verdicts are hand-written rubric rulings and R13/R14 appear in it only as prose
+  citations — so no case can move between `ruled` and `undecided` on a disposition change. **`L00177` keeps
+  its `ruled` verdict and its `R7` clause**, because R7 was always what decided the _reading_; only its note
+  was corrected, so it no longer describes the defect as open.
+- **The rubric is unchanged.** No clause was added. R14 already states the principle ("an engine that did not
+  answer is ABSENCE, never dissent"); this ruling is that clause applied at field granularity, not a new one.
+- **KTD-11's disposition table is otherwise byte-identical.** One row was added; none was edited.
+
+### 11.4 ⛔ What is NOT closed by this
+
+- **The ruling landed in the CENSUS, not in the MERGE, and the merge has the same defect.** `DISPOSITIONS`
+  says what a shape amounts to for this report. The code that decides what a merged `ParsedLine` actually
+  holds is `recipe-import-core`'s `parseComparator.ts` — `DEFAULT_WINNERS` has `unit: 'crf'`, narrowed only
+  by `llmRescuedTheMeasure`, which requires `isHistoricalUnit(llm.unit)`. `quart` is not a historical unit,
+  so on exactly these nine lines the CRF's `null` unit still wins and the merged line carries **no unit at
+  all**. Nothing is published today — `cookbook-import`'s wiring is observational and `runImport.test.ts`
+  asserts the wire is byte-identical with the observation on and off — but that predicate is what goes live
+  the moment the winner rule stops being observe-only. It is recorded in ADR-0026's residual risk and is
+  owed its own ruling, because it changes stored provenance rather than a report.
+- **The LLM leg is still unmeasured.** Every verdict in 11.2 pairs the real CRF against the reading the
+  source plainly states (R7 arithmetic), not against a real model answer. No Bedrock call is billed by a
+  test. §10.8's list stands unchanged.
+- **One book, still.** Every limit in §7, §9.6 and §10.8 is inherited unchanged.

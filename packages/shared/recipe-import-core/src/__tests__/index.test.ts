@@ -48,7 +48,14 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // that the wide shape is canonical and the narrow one is a documented projection of it, so the
         // narrowing has to be reachable from outside this package or every consumer re-implements it.
         // The contract's TYPES ride on the same barrel and do not appear here: they are erased.
+        // ⚠️ GREW BY ONE in U19, and it is that unit's ONLY runtime export. `compareParses` is the pure
+        // policy deciding what the merged parse is and what the disagreement was, and its consumer is
+        // recipe-workers' parse pipeline (U22) — a DIFFERENT package, reachable only through this door,
+        // since the `exports` map publishes nothing but `.`. Its `modifierLexicon` collaborator is
+        // deliberately NOT here: KTD-11b's vocabulary is an implementation detail of the comparator, the
+        // same way `WHOLE_NUMBER_WORDS` is of the pre-normalizer, and its word sets are not functions.
         expect(Object.keys(publicApi).sort()).toEqual([
+            'compareParses',
             'corruptsStatedValue',
             'findQuantityPhrases',
             'millilitresPerUnit',

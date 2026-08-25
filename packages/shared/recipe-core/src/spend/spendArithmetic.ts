@@ -361,6 +361,21 @@ export interface PricedReservation {
     readonly period: string;
     /** The model this plan prices. Recorded on the verification, per R21/KTD-4. */
     readonly modelId: string;
+    /**
+     * The id `Converse` is ADDRESSED with — {@link ModelInvocation.invocationId}, resolved when the plan was
+     * priced.
+     *
+     * ⛔ NOT {@link PricedReservation.modelId}, and the distinction is the whole of U35. `modelId` is what the
+     * model IS: the registry key, the `model_id` on a verdict and the `verified_by` on a memo. This is how it
+     * is REACHED. They coincide for every on-demand model — which is exactly why one string served both jobs
+     * undetected until a profile-only model was rostered, and why re-deriving one from the other at the call
+     * site is the defect rather than a simplification.
+     *
+     * It rides on the plan for the same reason {@link PricedReservation.rate} and
+     * {@link PricedReservation.period} do: a mid-call SSM change cannot split the id that was PRICED from the
+     * id that was CALLED if both were captured in one read of the registry.
+     */
+    readonly invocationId: string;
     /** What is charged to the counter BEFORE the call. */
     readonly worstMicros: number;
     /** `ceiling - worst`. The value the reserve statement's `WHERE` compares the stored total against. */
@@ -549,18 +564,23 @@ export function settleDeltaMicros(actualMicros: number, reservedMicros: number):
  * @returns A priced plan, or the `unpriced` refusal. Pure.
  */
 export function planReservation(request: ReservationRequest): ReservationPlan {
-    const rate = rateFor(request.modelId);
+    // ⛔ ONE read of the registry, yielding BOTH the price and the address. Resolving them separately — a
+    // `rateFor` here and an invocation lookup at the call site — is what allows a model to be priced under one
+    // identity and invoked under another.
+    const entry = registryEntryFor(request.modelId);
 
-    if (rate === undefined) {
+    if (entry === undefined) {
         return { kind: 'unpriced', modelId: request.modelId };
     }
 
+    const { rate } = entry;
     const worstMicros = worstCaseMicros(rate, request.maxInputTokens, request.maxOutputTokens);
 
     return {
         kind: 'priced',
         period: periodKey(request.nowUtc),
         modelId: request.modelId,
+        invocationId: entry.invocation.invocationId,
         worstMicros,
         headroomMicros: headroomMicros(request.ceilingMicros, worstMicros),
         rate,

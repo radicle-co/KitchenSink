@@ -17,6 +17,8 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { BEDROCK_MODEL_REGISTRY } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+
 import { RecipeWorkersStack } from '../lib/RecipeWorkersStack.js';
 
 /** The asset directory `Code.fromAsset` ships — `<package>/dist`, which carries NO `node_modules`. */
@@ -284,6 +286,48 @@ function rdsConnectResources(template: Template): string[] {
     }
 
     return resources;
+}
+
+/** One `bedrock:InvokeModel` statement, with its resources resolved to the literal ARNs IAM will see. */
+interface BedrockStatement {
+    readonly resources: readonly string[];
+    /** The statement's `Condition` block, or `undefined` when it grants unconditionally. */
+    readonly condition: unknown;
+}
+
+/**
+ * Every `bedrock:InvokeModel` statement the template grants, across every role.
+ *
+ * Read from the whole template rather than from one role on purpose: a grant that MOVED to another role is
+ * still a grant, and reading only the role this stack means to widen would be blind to exactly that.
+ *
+ * @param template - The synthesized template.
+ * @returns One entry per statement, in template order.
+ */
+function bedrockStatements(template: Template): readonly BedrockStatement[] {
+    const found: BedrockStatement[] = [];
+
+    for (const policy of Object.values(template.findResources('AWS::IAM::Policy'))) {
+        const statements: unknown = policy.Properties?.PolicyDocument?.Statement;
+
+        if (!Array.isArray(statements)) {
+            continue;
+        }
+
+        for (const statement of statements as { Action?: unknown; Resource?: unknown; Condition?: unknown }[]) {
+            const actions = Array.isArray(statement.Action) ? statement.Action : [statement.Action];
+
+            if (!actions.includes('bedrock:InvokeModel')) {
+                continue;
+            }
+
+            const resources = Array.isArray(statement.Resource) ? statement.Resource : [statement.Resource];
+
+            found.push({ resources: resources.map(resolveArn), condition: statement.Condition });
+        }
+    }
+
+    return found;
 }
 
 /** A synthesized CloudFormation resource, reduced to what these assertions read. */
@@ -1162,5 +1206,115 @@ describe('RecipeWorkersStack — the in-deploy schema barrier', () => {
 
         expect(inline, 'an unbuilt bundle must synthesize an inline placeholder, not a stale asset').toBeDefined();
         expect(inline).toContain('throw new Error');
+    });
+});
+
+/**
+ * ADR-0024 layer 4b's RESOURCE scope — the half `llmSpendGuards.test.ts` structurally cannot see.
+ *
+ * That gate is a TypeScript AST parser over infra SOURCE TEXT: it reads `actions` array literals and judges
+ * the GRANTEE set, which is the security invariant. It cannot judge resources at all, because these ARNs are
+ * `formatArn` calls that only exist after synth. So the scope is asserted here, where there is a template.
+ *
+ * ⛔ WHAT THE SCOPE HAS TO GET RIGHT, and what a code-only fix would have broken. The gate calls `Converse`
+ * with the model's INVOCATION id (U35), which for a profile-only model is an `inference-profile` ARN in this
+ * account — a different resource TYPE from `foundation-model/*`, and one that fans out to regions the grant
+ * never named. Threading the invocation id without widening the grant would convert a `ValidationException`
+ * that names the problem into an `AccessDenied` that does not.
+ */
+describe('RecipeWorkersStack — the bedrock:InvokeModel resource scope', () => {
+    let template: Template;
+
+    beforeAll(() => {
+        template = synth();
+    });
+
+    it('keeps the in-region foundation-model grant it already had', () => {
+        // The Nova regression assertion: the on-demand path is authorized by exactly the statement it was,
+        // and widening for a profile must not have moved or re-scoped it.
+        expect(bedrockStatements(template).flatMap(({ resources }) => resources)).toContain(
+            'arn:aws:bedrock:us-east-1::foundation-model/*',
+        );
+    });
+
+    it('grants the inference-profile ARN of every profile-addressed model in the registry', () => {
+        const granted = new Set(bedrockStatements(template).flatMap(({ resources }) => resources));
+        const profileAddressed = Object.entries(BEDROCK_MODEL_REGISTRY).filter(
+            ([modelId, entry]) => entry.invocation.invocationId !== modelId,
+        );
+
+        // ⛔ DERIVED from the registry, with a non-vacuity floor: a hard-coded ARN list would go stale the
+        // day a model is added, and an empty registry would make the loop below pass over nothing.
+        expect(profileAddressed.length, 'the registry no longer carries a profile-addressed model').toBeGreaterThan(0);
+
+        for (const [modelId, entry] of profileAddressed) {
+            expect(granted, modelId).toContain(
+                `arn:aws:bedrock:us-east-1:123456789012:inference-profile/${entry.invocation.invocationId}`,
+            );
+        }
+    });
+
+    it('grants the foundation model in EVERY region the profile fans out to', () => {
+        const granted = new Set(bedrockStatements(template).flatMap(({ resources }) => resources));
+        const reached = Object.entries(BEDROCK_MODEL_REGISTRY).flatMap(([modelId, entry]) =>
+            entry.invocation.reach.kind === 'regions'
+                ? entry.invocation.reach.regions.map(
+                      (region) => `arn:aws:bedrock:${region}::foundation-model/${modelId}`,
+                  )
+                : [],
+        );
+
+        // ⚠️ A `us.` profile called from us-east-1 routes to us-east-2 and us-west-2 as well. Two of those
+        // regions sit outside the original grant entirely, so the call would fail on authorization in the
+        // destination region — after the reservation was taken.
+        expect(reached.length, 'no registry entry records a cross-region reach').toBeGreaterThan(0);
+        expect(reached.filter((arn) => !granted.has(arn))).toEqual([]);
+    });
+
+    it('conditions the cross-region reach on the inference profile that justified it', () => {
+        const fanOut = bedrockStatements(template).filter(({ condition }) => condition !== undefined);
+
+        expect(fanOut.length, 'the fanned-out foundation-model grant must be conditioned').toBeGreaterThan(0);
+
+        for (const { condition, resources } of fanOut) {
+            const profiles = (condition as { StringLike?: Record<string, unknown> }).StringLike?.[
+                'bedrock:InferenceProfileArn'
+            ];
+
+            expect(profiles, 'the condition must name the profile, not merely exist').toBeDefined();
+            // The conditioned statement grants only foundation models — the profile itself is granted
+            // unconditionally, and conditioning it on itself would be circular.
+            expect(resources.every((arn) => arn.includes(':foundation-model/'))).toBe(true);
+        }
+    });
+
+    it('never widens beyond the one wildcard it already carried', () => {
+        const wildcards = bedrockStatements(template)
+            .flatMap(({ resources }) => resources)
+            .filter((arn) => arn.includes('*'));
+
+        // The profile ARNs are compile-time enumerable, so `inference-profile/*` would discard a scope
+        // reduction that costs nothing. The in-region `foundation-model/*` stays because the SSM model id
+        // cannot be resolved at synth time — a different reason, and the only wildcard permitted here.
+        expect(wildcards).toEqual(['arn:aws:bedrock:us-east-1::foundation-model/*']);
+    });
+});
+
+/**
+ * THE CEILING ALARM WATCHES THE POOL, NOT ITS CONSUMERS (U36).
+ *
+ * ADR-0024's $100/month ceiling is ONE global pool (KTD-17). U36 adds a `CallSite` dimension so an emptied
+ * pool can be attributed — and that dimension must NOT reach the alarm, or the half-ceiling threshold would be
+ * evaluated once per consumer against a pool none of them owns exclusively. Two consumers at 60% each would
+ * both read as green while the pool is 20% over.
+ */
+describe('RecipeWorkersStack — the spend alarm still watches the aggregate', () => {
+    it('selects the Stage dimension alone, so no call site can hide behind another', () => {
+        const alarms = Object.values(synth().findResources('AWS::CloudWatch::Alarm')).filter(
+            (alarm) => alarm.Properties?.MetricName === 'VerificationSpendMicros',
+        );
+
+        expect(alarms, 'the ceiling alarm must exist for this assertion to mean anything').toHaveLength(1);
+        expect(alarms[0]?.Properties?.Dimensions).toEqual([{ Name: 'Stage', Value: 'sandbox' }]);
     });
 });

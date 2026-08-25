@@ -49,6 +49,10 @@ const planFor = (period: string, worstMicros: number, ceilingMicros = CEILING_MI
         kind: 'priced',
         period,
         modelId: 'amazon.nova-micro-v1:0',
+        // The ADDRESS, which for an on-demand model equals the id above. Carried because the LEDGER must be
+        // provably indifferent to it: the counter row is keyed on the period alone, and nothing in either SQL
+        // statement may learn which model — or which call site — the charge came from.
+        invocationId: 'amazon.nova-micro-v1:0',
         worstMicros,
         headroomMicros: ceilingMicros - worstMicros,
         rate: {

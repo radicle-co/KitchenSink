@@ -123,6 +123,12 @@ export const ALLOWED_DIMENSION_FACETS: ReadonlyMap<string, string> = new Map([
     ],
     ['source', 'the wired upstream data source — bounded by the registered source adapters'],
     ['reason', 'a closed union of failure reasons declared in the emitting module (e.g. shape | signature)'],
+    [
+        'callsite',
+        'which consumer of ADR-0024’s single $100/month spend pool a charge is attributed to — a closed ' +
+            'union in `recipe-workers` (`RecipeMetricDimension`), so it grows by release rather than by ' +
+            'traffic and stays in the low single digits',
+    ],
 ]);
 
 /**
@@ -136,6 +142,9 @@ export function isAllowedDimensionFacet(key: string): boolean {
 }
 
 // ───────────────────────────── mechanism ─────────────────────────────
+
+/** How many hops {@link traceSeam} will follow before giving up. See the note at its guard. */
+const TRACE_DEPTH_BUDGET = 24;
 
 /** Where a caller's dimension bag enters an emitter. */
 export interface DimensionSeam {
@@ -369,7 +378,12 @@ function traceSeam(expression: ts.Expression, fn: FunctionLike): DimensionSeam |
     }
 
     const follow = (node: ts.Expression, depth: number): DimensionSeam | undefined => {
-        if (depth > 8) {
+        // ⚠️ A CYCLE BREAKER, not a policy. It exists so a `const a = b, const b = a` pair cannot spin, and
+        // the number must stay comfortably above the longest chain ordinary code produces — otherwise the
+        // gate reports BLIND on a seam it could have reached, which reads as "unsafe emitter" when the truth
+        // is "the budget ran out". `recipe-workers`' emitter reaches its parameter in 12 hops through four
+        // named locals and a `??` default, so 8 was under the real floor.
+        if (depth > TRACE_DEPTH_BUDGET) {
             return undefined;
         }
 
@@ -402,6 +416,29 @@ function traceSeam(expression: ts.Expression, fn: FunctionLike): DimensionSeam |
 
         if (ts.isParenthesizedExpression(node)) {
             return follow(node.expression, depth + 1);
+        }
+
+        // A CONDITIONAL is how an emitter publishes a dimension set only when it HAS one — the shape
+        // `recipe-workers` uses so its `Stage`-only series survives alongside the faceted one. Either branch
+        // may be the one carrying caller keys, so both are tried; an empty branch simply reaches nothing.
+        // Same reasoning as the two-route call above: a shape the gate cannot follow reports BLIND, which is
+        // the designed failure but still a false positive when the keys really are traceable.
+        if (ts.isConditionalExpression(node)) {
+            return follow(node.whenTrue, depth + 1) ?? follow(node.whenFalse, depth + 1);
+        }
+
+        // An ARRAY LITERAL is how a dimension SET is written inline (`[['Stage', ...keys]]`). Each element is
+        // tried, so a literal key sitting beside a caller-supplied spread does not hide the spread.
+        if (ts.isArrayLiteralExpression(node)) {
+            for (const element of node.elements) {
+                const seam = follow(element, depth + 1);
+
+                if (seam !== undefined) {
+                    return seam;
+                }
+            }
+
+            return undefined;
         }
 
         if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
@@ -953,6 +990,58 @@ export function emitMetric(input: EmfInput): void {
 
         expect(findings).toHaveLength(1);
         expect(findings[0]).toContain("'identityId' is a CloudWatch dimension (call-site)");
+    });
+
+    /**
+     * `recipe-workers`' shape (U36): a SECOND dimension set, published only when the caller supplied a facet,
+     * so the `Stage`-only series the alarms watch survives beside the faceted one. The set arrives through a
+     * `const` holding a CONDITIONAL whose live branch is an array literal of array literals — three node kinds
+     * the tracer did not follow, so a correct emitter reported blind.
+     */
+    it('traces a bag through a conditional dimension set nested in array literals', () => {
+        const service = fakeService('conditional-set', {
+            'src/emf.ts': `
+interface EmfMetric { readonly name: string; readonly dimensions?: Record<string, string>; }
+export function emitMetric(metric: EmfMetric): void {
+    const facets = Object.entries(metric.dimensions ?? {}).filter(([, value]) => value !== undefined);
+    const facetKeys = facets.map(([key]) => key);
+    const facetedSet = facetKeys.length === 0 ? [] : [['Stage', ...facetKeys]];
+    console.log(JSON.stringify({
+        _aws: { Timestamp: 0, CloudWatchMetrics: [{ Namespace: 'N', Dimensions: [['Stage'], ...facetedSet], Metrics: [] }] },
+    }));
+}
+`,
+            'src/worker.ts': "emitMetric({ name: 'M', dimensions: { source } });",
+        });
+
+        expect(blindEmitterViolations(service)).toEqual([]);
+        // ⛔ `Stage` from the literal set AND `source` from the traced seam. Reading only `Stage` would be the
+        // silent half-failure: the gate would look green while never judging a caller-supplied key.
+        expect([...new Set(serviceDimensionKeys(service).map((site) => site.key))].sort()).toEqual(['Stage', 'source']);
+    });
+
+    it('still JUDGES the key a caller supplies through that conditional set', () => {
+        // The mutation guard for the trace above: a seam that resolves but is never read would pass the blind
+        // check and prove nothing. An identifier arriving the same way must still be reported.
+        const findings = identifierDimensionViolations(
+            fakeService('conditional-set-bad', {
+                'src/emf.ts': `
+interface EmfMetric { readonly name: string; readonly dimensions?: Record<string, string>; }
+export function emitMetric(metric: EmfMetric): void {
+    const facets = Object.entries(metric.dimensions ?? {}).filter(([, value]) => value !== undefined);
+    const facetKeys = facets.map(([key]) => key);
+    const facetedSet = facetKeys.length === 0 ? [] : [['Stage', ...facetKeys]];
+    console.log(JSON.stringify({
+        _aws: { Timestamp: 0, CloudWatchMetrics: [{ Namespace: 'N', Dimensions: [['Stage'], ...facetedSet], Metrics: [] }] },
+    }));
+}
+`,
+                'src/worker.ts': "emitMetric({ name: 'M', dimensions: { userId } });",
+            }),
+        );
+
+        expect(findings).toHaveLength(1);
+        expect(findings[0]).toContain("'userId' is a CloudWatch dimension (call-site)");
     });
 });
 

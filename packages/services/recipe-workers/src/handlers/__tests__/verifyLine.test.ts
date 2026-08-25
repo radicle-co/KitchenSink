@@ -140,6 +140,139 @@ describe('the happy path', () => {
     });
 });
 
+/**
+ * ⛔ THE ID BEDROCK IS CALLED WITH IS NOT THE ID WE RECORD — the defect U35 closes.
+ *
+ * One string used to serve three jobs: the rate-table key, the recorded model identity (`model_id` on a
+ * verdict, `verified_by` on a memo), and the id `Converse` is addressed with. For every on-demand model those
+ * coincide, which is why nothing caught it. Claude Haiku 4.5 is `INFERENCE_PROFILE`-only: its bare id is
+ * refused with `ValidationException` and its `us.` profile id is not a rate-table key, so a single SSM edit
+ * pointing at it failed EVERY call in both directions at once.
+ *
+ * ⚠️ The recorded halves are the mutation guard. Memos are upserted per phrase, so a `verified_by` that drifted
+ * to the profile spelling would produce a silent MIX of two identities for one model rather than an error —
+ * a test suite that still passes with the recorded id swapped for the invocation id is not covering this.
+ */
+describe('the invocation id, and the identity it is not', () => {
+    /** The profile-only entry the shipped registry already carries. */
+    const PROFILE_MODEL_ID = 'anthropic.claude-haiku-4-5-20251001-v1:0';
+    const PROFILE_INVOCATION_ID = `us.${PROFILE_MODEL_ID}`;
+
+    /** Deps whose SSM settings name a model, so only the registry decides how it is addressed. */
+    const depsForModel = (modelId: string): ReturnType<typeof deps> =>
+        deps({ settings: { resolve: vi.fn().mockResolvedValue({ ...SETTINGS, modelId }) } });
+
+    it('invokes an on-demand model with the same id it records — Nova is unchanged', async () => {
+        const d = depsForModel('amazon.nova-micro-v1:0');
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.converse.mock.calls[0]?.[0]?.invocationId).toBe('amazon.nova-micro-v1:0');
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.modelId).toBe('amazon.nova-micro-v1:0');
+        expect(d.spies.rememberAgreement.mock.calls[0]?.[0]?.modelId).toBe('amazon.nova-micro-v1:0');
+    });
+
+    it('invokes a profile-only model with its PROFILE id', async () => {
+        const d = depsForModel(PROFILE_MODEL_ID);
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.converse.mock.calls[0]?.[0]?.invocationId).toBe(PROFILE_INVOCATION_ID);
+    });
+
+    it('RECORDS the bare model id for that same call, on the verdict and on the memo', async () => {
+        const d = depsForModel(PROFILE_MODEL_ID);
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.modelId).toBe(PROFILE_MODEL_ID);
+        expect(d.spies.rememberAgreement.mock.calls[0]?.[0]?.modelId).toBe(PROFILE_MODEL_ID);
+    });
+
+    it('settles that call at the rate keyed on the BARE id, not on the profile', async () => {
+        const d = depsForModel(PROFILE_MODEL_ID);
+        await processVerification(d, MESSAGE);
+
+        // Haiku 4.5: 660 input at $1.00/1M + 42 output at $5.00/1M = 660 + 210 = 870 micros. A rate table
+        // keyed on the profile id would have failed closed as unpriced long before this line.
+        expect(d.spies.settle).toHaveBeenCalledWith(expect.objectContaining({ actualMicros: 870 }));
+    });
+
+    it('still fails closed for an unregistered model, before any address is derived', async () => {
+        const d = depsForModel(PROFILE_INVOCATION_ID);
+
+        // ⛔ The profile id is an ADDRESS, never a key. Feeding it back in as a model id must be refused, or
+        // the registry would have two spellings for one model and the memos would carry both.
+        await expect(processVerification(d, MESSAGE)).rejects.toThrow(/not priced/u);
+        expect(d.spies.converse).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * WHO SPENT IT (U36 / KTD-17) — the ceiling is ONE pool, and that is exactly why the spend must be attributed.
+ *
+ * The owner's 2026-08-24 ruling makes $100/month a single global pool shared by this gate, the ingredient
+ * parse leg and 017's capture tiers, first come first served. ⛔ Not capping per consumer makes attribution
+ * MORE important, not less: when the pool empties the first question is "who burned it", and a dimensionless
+ * `VerificationSpendMicros` cannot answer it.
+ *
+ * ⛔ ATTRIBUTION IS NOT PARTITIONING. The dimension rides on the METRIC only. Nothing about the reservation —
+ * the ceiling, the worst case, the headroom, the counter row — may learn about the call site, or the single
+ * pool would silently become several.
+ */
+describe('the call site the spend is attributed to', () => {
+    /** The spend emissions of one run, in order. */
+    const spendEmissions = (d: ReturnType<typeof deps>): Record<string, unknown>[] =>
+        d.spies.emit.mock.calls
+            .map((call) => call[0] as Record<string, unknown>)
+            .filter((metric) => metric['name'] === 'VerificationSpendMicros');
+
+    it('attributes the gated emission to this gate', async () => {
+        const d = deps({ stage: 'prod' });
+        await processVerification(d, MESSAGE);
+
+        expect(spendEmissions(d)).toHaveLength(1);
+        expect(spendEmissions(d)[0]?.['dimensions']).toEqual({ CallSite: 'verification-gate' });
+    });
+
+    it('attributes the UNGATED emission too — the ~$88/month/stage exposure needs a name as well', async () => {
+        // ADR-0024 §3 leaves sandbox and every pr-{N} ungated, bounded only by layer 2. That spend is real and
+        // is the only exposure the counter never sees; an unattributed metric there is the co-mingling defect.
+        const d = deps({ stage: 'sandbox' });
+        await processVerification(d, MESSAGE);
+
+        expect(spendEmissions(d)).toHaveLength(1);
+        expect(spendEmissions(d)[0]?.['dimensions']).toEqual({ CallSite: 'verification-gate' });
+    });
+
+    it('leaves the ceiling arithmetic UNTOUCHED — one pool, keyed on the period alone', async () => {
+        const d = deps({ stage: 'prod' });
+        await processVerification(d, MESSAGE);
+
+        const plan = d.spies.reserve.mock.calls[0]?.[0] as Record<string, unknown>;
+
+        // ⛔ THE ANTI-PARTITION ASSERTION. A call site reaching the plan would key the counter row — or the
+        // headroom — per consumer, turning one $100 pool into N pools of unstated size. The plan carries the
+        // period, the model, the worst case, the headroom and the rate, and nothing about who asked.
+        expect(Object.keys(plan).sort()).toEqual([
+            'headroomMicros',
+            'invocationId',
+            'kind',
+            'modelId',
+            'period',
+            'rate',
+            'worstMicros',
+        ]);
+        expect(d.spies.settle.mock.calls[0]?.[0]).toEqual({ plan, actualMicros: 30 });
+    });
+
+    it('reports the same reserved total it always did — the dimension changes no number', async () => {
+        const d = deps({ stage: 'prod' });
+        await processVerification(d, MESSAGE);
+
+        // `reserve` resolves `{ reservedMicros: 116 }`; the metric reports the period's running total, which
+        // is what the half-ceiling alarm compares. A dimension that altered the VALUE would be a new metric.
+        expect(spendEmissions(d)[0]?.['value']).toBe(116);
+    });
+});
+
 describe('the aspects it asks about', () => {
     it('asks about identity AND quantity for a ranked shortlist with a narrow margin', async () => {
         const d = deps();

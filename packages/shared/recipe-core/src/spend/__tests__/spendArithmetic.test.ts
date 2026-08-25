@@ -364,6 +364,58 @@ describe('planReservation', () => {
     it('seeds the ceiling at the $100 the owner set', () => {
         expect(DEFAULT_MONTHLY_CEILING_MICROS).toBe(100 * MICROS_PER_DOLLAR);
     });
+
+    /**
+     * ⛔ THE TWO IDS, CARRIED SEPARATELY OUT OF THE PLAN — the defect U35 exists to close.
+     *
+     * `modelId` is what the model IS: the rate-table key, the `verified_by` on a memo and the `model_id` on a
+     * verdict. `invocationId` is what `Converse` is ADDRESSED with. They coincide for every on-demand model,
+     * which is exactly why one string served both jobs undetected until a profile-only model was rostered.
+     * Carrying the address on the PLAN — beside the captured period and the captured rate — is what makes a
+     * mid-call SSM change unable to split the id that was priced from the id that was called.
+     */
+    it('addresses an on-demand model by the same id it records', () => {
+        const planned = plan(NOVA_MICRO_MODEL_ID);
+
+        expect(planned.kind === 'priced' && planned.invocationId).toBe(NOVA_MICRO_MODEL_ID);
+        expect(planned.kind === 'priced' && planned.modelId).toBe(NOVA_MICRO_MODEL_ID);
+    });
+
+    it('addresses a profile-only model by its PROFILE id while still recording the bare id', () => {
+        const planned = plan(CLAUDE_HAIKU_4_5_MODEL_ID);
+
+        expect(planned.kind).toBe('priced');
+
+        if (planned.kind !== 'priced') {
+            return;
+        }
+
+        // ⛔ The bare id is refused by Bedrock for this model ("Invocation of model ID … with on-demand
+        // throughput isn't supported"), and the profile id is not a rate-table key. Both facts at once.
+        expect(planned.invocationId).toBe(`us.${CLAUDE_HAIKU_4_5_MODEL_ID}`);
+        expect(planned.modelId).toBe(CLAUDE_HAIKU_4_5_MODEL_ID);
+        expect(planned.rate).toBe(registryEntryFor(CLAUDE_HAIKU_4_5_MODEL_ID)?.rate);
+    });
+
+    it('prices EVERY registered model off its own registry key, never off its address', () => {
+        // The mutation guard for the pair above: keying the table on the invocation id would make the
+        // profile-addressed entry unpriced, and keying the address on the model id would re-introduce the
+        // ValidationException. Asserted over the whole table so a new entry inherits it.
+        for (const [modelId, entry] of Object.entries(BEDROCK_MODEL_REGISTRY)) {
+            const planned = plan(modelId);
+
+            expect(planned.kind, modelId).toBe('priced');
+            expect(planned.kind === 'priced' && planned.modelId, modelId).toBe(modelId);
+            expect(planned.kind === 'priced' && planned.invocationId, modelId).toBe(entry.invocation.invocationId);
+        }
+    });
+
+    it('still refuses an id the registry does not know, before any address is derived', () => {
+        expect(plan('meta.llama3-70b-instruct-v1:0')).toEqual({
+            kind: 'unpriced',
+            modelId: 'meta.llama3-70b-instruct-v1:0',
+        });
+    });
 });
 
 /**

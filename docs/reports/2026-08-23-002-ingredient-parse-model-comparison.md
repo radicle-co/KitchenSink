@@ -551,3 +551,193 @@ stops meaning what it says.
   list to land near ~130 after all three; this section accounts for one of them.
 
 **The re-run of §§1–3 remains owed, and it must happen before U23's oracle reads the residual list.**
+
+---
+
+## 10. U23 — the oracle, what it decided, and the half that could not be measured (2026-08-25)
+
+⛔ **Nothing above is restated or corrected in place**, on the same rule §9 opens with. §§1–8 remain the
+2026-08-23 measurements and §9 remains the 2026-08-25 corpus delta. This section adds the **adjudication**:
+a written rubric, a census applied through it, and an honest account of what the run could not reach.
+
+### 10.1 ⛔ The engine-vs-engine residual list could NOT be reconstructed, and nothing here pretends otherwise
+
+The plan sizes U23's subject as _"~130 lines, not 354"_ after KTD-11b, U19 and U22a. That list is defined by
+where the **two engines** disagree, and §9.6 already recorded the obstacle: _"The engines were not re-run…
+No new agreement, determinism or cost figure is claimed."_ Three things were checked before accepting it:
+
+| avenue                         | outcome                                                                                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Re-run the **CRF** leg locally | ✅ **Done, free.** `ingredient-parser-nlp==2.3.0` runs on this machine; the whole ingredient half parses in ~5 s.                                                                    |
+| Recover **prior LLM answers**  | ❌ **None exist.** `parseModelComparison.ts` writes `--out` to a path the operator chooses; no trial artifact is committed anywhere in this repository, and none survives in `/tmp`. |
+| Re-run the **LLM** leg         | ⛔ **Not done — billed, and not authorised.** No ADR-0024 reservation guards a script.                                                                                               |
+
+⚠️ **And a recovered answer would not have helped even if one existed.** §9.3 records that U22a changed the
+input text for **287 spans**, so a pre-U22a LLM answer for any of those is an answer to a different question.
+
+**Cost of the owed re-run, from §4's measured rates.** The billed population is now the post-U22a corpus of
+**2,502 distinct lines** (§9.2). Pass 1 only, no determinism sample:
+
+| model        | measured mean/call | 2,502 calls |
+| ------------ | -----------------: | ----------: |
+| `nova-micro` |           11.40 µ$ |  **$0.029** |
+| `nova-lite`  |           18.58 µ$ |      $0.046 |
+| `nova-pro`   |          238.52 µ$ |      $0.597 |
+
+The CRF half is free. **The decision to spend is the owner's**, and it is small money for the one number
+this whole unit was built to produce.
+
+### 10.2 What WAS measured — and the corpus reproduces §9.2 exactly
+
+Same book, same harvest path, no engine calls on the LLM side:
+
+| quantity                                        |  measured | corroborates            |
+| ----------------------------------------------- | --------: | ----------------------- |
+| Blocks accepted as recipes                      |   **351** | §9.2 ✅                 |
+| Blocks skipped                                  | **1,148** | §9.2 ✅                 |
+| Distinct corpus lines                           | **2,502** | §9.2 ✅                 |
+| — of which the **ingredient** half              | **1,298** | new                     |
+| — of which the dropped half                     |     1,204 | new                     |
+| Characters of ingredient text, over those 1,298 |    40,132 | new denominator, see ⚠️ |
+
+⚠️ The character figure is **not** comparable to §9.2's 52,164: that one is denominated in the **1,846
+harvested clauses**, this one in the **1,298 distinct** lines after de-duplication. Two denominators, not a
+contradiction.
+
+### 10.3 The rubric — and why it is a rubric
+
+The plan forbids the obvious shortcut in as many words: _"an LLM adjudicating an LLM's parse against a
+CRF's is the same failure with an extra step… never a single model's opinion presented as ground truth."_
+So the oracle is **14 clauses, every one lifted from a ruling that already existed**, committed as data at
+`packages/tools/cookbook-import/tests/__fixtures__/parseOracle.ts` with its source quoted per clause.
+
+**No clause was invented.** The fixture carries an `invented` flag and the unit suite fails any clause that
+claims a source and states none, so the claim is enforced rather than asserted.
+
+| clause  | rule, in one line                                                        | ruled from                                      |
+| ------- | ------------------------------------------------------------------------ | ----------------------------------------------- |
+| **R1**  | The source's own words. Nothing is corrected toward a friendlier reading | `parseCorpus.ts`; `notAFoodLexicon.ts`          |
+| **R2**  | A past participle is preparation                                         | KTD-11b; `modifierLexicon.ts`                   |
+| **R3**  | An adjective is identity                                                 | KTD-11b; `parsedLine.ts` `ParsedFood.name`      |
+| **R4**  | Temperature is preparation, deliberately against every tagger            | KTD-11b; ADR-0026 §5 (NLTK, 7 of 25)            |
+| **R5**  | The adjective list is consulted BEFORE the `-ed` suffix rule             | `modifierLexicon.ts` `classifyModifier`         |
+| **R6**  | There is no `size` field; `large`/`small` canonicalise into the name     | `parsedLine.ts`; KTD-11 `crfSizeField`          |
+| **R7**  | A conjunction joins only before a DIGIT; `one and a half` is 1.5         | `MEASUREMENT_JOIN_SOURCE`                       |
+| **R8**  | A parenthetical restates, never adds                                     | `splitMeasurement.ts`; `parseComparator.ts`     |
+| **R9**  | A span whose head noun is a VESSEL is not an ingredient                  | `notAFoodLexicon.ts` `namesEquipment`           |
+| **R10** | A unit measuring time/distance/people is not a measure of an ingredient  | `notAFoodLexicon.ts` `NOT_A_MEASURE`            |
+| **R11** | On a historical unit the LLM takes the measure and unit, not the number  | KTD-11 `crfUnitInName`; ADR-0026 Consequences   |
+| **R12** | On a multi-food line the LLM wins                                        | KTD-11 `modelSplitsFoods`                       |
+| **R13** | Amounts are the CRF's; the losing reading is recorded, not discarded     | ADR-0026 Consequences; KTD-11 `quantityDiffers` |
+| **R14** | An engine that did not answer is absence, never dissent                  | ADR-0026 §3; `contractSkew.ts`                  |
+
+### 10.4 The census — what population, and why it is not the plan's
+
+Since the engine-vs-engine list is unavailable, the census is denominated in a population that **can be
+rebuilt for free on any machine with the pinned engine**:
+
+> every distinct **rubric situation** — a clause plus the contested word it fires on — in the 1,298 distinct
+> post-U22a ingredient lines, judged against the **CRF's own reading**.
+
+**331 of 1,298 ingredient lines (25.50%) fire at least one clause.** They collapse to **82 situations over
+78 lines**, and three further real corpus lines were added to reach the `range` and `composite` regimes the
+fired set underrepresents — **81 cases, standing for 338 corpus occurrences**, read end to end. Not sampled.
+
+⛔ **This is not the plan's ~130 and must not be reported as though it were.** It is the half that could be
+measured without spending.
+
+### 10.5 What the rubric decided, and what it did not
+
+| outcome       |  cases | occurrences |
+| ------------- | -----: | ----------: |
+| **ruled**     | **56** |     **246** |
+| **undecided** | **25** |      **92** |
+
+Per clause, ruled cases (and the corpus occurrences they stand for):
+
+| R2       | R4     | R6     | R7     | R10   | R11    | R9    | R3    | R12   | R1 · R5 · R8 · R13 · R14 |
+| -------- | ------ | ------ | ------ | ----- | ------ | ----- | ----- | ----- | ------------------------ |
+| 33 / 100 | 4 / 42 | 2 / 69 | 4 / 12 | 4 / 7 | 4 / 10 | 3 / 3 | 1 / 2 | 1 / 1 | **0**                    |
+
+⚠️ **Five clauses decided nothing, and that is reported rather than hidden.** R8 (restatement) needs a
+parenthetical, of which this census has none; R13 and R14 are about the _pair_ of engines and are
+unreachable from a CRF-only run; R1 and R5 bound the reasoning on several cases without ever being the
+deciding clause. They stay in the rubric because they are part of the written ruleset — removing them to
+make the table look full would misdescribe what the rubric is.
+
+⛔ **The `undecided` bucket is the honest half of this unit**, and 25 of 81 is a real number, not a
+formality. Every entry carries three lenses — does a cook reading the line aloud hear a food's name; which
+reading names a row the catalog could hold; does the book's own sentence support either — plus the reason no
+clause reaches it. **Three recurring gaps account for 21 of the 25**, and each is an owner decision, not a
+judgement this oracle may make for them:
+
+| gap   | cases | occurrences | what the rubric produces, and why its own notes disown it                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----- | ----: | ----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A** |    17 |          58 | The `-ed` **suffix rule** files denominal/product/provenance adjectives as preparation: `granulated`, `powdered`, `pulverized`, `rolled`, `canned`, `prepared`, `compressed`, `concentrated`, `unsweetened`, `imported`, `crystallized`, `candied`, `sized`, `colored`, `light-colored`, `silver-skinned`. R5 says the adjective list is consulted first **precisely because the suffix rule is wrong about adjectives** — these words are simply not in it. |
+| **B** |     3 |          16 | A **bare adverb after a participle** (`cut fine`, `chopped fine`, `shaved very fine`) is filed as IDENTITY, because `fine`/`thin`/`thick` are in `ADJECTIVES` while `QUALIFIERS` holds only `well` plus an `-ly` rule. Result: `fine liver`.                                                                                                                                                                                                                 |
+| **C** |     1 |           2 | **`seed` is a noun** of four letters ending in `-ed`, so `classifyModifier('seed')` returns `preparation` (verified 2026-08-25). TRAP 1's exact shape (`red`, `green`) for a word the exception list does not carry — `caraway seed` becomes `caraway` + prep `seed`.                                                                                                                                                                                        |
+
+The remaining 4 are one-offs: two lines stating **two amounts for two foods** (a shape `ParsedFacts` cannot
+represent — it holds one measure and many foods), one line the extractor should not have accepted, and one
+carrying an OCR corruption R1 forbids correcting.
+
+### 10.6 ⛔ A finding that CHALLENGES KTD-11's winner rule — `one and a half`
+
+KTD-11 disposes of `quantityDiffers` as **"CRF wins, record both"**. On one class in this corpus the CRF is
+**provably wrong**, by our own written rule:
+
+```
+line   "one and a half quarts of boiling water"       (seed L00177)
+CRF     measure "1"            — the half AND the unit are gone
+rubric  1.5 quarts             — R7: the "and" sits INSIDE one amount
+```
+
+This is the exact shape `MEASUREMENT_JOIN_SOURCE` was written for, where a bare `and` split published
+**0.5 cups with `needsReview: false`**. **9 corpus lines** carry it. Under KTD-11 as written, the winner rule
+would publish **two thirds of the stated amount** on every one of them.
+
+⚠️ And the CRF is not uniformly blind here: at seed **L01164** it reads `one and one-half cups` correctly as
+`1 1/2 cups`. **The two spellings behave differently in the same engine** — `one and a half` fails,
+`one and one-half` succeeds. That is a fact about the engine worth knowing before the rule is calibrated.
+
+⛔ This is offered as **evidence for the owner**, not as a change to KTD-11. Nothing in this unit alters the
+winner rule, and `parseComparison`'s disposition table encodes KTD-11 exactly as written.
+
+### 10.7 The disagreement rate — REPORTED, and its denominator is SELECTED
+
+The integration tier runs the real CRF over the census and prints:
+
+```
+CRF disagrees with the rubric on 55 of 56 ruled cases (98.21%), standing for 246 corpus occurrences.
+```
+
+⛔⛔ **This is not a CRF accuracy figure and must never be quoted as one.** The census was **chosen** as the
+set of situations where the rubric fires against the CRF, so a rate near 100% is what a _correct_ oracle
+produces — quoting it as "the CRF is wrong 98% of the time" quotes a tautology. The test prints that warning
+beside the number for exactly this reason.
+
+**The unselected figure is 10.4's: 331 of 1,298 ingredient lines — 25.50% — carry at least one
+rubric-decidable defect in the CRF's reading.** That one is interpretable, and it is the number to carry
+into KTD-11's calibration. ⚠️ It is **not** asserted by a committed test, because computing it needs
+`recipe-import-core`'s `modifierLexicon`, which that package deliberately keeps **off its barrel**
+("the classification is an implementation detail of the comparator"). Widening the barrel to satisfy a test
+would trade a real boundary for a convenience, so the figure is recorded here instead.
+
+⛔ **No threshold is asserted anywhere.** The plan's reason stands: _"A threshold turns a measurement into a
+tripwire that future work will tune rather than fix."_
+
+### 10.8 ⛔ What is NOT measured here
+
+- **The LLM leg did not run.** Every statement above is CRF-vs-rubric. The engine-vs-engine disagreement
+  U23 exists to adjudicate is **unmeasured**, and §9.6's "the re-run of §§1–3 remains owed" is still owed.
+- **The oracle has not been applied to an LLM answer**, so R11, R12, R13 and R14 — the four clauses about
+  which _engine_ wins — are carried but untested against real data.
+- **The census is anchored to the corpus only when the book is present.** The integration tier's
+  byte-identical seed check is the assertion that keeps the fixture from being plausible prose somebody
+  typed, and it **skips in CI**, because ADR-0023 forbids the book being in the repository or fetched. It is
+  the same posture as the existing `COOKBOOK_IMPORT_RECIPE_URL` tier, and it is a real residual risk: run it
+  locally with `COOKBOOK_IMPORT_BOOK=/path/to/pg12350.txt` after any change to the extractor.
+- **Seeds are positional.** `L00177` means "the 177th distinct corpus line", so any change to the extractor
+  renumbers the whole census. The integration tier fails loudly when that happens, which is the intended
+  behaviour: the census is then owed a re-run, not a patch.
+- **One book, still.** Every figure here inherits §7's and §9.6's limits unchanged.

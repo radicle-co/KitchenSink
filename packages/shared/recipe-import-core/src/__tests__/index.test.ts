@@ -42,6 +42,12 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // reads the leading quantity and by design sees no second one. It is public because the caller that
         // needs it is the import pipeline, not this package: a measurement arrives already bounded (an LLM
         // or a parser decides where the food begins), and this divides what it is handed.
+        // ⚠️ GREW BY ONE in U16, and it is the only RUNTIME export that unit adds. `ParsedLine` is the
+        // canonical parse result the two-engine pipeline produces, and `projectToIngredientLine` narrows
+        // it to the shape `cookbook-import` already compiles against — the whole point of the unit is
+        // that the wide shape is canonical and the narrow one is a documented projection of it, so the
+        // narrowing has to be reachable from outside this package or every consumer re-implements it.
+        // The contract's TYPES ride on the same barrel and do not appear here: they are erased.
         expect(Object.keys(publicApi).sort()).toEqual([
             'corruptsStatedValue',
             'findQuantityPhrases',
@@ -50,6 +56,7 @@ describe('@kitchensink/recipe-import-core barrel', () => {
             'normalizeQuantity',
             'normalizeServings',
             'parseIngredientLine',
+            'projectToIngredientLine',
             'roundToQuantityStorageScale',
             'sanitizeToPlainText',
             'splitMeasurement',

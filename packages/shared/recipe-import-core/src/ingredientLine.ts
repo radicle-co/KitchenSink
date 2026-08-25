@@ -78,7 +78,16 @@ export type IngredientReviewReason =
      * ⚠️ Raised only for a measurement that ADDS. A parenthesised restatement (`"1 pound (about 4 cups)"`)
      * states the same amount twice, so the quantity is already right and only the name needed cleaning.
      */
-    | 'measurement_in_name';
+    | 'measurement_in_name'
+    /**
+     * The line named more than one food, and every food after the first was dropped.
+     *
+     * ⚠️ Raised by `projectToIngredientLine`, not by any reader: it names a loss the NARROWING causes, so
+     * the canonical `ParsedLine` — which holds all of the foods — never carries it. The dropped names are
+     * not in the reason because a reason is a code, not a message; the caller that wants them still holds
+     * the `ParsedLine` the projection was taken from.
+     */
+    | 'additional_foods_dropped';
 
 /**
  * Reasons meaning "the value we would persist is not the value the source stated" (R39).
@@ -103,6 +112,12 @@ const VALUE_CORRUPTING_REVIEW_REASONS: ReadonlySet<IngredientReviewReason> = new
     // (`proseRecipe.ts`, "a clause whose own reading misstates a value is not an ingredient at any length"),
     // so membership here would discard the whole ingredient rather than surface it — losing 100% of a line
     // to avoid understating it by 3%.
+    //
+    // ⛔ `additional_foods_dropped` is deliberately NOT here either, for the same reason and by the same
+    // precedent: it is `multiline_input`'s shape. Content is missing, but the amount and unit the narrow
+    // line reports are exactly what the source stated for the food it kept. The consequence decides it
+    // again — membership would make `cookbook-import` discard a line it can read, to avoid an
+    // understatement the line does not commit.
 ]);
 
 /**

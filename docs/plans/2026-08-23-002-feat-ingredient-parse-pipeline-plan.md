@@ -5,6 +5,11 @@ date: 2026-08-23
 origin: docs/brainstorms/2026-08-19-ingredient-resolution-quality-requirements.md
 ---
 
+> ⛔ **SUPERSEDED 2026-08-25 — do not execute from this document.** Its scope was consolidated into
+> [`docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`](2026-08-20-001-fix-ingredient-resolution-quality-plan.md),
+> which is the single source of truth for this effort. This plan's content is **U16–U34 and KTD-10–18** there.
+> Kept for the record and for the reasoning behind each decision; every ruling was carried across verbatim.
+
 # feat: A cached, corrected, two-engine ingredient parse pipeline
 
 ## Summary

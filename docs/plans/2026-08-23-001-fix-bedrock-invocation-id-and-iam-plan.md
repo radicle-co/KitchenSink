@@ -4,6 +4,11 @@ type: fix
 date: 2026-08-23
 ---
 
+> ⛔ **SUPERSEDED 2026-08-25 — do not execute from this document.** Its scope was consolidated into
+> [`docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`](2026-08-20-001-fix-ingredient-resolution-quality-plan.md),
+> which is the single source of truth for this effort. This plan's content is **U35** there.
+> Kept for the record and for the reasoning behind each decision; every ruling was carried across verbatim.
+
 # fix: Separate the Bedrock invocation id from the rate-table key, and widen IAM to match
 
 ## Summary

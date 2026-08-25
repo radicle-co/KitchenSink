@@ -251,3 +251,84 @@ describe('corruptsStatedValue, on the reason the projection adds', () => {
         expect(corruptsStatedValue('additional_foods_dropped')).toBe(false);
     });
 });
+
+/**
+ * ⛔ U31 CANNOT REACH THROUGH THIS PROJECTION, AND HERE IS WHY — with the one loss that DOES survive.
+ *
+ * U31 is "`parseIngredientLine` folds measurements into the food name". Its close asked whether the same
+ * defect arrives here, since `ParsedIngredientLine` is now reachable by two routes. It does not, and the
+ * reason is structural rather than lucky: the narrow `name` is `ParsedFood.name` verbatim, and this
+ * function performs NO text surgery at all. `takeMeasurementOutOf` — the strip that both caused and cured
+ * U31 — never runs on this path. What lands in `name` is whatever the ENGINE put in `ParsedFood.name`,
+ * which the contract defines as identity plus adjectives, so a measurement there is that engine's defect
+ * to answer for and the comparator's (U19) to catch.
+ *
+ * ⚠️ Asserting that is not a formality. "The projection should clean the name up" is an obvious-looking
+ * improvement, and it would be wrong twice over: it would put a second, drifting copy of a rule that lives
+ * in `ingredientLine.ts`, and it would break this function's stated contract that it reports only the loss
+ * IT causes.
+ *
+ * ⚠️ What DOES survive is the other half of U31's third row. A vague measure — `"a handful"`, `"the size
+ * of an egg"` — is held by `statedMeasure`, which this projection drops. That is accepted, not overlooked:
+ * `raw` comes through byte-identical, so the words are still there; only the SEGMENTATION is lost. See
+ * this function's drop table, corrected on the same day.
+ */
+describe('projectToIngredientLine, on U31 — a measurement in the name', () => {
+    it('does not clean the name, because the strip that owns that rule lives one module away', () => {
+        const projected = projectToIngredientLine(
+            makeParsedLine({
+                raw: '2 cups and 1 tablespoon flour',
+                statedMeasure: '2 cups and 1 tablespoon',
+                unit: 'cup',
+                foods: [makeParsedFood('and 1 tablespoon flour')],
+            }),
+        );
+
+        expect(projected.name).toBe('and 1 tablespoon flour');
+        expect(projected.reviewReasons).toEqual([]);
+    });
+
+    /**
+     * ⚠️ The pair to the case above. If a producer DID notice the measurement, the reason travels — the
+     * projection carries every reason the canonical line held. So the taxonomy is shared end to end, and
+     * the only thing this function chooses not to do is DERIVE a reason nobody raised.
+     */
+    it('carries measurement_in_name through when the producer raised it', () => {
+        const projected = projectToIngredientLine(
+            makeParsedLine({
+                raw: '2 cups and 1 tablespoon flour',
+                foods: [makeParsedFood('flour')],
+                reviewReasons: ['measurement_in_name'],
+            }),
+        );
+
+        expect(projected.reviewReasons).toEqual(['measurement_in_name']);
+        expect(projected.needsReview).toBe(true);
+    });
+
+    /**
+     * ⛔ THE ACCEPTED LOSS, asserted so the next reader finds a decision instead of a bug. A measure no
+     * number can hold is dropped as a FIELD and kept as WORDS: `statedMeasure` has nowhere to go in the
+     * narrow shape, and `raw` still says `"a handful of fresh basil"`. Widening `ParsedIngredientLine` to
+     * hold it is what U16 explicitly refused — it would leave the narrow shape canonical.
+     */
+    it('drops a vague measure as a field but keeps it in raw, and adds no reason of its own', () => {
+        const projected = projectToIngredientLine(
+            makeParsedLine({
+                raw: 'a handful of fresh basil, torn',
+                statedMeasure: 'a handful',
+                quantity: ABSENT_QUANTITY,
+                unit: null,
+                foods: [makeParsedFood('fresh basil', 'torn')],
+                reviewReasons: ['no_quantity'],
+            }),
+        );
+
+        expect(projected).not.toHaveProperty('statedMeasure');
+        expect(projected.raw).toBe('a handful of fresh basil, torn');
+        expect(projected.quantity).toEqual({ kind: 'absent' });
+        expect(projected.unit).toBeNull();
+        // Exactly the producer's reason — nothing derived here, nothing swallowed.
+        expect(projected.reviewReasons).toEqual(['no_quantity']);
+    });
+});

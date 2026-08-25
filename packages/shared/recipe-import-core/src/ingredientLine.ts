@@ -277,13 +277,28 @@ export function parseIngredientLine(raw: string): ParsedIngredientLine {
 }
 
 /**
- * A parenthesised group, closed or running to the end.
+ * A CLOSED parenthesised group.
  *
- * ⛔ Only stripped when it CONTAINS a quantity. "(about 4 cups)" restates the amount and is not part of the
- * food; "(a family recipe)" is prose about the food and must survive — the difference is whether an amount
- * is in there, which `findQuantityPhrases` answers without this module owning a number lexicon.
+ * ⛔ Only stripped when its contents carry a MEASUREMENT — {@link carriesAMeasurement}, the same amount-
+ * followed-by-a-unit rule the residual check below applies to the whole name. "(about 4 cups)" restates the
+ * amount and is not part of the food; "(a family recipe)" is prose about the food and survives.
+ *
+ * ⛔ TWO THINGS HERE WERE WRONG UNTIL 2026-08-25, AND BOTH DELETED THE FOOD SILENTLY (U31).
+ *
+ *  1. **The closing bracket was OPTIONAL** (`\)?`), so an unclosed `(` matched to the end of the line and
+ *     took the food with it: `"1 pound (about 4 cups shredded cooked chicken"` produced `name: ""` with
+ *     `reviewReasons: []`. An unclosed bracket does not delimit anything, so there is no boundary to trust
+ *     — the text stays in the name and `carriesAMeasurement` FLAGS it, which is visible rather than silent.
+ *  2. **The test was "is there an amount in here", not "is there a measurement"**, and a bare article is an
+ *     amount: `findQuantityPhrases('a family recipe')` returns a span at `0..1`. So every parenthetical
+ *     opening with `a`/`an`/`one` was deleted — the exact case this docstring had always promised to keep.
+ *
+ * ⚠️ NO leading `\s*`. It was there to swallow the space before the bracket, and it is the polynomial-ReDoS
+ * shape `splitMeasurement.ts`'s header records: an unanchored whitespace quantifier beside a group that can
+ * FAIL is retried at every start position. {@link takeMeasurementOutOf} collapses whitespace runs at the
+ * end anyway, so the prefix bought nothing.
  */
-const PARENTHESISED = /\s*\(([^)]*)\)?/gu;
+const PARENTHESISED = /\(([^)]*)\)/gu;
 
 /**
  * A leading conjunction introducing a second measurement — the remainder `parse-ingredient` did not read.
@@ -309,6 +324,12 @@ const LEADING_JOIN = new RegExp(`^\\s*${MEASUREMENT_JOIN_SOURCE}`, 'iu');
  * by the residual check below, so an unrecognised ampersand or comma is visible rather than silent — which
  * is the property that lets the narrow rules above stay narrow.
  *
+ * ⛔ THE STANDING RULE THIS RESTS ON, learned the hard way on 2026-08-25 (U31): leaving a measurement in the
+ * name costs a catalog match, but DELETING the food costs the ingredient. So every removal here must be
+ * certain, and {@link carriesAMeasurement} is the ONE test of certainty — applied to a bracket's contents
+ * before it is cut, and to the whole remainder before it is flagged. When it is unsure, nothing is removed
+ * and the reason is raised instead.
+ *
  * @param description - The food text `parse-ingredient` returned.
  * @param reasons - Collected review reasons; appended to when the quantity understates the line.
  * @returns The food name with any measurement removed. Pure apart from the `reasons` it appends to.
@@ -317,7 +338,7 @@ const LEADING_JOIN = new RegExp(`^\\s*${MEASUREMENT_JOIN_SOURCE}`, 'iu');
 function takeMeasurementOutOf(description: string, reasons: IngredientReviewReason[]): string {
     // Restatements first: a conjunction INSIDE one ("(about 4 cups and a bit)") joins nothing.
     let name = description.replace(PARENTHESISED, (match, inner: string | undefined) =>
-        findQuantityPhrases(inner ?? '').length > 0 ? ' ' : match,
+        carriesAMeasurement(inner ?? '') ? ' ' : match,
     );
 
     const join = LEADING_JOIN.exec(name);
@@ -360,12 +381,18 @@ const UNIT_WORDS: ReadonlySet<string> = new Set(
 );
 
 /**
- * Whether a food name still carries a measurement.
+ * Whether a stretch of text carries a measurement.
  *
  * ⛔ THE GENERAL RULE, and the reason the join list above may stay short. An amount FOLLOWED BY A UNIT is a
  * measurement — wherever it sits, and however the line joined it on. It does not ask what the join was, so
  * it holds for joins nothing here enumerates: "with", "as well as", a bracket, a semicolon, a dash, a word in
  * another script.
+ *
+ * ⛔ TWO CALLERS, ONE DEFINITION, and the second is why this reads "text" rather than "food name":
+ * {@link PARENTHESISED} asks it whether a bracket's CONTENTS are a measurement before cutting them out, and
+ * the residual check asks it whether the finished name still is. A separate rule for the bracket is exactly
+ * what produced U31's silent deletions — that one asked only whether an amount was present, and a bare
+ * article is an amount, so "(a family recipe)" was cut as though it were "(about 4 cups)".
  *
  * ⚠️ An earlier version of this check asked instead whether anything word-like preceded the amount, on the
  * theory that a residual measurement sits at the FRONT of the remainder. Measured against eight joins absent

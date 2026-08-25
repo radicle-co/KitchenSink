@@ -525,3 +525,174 @@ describe('parseIngredientLine — a measurement left in the food name', () => {
         expect(parseIngredientLine(line).reviewReasons).not.toContain('measurement_in_name');
     });
 });
+
+/**
+ * ⛔ THE PARENTHETICAL STRIP DELETED THE FOOD (U31, measured 2026-08-25).
+ *
+ * U31 asked whether "`parseIngredientLine` folds measurements into the food name" was closed by the
+ * 2026-08-23 fix. On the two shapes the defect record named it is: "2 cups and 1 tablespoon all-purpose
+ * flour, sifted" now yields `all-purpose flour, sifted` + `measurement_in_name`, and "1 pound (about 4
+ * cups) shredded cooked chicken" yields `shredded cooked chicken` with no reason, correctly.
+ *
+ * ⚠️ But that fix introduced a WORSE defect of the same class, pointing the other way, and measuring
+ * rather than reading is what found it. Three shapes lost text with `reviewReasons: []`:
+ *
+ * | line                                            | name it produced | reviewReasons |
+ * | ----------------------------------------------- | ---------------- | ------------- |
+ * | `1 pound (about 4 cups shredded cooked chicken` | `""`             | `[]`          |
+ * | `1 can (14.5 ounces diced tomatoes`             | `""`             | `[]`          |
+ * | `2 cups flour (a family recipe)`                | `"flour"`        | `[]`          |
+ *
+ * Both causes sat in ONE condition — the strip fired whenever `findQuantityPhrases` found anything at all
+ * inside the brackets:
+ *
+ *  - the closing bracket was OPTIONAL (`\)?`), so an unclosed `(` swallowed the rest of the line;
+ *  - a bare article counts as an amount (`findQuantityPhrases('a family recipe')` returns one span at
+ *    `0..1`), so any parenthetical opening with `a`/`an`/`one` was deleted as though it were a
+ *    measurement — the exact case `PARENTHESISED`'s own docstring promised would survive.
+ *
+ * ⛔ Losing the food is strictly worse than the defect U31 raised. A name carrying a measurement resolves
+ * to nothing; an EMPTY name means the ingredient itself is gone — and both did it with no review reason.
+ *
+ * The repair is one rule rather than two: a bracket is stripped only when it is CLOSED and its contents
+ * carry a measurement by the same test the residual check already uses — an amount FOLLOWED BY A UNIT.
+ * `(about 4 cups)` passes it; `(a family recipe)` does not, because `family` is not a unit.
+ */
+describe('parseIngredientLine — a bracket is not a licence to delete the food', () => {
+    it.each([
+        ['an unclosed bracket before the food', '1 pound (about 4 cups shredded cooked chicken', 'chicken'],
+        ['an unclosed bracket around a net weight', '1 can (14.5 ounces diced tomatoes', 'tomatoes'],
+    ])('keeps the food when there is %s', (_why, line, food) => {
+        const parsed = parseIngredientLine(line);
+
+        expect(parsed.name).not.toBe('');
+        expect(parsed.name).toContain(food);
+    });
+
+    /**
+     * ⚠️ The pair to the case above, and the half that makes it safe. An unclosed bracket is not silently
+     * repaired — the measurement stays in the name, and SAYING so is what turns a silent corruption into a
+     * line a reader is asked to fix.
+     */
+    it.each([['1 pound (about 4 cups shredded cooked chicken'], ['1 can (14.5 ounces diced tomatoes']])(
+        'says the measurement is still in the name of %j',
+        (line) => {
+            expect(parseIngredientLine(line).reviewReasons).toContain('measurement_in_name');
+        },
+    );
+
+    /**
+     * ⛔ `PARENTHESISED`'s own docstring: "(a family recipe) is prose about the food and must survive".
+     * It did not. Every one of these opens with a word `findQuantityPhrases` reads as an amount, which is
+     * why "is there a number in here" was never the right question — "is there a UNIT after it" is.
+     */
+    it.each([
+        ['an indefinite article', '2 cups flour (a family recipe)', 'a family recipe'],
+        ['an "an"', '2 cups flour (an heirloom recipe)', 'an heirloom recipe'],
+        ['a spelled-out one', '1 cup sugar (one of two batches)', 'one of two batches'],
+    ])('keeps a parenthetical that only LOOKS numeric — %s', (_why, line, aside) => {
+        const parsed = parseIngredientLine(line);
+
+        expect(parsed.name).toContain(aside);
+        expect(parsed.reviewReasons).not.toContain('measurement_in_name');
+    });
+
+    /**
+     * ⛔ THE MUTATION LENS. Every assertion above is satisfied by a strip that does nothing at all, so
+     * these are the cases that fail the moment the rule is loosened into "never remove a bracket". They
+     * are the behaviour U31's 2026-08-23 fix bought, and must not be handed back to buy the fix above.
+     */
+    it.each([
+        ['a restated volume', '1 pound (about 4 cups) shredded cooked chicken', 'shredded cooked chicken'],
+        ['a net weight before a container', '1 (14.5 ounce) can diced tomatoes', 'can diced tomatoes'],
+        ['a net weight after a container', '1 can (14.5 ounces) diced tomatoes', 'diced tomatoes'],
+        ['a historical measure', '1 cup milk (one gill) scalded', 'milk scalded'],
+    ])('still takes %s out of the name', (_why, line, expected) => {
+        expect(parseIngredientLine(line).name).toBe(expected);
+    });
+
+    /**
+     * ⚠️ A restatement is one amount said twice, so the quantity we read is already right and there is
+     * nothing to review. Inverting this is the failure `splitMeasurement`'s header names: reading an
+     * equivalent as additive DOUBLES the ingredient.
+     */
+    it('does not ask for review when the bracket only restated the amount', () => {
+        const parsed = parseIngredientLine('1 pound (about 4 cups) shredded cooked chicken');
+
+        expect(parsed.quantity).toEqual({ kind: 'exact', value: 1 });
+        expect(parsed.unit).toBe('lb');
+        expect(parsed.reviewReasons).toEqual([]);
+    });
+
+    /**
+     * ⚠️ `splitMeasurement.ts` carries a polynomial-ReDoS regression guard for the same reason, and its
+     * header names the shape: an unanchored `\s*` beside a group that can FAIL is retried at every start
+     * position. `PARENTHESISED` carried exactly that prefix while this defect was live, so the budget is
+     * pinned here rather than left for the next reader to rediscover.
+     */
+    it('reads a pathological run of spaces before an unclosed bracket in linear time', () => {
+        const pathological = `1 cup ${' '.repeat(20_000)}(`;
+        const startedAt = performance.now();
+
+        expect(parseIngredientLine(pathological).name).toBe('(');
+        expect(performance.now() - startedAt).toBeLessThan(100);
+    });
+});
+
+/**
+ * ⚠️ U31, ROW 3 — IT SURVIVES, DELIBERATELY, AND THIS RECORDS THE DECISION RATHER THAN THE BUG.
+ *
+ * The defect record's third row is `a handful of fresh basil leaves, torn` producing
+ * `name: "handful of fresh basil leaves, torn"` with `reviewReasons: []`. Measured 2026-08-25 it still
+ * does, and so do `a knob of butter` and `a splash of milk` — while `a pinch`, `a dash`, `a sprig` and
+ * `a bunch` read cleanly, because `parse-ingredient` already knows those four words.
+ *
+ * ⛔ So this is NOT the segmentation defect U31 names. Nothing is folding a SECOND measurement into the
+ * name; one measure word is missing from a UNIT LEXICON. The distinction decides the fix, and the obvious
+ * fix is refused on evidence:
+ *
+ *  - `IMPORT_UNITS` would take `handful` in one line, exactly as R31 taught it `tablespoonfuls`. But a
+ *    handful has no gram weight and no source table that could give it one — R32/R33 admit a
+ *    conversion-less unit ONLY because a book's own table of weights and measures resolves it, and no
+ *    book publishes a handful.
+ *  - It would also change what gets IMPORTED. `cookbook-import`'s `ingredientInClause` accepts a clause
+ *    only when `parsed.unit !== null`, so today this line is declined; minting the unit would admit it
+ *    carrying `1 handful`, which nutrition cannot cost.
+ *  - The canonical contract already owns the right home for it. `ParsedFacts.statedMeasure` was
+ *    introduced by U16 for exactly this class — "a measure like `the size of an egg` states something
+ *    real that `quantity` is right to record as absent".
+ *
+ * ⛔ And it must NOT be closed by widening `measurement_in_name` to fire here: that reason means "the
+ * quantity understates the line", a vague measure understates nothing, and a reason that fires on
+ * everything is a reason nobody reads.
+ */
+describe('parseIngredientLine — a measure word the unit lexicon does not know', () => {
+    it.each([
+        ['a handful of fresh basil leaves, torn', 'handful of fresh basil leaves, torn'],
+        ['a knob of butter', 'knob of butter'],
+        ['a splash of milk', 'splash of milk'],
+    ])('leaves the measure word of %j in the name, unflagged', (line, name) => {
+        const parsed = parseIngredientLine(line);
+
+        expect(parsed.name).toBe(name);
+        expect(parsed.unit).toBeNull();
+        expect(parsed.reviewReasons).not.toContain('measurement_in_name');
+    });
+
+    /**
+     * ⚠️ The pair that keeps the case above from reading as "vague measures are unsupported". The four
+     * words `parse-ingredient` DOES define come out as units — which is what the entry above would be
+     * extending, and what makes it a lexicon decision rather than a parser one.
+     */
+    it.each([
+        ['a pinch of saffron', 'pinch', 'saffron'],
+        ['a dash of bitters', 'dash', 'bitters'],
+        ['a sprig of rosemary', 'sprig', 'rosemary'],
+        ['a bunch of parsley', 'bunch', 'parsley'],
+    ])('reads %j as a unit and a food', (line, unit, name) => {
+        const parsed = parseIngredientLine(line);
+
+        expect(parsed.unit).toBe(unit);
+        expect(parsed.name).toBe(name);
+    });
+});

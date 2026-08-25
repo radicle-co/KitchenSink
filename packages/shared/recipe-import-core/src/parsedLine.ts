@@ -167,13 +167,21 @@ const ADDITIONAL_FOODS_DROPPED: IngredientReviewReason = 'additional_foods_dropp
  * | ----------------------------------------- | ------------------------------------------------------------ |
  * | every food after the first                | **YES** — `additional_foods_dropped`                          |
  * | `prep`, on the food that survives         | no — see below                                                 |
- * | `statedMeasure`, the source's own words   | no — its READING survives as `quantity` + `unit`               |
+ * | `statedMeasure`, the source's own words   | no — but see the correction below                              |
  * | `provenance`                              | no — the narrow shape has no field for it and no caller asks   |
  *
  * ⛔ Only the dropped FOODS raise a reason, and the line is where the reasons stop. A food is an IDENTITY:
  * losing one loses an ingredient the recipe calls for, which nothing downstream can recover. `prep` is not
- * identity under KTD-11b — the surviving name is exactly as resolvable without it — and `statedMeasure` is
- * the source's wording of an amount this shape already carries as a number and a unit.
+ * identity under KTD-11b — the surviving name is exactly as resolvable without it.
+ *
+ * ⚠️ CORRECTED 2026-08-25 (U31). This table used to justify dropping `statedMeasure` with "its READING
+ * survives as `quantity` + `unit`", and that is only true of a measure a number can hold. For the class
+ * `statedMeasure` was INTRODUCED for — `"the size of an egg"`, `"a handful"`, which its own docstring says
+ * `quantity` is right to record as ABSENT — the reading is `absent` + `null`, so nothing survives it.
+ * What actually carries those words is {@link ParsedLine.raw}, which this projection passes through
+ * byte-identical: the measure is not lost, only the knowledge of WHICH SPAN of `raw` was the measure. And
+ * the reason to review it comes from the PRODUCER (`no_quantity`), never from here — see the paragraph
+ * below on why this adds no reason of its own.
  *
  * ⛔ It adds NO reason of its own beyond that one, even where it can see something amiss. A `ParsedLine`
  * with an absent quantity, or with no food at all, was already judged by its producer, and re-deriving

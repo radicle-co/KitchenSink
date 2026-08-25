@@ -3,6 +3,8 @@ export { millilitresPerUnit } from './historicalUnits.js';
 export type { MeasureSystem } from './historicalUnits.js';
 export { corruptsStatedValue, parseIngredientLine, roundToQuantityStorageScale } from './ingredientLine.js';
 export type { IngredientReviewReason, ParsedIngredientLine } from './ingredientLine.js';
+export { projectToIngredientLine } from './parsedLine.js';
+export type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance } from './parsedLine.js';
 export { normalizeQuantity } from './normalizeQuantity.js';
 export type { NormalizedQuantity } from './normalizeQuantity.js';
 export { splitMeasurement } from './splitMeasurement.js';

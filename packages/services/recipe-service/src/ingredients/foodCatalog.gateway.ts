@@ -36,7 +36,8 @@
  * @implements FR-007 FR-047
  */
 import { Logger } from '@nestjs/common';
-import type { SearchResultView } from '@kitchensink/food-service-client';
+import { isFetchUnavailableError } from '@kitchensink/food-service-client';
+import type { LiveSearchResultView, SearchResultView } from '@kitchensink/food-service-client';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { FoodServiceClients } from './FoodServiceClients.factory.js';
@@ -61,6 +62,51 @@ export interface FoodCatalogGatewayOptions {
 
 /** A degraded outcome — the value every failure path collapses to. */
 const UNAVAILABLE: CatalogSearchOutcome = { hits: [], availability: 'unavailable' };
+
+/** One hit from the ON-DEMAND live source search — a name, plus our food id when we already hold it. */
+export interface LiveCatalogHit {
+    /** The source's display name. */
+    readonly name: string;
+    /** Our opaque food id, present only when the hit is already crosswalked into our catalog. */
+    readonly foodId?: string;
+}
+
+/**
+ * How one ON-DEMAND live search ended (plan U29).
+ *
+ * ⛔ Three members, not two, and NOT the `CatalogAvailability` triple {@link CatalogSearchOutcome} uses.
+ * `search` may flatten every failure into `unavailable` because its result is strictly ADDITIVE — the local
+ * section renders regardless and the cook loses nothing they asked for. Here they pressed a button, so the
+ * outcomes ARE the product: `results` (possibly empty — the source answered and has nothing, so stop
+ * looking), `busy` (our reserved lane is spent, or the source throttled us — try again, and here is when),
+ * and `unavailable` (the source did not answer — try again, but we cannot say when). Collapsing any pair
+ * strands a cook in the wrong loop.
+ */
+export type LiveCatalogOutcome =
+    | { readonly kind: 'results'; readonly hits: readonly LiveCatalogHit[] }
+    | { readonly kind: 'busy'; readonly retryAfterSeconds?: number }
+    | { readonly kind: 'unavailable' };
+
+/** The value every live-search failure that is not a rate refusal collapses to. */
+const LIVE_UNAVAILABLE: LiveCatalogOutcome = { kind: 'unavailable' };
+
+/** Narrow one raw live row to a renderable {@link LiveCatalogHit}, or `null` when it is unusable. Pure. */
+function toLiveHit(row: LiveSearchResultView): LiveCatalogHit | null {
+    if (typeof row?.name !== 'string') {
+        return null;
+    }
+
+    const name = row.name.trim();
+
+    if (name.length === 0) {
+        return null;
+    }
+
+    // The food service calls its own primary key `id`; this service's ingredient vocabulary calls it
+    // `foodId` (see `ingredientSuggestionSchema`). The rename happens HERE, at the boundary, so neither
+    // service has to speak the other's dialect.
+    return typeof row.id === 'string' && row.id.length > 0 ? { name, foodId: row.id } : { name };
+}
 
 /** Narrow one raw search row to a renderable {@link CatalogHit}, or `null` when it is unusable. Pure. */
 function toCatalogHit(row: SearchResultView): CatalogHit | null {
@@ -152,6 +198,69 @@ export class FoodCatalogGateway {
             this.reportDegraded(error);
 
             return UNAVAILABLE;
+        }
+    }
+
+    /**
+     * ON-DEMAND live source search (plan U29) — the gateway's second, deliberately different path.
+     *
+     * **Still total by construction; deliberately NOT flattened.** Like {@link search} it never rejects, but
+     * it reports THREE outcomes rather than one degraded value — see {@link LiveCatalogOutcome} for why the
+     * distinction is the product rather than a nicety.
+     *
+     * ⚠️ **The STANDARD (8s) client, never the typeahead one.** This is the acknowledged SLOW path: the food
+     * service is calling an upstream source over the network, a multi-second wait is the expected experience,
+     * and it is explicitly NOT under SC-007's 500ms local-search budget. A sub-second deadline here would
+     * turn every real answer into a fabricated "the source did not answer".
+     *
+     * ⛔ Never call this from a typeahead. Each call spends one request from a SHARED per-IP source quota
+     * out of FR-019's reserved interactive lane; it exists for a button a cook presses.
+     *
+     * @param caller - The requesting user's credential, forwarded to food. `undefined` degrades WITHOUT
+     *   issuing a request, exactly as {@link search} does and for the same reason (food's 401 shedder).
+     * @param query - The user's query. Passed through as given; food applies the search minimum and refuses
+     *   a short one, which surfaces here as `unavailable` (a caller should gate before pressing).
+     * @returns Which of the three outcomes occurred. Never throws.
+     * @sideEffect Performs one authenticated food-service request that causes an upstream source call.
+     */
+    public async searchLive(caller: CallerToken | undefined, query: string): Promise<LiveCatalogOutcome> {
+        if (!this.options.enabled) {
+            // ⚠️ `unavailable`, NOT the `disabled` silence `search` returns. There, silence is right: the
+            // local list still works and nothing the cook asked for is missing. Here they pressed a button
+            // and are owed an answer, and "the source cannot be searched right now" is the honest one.
+            return LIVE_UNAVAILABLE;
+        }
+
+        if (caller === undefined) {
+            this.reportDegraded('no caller credential to forward');
+
+            return LIVE_UNAVAILABLE;
+        }
+
+        try {
+            const result = await this.clients.standard(caller).searchLive(query);
+
+            if (!Array.isArray(result?.results)) {
+                throw new TypeError('food-service live search returned no `results` array');
+            }
+
+            // The source's ORDER is preserved — unlike `search`, there is no score to re-rank by, and the
+            // source's own relevance ordering is the only ordering that exists for a hit we do not hold.
+            return {
+                kind: 'results',
+                hits: result.results.map(toLiveHit).filter((hit): hit is LiveCatalogHit => hit !== null),
+            };
+        } catch (error) {
+            if (isFetchUnavailableError(error)) {
+                // OUR budget (or the source's) said no — a retryable refusal that names its own window.
+                return error.retryAfterSeconds === undefined
+                    ? { kind: 'busy' }
+                    : { kind: 'busy', retryAfterSeconds: error.retryAfterSeconds };
+            }
+
+            this.reportDegraded(error);
+
+            return LIVE_UNAVAILABLE;
         }
     }
 

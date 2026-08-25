@@ -355,7 +355,7 @@ export class FoodConsumerService {
                 return 'deferred';
             }
 
-            const window = await this.limiter.tryRecord(source);
+            const window = await this.limiter.tryRecord(source, 'worker');
 
             if (!window.allowed) {
                 await this.queue.deferLease(foodId, DEFER_PAUSE_SECONDS);
@@ -443,7 +443,7 @@ export class FoodConsumerService {
             }
 
             // Atomically charge the window (the searchByName + batch fetch = ONE windowed call).
-            const window = await this.limiter.tryRecord(source);
+            const window = await this.limiter.tryRecord(source, 'worker');
 
             if (!window.allowed) {
                 await this.queue.deferLease(foodId, DEFER_PAUSE_SECONDS);

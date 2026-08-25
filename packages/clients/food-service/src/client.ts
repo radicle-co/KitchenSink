@@ -30,10 +30,11 @@ import {
     searchFoodQuerySchema,
     canonicalNutritionQuery,
     foodNutritionBatchResponseSchema,
+    liveSearchResponseSchema,
     searchResponseSchema,
     statusResponseSchema,
 } from '@kitchensink/schema-food';
-import type { FoodError } from '@kitchensink/schema-food';
+import type { FoodError, LiveSearchResponse } from '@kitchensink/schema-food';
 
 import { reportContractSkewOnce } from './contractSkew.js';
 import {
@@ -45,6 +46,7 @@ import {
     FoodServiceClientError,
     InvalidRequestError,
     NotFoundError,
+    SourceUnavailableError,
     UnauthorizedError,
     UnexpectedResponseError,
 } from './errors.js';
@@ -260,6 +262,39 @@ export class FoodServiceClient {
         const res = await this.send('GET', `/api/v1/foods/search?query=${encodeURIComponent(validated ?? '')}`);
 
         return this.expect<SearchResult>(res, 200, searchResponseSchema);
+    }
+
+    /**
+     * `GET /api/v1/foods/search/live?query=` — the ON-DEMAND source search (plan U29).
+     *
+     * ⛔ **Never call this from a typeahead.** Unlike {@link search} it leaves the food service's database
+     * and spends one call against a SHARED per-IP source quota, out of FR-019's reserved interactive lane.
+     * It exists for a deliberate, occasional action a cook chooses — a button they press — because at 50
+     * concurrent users a per-settled-query autocomplete would want roughly three times the whole hourly key.
+     * It is also the SLOW path: a multi-second wait is expected and is not covered by SC-007's 500ms budget,
+     * which governs the local search.
+     *
+     * Three outcomes are deliberately distinguishable, and a caller must keep them apart:
+     *  - an EMPTY `results` — the source has nothing for this query (stop looking);
+     *  - {@link FetchUnavailableError} — our lane is exhausted or the source throttled us (retry);
+     *  - {@link SourceUnavailableError} — the source did not answer (retry, but no known window).
+     *
+     * @param query - The search text. Must meet the shared search minimum; shorter is refused by the
+     *   service with a `400` rather than emptied, so a caller should gate on `meetsSearchMinimum` first.
+     * @returns The source's hits, each carrying our internal `id` when it is already in our catalog.
+     * @throws {BadRequestError} when the query is below the service's search minimum.
+     * @throws {FetchUnavailableError} `503` — our interactive lane is exhausted, or the source said `429`.
+     * @throws {SourceUnavailableError} `502` — the source did not answer.
+     * @throws {UnauthorizedError}/{@link ForbiddenError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request that causes an upstream source call.
+     */
+    public async searchLive(query: string): Promise<LiveSearchResponse> {
+        // Validated against the same `searchFoodQuerySchema` the service parses with, so a structurally
+        // illegal term never costs a round trip on the one path that spends external quota.
+        const { query: validated } = this.request('searchLive', searchFoodQuerySchema, { query });
+        const res = await this.send('GET', `/api/v1/foods/search/live?query=${encodeURIComponent(validated ?? '')}`);
+
+        return this.expect<LiveSearchResponse>(res, 200, liveSearchResponseSchema);
     }
 
     /**
@@ -525,6 +560,11 @@ export class FoodServiceClient {
                 // The header is the transport-level contract and wins; the body repeats it for a consumer that
                 // only has the payload (and for the case a proxy stripped the header).
                 return new FetchUnavailableError(res.retryAfterSeconds ?? body.details.retryAfterSeconds, body.message);
+            // ⛔ A SEPARATE error from the one above, not a 502-shaped alias of it. That one is OUR budget
+            // refusing, with a retry window; this one is the upstream source being down, with none. The
+            // picker renders them as two different sentences, so conflating them here would mislead a cook.
+            case 'SOURCE_UNAVAILABLE':
+                return new SourceUnavailableError(body.message);
             // A `202` or a `500` reaching the error path means the service answered with something this call
             // cannot represent. Surfacing it loudly is the honest outcome; swallowing it is how a contract break
             // becomes a mystery `undefined` three layers into a caller.

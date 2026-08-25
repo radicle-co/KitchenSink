@@ -78,6 +78,12 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     UNSUPPORTED_MEDIA_TYPE: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
     TOO_MANY_REQUESTS: HttpStatus.TOO_MANY_REQUESTS,
     NOT_READY: HttpStatus.SERVICE_UNAVAILABLE,
+    // A rate refusal, never a 429: the limit is a SHARED external one, not the caller's personal
+    // quota, so blaming the caller would be wrong and would invite the wrong client behaviour.
+    SOURCE_BUSY: HttpStatus.SERVICE_UNAVAILABLE,
+    // 502, because the fault is genuinely upstream of us — and it carries no Retry-After, because
+    // nothing here knows when an external source recovers.
+    SOURCE_UNAVAILABLE: HttpStatus.BAD_GATEWAY,
     INTERNAL_ERROR: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 

@@ -148,7 +148,7 @@ export class ChangeRefreshConsumer {
                 break;
             }
 
-            const window = await this.limiter.tryRecord(source);
+            const window = await this.limiter.tryRecord(source, 'worker');
 
             if (!window.allowed) {
                 break;

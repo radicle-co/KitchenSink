@@ -64,6 +64,12 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useIngredientStatus: () => ({ data: undefined }),
     useIngredientCandidates: () => ({ isLoading: false, isError: false, isSuccess: false, data: undefined }),
     useResolveIngredient: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
+    useSearchIngredientsLive: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
     // U14 — the picker mounted inside this screen now also mounts the CORRECTION command. A module mock that
     // omits a hook the tree calls fails the whole render, so this list must name every hook mounted below it.
     // Inert here on purpose: the correction's own states are covered in

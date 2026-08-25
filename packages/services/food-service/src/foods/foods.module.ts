@@ -33,6 +33,7 @@ import { FoodSearchDao } from './dao/foodSearch.dao.js';
 import { EnqueueEmitter } from './enqueue.emitter.js';
 import { FoodsController } from './foods.controller.js';
 import { FoodsService } from './foods.service.js';
+import { LiveFoodSearchService } from './liveSearch.service.js';
 import { ServiceErasureController } from './serviceErasure.controller.js';
 import { GoldenRecordMergeEngine } from './merge/mergeEngine.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
@@ -117,6 +118,18 @@ import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
             provide: RollingWindowLimiter,
             inject: [DrizzleProvider],
             useFactory: (db: FoodDrizzle): RollingWindowLimiter => new RollingWindowLimiter(new SourceCallLogDao(db)),
+        },
+        // The ON-DEMAND live source search (plan U29) — the only read path in the API process that leaves our
+        // own database. It charges FR-019's RESERVED interactive lane, which the API process can only do
+        // because the limiter and the adapter registry are already providers here.
+        {
+            provide: LiveFoodSearchService,
+            inject: [SourceAdapterRegistry, RollingWindowLimiter, FoodSourcesDao],
+            useFactory: (
+                registry: SourceAdapterRegistry,
+                limiter: RollingWindowLimiter,
+                foodSources: FoodSourcesDao,
+            ): LiveFoodSearchService => new LiveFoodSearchService(registry, limiter, foodSources),
         },
     ],
     exports: [FoodsService, EnqueueEmitter, UserErasureService],

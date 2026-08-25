@@ -54,6 +54,9 @@ export type { CatalogAvailability as IngredientCatalogAvailability } from '@kitc
 /** Response envelope of `suggestIngredients`. ALIAS of the contract's `IngredientSuggestionsResponse`. */
 export type { IngredientSuggestionsResponse as IngredientSuggestions } from '@kitchensink/schema-recipe';
 
+/** One hit from the ON-DEMAND live source search (plan U29). Re-exported from the published contract. */
+export type { LiveIngredientHit, LiveIngredientSearchResponse } from '@kitchensink/schema-recipe';
+
 /**
  * The COLLECTIONS wire shapes, from the contract. Every name below is an ALIAS of a generated type, never a
  * second declaration (§15 Rule 1) — the client's historical names are kept because this package's public

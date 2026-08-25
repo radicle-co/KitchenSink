@@ -10,9 +10,25 @@
  * U6 gave the previously unstyled leaf (bare `<Text>/<TextInput>/<Pressable>` rows) the form's
  * field/card/list-row treatment: a search field with a leading icon + a clear (×) control, tappable result
  * rows with `PressScale` press feedback, inline loading/error text, a subtle "USDA database" badge, and a
- * STYLED-BUT-INERT "Search USDA for '…'" seam that a separate USDA-autocomplete CR will wire (owner decision:
- * local-first, USDA on-demand). No behaviour changed: every accessible name, role, and the resolution wiring
- * are preserved from the pre-U6 leaf.
+ * styled "Search USDA for '…'" seam.
+ *
+ * **U29 — that seam is now WIRED.** It was deliberately inert (a `View`, marked "Soon") until the on-demand
+ * source search existed behind it; it is now a real control, and the "Soon" tag is gone with the behaviour
+ * it was standing in for. Three things about it are deliberate:
+ *
+ *  1. ⛔ **It is a PRESS, never a typeahead.** The upstream source allows 1,000 requests/hour PER IP shared
+ *     by every cook, of which 003's FR-019 reserves only the top 10% for user-facing work — so at 50
+ *     concurrent cooks even a perfect one-call-per-settled-query autocomplete would want roughly three times
+ *     the entire key. Do not add a debounce, an effect, or a "the local list looks thin" trigger.
+ *  2. ⚠️ **The panel APPENDS below the local results; it never replaces them.** The design mockup shows the
+ *     running/failed states taking the result area over, and this leaf deliberately does not: a cook who
+ *     waits several seconds and then gets a failure would have lost the list they already had.
+ *  3. ⛔ **Three settled outcomes, three sentences.** "USDA has nothing for X" means stop looking (a muted
+ *     line, no retry — nothing failed). "Rate-limited" and "didn't answer" both mean try again, and are
+ *     alerts with a retry. Merging any pair sends a cook round a loop that cannot end.
+ *
+ * The DECISIONS all live in the shared `useOnDemandIngredientSearch`; only the RN markup is here, so the two
+ * platforms cannot drift on when a source call is made or on what a cook is told about it.
  *
  * The hook's callback contract is `onResolved: (line: RecipeFormIngredient) => void`; this leaf keeps its own
  * public `onResolve` prop (its `ResolvedIngredient` shape, narrower than `RecipeFormIngredient` — no
@@ -52,6 +68,7 @@ import {
 } from '@commise/features-recipes';
 import type { RecipeCorrectionMessages, RecipeFormIngredient } from '@commise/features-recipes';
 import { useIngredientCorrection, useIngredientResolver } from '@commise/features-recipes/hooks';
+import type { LiveIngredientHit } from '@kitchensink/recipe-service-client';
 import { useMessages } from '@commise/i18n/react';
 import { palette, tint } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
@@ -237,7 +254,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
     const correctionMessages = useMessages(recipeCorrectionMessages);
     // 003-FR-010a: the search-minimum copy is shared by all four ingredient-search surfaces, so it lives in
     // the feature package rather than in this app's dictionary — see `IngredientSearchMessages`.
-    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
+    const { ingredientSearch: minimumCopy, ingredientLiveSearch: liveCopy } = useMessages(recipeMessages);
     // `ingredient_picker` is a CLOSED wire enum, so this surface cannot invent an audit value (R20).
     const correction = useIngredientCorrection('ingredient_picker');
     const {
@@ -255,6 +272,8 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
         pickCandidate,
         addFreeform,
         cancelDisambiguation,
+        liveSearch,
+        selectLiveHit,
     } = useIngredientResolver((line) => {
         const resolved = toResolvedIngredient(line);
 
@@ -262,6 +281,113 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
             onResolve(resolved);
         }
     });
+
+    /**
+     * Whether the on-demand control is on screen at all.
+     *
+     * Offered once the query clears the 003-FR-010a minimum, and kept mounted while its own search runs so
+     * the control the cook pressed stays the control they are waiting on. Below the minimum it is ABSENT
+     * rather than disabled, matching the other query-keyed actions — a two-character query cannot
+     * discriminate, and this is the one path that spends a SHARED external quota.
+     */
+    const isLiveSearchOffered = liveSearch.canSearch || liveSearch.state.kind === 'searching';
+
+    /**
+     * The on-demand source-search panel (U29) — rendered BELOW the local results, never in place of them.
+     *
+     * Each settled kind gets its own affordances, because each implies a different next move: hits are
+     * tappable rows; "has nothing" is a quiet muted line with NO retry, since the source answered and
+     * repeating the search cannot change the answer; both failures are alerts with a retry, because the
+     * search never actually happened.
+     */
+    const liveSearchPanel = ((): JSX.Element | null => {
+        const state = liveSearch.state;
+
+        if (state.kind === 'idle') {
+            return null;
+        }
+
+        if (state.kind === 'searching') {
+            return (
+                <View style={styles.livePanel}>
+                    <Text style={styles.muted}>{liveCopy.searching}</Text>
+                    <Text style={styles.liveDetail}>{liveCopy.searchingDetail}</Text>
+                </View>
+            );
+        }
+
+        if (state.kind === 'results') {
+            return (
+                <View accessibilityLabel={liveCopy.regionLabel} style={styles.livePanel}>
+                    <View style={styles.liveHeader}>
+                        <Text accessibilityRole="header" style={styles.sectionTitle}>
+                            {liveCopy.resultsTitle}
+                        </Text>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={liveCopy.dismiss}
+                            onPress={liveSearch.dismiss}
+                        >
+                            <Text style={styles.liveDismissLabel}>{liveCopy.dismiss}</Text>
+                        </Pressable>
+                    </View>
+                    <View style={styles.list}>
+                        {state.hits.map((hit: LiveIngredientHit) => (
+                            <PressScale
+                                key={`${hit.name}:${hit.foodId ?? ''}`}
+                                accessibilityRole="button"
+                                accessibilityLabel={hit.name}
+                                disabled={addByFoodStatus.isPending || addByNameStatus.isPending}
+                                onPress={() => selectLiveHit(hit)}
+                            >
+                                <View style={styles.row}>
+                                    <Text style={styles.rowText}>{hit.name}</Text>
+                                    <View style={styles.badge}>
+                                        <Text style={styles.badgeLabel}>{t.catalogBadge}</Text>
+                                    </View>
+                                </View>
+                            </PressScale>
+                        ))}
+                    </View>
+                </View>
+            );
+        }
+
+        if (state.kind === 'empty') {
+            // ⛔ A muted line, NOT an alert, and NO retry: the source answered. A cook here should name the
+            // ingredient themselves, and "try again" would send them round a loop that cannot end.
+            return (
+                <View style={styles.livePanel}>
+                    <Text style={styles.muted}>{fillTemplate(liveCopy.noResults, { query: state.query })}</Text>
+                </View>
+            );
+        }
+
+        return (
+            <View style={styles.livePanel}>
+                <Text accessibilityRole="alert" style={styles.error}>
+                    {state.kind === 'busy' ? liveCopy.busy : liveCopy.failed}
+                </Text>
+                <View style={styles.liveHeader}>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={liveCopy.retry}
+                        disabled={!liveSearch.canSearch}
+                        onPress={liveSearch.search}
+                    >
+                        <Text style={styles.liveRetryLabel}>{liveCopy.retry}</Text>
+                    </Pressable>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={liveCopy.dismiss}
+                        onPress={liveSearch.dismiss}
+                    >
+                        <Text style={styles.liveDismissLabel}>{liveCopy.dismiss}</Text>
+                    </Pressable>
+                </View>
+            </View>
+        );
+    })();
 
     if (viewState.kind === 'disambiguating' || viewState.kind === 'resolving') {
         const title = fillTemplate(t.disambiguateTitle, { name: viewState.name });
@@ -497,19 +623,36 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                         </PressScale>
                     </View>
 
-                    {/* U6 SEAM: the styled-but-inert "Search USDA for '…'" affordance. A separate
-                        USDA-autocomplete CR wires the on-demand USDA search behind it; rendered here (visibly
-                        marked "coming soon", non-interactive) so its slot + styling land now without shipping a
-                        dead button. Deliberately NOT a `PressScale`/button — nothing to press yet. */}
-                    <View style={styles.usdaSeam}>
-                        <Feather name="database" size={14} color={palette.slate} />
-                        <Text style={styles.usdaSeamLabel}>{fillTemplate(t.searchUsdaFor, { query: trimmed })}</Text>
-                        <View style={styles.usdaSeamTag}>
-                            <Text style={styles.usdaSeamTagLabel}>{t.searchUsdaSoon}</Text>
-                        </View>
-                    </View>
+                    {/* U29: the ON-DEMAND source search, no longer a seam. ⛔ A press, never a keystroke
+                        trigger — see the module doc for the quota arithmetic behind that. ⚠️ ONE control that
+                        DISABLES while its own search runs, rather than a second element swapped in: a swap
+                        detaches the node the cook (and a screen reader) is holding. */}
+                    {isLiveSearchOffered && (
+                        <PressScale
+                            accessibilityRole="button"
+                            accessibilityLabel={fillTemplate(liveCopy.action, { query: trimmed })}
+                            disabled={!liveSearch.canSearch}
+                            busy={liveSearch.state.kind === 'searching'}
+                            onPress={liveSearch.search}
+                        >
+                            <View style={[styles.usdaSeam, !liveSearch.canSearch && styles.actionDisabled]}>
+                                <Feather name="database" size={14} color={palette.slate} />
+                                <Text style={styles.usdaSeamLabel}>
+                                    {fillTemplate(liveCopy.action, { query: trimmed })}
+                                </Text>
+                                {/* Not decoration: everything else here settles in under a second and this
+                                    takes several, so saying so BEFORE the press makes the wait read as the
+                                    cook's own choice rather than the app hanging. */}
+                                <View style={styles.usdaSeamTag}>
+                                    <Text style={styles.usdaSeamTagLabel}>{liveCopy.slowTag}</Text>
+                                </View>
+                            </View>
+                        </PressScale>
+                    )}
                 </>
             )}
+
+            {liveSearchPanel}
 
             {addByNameStatus.isPending && <Text style={styles.muted}>{t.addingByName}</Text>}
             {addByNameStatus.isError && (
@@ -617,6 +760,19 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     usdaSeamLabel: { flex: 1, fontSize: 13, color: palette.slate },
+    livePanel: {
+        gap: 6,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: border,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+    },
+    liveHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    liveDetail: { fontSize: 12, color: palette.slate },
+    // Text on a tint: `ocean-dark`, never `seafoam` — see `@commise/ui`'s colour doc.
+    liveRetryLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: palette['ocean-dark'] },
+    liveDismissLabel: { fontSize: 13, fontWeight: '600', color: palette.slate },
     usdaSeamTag: { borderRadius: 999, backgroundColor: palette.pearl, paddingVertical: 2, paddingHorizontal: 8 },
     usdaSeamTagLabel: { fontSize: 10, fontWeight: '600', color: palette.slate, textTransform: 'uppercase' },
 });

@@ -959,6 +959,19 @@ export async function mockRecipeApi(
         //  - `/suggest` — the BLENDED envelope the ingredient PICKER reads: the caller's own rows plus
         //    food-catalog golden records that have no `ingredients` row yet, sectioned by provenance.
         // Matched BEFORE the bare `/api/v1/ingredients` create route so the longer paths win.
+        // U29's ON-DEMAND source search. ⛔ Matched BEFORE the bare `/search` route — `endsWith` would not
+        // confuse the two, but the ORDER states which is the more specific path, and it is also where a
+        // future `/search/*` sibling has to go.
+        //
+        // ⚠️ It answers a fixed hit that carries `foodId: catalogSuggestionFoodId`, so picking it goes
+        // through the SAME `by-food` admit a catalog suggestion uses — which is what lets the spec follow
+        // the line all the way to a published recipe rather than stopping at "a row rendered".
+        if (path.endsWith('/api/v1/ingredients/search/live')) {
+            return route.fulfill({
+                json: { hits: [{ name: catalogSuggestionName, foodId: catalogSuggestionFoodId }] },
+            });
+        }
+
         if (path.endsWith('/api/v1/ingredients/search')) {
             return route.fulfill({ json: [catalogIngredient] });
         }

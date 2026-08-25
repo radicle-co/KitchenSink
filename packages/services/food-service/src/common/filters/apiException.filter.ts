@@ -6,6 +6,8 @@ import type { Request, Response } from 'express';
 import {
     isCandidateMismatchError,
     isFetchUnavailableError,
+    isSearchQueryTooShortError,
+    isSourceUnavailableError,
     isFoodNotFoundError,
     isFoodPendingError,
     isNotResolvableError,
@@ -96,6 +98,24 @@ function classifyFoodError(exception: unknown): ClassifiedEnvelope | undefined {
             message: exception.message,
             details: { retryAfterSeconds: exception.retryAfterSeconds },
         };
+    }
+
+    if (isSearchQueryTooShortError(exception)) {
+        // Rendered in the `VALIDATION_FAILED` field shape every other boundary rejection uses, so a client
+        // handles it with the code it already handles rather than learning a fourth failure for one route.
+        return {
+            code: CODE.VALIDATION_FAILED,
+            message: exception.message,
+            details: { fields: [`query: at least ${exception.minimum} characters`] },
+        };
+    }
+
+    if (isSourceUnavailableError(exception)) {
+        // ⛔ NOT `FETCH_UNAVAILABLE`. That code means OUR budget said no and carries a `Retry-After`; this
+        // one means the upstream source did not answer, and we know nothing about when it will. The picker
+        // renders them as two different sentences, so collapsing them here would strand a cook.
+        // The failing source stays out of the body (FR-ADP-1) — it is on the log line instead.
+        return { code: CODE.SOURCE_UNAVAILABLE, message: exception.message };
     }
 
     return undefined;

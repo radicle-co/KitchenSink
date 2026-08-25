@@ -56,6 +56,74 @@ paths:
           description: The search text. Absent is treated as empty, which yields no results.
           schema:
             type: string
+  /api/v1/foods/search/live:
+    get:
+      operationId: searchFoodsLive
+      summary: Search the upstream source on demand (an explicit action, quota-charged)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The source's hits, possibly EMPTY — which means it has nothing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveSearchResponse"
+        "400":
+          description: "Below the search minimum — `code: VALIDATION_FAILED` (003-FR-010a)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: "The upstream source did not answer — `code: SOURCE_UNAVAILABLE`. Carries no `Retry-After`: the fault is
+            upstream and we know nothing about its recovery."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: "Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. `code: FETCH_UNAVAILABLE`,
+            with the same seconds in `details.retryAfterSeconds` and in `Retry-After`; this service never answers
+            `429`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 0
+      description: >-
+        The ON-DEMAND live source search behind the ingredient picker's "Search USDA for …" affordance. Unlike `/search`
+        it LEAVES our database and spends one call against the shared per-IP source quota, out of FR-019's reserved
+        interactive lane.
+
+
+        ⛔ It is an explicit action a cook chooses, NOT autocomplete: at 50 concurrent users a per-settled-query
+        typeahead would want roughly three times the entire hourly key.
+
+
+        Three outcomes are deliberately distinguishable: an empty `200` means the source has nothing; `503` means our
+        lane is exhausted or the source throttled us (retry); `502` means the source did not answer. The route is
+        user-agnostic — the source rate-limits our egress IP, so the aggregate limiter is the only quota authority.
+      parameters:
+        - name: query
+          in: query
+          required: false
+          description: The search text. Must meet the shared search minimum (003-FR-010a); shorter is REJECTED rather than
+            emptied, because an empty page here would be indistinguishable from "the source has nothing".
+          schema:
+            type: string
   /api/v1/foods:
     post:
       operationId: addFoodByName
@@ -849,6 +917,18 @@ components:
             code:
               type: string
               enum:
+                - SOURCE_UNAVAILABLE
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - FETCH_UNAVAILABLE
             message:
               type: string
@@ -1043,6 +1123,24 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SearchResultView"
+      required:
+        - results
+    LiveSearchResultView:
+      type: object
+      properties:
+        name:
+          type: string
+        id:
+          type: string
+      required:
+        - name
+    LiveSearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/LiveSearchResultView"
       required:
         - results
     AddResponse:

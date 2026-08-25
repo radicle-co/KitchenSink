@@ -134,6 +134,51 @@ export const ingredientSuggestionsResponseSchema = z
 export type IngredientSuggestionsResponse = z.infer<typeof ingredientSuggestionsResponseSchema>;
 
 /**
+ * One hit from the ON-DEMAND live source search (`GET /api/v1/ingredients/search/live`, plan U29).
+ *
+ * ⛔ NOT an {@link ingredientSuggestionSchema} arm, and it must not become one. A blended suggestion is
+ * something a cook can pick right now — a `local` row has an `ingredientId`, a `catalog` row has a `foodId`
+ * and a relevance `score` from our own ranking. A live hit may be NEITHER: it can be a food the source knows
+ * about that we have never admitted, in which case there is no id to give and no score to report, because
+ * the source's own ordering is the only ordering there is. Folding it into the union would put an arm on the
+ * typeahead's hot path that nothing on that path can produce.
+ */
+export const liveIngredientHitSchema = z
+    .object({
+        /** The source's display name for the item. */
+        name: z.string().min(1),
+        /**
+         * The opaque food id to admit via `POST /api/v1/ingredients/by-food`, present ONLY when this hit is
+         * already in our catalog. Its ABSENCE means the pick must go through the by-name path instead, which
+         * is slower and can land `UNRESOLVED` — so the distinction is a real one for the caller, not
+         * cosmetic. Never a source-native key.
+         */
+        foodId: z.string().min(1).optional(),
+    })
+    .readonly();
+
+/** One on-demand live-source hit. */
+export type LiveIngredientHit = z.infer<typeof liveIngredientHitSchema>;
+
+/**
+ * Response envelope of `GET /api/v1/ingredients/search/live` (plan U29).
+ *
+ * ⚠️ An EMPTY `hits` is a SUCCESS — "the source has nothing for this" — and stays distinct from the `503`
+ * (busy: our reserved lane is exhausted, or the source throttled us) and the `502` (the source did not
+ * answer) this route also produces. A cook who sees the first should stop looking; one who sees either other
+ * should try again. The picker renders three different sentences, so a consumer must not collapse them.
+ */
+export const liveIngredientSearchResponseSchema = z
+    .object({
+        /** The source's hits, in the source's order. Empty means the source has nothing. */
+        hits: z.array(liveIngredientHitSchema).readonly(),
+    })
+    .readonly();
+
+/** The on-demand live-search response body. */
+export type LiveIngredientSearchResponse = z.infer<typeof liveIngredientSearchResponseSchema>;
+
+/**
  * Body of `POST /api/v1/ingredients` and `POST /api/v1/ingredients/by-name`.
  *
  * Trimmed before validation, so `'  '` is a `400` rather than an ingredient literally named two spaces.

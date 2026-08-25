@@ -15,7 +15,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EnvironmentSchema } from '../../config/env.schema.js';
-import type { SourceCallLogDao } from '../../foods/dao/index.js';
+import type {
+    CheckAndRecordInput,
+    SourceCallChannel,
+    SourceCallLogDao,
+    WindowCheckResult,
+} from '../../foods/dao/index.js';
+import type { FoodSourceId } from '../foodSourceAdapter.js';
 import { RollingWindowLimiter, sourceCapsFromEnv } from '../RollingWindowLimiter.js';
 
 /** The `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` default the boot-time schema applies — never a restated literal. */
@@ -108,5 +114,118 @@ describe('RollingWindowLimiter — caps default to the configured value', () => 
         vi.stubEnv('FOOD_SOURCE_RATE_LIMIT_PER_HOUR', 'lots');
 
         expect(() => new RollingWindowLimiter(daoReporting(0))).toThrow(/FOOD_SOURCE_RATE_LIMIT_PER_HOUR/);
+    });
+});
+
+/**
+ * F-W1 (plan U29) — the two-lane split that makes FR-019's reserved interactive headroom ENFORCED rather
+ * than merely advisory.
+ *
+ * Before this, `tryRecord` charged EVERY caller against `hardCap` and the 90% reserve existed only because
+ * the worker voluntarily consulted `isPaused` first — once, per drain cycle, not per call. A fan-out that
+ * passed the pause check at 899 could then charge twenty `fetchByKeys` and land the window at 919, eating
+ * the very headroom a waiting human's search depends on. The reserve is now the worker's own admission cap.
+ *
+ * ⛔ **The two lanes are NOT two budgets.** USDA rate-limits our egress IP, so both lanes spend the SAME
+ * 1,000/hr. What differs is the ceiling each may push the SHARED count to: the worker stops at the 90%
+ * threshold, the interactive lane may use the whole cap. That is what guarantees ≥10% for user-facing
+ * search under arbitrary worker behaviour, while keeping the aggregate at or under USDA's real limit
+ * (SC-002).
+ *
+ * These cases drive a call-log double that ACTUALLY IMPLEMENTS the windowed count-and-record — the cap
+ * comparison and the insert both really happen — so an assertion here fails for the same reason the real
+ * DAO would. A stub returning `{ allowed: true }` would prove only that the limiter forwards its arguments.
+ */
+describe('RollingWindowLimiter — interactive vs worker lanes (F-W1, FR-019)', () => {
+    /**
+     * An in-memory `source_call_log`: a real ledger with the real admission rule (count the source's rows
+     * across BOTH lanes, insert iff strictly under the caller's cap), so what is asserted below is the
+     * limiter's own arithmetic, not a canned answer.
+     */
+    function ledgerDao(seed: readonly SourceCallChannel[] = []): SourceCallLogDao & {
+        readonly rows: SourceCallChannel[];
+    } {
+        const rows: SourceCallChannel[] = [...seed];
+
+        const ledger = {
+            rows,
+            checkAndRecord: ({ channel, cap }: CheckAndRecordInput): Promise<WindowCheckResult> => {
+                // The count is over the whole window — every lane's rows — because the quota is the key's.
+                const allowed = rows.length < cap;
+
+                if (allowed) {
+                    rows.push(channel);
+                }
+
+                return Promise.resolve({ allowed, windowCount: rows.length });
+            },
+            countInWindow: (_source: FoodSourceId, channel?: SourceCallChannel): Promise<number> =>
+                Promise.resolve(channel === undefined ? rows.length : rows.filter((row) => row === channel).length),
+        };
+
+        return ledger as unknown as SourceCallLogDao & { readonly rows: SourceCallChannel[] };
+    }
+
+    /** Caps small enough to read: hard 10, pause (and therefore the worker's ceiling) 9, reserve 1. */
+    const caps = { usda: { hardCap: 10, pauseThreshold: 9 } } as const;
+
+    it('charges the lane the caller names, so the ledger can attribute the window', async () => {
+        const dao = ledgerDao();
+        const limiter = new RollingWindowLimiter(dao, { caps });
+
+        await limiter.tryRecord('usda', 'interactive');
+        await limiter.tryRecord('usda', 'worker');
+
+        expect(dao.rows).toEqual(['interactive', 'worker']);
+    });
+
+    it('lets the interactive lane spend the reserve the worker may NOT touch', async () => {
+        // The window sits exactly at the 90% pause threshold, filled entirely by the drain.
+        const dao = ledgerDao(Array.from({ length: 9 }, () => 'worker' as const));
+        const limiter = new RollingWindowLimiter(dao, { caps });
+
+        // ⛔ THE mutation this whole unit exists to catch: charging the drain's budget instead of the
+        // interactive lane makes a waiting human's search fail here, with a tenth of the key unspent.
+        await expect(limiter.tryRecord('usda', 'interactive')).resolves.toMatchObject({ allowed: true });
+        expect(dao.rows.filter((row) => row === 'interactive')).toHaveLength(1);
+    });
+
+    it('stops the WORKER at the 90% threshold, so the reserve cannot be drained away', async () => {
+        const dao = ledgerDao(Array.from({ length: 9 }, () => 'worker' as const));
+
+        await expect(new RollingWindowLimiter(dao, { caps }).tryRecord('usda', 'worker')).resolves.toMatchObject({
+            allowed: false,
+        });
+        expect(dao.rows).toHaveLength(9);
+    });
+
+    it('stops the INTERACTIVE lane at the hard cap — the reserve is a floor, never an exemption (SC-002)', async () => {
+        const dao = ledgerDao(Array.from({ length: 10 }, () => 'interactive' as const));
+
+        await expect(new RollingWindowLimiter(dao, { caps }).tryRecord('usda', 'interactive')).resolves.toMatchObject({
+            allowed: false,
+        });
+        expect(dao.rows).toHaveLength(10);
+    });
+
+    it('counts the OTHER lane against the worker too — one shared quota, not two budgets', async () => {
+        // Nine INTERACTIVE calls, not worker ones: the drain is still at its ceiling, because the count
+        // that gates it is the window's, not its own lane's.
+        const dao = ledgerDao(Array.from({ length: 9 }, () => 'interactive' as const));
+
+        await expect(new RollingWindowLimiter(dao, { caps }).tryRecord('usda', 'worker')).resolves.toMatchObject({
+            allowed: false,
+        });
+    });
+
+    it('denies BOTH lanes while the 429 failsafe is active — a refusing source refuses everyone', async () => {
+        const dao = ledgerDao();
+        const limiter = new RollingWindowLimiter(dao, { caps, backoffMs: 60_000, now: () => 1_000 });
+
+        limiter.markWindowFull('usda');
+
+        await expect(limiter.tryRecord('usda', 'interactive')).resolves.toMatchObject({ allowed: false });
+        await expect(limiter.tryRecord('usda', 'worker')).resolves.toMatchObject({ allowed: false });
+        expect(dao.rows).toHaveLength(0);
     });
 });

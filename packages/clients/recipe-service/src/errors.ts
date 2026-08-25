@@ -207,6 +207,53 @@ export function isFetchUnavailableError(error: unknown): error is FetchUnavailab
 }
 
 /**
+ * The ON-DEMAND live ingredient search was refused on the RATE budget — a `503 SOURCE_BUSY` (plan U29).
+ *
+ * The refusal may come from either of two places and the caller need not care which: our own reserved
+ * interactive lane against the upstream source's hourly key, or the source itself answering `429`. Both mean
+ * the same thing to a cook: the search could not be made now, and it is worth trying again.
+ *
+ * ⛔ Deliberately NOT a {@link SourceUnavailableError}, and NOT the transport-level
+ * {@link FetchUnavailableError}. This one is a rate refusal that can NAME when to come back; the second is
+ * an upstream outage we can say nothing about; the third is our OWN service failing to answer at all. The
+ * picker renders three different sentences and a cook takes three different actions.
+ */
+export class SourceBusyError extends RecipeServiceClientError {
+    /** Seconds to wait before retrying, when the service reported a window. Never fabricated. */
+    public readonly retryAfterSeconds: number | undefined;
+
+    public constructor(retryAfterSeconds?: number, message = 'The ingredient source is busy') {
+        super(message, 503, 'SOURCE_BUSY');
+        this.name = 'SourceBusyError';
+        this.retryAfterSeconds = retryAfterSeconds;
+        Object.setPrototypeOf(this, SourceBusyError.prototype);
+    }
+}
+
+/** Type guard for {@link SourceBusyError}. */
+export function isSourceBusyError(error: unknown): error is SourceBusyError {
+    return error instanceof SourceBusyError;
+}
+
+/**
+ * The upstream food-data source did not answer the ON-DEMAND live ingredient search — a `502
+ * SOURCE_UNAVAILABLE` (plan U29). Carries no retry window, because nothing on our side knows when an
+ * external source recovers. See {@link SourceBusyError} for why the two are separate types.
+ */
+export class SourceUnavailableError extends RecipeServiceClientError {
+    public constructor(message = 'The ingredient source did not answer') {
+        super(message, 502, 'SOURCE_UNAVAILABLE');
+        this.name = 'SourceUnavailableError';
+        Object.setPrototypeOf(this, SourceUnavailableError.prototype);
+    }
+}
+
+/** Type guard for {@link SourceUnavailableError}. */
+export function isSourceUnavailableError(error: unknown): error is SourceUnavailableError {
+    return error instanceof SourceUnavailableError;
+}
+
+/**
  * The body the CALLER built does not satisfy the request schema the service publishes, so the request was
  * never sent (ADR-0014, outbound half).
  *

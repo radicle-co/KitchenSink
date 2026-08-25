@@ -40,6 +40,8 @@ export type {
     FoodResponse,
     FoodStatus,
     GetFoodResult,
+    LiveSearchResponse,
+    LiveSearchResultView,
     NutrientView,
     PendingFoodStatus,
     PendingResponse,

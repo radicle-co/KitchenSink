@@ -86,7 +86,11 @@ import { apiError } from '../common/apiError.js';
 import { canonicalIngredientName, type CanonicalIngredientName } from './domain/ingredientName.js';
 import { IngredientsService } from './ingredients.service.js';
 import type { IngredientSuggestions } from './ingredientSuggestion.js';
-import type { IngredientCandidate, RecordCorrectionResponse } from './ingredients.schema.js';
+import type {
+    IngredientCandidate,
+    LiveIngredientSearchResponse,
+    RecordCorrectionResponse,
+} from './ingredients.schema.js';
 import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
 import { AddIngredientByFoodDto } from './dto/addIngredientByFood.dto.js';
 import { CreateIngredientDto } from './dto/createIngredient.dto.js';
@@ -195,6 +199,47 @@ export class IngredientsController {
         }
 
         return this.ingredients.suggest(caller, query, parseLimit(limit));
+    }
+
+    /**
+     * `GET /api/v1/ingredients/search/live?q=` — the ON-DEMAND live source search (plan U29): the seam
+     * behind the picker's "Search USDA for '…'" control.
+     *
+     * ⚠️ **Declared before every `:id` route.** Nest matches in declaration order, so registered after them
+     * `search` would bind as an `:id` and this endpoint would 404 with no clue why.
+     *
+     * ⛔ **Never wire this to a typeahead.** Each call spends one request against a SHARED per-IP source
+     * quota, out of FR-019's reserved interactive lane; the whole surface is affordable only because a cook
+     * presses a button for it. It carries {@link WriteRateLimit} rather than {@link SearchRateLimit} for the
+     * same reason: the per-user allowance for an action that costs an external call is the write budget, not
+     * the generous read one a debounced typeahead needs. That is our own fairness limit, NOT the quota —
+     * the quota is aggregate and lives in food-service (F-#4).
+     *
+     * ⚠️ It is the acknowledged SLOW path. A multi-second wait is expected here and is deliberately outside
+     * SC-007's 500ms budget, which governs the LOCAL search.
+     *
+     * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
+     * @param q - The name query (required, and at least the shared search minimum).
+     * @returns The source's hits — EMPTY meaning the source answered and has nothing.
+     * @throws {BadRequestException} (→ 400) when `q` is missing/blank or below the search minimum.
+     * @throws {HttpException} `503 SOURCE_BUSY` when the rate budget refused; `502 SOURCE_UNAVAILABLE` when
+     *   the source did not answer. Three outcomes a cook acts on differently — see the service.
+     */
+    @Get('search/live')
+    @WriteRateLimit()
+    public async searchLive(
+        @OwnerId() _ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Query('q') q?: string,
+    ): Promise<LiveIngredientSearchResponse> {
+        const query = (q ?? '').trim();
+
+        if (query.length === 0) {
+            throw new BadRequestException('q is required');
+        }
+
+        return this.ingredients.searchLive(caller, query);
     }
 
     /**

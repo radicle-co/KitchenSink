@@ -48,6 +48,15 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreateIngredient: vi.fn(),
     useIngredientCandidates: vi.fn(),
     useResolveIngredient: vi.fn(),
+    // U29 — idle by default: the on-demand source search must never run unless a test presses it.
+    useSearchIngredientsLive: vi.fn(() => ({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+        data: undefined,
+        error: undefined,
+    })),
     useRecordIngredientCorrection: vi.fn(),
 }));
 

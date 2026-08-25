@@ -251,11 +251,15 @@ export interface MobileMessages {
         /** Badge next to the search box naming the ingredient database it searches (C5, wireframe
          *  recipe-edit.md:56 "[USDA database]"). */
         readonly usdaBadge: string;
-        /** Styled (not-yet-wired) "Search USDA for …" seam label (U6; a separate USDA-autocomplete CR wires it;
-         *  contains `{query}`). */
-        readonly searchUsdaFor: string;
-        /** Short "coming soon" tag on the USDA-search seam (U6). */
-        readonly searchUsdaSoon: string;
+        /*
+         * ⛔ `searchUsdaFor` / `searchUsdaSoon` USED TO LIVE HERE, and are DELETED rather than renamed
+         * (plan U29). They were the U6 seam's copy — a label plus a "Soon" tag for a control that did
+         * nothing. U29 wires the control, so the tag describes nothing, and the label now belongs to
+         * `IngredientLiveSearchMessages` in the SHARED feature package: BOTH pickers render it, and the two
+         * app dictionaries have already drifted on every string they share (`noMatches` vs `empty`,
+         * `addFreeform` vs `create`). A cook must be told the same thing about a shared external rate limit
+         * on both platforms, because it IS the same limit.
+         */
         /** Empty-state copy shown when a search returns no catalog matches. */
         readonly empty: string;
         /** Heading of the "your own previously-used ingredients" section of the blended typeahead (Stage 2). */
@@ -463,8 +467,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             searchPlaceholder: 'e.g. olive oil',
             searchClear: 'Clear search',
             usdaBadge: 'USDA database',
-            searchUsdaFor: 'Search USDA for “{query}”',
-            searchUsdaSoon: 'Soon',
             empty: 'No matching ingredients. Create a new one below.',
             ownSectionTitle: 'Your ingredients',
             catalogSectionTitle: 'Food catalog',

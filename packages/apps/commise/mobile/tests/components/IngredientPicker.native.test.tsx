@@ -34,6 +34,15 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreateIngredient: vi.fn(),
     useIngredientCandidates: vi.fn(),
     useResolveIngredient: vi.fn(),
+    // U29 — idle by default: the on-demand source search must never run unless a test presses it.
+    useSearchIngredientsLive: vi.fn(() => ({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+        data: undefined,
+        error: undefined,
+    })),
     // U14 — the picker now also mounts the CORRECTION command. A module mock that omits a hook the
     // component calls yields `undefined` at the call site and crashes the whole render, so every suite
     // mocking this module must list every hook the leaf mounts. Its own states are covered next door, in
@@ -210,17 +219,30 @@ describe('IngredientPicker — search field controls (U6 styling)', () => {
         expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('');
     });
 
-    it('renders a styled — but inert (not a button) — "Search USDA for …" seam once a query is typed (U6)', () => {
+    /**
+     * ⚠️ **REWRITTEN, not deleted (plan U29).** This case used to assert the opposite — that the
+     * "Search USDA for …" seam was styled but INERT, deliberately not a button, because nothing was wired
+     * behind it. U29 wires it, so the old assertion was asserting the absence of the feature that now
+     * exists; leaving it would have made the suite fail for the right reason and be "fixed" by deleting the
+     * assertion, which is the outcome §7.1 forbids. It now pins the same slot's NEW contract, and the
+     * "Soon" tag it carried is gone with the behaviour it stood in for.
+     *
+     * The states BEHIND the control — searching, results, empty, busy, failed — live next door in
+     * `IngredientPickerLiveSearch.native.test.tsx`, mirroring how the correction affordance is split out.
+     */
+    it('renders a PRESSABLE "Search USDA for …" control once a query is typed (U29 wires the U6 seam)', () => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'kimchi' } });
         settleDebounce();
 
-        // The seam is visible with the query interpolated…
-        expect(screen.getByText('Search USDA for “kimchi”')).toBeTruthy();
-        // …but it is a placeholder for a future CR — NOT a pressable/button (nothing wired behind it yet).
-        expect(screen.queryByRole('button', { name: 'Search USDA for “kimchi”' })).toBeNull();
+        // The control is visible with the query interpolated, and is now a real button…
+        expect(screen.getByLabelText('Search USDA for “kimchi”')).toBeTruthy();
+        // …marked SLOW, because it reaches an upstream source and routinely takes seconds…
+        expect(screen.getByText('Slow')).toBeTruthy();
+        // …and the "Soon" placeholder tag is gone, along with the behaviour it was standing in for.
+        expect(screen.queryByText('Soon')).toBeNull();
     });
 });
 

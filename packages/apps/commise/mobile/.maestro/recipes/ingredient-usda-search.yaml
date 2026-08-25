@@ -1,0 +1,125 @@
+appId: io.commise.mobile
+---
+# U29 — the ON-DEMAND USDA search from the ingredient picker, on device. Assumes an authenticated session
+# (the auth login flow runs first in CI ordering) and the app pointed at the runner's recipe-service
+# (EXPO_PUBLIC_RECIPE_API_URL), exactly like `create.yaml` and `ingredient-catalog-blend.yaml`.
+#
+# WHAT THIS FLOW ASSERTS, AND WHY THE FAILURE PATH IS THE RIGHT ONE TO PROVE HERE.
+# The Maestro job is deliberately self-contained: it boots recipe-service + Postgres on the runner and
+# NOTHING ELSE (the `mobile-maestro` job in `.github/workflows/_ci.yml`). The food service (003) is not
+# there, and the upstream USDA API is certainly not — so the live search genuinely cannot answer, every
+# time, deterministically. That makes three things provable for real here that no component test can:
+#
+#   1. The U6 seam is now a REAL CONTROL. It shipped styled-but-inert, marked "Soon"; a regression that
+#      left it inert would fail at the tap below rather than at a rendering assertion.
+#   2. Pressing it produces the FAILURE sentence, not the "USDA has nothing" one. Those are two different
+#      instructions to a cook — stop looking, versus try again — and collapsing them is the single most
+#      likely defect in the whole feature. Here, "did not answer" is the ONLY correct answer, so a
+#      collapse shows up immediately.
+#   3. ⛔ THE PANEL APPENDS, IT DOES NOT REPLACE. This is the deliberate deviation from the design mockup,
+#      whose failed state takes the result area over. On a real screen, with a real scroller, this flow is
+#      the only place we can prove the local list a cook already had is still there afterwards — and still
+#      pickable, which is the promise: a dead upstream costs the extra section, never the ability to add an
+#      ingredient.
+#
+# The SUCCESS path (hits → pick → resolved line) needs a food service and a live USDA key this job has
+# neither of; it is covered by the 14 mobile component tests
+# (`tests/components/IngredientPickerLiveSearch.native.test.tsx`) and end-to-end on web by
+# `web/tests/e2e/ingredientLiveSearch.spec.ts`, where the API is intercepted.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- inputText: 'Maestro USDA Search'
+
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients). The picker sits at the TOP of this step's body.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+
+# A PREFIX of a name that IS in the recipe-service seeded catalog (Flour/Sugar/Butter — `SEED_INGREDIENTS`
+# in `recipe-service/src/database/seed.ts`), so the local section has something real to render and this flow
+# can prove it SURVIVES the USDA failure. Deliberately 'Flou', not 'Flour': the search field's own value is
+# matchable text, so a query equal to the row's name would make `tapOn: 'Flour'` ambiguous.
+- inputText: 'Flou'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Your ingredients'
+      timeout: 30000
+
+# ⛔ NOTHING has been searched yet. The USDA panel must not exist until the cook asks for it — this is the
+# on-device half of "it never fires on a keystroke", the property the entire quota argument rests on.
+- assertNotVisible: 'Searching the USDA database…'
+- assertNotVisible: 'From USDA'
+
+# The seam is a real, tappable control now (it was a plain View marked "Soon" until U29).
+- scrollUntilVisible:
+      element: 'Search USDA for .*'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible: 'Soon'
+- tapOn: 'Search USDA for .*'
+
+# The one answer this environment can give, and the RIGHT one: the source did not answer. ⛔ If a
+# regression collapsed the outcomes, the "USDA has nothing" sentence would appear here instead — which
+# would tell a cook to stop looking for a food nobody ever asked about.
+- extendedWaitUntil:
+      visible:
+          text: '.*didn.t answer.*'
+      timeout: 40000
+- assertNotVisible: 'USDA has nothing for .*'
+
+# ⛔ THE deviation from the mockup, provable only here: the local section a cook already had is STILL on
+# screen after the failure, and still pickable. A panel that replaced the results would have destroyed it.
+- scrollUntilVisible:
+      element: 'Your ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Flour'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+
+# Finish the recipe, so the line the cook added DESPITE the dead upstream is proven usable (Publish
+# validation rejects a line whose `ingredientId` does not resolve).
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      # DOWN, not UP: advancing a step returns the scroller to the TOP (`useScrollResetOnChange`), so
+      # `Add step` is always downward from here. See `ingredient-catalog-blend.yaml` for the full note.
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Whisk and rest.'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro USDA Search.*'
+      timeout: 40000

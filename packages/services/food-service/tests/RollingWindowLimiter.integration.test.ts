@@ -37,10 +37,10 @@ describe.skipIf(!DATABASE_URL)('RollingWindowLimiter (integration)', () => {
     it('records calls strictly under the hard cap and denies the call AT the cap', async () => {
         const limiter = new RollingWindowLimiter(dao, { caps: { usda: { hardCap: 3, pauseThreshold: 3 } } });
 
-        const r1 = await limiter.tryRecord('usda');
-        const r2 = await limiter.tryRecord('usda');
-        const r3 = await limiter.tryRecord('usda');
-        const r4 = await limiter.tryRecord('usda');
+        const r1 = await limiter.tryRecord('usda', 'interactive');
+        const r2 = await limiter.tryRecord('usda', 'interactive');
+        const r3 = await limiter.tryRecord('usda', 'interactive');
+        const r4 = await limiter.tryRecord('usda', 'interactive');
 
         expect(r1.allowed).toBe(true);
         expect(r2.allowed).toBe(true);
@@ -53,11 +53,11 @@ describe.skipIf(!DATABASE_URL)('RollingWindowLimiter (integration)', () => {
     it('isPaused flips at the 90% pause threshold, below the hard cap', async () => {
         const limiter = new RollingWindowLimiter(dao, { caps: { usda: { hardCap: 10, pauseThreshold: 3 } } });
 
-        await limiter.tryRecord('usda');
-        await limiter.tryRecord('usda');
+        await limiter.tryRecord('usda', 'interactive');
+        await limiter.tryRecord('usda', 'interactive');
         expect(await limiter.isPaused('usda')).toBe(false); // 2 < 3
 
-        await limiter.tryRecord('usda');
+        await limiter.tryRecord('usda', 'interactive');
         expect(await limiter.isPaused('usda')).toBe(true); // 3 >= 3, still under the hard cap of 10
     });
 
@@ -67,12 +67,12 @@ describe.skipIf(!DATABASE_URL)('RollingWindowLimiter (integration)', () => {
             backoffMs: 60_000,
         });
 
-        await limiter.tryRecord('usda'); // count = 1, far below cap and pause threshold
+        await limiter.tryRecord('usda', 'interactive'); // count = 1, far below cap and pause threshold
 
         limiter.markWindowFull('usda');
 
         expect(await limiter.isPaused('usda')).toBe(true);
-        const denied = await limiter.tryRecord('usda');
+        const denied = await limiter.tryRecord('usda', 'interactive');
         expect(denied.allowed).toBe(false);
         // The failsafe must NOT have recorded a call — the count is unchanged at 1.
         expect(await limiter.count('usda')).toBe(1);
@@ -91,14 +91,14 @@ describe.skipIf(!DATABASE_URL)('RollingWindowLimiter (integration)', () => {
 
         clock += 5_001; // past the back-off window
         expect(await limiter.isPaused('usda')).toBe(false);
-        expect((await limiter.tryRecord('usda')).allowed).toBe(true);
+        expect((await limiter.tryRecord('usda', 'interactive')).allowed).toBe(true);
     });
 
     it('is per-source: the usda window counts only usda calls', async () => {
         const limiter = new RollingWindowLimiter(dao, { caps: { usda: { hardCap: 10, pauseThreshold: 9 } } });
 
-        await limiter.tryRecord('usda');
-        await limiter.tryRecord('usda');
+        await limiter.tryRecord('usda', 'interactive');
+        await limiter.tryRecord('usda', 'interactive');
 
         // Only the `usda` enum value is wired today; the per-source WHERE predicate is asserted via the
         // count reflecting exactly the usda calls (mirrors sourceCallLog.dao.integration.test.ts).
@@ -109,7 +109,7 @@ describe.skipIf(!DATABASE_URL)('RollingWindowLimiter (integration)', () => {
         const cap = 10;
         const limiter = new RollingWindowLimiter(dao, { caps: { usda: { hardCap: cap, pauseThreshold: cap } } });
 
-        const results = await Promise.all(Array.from({ length: 40 }, () => limiter.tryRecord('usda')));
+        const results = await Promise.all(Array.from({ length: 40 }, () => limiter.tryRecord('usda', 'interactive')));
 
         const allowed = results.filter((r) => r.allowed).length;
         expect(allowed).toBe(cap);
@@ -131,5 +131,84 @@ describe.skipIf(!DATABASE_URL)('RollingWindowLimiter (integration)', () => {
         const pruned = await limiter.pruneAged('usda');
         expect(pruned).toBe(1);
         expect(await limiter.count('usda')).toBe(before);
+    });
+
+    /**
+     * F-W1 (plan U29) — the reserved interactive lane, over a REAL ledger.
+     *
+     * The unit suite proves the limiter's arithmetic against an in-memory ledger; these prove the same
+     * guarantee survives the real SQL, the real enum and the real advisory lock — the three things a
+     * double cannot vouch for. Caps are `hardCap: 10 / pauseThreshold: 9`, so the reserve is exactly one
+     * call and every boundary below is one row wide.
+     *
+     * ⚠️ Every case above this block passes `'interactive'` after the split, and that is not a weakening:
+     * their subject was "the HARD cap", which is precisely the interactive lane's ceiling. Each still
+     * asserts the identical numbers it asserted before F-W1.
+     */
+    describe('interactive vs worker lanes (F-W1, FR-019)', () => {
+        const caps = { usda: { hardCap: 10, pauseThreshold: 9 } } as const;
+
+        /** Fill the window with `count` rows already attributed to the background drain. */
+        async function seedWorkerCalls(count: number): Promise<void> {
+            await pool.query(
+                `INSERT INTO source_call_log (source, channel, called_at)
+                 SELECT 'usda', 'worker', now() FROM generate_series(1, $1)`,
+                [count],
+            );
+        }
+
+        it('admits a waiting human into the reserve the drain has just been shut out of', async () => {
+            const limiter = new RollingWindowLimiter(dao, { caps });
+            await seedWorkerCalls(9);
+
+            // ⛔ THE mutation this suite exists to catch. Charge the drain's budget here instead of the
+            // interactive lane and the cook's search is refused with a tenth of the key still unspent —
+            // while the drain, which is what filled the window, is correctly refused.
+            await expect(limiter.tryRecord('usda', 'interactive')).resolves.toMatchObject({ allowed: true });
+            await expect(limiter.tryRecord('usda', 'worker')).resolves.toMatchObject({ allowed: false });
+
+            // ...and the ledger says so, which is the other half: a reserve nobody can measure is a claim,
+            // not a guarantee.
+            expect(await limiter.count('usda', 'interactive')).toBe(1);
+            expect(await limiter.count('usda', 'worker')).toBe(9);
+            expect(await limiter.count('usda')).toBe(10);
+        });
+
+        it('refuses the interactive lane at the hard cap — the reserve is a floor, not an exemption (SC-002)', async () => {
+            const limiter = new RollingWindowLimiter(dao, { caps });
+            await seedWorkerCalls(10);
+
+            await expect(limiter.tryRecord('usda', 'interactive')).resolves.toMatchObject({ allowed: false });
+            expect(await limiter.count('usda')).toBe(10);
+        });
+
+        it('counts the interactive lane against the drain — one shared quota, not two budgets', async () => {
+            const limiter = new RollingWindowLimiter(dao, { caps });
+
+            for (let index = 0; index < 9; index += 1) {
+                await limiter.tryRecord('usda', 'interactive');
+            }
+
+            // The drain has spent NOTHING, and is still at its ceiling: per-lane counting would admit here
+            // and let the two lanes together reach 19 calls against a key that permits 10.
+            await expect(limiter.tryRecord('usda', 'worker')).resolves.toMatchObject({ allowed: false });
+            expect(await limiter.count('usda', 'worker')).toBe(0);
+        });
+
+        it('never overshoots the hard cap when both lanes charge concurrently', async () => {
+            const limiter = new RollingWindowLimiter(dao, { caps });
+
+            const results = await Promise.all(
+                Array.from({ length: 40 }, (_unused, index) =>
+                    limiter.tryRecord('usda', index % 2 === 0 ? 'interactive' : 'worker'),
+                ),
+            );
+
+            // The aggregate can never exceed the hard cap however the lanes interleave; the worker's own
+            // share is separately bounded by its lower ceiling.
+            expect(results.filter((result) => result.allowed).length).toBeLessThanOrEqual(caps.usda.hardCap);
+            expect(await limiter.count('usda')).toBeLessThanOrEqual(caps.usda.hardCap);
+            expect(await limiter.count('usda', 'worker')).toBeLessThanOrEqual(caps.usda.pauseThreshold);
+        });
     });
 });

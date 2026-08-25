@@ -157,6 +157,32 @@ export function isFetchUnavailableError(error: unknown): error is FetchUnavailab
 }
 
 /**
+ * The upstream FOOD DATA SOURCE did not answer a live search — a `502` (plan U29).
+ *
+ * ⛔ Deliberately NOT a {@link FetchUnavailableError}, and the distinction reaches the cook. That one means
+ * OUR own rate budget said no and carries a `Retry-After` a caller can act on; this one means the source
+ * itself is down, and we know nothing about when it recovers. Collapsing them would make the picker promise
+ * a retry window that does not exist — and would make "the source has nothing", "the source is busy" and
+ * "the source is down" render as two sentences instead of three.
+ */
+export class SourceUnavailableError extends FoodServiceClientError {
+    /** The underlying transport error, when there is one. */
+    public override readonly cause: unknown;
+
+    public constructor(message = 'The food data source is unavailable', cause?: unknown) {
+        super(message, 502);
+        this.name = 'SourceUnavailableError';
+        this.cause = cause;
+        Object.setPrototypeOf(this, SourceUnavailableError.prototype);
+    }
+}
+
+/** Type guard for {@link SourceUnavailableError}. */
+export function isSourceUnavailableError(error: unknown): error is SourceUnavailableError {
+    return error instanceof SourceUnavailableError;
+}
+
+/**
  * The body the CALLER built does not satisfy the request schema the food service publishes, so the request was
  * never sent (ADR-0014, outbound half).
  *

@@ -187,6 +187,9 @@ describe('foodErrorSchema', () => {
             details: { id: 'f1', status: 'RESOLVED' },
         },
         FETCH_UNAVAILABLE: { code: 'FETCH_UNAVAILABLE', message: 'shed', details: { retryAfterSeconds: 30 } },
+        // ⚠️ Deliberately WITHOUT a `retryAfterSeconds`: a 502 means the upstream source did not answer, and
+        // we know nothing about when it will. Promising a retry window we cannot honour is worse than none.
+        SOURCE_UNAVAILABLE: { code: 'SOURCE_UNAVAILABLE', message: 'The food data source is unavailable' },
         INTERNAL_ERROR: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     };
 

@@ -60,7 +60,7 @@ import {
     useResolveIngredient,
     useSuggestIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
-import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
+import type { IngredientSuggestion, LiveIngredientHit } from '@kitchensink/recipe-service-client';
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { useState } from 'react';
 
@@ -74,6 +74,8 @@ import {
 } from './ingredientResolver.model.js';
 import type { IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
+import { useOnDemandIngredientSearch } from './useOnDemandIngredientSearch.js';
+import type { UseOnDemandIngredientSearchResult } from './useOnDemandIngredientSearch.js';
 
 /** The state + actions {@link useIngredientResolver} exposes to a leaf. */
 export interface UseIngredientResolverResult {
@@ -118,6 +120,21 @@ export interface UseIngredientResolverResult {
     readonly addFreeform: () => void;
     /** Leave disambiguation and return to search, discarding any stale resolve-error state. */
     readonly cancelDisambiguation: () => void;
+    /**
+     * The ON-DEMAND live source search (plan U29) — the "Search USDA for '…'" affordance's whole behaviour.
+     *
+     * ⛔ Its `search` is the ONLY thing in this hook that causes an upstream source call, and it runs only
+     * when a leaf calls it. See {@link useOnDemandIngredientSearch} for why it can never be a typeahead.
+     */
+    readonly liveSearch: UseOnDemandIngredientSearchResult;
+    /**
+     * Pick one live-search hit. Dispatches on whether we already hold the food:
+     *  - `foodId` present — it is already in our catalog, so it admits through the SAME `by-food` path a
+     *    catalog suggestion uses: one round-trip, nutrition already attached, NO further source call.
+     *  - `foodId` absent — not yet admitted, so it goes through `addByName`, which is slower and may land
+     *    `UNRESOLVED`. That is the honest cost of picking something the source has and we do not.
+     */
+    readonly selectLiveHit: (hit: LiveIngredientHit) => void;
 }
 
 /**
@@ -146,6 +163,9 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
     const createIngredient = useCreateIngredient();
     const candidates = useIngredientCandidates(disambiguating?.id ?? '', { enabled: disambiguating !== null });
     const resolveIngredient = useResolveIngredient();
+    // The on-demand source search composes HERE rather than in each leaf, so a leaf gets one hook and one
+    // view model and the two platforms cannot drift on when a source call is made.
+    const liveSearch = useOnDemandIngredientSearch(trimmed);
 
     // ⛔ The SERVER's order, unmodified (plan U5). This used to call `rankIngredientSuggestions`; that
     // client re-sort is retired — see the "RETIRED IN PLAN U5" note in `ingredientResolver.model.ts` for
@@ -239,6 +259,43 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
         createIngredient.mutate(trimmed, { onSuccess: resolveLine });
     };
 
+    /**
+     * Pick a live-search hit (plan U29). Dispatches on whether we already hold the food — see the result
+     * type's doc for why the two paths differ in cost, and why that is worth exposing rather than hiding.
+     */
+    const selectLiveHit = (hit: LiveIngredientHit): void => {
+        if (hit.foodId === undefined) {
+            // Not in our catalog yet: the by-name path admits it, at the cost of an admission fan-out that
+            // can land UNRESOLVED. ⚠️ Deliberately NOT a silent failure — the same status routing every
+            // other add uses applies, so a split food opens disambiguation exactly as it would elsewhere.
+            addIngredientByName.mutate(hit.name, {
+                onSuccess: (ingredient) => {
+                    if (nextMatchAction(ingredient.foodResolutionStatus) === 'disambiguate') {
+                        setDisambiguating(ingredient);
+
+                        return;
+                    }
+
+                    resolveLine(ingredient);
+                },
+            });
+
+            return;
+        }
+
+        addIngredientByFood.mutate(hit.foodId, {
+            onSuccess: (ingredient) => {
+                if (nextMatchAction(ingredient.foodResolutionStatus) === 'disambiguate') {
+                    setDisambiguating(ingredient);
+
+                    return;
+                }
+
+                resolveLine(ingredient);
+            },
+        });
+    };
+
     /** Leave disambiguation without resolving — discards any stale resolve-error state (drift #2). */
     const cancelDisambiguation = (): void => {
         setDisambiguating(null);
@@ -277,5 +334,7 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
         pickCandidate,
         addFreeform,
         cancelDisambiguation,
+        liveSearch,
+        selectLiveHit,
     };
 }

@@ -55,6 +55,10 @@ export type {
 export { recipeIngredientVerifications, LINE_VERIFICATION_BANDS } from './lineVerifications.js';
 export type { RecipeIngredientVerificationRow } from './lineVerifications.js';
 
+// ── ingredient_parse_cache (plan U20 / KTD-13, KTD-14, 0028) — engine parses, keyed by digest+engine ──
+export { ingredientParseCache, PARSE_CACHE_ENGINES } from './ingredientParseCache.js';
+export type { IngredientParseCacheRow, CachedParsePayload } from './ingredientParseCache.js';
+
 // ── recipe_versions + recipe_version_pending_archives (T013, T121) ────────────────────────────────
 export { recipeVersions, recipeVersionPendingArchives, PENDING_ARCHIVE_STATUSES } from './versions.js';
 export type {

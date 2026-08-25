@@ -392,35 +392,55 @@ describe('parseIngredientLine', () => {
  * we are about to write is not the number the source stated". A boolean `needsReview` cannot say that,
  * and a caller re-deriving the list would be a second representation of this module's own taxonomy.
  */
+/**
+ * ⛔ THE DECISION TABLE, and why it replaced a hand-written list.
+ *
+ * This suite carried an `everyReason` ARRAY that was supposed to keep `corruptsStatedValue` total over the
+ * union. It could not: an array of string literals is assignable to `readonly IngredientReviewReason[]`
+ * whether or not it is exhaustive, so the list silently rotted — `measurement_in_name` and
+ * `additional_foods_dropped` were both added to the union and neither was ever added here. The old
+ * assertion was vacuous besides (`typeof … === 'boolean'` is true for both answers), so the list proved
+ * nothing even for the reasons it did name.
+ *
+ * `satisfies Record<IngredientReviewReason, boolean>` is the repair, and it is a COMPILE error rather than
+ * a runtime one: adding a member to the union without deciding it here fails `npm run typecheck`, which CI
+ * runs. The value is the EXPECTED answer, so the decision is explicit and the assertion is non-vacuous.
+ */
+const CORRUPTS_STATED_VALUE = {
+    empty_input: false,
+    no_quantity: false,
+    quantity_out_of_storage_range: true,
+    quantity_bounds_inverted: true,
+    group_header: false,
+    multiline_input: false,
+    name_too_long: false,
+    measurement_in_name: false,
+    additional_foods_dropped: false,
+    // ⛔ U22a. The amount and unit reported are exactly what the source stated for the food that was kept;
+    // what was dropped is a vessel, a duration or a target. Membership would make `cookbook-import`
+    // discard a whole line it can read — `additional_foods_dropped`'s argument, verbatim.
+    instruction_text_dropped: false,
+} as const satisfies Record<IngredientReviewReason, boolean>;
+
 describe('corruptsStatedValue', () => {
-    it.each([['quantity_out_of_storage_range'], ['quantity_bounds_inverted']] as const)(
-        'reports %j as value-corrupting, because a stated number was dropped or disagrees',
-        (reason) => {
-            expect(corruptsStatedValue(reason)).toBe(true);
+    it.each(Object.entries(CORRUPTS_STATED_VALUE))(
+        'classifies %j as value-corrupting: %j — the decision, not a default',
+        (reason, corrupting) => {
+            expect(corruptsStatedValue(reason as IngredientReviewReason)).toBe(corrupting);
         },
     );
 
-    it.each([['empty_input'], ['no_quantity'], ['group_header'], ['multiline_input'], ['name_too_long']] as const)(
-        'reports %j as NOT value-corrupting, because it names an absence, not a wrong number',
-        (reason) => {
-            expect(corruptsStatedValue(reason)).toBe(false);
-        },
-    );
+    /**
+     * Anti-vacuity. `it.each` over an empty or truncated table would report zero failures and look green,
+     * which is how the list this replaced rotted unnoticed. The count is asserted so a table that stops
+     * covering the union fails loudly rather than quietly.
+     */
+    it('decides every reason in the union, and both answers actually occur', () => {
+        const decisions = Object.values(CORRUPTS_STATED_VALUE);
 
-    it('is total over the reason union, so a new reason cannot default to "harmless"', () => {
-        const everyReason: readonly IngredientReviewReason[] = [
-            'empty_input',
-            'no_quantity',
-            'quantity_out_of_storage_range',
-            'quantity_bounds_inverted',
-            'group_header',
-            'multiline_input',
-            'name_too_long',
-        ];
-
-        for (const reason of everyReason) {
-            expect(typeof corruptsStatedValue(reason)).toBe('boolean');
-        }
+        expect(decisions.length).toBeGreaterThanOrEqual(10);
+        expect(decisions).toContain(true);
+        expect(decisions).toContain(false);
     });
 });
 

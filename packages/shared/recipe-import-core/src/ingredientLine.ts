@@ -87,7 +87,19 @@ export type IngredientReviewReason =
      * not in the reason because a reason is a code, not a message; the caller that wants them still holds
      * the `ParsedLine` the projection was taken from.
      */
-    | 'additional_foods_dropped';
+    | 'additional_foods_dropped'
+    /**
+     * The clause carried an ingredient AND an instruction, and the instruction was cut off (U22a).
+     *
+     * ⚠️ Raised by the prose EXTRACTOR, not by any reader: it names a loss the SEGMENTATION causes, the
+     * same shape as `additional_foods_dropped`. The dropped text is not in the reason because a reason is
+     * a code, not a message; `ClauseSegment.trailingInstruction` still holds it for a caller that reports.
+     *
+     * ⛔ Never raised for a clause that was ENTIRELY an instruction (`a large preserving kettle`). That
+     * line is dropped whole and flagging it would fire this reason on text nobody meant to parse — the
+     * muted-signal failure KTD-11 rules against.
+     */
+    | 'instruction_text_dropped';
 
 /**
  * Reasons meaning "the value we would persist is not the value the source stated" (R39).
@@ -118,6 +130,19 @@ const VALUE_CORRUPTING_REVIEW_REASONS: ReadonlySet<IngredientReviewReason> = new
     // line reports are exactly what the source stated for the food it kept. The consequence decides it
     // again — membership would make `cookbook-import` discard a line it can read, to avoid an
     // understatement the line does not commit.
+    //
+    // ⛔ `instruction_text_dropped` is deliberately NOT here either, and this is the THIRD time the same
+    // argument settles a member — which is why it is written out rather than assumed. The amount and the
+    // unit reported are exactly what the source stated for the food that was kept; what was cut off is a
+    // vessel, a duration or a target (`one tablespoon of butter` | `in a frying-pan`), and the segmenter
+    // REFUSES the cut whenever the tail states a food of its own, so this reason can never accompany a
+    // dropped amount. The consequence decides it once more: membership would make `cookbook-import`
+    // discard the very lines U22a exists to clean up.
+    //
+    // ⚠️ Adding a member to `IngredientReviewReason` produces NO compile error here — this is a Set, not
+    // an exhaustive map — so a new reason defaults to "harmless" silently. `ingredientLine.test.ts`
+    // carries the countermeasure: a `satisfies Record<IngredientReviewReason, boolean>` decision table
+    // that fails `typecheck` until the new reason is explicitly decided.
 ]);
 
 /**

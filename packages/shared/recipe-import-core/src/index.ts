@@ -5,6 +5,8 @@ export { corruptsStatedValue, parseIngredientLine, roundToQuantityStorageScale }
 export type { IngredientReviewReason, ParsedIngredientLine } from './ingredientLine.js';
 export { projectToIngredientLine } from './parsedLine.js';
 export type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance } from './parsedLine.js';
+export { dropTrailingInstruction, segmentClause } from './domain/clauseSegmentation.js';
+export type { ClauseSegment } from './domain/clauseSegmentation.js';
 export { compareParses } from './domain/parseComparator.js';
 export type {
     ComparedFact,

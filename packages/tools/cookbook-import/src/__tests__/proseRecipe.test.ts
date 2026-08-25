@@ -546,3 +546,74 @@ describe('toCandidateRecipe, on historical units', () => {
         expect(outcome.recipe.description).not.toContain('customary');
     });
 });
+
+/**
+ * ⛔ CHARACTERIZATION — what `sourceText` is TODAY, over the whole committed fixture.
+ *
+ * This block was written BEFORE U22a touched `ingredientInClause`, and it exists because the plan's
+ * execution note is explicit: _"Characterize `proseRecipe`'s suffix selection before touching it. Getting
+ * this wrong silently changes which text is treated as an ingredient across the whole corpus."_
+ *
+ * `sourceText` is not cosmetic. It is what `parseCorpus.ts` feeds to BOTH parse engines, and what
+ * `toImportedIngredientLine` persists as `sourceLine` — the field U11's gate verifies our parse against.
+ * A snapshot of every accepted line in the fixture is therefore the only assertion that can prove a change
+ * to the suffix scan moved nothing it was not meant to move.
+ *
+ * ⚠️ Four of these 21 rows ARE the U22a defect, in the committed corpus rather than in a constructed
+ * example — `in thick pieces`, `(or use half water`, `has been made smooth`, and a whole trailing sentence
+ * on the minced onion. They are pinned here as they stand, wrong, so that the fix has to move exactly them.
+ */
+describe('toCandidateRecipe — characterization: the source text handed to the parse engines', () => {
+    /** Every accepted line in the fixture, as `[title, name, sourceText]`, in extraction order. */
+    function everyLine(): readonly (readonly [string, string, string])[] {
+        return BLOCKS.flatMap((block) => {
+            const outcome = toCandidateRecipe(block);
+
+            return outcome.kind === 'candidate'
+                ? outcome.recipe.ingredients.map((line) => [outcome.recipe.title, line.name, line.sourceText] as const)
+                : [];
+        });
+    }
+
+    it('hands the engines exactly this text, for every line of the committed fixture', () => {
+        expect(everyLine()).toEqual([
+            ['Beet Soup--Russian Style (Fleischig)', 'beet', 'one large beet'],
+            ['Beet Soup--Russian Style (Fleischig)', 'onion', 'one-half pound of onion in thick pieces'],
+            ['Beet Soup--Russian Style (Fleischig)', 'fat brisket of beef', 'one pound of fat brisket of beef'],
+            ['Beet Soup--Russian Style (Fleischig)', 'sugar', 'three-fourths of a cup of sugar'],
+            ['Asparagus Soup', 'asparagus', '1 can of asparagus'],
+            ['Asparagus Soup', 'cold milk', '4 cups of cold milk (or use half water'],
+            ['Asparagus Soup', 'sugar', '1 teaspoon of sugar'],
+            ['Asparagus Soup', 'butter', '1 tablespoon of butter'],
+            ['Asparagus Soup', 'flour', '1 teaspoon of flour has been made smooth'],
+            ['Asparagus Soup', 'milk', '1 cup of milk'],
+            ['Asparagus Soup', 'whipped cream', '1 tablespoon of whipped cream'],
+            [
+                'Asparagus Soup',
+                'minced onion fried',
+                'A tablespoon of minced onion fried for ten minutes in butter is sometimes added to the stalks while cooking',
+            ],
+            ['Green Tree Layer Cake and Icing', 'granulated sugar', 'One cup of granulated sugar'],
+            ['Green Tree Layer Cake and Icing', 'butter', 'one-half cup of butter'],
+            ['Green Tree Layer Cake and Icing', 'milk', 'one cup of milk'],
+            ['Green Tree Layer Cake and Icing', 'vanilla extract', 'one teaspoon of vanilla extract'],
+            ['Green Tree Layer Cake and Icing', 'baking-powder', 'two teaspoons of baking-powder'],
+            [
+                'Green Tree Layer Cake and Icing',
+                "confectioner's sugar",
+                "One and one-half cups of confectioner's sugar (not powdered)",
+            ],
+            ['Green Tree Layer Cake and Icing', 'egg', 'a large egg'],
+            ['Green Tree Layer Cake and Icing', 'cocoa', 'two tablespoons of cocoa'],
+            ['Green Tree Layer Cake and Icing', 'vanilla', 'one teaspoon of vanilla'],
+        ]);
+    });
+
+    /**
+     * Anti-vacuity. A snapshot suite that silently starts comparing an empty list is green and worthless,
+     * and the fixture is the thing most likely to move underneath it.
+     */
+    it('is measuring a real corpus, not an empty one', () => {
+        expect(everyLine().length).toBe(21);
+    });
+});

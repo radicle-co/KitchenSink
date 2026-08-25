@@ -54,9 +54,19 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // since the `exports` map publishes nothing but `.`. Its `modifierLexicon` collaborator is
         // deliberately NOT here: KTD-11b's vocabulary is an implementation detail of the comparator, the
         // same way `WHOLE_NUMBER_WORDS` is of the pre-normalizer, and its word sets are not functions.
+        //
+        // ⚠️ GREW BY TWO in U22a, and they are two VIEWS of one lexicon rather than two lexicons.
+        // `segmentClause` bounds an accepted span at the end of its ingredient — refusing the cut when the
+        // tail is a second food — and `dropTrailingInstruction` applies the same boundary to a NAME, whose
+        // single field has nowhere to keep a second food and so is cut unconditionally. Both are public
+        // because the consumer is `cookbook-import`, a different package reachable only through this door.
+        // The `VESSELS` and `INSTRUCTION_BOUNDARY` word sets behind them are deliberately NOT here, for
+        // the reason `modifierLexicon`'s are not: a vocabulary is an implementation detail of the policy
+        // that consumes it, and neither is a function.
         expect(Object.keys(publicApi).sort()).toEqual([
             'compareParses',
             'corruptsStatedValue',
+            'dropTrailingInstruction',
             'findQuantityPhrases',
             'millilitresPerUnit',
             'normalizeDurationToMinutes',
@@ -66,6 +76,7 @@ describe('@kitchensink/recipe-import-core barrel', () => {
             'projectToIngredientLine',
             'roundToQuantityStorageScale',
             'sanitizeToPlainText',
+            'segmentClause',
             'splitMeasurement',
         ]);
     });

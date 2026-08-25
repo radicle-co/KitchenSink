@@ -40,18 +40,55 @@ Verified by reading the file, not by assuming:
   "Search USDA" affordance, a custom-ingredient fallback that reads as "no nutrition data", and a
   disambiguation panel carrying "Remember my choice".
 
-## ⛔ Two things to settle BEFORE implementing from this
+## ⛔ The styling, and what NOT to copy from it
 
-1. **The palette has drifted, and copying it 1:1 would introduce a third seafoam.** The Make project's own
-   `RECIPE_CREATION_FLOWS.md` records fixing seafoam `#5BA8A0` (3.4:1, fails AA) to **`#3D8B85`** (4.7:1).
-   The shipped `@commise/ui` token fixed the _same_ failure to **`#31807A`** (4.67:1) — see
-   [`../README.md`](../README.md), where a test holds the archive to the shipped values. Same intent, two
-   independent answers. **Use the shipped token; treat the mockup's hex as a rendering of it.**
-2. **`RECIPE_CREATION_FLOWS.md` (dated June 2026) still describes the OLD ingredients tab** — a
-   "three-column layout: Quantity | Unit | Ingredient Name" with a **"Parse from Text" button for bulk
-   paste**. That predates these briefs and contradicts them: bulk paste is a free-text ingredient line by
-   another name, and `recipeIngredientInputSchema` cannot accept one. If that button survives into the
-   design, it is the interactive parser this plan's scope boundary explicitly excludes.
+The archived `.tsx` carries Tailwind CLASS NAMES (`bg-seafoam`, `text-charcoal`) but not the values behind
+them. Those live in the project's `src/styles/theme.css`, read 2026-08-25 and compared against the shipped
+`packages/apps/commise/ui/src/tokens/colors.ts`.
+
+**Most of the palette matches exactly** — `coral #E8917A`, `sky #8ECAE6`, `sand #FAF6F0`, `charcoal
+#2D3436`, `slate #636E72`, `mist #B2BEC3`, `pearl #F5F5F5`, `ocean-dark #2A6B65`, `success #4CAF7C`,
+`warning #F5B041`, `premium #D4A574`. The typography scale, the 8px spacing system, the radii and the
+shadow ramp all match too. **Four things do not.**
+
+| token                                  | Figma Make     | shipped       | what it is                           |
+| -------------------------------------- | -------------- | ------------- | ------------------------------------ |
+| `seafoam`                              | `#3D8B85`      | **`#31807A`** | shipped is one step FURTHER darkened |
+| `error`                                | `#E17055`      | **`#C05238`** | same                                 |
+| `--primary` / `--ring`                 | `#5BA8A0`      | —             | Figma's own FAILING colour, unfixed  |
+| `--chart-calories` / `--chart-protein` | both `#5BA8A0` | distinct      | two series rendering as one          |
+
+⚠️ **These are not two teams answering the same question differently — it is a SEQUENCE, and I first
+recorded it wrongly.** Figma sits at the pre-#113 state; the shipped tokens took Figma's own values and
+darkened them again under issue #113, because `seafoam` measured 4.02:1 under white and `error` 3.16:1 —
+"two fills with NO legible label, so no call site could be correct". Each moved in **OKLCH lightness only,
+at constant hue and chroma** (ΔL 0.036 and 0.096), so the hue family is unchanged and the mockup still
+reads as the same design. **Use the shipped token. The mockup's hex is the same colour one step lighter,
+not a different intent.**
+
+⛔ **The last two rows are defects still live at the source**, and a fresh export would reintroduce both:
+
+- Figma's `--primary` and `--ring` still point at `#5BA8A0`, the very colour its own comment says was
+  darkened away for failing AA — so the token file fixed `--color-seafoam` and left the semantic mappings
+  behind. Shipped `seafoam-light` is deliberately an ACCENT ONLY, never a fill under white text, because
+  the lightness needed to carry white (ΔL 0.125) "would collapse it into `seafoam`".
+- `--chart-calories` and `--chart-protein` are the SAME hex. [`../README.md`](../README.md) records fixing
+  exactly this in the HTML archive — "two series rendering as one" — so the archive was corrected and the
+  source never was.
+
+⚠️ There is a known third failure mode to avoid while implementing: `colors.ts` records that this repo
+already shipped **six `rgba(...)` literals frozen at the pre-#113 seafoam**, plus a teal that was never in
+the palette at all, because React Native has no alpha-suffix syntax. Spell a tint through `tint(...)`, not
+in decimal.
+
+## ⛔ Also unresolved: a bulk-paste button that contradicts the brief
+
+`RECIPE_CREATION_FLOWS.md` (June 2026) still describes the OLD ingredients tab — a "three-column layout:
+Quantity | Unit | Ingredient Name" with a **"Parse from Text" button for bulk paste**. That predates these
+briefs and contradicts them: bulk paste is a free-text ingredient line by another name,
+`recipeIngredientInputSchema` cannot accept one, and an interactive parser is what this plan's scope
+boundary explicitly excludes. `IngredientsStep.tsx` does not implement it — but the design doc still
+prescribes it.
 
 ## Retrieving more
 

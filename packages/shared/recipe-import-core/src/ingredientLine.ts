@@ -93,7 +93,13 @@ export type IngredientReviewReason =
      *
      * ⚠️ Raised by the prose EXTRACTOR, not by any reader: it names a loss the SEGMENTATION causes, the
      * same shape as `additional_foods_dropped`. The dropped text is not in the reason because a reason is
-     * a code, not a message; `ClauseSegment.trailingInstruction` still holds it for a caller that reports.
+     * a code, not a message.
+     *
+     * ⚠️ WHERE THE DROPPED TEXT ACTUALLY IS, stated precisely because an earlier draft of this note got it
+     * wrong. `ClauseSegment.trailingInstruction` carries it out of the segmenter, and `cookbook-import`
+     * reports it in the candidate's `droppedInstructions`; it is ALSO still in the recipe's own `steps`,
+     * which are derived from the same verbatim body and are never cut. So HAZ-041's "never discard the
+     * original" holds at the recipe level even though `sourceText` is now a prefix of its clause.
      *
      * ⛔ Never raised for a clause that was ENTIRELY an instruction (`a large preserving kettle`). That
      * line is dropped whole and flagging it would fire this reason on text nobody meant to parse — the

@@ -454,18 +454,18 @@ the two columns comparable.
 
 | quantity                                          | before (as §1 measured it) | after U22a |           delta |
 | ------------------------------------------------- | -------------------------: | ---------: | --------------: |
-| Blocks accepted as recipes                        |                        351 |    **351** |               0 |
+| Blocks accepted as recipes                        |                        351 |    **351** |           **0** |
 | Ingredient clauses harvested                      |                      1,860 |  **1,846** |    −14 (−0.75%) |
-| Distinct corpus lines (the billed population)     |                  **2,584** |  **2,490** |    −94 (−3.64%) |
-| Characters of ingredient text sent to the engines |                     57,948 | **51,056** | −6,892 (−11.9%) |
+| Distinct corpus lines (the billed population)     |                  **2,584** |  **2,502** |    −82 (−3.17%) |
+| Characters of ingredient text sent to the engines |                     57,948 | **52,164** | −5,784 (−9.98%) |
 
-**≈12% of every character the two engines were asked to parse was instruction residue.** That is the
+**≈10% of every character the two engines were asked to parse was instruction residue.** That is the
 inflation, and it fell on `differ` disproportionately, because residue is precisely what the two engines
 disagree about.
 
 ### 9.3 Which lines moved
 
-**324 spans were bounded; 310 came back shortened; 14 were removed entirely.** Every one of the 14 is
+**287 spans were bounded; 273 came back shortened; 14 were removed entirely.** Every one of the 14 is
 equipment, and none is a food:
 
 ```
@@ -488,55 +488,65 @@ Representative boundings, all from the real book, including four of KTD-11a's fi
 | `one pint of milk for five minutes`            | `one pint of milk`                |
 | `three cups of milk for twenty minutes`        | `three cups of milk`              |
 | `four tablespoons of flour to it`              | `four tablespoons of flour`       |
+| `one quart of flour into a deep bowl`          | `one quart of flour`              |
 | `two tablespoons of fresh butter in a spider`  | `two tablespoons of fresh butter` |
 | `two cups of lentils over night in cold water` | `two cups of lentils`             |
 
-The last row matters twice: `spider` and `overnight` are two of the words KTD-11b found the two engines
-contesting as though they were food modifiers. They were never modifiers.
+The last two rows matter twice: `spider` and `overnight` are two of the words KTD-11b found the two
+engines contesting as though they were food modifiers. They were never modifiers.
 
-### 9.4 What did NOT change, and the guard that keeps it that way
+### 9.4 What did NOT change — and the three ways the first implementations broke it
 
 ⛔ **No recipe was lost** (351 accepted, before and after) and **no food was deleted.** The cut is REFUSED
-whenever the tail states a food with a measured amount of its own — `one-half pound chocolate in one cup of
-water` keeps its whole span, because dropping that tail would delete an amount the source printed. The
-guard scans **every** quantity phrase in the tail, not just its start, so `in a pan with one cup of water`
-is refused too.
+whenever the tail names a food of its own; the whole span survives for `ParsedLine.foods` — which holds
+many — to carry.
 
-⚠️ The obvious form of that guard — "refuse when the tail contains a quantity phrase" — is **wrong on this
-corpus**, and it was measured: `five minutes` and `twenty minutes` are quantity phrases, and both are
-KTD-11a's own examples of residue to remove. What separates a second food from a duration is a **unit of
-substance**, which is the same requirement `proseRecipe`'s scan already applies to the head.
+⚠️ Getting that guard right took three corrections, each found by MEASURING rather than by reading, and
+each is worth recording because the wrong version looked right:
 
-⛔ **The "no food was deleted" claim above is load-bearing, and the first implementation broke it.** This
-before/after name diff — not code review — caught `Melt one tablespoon of butter in a large frying-pan`
-losing its butter. `a large frying-pan` parses to `1 large :: frying-pan` (`parse-ingredient` reads `large`
-as a unit), so the guard read a vessel as a second food and refused the cut; the equipment test then ran on
-the refused span, whose last word is `frying-pan`, and dropped the line. Both halves are fixed and pinned:
-equipment is judged on the head the boundary PROPOSES, never on a refused span, and a tail naming a vessel
-is not a second food. **A corpus-wide diff of names, quantities and units is the check that found it, and
-it is the check any future change to this module owes.**
+1. **"Refuse when the tail contains a quantity phrase"** — the obvious form, and wrong on this corpus:
+   `five minutes` and `twenty minutes` are quantity phrases and are KTD-11a's own residue examples.
+2. **"Refuse when the tail states a UNIT"** — wrong in _both_ directions, and it deleted real food twice.
+   `two eggs` parses to `{quantity: 2, unit: null, name: 'eggs'}` — the normal form of every count
+   ingredient — so `one cup of milk with two eggs` lost its eggs with `droppedLines` **empty**. And
+   `a large frying-pan` parses to `1 large :: frying-pan`, so a vessel counted as a food, refused a cut,
+   and `Melt one tablespoon of butter in a large frying-pan` lost its butter.
+3. **"A span whose noun is not a food is an instruction"** — right for the tail, wrong for the span.
+   `Sift one cup of flour three times` ends on `times`, and classifying the whole span by that dropped a
+   real cup of flour; two recipes (`SUNSHINE CAKE`, `KIDNEY BEANS WITH BROWN SAUCE`) fell below the
+   minimum ingredient count as a result.
+
+The settled rule is two questions with two vocabularies: _is this span an ingredient at all?_ — only a
+**vessel** says no; _would cutting this tail delete a food?_ — a vessel **or** a duration says no.
+
+⛔ **The check that caught all three is a corpus-wide diff of every name, quantity and unit the extractor
+produces over the whole book.** It is the check any future change to this module owes; no unit test found
+any of them.
 
 ### 9.5 The new review reason, and whether it is a signal
 
-`instruction_text_dropped` is raised when a tail is cut. **310 of 1,846 ingredient lines (16.8%)** carry
+`instruction_text_dropped` is raised when a tail is cut. **273 of 1,846 ingredient lines (14.8%)** carry
 it. It is deliberately NOT in `VALUE_CORRUPTING_REVIEW_REASONS`: the amount and unit reported are exactly
 what the source stated for the food that was kept, and membership would make `cookbook-import` discard a
 line it can read.
 
 ⚠️ A clause that was _entirely_ an instruction raises **no** reason at all — it is dropped, as it always
 was. Flagging it would fire the reason on text nobody meant to parse, which is the muted-signal failure
-KTD-11 rules against.
+KTD-11 rules against. The text that WAS cut is reported verbatim in the candidate's `droppedInstructions`,
+which is kept separate from `droppedLines` (clauses that yielded no ingredient at all) so neither list
+stops meaning what it says.
 
 ### 9.6 ⛔ What is NOT measured here
 
 - **The engines were not re-run.** Re-measuring `differ` needs live Bedrock (billed, and no ADR-0024
-  reservation guards a script) plus a full CRF pass over 2,490 lines. **No new agreement, determinism or
+  reservation guards a script) plus a full CRF pass over 2,502 lines. **No new agreement, determinism or
   cost figure is claimed, and none of §§1–8's rates has been recomputed.** They remain the last measured
   values and they remain inflated by the residue quantified in §9.2.
-- **The direction is inferable but not proven.** Removing residue can only remove disagreements it caused;
-  it cannot create new ones, because segmentation only ever removes a **suffix** — every emitted span is a
-  strict prefix of what was emitted before (asserted over the corpus by
-  `tests/clauseSegmentation.integration.test.ts`). The _magnitude_ is unmeasured.
+- **The direction is inferable but not proven.** Removing residue can only remove disagreements it caused
+  — segmentation only ever removes a **suffix**, and every emitted span is a strict prefix of what was
+  emitted before (asserted over the corpus by `tests/clauseSegmentation.integration.test.ts`). ⚠️ It does
+  not follow that the rate can only fall: a prefix is a different input, and two engines can disagree on
+  it where they agreed on the whole. The _magnitude_, and its sign, are unmeasured.
 - **U19's normalization and KTD-11b's ruling are not in these numbers.** The plan expects the adjudication
   list to land near ~130 after all three; this section accounts for one of them.
 

@@ -29,6 +29,7 @@ import {
     corruptsStatedValue,
     dropTrailingInstruction,
     findQuantityPhrases,
+    measuresNoSubstance,
     normalizeDurationToMinutes,
     normalizeQuantity,
     parseIngredientLine,
@@ -90,36 +91,18 @@ const MAX_NAME_LENGTH = 60;
  * Applied only when the extracted name is exactly one of these — "chopped onion" is a perfectly good
  * ingredient, "chopped" alone is not. Like {@link LEADING_NOISE} this is grammar rather than culinary
  * vocabulary: it removes verbs, never foods, so it cannot be used to nudge a name toward a catalog match.
+ *
+ * ⛔ Its former neighbour `NOT_A_MEASURE` — the units that measure time, distance or people rather than an
+ * amount of food — MOVED to `recipe-import-core`'s `notAFoodLexicon.ts` in U22a's review pass, and is
+ * reached here through `measuresNoSubstance`. The segmentation guard needs precisely that vocabulary to
+ * tell `for five minutes` (residue, cut it) from `with two eggs` (a food, keep it), and a second copy on
+ * this side of the package boundary is the drift the DRY rule exists to prevent. The defect that created
+ * it is unchanged and is restated where the words now live.
  */
-const NOT_A_MEASURE = new Set([
-    'inch',
-    'inches',
-    'inche',
-    'foot',
-    'feet',
-    'degree',
-    'degrees',
-    'minute',
-    'minutes',
-    'hour',
-    'hours',
-    'day',
-    'days',
-    'week',
-    'weeks',
-    'year',
-    'years',
-    'time',
-    'times',
-    'person',
-    'persons',
-    'people',
-]);
-
 /**
  * Words that describe a SHAPE or a DIMENSION, never a food.
  *
- * Paired with {@link NOT_A_MEASURE} above, and both exist because of a defect observed in a live trial run:
+ * Paired with `measuresNoSubstance`'s word set (now in `recipe-import-core`), and both exist because of a defect observed in a live trial run:
  * "_cut in slices one-quarter inch thick_" parsed as `0.25 inch :: thick`, and "_two inches square_" as
  * `2 inche :: square`. Both were then sent to the catalog lookup, matched something, and landed on a PUBLIC
  * recipe carrying a real `food_id` — a nutrition claim derived from a measurement of a knife cut.
@@ -256,6 +239,14 @@ export type RecipeCandidateOutcome =
           readonly recipe: CandidateRecipe;
           /** Source clauses that named something but carried no usable quantity — reported VERBATIM. */
           readonly droppedLines: readonly string[];
+          /**
+           * Instruction text cut off the END of an ACCEPTED ingredient line (U22a), in source order.
+           *
+           * ⚠️ A DIFFERENT list from `droppedLines` above, deliberately. That one means "we could not use
+           * this clause at all"; these lines WERE used, minus a tail. Merging them would stop either list
+           * meaning anything: a reader could no longer tell a lost ingredient from a trimmed one.
+           */
+          readonly droppedInstructions: readonly string[];
       }
     | { readonly kind: 'skipped'; readonly title: string; readonly reason: RecipeSkipReason };
 
@@ -438,6 +429,15 @@ type ClauseReading =
            */
           readonly line: ParsedIngredientLine;
           /**
+           * The instruction text this stage cut off the span, or `null` when it cut nothing.
+           *
+           * ⛔ Carried so the loss is REPORTABLE and not merely flagged. `sourceText` is now a PREFIX of
+           * the clause, so without this the text U22a removes would exist nowhere a reader of the import
+           * report could reach — and HAZ-041's control against "line mis-parsed and the original
+           * discarded" would be weaker after this unit than before it.
+           */
+          readonly trailingInstruction: string | null;
+          /**
            * The accepted suffix EXACTLY as the book printed it, before `dropPartitiveOf` normalized it.
            *
            * ⛔ Carried because `line.raw` is not the source's words: it is byte-identical to what the parser
@@ -488,9 +488,13 @@ function suffixStarts(clause: string): readonly number[] {
  * The scan finds where the span STARTS and always did; nothing here decided where it ENDED, so the end
  * was implicitly the clause's end and both parse engines were handed `one-half pound of onion in thick
  * pieces`. `segmentClause` (`recipe-import-core`) now answers that half, and it is consulted AFTER the
- * gate below rather than before it — deliberately, because the plan's execution note warns that "the
- * pipeline replaces what happens to the chosen suffix, not how the suffix is chosen". Segmenting first
- * could change WHICH suffix wins; segmenting after cannot.
+ * gate below rather than before it — but that ordering does NOT make the selection immune, and claiming
+ * so would be false. What is preserved is the CANDIDATE LIST: `suffixStarts` is untouched, so R29's
+ * phrase-start additions and mid-phrase removals still decide which positions are tried, in which order.
+ * What changed is the selection PREDICATE — a start whose span is entirely equipment no longer wins, and
+ * a later, shorter start can. Two consequences follow and are tested: a later start can reach R39's
+ * corrupt refusal that an earlier one shadowed, and each rejection spends one of
+ * {@link MAX_SUFFIX_SKIP}'s attempts.
  *
  * @param clause - One clause of prose.
  * @returns The bounded parse plus anything cut off it, or a refusal. Pure.
@@ -528,7 +532,7 @@ function ingredientInClause(clause: string): ClauseReading {
         }
 
         if (segment.trailingInstruction === null) {
-            return { kind: 'ingredient', line: parsed, sourceText };
+            return { kind: 'ingredient', line: parsed, sourceText, trailingInstruction: null };
         }
 
         const bounded = parseIngredientLine(dropPartitiveOf(segment.span));
@@ -537,10 +541,15 @@ function ingredientInClause(clause: string): ClauseReading {
         // before U22a. The cut exists to remove residue, never to cost a line: a head that no longer
         // states a quantity, a unit and a food is evidence the boundary was wrong, not that the clause was.
         if (bounded.reviewReasons.some(corruptsStatedValue) || !namesAQuantifiedIngredient(bounded)) {
-            return { kind: 'ingredient', line: parsed, sourceText };
+            return { kind: 'ingredient', line: parsed, sourceText, trailingInstruction: null };
         }
 
-        return { kind: 'ingredient', line: withInstructionDropped(bounded), sourceText: segment.span };
+        return {
+            kind: 'ingredient',
+            line: withInstructionDropped(bounded),
+            sourceText: segment.span,
+            trailingInstruction: segment.trailingInstruction,
+        };
     }
 
     return { kind: 'none' };
@@ -560,7 +569,7 @@ function namesAQuantifiedIngredient(parsed: ParsedIngredientLine): boolean {
         parsed.quantity.kind !== 'absent' &&
         parsed.unit !== null &&
         // A DIMENSION is not a measure of an ingredient. "one-quarter inch thick" describes a knife cut.
-        !NOT_A_MEASURE.has(parsed.unit.toLowerCase()) &&
+        !measuresNoSubstance(parsed.unit) &&
         parsed.name.trim() !== ''
     );
 }
@@ -671,6 +680,7 @@ export function toCandidateRecipe(block: CookbookBlock, book?: Cookbook): Recipe
     const resolveUnit = book === undefined ? null : unitEquivalenceFor(book.measures);
     const ingredients: CandidateIngredient[] = [];
     const droppedLines: string[] = [];
+    const droppedInstructions: string[] = [];
     const seen = new Set<string>();
 
     for (const clause of splitClauses(body)) {
@@ -719,6 +729,11 @@ export function toCandidateRecipe(block: CookbookBlock, book?: Cookbook): Recipe
         }
 
         seen.add(key);
+
+        if (reading.trailingInstruction !== null) {
+            droppedInstructions.push(reading.trailingInstruction);
+        }
+
         ingredients.push(restateHistoricalUnit({ ...parsed, name }, resolveUnit));
     }
 
@@ -748,6 +763,7 @@ export function toCandidateRecipe(block: CookbookBlock, book?: Cookbook): Recipe
     return {
         kind: 'candidate',
         droppedLines,
+        droppedInstructions,
         recipe: {
             title,
             description: buildDescription(book?.attribution, stated !== undefined, ingredients),

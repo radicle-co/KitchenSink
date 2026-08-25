@@ -63,11 +63,20 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // The `VESSELS` and `INSTRUCTION_BOUNDARY` word sets behind them are deliberately NOT here, for
         // the reason `modifierLexicon`'s are not: a vocabulary is an implementation detail of the policy
         // that consumes it, and neither is a function.
+        //
+        // ⚠️ GREW BY ONE MORE in U22a's review pass, and it is the exception that proves that rule.
+        // `measuresNoSubstance` is a PREDICATE over `notAFoodLexicon`'s word set, not the set — and it is
+        // public because `cookbook-import`'s accept gate ("a DIMENSION is not a measure of an
+        // ingredient") and this package's segmentation guard must never disagree about which words those
+        // are. The gate used to hold its own `NOT_A_MEASURE` copy; the guard needed the same vocabulary
+        // to tell `for five minutes` from `with two eggs`, and two copies across a package boundary is
+        // exactly the drift the DRY rule is about. `namesNoFood` stays private: only the segmenter asks it.
         expect(Object.keys(publicApi).sort()).toEqual([
             'compareParses',
             'corruptsStatedValue',
             'dropTrailingInstruction',
             'findQuantityPhrases',
+            'measuresNoSubstance',
             'millilitresPerUnit',
             'normalizeDurationToMinutes',
             'normalizeQuantity',

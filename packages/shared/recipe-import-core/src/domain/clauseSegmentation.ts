@@ -32,19 +32,27 @@
  *
  * ⚠️ The guard cannot simply be "the tail contains a quantity phrase", which is the obvious reading and is
  * WRONG on the corpus: `five minutes` and `twenty minutes` are quantity phrases, and KTD-11a names both as
- * instruction residue to remove. What separates them is a **unit of substance** — the same requirement
- * `proseRecipe`'s own scan already uses ("Requiring a UNIT is what keeps 'cook two hours' … from being
- * read as ingredients"). So the guard asks `parseIngredientLine`, from every quantity phrase in the tail.
+ * instruction residue to remove.
  *
- * ⚠️ Accepted conservatism, stated rather than hidden: a tail whose unit is a DIMENSION (`one-quarter
- * inch thick`) reads as a food to this guard and refuses the cut. That leaves the status quo for such a
- * span — never a loss — and the vocabulary that would sharpen it (`NOT_A_MEASURE`) belongs to the
- * importer's own gate, not here. A VESSEL is a different matter and is NOT conservative in the safe
- * direction: `a large frying-pan` parses as a measured thing, and treating it as a food refused a cut and
- * lost a real ingredient, so the vessel vocabulary settles the tail as well as the head.
+ * ⛔ Nor can it be "the tail states a UNIT", which was the first attempt and **deleted real food twice**.
+ * That test is not the question:
+ *
+ *  - `two eggs` parses to `{quantity: 2, unit: null, name: 'eggs'}` — the normal form of every count
+ *    ingredient in a cookbook — so a unit test cannot see it, and `one cup of milk with two eggs` lost its
+ *    eggs with `droppedLines` EMPTY. `five minutes` has no unit either, so the test did not even separate
+ *    the cases it was justified by.
+ *  - `a large frying-pan` parses to `1 large :: frying-pan`, because `parse-ingredient` reads `large` as a
+ *    unit — so a unit test called a VESSEL a food, refused the cut, and `one tablespoon of butter in a
+ *    large frying-pan` lost its butter.
+ *
+ * The question is whether the noun the tail is about **is a substance**, which `notAFoodLexicon.ts`
+ * answers. A vessel, a duration, a dimension and a count of people are not; everything else is treated as
+ * a food, which is the direction that loses nothing — a refused cut costs only the status quo, while a
+ * wrong cut deletes an amount the source printed.
  */
 import { parseIngredientLine } from '../ingredientLine.js';
 import { findQuantityPhrases } from '../quantityPhrases.js';
+import { measuresNoSubstance, namesEquipment, namesNoFood } from './notAFoodLexicon.js';
 
 /**
  * What one accepted span of prose turned out to be.
@@ -84,72 +92,6 @@ const INSTRUCTION_BOUNDARY =
     /\s+(?:in|into|with|and|or|that|which|until|then|over|for|from|when|to|on|at|will|has|have|had|is|are|was|were|may|should|must|can)\s+|[,;:(]/g;
 
 /**
- * Vessels and equipment, for the HEAD-FINAL test only.
- *
- * ⛔ This is culinary vocabulary, which the neighbouring lexicons deliberately avoid — so the reason it is
- * admissible has to be stated. It removes things that are **not foods at all**, exactly as
- * `proseRecipe`'s `NOT_AN_INGREDIENT` does, and never rewrites a food; it therefore cannot be used to
- * nudge a name toward a catalog match, which is the property that would corrupt the resolution
- * measurement. `a large preserving kettle` parses to `1 large :: preserving kettle` and passes every
- * structural gate the importer has, so nothing but a vocabulary can tell it from `one large beet`.
- *
- * ⚠️ Matched against the LAST word of the head, never anywhere in it. English puts the noun a phrase is
- * ABOUT at the end of it, so `one pound of pot roast` is a roast and `a large preserving kettle` is a
- * kettle — and `a dish of stewed prunes` is prunes, which is why container words that also introduce a
- * food (`dish`, `jar`, `tin`) are safe to list.
- *
- * ⚠️ Accepted limit, the same one `modifierLexicon` states: a lexicon only decides the words it knows.
- * An unlisted vessel stays an ingredient and reaches the engines as it does today, which is the direction
- * that loses nothing.
- */
-const VESSELS: ReadonlySet<string> = new Set([
-    'basin',
-    'boiler',
-    'bowl',
-    'bowls',
-    'casserole',
-    'colander',
-    'dish',
-    'dishes',
-    'frying-pan',
-    'frying-pans',
-    'griddle',
-    'gridiron',
-    'jar',
-    'jars',
-    'kettle',
-    'kettles',
-    'mold',
-    'molds',
-    'mould',
-    'moulds',
-    'mortar',
-    'oven',
-    'pan',
-    'pans',
-    'platter',
-    'pot',
-    'pots',
-    'roaster',
-    'saucepan',
-    'saucepans',
-    'sieve',
-    'sifter',
-    'skillet',
-    'skillets',
-    // A 1900s frying pan, and one of the words KTD-11b found the two engines contesting.
-    'spider',
-    'spiders',
-    'steamer',
-    'stewpan',
-    'stew-pan',
-    'stove',
-    'strainer',
-    'tin',
-    'tins',
-]);
-
-/**
  * Bound one accepted span at the end of its ingredient.
  *
  * @param span - The suffix of a clause that read as a quantified ingredient, in the source's own words.
@@ -159,38 +101,59 @@ const VESSELS: ReadonlySet<string> = new Set([
 export function segmentClause(span: string): ClauseSegment {
     const trimmed = span.trim();
     const boundary = instructionBoundaryIn(trimmed);
-    const head = boundary === null ? trimmed : trimmed.slice(0, boundary).trim();
-    const tail = boundary === null ? null : trimmed.slice(boundary).trim();
 
-    // ⛔ EQUIPMENT IS JUDGED ON THE PROPOSED HEAD, ALWAYS — never on a span whose cut was refused below.
-    // Measured 2026-08-25 over the whole 1919 book: judging the refused span instead reads its LAST word,
-    // which is the tail's last word rather than the food the span is about, and
-    // `one tablespoon of butter in a large frying-pan` was classified as a frying-pan and dropped. A span
-    // is only ever "about" the text before its boundary.
-    if (head === '' || isEquipment(head)) {
-        return { kind: 'instruction' };
+    if (boundary === null) {
+        // Nothing to cut. The span is an ingredient unless the whole of it names something that is not a
+        // food — `a large preserving kettle`, which parses to `1 large :: preserving kettle` and clears
+        // every structural gate the importer has.
+        return trimmed === '' || namesEquipment(trimmed)
+            ? { kind: 'instruction' }
+            : { kind: 'ingredient', span: trimmed, trailingInstruction: null };
     }
 
-    // ⛔ THE GUARD. A tail stating its own measured food is not an instruction, and cutting it would
-    // delete an amount the source printed. The whole span survives instead, for `ParsedLine.foods` to carry.
-    if (tail === null || tail === '' || statesASecondFood(tail)) {
+    const head = trimmed.slice(0, boundary).trim();
+    const tail = trimmed.slice(boundary).trim();
+
+    // ⛔ THE GUARD, AND IT RUNS FIRST. A tail naming a food of its own is not an instruction, and cutting
+    // it would delete an amount the source printed. The whole span survives instead, for
+    // `ParsedLine.foods` — which holds many — to carry.
+    //
+    // ⛔ Ordering is load-bearing. Judging equipment before this ran the head-final test on a span whose
+    // cut was about to be REFUSED, so `a large kettle with two cups of sugar` came back `instruction` and
+    // the sugar went with it. A refused cut yields the whole span and is never judged equipment at all;
+    // equipment is only ever decided about a head the boundary actually takes.
+    if (tail === '' || statesASecondFood(tail)) {
         return { kind: 'ingredient', span: trimmed, trailingInstruction: null };
+    }
+
+    // ⛔ `namesEquipment`, NOT `namesNoFood`. Asking the wider question here dropped
+    // `Sift one cup of flour three times` — a stated amount of a real food — because the span ends on a
+    // duration word. Only a VESSEL means "this span is not an ingredient".
+    if (head === '' || namesEquipment(head)) {
+        return { kind: 'instruction' };
     }
 
     return { kind: 'ingredient', span: head, trailingInstruction: tail };
 }
 
 /**
- * Cut a NAME down at the same boundary, unconditionally.
+ * Cut a NAME down at the first instruction boundary, without the second-food guard.
  *
- * ⚠️ NOT {@link segmentClause} with the tail thrown away, and the difference is the second-food guard.
- * A span has somewhere to keep a second food — `ParsedLine.foods` holds many — so its cut is refused
- * rather than risked. A NAME has exactly one field and no such place, and a name carrying a measurement
- * (`chocolate in one cup of water`) matches no catalog row at all, so its cut is unconditional. Two
- * views of one lexicon, for two different consequences.
+ * ⚠️ NOT {@link segmentClause} with the tail thrown away, and the difference is exactly that guard. A span
+ * has somewhere to keep a second food — `ParsedLine.foods` holds many — so its cut is refused rather than
+ * risked. A NAME has one field and no such place, and a name carrying a measurement
+ * (`chocolate in one cup of water`) matches no catalog row at all, so nothing is gained by keeping it.
+ * Two views of one lexicon, for two different consequences.
+ *
+ * ⚠️ "Without the guard" is not "unconditional", and the earlier wording overstated it: this still
+ * refuses a boundary at offset 0 and one inside a quantity phrase, because both are properties of the
+ * BOUNDARY rather than of the consequence. The offset-0 refusal is a deliberate behaviour change from the
+ * `split(…)[0]` this replaced — that returned `''` for `', sifted'`, and `''` is what `proseRecipe`'s
+ * empty-name check drops a line on. A name that is nothing but a boundary is now returned intact and the
+ * caller's own `NOT_AN_INGREDIENT` gate judges it, which is the layer that owns that decision.
  *
  * @param name - The description a parse engine returned.
- * @returns The name up to the first instruction boundary. Pure and TOTAL.
+ * @returns The name up to the first instruction boundary that is really one. Pure and TOTAL.
  */
 export function dropTrailingInstruction(name: string): string {
     const boundary = instructionBoundaryIn(name);
@@ -228,12 +191,20 @@ function instructionBoundaryIn(text: string): number | null {
 }
 
 /**
- * Whether a tail states a food with a measured amount of its own.
+ * Whether a tail names a food with a stated amount of its own.
  *
  * ⛔ Scanned from EVERY quantity phrase in the tail, not once from its start. `a pan with one cup of
  * water` reads from its start as `1 :: pan with one cup of water` — a quantity, no unit — and would clear
  * a single-parse guard while hiding a real second food one phrase further in. The phrase scan is the same
- * one `suffixStarts` uses for the same reason.
+ * one `suffixStarts` uses, for the same reason.
+ *
+ * ⛔ The test is `namesNoFood`, NOT `unit !== null`. See the module docstring: the unit test deleted
+ * `two eggs` (a food with no unit) and preserved `a large frying-pan` (a vessel with one), which is both
+ * failure directions from a single wrong question.
+ *
+ * ⚠️ The name is BOUNDED before it is classified. A tail's own name carries the same residue a span does
+ * — `one cup of water in a kettle` parses to the name `water in a kettle` — and asking the head-final
+ * test about that reads `kettle` and throws away a real second food.
  *
  * @param tail - The text that would be cut off.
  * @returns `true` when cutting would delete a stated amount of a food. Pure.
@@ -241,34 +212,15 @@ function instructionBoundaryIn(text: string): number | null {
 function statesASecondFood(tail: string): boolean {
     return findQuantityPhrases(tail).some((phrase) => {
         const parsed = parseIngredientLine(tail.slice(phrase.start));
+        const food = dropTrailingInstruction(parsed.name).trim();
 
         return (
             parsed.quantity.kind !== 'absent' &&
-            parsed.unit !== null &&
-            parsed.name.trim() !== '' &&
-            // ⛔ A VESSEL IS NOT A FOOD, however it parses. `a large frying-pan` comes back as
-            // `1 large :: frying-pan` because `parse-ingredient` reads `large` as a unit, which cleared
-            // every structural test above and refused a cut that should have been made — measured on the
-            // whole 1919 book, it cost `Melt one tablespoon of butter in a large frying-pan` its butter.
-            // The same vocabulary that classifies a whole span settles it, rather than a second rule.
-            //
-            // ⚠️ Bounded FIRST. A tail's own name carries the same residue the span does — `one cup of
-            // water in a kettle` parses to the name `water in a kettle` — and asking the head-final test
-            // about that reads `kettle` and throws away a real second food. The food is what the name is
-            // about, which is exactly what `dropTrailingInstruction` returns.
-            !isEquipment(dropTrailingInstruction(parsed.name))
+            food !== '' &&
+            !namesNoFood(food) &&
+            // A unit that measures time, distance or temperature says the amount is not an amount of food,
+            // however food-like the noun beside it reads.
+            !(parsed.unit !== null && measuresNoSubstance(parsed.unit))
         );
     });
-}
-
-/**
- * Whether a head names a vessel rather than a food.
- *
- * @param head - The bounded span.
- * @returns `true` when its last word is equipment. Pure.
- */
-function isEquipment(head: string): boolean {
-    const last = head.split(/\s+/).at(-1) ?? '';
-
-    return VESSELS.has(last.toLowerCase().replace(/[^\p{L}\p{N}-]/gu, ''));
 }

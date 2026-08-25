@@ -562,15 +562,18 @@ describe('toCandidateRecipe, on historical units', () => {
  *
  * ## The measured delta on the committed fixture
  *
- * 21 lines before, 21 lines after: **nothing was lost**. Five of the 21 spans (24%) were shortened, and
- * every one was residue — a knife cut, a bracketed aside, a verb phrase, and one 106-character sentence
+ * 21 lines before, 21 lines after: **nothing was lost**. Four of the 21 spans (19%) were shortened, and
+ * every one was residue — a knife cut, a verb phrase, a bracketed aside, and one 106-character sentence
  * that carried an entire cooking instruction into both engines. No name and no quantity moved.
+ *
+ * ⚠️ A FIFTH span was cut by the first implementation and is NOT cut now: `4 cups of cold milk (or use
+ * half water`. Its tail names `water` — a food the source offers as an alternative — and the corrected
+ * guard refuses any cut that would delete a food, whether or not the source gave it a unit. Keeping it is
+ * the conservative direction and it is the status quo ante, so it costs nothing but a little residue.
  */
 const BOUNDED_BY_U22A: Readonly<Record<string, string>> = {
     // A knife cut, riding on the food it was applied to.
     'one-half pound of onion': 'one-half pound of onion in thick pieces',
-    // An unclosed bracket the clause splitter had already cut in half.
-    '4 cups of cold milk': '4 cups of cold milk (or use half water',
     // "…into which 1 teaspoon of flour HAS BEEN MADE SMOOTH" — a verb phrase, filed as prep by the LLM
     // and folded into the name by the CRF, which is KTD-11a's disagreement class exactly.
     '1 teaspoon of flour': '1 teaspoon of flour has been made smooth',
@@ -600,7 +603,7 @@ describe('toCandidateRecipe — characterization: the source text handed to the 
             ['Beet Soup--Russian Style (Fleischig)', 'fat brisket of beef', 'one pound of fat brisket of beef'],
             ['Beet Soup--Russian Style (Fleischig)', 'sugar', 'three-fourths of a cup of sugar'],
             ['Asparagus Soup', 'asparagus', '1 can of asparagus'],
-            ['Asparagus Soup', 'cold milk', '4 cups of cold milk'],
+            ['Asparagus Soup', 'cold milk', '4 cups of cold milk (or use half water'],
             ['Asparagus Soup', 'sugar', '1 teaspoon of sugar'],
             ['Asparagus Soup', 'butter', '1 tablespoon of butter'],
             ['Asparagus Soup', 'flour', '1 teaspoon of flour'],
@@ -628,11 +631,11 @@ describe('toCandidateRecipe — characterization: the source text handed to the 
      * reorders, or substitutes a word — so every bounded span is a strict prefix of what the engines were
      * handed before, and nothing this module emits can be a string the book did not print.
      */
-    it('shortened exactly five spans, and every one is a prefix of what it replaced', () => {
+    it('shortened exactly four spans, and every one is a prefix of what it replaced', () => {
         const spans = everyLine().map(([, , sourceText]) => sourceText);
         const changed = spans.filter((span) => BOUNDED_BY_U22A[span] !== undefined);
 
-        expect(changed).toHaveLength(5);
+        expect(changed).toHaveLength(4);
 
         for (const span of changed) {
             const before = BOUNDED_BY_U22A[span] ?? '';
@@ -684,6 +687,64 @@ describe('toCandidateRecipe — characterization: the source text handed to the 
  * These cases prove the extractor CALLS it, refuses its cut where the tail is a second food, and reports
  * what it dropped.
  */
+describe('toCandidateRecipe — the text U22a cut off is REPORTED, not discarded (F6)', () => {
+    /**
+     * ⛔ HAZ-041 — "ingredient line mis-parsed and the original discarded" — controls this class with
+     * "ARCH-019 always retains `raw`". After U22a, `raw` and `sourceText` are the BOUNDED head, so the
+     * clause's tail has to be reachable somewhere or the control is weakened by exactly the text this
+     * unit removes. A review reason alone does not satisfy it: a human triaging a flagged line could see
+     * that something was cut and never what.
+     *
+     * `droppedInstructions` is that surface. It is deliberately NOT merged into `droppedLines`, which
+     * means something else — "source clauses that named something but carried no usable quantity" — and
+     * would stop meaning it if lines we DID import were mixed in.
+     */
+    it('reports every instruction it cut, verbatim and in source order', () => {
+        const { droppedInstructions } = candidateFor('BEET SOUP--RUSSIAN STYLE (FLEISCHIG)');
+
+        expect(droppedInstructions).toContain('in thick pieces');
+    });
+
+    it('reports nothing when nothing was cut, so the list is a signal', () => {
+        const outcome = toCandidateRecipe({
+            title: 'CLEAN',
+            paragraphs: [
+                'Take two cups of flour. Add one cup of sugar. Add one cup of milk. Beat the whole ' +
+                    'thoroughly until it is perfectly smooth, taking care that no lumps remain anywhere ' +
+                    'in the batter. Bake for two hours in a steady heat, and serve while it is fresh.',
+            ],
+        });
+
+        if (outcome.kind !== 'candidate') {
+            throw new Error(`expected a candidate, got a skip: ${outcome.reason}`);
+        }
+
+        expect(outcome.droppedInstructions).toEqual([]);
+    });
+
+    /**
+     * The counterpart that keeps the two lists distinct: a clause that was ENTIRELY an instruction is a
+     * dropped LINE, never a dropped instruction, because no ingredient was kept from it to flag.
+     */
+    it('files a whole-instruction clause under droppedLines, not droppedInstructions', () => {
+        const outcome = toCandidateRecipe({
+            title: 'EQUIPMENT',
+            paragraphs: [
+                'Take a large preserving kettle. Put in two cups of sugar. Add one cup of water. Add ' +
+                    'three cups of fruit. Boil the whole slowly for two hours, skimming often so that ' +
+                    'nothing sticks against the bottom of it, and seal the jars while they are still hot.',
+            ],
+        });
+
+        if (outcome.kind !== 'candidate') {
+            throw new Error(`expected a candidate, got a skip: ${outcome.reason}`);
+        }
+
+        expect(outcome.droppedLines.join(' ')).toContain('preserving kettle');
+        expect(outcome.droppedInstructions.join(' ')).not.toContain('preserving kettle');
+    });
+});
+
 describe('toCandidateRecipe — the instruction that rode in on the clause (U22a)', () => {
     /**
      * The defect in the committed corpus rather than in a constructed example. "Cut one large beet and

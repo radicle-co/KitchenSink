@@ -107,6 +107,101 @@ describe('segmentClause — ⛔ the cut is REFUSED when the tail is a second foo
     });
 });
 
+describe('segmentClause — ⛔ a food with NO unit is still a food (F1)', () => {
+    /**
+     * ⛔ THE DEFECT THIS PINS, found by architecture review on 2026-08-25 and confirmed end to end.
+     *
+     * The guard originally asked `unit !== null`, justified as "what separates a second food from a
+     * duration is a unit of substance". That justification is **false**: `five minutes` has no unit
+     * either. `two eggs` parses to `{quantity: 2, unit: null, name: 'eggs'}` — the NORMAL form of every
+     * count ingredient in a cookbook (eggs, apples, lemons, onions) — so the guard could not see it and
+     * the cut deleted it. Measured: `Beat one cup of milk with two eggs until light` imported `milk`
+     * alone, with `droppedLines` EMPTY, so nothing reported the loss.
+     *
+     * ` with ` is not a `CLAUSE_SPLIT` boundary, so these clauses reach the segmenter whole, and the
+     * extractor's suffix scan cannot recover the second food: it keeps the first suffix that parses and
+     * moves on to the next clause.
+     *
+     * What actually separates residue from food is whether the thing named IS a food — a duration, a
+     * dimension or a vessel is not — which is what `notAFoodLexicon.ts` now decides.
+     */
+    it.each([
+        ['one cup of milk with two eggs until light'],
+        ['one cup of flour with two apples'],
+        ['one pint of cream with three lemons'],
+    ])('refuses the cut on %j, because the tail names a food with no unit', (span) => {
+        expect(ingredientSegment(span)).toEqual({ kind: 'ingredient', span, trailingInstruction: null });
+    });
+
+    /**
+     * The counterpart, and the reason the fix cannot be "never cut a tail that parses a quantity". A
+     * DURATION and a DIMENSION also parse a quantity with no unit of substance; both are KTD-11a residue
+     * and both must still be cut, or the repair for F1 silently undoes the whole unit.
+     */
+    it.each([
+        ['one pint of milk for five minutes', 'one pint of milk'],
+        ['three cups of milk for twenty minutes', 'three cups of milk'],
+    ])('still cuts %j, whose tail measures no substance', (span, expected) => {
+        expect(ingredientSegment(span).span).toBe(expected);
+    });
+});
+
+describe('segmentClause — ⛔ a duration in the SPAN does not make the span an instruction', () => {
+    /**
+     * ⛔ THE OVER-CORRECTION THIS PINS, caught by re-measuring the whole 1919 book after F1's fix: two
+     * recipes stopped importing (`SUNSHINE CAKE`, `KIDNEY BEANS WITH BROWN SAUCE`).
+     *
+     * Fixing F1 taught the guard that a duration is not a food — correct — and then applied that same
+     * vocabulary to the WHOLE-SPAN test, which asks a different question. `Sift one cup of flour three
+     * times` has no instruction boundary (`three` is not a cut word), so the whole span was classified
+     * head-final on `times` and thrown away — **deleting one cup of flour**, which is precisely the class
+     * of loss F1 was about.
+     *
+     * The two questions are not the same and now use different vocabularies:
+     *
+     *  - _Is this span an ingredient at all?_ — only a VESSEL says no. A duration trailing a real
+     *    quantity is residue on an ingredient, not a reason to drop it, and the extractor's own gate
+     *    already refuses a line whose UNIT is a duration.
+     *  - _Would cutting this tail delete a food?_ — a vessel AND a duration both say no.
+     */
+    it.each([
+        ['one cup of flour three times'],
+        ['one teaspoon butter three minutes'],
+        ['two cups of sugar four times'],
+    ])('keeps %j as an ingredient, because a real amount of a real food is stated', (span) => {
+        expect(segmentClause(span).kind).toBe('ingredient');
+    });
+
+    /** The counterpart: a span that is ONLY a duration still names no food. */
+    it('still refuses a span that names nothing but a vessel', () => {
+        expect(segmentClause('a large preserving kettle')).toEqual({ kind: 'instruction' });
+    });
+});
+
+describe('segmentClause — ⛔ a refused cut is never judged equipment (F3)', () => {
+    /**
+     * ⛔ The equipment test ran BEFORE the second-food guard, so a span whose head is a vessel was
+     * called an instruction without ever asking whether its tail named a food. `segmentClause` is on the
+     * package barrel — a contract — and the only reason this was not a live loss is that today's single
+     * caller happens to own a retrying suffix scan. U22's `parsePipeline` will not.
+     *
+     * The guard now runs FIRST: a refused cut yields the whole span, and equipment is only ever judged on
+     * a head the boundary actually takes.
+     */
+    it('keeps "a large kettle with two cups of sugar" rather than calling it a kettle', () => {
+        expect(ingredientSegment('a large kettle with two cups of sugar')).toEqual({
+            kind: 'ingredient',
+            span: 'a large kettle with two cups of sugar',
+            trailingInstruction: null,
+        });
+    });
+
+    it('still reads a vessel whose tail names no food as an instruction', () => {
+        expect(segmentClause('a large platter to dry')).toEqual({ kind: 'instruction' });
+        expect(segmentClause('a large salad bowl with lettuce leaves')).toEqual({ kind: 'instruction' });
+    });
+});
+
 describe('segmentClause — equipment is an instruction, not an ingredient', () => {
     /**
      * ⛔ KTD-11a's equipment case. `a large preserving kettle` parses to `1 large :: preserving kettle`

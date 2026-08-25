@@ -234,14 +234,36 @@ differently, the CRF into the name and the LLM into prep. The obvious repair is 
 
 ⛔ **Trimming unconditionally is value-corrupting**, on exactly the case the defect was found on:
 `one-half pound chocolate in one cup of water` — the tail there is a **second food**, not an instruction.
-So the cut is **refused when the tail contains a quantity phrase**. The machinery already exists and is
-already used for the mirror question: `findQuantityPhrases` (`recipe-import-core/src/quantityPhrases.ts`)
-answers "is a number in there" without this module owning a number lexicon, and `suffixStarts`
-(`cookbook-import/src/proseRecipe.ts`) already calls it to decide where the suffix scan may begin.
 
-⚠️ And the honest outcome may be a `line_is_instruction` **review reason** — the sibling of
-`measurement_in_name` — rather than a silent trim. A clause carrying an ingredient AND an instruction is
-ordinary in this corpus.
+⛔ **TWO obvious guards were specified, implemented, and DISPROVED against the corpus. Do not re-propose
+either.** They are recorded because each is what a careful reader arrives at independently.
+
+1. **"Refuse when the tail contains a quantity phrase"** (the original specification, reasoning from
+   `findQuantityPhrases` already existing). It is wrong here: `five minutes` and `twenty minutes` **are**
+   quantity phrases, and durations are the residue this unit exists to remove. The guard refuses to cut
+   precisely the tails it was built to cut.
+2. **"Refuse when the tail states a UNIT"** (the repair for 1). Wrong in **both** directions. `two eggs`
+   parses as `{quantity: 2, unit: null}` — the normal form of every count ingredient — so a second food was
+   **deleted**; and `a large frying-pan` parses as `1 large :: frying-pan`, counting as a food and refusing
+   a cut that should have happened, losing the butter.
+
+The settled rule is **two questions over two vocabularies**, not one test: _is this span an ingredient at
+all?_ — only a **vessel** answers no; and _would cutting this tail delete a food?_ — a **vessel or a
+duration** answers no. `measuresNoSubstance` (`domain/notAFoodLexicon.ts`) is shared across the package
+boundary with `cookbook-import`'s accept gate deliberately: the gate previously held its own `NOT_A_MEASURE`
+copy, and two copies of "which words are not a measure of an ingredient" is exactly the drift DRY governs.
+
+⛔ **A unit test suite cannot verify this change.** Three food losses — the frying-pan/butter case,
+`two eggs`, and `Sift one cup of flour three times` (which also cost two whole recipes) — were found ONLY by
+a corpus-wide diff of every name, quantity and unit over the full 1919 book. That diff is the check any
+future change to this module owes; a green unit tier is not evidence here.
+
+⚠️ The outcome is a review reason, and it is **`instruction_text_dropped`** — a sibling of
+`additional_foods_dropped` (a loss this stage caused), **not** of `measurement_in_name` (which says a stated
+number is understated). It is deliberately NOT in `VALUE_CORRUPTING_REVIEW_REASONS`: the amount and unit
+reported are exactly what the source stated, and membership would make `cookbook-import` discard a whole
+line it can read. ⚠️ That set is a `Set`, not an exhaustive map, so adding a reason produces **no** compile
+error there — the membership decision must be argued in its comment, as the existing exclusions are.
 
 ## Consequences
 

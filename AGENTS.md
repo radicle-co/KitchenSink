@@ -227,9 +227,15 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   **not** `recipe-workers` (which exports only `./infra`, so `cookbook-import` cannot reach it) — but
   `llmParse.ts` stays in `recipe-workers`, because ADR-0024 layer 4b grants `bedrock:InvokeModel` to exactly
   one role and a shared gated leg invites a second, ungated grantee. `cookbook-import` gets Null Objects for
-  the cache and corrections and must not acquire a database. ⛔ U22a's segmentation cut is refused when the
-  tail carries a quantity phrase (`one-half pound chocolate in one cup of water` — the tail is a second
-  food). ⛔ Two contract defects were REPAIRED 2026-08-25 and the repairs are load-bearing.
+  the cache and corrections and must not acquire a database. ⛔ U22a's segmentation cut has TWO DISPROVED guards recorded so
+  nobody re-proposes them: "refuse when the tail contains a quantity phrase" fails because `five minutes` IS
+  a quantity phrase and durations are the residue being removed; "refuse when the tail states a unit" fails
+  BOTH ways (`two eggs` is `{quantity: 2, unit: null}`, the normal form of every count ingredient, so a
+  second food was DELETED; `a large frying-pan` reads as `1 large :: frying-pan` and wrongly refused a cut,
+  losing the butter). The settled rule is TWO questions over two vocabularies — only a VESSEL says "not an
+  ingredient"; a vessel OR a duration says "cutting would delete a food". ⛔ A unit suite CANNOT verify this:
+  three food losses were found ONLY by a corpus-wide diff over the full 1919 book, and that diff is the
+  check any future change here owes. ⛔ Two contract defects were REPAIRED 2026-08-25 and the repairs are load-bearing.
   `ParseEngine` was declared twice — structurally identical, so `tsc` is blind to it BY CONSTRUCTION
   (`Exact<'crf'|'llm','crf'|'llm'>` is `true`); the guard therefore reads the module's SOURCE for a surviving
   local declaration and must not be "simplified" into a type test. `ParseProvenance` had no inhabitant for a

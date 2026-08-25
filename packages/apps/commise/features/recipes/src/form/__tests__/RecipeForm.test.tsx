@@ -7,7 +7,7 @@
  * `onChange` assertion checks the emitted values object, so a wrong immutable transition fails the test.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type FC } from 'react';
 
@@ -1874,5 +1874,83 @@ describe('RecipeForm (web) — typing a section keeps focus (U27)', () => {
         );
 
         expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
+    });
+});
+
+describe('RecipeForm (web) — meal type (U34: the ONE closed axis)', () => {
+    it('renders a radiogroup naming every member of the vocabulary plus an explicit Not stated', () => {
+        renderForm();
+
+        const group = screen.getByRole('radiogroup', { name: 'Meal type' });
+
+        for (const label of ['Breakfast', 'Brunch', 'Lunch', 'Dinner', 'Snack', 'Dessert', 'Drink']) {
+            expect(within(group).getByRole('radio', { name: label })).toBeTruthy();
+        }
+
+        expect(within(group).getByRole('radio', { name: 'No meal type' })).toBeTruthy();
+    });
+
+    it('checks Not stated (and nothing else) when no meal type is set', () => {
+        renderForm({ values: filledValues() });
+        const group = screen.getByRole('radiogroup', { name: 'Meal type' });
+
+        expect(within(group).getByRole<HTMLInputElement>('radio', { name: 'No meal type' }).checked).toBe(true);
+        expect(within(group).getByRole<HTMLInputElement>('radio', { name: 'Dinner' }).checked).toBe(false);
+    });
+
+    it('checks the chip matching a stated meal type', () => {
+        renderForm({ values: filledValues({ mealType: 'dessert' }) });
+        const group = screen.getByRole('radiogroup', { name: 'Meal type' });
+
+        expect(within(group).getByRole<HTMLInputElement>('radio', { name: 'Dessert' }).checked).toBe(true);
+        expect(within(group).getByRole<HTMLInputElement>('radio', { name: 'No meal type' }).checked).toBe(false);
+    });
+
+    it('reports a selection upward', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({ values: filledValues(), onChange });
+
+        await user.click(
+            within(screen.getByRole('radiogroup', { name: 'Meal type' })).getByRole('radio', { name: 'Lunch' }),
+        );
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mealType: 'lunch' }));
+    });
+
+    it('clears it (REMOVING the field) when Not stated is chosen', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ mealType: 'dinner' }), onChange });
+
+        await user.click(
+            within(screen.getByRole('radiogroup', { name: 'Meal type' })).getByRole('radio', { name: 'No meal type' }),
+        );
+
+        const next = onChange.mock.calls[0]?.[0] as RecipeFormValues;
+
+        expect(next.mealType).toBeUndefined();
+        expect('mealType' in next).toBe(false);
+    });
+
+    it('leaves tags and dietary flags FREE TEXT beside it — three axes, no aliasing', () => {
+        // ⛔ The mockup wrote its Dietary chips into the SAME array as its Categories. Choosing a meal type
+        // must not touch either list, and the two lists must not be radio groups.
+        renderForm({ values: filledValues({ mealType: 'dinner', tags: ['weeknight'], dietaryFlags: ['vegan'] }) });
+
+        expect(screen.queryByRole('radiogroup', { name: 'Tags' })).toBeNull();
+        expect(screen.queryByRole('radiogroup', { name: 'Dietary flags' })).toBeNull();
+        expect(screen.getByText('weeknight')).toBeTruthy();
+        expect(screen.getByText('vegan')).toBeTruthy();
+    });
+
+    it('does not select a meal type merely because a TAG names one', () => {
+        // A cook may well tag a recipe "dinner". Tags and meal type are different fields and a tag must never
+        // be read as a selection on the closed axis.
+        renderForm({ values: filledValues({ tags: ['dinner'] }) });
+        const group = screen.getByRole('radiogroup', { name: 'Meal type' });
+
+        expect(within(group).getByRole<HTMLInputElement>('radio', { name: 'Dinner' }).checked).toBe(false);
+        expect(within(group).getByRole<HTMLInputElement>('radio', { name: 'No meal type' }).checked).toBe(true);
     });
 });

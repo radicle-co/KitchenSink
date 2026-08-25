@@ -28,6 +28,7 @@ import { usesPremiumCapability } from '@kitchensink/recipe-core';
 import type {
     Recipe,
     RecipeDifficulty,
+    RecipeMealType,
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
@@ -54,6 +55,7 @@ export interface RecipeRowInput {
     totalTimeMinutes: number | null;
     servings: number;
     difficulty: string | null;
+    mealType: string | null;
     visibility: string;
     status: string;
     sourceType: string;
@@ -132,6 +134,10 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
     return {
         ...recipe,
         ...(row.difficulty !== null ? { difficulty: row.difficulty as RecipeDifficulty } : {}),
+        // OMITTED when NULL, never projected as `null` (plan U34): `Recipe.mealType` is `?: RecipeMealType`,
+        // and an explicit `undefined` would violate `exactOptionalPropertyTypes` while a `null` would make
+        // "not stated" a second value the read schema does not admit. Same rule as `difficulty` above.
+        ...(row.mealType !== null ? { mealType: row.mealType as RecipeMealType } : {}),
         // Trigger-maintained aggregate: numeric average is a string|null from pg; OMITTED (not 0) when unrated.
         ...(row.averageRating !== null ? { averageRating: Number(row.averageRating) } : {}),
         // Denormalized headline per-serving calories — OMITTED when NULL (no accounted nutrition), never 0.

@@ -179,12 +179,16 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 {item.status === 'failed' && item.errorMessage !== undefined ? (
                                     <Text style={styles.itemError}>{item.errorMessage}</Text>
                                 ) : null}
-                                {item.status === 'failed' ? (
+                                {/* ⛔ `queued` is offered a Remove too — see the web leaf's note. On the CREATE
+                                    path every draft pick sits `queued` until the recipe exists, so without
+                                    this the photo chosen before the first save was the ONE field of the
+                                    editor a cook could not change their mind about. */}
+                                {item.status === 'failed' || item.status === 'queued' ? (
                                     <View style={styles.queueControls}>
                                         {/* Retry only where it can plausibly succeed — the queue
                                             re-validates on retry, so a client-rejected file (too large /
                                             wrong type) would re-fail identically. See `retryable`. */}
-                                        {item.retryable ? (
+                                        {item.status === 'failed' && item.retryable ? (
                                             <Pressable
                                                 accessibilityRole="button"
                                                 accessibilityLabel={fillTemplate(m.queueRetryLabel, {

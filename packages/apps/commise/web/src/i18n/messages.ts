@@ -188,8 +188,25 @@ export interface WebMessages {
         readonly form: {
             /** Error shown when persisting a create/edit fails. */
             readonly submitError: string;
-            /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
-            readonly photosAfterCreateNotice: string;
+            /**
+             * Shown after a successful create while chosen photos are still uploading (U33).
+             *
+             * ⛔ REPLACES `photosAfterCreateNotice` ("Save this recipe first — you can add photos from its
+             * edit page"), which was the notice a cook met INSTEAD of an uploader. Photos are a field now;
+             * this sentence exists for the window AFTER the recipe is saved, because a save is two calls and
+             * the cook must not be told it is one.
+             */
+            readonly photosFlushingNotice: string;
+            /** The explicit "leave without the photos that would not upload" action (U33). */
+            readonly photosFinishWithout: string;
+            /**
+             * Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`).
+             *
+             * ⛔ The cap can be breached WITHIN a single pick — the add control's own gate only bounds picks
+             * between each other — and the pick is refused WHOLE rather than truncated, so this sentence is
+             * the only thing standing between the cook and silently losing the files that would not fit.
+             */
+            readonly photosOverCap: string;
         };
         /** Copy for the ingredient typeahead the shared form block deliberately omits (the container owns it). */
         readonly picker: {
@@ -412,7 +429,9 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             },
             form: {
                 submitError: 'We couldn’t save this recipe. Please try again.',
-                photosAfterCreateNotice: 'Save this recipe first — you can add photos from its edit page.',
+                photosFlushingNotice: 'Recipe saved. Finishing your photo uploads…',
+                photosFinishWithout: 'Finish without the remaining photos',
+                photosOverCap: 'That’s more photos than this recipe can hold — you can add {count} more.',
             },
             picker: {
                 regionLabel: 'Ingredient search',

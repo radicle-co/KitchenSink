@@ -6,6 +6,7 @@
  * another key. Templates carry `{token}` placeholders filled with `fillTemplate`.
  */
 import type { LocalizedMessages } from '@commise/i18n';
+import type { RecipeMealType } from '@kitchensink/recipe-core';
 
 /** Shared copy for the recipe create/edit form, rendered by both the web and native form leaves. */
 export interface RecipeFormMessages {
@@ -44,6 +45,30 @@ export interface RecipeFormMessages {
     readonly difficultyHard: string;
     /** Difficulty option that clears a stated difficulty back to "not stated". */
     readonly difficultyNotStated: string;
+    /**
+     * Group label for the meal-type chip group (plan U34).
+     *
+     * ⛔ "Meal type", never "category". This is the ONE closed axis on the form — the field beneath it
+     * (`tags`) is free text and is where a cook's own words go. Naming this one "Category" would invite
+     * exactly the merge the mockup made, where its Dietary chips wrote into the same array as its Categories.
+     */
+    readonly mealTypeLabel: string;
+    /**
+     * The vocabulary's labels, keyed by wire value (plan U34). A RECORD, not a positional list, for the same
+     * reason `WizardMessages.stepNames` is: the association is then the type, and a vocabulary member added
+     * in `recipe-core` without a label here is a compile error rather than a blank chip.
+     */
+    readonly mealTypeOptions: Readonly<Record<RecipeMealType, string>>;
+    /**
+     * Meal-type option that clears a stated meal type back to "not stated".
+     *
+     * ⛔ Deliberately NOT the same words as {@link difficultyNotStated}, even though it is the same idea.
+     * Both chips sit in the SAME form, and an option's label is its accessible NAME — two controls named
+     * "Not stated" in one form are indistinguishable to anyone navigating by name, which is exactly the
+     * failure WCAG 3.3.2 addresses (the same reason the two ingredient quantity spinbuttons carry distinct
+     * names). The existing difficulty tests caught the collision the moment this chip group was added.
+     */
+    readonly mealTypeNotStated: string;
     /** Accessible label for the tags field. */
     readonly tagsLabel: string;
     /** Placeholder/hint for the tags + dietary chip inputs — explains the type-and-enter entry (U6). */
@@ -64,6 +89,65 @@ export interface RecipeFormMessages {
     readonly totalTimeLabel: string;
     /** Total-time unit template (contains `{minutes}`). */
     readonly durationMinutes: string;
+
+    /**
+     * Heading for the REVIEW step (U33) — the wizard's fourth step, which replaced the deleted `Preview`
+     * overlay. Two surfaces rendering the same draft drift, so there is now exactly one.
+     */
+    readonly reviewHeading: string;
+    /** Review row label: title. */
+    readonly reviewTitle: string;
+    /** Review row label: description. */
+    readonly reviewDescription: string;
+    /** Review row label: cuisine. */
+    readonly reviewCuisine: string;
+    /** Review row label: difficulty. */
+    readonly reviewDifficulty: string;
+    /** Review row label: meal type. */
+    readonly reviewMealType: string;
+    /** Review row label: servings. */
+    readonly reviewServings: string;
+    /** Review row label: prep time. */
+    readonly reviewPrepTime: string;
+    /** Review row label: cook time. */
+    readonly reviewCookTime: string;
+    /** Review row label: total time. */
+    readonly reviewTotalTime: string;
+    /** Review row label: tags. */
+    readonly reviewTags: string;
+    /** Review row label: dietary flags. */
+    readonly reviewDietaryFlags: string;
+    /** Review row label: ingredient count. */
+    readonly reviewIngredientCount: string;
+    /** Review row label: step count. */
+    readonly reviewStepCount: string;
+    /** Review row label: visibility. */
+    readonly reviewVisibility: string;
+    /** Review visibility value: public. */
+    readonly reviewVisibilityPublic: string;
+    /** Review visibility value: private. */
+    readonly reviewVisibilityPrivate: string;
+    /**
+     * Review row label: photos chosen but not yet uploaded (U33).
+     *
+     * ⚠️ The ONE review row that is omitted when it would read zero. Every other row states its absence,
+     * because a vanished row is indistinguishable from one the cook has not scrolled to; this row is about an
+     * OPERATION that is not going to happen, on a step whose job is to be scannable.
+     */
+    readonly reviewPendingPhotos: string;
+    /**
+     * The value shown for an optional field the author left unstated (U33).
+     *
+     * ⛔ Stated, never rendered as a missing row. "Did I set a difficulty?" is exactly the question this step
+     * exists to answer, and a row that disappears answers it by silence.
+     */
+    readonly reviewNotStated: string;
+    /** The value shown for an empty tag / dietary-flag list. */
+    readonly reviewNone: string;
+    /** Accessible label for the review's ingredient list. */
+    readonly reviewIngredientListLabel: string;
+    /** Shown in place of the ingredient list when the draft has no lines yet. */
+    readonly reviewNoIngredients: string;
 
     /** Heading for the ingredients section. */
     readonly ingredientsHeading: string;
@@ -227,6 +311,17 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         difficultyMedium: 'Medium',
         difficultyHard: 'Hard',
         difficultyNotStated: 'Not stated',
+        mealTypeLabel: 'Meal type',
+        mealTypeOptions: {
+            breakfast: 'Breakfast',
+            brunch: 'Brunch',
+            lunch: 'Lunch',
+            dinner: 'Dinner',
+            snack: 'Snack',
+            dessert: 'Dessert',
+            drink: 'Drink',
+        },
+        mealTypeNotStated: 'No meal type',
         tagsLabel: 'Tags',
         tagsHint: 'Type and press Enter',
         removeChipLabel: 'Remove {value}',
@@ -237,6 +332,29 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         cookTimeLabel: 'Cook time (minutes)',
         totalTimeLabel: 'Total time',
         durationMinutes: '{minutes} min',
+
+        reviewHeading: 'Review',
+        reviewTitle: 'Title',
+        reviewDescription: 'Description',
+        reviewCuisine: 'Cuisine',
+        reviewDifficulty: 'Difficulty',
+        reviewMealType: 'Meal type',
+        reviewServings: 'Servings',
+        reviewPrepTime: 'Prep time',
+        reviewCookTime: 'Cook time',
+        reviewTotalTime: 'Total time',
+        reviewTags: 'Tags',
+        reviewDietaryFlags: 'Dietary flags',
+        reviewIngredientCount: 'Ingredients',
+        reviewStepCount: 'Steps',
+        reviewVisibility: 'Visibility',
+        reviewVisibilityPublic: 'Public',
+        reviewVisibilityPrivate: 'Private',
+        reviewPendingPhotos: 'Photos to upload',
+        reviewNotStated: 'Not stated',
+        reviewNone: 'None',
+        reviewIngredientListLabel: 'Ingredient list',
+        reviewNoIngredients: 'No ingredients yet.',
 
         ingredientsHeading: 'Ingredients',
         ingredientNameLabel: 'Ingredient {number} name',

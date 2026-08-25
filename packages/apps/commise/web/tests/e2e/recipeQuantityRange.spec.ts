@@ -33,7 +33,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await page.getByRole('button', { name: 'New recipe' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
-        // Step 1 (Basic).
+        // Step 1 (Details).
         await expect(page.getByText('Step 1 of 4')).toBeVisible();
         await page.getByLabel('Title').fill('E2E Range Loaf');
         await page.getByLabel('Servings').fill('4');
@@ -52,7 +52,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await page.getByRole('button', { name: 'Next: Instructions' }).click();
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Mix and bake.');
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         await page.getByRole('button', { name: 'Publish' }).click();
 
         // VIEW — the detail renders the SPAN, not its lower bound. The checkbox's accessible name is composed
@@ -72,7 +72,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await expect(page.getByLabel('Ingredient 1 maximum quantity')).toHaveValue('3');
 
         await page.getByLabel('Ingredient 1 maximum quantity').fill('4');
-        await page.getByRole('button', { name: /Photos:/ }).click();
+        await page.getByRole('button', { name: /Details:/ }).click();
         await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('checkbox', { name: '2–4 cups Salt' })).toBeVisible();
@@ -102,7 +102,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await page.getByRole('button', { name: 'Next: Instructions' }).click();
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Rub it in.');
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         // ⛔ THE ASSERTION THIS SPEC EXISTS FOR: Publish must SUCCEED. Before U9 the draft held `NaN`, the
         // validator refused it, and this click left the author on the wizard with no way forward.
         await page.getByRole('button', { name: 'Publish' }).click();
@@ -119,7 +119,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await expect(page.getByLabel('Ingredient 1 quantity')).toHaveValue('');
         await expect(page.getByLabel('Ingredient 1 maximum quantity')).toHaveValue('');
 
-        await page.getByRole('button', { name: /Photos:/ }).click();
+        await page.getByRole('button', { name: /Details:/ }).click();
         await page.getByRole('button', { name: 'Publish' }).click();
         await expect(page.getByRole('checkbox', { name: 'the size of an egg Salt' })).toBeVisible();
     });

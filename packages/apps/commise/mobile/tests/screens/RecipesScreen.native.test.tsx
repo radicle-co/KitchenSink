@@ -37,6 +37,13 @@ import {
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipes: vi.fn(),
+    // U33 — the create screen now composes the real photo surface (a pick lands in the draft and flushes
+    // once the recipe has an id), so its hooks must exist even though this suite never picks a file.
+    useRecipePhotos: () => ({ data: [], isLoading: false, isError: false }),
+    useCreatePhotoUploadUrl: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
+    useConfirmPhotoUpload: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
+    useDeleteRecipePhoto: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
+    useReorderRecipePhotos: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
     useRecipe: vi.fn(),
     useDeleteRecipe: vi.fn(),
     useSetRecipeVisibility: vi.fn(),

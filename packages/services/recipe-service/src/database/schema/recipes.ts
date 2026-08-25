@@ -24,7 +24,13 @@ import {
     varchar,
     type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import type {
+    RecipeDifficulty,
+    RecipeMealType,
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
 
 /**
  * Postgres `tsvector` column type (drizzle-orm has no native `tsvector`). Nullable and
@@ -59,11 +65,29 @@ export const RECIPE_SOURCE_TYPES = [
 export const RECIPE_DIFFICULTIES = ['easy', 'medium', 'hard'] as const satisfies readonly RecipeDifficulty[];
 /** Publication status (W8-a.3) — backs `recipes_status_check` below. */
 export const RECIPE_STATUSES = ['draft', 'published'] as const satisfies readonly RecipeStatus[];
+/**
+ * Author-stated meal type (plan U34) — backs `recipes_meal_type_check` below. NULL ("not stated") is a
+ * first-class state and is deliberately NOT in this set, exactly as for difficulty.
+ *
+ * The `satisfies` is the whole point: `tags` and `dietary_flags` beside it are unconstrained `text[]` on
+ * purpose, so this is the ONE classification column whose domain the database enforces, and a recipe-core
+ * addition this array does not mirror fails the build here rather than passing a CHECK that silently
+ * rejects the new value at run time.
+ */
+export const RECIPE_MEAL_TYPES_DB = [
+    'breakfast',
+    'brunch',
+    'lunch',
+    'dinner',
+    'snack',
+    'dessert',
+    'drink',
+] as const satisfies readonly RecipeMealType[];
 
 // Single authoritative types — re-exported from recipe-core rather than redeclared, so a schema
 // consumer importing `RecipeVisibility`/`RecipeSourceType`/`RecipeDifficulty`/`RecipeStatus` FROM THIS
 // FILE gets the exact same type as one importing it from `@kitchensink/recipe-core` directly.
-export type { RecipeVisibility, RecipeSourceType, RecipeDifficulty, RecipeStatus };
+export type { RecipeVisibility, RecipeSourceType, RecipeDifficulty, RecipeMealType, RecipeStatus };
 
 // ── recipes: the golden row ───────────────────────────────────────────────────────────────────────
 
@@ -84,6 +108,12 @@ export const recipes = pgTable(
         // real state, and there is no honest default. NULL renders as NO badge, never a guess. See the
         // 0010 migration comment for why this deliberately diverges from the servings/times NOT NULL.
         difficulty: text('difficulty'),
+
+        // Meal type (plan U34). NULLABLE, NO default, for exactly the reason difficulty is: "the author did
+        // not say" is a real state and there is no honest default. Its sibling classification columns
+        // (`tags`, `dietary_flags`) are unconstrained text[] BY DESIGN — see RECIPE_MEAL_TYPES_DB above for
+        // why this one axis is closed and those are not.
+        mealType: text('meal_type'),
 
         // Denormalized rating aggregate (CR-001 / FR-013a). Maintained ONLY by the
         // recipe_ratings_aggregate_refresh() trigger (0010 migration) — NEVER written by application
@@ -148,6 +178,12 @@ export const recipes = pgTable(
         check('recipes_servings_positive', sql`${table.servings} > 0`),
         // Difficulty: NULL passes (NULL IN (...) is NULL, not false), so this enforces the enum on stated values.
         check('recipes_difficulty_check', sql`${table.difficulty} IN ('easy', 'medium', 'hard')`),
+        // Meal type: NULL passes (NULL IN (...) is NULL, not false), so this enforces the vocabulary on
+        // stated values only — same shape as the difficulty check above.
+        check(
+            'recipes_meal_type_check',
+            sql`${table.mealType} IN ('breakfast', 'brunch', 'lunch', 'dinner', 'snack', 'dessert', 'drink')`,
+        ),
         // Publication status (W8-a.3) — NOT NULL, so this enforces the full draft|published domain.
         check('recipes_status_check', sql`${table.status} IN ('draft', 'published')`),
         check('recipes_rating_count_nonneg', sql`${table.ratingCount} >= 0`),

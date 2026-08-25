@@ -47,9 +47,9 @@ async function enterConflict(page: Page, conflictSeed: EnrichedConflictSeed): Pr
 
     await page.goto(route('/recipes/rec_conflict/edit'));
     await page.getByLabel('Title').fill('My Merged Title');
-    // Publish is the footer's FINAL-step primary (U6). The seed is fully valid, so jump to Photos (step 4) via
+    // Publish is the action bar's FINAL-step primary. The seed is fully valid, so jump to Review (step 4) via
     // the rail — forward navigation is ungated even with the unsaved title edit — and publish to lose the race.
-    await page.getByRole('button', { name: /Photos:/ }).click();
+    await page.getByRole('button', { name: /Details:/ }).click();
     await page.getByRole('button', { name: 'Publish' }).click();
 
     await expect(page.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeVisible();

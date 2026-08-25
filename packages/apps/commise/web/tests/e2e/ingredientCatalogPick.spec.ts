@@ -60,7 +60,7 @@ test.describe('blended ingredient typeahead — food-catalog suggestions (search
         await expect(page.getByText('Step 3 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Add step' }).click();
         await page.getByLabel('Step 1 instruction').fill('Simmer, then season generously.');
-        await page.getByRole('button', { name: 'Next: Photos' }).click();
+        await page.getByRole('button', { name: 'Next: Review' }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 

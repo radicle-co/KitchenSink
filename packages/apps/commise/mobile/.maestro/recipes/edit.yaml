@@ -113,7 +113,7 @@ appId: io.commise.mobile
 # rather than derived because Maestro has no "last match" selector. Typing into `Step 1 instruction` does not
 # merely assert the wrong row — it appends this text to the SEEDED first step and leaves the added step EMPTY,
 # and `validateRecipeForm` fails `steps` when ANY instruction is blank, so `canAdvanceFromStep(3)` never opens
-# and the `Next: Photos` below can no longer be tapped through.
+# and the `Next: Review` below can no longer be tapped through.
 - assertVisible: 'Step 3 of 4'
 - scrollUntilVisible:
       element: 'Add step'
@@ -127,10 +127,10 @@ appId: io.commise.mobile
 - tapOn: 'Step 5 instruction'
 - inputText: 'Combine everything and simmer.'
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 
 # Step 4 of 4 (Photos) — Publish is the sticky top-bar action, present on every step; no scroll needed.
 - assertVisible: 'Step 4 of 4'

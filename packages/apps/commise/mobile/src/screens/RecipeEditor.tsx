@@ -1,15 +1,32 @@
 /**
- * Recipe editor (mobile, T067; CP-6/P1 fully controlled; w3/e1,e2 rewired onto the 4-step `Wizard` shell).
- * The presentational orchestration layer shared by the create and edit screens: it wires the ingredient
- * typeahead ({@link IngredientPicker}) and poll-after-add into step 2, and renders the `Wizard` compound
- * shell (`Wizard.Rail`/`Wizard.TopBar` as a sticky header above the scrolling step content, one
- * `Wizard.Step` per step hosting the SAME extracted `RecipeBasicsFields`/`RecipeIngredientsFields`/
- * `RecipeInstructionsFields`/`RecipeVisibilityField` leaves the web edit container uses, and
- * `Wizard.Controls` as the footer nav). It performs NO data fetching and runs NO mutation, and owns NO state
- * of its own: `values`/`errors`/the wizard's `step`/navigation come in from the caller and every edit
- * reports back via `onChange`/`goNext`/`goPrev`/etc — exactly mirroring the web container's direct
- * `Wizard` wiring. Step 4's body is caller-supplied (`photosSlot`): the edit screen passes the real
- * `RecipePhotoUploader` (needs a persisted recipe id); the create screen passes a "save first" notice.
+ * Recipe editor (mobile, T067; CP-6/P1 fully controlled; w3/e1,e2 rewired onto the 4-step `Wizard` shell;
+ * U32/U33 re-laid-out). The presentational orchestration layer shared by the create and edit screens: it
+ * wires the ingredient typeahead ({@link IngredientPicker}) and poll-after-add into step 2, and renders the
+ * `Wizard` compound shell around one `Wizard.Step` per step, each hosting the SAME extracted
+ * `RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/`RecipeVisibilityField`/
+ * `RecipeReviewFields` leaves the web containers use. It performs NO data fetching and runs NO mutation, and
+ * owns NO state of its own: `values`/`errors`/the wizard's `step`/navigation come in from the caller and
+ * every edit reports back via `onChange`/`goNext`/`goPrev`/etc.
+ *
+ * ⛔ **THE LAYOUT IS THE UNIT (U32).** Three siblings, in this order and no other:
+ *   1. `Wizard.Header` — the sticky band with the back affordance. `RecipesScreen` renders pushed surfaces
+ *      bare, so before this there was no title and no deliberate exit at all.
+ *   2. a `ScrollView` holding the rail and the four step bodies.
+ *   3. `Wizard.Controls` — the action bar, OUTSIDE that scroller.
+ *
+ * The third is a SHIPPED-DEFECT FIX, not a restyle: the bar used to sit inside the `ScrollView` alongside
+ * everything else, so on a recipe with a long ingredient list a cook had to scroll past every row to reach
+ * `Next`. `useScrollResetOnChange` exists because four Maestro flows caught the downstream consequence.
+ * Nothing inside `Wizard.Controls` can enforce its own placement, so `tests/screens/RecipeEditor.native.test.tsx`
+ * asserts the DOM ancestry here instead.
+ *
+ * ⛔ **`photosSlot` renders on step 1, not step 4 (U33).** Photos are a field of Details now; step 4 is
+ * Review. The caller supplies the surface because only it knows the recipe id and owns the upload queue.
+ *
+ * ⛔ **INGREDIENTS ARE PICKER-FIRST (U28).** The only way a line enters `values.ingredients` is
+ * `appendResolvedIngredient`, whose parameter is a `ResolvedRecipeFormIngredient` — an unresolved row is not
+ * a value this screen can construct. "+ Add ingredient" inside the fields leaf raises a REQUEST which this
+ * screen answers by focusing the picker it owns, because a controlled presentational leaf cannot.
  *
  * The create screen (no seed/conflict/version concerns) owns its own local `values`/`errors`/step
  * `useState` and passes them down the same way the edit screen's `useRecipeEditor` hook does — same
@@ -21,6 +38,7 @@ import {
     RecipeBasicsFields,
     RecipeIngredientsFields,
     RecipeInstructionsFields,
+    RecipeReviewFields,
     RecipeVisibilityField,
     setIngredientStatusById,
     Wizard,
@@ -77,7 +95,13 @@ export interface RecipeEditorProps {
     readonly isDirty: boolean;
     /** Called once Cancel is confirmed (or immediately when nothing would be lost). */
     readonly onCancel: () => void;
-    /** Step 4's body — the caller decides what "Photos" shows (a real uploader, or a "save first" notice). */
+    /**
+     * The photo surface, rendered on step 1 beside the other Details fields (U33).
+     *
+     * Caller-supplied because only the composing screen knows the recipe id and owns the upload queue. It is
+     * no longer a "save this recipe first" notice on the create path: a pick is recorded in the draft and
+     * flushed once the recipe first has an id (`useRecipeDraftPhotos`), so both screens pass a real surface.
+     */
     readonly photosSlot: ReactNode;
 }
 
@@ -166,8 +190,8 @@ export function RecipeEditor({
                 isDirty={isDirty}
                 submitting={submitting}
             >
-                {/* Sticky header: Save Draft / Preview / Cancel / Publish, outside the scrolling step body. */}
-                <Wizard.TopBar />
+                {/* The sticky band: a back affordance routed through the discard guard, plus the step's name. */}
+                <Wizard.Header />
                 {/*
                   ⛔ `ref` is not decoration. This ONE ScrollView wraps the rail and all four step bodies, so
                   advancing a step swaps the body and leaves the scroller where it was — a cook who scrolled
@@ -190,6 +214,7 @@ export function RecipeEditor({
                         )}
                         <RecipeBasicsFields values={values} errors={errors} onChange={onChange} />
                         <RecipeVisibilityField values={values} onChange={onChange} />
+                        {photosSlot}
                     </Wizard.Step>
                     <Wizard.Step step={2}>
                         <IngredientPicker ref={pickerRef} onResolve={appendResolved} />
@@ -206,9 +231,16 @@ export function RecipeEditor({
                     <Wizard.Step step={3}>
                         <RecipeInstructionsFields values={values} errors={errors} onChange={onChange} />
                     </Wizard.Step>
-                    <Wizard.Step step={4}>{photosSlot}</Wizard.Step>
-                    <Wizard.Controls />
+                    <Wizard.Step step={4}>
+                        <RecipeReviewFields values={values} />
+                    </Wizard.Step>
                 </ScrollView>
+                {/*
+                  ⛔ OUTSIDE the ScrollView above, and that placement IS the fix (U32). Inside it, the primary
+                  control scrolled away beneath a long ingredient list. See this module's own doc, and the
+                  DOM-ancestry assertion in `tests/screens/RecipeEditor.native.test.tsx` that pins it.
+                */}
+                <Wizard.Controls />
             </Wizard>
         </View>
     );

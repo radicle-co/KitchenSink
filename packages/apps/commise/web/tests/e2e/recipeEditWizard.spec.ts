@@ -64,14 +64,14 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         });
         const store = await mockRecipeApi(page, { viewerId, recipes: [seed] });
 
-        // The edit wizard opens at step 1 (Basic), which is valid; step 2 (Ingredients) is empty/invalid.
+        // The edit wizard opens at step 1 (Details), which is valid; step 2 (Ingredients) is empty/invalid.
         await page.goto(route('/recipes/rec_incomplete/edit'));
         await expect(page.getByText('Step 1 of 4')).toBeVisible();
 
         // Publish is the footer's FINAL-step primary (U6: no longer a top-bar action live on every step). Jump
-        // to Photos (step 4) via the rail — FORWARD navigation is ungated even with an invalid earlier step —
+        // to Review (step 4) via the rail — FORWARD navigation is ungated even with an invalid earlier step —
         // and attempt to publish from there.
-        await page.getByRole('button', { name: /Photos:/ }).click();
+        await page.getByRole('button', { name: /Details:/ }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 
@@ -116,8 +116,8 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium', failPhotoUploads: 1 });
 
         await page.goto(route('/recipes/rec_seed/edit'));
-        // Jump straight to step 4 (Photos) via the rail — forward navigation is never gated.
-        await page.getByRole('button', { name: /Photos:/ }).click();
+        // Jump to step 1 (Details) via the rail — photos are a FIELD of Details now, not a step (U33).
+        await page.getByRole('button', { name: /Details:/ }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
 
         const photosRegion = page.getByRole('region', { name: 'Photos' });

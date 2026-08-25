@@ -196,14 +196,14 @@ function conflictError(currentVersion: number, conflictingVersion: number, their
 }
 
 /**
- * Navigate the (seeded, valid) edit wizard to step 4 (Photos) and click the footer Publish primary. U6 moved
+ * Navigate the (seeded, valid) edit wizard to step 4 (Review) and click the action bar's Publish primary.
  * Publish from an always-present top-bar button to the ONE contextual footer primary, live only on step 4;
- * every seeded edit fixture here is fully valid, so the `Next` footer primary advances cleanly to Photos.
+ * Every seeded edit fixture here is fully valid, so `Next` advances cleanly to Review.
  */
 function publish(): void {
     fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
     fireEvent.click(screen.getByLabelText(/Next: Instructions/));
-    fireEvent.click(screen.getByLabelText(/Next: Photos/));
+    fireEvent.click(screen.getByLabelText(/Next: Review/));
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 }
 

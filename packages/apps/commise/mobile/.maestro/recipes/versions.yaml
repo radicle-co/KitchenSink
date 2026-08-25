@@ -110,10 +110,10 @@ appId: io.commise.mobile
 # overflow (Save Draft / Cancel). This flow used to tap `Publish` from step 3 on the pre-U6 assumption and
 # failed there. Walk forward to step 4 and publish from its footer, exactly as `create.yaml` does.
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 - extendedWaitUntil:
@@ -146,10 +146,10 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Next: Instructions'
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 - extendedWaitUntil:

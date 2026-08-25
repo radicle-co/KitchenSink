@@ -37,6 +37,7 @@ import type {
     NutritionLine,
     RecipeDetail,
     RecipeDifficulty,
+    RecipeMealType,
     RecipeNutrition,
     RecipeStatus,
     RecipeVisibility,
@@ -135,6 +136,19 @@ export interface RecipeFormValues {
      * turns into an explicit `null` clear on the wire (as opposed to an omit, which would leave it unchanged).
      */
     readonly difficulty?: RecipeDifficulty;
+    /**
+     * Author-stated meal type (plan U34). ABSENT means "not stated" — a real, first-class state, never a
+     * substituted default, exactly as for {@link RecipeFormValues.difficulty} above. On an EDIT form it is
+     * seeded from the recipe's current meal type, so the user choosing "not stated" makes the field absent,
+     * which {@link toUpdateRecipeInput} turns into an explicit wire `null` clear (as opposed to an omit,
+     * which would leave the stored value unchanged).
+     *
+     * ⛔ A CLOSED vocabulary, and the only one on this form: `tags` and `dietaryFlags` beside it are free
+     * text and stay that way. They are three separate axes and none of them aliases another — the mockup
+     * wrote its Dietary chips into the SAME array as its Categories, which is the state bug this shape
+     * refuses by construction.
+     */
+    readonly mealType?: RecipeMealType;
     readonly tags: readonly string[];
     readonly dietaryFlags: readonly string[];
     readonly servings: number;
@@ -143,6 +157,57 @@ export interface RecipeFormValues {
     readonly visibility: RecipeVisibility;
     readonly ingredients: readonly RecipeFormIngredient[];
     readonly steps: readonly RecipeFormStep[];
+    /**
+     * Photos the cook has CHOSEN but which have not been handed to the upload queue yet (U33, owner ruling
+     * 2026-08-25). See {@link RecipeFormPhoto} for what is — and deliberately is not — in each entry.
+     *
+     * ⛔ These are PENDING PICKS, not the recipe's photo gallery. A saved recipe's photos stay owned by
+     * `useRecipePhotos(recipeId)`, which the delete/reorder mutations already invalidate; duplicating them
+     * here would stand up a second authority over the same rows with no way to keep the two in step.
+     * {@link toRecipeFormValues} therefore seeds this EMPTY from a loaded recipe, which is not a lossy
+     * projection — a loaded recipe has, by definition, no pending picks.
+     *
+     * ⛔ Photos are NOT a validation input. `validateRecipeForm` never reads this field and no step's error
+     * map mentions it, so a photo can never block an advance or a publish — the metadata save and the photo
+     * upload are two calls, and the wizard must not pretend otherwise.
+     */
+    readonly photos: readonly RecipeFormPhoto[];
+}
+
+/**
+ * One photo a cook has picked but not yet uploaded — the draft-side half of U33's "photos behave like every
+ * other field" ruling (2026-08-25).
+ *
+ * **Why photos needed a draft representation at all.** `RecipePhotoUploaderContainer` takes a REQUIRED
+ * `recipeId` and keys every operation on it, so before U33 the create path could not show an uploader at
+ * all — it rendered "Save this recipe first" instead. Moving that notice onto step 1 would have greeted every
+ * new recipe with a disabled control, so the pick is recorded here and FLUSHED to the upload queue the moment
+ * the recipe first has an id. That flush rule is deliberately the SAME on create and edit (on edit the id is
+ * already there, so the flush is immediate) — one path, not two.
+ *
+ * ⛔ **The BINARY is deliberately absent, and this is load-bearing.** The discard guard's dirty test is
+ * `recipeFormValuesEqual`, a `JSON.stringify` comparison whose own contract says it is EXACT because every
+ * field is plain data. A `File`/`Blob` serialises to `{}`, so two different pending photos would compare
+ * EQUAL and swapping one for another would be reported as "no unsaved changes". The bytes therefore live in
+ * a container-owned side channel keyed by {@link localId}, and only this JSON-comparable descriptor is
+ * draft state. `fileName`/`contentType`/`fileSize` are carried because they are what the queue's own
+ * pre-upload validation (`validatePhotoFile`) judges, and what the cook is shown while it waits.
+ */
+export interface RecipeFormPhoto {
+    /**
+     * Stable identity for this pick, minted at pick time and unique within the draft — the key the
+     * container's blob side channel is keyed by, and the React list key. NOT a server id: a pending photo has
+     * no server identity yet, and conflating the two is how a pick that failed to upload gets mistaken for a
+     * row that exists.
+     */
+    readonly localId: string;
+    /** The chosen file's name, shown while the upload is pending and carried to the presign call. */
+    readonly fileName: string;
+    /** The chosen file's MIME type, as reported by the picker — judged by `validatePhotoFile`, never trusted
+     *  by the service (which re-detects it from magic bytes on confirm). */
+    readonly contentType: string;
+    /** The chosen file's size in bytes — judged against the upload cap before any network call is made. */
+    readonly fileSize: number;
 }
 
 /**
@@ -333,6 +398,7 @@ export const defaultRecipeFormValues = (): RecipeFormValues => ({
     visibility: 'public',
     ingredients: [],
     steps: [],
+    photos: [],
 });
 
 /**
@@ -353,6 +419,9 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
     ...(values.cuisine.trim() === '' ? {} : { cuisine: values.cuisine.trim() }),
     // Difficulty is optional on create with NO clear sentinel: carry it only when stated, omit otherwise.
     ...(values.difficulty === undefined ? {} : { difficulty: values.difficulty }),
+    // Meal type follows the SAME create rule, for the same reason: there is nothing to clear on a recipe
+    // that does not exist yet, so an unstated meal type is a true omit and never an explicit `null`.
+    ...(values.mealType === undefined ? {} : { mealType: values.mealType }),
     ingredients: values.ingredients
         .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
         .map((line) => ({
@@ -423,6 +492,8 @@ export const toUpdateRecipeInput = (
         ...rest,
         // Present → set that value; absent → explicit null CLEAR (the crux: omit could never clear a set value).
         difficulty: values.difficulty ?? null,
+        // Identical three-state rule for meal type (U34) — see `difficulty` directly above.
+        mealType: values.mealType ?? null,
     };
 };
 
@@ -448,6 +519,9 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
     cuisine: detail.cuisine ?? '',
     // Seed the current difficulty so the edit form shows it; absence stays "not stated" (FR-001b).
     ...(detail.difficulty === undefined ? {} : { difficulty: detail.difficulty }),
+    // Same for meal type (U34): seed what the recipe states, and leave the field ABSENT when it states none,
+    // so the discard guard does not report a freshly-seeded form as edited and "not stated" stays reachable.
+    ...(detail.mealType === undefined ? {} : { mealType: detail.mealType }),
     tags: [...detail.tags],
     dietaryFlags: [...detail.dietaryFlags],
     servings: detail.servings,
@@ -484,6 +558,11 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         instruction: step.instruction,
         ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
     })),
+    // EMPTY, not `detail.photos` (U33). The draft's `photos` are PENDING PICKS — see `RecipeFormPhoto` — and
+    // a loaded recipe has none by definition; its persisted gallery stays owned by `useRecipePhotos`. Seeding
+    // them here would make the discard guard report a freshly-seeded, untouched edit form as dirty the moment
+    // a photo's URL differed by a signature, and would hand the flush effect rows it must never re-upload.
+    photos: [],
 });
 
 /**

@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/form — `RecipeBasicsFields` (web): step 1 of the recipe form, minus
  * visibility. Title, description, cuisine, tags, dietary flags, servings, prep/cook time, the read-only
- * computed total, and difficulty.
+ * computed total, difficulty, and meal type.
  *
  * One of the four field GROUPS extracted from `RecipeForm.tsx` (T067, w3) so the SAME field markup composes
  * two ways with unchanged behavior and unchanged accessible names/DOM: inside `RecipeForm`'s single `<form>`,
@@ -20,8 +20,10 @@ import { servingsErrorId, timesErrorId, titleErrorId } from './fieldErrorIds.js'
 import {
     cuisineOptions,
     difficultyOptions,
+    mealTypeOptions,
     parseNumericInput,
     setDifficulty,
+    setMealType,
     type RecipeFormSectionProps,
 } from './props.js';
 
@@ -46,7 +48,7 @@ const difficultyRadioOverlay = 'absolute inset-0 cursor-pointer opacity-0';
 const difficultyChipResting = 'border-border bg-white text-charcoal';
 const difficultyChipSelected = 'border-seafoam bg-seafoam text-white';
 
-/** Step 1 (minus visibility): title, description, cuisine, tags, dietary flags, servings, prep/cook time, the read-only computed total, and difficulty. */
+/** Step 1 (minus visibility): title, description, cuisine, meal type, tags, dietary flags, servings, prep/cook time, the read-only computed total, and difficulty. */
 export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors, onChange }) => {
     const m = useMessages(recipeFormMessages);
     const totalTime = computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes);
@@ -185,6 +187,39 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                                     aria-label={option.label}
                                     checked={selected}
                                     onChange={() => onChange(setDifficulty(values, option.value))}
+                                    className={difficultyRadioOverlay}
+                                />
+                                <span>{option.label}</span>
+                            </label>
+                        );
+                    })}
+                </div>
+            </div>
+            <div className="flex flex-col gap-1">
+                <span id="recipe-meal-type-label" className={fieldLabel}>
+                    {m.mealTypeLabel}
+                </span>
+                {/*
+                  U34 — the ONE closed axis on this form. It reuses the difficulty chip group's shape
+                  DELIBERATELY: both are "pick at most one from a fixed set, or state nothing", so a cook meets
+                  the same affordance twice rather than two dialects of it. The free-text fields below (tags,
+                  dietary flags) stay `ChipInput`s, which is what keeps the two kinds visibly different.
+                */}
+                <div role="radiogroup" aria-labelledby="recipe-meal-type-label" className="flex flex-wrap gap-2">
+                    {mealTypeOptions(m).map((option) => {
+                        const selected = values.mealType === option.value;
+
+                        return (
+                            <label
+                                key={option.label}
+                                className={`${difficultyChipBase} ${selected ? difficultyChipSelected : difficultyChipResting}`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="recipe-meal-type"
+                                    aria-label={option.label}
+                                    checked={selected}
+                                    onChange={() => onChange(setMealType(values, option.value))}
                                     className={difficultyRadioOverlay}
                                 />
                                 <span>{option.label}</span>

@@ -23,7 +23,13 @@ import {
     type RecipeVersionRow,
 } from '../../database/schema/index.js';
 import { type Writer } from '../../database/unitOfWork.js';
-import type { RecipeDifficulty, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import type {
+    RecipeDifficulty,
+    RecipeMealType,
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
 import { activeRecipe, readableBy } from './recipePredicates.js';
 import { RecipeIngredientsDal, type ResolvedIngredientLine } from './recipeIngredients.dal.js';
@@ -53,6 +59,12 @@ export interface CreateRecipeInput {
      * clear sentinel is an update-only concern); either a value is set or the field is left off entirely.
      */
     difficulty?: RecipeDifficulty;
+    /**
+     * Author-stated meal type (plan U34). OMITTED (undefined) when the author states none — the column is
+     * nullable with no default, so an unstated meal type stays NULL. There is no `null` on create, for the
+     * same reason there is none for `difficulty` above: nothing exists yet to clear.
+     */
+    mealType?: RecipeMealType;
     /**
      * Publication status (W8-a.3). OMITTED → the column defaults to `published` (a normal create publishes);
      * the wizard's Save-Draft passes `draft`. A clone omits it (a clone is a new published recipe).
@@ -108,6 +120,12 @@ export interface UpdateRecipeInput {
      * clear — treating `null` as "absent" would make a set difficulty unclearable, which FR-001b forbids.
      */
     difficulty?: RecipeDifficulty | null;
+    /**
+     * Author-stated meal type (plan U34) — the three-state update field, mirroring `difficulty` above.
+     * `undefined` (absent) leaves the stored value unchanged; a VALUE sets it; an explicit `null` CLEARS it
+     * back to "not stated". Treating `null` as "absent" would make a set meal type unclearable.
+     */
+    mealType?: RecipeMealType | null;
     /**
      * Publication status (W8-a.3). `undefined` (absent) leaves it UNCHANGED; a value SETS it (`published` =
      * the Publish action, `draft` = re-draft). Two-state (never `null` — status is NOT NULL).
@@ -211,6 +229,7 @@ export class RecipesDal {
                     // Difficulty is set only when the author stated one; omitted otherwise so the column
                     // stays NULL ("not stated"). No default is ever fabricated (FR-001b).
                     ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
+                    ...(input.mealType !== undefined ? { mealType: input.mealType } : {}),
                     // Publication status (W8-a.3) — omitted → the column defaults to 'published'.
                     ...(input.status !== undefined ? { status: input.status } : {}),
                     tags: input.tags,
@@ -487,6 +506,7 @@ export class RecipesDal {
                     // explicit `null` → written as NULL (cleared). The `!== undefined` guard is what keeps
                     // "clear" (null) distinct from "leave unchanged" (absent) — do not collapse them.
                     ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
+                    ...(input.mealType !== undefined ? { mealType: input.mealType } : {}),
                     // Publication status (W8-a.3) — absent leaves it unchanged; a value sets it (publish/re-draft).
                     ...(input.status !== undefined ? { status: input.status } : {}),
                     ...(input.tags !== undefined ? { tags: input.tags } : {}),

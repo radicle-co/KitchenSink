@@ -39,11 +39,21 @@ export const styles = StyleSheet.create({
     timesRow: { flexDirection: 'row', gap: 12 },
     timeCol: { flex: 1 },
     difficultyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    // Shared by BOTH single-choice chip groups on this step — difficulty (FR-001b) and meal type (U34).
+    // They are one piece of knowledge ("a pick-at-most-one pill on a phone card") that changes for one
+    // reason, so the second group reuses this rather than growing a near-copy.
+    //
+    // ⚠️ `minHeight` is a FIX, not decoration. Padding alone gave a ~32dp pill — under the 44dp floor these
+    // chips are the only way to state a difficulty or a meal type, so the miss rate falls on the one control
+    // that sets the field. It surfaced when the meal-type group was added and its touch-target test failed
+    // against the style it had inherited; the difficulty group had carried the same shortfall silently.
     difficultyChip: {
         borderRadius: 999,
         borderWidth: 1,
         borderColor: border,
         backgroundColor: palette.white,
+        minHeight: 44,
+        justifyContent: 'center',
         paddingVertical: 6,
         paddingHorizontal: 16,
     },

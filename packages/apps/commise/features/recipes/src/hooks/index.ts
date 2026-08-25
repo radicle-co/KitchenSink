@@ -25,6 +25,15 @@ export { useDebouncedValue } from './useDebouncedValue.js';
 export { toRecipeNutritionPages, useRecipeNutritionBatches } from './useRecipeNutritionBatches.js';
 export type { RecipeNutritionLookup } from './useRecipeNutritionBatches.js';
 export { usePollIngredientStatus } from './usePollIngredientStatus.js';
+export { AUTO_SAVE_DEBOUNCE_MS, useRecipeAutoSave } from './useRecipeAutoSave.js';
+export type { UseRecipeAutoSaveOptions } from './useRecipeAutoSave.js';
+export { useRecipeDraftPhotos } from './useRecipeDraftPhotos.js';
+export type {
+    DraftPhotoFlush,
+    DraftPhotoPick,
+    UseRecipeDraftPhotosOptions,
+    UseRecipeDraftPhotosResult,
+} from './useRecipeDraftPhotos.js';
 export { useRecipePhotoUpload } from './useRecipePhotoUpload.js';
 export type { RecipePhotoUploadFile, UseRecipePhotoUploadResult } from './useRecipePhotoUpload.js';
 export { useRecipePhotoUploadQueue } from './useRecipePhotoUploadQueue.js';

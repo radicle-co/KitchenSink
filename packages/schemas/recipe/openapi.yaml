@@ -4072,6 +4072,16 @@ components:
             - easy
             - medium
             - hard
+        mealType:
+          type: string
+          enum:
+            - breakfast
+            - brunch
+            - lunch
+            - dinner
+            - snack
+            - dessert
+            - drink
         visibility:
           type: string
           enum:
@@ -4198,6 +4208,16 @@ components:
             - easy
             - medium
             - hard
+        mealType:
+          type: string
+          enum:
+            - breakfast
+            - brunch
+            - lunch
+            - dinner
+            - snack
+            - dessert
+            - drink
         visibility:
           type: string
           enum:
@@ -4477,6 +4497,16 @@ components:
             - easy
             - medium
             - hard
+        mealType:
+          type: string
+          enum:
+            - breakfast
+            - brunch
+            - lunch
+            - dinner
+            - snack
+            - dessert
+            - drink
         visibility:
           type: string
           enum:
@@ -4738,6 +4768,17 @@ components:
             - easy
             - medium
             - hard
+        mealType:
+          nullable: true
+          type: string
+          enum:
+            - breakfast
+            - brunch
+            - lunch
+            - dinner
+            - snack
+            - dessert
+            - drink
         status:
           type: string
           enum:
@@ -5783,6 +5824,16 @@ components:
             - easy
             - medium
             - hard
+        mealType:
+          type: string
+          enum:
+            - breakfast
+            - brunch
+            - lunch
+            - dinner
+            - snack
+            - dessert
+            - drink
         visibility:
           type: string
           enum:
@@ -6100,6 +6151,9 @@ components:
               difficulty:
                 nullable: true
                 type: string
+              mealType:
+                nullable: true
+                type: string
               averageRating:
                 nullable: true
                 type: string
@@ -6159,6 +6213,7 @@ components:
               - totalTimeMinutes
               - servings
               - difficulty
+              - mealType
               - averageRating
               - ratingCount
               - visibility

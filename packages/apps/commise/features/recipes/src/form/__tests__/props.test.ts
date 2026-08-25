@@ -6,10 +6,10 @@
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { RecipeDifficulty } from '@kitchensink/recipe-core';
+import { RECIPE_MEAL_TYPES, RecipeDifficulty } from '@kitchensink/recipe-core';
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
-import type { RecipeFormMessages } from '../messages.js';
+import { recipeFormMessages, type RecipeFormMessages } from '../messages.js';
 import type { RecipeFormIngredient, RecipeFormValues } from '../model.js';
 import type { ResolvedRecipeFormIngredient } from '../props.js';
 import {
@@ -17,12 +17,14 @@ import {
     appendResolvedIngredient,
     difficultyOptions,
     ingredientSections,
+    mealTypeOptions,
     parseQuantityBound,
     quantityInputValue,
     removeChipAt,
     setDifficulty,
     setIngredientQuantityHigh,
     setIngredientQuantityLow,
+    setMealType,
     unresolvedLineNote,
     updateIngredientAt,
 } from '../props.js';
@@ -538,5 +540,51 @@ describe('U28 — the append transition cannot express an unresolved line', () =
 
     it('a resolved line IS a RecipeFormIngredient (the narrowing adds nothing but the guarantee)', () => {
         expectTypeOf<ResolvedRecipeFormIngredient>().toExtend<RecipeFormIngredient>();
+    });
+});
+
+describe('setMealType / mealTypeOptions (U34 — the closed axis, cleared by KEY REMOVAL)', () => {
+    it('states a meal type', () => {
+        expect(setMealType(makeRecipeFormValues(), 'dinner').mealType).toBe('dinner');
+    });
+
+    it('REMOVES the key when cleared, never stores an explicit undefined', () => {
+        // Not a style point. `exactOptionalPropertyTypes` forbids the explicit `undefined`, and
+        // `recipeFormValuesEqual` — the discard guard — compares by `JSON.stringify`, which DROPS an
+        // `undefined`-valued key. A stored `undefined` would therefore compare equal to a removed key while
+        // being a different object, so the two spellings must not both exist.
+        const cleared = setMealType(makeRecipeFormValues({ mealType: 'dinner' }));
+
+        expect('mealType' in cleared).toBe(false);
+    });
+
+    it('is idempotent: clearing an already-unstated draft changes nothing observable', () => {
+        const values = makeRecipeFormValues();
+
+        expect(setMealType(values)).toEqual(values);
+    });
+
+    it('touches no other field — meal type, tags and dietary flags are three separate axes', () => {
+        const values = makeRecipeFormValues({ tags: ['weeknight'], dietaryFlags: ['vegan'] });
+        const next = setMealType(values, 'brunch');
+
+        expect(next.tags).toEqual(['weeknight']);
+        expect(next.dietaryFlags).toEqual(['vegan']);
+    });
+
+    it('offers every vocabulary member plus an explicit "not stated" clear, in day order', () => {
+        const options = mealTypeOptions(recipeFormMessages.en);
+
+        expect(options.map((option) => option.value)).toEqual([...RECIPE_MEAL_TYPES, undefined]);
+
+        for (const option of options) {
+            expect(option.label.length).toBeGreaterThan(0);
+        }
+    });
+
+    it('gives every option a DISTINCT label, so no two chips are indistinguishable by name', () => {
+        const labels = mealTypeOptions(recipeFormMessages.en).map((option) => option.label);
+
+        expect(new Set(labels).size).toBe(labels.length);
     });
 });

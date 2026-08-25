@@ -11,12 +11,15 @@
 import {
     classifyUnit,
     CUISINES,
+    RECIPE_MEAL_TYPES,
     RecipeDifficulty,
     UNIT_VOCABULARY,
     type FoodResolutionStatus,
+    type RecipeMealType,
 } from '@kitchensink/recipe-core';
 
-import { isResolvedIngredientId } from './model.js';
+import { fillTemplate } from '../list/model.js';
+import { computeTotalTime, isResolvedIngredientId } from './model.js';
 import type { RecipeFormErrors, RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './model.js';
 import type { RecipeFormMessages } from './messages.js';
 
@@ -407,6 +410,46 @@ export const setDifficulty = (values: RecipeFormValues, difficulty?: RecipeDiffi
     return difficulty === undefined ? rest : { ...rest, difficulty };
 };
 
+/**
+ * Set or CLEAR the draft's meal type (plan U34) — the single transition both platform leaves share.
+ *
+ * Clearing REMOVES the key rather than storing an explicit `undefined`, exactly as {@link setDifficulty}
+ * does, and for two compounding reasons: `exactOptionalPropertyTypes` forbids the explicit `undefined`, and
+ * `recipeFormValuesEqual` (the discard guard) compares by `JSON.stringify`, which DROPS an
+ * `undefined`-valued key — so the two spellings would compare equal while being different objects. Pure.
+ *
+ * @param values - The current form values.
+ * @param mealType - The meal type to state, or `undefined` to clear it back to "not stated".
+ * @returns The next values with the meal type set or removed.
+ */
+export const setMealType = (values: RecipeFormValues, mealType?: RecipeMealType): RecipeFormValues => {
+    const { mealType: _current, ...rest } = values;
+
+    return mealType === undefined ? rest : { ...rest, mealType };
+};
+
+/** One selectable meal type in the picker. `value` absent = the "not stated" option (clears the field). */
+export interface MealTypeOption {
+    /** The meal type this option states, or absent for the "not stated" (clear) option. */
+    readonly value?: RecipeMealType;
+    /** The localized, accessible label shown for the option. */
+    readonly label: string;
+}
+
+/**
+ * The ordered meal-type picker options — the vocabulary in DAY order, then an explicit "not stated" (clear)
+ * option — with their localized labels. Derived from `RECIPE_MEAL_TYPES` rather than listed a second time, so
+ * a vocabulary addition cannot ship with no way to choose it. Shared by both platform leaves so the option
+ * set and order cannot drift. Pure.
+ *
+ * @param messages - The resolved form messages for the active locale.
+ * @returns The picker options in display order, with the clear option last.
+ */
+export const mealTypeOptions = (messages: RecipeFormMessages): MealTypeOption[] => [
+    ...RECIPE_MEAL_TYPES.map((value) => ({ value, label: messages.mealTypeOptions[value] })),
+    { label: messages.mealTypeNotStated },
+];
+
 /** One selectable difficulty in the picker. `value` absent = the "not stated" option (clears the field). */
 export interface DifficultyOption {
     /** The difficulty this option states, or absent for the "not stated" (clear) option. */
@@ -614,3 +657,88 @@ export const resolutionStatusLabel = (messages: RecipeFormMessages, status: Food
             return messages.statusNeedsReview;
     }
 };
+
+/** One label/value pair on the Review step (U33). */
+export interface RecipeReviewRow {
+    /** The row's localized label — also the row's accessible name on native. */
+    readonly label: string;
+    /** The row's rendered value, already localized and already formatted. */
+    readonly value: string;
+}
+
+/**
+ * The Review step's rows, in display order (U33) — the ONE statement of what a cook sees on the last step,
+ * shared by both platform leaves so a field cannot appear on one platform and not the other.
+ *
+ * ⛔ Every optional field STATES its absence rather than dropping its row. A row that vanishes is
+ * indistinguishable from a row the cook has not scrolled to, and "did I set a difficulty?" is exactly the
+ * question this step exists to answer. The ONE exception is the pending-photo row, which is omitted when it
+ * would read zero: it describes an OPERATION that is not going to happen, on a step whose job is to scan.
+ *
+ * ⛔ Meal type, tags and dietary flags are three SEPARATE rows because they are three separate axes. The
+ * mockup folded two of them into one array; rendering them as one row here would be the display half of the
+ * same mistake.
+ *
+ * Pure — it formats, it does not fetch, and it reads only `values`.
+ *
+ * @param values - The draft being reviewed.
+ * @param messages - The resolved form messages for the active locale.
+ * @returns The rows to render, in order.
+ */
+export const reviewRows = (values: RecipeFormValues, messages: RecipeFormMessages): RecipeReviewRow[] => {
+    const orNotStated = (value: string): string => (value.trim() === '' ? messages.reviewNotStated : value.trim());
+    const minutes = (value: number): string => fillTemplate(messages.durationMinutes, { minutes: value });
+    const list = (values_: readonly string[]): string =>
+        values_.length === 0 ? messages.reviewNone : values_.join(', ');
+
+    return [
+        { label: messages.reviewTitle, value: orNotStated(values.title) },
+        { label: messages.reviewDescription, value: orNotStated(values.description) },
+        { label: messages.reviewCuisine, value: orNotStated(values.cuisine) },
+        {
+            label: messages.reviewDifficulty,
+            value:
+                values.difficulty === undefined
+                    ? messages.reviewNotStated
+                    : (difficultyOptions(messages).find((option) => option.value === values.difficulty)?.label ??
+                      messages.reviewNotStated),
+        },
+        {
+            label: messages.reviewMealType,
+            value:
+                values.mealType === undefined
+                    ? messages.reviewNotStated
+                    : (mealTypeOptions(messages).find((option) => option.value === values.mealType)?.label ??
+                      messages.reviewNotStated),
+        },
+        { label: messages.reviewServings, value: String(values.servings) },
+        { label: messages.reviewPrepTime, value: minutes(values.prepTimeMinutes) },
+        { label: messages.reviewCookTime, value: minutes(values.cookTimeMinutes) },
+        {
+            label: messages.reviewTotalTime,
+            value: minutes(computeTotalTime(values.prepTimeMinutes, values.cookTimeMinutes)),
+        },
+        { label: messages.reviewTags, value: list(values.tags) },
+        { label: messages.reviewDietaryFlags, value: list(values.dietaryFlags) },
+        { label: messages.reviewIngredientCount, value: String(values.ingredients.length) },
+        { label: messages.reviewStepCount, value: String(values.steps.length) },
+        {
+            label: messages.reviewVisibility,
+            value: values.visibility === 'private' ? messages.reviewVisibilityPrivate : messages.reviewVisibilityPublic,
+        },
+        // The one omitted-when-empty row — see this function's own doc.
+        ...(values.photos.length === 0
+            ? []
+            : [{ label: messages.reviewPendingPhotos, value: String(values.photos.length) }]),
+    ];
+};
+
+/**
+ * One ingredient line as the Review step names it — `2 tbsp Olive oil`, or just `Olive oil` when the line
+ * states no amount (R40 makes that legal). Pure.
+ *
+ * @param line - The draft line.
+ * @returns The line's display string.
+ */
+export const reviewIngredientLabel = (line: RecipeFormIngredient): string =>
+    [quantityInputValue(line.quantity), line.unit ?? '', line.name].filter((part) => part !== '').join(' ');

@@ -225,41 +225,71 @@ describe('IngredientPicker — search field controls (U6 styling)', () => {
 });
 
 /**
- * REQ-057 gates the ingredient search at `MIN_INGREDIENT_QUERY_LENGTH` (2) characters, and the shared
- * resolver model encodes that as the `idle` view state. The web leaf renders its action row ONLY inside the
- * non-idle kinds (`searching`/`results`/`terminal`), so a single character offers nothing. Mobile gated the
- * same row on `trimmed.length > 0` instead — a platform divergence that offered all three query-keyed
- * affordances at ONE character (caught on-device by Maestro `create`, which asserts the negative).
+ * The search minimum, on MOBILE — 003-FR-010a (owner ruling 2026-08-24, plan U37), which RAISED the old
+ * REQ-057 2-character client trigger to three characters and made it a rule the server enforces too.
  *
- * It is not merely cosmetic: "Find nutrition for “T”" fires the very food-service search REQ-057 gates, and
- * "Create “T”" POSTs a real catalog ingredient named "T" — one stray keystroke away from junk catalog data.
+ * ⚠️ **This block is rewritten, not replaced.** The invariant it has always protected is unchanged and is
+ * the reason it exists: below the minimum the leaf must offer NO query-keyed affordance. That is not
+ * cosmetic — "Find nutrition for “T”" fires the very search the minimum gates, and "Create “T”" POSTs a
+ * real catalog ingredient named "T", one stray keystroke away from junk catalog data. Mobile once gated
+ * that row on `trimmed.length > 0` and offered all three at ONE character (caught on-device by Maestro
+ * `create`, which asserts the negative).
+ *
+ * ⛔ U37 makes it load-bearing a SECOND time. `tooShort` is a NEW non-idle view-state kind, so a leaf that
+ * gates its action row on `kind !== 'idle'` re-opens exactly that regression — the same defect, arriving
+ * through the fix for a different requirement.
  */
-describe('IngredientPicker — REQ-057 2-character search threshold', () => {
-    it('offers no query-keyed affordance for a single character', () => {
+describe('IngredientPicker — the 003-FR-010a three-character minimum', () => {
+    it.each(['T', 'To'])('offers no query-keyed affordance for the below-minimum query %j', (query) => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
-        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'T' } });
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: query } });
         settleDebounce();
 
-        expect(screen.queryByRole('button', { name: 'Find nutrition for “T”' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Create “T”' })).toBeNull();
-        expect(screen.queryByText('Search USDA for “T”')).toBeNull();
+        expect(screen.queryByRole('button', { name: `Find nutrition for “${query}”` })).toBeNull();
+        expect(screen.queryByRole('button', { name: `Create “${query}”` })).toBeNull();
+        expect(screen.queryByText(`Search USDA for “${query}”`)).toBeNull();
     });
 
-    it('offers them as soon as the query reaches two characters', () => {
+    it('explains the minimum instead of leaving the cook typing into a dead surface', () => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'To' } });
         settleDebounce();
 
-        expect(screen.getByRole('button', { name: 'Find nutrition for “To”' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Create “To”' })).toBeTruthy();
-        expect(screen.getByText('Search USDA for “To”')).toBeTruthy();
+        expect(
+            screen.getByText('Keep typing — 3 characters or more. Anything shorter matches half the pantry.'),
+        ).toBeTruthy();
+        // ⛔ NOT the empty-result copy: that asserts the catalog was searched and came back empty.
+        expect(screen.queryByText('No matching ingredients. Create a new one below.')).toBeNull();
     });
 
-    it('offers nothing at all while the field is still empty', () => {
+    it('offers them as soon as the query reaches THREE characters', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Tom' } });
+        settleDebounce();
+
+        expect(screen.getByRole('button', { name: 'Find nutrition for “Tom”' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Create “Tom”' })).toBeTruthy();
+        expect(screen.getByText('Search USDA for “Tom”')).toBeTruthy();
+        expect(screen.queryByText(/characters or more/)).toBeNull();
+    });
+
+    it('searches `egg` — the genuine three-character foods are not casualties', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'egg' } });
+        settleDebounce();
+
+        expect(screen.queryByText(/characters or more/)).toBeNull();
+    });
+
+    it('offers nothing at all — and says nothing at all — while the field is still empty', () => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
@@ -267,6 +297,8 @@ describe('IngredientPicker — REQ-057 2-character search threshold', () => {
 
         expect(screen.queryByRole('button', { name: /^Find nutrition for/ })).toBeNull();
         expect(screen.queryByRole('button', { name: /^Create/ })).toBeNull();
+        // ⛔ `idle` and `tooShort` are distinct: "keep typing" over an untouched box is noise on every open.
+        expect(screen.queryByText(/characters or more/)).toBeNull();
     });
 });
 

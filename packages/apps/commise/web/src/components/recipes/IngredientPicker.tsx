@@ -45,6 +45,7 @@ import {
     fillTemplate,
     recipeCorrectionMessages,
     recipeFormMessages,
+    recipeMessages,
     resolutionStatusLabel,
     toCorrectionNoticeModel,
 } from '@commise/features-recipes';
@@ -80,6 +81,9 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
     const { recipes } = useMessages(webMessages);
     const picker = recipes.picker;
     const formMessages = useMessages(recipeFormMessages);
+    // 003-FR-010a: the search-minimum copy is shared by all four ingredient-search surfaces, so it lives in
+    // the feature package rather than in this app's dictionary — see `IngredientSearchMessages`.
+    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const {
         query,
         setQuery,
@@ -383,6 +387,20 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                             {fillTemplate(picker.addFreeform, { query: viewState.name })}
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* 003-FR-010a (plan U37): something is typed, but below the minimum. ⛔ NOT the `noMatches`
+                copy — that asserts the catalog was searched and came back empty, and nothing was searched
+                here — and ⛔ NOT accompanied by `actionRow`: "Find nutrition for “eg”" fires the very search
+                the minimum gates, and "Add “eg” as a custom ingredient" mints a shared catalog row named
+                `eg`, one stray keystroke from junk data. It is not a live region either: it is guidance
+                about the input, not the outcome of a request. */}
+            {viewState.kind === 'tooShort' && (
+                <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-sm">
+                    <p className="px-2 py-1 text-body-sm text-slate">
+                        {fillTemplate(minimumCopy.tooShort, { minimum: viewState.minimum })}
+                    </p>
                 </div>
             )}
 

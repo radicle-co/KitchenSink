@@ -8,8 +8,11 @@
  * hooks are mocked (their own behavior is covered by that package's tests), so no QueryClient/backend is
  * needed.
  *
- * Since REQ-057 (CP-9), the search query fed to `useSearchIngredients` is debounced ~300ms and gated on a
- * 2-character trigger (`useDebouncedValue` + `meetsIngredientSearchThreshold`, `./ingredientResolver.model`).
+ * Since REQ-057 (CP-9), the search query fed to `useSearchIngredients` is debounced ~300ms
+ * (`useDebouncedValue` + `INGREDIENT_SEARCH_DEBOUNCE_MS`, `./ingredientResolver.model`) and gated on the
+ * SHARED three-character minimum (003-FR-010a, plan U37 — `meetsSearchMinimum` in
+ * `@kitchensink/recipe-core/resolution/search-minimum`, which food-service enforces too; the
+ * 2-character client-owned trigger this package used to declare is deleted).
  * Because `useSearchIngredients` is mocked to a FIXED return value here, most existing transition tests are
  * unaffected (the mock ignores its call args) — fake timers (`vi.useFakeTimers()`) are used only where a
  * test asserts the exact query string/enabled flag the mocked hook was called with, and in the dedicated
@@ -21,6 +24,7 @@ import type { Ingredient } from '@kitchensink/recipe-core';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
 import type { IngredientCatalogAvailability, IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 const {
     useSuggestIngredientsMock,
@@ -371,20 +375,31 @@ describe('useIngredientResolver — enabled gating on the candidates fetch', () 
 });
 
 describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () => {
-    it('never enables search below the 2-character trigger, even after the debounce settles', () => {
+    it('never enables search below the FR-010a minimum, and says so instead', () => {
+        // ⚠️ REWRITTEN for 003-FR-010a (plan U37), not weakened — see the same case in
+        // `useIngredientFilterSearch.test.tsx` for the argument. Request suppression is unchanged.
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
         act(() => result.current.setQuery('s'));
         settleDebounce();
 
-        expect(result.current.viewState).toEqual({ kind: 'idle' });
+        expect(result.current.viewState).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
         expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('s', undefined, { enabled: false });
+    });
+
+    it('still suppresses the request at TWO characters — the boundary moved, the suppression did not', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => result.current.setQuery('eg'));
+        settleDebounce();
+
+        expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('eg', undefined, { enabled: false });
     });
 
     it('does not enable search before the debounce window elapses', () => {
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
-        act(() => result.current.setQuery('sp'));
+        act(() => result.current.setQuery('spi'));
         act(() => {
             vi.advanceTimersByTime(INGREDIENT_SEARCH_DEBOUNCE_MS - 1);
         });
@@ -393,12 +408,15 @@ describe('useIngredientResolver — typeahead trigger + debounce (REQ-057)', () 
     });
 
     it('enables search with the settled query once the debounce elapses', () => {
+        // ⚠️ The needle moved from 'sp' to 'spi' with plan U37: at two characters the query is now below
+        // the FR-010a minimum and would never be enabled, so the old needle asserted `enabled: true` for a
+        // search that can no longer run. The debounce invariant is unchanged.
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));
 
-        act(() => result.current.setQuery('sp'));
+        act(() => result.current.setQuery('spi'));
         settleDebounce();
 
-        expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('sp', undefined, { enabled: true });
+        expect(useSuggestIngredientsMock).toHaveBeenLastCalledWith('spi', undefined, { enabled: true });
     });
 
     it('collapses rapid keystrokes into a single settled (debounced) query — never an intermediate one', () => {

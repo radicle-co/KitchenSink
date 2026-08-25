@@ -3,7 +3,7 @@
  *
  * Composes the SAME shared, unit-tested search primitives `useIngredientResolver`
  * is built from — `useSearchIngredients` (the catalog typeahead query),
- * `meetsIngredientSearchThreshold`, `INGREDIENT_SEARCH_DEBOUNCE_MS`, and `useDebouncedValue` — rather than
+ * `meetsSearchMinimum`, `INGREDIENT_SEARCH_DEBOUNCE_MS`, and `useDebouncedValue` — rather than
  * the full resolver state machine. Reusing `useIngredientResolver` itself outright would be WRONG here, not
  * just heavier: that hook's `selectMatch`/`resolveLine` branch an `UNRESOLVED` catalog hit into
  * food-resolution disambiguation, and its `addByName`/`addFreeform` actions MUTATE the catalog (create a new
@@ -21,7 +21,9 @@ import { useState } from 'react';
 import { deriveIngredientFilterSearchViewState } from '../filters/model.js';
 import type { IngredientFilterSearchViewState } from '../filters/model.js';
 
-import { INGREDIENT_SEARCH_DEBOUNCE_MS, meetsIngredientSearchThreshold } from './ingredientResolver.model.js';
+import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
+
+import { INGREDIENT_SEARCH_DEBOUNCE_MS } from './ingredientResolver.model.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
 
 /** The state + actions {@link useIngredientFilterSearch} exposes to the filter bar's container. */
@@ -47,7 +49,7 @@ export function useIngredientFilterSearch(): UseIngredientFilterSearchResult {
     const debouncedTrimmed = useDebouncedValue(trimmed, INGREDIENT_SEARCH_DEBOUNCE_MS);
 
     const search = useSearchIngredients(debouncedTrimmed, undefined, {
-        enabled: meetsIngredientSearchThreshold(debouncedTrimmed),
+        enabled: meetsSearchMinimum(debouncedTrimmed),
     });
 
     // ⛔ The SERVER's order, unmodified (plan U5) — `rankIngredientResults` is retired. See the

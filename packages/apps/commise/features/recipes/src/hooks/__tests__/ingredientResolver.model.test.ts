@@ -11,12 +11,12 @@ import { makeIngredient } from '@kitchensink/recipe-core/testing';
 import type { IngredientCandidate, IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import { describe, expect, it } from 'vitest';
 
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
+
 import {
     deriveViewState,
     isTerminalStatus,
     isUnresolvedStatus,
-    MIN_INGREDIENT_QUERY_LENGTH,
-    meetsIngredientSearchThreshold,
     nextMatchAction,
     suggestionKey,
     suggestionName,
@@ -199,11 +199,14 @@ describe('deriveViewState', () => {
     // but because it hasn't started. Before the fix, `deriveViewState` fell through to `results: []`,
     // flashing the "no matches — create one" affordance for the whole debounce window.
     it('is searching — never the empty results/create-freeform state — the instant trimmed crosses the threshold, before the debounced query catches up', () => {
+        // ⚠️ The needles moved from 'ab'/'a' to 'abc'/'ab' with plan U37: FR-010a raised the minimum to
+        // three, so the OLD pair straddled nothing — both sides were below it and the case would have
+        // asserted `searching` for a query that can never search. The invariant is unchanged.
         expect(
             deriveViewState(
                 baseInput({
-                    trimmed: 'ab',
-                    debouncedTrimmed: 'a', // still the PREVIOUS (sub-threshold) debounced value
+                    trimmed: 'abc',
+                    debouncedTrimmed: 'ab', // still the PREVIOUS (sub-threshold) debounced value
                     searchIsLoading: false,
                     searchIsSuccess: false,
                 }),
@@ -239,7 +242,11 @@ describe('deriveViewState', () => {
         ).toEqual({ kind: 'results', suggestions: [], catalogAvailability: 'ok', isSuccess: true, isError: false });
     });
 
-    it('is idle below the 2-character trigger (REQ-057), even with a match already loaded', () => {
+    it('is tooShort below the FR-010a minimum, even with a match already loaded', () => {
+        // ⚠️ REWRITTEN for 003-FR-010a (plan U37), not weakened. It asserted `idle` at one character under
+        // the retired 2-character client trigger. The invariant it protects is the valuable half and is
+        // unchanged: a stale suggestion from a LONGER previous query must not be rendered as an answer to
+        // the shorter one now in the box. What changed is that the cook is now TOLD why nothing is shown.
         const hit = makeIngredient({ id: 'ing_9', name: 'Salt' });
 
         expect(
@@ -251,7 +258,7 @@ describe('deriveViewState', () => {
                     suggestions: [local(hit)],
                 }),
             ),
-        ).toEqual({ kind: 'idle' });
+        ).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
     });
 
     it('is results (empty) once the search settles with no matches', () => {
@@ -269,7 +276,7 @@ describe('deriveViewState', () => {
         const notFound = makeIngredient({ id: 'ing_2', foodResolutionStatus: FoodResolutionStatus.NOT_FOUND });
         const suggestions = [local(resolved), local(notFound)];
 
-        expect(deriveViewState(baseInput({ trimmed: 'xy', searchIsSuccess: true, suggestions }))).toEqual({
+        expect(deriveViewState(baseInput({ trimmed: 'xyz', searchIsSuccess: true, suggestions }))).toEqual({
             kind: 'results',
             suggestions,
             catalogAvailability: 'ok',
@@ -442,16 +449,59 @@ describe('deriveViewState', () => {
     });
 });
 
-describe('meetsIngredientSearchThreshold (REQ-057 — 2-character trigger)', () => {
-    it('is false below MIN_INGREDIENT_QUERY_LENGTH', () => {
-        expect(MIN_INGREDIENT_QUERY_LENGTH).toBe(2);
-        expect(meetsIngredientSearchThreshold('')).toBe(false);
-        expect(meetsIngredientSearchThreshold('s')).toBe(false);
+/**
+ * The FR-010a minimum, seen from the PICKER (plan U37).
+ *
+ * ⚠️ **REPLACES `describe('meetsIngredientSearchThreshold (REQ-057 — 2-character trigger)')`.** That block
+ * asserted a client-only constant of 2 that this package OWNED. Both are gone: the number is now
+ * `MIN_SEARCH_QUERY_LENGTH` in `@kitchensink/recipe-core/resolution/search-minimum` (its own unit suite
+ * pins the value and the trimming), and the predicate is that module's. What is left to assert HERE is the
+ * only thing this package still decides — which VIEW STATE a below-minimum query produces — and that is a
+ * genuinely new obligation, because FR-010a requires the cook to be TOLD rather than shown nothing.
+ *
+ * ⛔ `idle` and `tooShort` must stay distinct kinds. Collapsing them would either put "type at least three
+ * characters" over an untouched search box (noise, every time the picker opens) or drop the explanation
+ * entirely, which is the FR-010a behaviour this unit exists to add.
+ */
+describe('deriveViewState — the FR-010a minimum (003-FR-010a, plan U37)', () => {
+    it('is idle for an untouched box, where there is nothing to explain', () => {
+        expect(deriveViewState(baseInput({ trimmed: '' }))).toEqual({ kind: 'idle' });
     });
 
-    it('is true at and above MIN_INGREDIENT_QUERY_LENGTH', () => {
-        expect(meetsIngredientSearchThreshold('sp')).toBe(true);
-        expect(meetsIngredientSearchThreshold('spinach')).toBe(true);
+    it.each(['e', 'eg'])('is tooShort for the below-minimum query %j', (trimmed) => {
+        expect(deriveViewState(baseInput({ trimmed }))).toEqual({ kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH });
+    });
+
+    it('carries the minimum on the state, so the copy cannot disagree with the gate', () => {
+        // The leaves interpolate this into the localized message. Sourcing it from the state (which reads
+        // the shared constant) rather than from a literal in the dictionary is what keeps the sentence
+        // "type at least N characters" true when N moves — and what makes the number the SERVER enforces
+        // the number the cook is shown.
+        expect(deriveViewState(baseInput({ trimmed: 'e' }))).toMatchObject({ minimum: MIN_SEARCH_QUERY_LENGTH });
+        expect(MIN_SEARCH_QUERY_LENGTH).toBe(3);
+    });
+
+    it('searches at the minimum — the three-character foods are not casualties', () => {
+        expect(deriveViewState(baseInput({ trimmed: 'egg', searchIsSuccess: true }))).toMatchObject({
+            kind: 'results',
+        });
+    });
+
+    it('is tooShort even mid-debounce, so the searching spinner never appears for a query that cannot run', () => {
+        // `trimmed !== debouncedTrimmed` normally means `searching`. Below the minimum no request will ever
+        // be issued, so a spinner there would promise a result that is not coming.
+        expect(deriveViewState(baseInput({ trimmed: 'eg', debouncedTrimmed: 'e' }))).toEqual({
+            kind: 'tooShort',
+            minimum: MIN_SEARCH_QUERY_LENGTH,
+        });
+    });
+
+    it('still lets disambiguation take priority over a below-minimum query', () => {
+        const disambiguating = makeIngredient({ id: 'ing_u', name: 'Quinoa' });
+
+        expect(deriveViewState(baseInput({ disambiguating, trimmed: 'eg' }))).toMatchObject({
+            kind: 'disambiguating',
+        });
     });
 });
 

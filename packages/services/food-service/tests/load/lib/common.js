@@ -80,27 +80,26 @@ export const SUSTAIN_FRACTION = Number(__ENV['FOOD_SUSTAIN_FRACTION'] || 0.85);
 // (canonical ids) within 250ms at p95, with a +/-15% tolerance" (owner ruling 2026-08-10; was 200ms,
 // which was validated on a workstation rather than on CI-class hardware).
 //
-// ONE budget for EVERY query shape, short ones included. There used to be a second, separately
-// overridable `SEARCH_SHORT_P95_MS` beside this: it defaulted to the same 200ms, but it existed so the
-// T-195 short-query finding could be quantified without deleting the gate, and once T-198 fixed that
-// finding it was a standing loophole — a knob whose only possible use is to raise the short shape's bar
-// above the success criterion it is named after. SC-007 grants no per-shape exemption, so neither does
-// this file. Per-shape ATTRIBUTION is unaffected: it comes from the threshold's `{shape:…}` tag in
-// `search.load.js`, not from a per-shape constant.
+// ONE budget for EVERY query shape. There used to be a second, separately overridable
+// `SEARCH_SHORT_P95_MS` beside this: it defaulted to the same 200ms, but it existed so the T-195
+// short-query finding could be quantified without deleting the gate, and once T-198 fixed that finding it
+// was a standing loophole — a knob whose only possible use is to raise one shape's bar above the success
+// criterion it is named after. SC-007 grants no per-shape exemption, so neither does this file. Per-shape
+// ATTRIBUTION is unaffected: it comes from the threshold's `{shape:…}` tag in `search.load.js`, not from a
+// per-shape constant.
 //
-// BREACHABLE BY, at 3+ characters: `FoodSearchDao.search` ORs FOUR predicates — ranked FTS
+// BREACHABLE BY: `FoodSearchDao.search` ORs FOUR predicates — ranked FTS
 // (`search_vector @@ plainto_tsquery`), trigram similarity (`name % query`) and two substring
 // `ILIKE '%q%'` scans, plus the curated-alias tsvector U2 added — then ranks EVERY match by
 // `GREATEST(ts_rank(search_vector), ts_rank(aliases_search_vector), similarity(name, query))` before
 // applying `LIMIT 20`. So a broad query must score thousands of rows, and growth of the RESOLVED
 // population moves this directly.
 //
-// BREACHABLE BY, at 1–2 characters (the `short` shape): that statement is not used at all — T-198 routes
-// short queries to `search_vector @@ to_tsquery('simple', '<token>:*')` over `food_search_vector_idx`,
-// measured at 3.9–15.1ms where the old statement sequentially scanned at 125–157ms. What breaches THIS is
-// losing that index, or the routing being reverted so the `ILIKE` branches run below 3 characters again.
-// The revert is caught deterministically on every PR by the DAO's unit + integration suites; k6 is the
-// only tier that catches the dropped index, because that symptom is time rather than statement shape.
+// ⛔ NOTHING here measures a query shorter than three characters any more (003-FR-010a, plan U37): below
+// the minimum `FoodsService.search` returns an empty set without issuing a single statement and without
+// either crosswalk read, so its latency is not search latency. The `short` shape that used to be budgeted
+// here is DELETED rather than re-budgeted — timing a short-circuit would report the speed of doing no work
+// as evidence that search is fast.
 //
 // `FoodsService.search` additionally issues TWO crosswalk lookups (barcode, then `external_key`) on every
 // single search, so the endpoint is three queries, not one.

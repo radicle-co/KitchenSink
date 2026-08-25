@@ -61,6 +61,7 @@ import {
     useSuggestIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
 import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
+import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { useState } from 'react';
 
 import type { RecipeFormIngredient } from '../form/model.js';
@@ -68,7 +69,6 @@ import type { RecipeFormIngredient } from '../form/model.js';
 import {
     deriveViewState,
     INGREDIENT_SEARCH_DEBOUNCE_MS,
-    meetsIngredientSearchThreshold,
     nextMatchAction,
     toIngredientLine,
 } from './ingredientResolver.model.js';
@@ -139,7 +139,7 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
     // local-only `/search` — that one stays the recipe-SEARCH filter's read, where a not-yet-admitted food
     // would be a meaningless filter value.
     const search = useSuggestIngredients(debouncedTrimmed, undefined, {
-        enabled: disambiguating === null && meetsIngredientSearchThreshold(debouncedTrimmed),
+        enabled: disambiguating === null && meetsSearchMinimum(debouncedTrimmed),
     });
     const addIngredientByName = useAddIngredientByName();
     const addIngredientByFood = useAddIngredientByFood();

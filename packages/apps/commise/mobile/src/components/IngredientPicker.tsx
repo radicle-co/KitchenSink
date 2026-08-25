@@ -44,7 +44,12 @@
  * The decision of WHAT to say is the shared, pure `toCorrectionNoticeModel`; only the RN markup is here, so
  * the two platforms cannot drift on what a cook is told a correction did.
  */
-import { fillTemplate, recipeCorrectionMessages, toCorrectionNoticeModel } from '@commise/features-recipes';
+import {
+    fillTemplate,
+    recipeCorrectionMessages,
+    recipeMessages,
+    toCorrectionNoticeModel,
+} from '@commise/features-recipes';
 import type { RecipeCorrectionMessages, RecipeFormIngredient } from '@commise/features-recipes';
 import { useIngredientCorrection, useIngredientResolver } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
@@ -230,6 +235,9 @@ function CandidateRow({
 export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Element {
     const { ingredientPicker: t } = useMessages(mobileMessages);
     const correctionMessages = useMessages(recipeCorrectionMessages);
+    // 003-FR-010a: the search-minimum copy is shared by all four ingredient-search surfaces, so it lives in
+    // the feature package rather than in this app's dictionary — see `IngredientSearchMessages`.
+    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     // `ingredient_picker` is a CLOSED wire enum, so this surface cannot invent an audit value (R20).
     const correction = useIngredientCorrection('ingredient_picker');
     const {
@@ -338,13 +346,16 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
         );
     }
 
-    // REQ-057's 2-character search trigger, read off the SHARED resolver model rather than re-derived: the
-    // `idle` kind IS "nothing typed, or below the threshold". Gating on `trimmed.length > 0` instead offered
-    // all three query-keyed affordances at ONE character — a divergence from the web leaf (which renders its
-    // action row only inside the non-idle kinds) that Maestro `create` caught on-device. Not cosmetic:
-    // "Find nutrition for “T”" fires exactly the search REQ-057 gates, and "Create “T”" mints a real catalog
-    // ingredient named "T".
-    const showQueryActions = viewState.kind !== 'idle';
+    // The 003-FR-010a search minimum, read off the SHARED resolver model rather than re-derived. Gating on
+    // `trimmed.length > 0` instead offered all three query-keyed affordances at ONE character — a divergence
+    // from the web leaf (which renders its action row only inside the searching/results/terminal kinds) that
+    // Maestro `create` caught on-device. Not cosmetic: "Find nutrition for “T”" fires exactly the search the
+    // minimum gates, and "Create “T”" mints a real, SHARED catalog ingredient named "T".
+    //
+    // ⛔ `kind !== 'idle'` is NOT sufficient any more, and that is the whole trap plan U37 sets. `tooShort`
+    // is a new NON-IDLE kind, so the old test would re-open exactly the regression above — the same defect,
+    // arriving through the fix for a different requirement. Both non-search kinds are excluded by name.
+    const showQueryActions = viewState.kind !== 'idle' && viewState.kind !== 'tooShort';
     const showEmpty = viewState.kind === 'results' && ownRows.length === 0 && catalogRows.length === 0;
     // F2: the food catalog degraded, so only the caller's own ingredients rendered. `disabled` (an operator
     // switch) deliberately shows nothing — it is not an incident to report to the user.
@@ -431,6 +442,12 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                 </View>
             )}
 
+            {/* 003-FR-010a: something is typed, but below the minimum. ⛔ NOT `t.empty` — that asserts the
+                catalog was searched and came back empty ("Create a new one below"), and nothing was searched
+                here; the create affordance it points at is suppressed by `showQueryActions`. */}
+            {viewState.kind === 'tooShort' && (
+                <Text style={styles.muted}>{fillTemplate(minimumCopy.tooShort, { minimum: viewState.minimum })}</Text>
+            )}
             {showEmpty && <Text style={styles.muted}>{t.empty}</Text>}
             {showCatalogUnavailable && <Text style={styles.muted}>{t.catalogUnavailable}</Text>}
 

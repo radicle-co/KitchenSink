@@ -1,39 +1,44 @@
 /**
- * `FoodSearchDao` (T-134/T-180/T-198, MOD-001) — the local-store read path for
+ * `FoodSearchDao` (T-134/T-180/T-198/U37, MOD-001) — the local-store read path for
  * `GET /api/v1/foods/search`. It NEVER calls a source: search is local-only (FR-009), one SQL read with no
  * adapter/registry seam. Only `RESOLVED` foods are surfaced; barcode / `external_key` crosswalk lookup is
  * `FoodSourcesDao`'s, not this module's.
  *
  * DESIGN PATTERN: Strategy, chosen by the pure, database-free {@link selectSearchStrategy} and dispatched
  * exhaustively by {@link FoodSearchDao.search} — the exhaustive switch over the union tag IS the Visitor, so
- * no class hierarchy is added for it. Two statements, selected by query LENGTH (T-198):
+ * no class hierarchy is added for it. ONE statement, gated by query LENGTH:
  *
- * - **3+ characters → `relevance`**: ranked FTS over the stored generated `food.search_vector`
+ * - **below `MIN_SEARCH_QUERY_LENGTH` → `none`**: no statement runs and no round trip is made.
+ * - **at or above it → `relevance`**: ranked FTS over the stored generated `food.search_vector`
  *   (`food_search_vector_idx` GIN, `ts_rank`, word-order-independent) OR'd with the `pg_trgm` GIN indexes as
  *   the fuzzy/substring/typo fallback, and — since plan U5 — ordered by a TIERED sort key layered above that
  *   base metric. The tier ladder is {@link catalogTieredSortKey}'s; see `foodRelevance.ts` for what each rung
  *   means and for the measurements that chose it. ⛔ The ladder changed only the ORDER BY expression: which
  *   rows MATCH is untouched, and the trigram indexes are load-bearing and deliberately non-partial.
- * - **1–2 characters → `wordInitialPrefix`** — NEW, and a DELIBERATE SEMANTIC CHANGE: word-initial prefix
- *   matching over the same vector via `to_tsquery('simple', '<token>:*')`.
  *
- * ⚠️ The short path exists because below 3 characters `relevance` is a GUARANTEED sequential scan — every
- * branch is dead at that length: `ILIKE '%ch%'` yields no complete trigram so `pg_trgm` has nothing to look
- * up; `plainto_tsquery('english', 'ch')` is exact-lexeme-after-stemming so it matches nothing; `name % 'ch'`
- * scores ~0.06 against the 0.3 threshold; and a 1–2 character English STOPWORD stems to an EMPTY tsquery,
- * making that branch void rather than merely unhelpful. Measured at 50,000 foods: `b` 156.5ms → 13.6ms,
- * `ch` 134.2ms → 6.2ms against SC-007's 200ms budget, on an index the schema already had.
+ * ## ⛔ WHY THERE IS NO SHORT-QUERY PATH ANY MORE (003-FR-010a, owner ruling 2026-08-24; plan U37)
  *
- * ⛔ `'simple'` on the QUERY side is deliberate — do not "fix" it to match the stored vector's `english`
- * config. Prefix matching compares stored lexeme TEXT, so `'ch':*` still matches the english-stemmed
- * `chicken`; what `simple` buys is that it does not discard stopwords, so `to_tsquery('simple', 'be:*')`
- * finds `Beef, ground` where the `english` form is EMPTY. Swapping it back re-introduces the stopword hole.
+ * T-198 added a `wordInitialPrefix` strategy so that a 1–2 character query was index-served rather than
+ * sequentially scanned — a real and correct fix for the LATENCY of answering a short query. FR-010a removed
+ * the question instead: measured against the real 8,094-row catalog a one-character query matches **51%** of
+ * rows and a two-character query **23%**, against a surface that shows ten to twenty. At that selectivity
+ * the ranking is noise, so an arbitrary slice of the match set is worse than returning nothing — and the
+ * cheapest query is the one never issued. The minimum lives in
+ * `@kitchensink/recipe-core/resolution/search-minimum` because both clients gate their typeahead on the same
+ * number and render the FR-010a empty state instead of firing.
  *
- * ⛔ The token is whitelisted to letters and digits in application code before the `:*` marker is appended,
- * and still travels as a bound parameter, because `to_tsquery` PARSES its argument: a raw `&`, `|`, `!`, `:`,
- * `(` or `'` raises `syntax error in tsquery` — a 500 on a keystroke. A tsquery-parsing library
- * (`pg-tsquery` and friends) is the WRONG tool: those exist to give users boolean query SYNTAX, which is
- * exactly the capability that must not reach `to_tsquery` from a search box.
+ * ⚠️ Three is the FLOOR, not four: no two-character food name exists in the catalog, but fifteen genuine
+ * three-character foods do (`egg`, `ham`, `rye`, `cod`, `soy`, `oat`, `fig`, `yam`, `nut`, `tea`, `pie`,
+ * `elk`, `gin`, `rum`, `poi`).
+ *
+ * ⛔ **Three things went with that strategy, and none of them should come back.** (1) `to_tsquery`, which
+ * PARSES its argument — a raw `&`, `|`, `!`, `:`, `(` or `'` raises `syntax error in tsquery`, i.e. a 500 on
+ * a keystroke. (2) The hand-rolled character WHITELIST that was the only defence against it; a
+ * tsquery-parsing library (`pg-tsquery` and friends) was and remains the WRONG tool, because those exist to
+ * give users boolean query SYNTAX, which is exactly the capability that must not reach `to_tsquery` from a
+ * search box. (3) The `'simple'`-vs-`'english'` config subtlety, which existed ONLY so a short prefix query
+ * would not lose stopwords. The one statement left calls `plainto_tsquery`, which SANITISES rather than
+ * parses, so nothing in this module can be handed query syntax. The unit suite asserts that directly.
  *
  * Two branches are deliberately NOT removed (measurements and full reasoning in
  * `specs/003-usda-food-data/tasks.md` T-198/T-202, where the 0004 migration's GIN → GiST trigram index cut
@@ -48,40 +53,18 @@
  *    WRITERS, not of the schema. The `IS DISTINCT FROM` rewrite is provably equivalent but measured no
  *    faster.
  *
- * The semantic change, stated plainly (FR-008/FR-010): a 1–2 character query used to match MID-word (`ch`
- * matched `ranch`; `on` matched `Salmon`) ranked by trigram noise, and now matches WORD-INITIALLY (`ch` →
- * `Chicken`, `Cheddar cheese`, `ground chuck`). Accepted consequence: a short query that only occurred
- * mid-word now returns nothing. 3+ character queries keep mid-word matching.
- *
- * @implements FR-008 FR-009 FR-010
+ * @implements FR-008 FR-009 FR-010 FR-010a
  */
 import { sql, type SQL } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
+import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 import { catalogTieredSortKey } from './foodRelevance.js';
 
 /** Max search rows returned (FR-010). */
 const SEARCH_LIMIT = 20;
-
-/**
- * Longest query, in characters, routed to the word-initial prefix statement.
- *
- * ⚠️ The boundary IS the trigram: `pg_trgm` extracts no complete trigram from a pattern with fewer than 3
- * characters between wildcards, so at 1–2 characters the `ILIKE` branches can only scan. Raising this
- * narrows working substring search; lowering it re-opens the sequential scan for 2-character queries.
- */
-const SHORT_QUERY_MAX_CHARACTERS = 2;
-
-/** Everything that is not a letter or a digit — i.e. every `to_tsquery` metacharacter, and whitespace. */
-const NON_SEARCHABLE = /[^\p{L}\p{N}]/gu;
-
-/**
- * Weight of the name-initial bonus in the short-query score. A name-initial hit therefore always
- * outranks a merely word-initial one (the length term below can never reach it).
- */
-const NAME_INITIAL_WEIGHT = 0.5;
 
 /**
  * Every character that is SYNTAX to `ILIKE` rather than data: the two wildcards (`%` any run, `_` any single
@@ -129,48 +112,42 @@ export interface SearchHit {
  * Which SQL statement a query resolves to (a discriminated union, so the dispatch is exhaustive and the
  * routing decision is testable without a database).
  *
- * - `none` — nothing searchable survived sanitisation; the caller returns no hits WITHOUT a round trip.
- * - `wordInitialPrefix` — the 1–2 character path; `tsquery` is `<token>:*` and `token` is the sanitised
- *   needle used to rank name-initial hits first.
- * - `relevance` — the pre-existing 3+ character ranked FTS + `pg_trgm` fallback statement.
+ * - `none` — the query is below `MIN_SEARCH_QUERY_LENGTH`; the caller returns no hits WITHOUT a round
+ *   trip (003-FR-010a).
+ * - `relevance` — the ranked FTS + `pg_trgm` + curated-alias + head-term statement.
+ *
+ * ⚠️ A two-member union rather than a boolean on purpose: the tag is what makes {@link FoodSearchDao.search}
+ * an exhaustive switch, so a third statement can only be added by visiting every dispatch site.
  */
-export type SearchStrategy =
-    | { readonly kind: 'none' }
-    | { readonly kind: 'wordInitialPrefix'; readonly tsquery: string; readonly token: string }
-    | { readonly kind: 'relevance' };
+export type SearchStrategy = { readonly kind: 'none' } | { readonly kind: 'relevance' };
 
 /**
  * Choose the search statement for a query. Pure.
  *
+ * ⛔ It does NOT sanitise: every branch of the relevance statement takes its needle as a bound VALUE that
+ * Postgres never parses as query syntax (`plainto_tsquery` sanitises, `name % $n` compares text, and the
+ * `ILIKE` patterns are escaped where they are BUILT — see {@link toIlikePattern}). The whitelist this
+ * function used to apply existed for `to_tsquery`, which is gone; see the module doc.
+ *
  * @param query - The trimmed user query.
- * @returns The strategy to execute; `none` when a short query holds no letter or digit.
+ * @returns `none` below the FR-010a minimum, otherwise `relevance`.
  */
 export function selectSearchStrategy(query: string): SearchStrategy {
-    // Characters, not UTF-16 code units: a single astral character must not read as a 2-character query.
-    if ([...query].length > SHORT_QUERY_MAX_CHARACTERS) {
-        return { kind: 'relevance' };
-    }
-
-    const token = query.replace(NON_SEARCHABLE, '');
-
-    if (token.length === 0) {
-        return { kind: 'none' };
-    }
-
-    return { kind: 'wordInitialPrefix', tsquery: `${token}:*`, token };
+    return meetsSearchMinimum(query) ? { kind: 'relevance' } : { kind: 'none' };
 }
 
 export class FoodSearchDao {
     public constructor(private readonly db: FoodDrizzle) {}
 
     /**
-     * Ranked search over `RESOLVED` foods (FR-008/FR-010), routed by query length — see the class doc for
-     * why, what changed, and the measurements. Never calls a source.
+     * Ranked search over `RESOLVED` foods (FR-008/FR-010), gated by query length (FR-010a) — see the class
+     * doc for why, what changed, and the measurements. Never calls a source.
      *
      * @param query - The trimmed user query.
      * @param limit - Max rows (default 20).
-     * @returns Ranked hits, or an empty array when nothing matches.
-     * @sideEffect Reads `food`.
+     * @returns Ranked hits; an empty array when nothing matches, and an empty array with NO round trip when
+     *   the query is below `MIN_SEARCH_QUERY_LENGTH`.
+     * @sideEffect Reads `food` — only at or above the minimum.
      */
     public async search(query: string, limit: number = SEARCH_LIMIT): Promise<SearchHit[]> {
         const strategy = selectSearchStrategy(query);
@@ -178,9 +155,6 @@ export class FoodSearchDao {
         switch (strategy.kind) {
             case 'none':
                 return [];
-
-            case 'wordInitialPrefix':
-                return this.run(this.wordInitialPrefixQuery(strategy, limit));
 
             case 'relevance':
                 return this.run(this.relevanceQuery(query, limit));
@@ -194,46 +168,7 @@ export class FoodSearchDao {
     }
 
     /**
-     * The 1–2 character word-initial prefix statement (T-198). Pure.
-     *
-     * The score expression is ALSO the sort key (referenced by its output alias), so the ranking has ONE
-     * authoritative definition and cannot drift from the order rows come back in. That matters beyond
-     * tidiness: `FoodCatalogGateway` in the recipe service re-sorts hits by `score DESC, name ASC`, so a
-     * constant or non-monotone score would silently discard this ranking downstream. The score is
-     * {@link NAME_INITIAL_WEIGHT} for a name-initial hit plus a strictly-decreasing function of name
-     * length, which keeps it inside `(0, 1)` — below the `1` the service assigns a barcode/external-key
-     * crosswalk hit, so a crosswalk match still sorts first.
-     *
-     * Ranking, in order: a hit whose NAME starts with the needle (what a user typing two letters means),
-     * then the shortest name (in a USDA catalogue the short names are the generic staples — `Egg, whole,
-     * raw` before `Barbecue marinated grilled boneless chicken thigh pieces`), then `name` for a
-     * deterministic tie break. `length(...)` and `lower(...)` are Postgres', so case folding and character
-     * counting have one authority and cannot diverge from a JS approximation of them.
-     *
-     * @param strategy - The selected prefix strategy.
-     * @param limit - Max rows.
-     * @returns The composable statement.
-     */
-    private wordInitialPrefixQuery(
-        strategy: Extract<SearchStrategy, { kind: 'wordInitialPrefix' }>,
-        limit: number,
-    ): SQL {
-        return sql`
-            SELECT id, name,
-                   (CASE WHEN lower(left(name, length(${strategy.token}::text))) = lower(${strategy.token}::text)
-                         THEN ${NAME_INITIAL_WEIGHT}::float8 ELSE 0::float8 END
-                    + ${NAME_INITIAL_WEIGHT}::float8 / (1 + length(name)))::float8 AS score
-            FROM food
-            WHERE status = 'RESOLVED'
-              AND name IS NOT NULL
-              AND search_vector @@ to_tsquery('simple', ${strategy.tsquery}::text)
-            ORDER BY score DESC, name ASC
-            LIMIT ${limit}
-        `;
-    }
-
-    /**
-     * The 3+ character statement. T-202 left it untouched — its fix was the ACCESS PATH the `name %` branch
+     * The one search statement. T-202 left it untouched — its fix was the ACCESS PATH the `name %` branch
      * gets (`food_name_trgm_gist_idx`, 0004) and not one character of this SQL — and plan U5 changed only
      * the SORT KEY.
      * See the class doc for the per-branch cost table and for why neither `name %` nor `description ILIKE`

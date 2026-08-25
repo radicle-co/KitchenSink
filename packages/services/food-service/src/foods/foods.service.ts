@@ -14,6 +14,7 @@
  */
 import { Injectable } from '@nestjs/common';
 import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
+import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 import { AdmissionService } from './admission.service.js';
 import { CandidateStore, FoodDao, FoodSourcesDao, type FoodStatus, type GoldenFoodRecord } from './dao/index.js';
@@ -238,13 +239,25 @@ export class FoodsService {
      * `GET /api/v1/foods/search?query=` — local fuzzy/substring search + barcode/external-key crosswalk
      * lookup → internal `id`s (FR-008). NEVER calls a source (FR-009).
      *
-     * @param rawQuery - The raw query (may be empty/whitespace).
-     * @returns Ranked results, or an empty set on no local match.
+     * ⛔ **The FR-010a minimum is enforced HERE, not only in the DAO** (plan U37). This method issues THREE
+     * reads — the ranked statement plus two crosswalk lookups — and the crosswalks do not go through
+     * `FoodSearchDao`, so a gate that lived only there would still put two round trips on every keystroke of
+     * a query the product has ruled unanswerable. Below the minimum the answer is an empty result set
+     * reached with no query at all. Nothing is lost: a GTIN is 8–14 digits and a USDA `fdcId` 4–7, so no
+     * identifier the crosswalk can resolve is shorter than `MIN_SEARCH_QUERY_LENGTH`.
+     *
+     * ⚠️ It answers `200` with an empty set rather than `400`: FR-010a says the system "returns no results
+     * and says so", and the "says so" is the localized empty state both clients render. A `400` would make a
+     * debouncing typeahead model a normal keystroke as an error.
+     *
+     * @param rawQuery - The raw query (may be empty/whitespace/below the minimum).
+     * @returns Ranked results; an empty set on no local match, and an empty set with NO read at all when the
+     *   query is below `MIN_SEARCH_QUERY_LENGTH` (FR-010a).
      */
     public async search(rawQuery: string): Promise<SearchResponse> {
         const query = rawQuery.trim();
 
-        if (query.length === 0) {
+        if (!meetsSearchMinimum(query)) {
             return { results: [] };
         }
 

@@ -215,6 +215,30 @@ export interface RecipeCardMessages {
     readonly justNow: string;
 }
 
+/**
+ * Copy for the search-minimum empty state (003-FR-010a, plan U37) — the ONE dictionary entry behind it.
+ *
+ * ⛔ It lives in the shared feature package, not in `web/src/i18n/messages.ts` or
+ * `mobile/src/i18n/messages.ts`, because FOUR surfaces render it: both ingredient pickers and both filter
+ * typeaheads. Those two picker dictionaries have already drifted from each other on every other string they
+ * share (`noMatches` vs `empty`, `addFreeform` vs `create`), and a rule the SERVER enforces cannot be
+ * explained by two sentences that disagree about what it is.
+ */
+export interface IngredientSearchMessages {
+    /**
+     * Shown when the cook has typed something, but fewer than the minimum (contains `{minimum}`).
+     *
+     * ⛔ It is NOT the no-matches message and must never be substituted for it: "no matching ingredients"
+     * asserts the catalog was searched and came back empty, and below the minimum nothing was searched at
+     * all. Per the owner's ruling it says what the minimum is, says why, and invites the cook to keep
+     * typing — light rather than scolding.
+     *
+     * ⚠️ `{minimum}` is a TEMPLATE, filled from the shared `MIN_SEARCH_QUERY_LENGTH` the server reads too.
+     * A literal number here would make the sentence lie the moment the floor moves.
+     */
+    readonly tooShort: string;
+}
+
 /** The shape of the recipe feature's shared copy. */
 export interface RecipeMessages {
     /** Title of the recent-recipes Home widget card. */
@@ -227,12 +251,17 @@ export interface RecipeMessages {
     readonly detail: RecipeDetailMessages;
     /** Copy for the shared recipe card (Home widget + list). */
     readonly card: RecipeCardMessages;
+    /** Copy for the ingredient-search minimum (003-FR-010a), shared by all four search surfaces. */
+    readonly ingredientSearch: IngredientSearchMessages;
 }
 
 export const recipeMessages: LocalizedMessages<RecipeMessages> = {
     en: {
         widgetTitle: 'Recent recipes',
         emptyState: 'No recipes yet. Create your first recipe to see it here.',
+        ingredientSearch: {
+            tooShort: 'Keep typing — {minimum} characters or more. Anything shorter matches half the pantry.',
+        },
         list: {
             heading: 'Recipes',
             searchLabel: 'Search recipes',

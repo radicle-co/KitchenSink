@@ -53,11 +53,18 @@ appId: io.commise.mobile
       timeout: 20000
 - tapOn: 'Search ingredients'
 
-# REQ-057 — below the 2-character trigger, no suggestion (and no "Create …" affordance keyed on the
-# in-flight query) is offered yet for a single character.
+# 003-FR-010a (plan U37) — below the three-character minimum no suggestion, and no "Create …" affordance
+# keyed on the in-flight query, is offered. The picker SAYS SO rather than rendering an empty panel, which is
+# the half a bare `assertNotVisible` cannot distinguish from a broken screen. Asserted at TWO characters as
+# well as one: the floor used to be two, so a one-character case alone would pass on a revert.
 - inputText: 'T'
 - assertNotVisible: 'Create .*T.*'
-- inputText: 'omato'
+- assertVisible: 'Keep typing.*3 characters or more.*'
+- inputText: 'o'
+- assertNotVisible: 'Create .*To.*'
+- assertVisible: 'Keep typing.*3 characters or more.*'
+- inputText: 'mato'
+- assertNotVisible: 'Keep typing.*'
 - scrollUntilVisible:
       element:
           text: 'Create .*Tomato.*'

@@ -17,6 +17,7 @@ export type { RecipeCardGridSkeletonProps } from './card/RecipeCardGridSkeleton.
 // own components — the web route-level `loading.tsx` grid skeleton — says the SAME "Loading recipes" the
 // in-page skeleton does, instead of minting a second string for the same wait.
 export { recipeMessages } from './messages.js';
+export type { IngredientSearchMessages } from './messages.js';
 export type { RecipeMessages } from './messages.js';
 
 export {

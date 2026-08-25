@@ -31,7 +31,7 @@ import type { Ingredient, RecipeFacetCount } from '@kitchensink/recipe-core';
 import type { RecipeSearchFacets, RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import { fillTemplate } from '../list/model.js';
-import { meetsIngredientSearchThreshold } from '../hooks/ingredientResolver.model.js';
+import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 /** The facet dimensions the service aggregates (and the bar renders as chip groups). */
 export type FacetDimension = 'dietaryFlags' | 'tags';
@@ -578,13 +578,17 @@ export function formatFacetChipName(
  * states don't apply here — see `hooks/useIngredientFilterSearch.ts` for why that hook (and this view state)
  * is a deliberately separate, read-only composition of the SAME shared search primitives, not a reuse of the
  * full resolver.
- *  - `idle` — no query typed yet, or the query is below {@link meetsIngredientSearchThreshold}'s trigger.
+ *  - `idle` — no query typed yet: the box is untouched, so there is nothing to say about it.
+ *  - `tooShort` — something is typed, but fewer than {@link MIN_SEARCH_QUERY_LENGTH} characters
+ *    (003-FR-010a). Distinct from `idle` for the same reason it is in `IngredientResolverViewState` — see
+ *    that union's doc.
  *  - `searching` — a query is in flight, OR `trimmed` has crossed the threshold but the debounced query
  *    hasn't caught up to it yet (mirrors `deriveViewState`'s same fix — see that function's doc).
  *  - `results` — the search settled, with zero or more catalog matches (or an error).
  */
 export type IngredientFilterSearchViewState =
     | { readonly kind: 'idle' }
+    | { readonly kind: 'tooShort'; readonly minimum: number }
     | { readonly kind: 'searching' }
     | { readonly kind: 'results'; readonly results: readonly Ingredient[]; readonly isError: boolean };
 
@@ -608,8 +612,10 @@ export interface DeriveIngredientFilterSearchViewStateInput {
 export function deriveIngredientFilterSearchViewState(
     input: DeriveIngredientFilterSearchViewStateInput,
 ): IngredientFilterSearchViewState {
-    if (!meetsIngredientSearchThreshold(input.trimmed)) {
-        return { kind: 'idle' };
+    // Checked before the debounce window — see `deriveViewState` for why a below-minimum query must never
+    // reach `searching`.
+    if (!meetsSearchMinimum(input.trimmed)) {
+        return input.trimmed.length === 0 ? { kind: 'idle' } : { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH };
     }
 
     if (input.isLoading || input.trimmed !== input.debouncedTrimmed) {

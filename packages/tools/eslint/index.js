@@ -412,6 +412,17 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/*/resolution/verification-gate-policy',
                                     '!@kitchensink/*/resolution/verification-key',
                                     '!@kitchensink/*/resolution/confidence',
+                                    // `parsing/parse-key` (plan U20 / KTD-13) — the PERSISTED key of the
+                                    // ingredient parse cache, and `normalized-key`'s reasoning verbatim: TWO
+                                    // processes derive it (recipe-service's DAL and U22's pipeline inside
+                                    // recipe-workers, which cannot import recipe-service's `src`), and a
+                                    // one-character divergence between two copies would partition the cache
+                                    // into key-spaces that never intersect — no error, no failing test, the
+                                    // cache simply stops hitting and both engines are re-invoked for every
+                                    // line. Kept OUT of the barrel because the barrel is inside the recipe
+                                    // service's contract corpus.
+                                    '!@kitchensink/*/parsing',
+                                    '!@kitchensink/*/parsing/parse-key',
                                     // `spend/spend-arithmetic` (ADR-0024 §2) — the rate table, worst case,
                                     // headroom, period key and settle delta. Arithmetic over MONEY with no I/O
                                     // in it, i.e. exactly the kind of thing that gets quietly re-derived at a

@@ -19,6 +19,7 @@
         "./resolution/verification-key": "./src/resolution/verificationKey.ts",
         "./resolution/confidence": "./src/resolution/confidence.ts",
         "./resolution/search-minimum": "./src/resolution/searchMinimum.ts",
+        "./parsing/parse-key": "./src/parsing/parseKey.ts",
         "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"

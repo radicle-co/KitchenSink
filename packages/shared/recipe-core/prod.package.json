@@ -50,6 +50,10 @@
             "types": "./dist/resolution/searchMinimum.d.ts",
             "default": "./dist/resolution/searchMinimum.js"
         },
+        "./parsing/parse-key": {
+            "types": "./dist/parsing/parseKey.d.ts",
+            "default": "./dist/parsing/parseKey.js"
+        },
         "./spend/spend-arithmetic": {
             "types": "./dist/spend/spendArithmetic.d.ts",
             "default": "./dist/spend/spendArithmetic.js"

@@ -117,4 +117,28 @@ describe('splitMeasurement — parts that only restate', () => {
             restated: ['about 4 cups'],
         });
     });
+    /**
+     * ⛔ ReDoS REGRESSION GUARD (CodeQL `js/polynomial-redos`, PR 91, 2026-08-25).
+     *
+     * Both regexes here shipped with two ADJACENT unanchored whitespace quantifiers: `PARENTHETICAL`
+     * wrapped its capture group in one on each side, and `JOINS` carried the prefix `\s*,?\s*`. Two
+     * quantifiers that can each consume the SAME whitespace make the number of ways to split a run of
+     * spaces grow with its length, and every one of them is retried at every start position.
+     *
+     * MEASURED before the fix: `PARENTHETICAL` went 1.2ms → 66.6ms across 2k → 16k spaces (doubling the
+     * input roughly QUADRUPLED the time), and `JOINS` did not finish 4k spaces in 120 SECONDS. CodeQL
+     * flagged only the first; the second was found by measuring the sibling rather than trusting the alert
+     * to be exhaustive.
+     *
+     * ⚠️ This input is not hypothetical. `splitMeasurement` reads a measurement lifted from imported
+     * recipe prose — a public-domain book today, and whatever 004/017's capture waterfall fetches later.
+     * Nothing between the source text and this function bounds a run of whitespace.
+     */
+    it('does not backtrack catastrophically on a long whitespace run (ReDoS guard)', () => {
+        const pathological = `${' '.repeat(20_000)}x`;
+        const started = performance.now();
+
+        expect(splitMeasurement(pathological)).toEqual({ summed: ['x'], restated: [] });
+        expect(performance.now() - started).toBeLessThan(100);
+    });
 });

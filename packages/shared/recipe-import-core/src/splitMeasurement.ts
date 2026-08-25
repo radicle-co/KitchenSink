@@ -61,10 +61,51 @@ export interface SplitMeasurement {
  */
 export const MEASUREMENT_JOIN_SOURCE = '(?:\\b(?:and|plus)\\b|&|\\+)\\s+(?=[\\d¼-¾])';
 
-const JOINS = new RegExp(`\\s*,?\\s*${MEASUREMENT_JOIN_SOURCE}`, 'giu');
+// ⛔ The join alone, with NO separator prefix. It used to be prefixed `\s*,?\s*` to absorb the `, ` in
+// "2 cups, and 1 tablespoon" — the polynomial-ReDoS shape: two quantifiers that can consume the SAME
+// whitespace, retried at every start position. It did not finish 4,000 spaces in 120 SECONDS.
+// ⚠️ Collapsing them to ONE character class was NOT enough, and only measuring showed it: a single
+// greedy quantifier followed by a match that FAILS still tries every length at every start, so it stayed
+// quadratic — 168ms at 20,000 spaces. The separator is stripped per part instead, by a loop that cannot
+// backtrack at all.
+const JOINS = new RegExp(MEASUREMENT_JOIN_SOURCE, 'giu');
 
-/** A parenthesised restatement, closed or running to the end of the phrase. */
-const PARENTHETICAL = /\s*\(([^)]*)\)?\s*/gu;
+/** Runs of whitespace, collapsed once a parenthetical is lifted out. One quantifier, so linear. */
+const WHITESPACE_RUN = /\s+/gu;
+
+/**
+ * Drop the separator a join leaves behind — `"2 cups, "` becomes `"2 cups"`.
+ *
+ * ⛔ Deliberately NOT a regex. Even an end-anchored `[\s,]+$` is scanned from every start position, which
+ * reintroduces exactly the quadratic behaviour this module was fixed for. A loop over the tail is linear,
+ * total, and obvious.
+ *
+ * @param part - One part of a split measurement, already whitespace-collapsed.
+ * @returns The part without trailing spaces or commas. Pure.
+ */
+function withoutTrailingSeparator(part: string): string {
+    let end = part.length;
+
+    while (end > 0 && (part[end - 1] === ',' || part[end - 1] === ' ')) {
+        end -= 1;
+    }
+
+    return part.slice(0, end);
+}
+
+/**
+ * A parenthesised restatement, closed or running to the end of the phrase.
+ *
+ * ⛔ NO surrounding whitespace quantifiers. They used to bracket this group, and two unanchored `\s*`
+ * either side of a group that can FAIL to match is the polynomial-ReDoS shape CodeQL flags: measured
+ * 1.2ms at 2,000 spaces rising to 66.6ms at 16,000 — doubling the input quadrupled the time.
+ *
+ * ⚠️ Dropping them is NOT free, and the first attempt got this wrong. Lifting a parenthetical out of
+ * "1 (14.5 ounce) can" leaves a DOUBLED INTERIOR space that trimming cannot reach, because it is at
+ * neither end of the part. {@link splitMeasurement} collapses whitespace runs before splitting for
+ * exactly that reason.
+ */
+const PARENTHETICAL = /\(([^)]*)\)?/gu;
 
 /**
  * Divide a measurement phrase into its addable parts and its restatements.
@@ -88,8 +129,12 @@ export function splitMeasurement(measurement: string): SplitMeasurement {
     });
 
     const summed = withoutRestatements
+        // ⚠️ Collapse BEFORE splitting. Lifting the parenthetical out of "1 (14.5 ounce) can" leaves
+        // "1  can" with a DOUBLED INTERIOR space, which trimming cannot reach because it is at neither
+        // end — the assumption that it could was wrong, and a test caught it.
+        .replace(WHITESPACE_RUN, ' ')
         .split(JOINS)
-        .map((part) => part.trim())
+        .map((part) => withoutTrailingSeparator(part.trim()))
         .filter((part) => part !== '');
 
     return { summed, restated };

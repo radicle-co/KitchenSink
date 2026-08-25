@@ -225,13 +225,13 @@ describe('the corpus SC-007 is measured against', () => {
                     const a = drawFrom(axes[left]!, index);
                     const b = drawFrom(axes[right]!, index);
 
-                    joint.set(`${a} ${b}`, (joint.get(`${a} ${b}`) ?? 0) + 1);
+                    joint.set(`${a}\u0000${b}`, (joint.get(`${a}\u0000${b}`) ?? 0) + 1);
                     leftCounts.set(a, (leftCounts.get(a) ?? 0) + 1);
                     rightCounts.set(b, (rightCounts.get(b) ?? 0) + 1);
                 }
 
                 for (const [pair, observed] of joint) {
-                    const [a, b] = pair.split(' ') as [string, string];
+                    const [a, b] = pair.split('\u0000') as [string, string];
                     const expected = (leftCounts.get(a)! * rightCounts.get(b)!) / PERF_RESOLVED_FOODS_DEFAULT;
 
                     if (expected < 30) {

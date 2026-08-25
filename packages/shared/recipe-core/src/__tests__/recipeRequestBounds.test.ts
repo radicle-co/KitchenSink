@@ -38,11 +38,15 @@ import {
     recipeDescriptionSchema,
     recipeDeviceLabelSchema,
     recipeExpectedVersionSchema,
+    recipeIngredientGroupLabelSchema,
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
     recipeIngredientNotesSchema,
+    recipeIngredientPreparationSchema,
     recipeIngredientQuantitySchema,
     recipeIngredientUnitSchema,
+    MAX_RECIPE_INGREDIENT_GROUP_LABEL_LENGTH,
+    MAX_RECIPE_INGREDIENT_PREPARATION_LENGTH,
     recipeLineNutritionSchema,
     recipeListMemberSchema,
     recipeMinutesSchema,
@@ -343,5 +347,87 @@ describe('ingredientId — a real UUID, not "any non-empty string"', () => {
 describe('the list page size cap', () => {
     it('is 100', () => {
         expect(MAX_RECIPE_LIST_PAGE_SIZE).toBe(100);
+    });
+});
+
+/**
+ * U26/U27 — the two fields an ingredient line gained, and the shape of "absent" for each.
+ *
+ * ⛔ Both TRIM before they bound, following `recipeIngredientSourceLineSchema`'s idiom rather than the
+ * bare `.min(1)` that `notes` and `unit` use. Whitespace-only is a SECOND SPELLING of absent, and for a
+ * group label it is worse than redundant: `"Dry "` and `"Dry"` would render as two sections wearing the
+ * same visible heading, with no way for a reader to tell them apart or a cook to merge them.
+ */
+describe('U26 — ingredient preparation', () => {
+    it('is capped at 120 and rejects `""`', () => {
+        expect(MAX_RECIPE_INGREDIENT_PREPARATION_LENGTH).toBe(120);
+        expect(accepts(recipeIngredientPreparationSchema, 'finely chopped')).toBe(true);
+        expect(accepts(recipeIngredientPreparationSchema, 'a'.repeat(120))).toBe(true);
+        expect(accepts(recipeIngredientPreparationSchema, 'a'.repeat(121))).toBe(false);
+        expect(accepts(recipeIngredientPreparationSchema, '')).toBe(false);
+    });
+
+    it('REFUSES a whitespace-only preparation rather than storing one', () => {
+        expect(accepts(recipeIngredientPreparationSchema, '   ')).toBe(false);
+        expect(accepts(recipeIngredientPreparationSchema, '\t\n')).toBe(false);
+    });
+
+    it('trims, so the stored value is the phrase and not the typing around it', () => {
+        expect(recipeIngredientPreparationSchema.parse('  finely chopped  ')).toBe('finely chopped');
+    });
+
+    it('bounds AFTER trimming — 120 characters of content plus spaces is still 120 characters', () => {
+        expect(accepts(recipeIngredientPreparationSchema, `  ${'a'.repeat(120)}  `)).toBe(true);
+    });
+
+    it('the READ schema accepts what the request schema produces, and still rejects `""`', () => {
+        expect(accepts(recipeIngredientViewSchema.shape.preparation, 'finely chopped')).toBe(true);
+        expect(accepts(recipeIngredientViewSchema.shape.preparation, '')).toBe(false);
+        // ⚠️ NO maximum on the read side, deliberately — the `recipeDeviceLabelSchema` precedent: a response
+        // has to be able to carry a value persisted before the bound existed.
+        expect(accepts(recipeIngredientViewSchema.shape.preparation, 'a'.repeat(500))).toBe(true);
+    });
+});
+
+describe('U27 — ingredient group label', () => {
+    it('is capped at 60 and rejects `""`', () => {
+        expect(MAX_RECIPE_INGREDIENT_GROUP_LABEL_LENGTH).toBe(60);
+        expect(accepts(recipeIngredientGroupLabelSchema, 'For the marinade')).toBe(true);
+        expect(accepts(recipeIngredientGroupLabelSchema, 'a'.repeat(60))).toBe(true);
+        expect(accepts(recipeIngredientGroupLabelSchema, 'a'.repeat(61))).toBe(false);
+        expect(accepts(recipeIngredientGroupLabelSchema, '')).toBe(false);
+    });
+
+    it('REFUSES a whitespace-only label — a section with an invisible heading is not a section', () => {
+        expect(accepts(recipeIngredientGroupLabelSchema, '   ')).toBe(false);
+    });
+
+    it('TRIMS, so `"Dry "` and `"Dry"` are the same section rather than two identical-looking ones', () => {
+        expect(recipeIngredientGroupLabelSchema.parse(' Dry ')).toBe('Dry');
+        expect(recipeIngredientGroupLabelSchema.parse('Dry')).toBe(recipeIngredientGroupLabelSchema.parse(' Dry '));
+    });
+
+    it('is FREE TEXT and never an enum — "Dry" and "Wet" are two labels among many (owner ruling 2026-08-24)', () => {
+        for (const label of ['Dry', 'Wet', 'For the crust', 'Für den Teig', 'ソース用']) {
+            expect(accepts(recipeIngredientGroupLabelSchema, label)).toBe(true);
+        }
+    });
+
+    /**
+     * ⛔ The connection to the import side, asserted rather than assumed. `parseIngredientLine` already
+     * detects a section heading and raises `group_header`; U27's whole purpose is to give that signal
+     * somewhere to land. This pins that the label schema is WIDE ENOUGH for the headings that parser flags —
+     * if a future bound narrowed below what a real cookbook prints, this reds.
+     */
+    it('accepts the section headings a real cookbook prints', () => {
+        for (const heading of ['For the sauce', 'For the topping', 'Dry ingredients', 'For the garnish']) {
+            expect(accepts(recipeIngredientGroupLabelSchema, heading)).toBe(true);
+        }
+    });
+
+    it('the READ schema accepts what the request schema produces, and still rejects `""`', () => {
+        expect(accepts(recipeIngredientViewSchema.shape.groupLabel, 'For the marinade')).toBe(true);
+        expect(accepts(recipeIngredientViewSchema.shape.groupLabel, '')).toBe(false);
+        expect(accepts(recipeIngredientViewSchema.shape.groupLabel, 'a'.repeat(500))).toBe(true);
     });
 });

@@ -89,6 +89,12 @@ export function makeRecipeIngredientRow(overrides: Partial<RecipeIngredientRow> 
         statedQuantity: null,
         statedQuantityHigh: null,
         statedUnit: null,
+        /**
+         * Both `null` = "this line states no preparation and belongs to no section" — the shape of every row
+         * 0030 did not touch, and of the overwhelming majority of lines a cook will ever write.
+         */
+        preparation: null,
+        groupLabel: null,
         sortOrder: 0,
         ingredientName: 'Test Ingredient',
         isUserEntered: false,

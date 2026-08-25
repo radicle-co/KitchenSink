@@ -41,7 +41,9 @@ import {
     MAX_RECIPE_DESCRIPTION_LENGTH,
     MAX_RECIPE_DEVICE_LABEL_LENGTH,
     MAX_RECIPE_INGREDIENTS,
+    MAX_RECIPE_INGREDIENT_GROUP_LABEL_LENGTH,
     MAX_RECIPE_INGREDIENT_NAME_LENGTH,
+    MAX_RECIPE_INGREDIENT_PREPARATION_LENGTH,
     MAX_RECIPE_INGREDIENT_QUANTITY,
     MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH,
     MAX_RECIPE_LIST_PAGE_SIZE,
@@ -56,7 +58,9 @@ import {
     recipeExpectedVersionSchema,
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
+    recipeIngredientGroupLabelSchema,
     recipeIngredientNotesSchema,
+    recipeIngredientPreparationSchema,
     recipeIngredientSourceLineSchema,
     ingredientQuantitySchema,
     recipeIngredientUnitSchema,
@@ -829,5 +833,148 @@ describe('ingredient sourceLine — create-only, and the gate’s only source of
         });
 
         expect(parsed.success).toBe(false);
+    });
+});
+
+/**
+ * U26/U27 — the two fields an ingredient line gained, and the ONE thing that separates them from
+ * `sourceLine`, `statedMeasure` and `source`: they sit on the BASE, so `PATCH` inherits them.
+ *
+ * ⛔ ADR-0023's criterion is not "a new field" — it is AUTHORIZATION over a field VALUE with a cross-user
+ * harm behind it. `source` is create-only because a base-schema placement "would let ANY caller re-classify
+ * an existing recipe as `imported_public` after creation, bypassing the policy". A preparation and a section
+ * heading classify nothing, gate nothing, and are read by no policy.
+ *
+ * ⚠️ And the verification gate is NOT a second criterion: that ADR's own `statedMeasure` addendum refuses to
+ * treat it as an authorization surface — "a parser-quality control, not an integrity control against a
+ * hostile client". `verificationKey` hashes identity, both quantity bounds, the unit and the stated measure;
+ * neither of these fields is in it, so there is nothing to steer in either direction.
+ *
+ * ⛔ Create-only would be ACTIVELY WRONG for them, twice over, and the code already shows why:
+ * `versions.service.ts` rebuilds an UPDATE body from a snapshot on restore (so a create-only field could
+ * never be restored), and `replaceForRecipe` deletes and re-inserts every line whenever a PATCH supplies
+ * `ingredients` — which both shipped clients always do. Create-only would silently destroy both fields on
+ * every metadata edit unless a THIRD carry-forward rule were written beside `transcriptionCarryForward.ts`,
+ * machinery that exists only because those two fields HAD to be create-only.
+ *
+ * These are therefore POSITIVE pins, the mirror of the negative ones above.
+ */
+describe('U26 — ingredient preparation, on the BASE schema', () => {
+    it('the field IS the recipe-core Value Object, not a bound restated here', () => {
+        expect(recipeIngredientInputSchema.shape.preparation.unwrap()).toBe(recipeIngredientPreparationSchema);
+    });
+
+    it('the CREATE body accepts a line carrying a preparation', () => {
+        expect(createAccepts({ ingredients: [{ ...A_LINE, preparation: 'finely chopped' }] })).toBe(true);
+    });
+
+    it('is OPTIONAL — most lines state no preparation, and that is not an error', () => {
+        expect(lineAccepts({})).toBe(true);
+    });
+
+    it('rejects `""` and whitespace-only, so "no preparation" has ONE representation — omitting the key', () => {
+        expect(lineAccepts({ preparation: '' })).toBe(false);
+        expect(lineAccepts({ preparation: '   ' })).toBe(false);
+    });
+
+    it('accepts a preparation AT the cap and rejects one past it', () => {
+        const at = 'a'.repeat(MAX_RECIPE_INGREDIENT_PREPARATION_LENGTH);
+
+        expect(lineAccepts({ preparation: at })).toBe(true);
+        expect(lineAccepts({ preparation: `${at}a` })).toBe(false);
+    });
+
+    it('✅ is PRESENT on the BASE element schema, so `PATCH` can edit it', () => {
+        expect(Object.keys(recipeIngredientInputSchema.shape)).toContain('preparation');
+    });
+
+    it('✅ a PATCH may set a preparation — a cook edits how they chop an onion', () => {
+        const parsed = updateRecipeRequestSchema.safeParse({
+            expectedVersion: 1,
+            ingredients: [{ ...A_LINE, preparation: 'roughly torn' }],
+        });
+
+        expect(parsed.success).toBe(true);
+    });
+
+    it('⛔ is NEVER folded into the food name — the two are separate keys on the wire', () => {
+        const parsed = recipeIngredientInputSchema.parse({ ...A_LINE, preparation: 'sifted' });
+
+        expect(parsed.name).toBe('Flour');
+        expect(parsed.preparation).toBe('sifted');
+    });
+
+    it('⛔ does NOT displace `notes`, which is a display override with its own producer', () => {
+        expect(lineAccepts({ notes: '2 cups all-purpose flour, sifted', preparation: 'sifted' })).toBe(true);
+        expect(Object.keys(recipeIngredientInputSchema.shape)).toContain('notes');
+    });
+});
+
+describe('U27 — ingredient group label, on the BASE schema', () => {
+    it('the field IS the recipe-core Value Object, not a bound restated here', () => {
+        expect(recipeIngredientInputSchema.shape.groupLabel.unwrap()).toBe(recipeIngredientGroupLabelSchema);
+    });
+
+    it('the CREATE body accepts a grouped line', () => {
+        expect(createAccepts({ ingredients: [{ ...A_LINE, groupLabel: 'For the marinade' }] })).toBe(true);
+    });
+
+    it('is OPTIONAL — an UNGROUPED recipe sends no group key at all, never `""`', () => {
+        expect(lineAccepts({})).toBe(true);
+        expect(lineAccepts({ groupLabel: '' })).toBe(false);
+        expect(lineAccepts({ groupLabel: '   ' })).toBe(false);
+    });
+
+    it('accepts a label AT the cap and rejects one past it', () => {
+        const at = 'a'.repeat(MAX_RECIPE_INGREDIENT_GROUP_LABEL_LENGTH);
+
+        expect(lineAccepts({ groupLabel: at })).toBe(true);
+        expect(lineAccepts({ groupLabel: `${at}a` })).toBe(false);
+    });
+
+    it('TRIMS, so `"Dry "` and `"Dry"` cannot become two identical-looking sections', () => {
+        expect(recipeIngredientInputSchema.parse({ ...A_LINE, groupLabel: ' Dry ' }).groupLabel).toBe('Dry');
+    });
+
+    it('is FREE TEXT and never an enum — "Dry"/"Wet" are labels, not a closed set (owner ruling 2026-08-24)', () => {
+        for (const groupLabel of ['Dry', 'Wet', 'For the crust', 'For serving', 'ソース用']) {
+            expect(lineAccepts({ groupLabel })).toBe(true);
+        }
+    });
+
+    it('✅ is PRESENT on the BASE element schema, so `PATCH` can regroup a line', () => {
+        expect(Object.keys(recipeIngredientInputSchema.shape)).toContain('groupLabel');
+    });
+
+    it('✅ a PATCH may move a line between sections while preserving its other fields', () => {
+        const parsed = updateRecipeRequestSchema.safeParse({
+            expectedVersion: 1,
+            ingredients: [{ ...A_LINE, unit: 'cup', notes: 'sifted', groupLabel: 'For the topping' }],
+        });
+
+        expect(parsed.success).toBe(true);
+        expect(parsed.success && parsed.data.ingredients?.[0]).toMatchObject({
+            ingredientId: A_LINE.ingredientId,
+            name: 'Flour',
+            unit: 'cup',
+            notes: 'sifted',
+            groupLabel: 'For the topping',
+        });
+    });
+
+    /**
+     * ⛔ The connection to the import side, asserted rather than assumed. `parseIngredientLine` already
+     * detects a section heading and raises `group_header`; U27's stated purpose is to give that signal
+     * somewhere to land. This pins that the wire is WIDE ENOUGH for the headings a real cookbook prints.
+     *
+     * ⚠️ It does NOT claim the signal reaches here today, and it does not: `cookbook-import`'s prose scanner
+     * accepts a clause only when it parses to both a quantity and a unit, and a heading has neither — so a
+     * heading is never emitted as a clause at all. See `0030_ingredient_preparation_and_group.sql`'s
+     * RESIDUAL note.
+     */
+    it('accepts the section headings `parseIngredientLine` flags as `group_header`', () => {
+        for (const groupLabel of ['For the sauce', 'For the topping', 'Dry ingredients', 'For the garnish']) {
+            expect(lineAccepts({ groupLabel })).toBe(true);
+        }
     });
 });

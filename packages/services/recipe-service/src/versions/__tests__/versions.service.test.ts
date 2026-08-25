@@ -513,3 +513,92 @@ describe('versionArchiveKey', () => {
         expect(versionArchiveKey(row).startsWith('recipes/owner-9/')).toBe(true);
     });
 });
+
+describe('VersionsService.restore — the preparation and the section come back (U26/U27)', () => {
+    const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
+    const OWNER = '01J000000000000000000OWNER';
+    const PRINCIPAL = { userId: OWNER, sub: 'user_clerk', scopes: [], permissions: [] } as unknown as Principal;
+
+    /**
+     * ⛔ A RESTORE THAT CANNOT CARRY A FIELD SILENTLY STRIPS IT, and that is worse than never storing it: the
+     * cook is told the version was restored, and the preparation is gone with nothing naming the loss.
+     *
+     * ⚠️ This is also the load-bearing consequence of U26/U27's placement ruling. The restore rebuilds an
+     * **UPDATE body** from the snapshot, so a field placed on the CREATE-only element schema (as `sourceLine`
+     * and `statedMeasure` are, for ADR-0023 reasons that do not apply here) could not be restored AT ALL.
+     * Both fields are on the BASE precisely so this rebuild can carry them.
+     */
+    const snapshotWithBoth = (): RecipeSnapshot => ({
+        version: 3,
+        title: 'Old Title',
+        description: 'old',
+        steps: [{ id: 'rs-1', recipeId: RECIPE_ID, stepNumber: 1, instruction: 'Old step' }],
+        ingredients: [
+            {
+                id: 'ri-1',
+                recipeId: RECIPE_ID,
+                ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'cup',
+                displayText: 'sifted',
+                preparation: 'finely chopped',
+                groupLabel: 'For the marinade',
+                sortOrder: 0,
+                ingredientName: 'Flour',
+                isUserEntered: false,
+            },
+        ],
+        servings: 4,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 10,
+    });
+
+    /** Run a restore over the given snapshot and return the UPDATE body it rebuilt. */
+    const restoredUpdateBody = async (snapshot: RecipeSnapshot): Promise<Record<string, unknown>> => {
+        const target = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, snapshot });
+        const dal = fakeDal({
+            findByRecipeAndVersion: vi.fn().mockResolvedValue(target),
+            createSnapshot: vi.fn().mockResolvedValue(makeVersionRow({ recipeId: RECIPE_ID, versionNumber: 6 })),
+        });
+        const recipes = {
+            getById: vi.fn().mockResolvedValue({ ownerId: OWNER, currentVersion: 5 }),
+            update: vi.fn().mockResolvedValue({ id: RECIPE_ID, ownerId: OWNER, currentVersion: 6 }),
+        } as unknown as RecipesService;
+
+        await new VersionsService(
+            dal,
+            recipes,
+            fakePendingArchives() as unknown as PendingArchivesDal,
+            noArchive(),
+        ).restore(PRINCIPAL, RECIPE_ID, 3);
+
+        // `update(principal, recipeId, body, options)` — the rebuilt body is the THIRD argument.
+        return (recipes.update as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2] as Record<string, unknown>;
+    };
+
+    it('⛔ puts BOTH fields back on the restored line', async () => {
+        const body = await restoredUpdateBody(snapshotWithBoth());
+        const line = (body['ingredients'] as Record<string, unknown>[])[0];
+
+        expect(line).toMatchObject({
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+            notes: 'sifted',
+            name: 'Flour',
+        });
+    });
+
+    it('OMITS both when the snapshot carried neither, rather than restoring `""`', async () => {
+        const snapshot = snapshotWithBoth();
+        const bare: RecipeSnapshot = {
+            ...snapshot,
+            ingredients: snapshot.ingredients.map(({ preparation: _p, groupLabel: _g, ...rest }) => rest),
+        };
+
+        const body = await restoredUpdateBody(bare);
+        const line = (body['ingredients'] as Record<string, unknown>[])[0];
+
+        expect(line).not.toHaveProperty('preparation');
+        expect(line).not.toHaveProperty('groupLabel');
+    });
+});

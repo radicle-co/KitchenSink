@@ -1307,3 +1307,270 @@ describe('RecipeForm (native) — the range separator is decorative', () => {
         expect(separators).toHaveLength(1);
     });
 });
+
+/**
+ * U25/U26/U27 — the three new ingredient-row affordances on the NATIVE leaf, in every state.
+ *
+ * ⛔ The cross-platform rule (§14) means these are not "the web tests again": a field that ships to one
+ * platform and not the other is precisely what that rule exists to stop, and the two leaves are separate
+ * files with no compiler edge between them. The FOLD and the note MAPPING are shared (`props.ts`), so what
+ * these prove is that this leaf renders what the shared layer produces.
+ */
+describe('RecipeForm (native) — preparation, section and unit class (U25/U26/U27)', () => {
+    it('renders a preparation field per line, seeded from the draft', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, preparation: 'finely chopped' }],
+            }),
+        });
+
+        expect(inputValue('Ingredient 1 preparation')).toBe('finely chopped');
+    });
+
+    it('renders an EMPTY preparation field for a line that states none', () => {
+        renderForm();
+
+        expect(inputValue('Ingredient 1 preparation')).toBe('');
+    });
+
+    it('reports a preparation edit upward without touching the food name', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2 }] }),
+            onChange,
+        });
+
+        fireEvent.change(screen.getByLabelText('Ingredient 1 preparation'), { target: { value: 'diced' } });
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, preparation: 'diced' }],
+            }),
+        );
+    });
+
+    it('renders a section field per line, seeded from the draft', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, groupLabel: 'For the marinade' }],
+            }),
+        });
+
+        expect(inputValue('Ingredient 1 section')).toBe('For the marinade');
+    });
+
+    it('reports a section edit upward, preserving the line’s other fields', () => {
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'cup', preparation: 'diced' }],
+            }),
+            onChange,
+        });
+
+        fireEvent.change(screen.getByLabelText('Ingredient 1 section'), { target: { value: 'Dry' } });
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ingredients: [
+                    {
+                        ingredientId: 'ing_1',
+                        name: 'Onion',
+                        quantity: 2,
+                        unit: 'cup',
+                        preparation: 'diced',
+                        groupLabel: 'Dry',
+                    },
+                ],
+            }),
+        );
+    });
+
+    // ⛔ THE NO-CHROME STATE, on the platform where a stray heading costs the most vertical space.
+    it('⛔ an UNGROUPED recipe renders NO section heading at all', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Rice', quantity: 300 },
+                    { ingredientId: 'ing_2', name: 'Stock', quantity: 1 },
+                ],
+            }),
+        });
+
+        expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    });
+
+    it('a GROUPED recipe renders one heading per section, in stored order', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Sugar', quantity: 1, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_3', name: 'Milk', quantity: 1, groupLabel: 'Wet' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+            'Dry',
+            'Wet',
+        ]);
+    });
+
+    it('⛔ a label repeated NON-ADJACENTLY renders THREE headings, in stored order', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1, groupLabel: 'Wet' },
+                    { ingredientId: 'ing_3', name: 'Sugar', quantity: 1, groupLabel: 'Dry' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+            'Dry',
+            'Wet',
+            'Dry',
+        ]);
+    });
+
+    it('a MIXED recipe leaves the leading ungrouped run unheaded, and keeps the line numbering', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Salt', quantity: 1 },
+                    { ingredientId: 'ing_2', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
+        expect(inputValue('Ingredient 1 name')).toBe('Salt');
+        expect(inputValue('Ingredient 2 name')).toBe('Flour');
+    });
+
+    it('marks a CANONICAL unit with no note at all', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'cups' }],
+            }),
+        });
+
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+    });
+
+    it('marks a SUBJECTIVE unit as a cook’s measure, and describes the field with it', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Basil', quantity: 1, unit: 'handful' }],
+            }),
+        });
+
+        const note = screen.getByText('Cook’s measure');
+
+        expect(screen.getByLabelText('Ingredient 1 unit').getAttribute('aria-describedby')).toBe(note.id);
+    });
+
+    it('marks an UNKNOWN unit as unrecognised — and still ACCEPTS it', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'blorp' }],
+            }),
+        });
+
+        const note = screen.getByText('Unrecognised unit');
+
+        expect(screen.getByLabelText('Ingredient 1 unit').getAttribute('aria-describedby')).toBe(note.id);
+        expect(inputValue('Ingredient 1 unit')).toBe('blorp');
+    });
+
+    it('marks an EMPTY unit with NO note — a unitless line is not an unrecognised one', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Eggs', quantity: 2 }] }),
+        });
+
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+    });
+});
+
+/**
+ * U27 — the NATIVE half of "typing a section must not cost the cook their caret".
+ *
+ * ⛔ §14's cross-platform rule is the whole point: the two leaves are separate files with no compiler edge,
+ * and the defect is STRUCTURAL (a per-run wrapper makes the section the ancestor of its rows, so the first
+ * character of a new label resplits the runs and UNMOUNTS the row holding the focused input). On native
+ * that dismisses the keyboard mid-word. Fixing one platform and not the other ships the bug to half the
+ * cooks.
+ *
+ * ⚠️ These assert the RENDER TREE rather than `document.activeElement`: react-native-web reflects focus, but
+ * what actually breaks is the row being unmounted and remounted, and the tree is where that is visible on
+ * this platform without an emulator.
+ */
+describe('RecipeForm (native) — a section resplit does not remount the rows (U27)', () => {
+    /** The form's props for the given lines — `render`ed directly so this test can `rerender` in place. */
+    const propsFor = (ingredients: RecipeFormValues['ingredients']): RecipeFormProps => ({
+        values: filledValues({ ingredients }),
+        mode: 'create',
+        onChange: noop,
+        onSubmit: noop,
+        onCancel: noop,
+    });
+
+    it('⛔ keeps the SAME row input across a resplit — the row is never unmounted', () => {
+        const { rerender } = render(
+            <RecipeForm
+                {...propsFor([
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2 },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1 },
+                    { ingredientId: 'ing_3', name: 'Sugar', quantity: 1 },
+                ])}
+            />,
+        );
+
+        const before = screen.getByLabelText('Ingredient 2 section');
+
+        rerender(
+            <RecipeForm
+                {...propsFor([
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2 },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1, groupLabel: 'D' },
+                    { ingredientId: 'ing_3', name: 'Sugar', quantity: 1 },
+                ])}
+            />,
+        );
+
+        // ⛔ THE SAME DOM NODE. A per-run wrapper would have unmounted this row and mounted a fresh one,
+        // which on a device is the keyboard closing after one character.
+        expect(screen.getByLabelText('Ingredient 2 section')).toBe(before);
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['D']);
+    });
+
+    it('⛔ CLEARING a section leaves NO empty heading', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2 },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1, groupLabel: '' },
+                ],
+            }),
+        });
+
+        expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    });
+
+    it('⛔ treats a PADDED label as the same section as its trimmed twin', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Sugar', quantity: 1, groupLabel: '  Dry  ' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
+    });
+});

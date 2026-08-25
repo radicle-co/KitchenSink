@@ -12,23 +12,26 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { Feather } from '@expo/vector-icons';
 import type { FC, ReactElement } from 'react';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { classifyUnit, FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { Text, TextInput, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
-import { ingredientsErrorId } from './fieldErrorIds.js';
+import { ingredientsErrorId, ingredientUnitNoteId } from './fieldErrorIds.js';
 import { draftQuantityVerdict, lineCalories, recipeNutritionTotal } from './model.js';
 import { rangeDerivedNotice } from '../detail/model.js';
 import { recipeFormMessages } from './messages.js';
 import { styles } from './formSectionStyles.native.js';
+import type { RecipeFormIngredient } from './model.js';
 import {
     addIngredient,
+    ingredientSections,
     parseQuantityBound,
     quantityInputValue,
     removeIngredientAt,
     resolutionStatusLabel,
     setIngredientQuantityHigh,
     setIngredientQuantityLow,
+    unitClassNote,
     updateIngredientAt,
     type RecipeFormSectionProps,
 } from './props.js';
@@ -44,7 +47,7 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
         high: m.nutritionRangeDerivedHigh,
     });
 
-    const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
+    const renderRow = (line: RecipeFormIngredient, index: number): ReactElement => {
         const number = index + 1;
         const calories = lineCalories(line);
         // U6 (data-integrity): a RESOLVED line (`ingredientId` set) binds its name to the food supplying the
@@ -58,6 +61,10 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
         const nameInvalid = errors?.ingredients === 'ingredientsUnresolved' && line.ingredientId === null;
         const quantityInvalid =
             errors?.ingredients === 'ingredientsQuantityInvalid' && draftQuantityVerdict(line) === 'invalid';
+        // U25 — DERIVED at render from `recipe-core`'s vocabulary, never stored. The SAME `unitClassNote` the
+        // web leaf calls, so the two platforms cannot mark a unit differently.
+        const unitClass = classifyUnit(line.unit ?? '');
+        const unitNote = unitClassNote(m, line.unit);
 
         return (
             <View key={index} style={styles.listRow}>
@@ -108,9 +115,37 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 />
                 <TextInput
                     accessibilityLabel={fillTemplate(m.ingredientUnitLabel, { number })}
+                    // U25 — the note DESCRIBES the field; an unknown unit is accepted, never rejected, so
+                    // nothing here ever marks it invalid.
+                    aria-describedby={unitNote === undefined ? undefined : ingredientUnitNoteId(index)}
                     value={line.unit ?? ''}
                     onChangeText={(text) => onChange(updateIngredientAt(values, index, { unit: text }))}
-                    style={[styles.input, styles.rowNarrow]}
+                    style={[styles.input, styles.rowNarrow, unitClass !== 'canonical' && styles.inputSubdued]}
+                />
+                {unitNote !== undefined && (
+                    // ⛔ TEXT, not colour — see the web leaf for the WCAG 1.4.1 reasoning and for why a
+                    // deliberate `handful` must not read like a mistyped `blorp`.
+                    <Text id={ingredientUnitNoteId(index)} style={styles.unitNote}>
+                        {unitNote}
+                    </Text>
+                )}
+                {/* U26 — the PREPARATION, its own field and never part of the food's name. */}
+                <TextInput
+                    accessibilityLabel={fillTemplate(m.ingredientPreparationLabel, { number })}
+                    placeholder={m.ingredientPreparationPlaceholder}
+                    value={line.preparation ?? ''}
+                    onChangeText={(text) => onChange(updateIngredientAt(values, index, { preparation: text }))}
+                    style={[styles.input, styles.rowPreparation]}
+                />
+                {/* U27 — the SECTION, the quieter of the two: the primary way to group is `addIngredient`
+                    inheriting the label from the line above (see `props.ts`), because the brief rules that
+                    per-row typing is the wrong PRIMARY interaction. */}
+                <TextInput
+                    accessibilityLabel={fillTemplate(m.ingredientGroupLabel, { number })}
+                    placeholder={m.ingredientGroupPlaceholder}
+                    value={line.groupLabel ?? ''}
+                    onChangeText={(text) => onChange(updateIngredientAt(values, index, { groupLabel: text }))}
+                    style={[styles.input, styles.rowGroup]}
                 />
                 {line.resolutionStatus !== undefined && (
                     <Text
@@ -141,7 +176,11 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 </View>
             </View>
         );
-    });
+    };
+
+    // U27 — the ONE fold, shared with the web leaf (`props.ts`). An UNGROUPED recipe folds to exactly one
+    // UNLABELLED section and renders no heading at all.
+    const sections = ingredientSections(values);
 
     return (
         <View accessibilityLabel={m.ingredientsHeading} style={styles.card}>
@@ -153,7 +192,32 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                     {m.errors[errors.ingredients]}
                 </Text>
             )}
-            {ingredientRows.length === 0 ? <Text style={styles.emptyText}>{m.noIngredients}</Text> : ingredientRows}
+            {sections.length === 0 ? (
+                <Text style={styles.emptyText}>{m.noIngredients}</Text>
+            ) : (
+                sections.flatMap((section) => [
+                    // ⛔ NO HEADING for an unlabelled run — most recipes never group, and those must not look
+                    // unfinished. `aria-level` 3 sits under the section's own header.
+                    //
+                    // ⛔ INTERLEAVED, never a wrapper per run — see the web leaf for the full reasoning. A
+                    // per-run wrapper makes the section the ancestor of its rows, so typing the first
+                    // character of a new label resplits the runs and UNMOUNTS the row holding the focused
+                    // input: on native that dismisses the keyboard mid-word.
+                    ...(section.label === undefined
+                        ? []
+                        : [
+                              <Text
+                                  key={`section-${section.lines[0]?.index ?? -1}`}
+                                  accessibilityRole="header"
+                                  aria-level={3}
+                                  style={styles.groupHeading}
+                              >
+                                  {section.label}
+                              </Text>,
+                          ]),
+                    ...section.lines.map((entry) => renderRow(entry.line, entry.index)),
+                ])
+            )}
             <View style={styles.addAction}>
                 <Button
                     variant="secondary"

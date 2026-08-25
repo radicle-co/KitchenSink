@@ -474,6 +474,21 @@ export interface RecipeIngredientView {
     quantity: IngredientQuantity;
     unit?: string;
     notes?: string;
+    /**
+     * How this recipe prepares the food (plan U26) — `finely chopped`, `at room temperature`.
+     *
+     * ⛔ NEVER concatenated into {@link RecipeIngredientView.name}. The name is what the catalog says the
+     * food IS; this is what this recipe does to it. Absent means the line states no preparation.
+     */
+    preparation?: string;
+    /**
+     * The section this line belongs to (plan U27) — `For the marinade`, `Dry ingredients`.
+     *
+     * ABSENT means ungrouped, and most recipes are: an ungrouped list renders FLAT, with no section chrome
+     * at all. Sections are folded from CONSECUTIVE RUNS of equal labels in the stored order, so the order a
+     * reader sees is always the order the author stored.
+     */
+    groupLabel?: string;
     isUserEntered: boolean;
     /**
      * How this LINE's food link stands (plan U14 / R15). `NEEDS_REVIEW` means the verification gate read the
@@ -502,6 +517,12 @@ export const recipeIngredientViewSchema = z.object({
     quantity: ingredientQuantitySchema,
     unit: z.string().min(1).optional(),
     notes: z.string().min(1).optional(),
+    // U26/U27 — `.min(1)` and NO maximum, matching `notes` above and for the same two reasons: `''` would be
+    // a response no client can read back, and a response must be able to carry a value persisted before the
+    // request-side bound existed (the `recipeDeviceLabelSchema` precedent). The bounds live on the REQUEST
+    // schemas in `recipeRequestBounds.ts`.
+    preparation: z.string().min(1).optional(),
+    groupLabel: z.string().min(1).optional(),
     isUserEntered: z.boolean(),
     resolutionStatus: lineResolutionStatusSchema.optional(),
 });
@@ -697,8 +718,18 @@ export interface RecipeIngredient {
     /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
     quantity: IngredientQuantity;
     unit: string;
-    /** Free-form display override (wire field: `notes`). */
+    /** Free-form display override (wire field: `notes`). ⛔ Not a preparation — see {@link preparation}. */
     displayText?: string;
+    /**
+     * How this recipe prepares the food (plan U26; wire field: `preparation`, column `preparation`).
+     *
+     * Carried on the SNAPSHOT shape as well as the view, because a version that cannot restore a
+     * preparation silently strips it on restore — the same data loss `sourceLine` had before it was noticed
+     * in `toResolvedIngredientLine`.
+     */
+    preparation?: string;
+    /** The section this line belongs to (plan U27; wire field + column: `groupLabel` / `group_label`). */
+    groupLabel?: string;
     sortOrder: number;
     /** Canonical ingredient label (wire field: `name`). */
     ingredientName: string;
@@ -724,6 +755,9 @@ export const recipeIngredientSchema = z.object({
     // any recipe carrying a unitless line — see `recipe.types.test.ts`'s version-contract suite.
     unit: z.string(),
     displayText: z.string().min(1).optional(),
+    // U26/U27 — same `.min(1)`, no-maximum reasoning as the view schema above.
+    preparation: z.string().min(1).optional(),
+    groupLabel: z.string().min(1).optional(),
     sortOrder: nonNegativeIntSchema,
     ingredientName: z.string().min(1),
     isUserEntered: z.boolean(),

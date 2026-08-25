@@ -8,7 +8,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep } from '@kitchensink/recipe-core';
 
-import { computeConflictDiff } from '../conflictDiff.js';
+import { computeConflictDiff, type ConflictFieldRow } from '../conflictDiff.js';
+import { recipeVersionMessages } from '../messages.js';
+import { toVersionPreviewIngredientLines } from '../model.js';
 
 /** Build a {@link RecipeStep} with sensible defaults, overridable per field. */
 const makeStep = (overrides: Partial<RecipeStep> = {}): RecipeStep => ({
@@ -400,5 +402,91 @@ describe('computeConflictDiff', () => {
             ]);
             expect(diff.hasConflict).toBe(true);
         });
+    });
+});
+
+/**
+ * U26/U27 — a MERGE ROW must show the difference it is asking a cook to resolve.
+ *
+ * ⛔ THE FAILURE THIS EXISTS FOR is not a wrong value, it is an UNANSWERABLE PROMPT. `ingredientContentChanged`
+ * now counts a preparation-only or section-only edit as changed, so the conflict machinery correctly raises
+ * a row for one — and if the formatter omitted the field, that row would offer "Mine" and "Theirs" as two
+ * strings that read IDENTICALLY. The cook is then asked to choose between them with nothing to choose on.
+ *
+ * ⚠️ Which is why the formatter is now SHARED with the version-preview projection (`detail/model.ts`'s
+ * `formatIngredientLine`): the two were byte-identical copies, and a field added to one and forgotten in
+ * the other makes a version's history and its conflict merge disagree about the same line.
+ */
+describe('conflict merge rows — preparation + section are VISIBLE (U26/U27)', () => {
+    /** A snapshot carrying one line, with the given overrides applied to it. */
+    const oneLine = (over: Partial<RecipeIngredient>): RecipeSnapshot =>
+        makeSnapshot({ ingredients: [makeIngredient({ ingredientId: 'ing_1', ...over })] });
+
+    /** The ingredient rows of a three-way diff between `mine` and `theirs` over a common `base`. */
+    const ingredientRows = (
+        base: RecipeSnapshot,
+        mine: RecipeSnapshot,
+        theirs: RecipeSnapshot,
+    ): readonly ConflictFieldRow[] =>
+        computeConflictDiff(base, mine, theirs, 'en').rows.filter((row) => row.fieldKind === 'ingredient');
+
+    it('⛔ a PREPARATION-only conflict renders two DIFFERENT strings, not two identical ones', () => {
+        const rows = ingredientRows(
+            oneLine({ preparation: 'finely chopped' }),
+            oneLine({ preparation: 'roughly torn' }),
+            oneLine({ preparation: 'grated' }),
+        );
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.mine).toContain('roughly torn');
+        expect(rows[0]?.theirs).toContain('grated');
+        expect(rows[0]?.mine).not.toBe(rows[0]?.theirs);
+    });
+
+    it('⛔ a SECTION-only conflict renders two DIFFERENT strings', () => {
+        const rows = ingredientRows(oneLine({ groupLabel: 'Dry' }), oneLine({ groupLabel: 'Wet' }), oneLine({}));
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.mine).toContain('Wet');
+        expect(rows[0]?.mine).not.toBe(rows[0]?.theirs);
+    });
+
+    // ⛔ NEVER folded into the name. `displayText` is parenthesised beside the name deliberately; a
+    // preparation is a trailing clause, because a name carrying one matches no catalog row.
+    it('⛔ never folds the preparation into the food name on a merge row', () => {
+        const rows = ingredientRows(
+            oneLine({ ingredientName: 'Onion' }),
+            oneLine({ ingredientName: 'Onion', preparation: 'finely chopped' }),
+            oneLine({ ingredientName: 'Onion' }),
+        );
+
+        expect(rows[0]?.mine).not.toContain('Onion finely chopped');
+        expect(rows[0]?.mine).not.toContain('Onion (finely chopped)');
+        expect(rows[0]?.mine).toContain('Onion, finely chopped');
+    });
+
+    /**
+     * ⛔ THE ANTI-DRIFT CONTROL. The version preview and the merge row were byte-identical copies of one
+     * formatter; they now share `formatIngredientLine`, and this asserts they still AGREE on a line with no
+     * section — the one input where the merge row adds nothing of its own. A future divergence in either
+     * reds here rather than surfacing as "history and merge describe the same line differently".
+     */
+    it('agrees with the version PREVIEW, SECTION included — one formatter, two surfaces', () => {
+        const ingredient = makeIngredient({
+            ingredientName: 'Flour',
+            unit: 'cup',
+            quantity: { kind: 'exact', value: 2 },
+            displayText: 'sifted',
+            preparation: 'finely chopped',
+            groupLabel: 'Dry',
+        });
+        const rows = ingredientRows(
+            makeSnapshot({ ingredients: [] }),
+            makeSnapshot({ ingredients: [ingredient] }),
+            makeSnapshot({ ingredients: [] }),
+        );
+        const [previewLine] = toVersionPreviewIngredientLines([ingredient], recipeVersionMessages.en.preview, 'en');
+
+        expect(rows[0]?.mine).toBe(previewLine?.text);
     });
 });

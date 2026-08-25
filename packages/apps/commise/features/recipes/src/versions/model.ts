@@ -18,7 +18,7 @@ import type {
 } from '@kitchensink/recipe-core';
 
 import { formatCalories } from '../card/model.js';
-import { formatQuantity } from '../detail/model.js';
+import { formatIngredientLine } from '../detail/model.js';
 import {
     computeTotalTime,
     draftQuantity,
@@ -655,6 +655,16 @@ export const draftToSnapshot = (values: RecipeFormValues, version: number): Reci
                 quantity: draftQuantity(line),
                 unit: line.unit ?? '',
                 ...(line.notes === undefined || line.notes === '' ? {} : { displayText: line.notes }),
+                // U26/U27 — the DRAFT side of the conflict comparison. `computeConflictDiff` compares this
+                // projection against the server's snapshot through `ingredientContentChanged`, so a field
+                // missing here is a field the merge believes the local edit never touched: the cook's
+                // preparation would be silently discarded in favour of the server's, with no conflict shown.
+                ...(line.preparation === undefined || line.preparation.trim() === ''
+                    ? {}
+                    : { preparation: line.preparation.trim() }),
+                ...(line.groupLabel === undefined || line.groupLabel.trim() === ''
+                    ? {}
+                    : { groupLabel: line.groupLabel.trim() }),
                 sortOrder: index,
                 ingredientName: line.name,
                 isUserEntered: false,
@@ -698,6 +708,11 @@ export const applyServerSnapshotToRecipeDetail = (base: RecipeDetail, side: Vers
                 ...(ingredient.displayText === undefined || ingredient.displayText === ''
                     ? {}
                     : { notes: ingredient.displayText }),
+                // U26/U27 — carried onto the conflict shell too, so the three-way merge's "server" and
+                // "base" sides can differ on them at all. A side that cannot REPRESENT a field can never
+                // report a conflict about it.
+                ...(ingredient.preparation === undefined ? {} : { preparation: ingredient.preparation }),
+                ...(ingredient.groupLabel === undefined ? {} : { groupLabel: ingredient.groupLabel }),
                 isUserEntered: ingredient.isUserEntered,
             }),
         ),
@@ -954,7 +969,8 @@ export interface VersionPreviewModalProps {
 export interface VersionPreviewIngredientLine {
     /** Stable key for React reconciliation — the snapshot row's own (frozen) id. */
     readonly key: string;
-    /** The formatted "{quantity}{unit} {name}" text, with any `displayText` override appended. */
+    /** The formatted "{quantity}{unit} {name}" text, with any `displayText` override and any
+     *  `preparation` clause appended. ⛔ The preparation is a trailing CLAUSE, never part of the name. */
     readonly text: string;
     /** The formatted "{calories} cal" chip. OMITTED (never fabricated) when the ingredient carries no
      *  `userCalories` override — a catalog-resolved line's per-serving calories are not captured in a
@@ -964,7 +980,7 @@ export interface VersionPreviewIngredientLine {
 
 /**
  * Project a version snapshot's ingredient lines into the pre-formatted rows the preview modal renders.
- * Reuses {@link formatQuantity} (the detail view's own quantity/unit formatter) and {@link formatCalories}
+ * Reuses `formatIngredientLine` (the SHARED line formatter `conflictDiff.ts` also calls) and {@link formatCalories}
  * (the card's calorie formatter) rather than re-deriving either — one authoritative formatting per piece of
  * knowledge, so the preview can never render a quantity or a calorie count differently than the rest of the
  * app. A line's calorie chip renders ONLY when the snapshot ingredient itself carries `userCalories` (a
@@ -980,26 +996,21 @@ export const toVersionPreviewIngredientLines = (
     messages: RecipeVersionPreviewMessages,
     locale: Locale,
 ): readonly VersionPreviewIngredientLine[] =>
-    ingredients.map((ingredient) => {
-        const name =
-            ingredient.displayText !== undefined
-                ? `${ingredient.ingredientName} (${ingredient.displayText})`
-                : ingredient.ingredientName;
-
-        return {
-            key: ingredient.id,
-            // `.trim()`: an ABSENT quantity with no unit formats to `''` (R40), which would otherwise leave
-            // this preview line starting with a space.
-            text: `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`.trim(),
-            ...(ingredient.userCalories !== undefined
-                ? {
-                      calories: fillTemplate(messages.caloriesLabel, {
-                          calories: formatCalories(ingredient.userCalories, locale),
-                      }),
-                  }
-                : {}),
-        };
-    });
+    ingredients.map((ingredient) => ({
+        key: ingredient.id,
+        // ⚠️ The SHARED formatter (`detail/model.ts`), not a local copy — this projection and
+        // `conflictDiff.ts`'s merge row were byte-identical copies of the same formatting, so a field
+        // added to one and forgotten in the other made a version's history and its conflict merge
+        // disagree about the same line.
+        text: formatIngredientLine(ingredient, locale),
+        ...(ingredient.userCalories !== undefined
+            ? {
+                  calories: fillTemplate(messages.caloriesLabel, {
+                      calories: formatCalories(ingredient.userCalories, locale),
+                  }),
+              }
+            : {}),
+    }));
 
 /**
  * Compute the "Changed from current: {n} ingredients, {m} steps" counts from a {@link SnapshotDiff}: each

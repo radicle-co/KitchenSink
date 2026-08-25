@@ -216,6 +216,12 @@ function toIngredientResponse(
         quantity: quantityFromColumns(row),
         ...(row.unit.length > 0 ? { unit: row.unit } : {}),
         ...(row.displayText !== null ? { notes: row.displayText } : {}),
+        // U26/U27 — omitted for `NULL`, NEVER emitted as `''`: `recipeIngredientViewSchema` rejects a blank
+        // (`min(1)`), so a body carrying one is a body this server can write and no client can read.
+        // ⛔ `preparation` is its own key beside `name`, never folded into it — the name is what the catalog
+        // says the food IS, this is what the recipe does to it.
+        ...(row.preparation !== null ? { preparation: row.preparation } : {}),
+        ...(row.groupLabel !== null ? { groupLabel: row.groupLabel } : {}),
         isUserEntered: row.isUserEntered,
         ...(resolutionStatus === undefined ? {} : { resolutionStatus }),
     };
@@ -318,6 +324,12 @@ function toResolvedIngredientLine(row: RecipeIngredientRow): ResolvedIngredientL
         quantity: quantityFromColumns(row),
         unit: row.unit,
         ...(row.displayText !== null ? { displayText: row.displayText } : {}),
+        // ⛔ U26/U27 — both travel with the clone, for the same reason `display_text` does: they are facts
+        // about THIS LINE that the cloner is copying wholesale. Omitting them is the defect this mapper
+        // already shipped once, for `sourceLine` — a clone that silently loses how the onion was chopped and
+        // which section it sat in, with nothing to signal it.
+        ...(row.preparation !== null ? { preparation: row.preparation } : {}),
+        ...(row.groupLabel !== null ? { groupLabel: row.groupLabel } : {}),
         // ⛔ The raw source line travels with the clone (U11). It is a fact about the SOURCE, not about the
         // author — a clone of an imported recipe was transcribed from the same book — so it belongs to the
         // line exactly as `display_text` does. Omitting it (as this mapper did until `0024` was noticed here)
@@ -511,6 +523,11 @@ function aggregateToSnapshot(aggregate: RecipeAggregate): RecipeSnapshot {
             quantity: quantityFromColumns(line),
             unit: line.unit,
             ...(line.displayText !== null ? { displayText: line.displayText } : {}),
+            // U26/U27 — in the SNAPSHOT, so a restore can put them back. A snapshot that cannot carry a
+            // field silently strips it on restore, which is worse than never having stored it: the cook sees
+            // a version restored and the preparation gone, with nothing naming the loss.
+            ...(line.preparation !== null ? { preparation: line.preparation } : {}),
+            ...(line.groupLabel !== null ? { groupLabel: line.groupLabel } : {}),
             sortOrder: line.sortOrder,
             ingredientName: line.ingredientName,
             isUserEntered: line.isUserEntered,
@@ -556,7 +573,18 @@ function ingredientsChanged(existing: RecipeIngredientRow[], incoming: RecipeIng
             // object's own identity, and it is what makes an upper-bound-only edit substantive (C-004).
             !quantitiesEqual(quantityFromColumns(row), next.quantity) ||
             (row.unit.length > 0 ? row.unit : '') !== (next.unit ?? '') ||
-            (row.displayText ?? null) !== (next.notes ?? null)
+            (row.displayText ?? null) !== (next.notes ?? null) ||
+            // ⛔ U26/U27 — this function is a POSITIVE field-by-field enumeration (see the note above), so a
+            // line field left out here is invisible to it and nothing fails to compile. Left out, an edit
+            // that changes ONLY how the onion is chopped, or which section the line sits in, is saved with
+            // `hasSubstantiveEdit: false`: no version is minted, the previous value is unrecoverable, and
+            // C-004 never re-judges visibility for a recipe whose content moved.
+            //
+            // ⚠️ `?? null` on BOTH sides is load-bearing: the row spells absent as `null` and the wire spells
+            // it by omitting the key, so a bare `!==` would read `undefined !== null` and mint a version on
+            // every metadata-only PATCH.
+            (row.preparation ?? null) !== (next.preparation ?? null) ||
+            (row.groupLabel ?? null) !== (next.groupLabel ?? null)
         );
     });
 }
@@ -1092,6 +1120,11 @@ export class RecipesService {
                 quantity: line.quantity,
                 unit: line.unit ?? '',
                 ...(line.notes !== undefined ? { displayText: line.notes } : {}),
+                // U26/U27 — carried from the request body to the persisted line. ⛔ On the BASE element
+                // schema, so an UPDATE carries them too: unlike `sourceLine`/`statedMeasure` below, these
+                // steer no memoized cross-user judgement and are exactly the content a cook edits.
+                ...(line.preparation !== undefined ? { preparation: line.preparation } : {}),
+                ...(line.groupLabel !== undefined ? { groupLabel: line.groupLabel } : {}),
                 // U11/U14 — carried only when the CALLER transcribed one, which only a create can do (the
                 // field is on the create element schema alone, ADR-0023's shape). An UPDATE's lines arrive
                 // here without one and are handed the stored transcription afterwards, by

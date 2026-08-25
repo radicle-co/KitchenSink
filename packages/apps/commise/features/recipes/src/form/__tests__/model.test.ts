@@ -15,11 +15,13 @@ import {
     RecipeVisibility,
     MAX_RECIPE_DESCRIPTION_LENGTH,
     MAX_RECIPE_TITLE_LENGTH,
+    type RecipeDetail,
     type RecipeIngredientView,
 } from '@kitchensink/recipe-core';
 import { createRecipeRequestSchema, updateRecipeRequestSchema } from '@kitchensink/schema-recipe';
 
 import { makeIngredientView, makeRecipeDetail, makeStepView } from '../../__fixtures__/index.js';
+import { updateIngredientAt } from '../props.js';
 
 import {
     canAdvanceFromStep,
@@ -999,5 +1001,121 @@ describe('toRecipeFormValues + validate + submit — the quantity round-trip (U9
 
     it('carries an absent quantity through the UPDATE body too (the edit path, not just create)', () => {
         expect(toUpdateRecipeInput(seed({ kind: 'absent' })).ingredients?.[0]?.quantity).toEqual({ kind: 'absent' });
+    });
+});
+
+/**
+ * U26/U27 — the DRAFT ↔ WIRE round trip for the two new line fields.
+ *
+ * ⛔ The failure this suite exists for is silent NARROWING, the same one U9's range work was written
+ * against: a mapper that drops a field lets a cook open a recipe, change nothing, press save, and lose the
+ * preparation — with every assertion about "the recipe was saved" still passing.
+ */
+describe('U26/U27 — preparation + groupLabel survive the draft round trip', () => {
+    const detailWith = (over: Partial<RecipeIngredientView>): RecipeDetail =>
+        makeRecipeDetail({
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: 'ing-1',
+                    name: 'Onion',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    ...over,
+                }),
+            ],
+        });
+
+    it('seeds BOTH from a loaded recipe', () => {
+        const values = toRecipeFormValues(
+            detailWith({ preparation: 'finely chopped', groupLabel: 'For the marinade' }),
+        );
+
+        expect(values.ingredients[0]).toMatchObject({
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+        });
+    });
+
+    it('OMITS both keys when the loaded recipe states neither — never seeds `""`', () => {
+        const values = toRecipeFormValues(detailWith({}));
+
+        expect(values.ingredients[0]).not.toHaveProperty('preparation');
+        expect(values.ingredients[0]).not.toHaveProperty('groupLabel');
+    });
+
+    // ⛔ THE NARROWING GUARD. Open → save with no edit must produce the same two values, not lose them.
+    it('⛔ a load-then-save round trip preserves both, unchanged', () => {
+        const detail = detailWith({ preparation: 'finely chopped', groupLabel: 'For the marinade' });
+        const body = toCreateRecipeInput(toRecipeFormValues(detail));
+
+        expect(body.ingredients[0]).toMatchObject({
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+        });
+    });
+
+    it('sends NEITHER key for an ungrouped, unprepared line — never `""`', () => {
+        const body = toCreateRecipeInput(toRecipeFormValues(detailWith({})));
+
+        expect(body.ingredients[0]).not.toHaveProperty('preparation');
+        expect(body.ingredients[0]).not.toHaveProperty('groupLabel');
+    });
+
+    // A cook who types into the field and then clears it leaves `''` in the draft. Sending that would `400`
+    // the whole save (`recipeIngredientGroupLabelSchema` rejects a blank) over a field they think is empty.
+    it('omits a CLEARED field rather than sending the empty string', () => {
+        const values = toRecipeFormValues(detailWith({}));
+        const cleared = updateIngredientAt(values, 0, { preparation: '', groupLabel: '' });
+        const body = toCreateRecipeInput(cleared);
+
+        expect(body.ingredients[0]).not.toHaveProperty('preparation');
+        expect(body.ingredients[0]).not.toHaveProperty('groupLabel');
+    });
+
+    // ⛔ And a field that is only whitespace is the same case wearing different bytes — `'  '` is not empty
+    // to `=== ''`, so it would be SENT, and the wire would reject the whole recipe.
+    it('omits a WHITESPACE-ONLY field, and TRIMS one the cook padded', () => {
+        const values = toRecipeFormValues(detailWith({}));
+        const padded = updateIngredientAt(values, 0, { preparation: '   ', groupLabel: '  Dry  ' });
+        const body = toCreateRecipeInput(padded);
+
+        expect(body.ingredients[0]).not.toHaveProperty('preparation');
+        expect(body.ingredients[0]?.groupLabel).toBe('Dry');
+    });
+
+    // ⛔ U26's headline rule, on the CLIENT side of the wire this time.
+    it('⛔ NEVER concatenates the preparation into the food name, on read or on write', () => {
+        const detail = detailWith({ preparation: 'finely chopped' });
+        const values = toRecipeFormValues(detail);
+        const body = toCreateRecipeInput(values);
+
+        expect(values.ingredients[0]?.name).toBe('Onion');
+        expect(body.ingredients[0]?.name).toBe('Onion');
+        expect(body.ingredients[0]?.name).not.toContain('finely chopped');
+    });
+
+    it('the UPDATE body carries both too — they are on the BASE schema, so a PATCH may edit them', () => {
+        const detail = detailWith({ preparation: 'finely chopped', groupLabel: 'For the marinade' });
+        const body = toUpdateRecipeInput(toRecipeFormValues(detail));
+
+        expect(body.ingredients?.[0]).toMatchObject({
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+        });
+    });
+
+    // The section labels and their ORDER must survive a whole grouped recipe, not just one line.
+    it('a GROUPED recipe round-trips its labels and their order', () => {
+        const detail = makeRecipeDetail({
+            ingredients: [
+                makeIngredientView({ ingredientId: 'i-1', name: 'Flour', groupLabel: 'Dry' }),
+                makeIngredientView({ ingredientId: 'i-2', name: 'Sugar', groupLabel: 'Dry' }),
+                makeIngredientView({ ingredientId: 'i-3', name: 'Milk', groupLabel: 'Wet' }),
+            ],
+        });
+        const body = toCreateRecipeInput(toRecipeFormValues(detail));
+
+        expect(body.ingredients.map((line) => line.groupLabel)).toEqual(['Dry', 'Dry', 'Wet']);
+        expect(body.ingredients.map((line) => line.name)).toEqual(['Flour', 'Sugar', 'Milk']);
     });
 });

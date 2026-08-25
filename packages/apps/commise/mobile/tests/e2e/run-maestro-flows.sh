@@ -71,6 +71,11 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     mutates nothing, so it is order-independent).
 #   - `recipes/quantity-range` sits with the other CREATE-wizard flows and immediately after `create`: it
 #     publishes (twice), so it mutates the library, and it shares `create`'s freeform-resolve prelude.
+#   - `recipes/preparation-groups` (U26/U27) sits immediately after `quantity-range`, for the same three
+#     reasons: it publishes (so it mutates the library and belongs in the mutating cluster), it shares
+#     `create`'s freeform-resolve prelude, and — like `quantity-range` — its subject is a per-LINE field on
+#     the create wizard, so the two want the same fixture and the same position. It needs NO food service:
+#     the line resolves through the freeform create, exactly as `create` and `quantity-range` do.
 #   - `recipes/ingredient-correction` (U14) is NOT in this plan — see `KNOWN_UNRUN_FLOWS` in
 #     `packages/infra/global/__tests__/maestroFlowSelection.test.ts` for the full reason and the coverage
 #     that remains. In short: the control renders `null` unless it has a `foodId`, and it lives on a
@@ -134,6 +139,7 @@ collections:recipes/collections-clone
 collections:recipes/collections-pull
 recipes:recipes/create
 recipes:recipes/quantity-range
+recipes:recipes/preparation-groups
 recipes:recipes/ingredient-catalog-blend
 recipes:recipes/ingredient-usda-search
 recipes:recipes/photos

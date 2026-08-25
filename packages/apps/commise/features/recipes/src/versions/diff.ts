@@ -158,6 +158,13 @@ export const ingredientContentChanged = (base: RecipeIngredient, target: RecipeI
     !quantitiesEqual(base.quantity, target.quantity) ||
     base.unit !== target.unit ||
     base.displayText !== target.displayText ||
+    // ⛔ U26/U27 — the same trap the comment above names, one migration later. A preparation-only or
+    // section-only edit is content a cook made and will look for in the history; left out here, the version
+    // screen reports "no changes" for it. And `computeConflictDiff` REUSES this predicate, so the three-way
+    // merge would inherit the lie — a concurrent edit to a preparation would read as no conflict at all and
+    // one side's value would be dropped without anyone being asked.
+    base.preparation !== target.preparation ||
+    base.groupLabel !== target.groupLabel ||
     base.sortOrder !== target.sortOrder ||
     base.ingredientName !== target.ingredientName ||
     base.isUserEntered !== target.isUserEntered ||

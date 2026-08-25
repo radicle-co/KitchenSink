@@ -64,6 +64,11 @@ describe('RecipeIngredientsDal.replaceForRecipe', () => {
             statedQuantity: null,
             statedQuantityHigh: null,
             statedUnit: null,
+            // U26/U27 — written on EVERY insert, `null` when the line states neither, and `null` rather than
+            // `''`: migration 0030's CHECKs refuse a blank, so a `?? ''` fallback here would fail the INSERT
+            // for the majority of lines. Part of the whole-row `toEqual` for the reason above.
+            preparation: null,
+            groupLabel: null,
             sortOrder: 0,
             isUserEntered: false,
             // No per-line nutrition override supplied → the numeric columns are null.
@@ -102,6 +107,27 @@ describe('RecipeIngredientsDal.replaceForRecipe', () => {
         expect(result).toEqual([]);
         expect(control.calls.some((call) => call.method === 'delete')).toBe(true);
         expect(control.calls.some((call) => call.method === 'insert')).toBe(false);
+    });
+
+    it('writes a preparation and a group label to their own columns (U26/U27)', async () => {
+        const control = createFakeDb();
+        const dal = new RecipeIngredientsDal();
+        control.enqueue(undefined, [makeRecipeIngredientRow({ recipeId: 'r-1' })]);
+
+        await dal.replaceForRecipe(control.db, 'r-1', [
+            { ...LINE, preparation: 'finely chopped', groupLabel: 'For the marinade' },
+        ]);
+
+        const rows = control.calls.find((call) => call.method === 'values')?.args[0] as Record<string, unknown>[];
+
+        // ⛔ Both land in their OWN columns and neither touches `ingredientName` or `displayText` — the two
+        // fields they are most likely to be folded into by a careless mapper.
+        expect(rows[0]).toMatchObject({
+            preparation: 'finely chopped',
+            groupLabel: 'For the marinade',
+            ingredientName: 'Onion',
+            displayText: 'diced',
+        });
     });
 
     it('defaults displayText to null when the line omits it', async () => {

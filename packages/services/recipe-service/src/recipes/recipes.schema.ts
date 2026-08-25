@@ -43,9 +43,11 @@ import {
     recipeDeviceLabelSchema,
     recipeDifficultySchema,
     recipeExpectedVersionSchema,
+    recipeIngredientGroupLabelSchema,
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
     recipeIngredientNotesSchema,
+    recipeIngredientPreparationSchema,
     recipeIngredientSourceLineSchema,
     recipeIngredientUnitSchema,
     recipeLineNutritionSchema,
@@ -80,8 +82,57 @@ export const recipeIngredientInputSchema = z.strictObject({
     quantity: ingredientQuantitySchema,
     /** Omit for a unitless line; `''` is rejected so "unitless" has ONE representation. */
     unit: recipeIngredientUnitSchema.optional(),
-    /** Free-form display override (persisted as `displayText`). */
+    /**
+     * Free-form display override (persisted as `displayText`).
+     *
+     * ⛔ NOT the preparation, and U26 RESOLVED that rather than renaming it. No EDITOR writes this field —
+     * its one producer is `@kitchensink/cookbook-import`, which writes the source's whole normalized clause
+     * ("2 cups all-purpose flour, sifted") verbatim for a reader. See `preparation` below and
+     * `0030_ingredient_preparation_and_group.sql` for why the two are separate facts.
+     */
     notes: recipeIngredientNotesSchema.optional(),
+    /**
+     * How THIS recipe prepares the food — `finely chopped`, `at room temperature` (plan U26).
+     *
+     * ⛔ ON THE BASE, and therefore inherited by `PATCH` — the deliberate OPPOSITE of the recipe-level
+     * `source`. ADR-0023 keeps `source` off the base because `updateRecipeRequestSchema` derives from it,
+     * so a field placed there "would let ANY caller re-classify an existing recipe as `imported_public`
+     * after creation, bypassing the policy" — an AUTHORIZATION concern about a field VALUE with a
+     * cross-user reputational harm behind it. A preparation classifies nothing, gates nothing and is read
+     * by no policy, so that reasoning does not reach it.
+     *
+     * ⚠️ Nor does the verification gate's: that ADR's `statedMeasure` addendum explicitly refuses to treat
+     * the gate as an authorization surface ("a parser-quality control, not an integrity control against a
+     * hostile client"). `verificationKey` hashes identity, both quantity bounds, the unit and the stated
+     * measure — a preparation is in none of it — so there is nothing here to steer either way.
+     *
+     * ⛔ And create-only would be ACTIVELY WRONG: `versions.service.ts` restores by rebuilding an UPDATE
+     * body, so a create-only field could never be restored at all, and `replaceForRecipe` re-inserts every
+     * line on any PATCH that supplies `ingredients` — which both shipped clients always do.
+     *
+     * Omit when the line states none; `''` and whitespace-only are rejected, so absence has ONE spelling.
+     */
+    preparation: recipeIngredientPreparationSchema.optional(),
+    /**
+     * The section this line belongs to — `For the marinade`, `Dry` (plan U27).
+     *
+     * ⛔ FREE TEXT, never an enum (owner ruling 2026-08-24). Dry/wet as a per-line ATTRIBUTION was dropped:
+     * it is a property of the FOOD rather than of a recipe's use of it, and where it matters to a cook it
+     * means MIXING ORDER — the same axis as "For the sauce". "Dry" and "Wet" survive as two labels among
+     * many, which is why a closed set will not do: it could not express "For the crust".
+     *
+     * ⛔ PER LINE, and NOT a `(group, lines[])` structure. A structure can represent a group with no lines,
+     * which this cannot — so such a group would survive in an editor, vanish on save, and read to the cook
+     * as a section that deleted itself. It also makes "move a line to another section" a single-field
+     * update rather than a splice, which is where a line's other fields get dropped.
+     *
+     * Sections are folded from CONSECUTIVE RUNS of equal labels in array order, never grouped by label
+     * identity — folding by identity would REORDER the recipe. An ungrouped recipe omits the key on every
+     * line and renders as a plain flat list with no section chrome.
+     *
+     * On the BASE for the same reason as `preparation`: a cook regroups lines while editing.
+     */
+    groupLabel: recipeIngredientGroupLabelSchema.optional(),
     userCalories: recipeLineNutritionSchema.optional(),
     userProteinG: recipeLineNutritionSchema.optional(),
     userCarbsG: recipeLineNutritionSchema.optional(),

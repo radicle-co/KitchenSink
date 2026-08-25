@@ -56,6 +56,34 @@ export const MAX_RECIPE_CUISINE_LENGTH = 100;
 /** Max length of an ingredient line's display label; the server re-resolves the canonical name (ADV-2). */
 export const MAX_RECIPE_INGREDIENT_NAME_LENGTH = 120;
 
+/**
+ * Max length of an ingredient line's PREPARATION phrase (plan U26) — `finely chopped`, `at room
+ * temperature`, `roughly torn`.
+ *
+ * A PRODUCT bound over an unbounded `text` column, and a SEPARATE constant from
+ * {@link MAX_RECIPE_INGREDIENT_NAME_LENGTH} despite sharing its value today: a food's display label and the
+ * treatment a cook applies to it change for different reasons, and DRY governs knowledge rather than
+ * keystrokes. Merging them would let a later "the catalog needs longer names" edit silently widen what a
+ * preparation may say.
+ *
+ * Sized as a PHRASE rather than prose. `@kitchensink/recipe-import-core`'s `modifierLexicon.ts` is the
+ * vocabulary this field is made of — a past participle, optionally qualified (`finely chopped`), or a
+ * temperature (`at room temperature`) — and the longest realistic composition of those is a small fraction
+ * of 120. Anything longer is a sentence, and a sentence about the ingredient belongs in the step text.
+ */
+export const MAX_RECIPE_INGREDIENT_PREPARATION_LENGTH = 120;
+
+/**
+ * Max length of an ingredient line's GROUP LABEL (plan U27) — `For the marinade`, `Dry ingredients`.
+ *
+ * Also a product bound over unbounded `text`. Sized as a HEADING, which is what it renders as: the longest
+ * of the twelve labels the Figma Make mockup suggests is 16 characters, and a section heading that does not
+ * fit on one line above a list has stopped being a heading. Deliberately tighter than a preparation, because
+ * the two are read in different places — one sits inline beside an ingredient, the other stands above a run
+ * of them.
+ */
+export const MAX_RECIPE_INGREDIENT_GROUP_LABEL_LENGTH = 60;
+
 /** Max ingredient lines on one recipe (REQ-003a / PRF-REQ-034). */
 export const MAX_RECIPE_INGREDIENTS = 100;
 
@@ -256,8 +284,67 @@ export const recipeIngredientUnitSchema = z.string().min(1);
  *
  * `.min(1)` fixes a real round-trip break: `''` persisted non-NULL and the read projection emitted
  * `notes: ''`, which `recipeIngredientViewSchema.notes` (`min(1)`) rejects.
+ *
+ * ⛔ NOT A PREPARATION, and U26 RESOLVED that rather than renaming this (plan U26's open question). The
+ * docstring above is accurate and the field is not dead — it simply has no EDITOR writer. Its one producer
+ * is `@kitchensink/cookbook-import`'s `toImportedIngredientLine`, which writes `notes: parsed.raw`: the
+ * whole normalized clause the book printed (`2 cups all-purpose flour, sifted`), kept verbatim beside the
+ * structured values for a reader. Retitling this field to "preparation" would therefore relabel every
+ * imported line's FULL CLAUSE as a preparation phrase, on a surface that renders it
+ * (`RecipeDetailBody.tsx`) — a visible corruption of data at rest, not a docstring fix. So
+ * {@link recipeIngredientPreparationSchema} is a genuinely new field, this one is untouched, and no
+ * backfill happens.
  */
 export const recipeIngredientNotesSchema = z.string().min(1);
+
+/**
+ * How a cook prepares this line's food — `finely chopped`, `at room temperature`, `roughly torn` (plan U26).
+ *
+ * ⛔ NEVER PART OF THE FOOD'S NAME, on read or on write. The name comes from the catalog and is what a
+ * `food_id` resolves to; a preparation is what THIS recipe does to it. Folding one into the other is how a
+ * name stops matching any catalog row, and it is the shape `versions/model.ts`'s preview deliberately does
+ * NOT extend to (see its own note).
+ *
+ * ⚠️ The VOCABULARY this field holds is `@kitchensink/recipe-import-core`'s `modifierLexicon.ts` — the
+ * KTD-11b ruling of 2026-08-23: a past participle is preparation (`chopped`, `grated`, `melted`, `sifted`),
+ * an ADJECTIVE is identity and belongs in the name (`sweet`, `brown`, `Italian`, `large`), and a
+ * temperature is preparation even though it is an adjective (`hot`, `cold`). This field is the wire's half
+ * of that split; nothing here re-derives it, and nothing should — that module records why a part-of-speech
+ * tagger cannot implement a definition that is not a claim about English.
+ *
+ * `.trim()` before the bounds, then `.min(1)`, following {@link recipeIngredientSourceLineSchema} rather
+ * than the bare `.min(1)` above: a whitespace-only preparation is a second spelling of absent, and "this
+ * line states no preparation" has exactly one representation — omitting the key.
+ */
+export const recipeIngredientPreparationSchema = z
+    .string()
+    .transform((value) => value.trim())
+    .pipe(z.string().min(1).max(MAX_RECIPE_INGREDIENT_PREPARATION_LENGTH));
+
+/**
+ * The section an ingredient line belongs to — `For the marinade`, `Dry ingredients` (plan U27).
+ *
+ * ⛔ FREE TEXT, never an enum, and that is an owner ruling (2026-08-24) rather than a default. Dry/wet as a
+ * per-line ATTRIBUTION was dropped — the USDA derives nothing usable for it (`foodCategory` is a taxonomy,
+ * and the Water nutrient gets the cooking sense backwards: flour at 12% water is dry, honey at 17% is wet),
+ * and more decisively it is a property of the FOOD rather than of a recipe's use of it, so a per-line toggle
+ * asks a cook to restate a fact about flour every time they write a recipe. Where it genuinely matters it
+ * means MIXING ORDER, which is the same axis as "For the sauce" — one field serves both. `Dry` and `Wet`
+ * survive here as two labels among many, which is exactly why a closed set will not do: it could not
+ * express "For the crust".
+ *
+ * ⛔ SCOPED TO ITS RECIPE, structurally. There is no label id, no registry and no cross-recipe entity — a
+ * label is a string on a line, and a line belongs to one recipe. Two recipes using "For the sauce" share a
+ * word and nothing else.
+ *
+ * ⛔ `.trim()` is load-bearing here in a way it is not for a preparation: sections are folded from the
+ * labels themselves, so an untrimmed `"Dry "` would render a SECOND section under a heading visually
+ * identical to `"Dry"`, which no reader could tell apart and no cook could merge.
+ */
+export const recipeIngredientGroupLabelSchema = z
+    .string()
+    .transform((value) => value.trim())
+    .pipe(z.string().min(1).max(MAX_RECIPE_INGREDIENT_GROUP_LABEL_LENGTH));
 
 /**
  * The raw line a cook's SOURCE stated for one ingredient — the transcription, never our rendering of it.

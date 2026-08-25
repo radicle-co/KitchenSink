@@ -111,6 +111,12 @@ function toIngredientProjection(
             quantity: ingredientQuantitySchema.parse(line['quantity']),
             ...(line['unit'] === undefined ? {} : { unit: String(line['unit']) }),
             ...(line['notes'] === undefined ? {} : { notes: String(line['notes']) }),
+            // ⛔ U26/U27 — the DOUBLE has to project these back, or the round trip this suite exists to
+            // prove silently loses them: the editor would send a preparation, the double would drop it, and
+            // the "re-open the editor" assertion would fail with no hint that the mock — not the app — is
+            // what narrowed the recipe. Same class as the `quantity` note above.
+            ...(line['preparation'] === undefined ? {} : { preparation: String(line['preparation']) }),
+            ...(line['groupLabel'] === undefined ? {} : { groupLabel: String(line['groupLabel']) }),
             isUserEntered: resolveUserEntered(ingredientId),
         };
     });
@@ -317,6 +323,9 @@ function detailToConflictSnapshot(detail: RecipeDetail, version: number): Recipe
             ingredientName: ingredient.name,
             isUserEntered: ingredient.isUserEntered,
             ...(ingredient.notes === undefined || ingredient.notes === '' ? {} : { displayText: ingredient.notes }),
+            // U26/U27 — carried onto the version-conflict side too, so a conflict can actually differ on them.
+            ...(ingredient.preparation === undefined ? {} : { preparation: ingredient.preparation }),
+            ...(ingredient.groupLabel === undefined ? {} : { groupLabel: ingredient.groupLabel }),
         })),
     };
 }
@@ -1175,6 +1184,8 @@ export async function mockRecipeApi(
                     quantity: ingredient.quantity,
                     ...(ingredient.unit !== undefined ? { unit: ingredient.unit } : {}),
                     ...(ingredient.displayText !== undefined ? { notes: ingredient.displayText } : {}),
+                    ...(ingredient.preparation !== undefined ? { preparation: ingredient.preparation } : {}),
+                    ...(ingredient.groupLabel !== undefined ? { groupLabel: ingredient.groupLabel } : {}),
                     isUserEntered: ingredient.isUserEntered,
                 })),
                 steps: snapshot.steps.map((step) => ({

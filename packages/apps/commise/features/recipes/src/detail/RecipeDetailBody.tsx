@@ -228,6 +228,18 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                     token can break too); the trailing badge never does. Parity with the
                                     native leaf's `flexShrink` pair — see `RecipeDetailView.native.tsx`. */}
                                 <span className="min-w-0 break-words text-charcoal">{ingredient.name}</span>
+                                {/* U26 — the PREPARATION, rendered as its own element immediately after the
+                                    name and NEVER concatenated into it. Without this a cook could enter
+                                    "finely chopped" in the editor, save, and find it nowhere on the recipe
+                                    they cook from — the field would round-trip and be invisible. It sits
+                                    BEFORE `notes` because it is about this line's food, while `notes` is a
+                                    free-form display override the importer fills with the whole source
+                                    clause. */}
+                                {ingredient.preparation !== undefined && ingredient.preparation.length > 0 && (
+                                    <span className="min-w-0 break-words text-body-sm text-slate">
+                                        {ingredient.preparation}
+                                    </span>
+                                )}
                                 {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
                                     <span className="min-w-0 break-words text-body-sm text-slate">
                                         {ingredient.notes}

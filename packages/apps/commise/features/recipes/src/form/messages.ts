@@ -86,6 +86,42 @@ export interface RecipeFormMessages {
     readonly ingredientQuantityHighLabel: string;
     /** Ingredient-unit field label template (contains `{number}`). */
     readonly ingredientUnitLabel: string;
+    /**
+     * Ingredient-PREPARATION field label template (contains `{number}`; plan U26).
+     *
+     * ⛔ "Preparation", never "notes". The wire's `notes` is a different field with a different producer (the
+     * cookbook importer writes the source's whole clause into it) and NO editor writes it — see
+     * `recipeIngredientNotesSchema`. Naming this control "notes" would invite exactly the merge U26 refused.
+     */
+    readonly ingredientPreparationLabel: string;
+    /** Placeholder/hint shown inside the preparation field — the KTD-11b vocabulary, by example. */
+    readonly ingredientPreparationPlaceholder: string;
+    /**
+     * Ingredient-SECTION field label template (contains `{number}`; plan U27).
+     *
+     * "Section" rather than "group": what a cook sees is a heading above a run of lines, and "group" reads
+     * as a verb on a control that does not group anything by itself.
+     */
+    readonly ingredientGroupLabel: string;
+    /** Placeholder/hint shown inside the section field — free text, by example, never a closed set. */
+    readonly ingredientGroupPlaceholder: string;
+    /**
+     * Note shown beside a unit that names no defined amount — `handful`, `splash`, `to taste` (plan U25).
+     *
+     * ⛔ It is a DESCRIPTION, not an error. A cook's measure is a legitimate thing to write, and the line is
+     * accepted unchanged; what the note says is that nothing can weigh it, which is why the line adds nothing
+     * to the nutrition total.
+     */
+    readonly ingredientUnitSubjectiveNote: string;
+    /**
+     * Note shown beside a unit this vocabulary has never seen (plan U25).
+     *
+     * ⛔ ALSO not an error, and deliberately distinct from the note above. The whole point of the three-way
+     * classification is that a deliberate `handful` must not read like a mistyped `blorp` — which is what a
+     * colour-only mark (the mockup's) cannot express, and what a two-way recognised/unrecognised split
+     * cannot either.
+     */
+    readonly ingredientUnitUnknownNote: string;
     /** Accessible label for an ingredient line's resolution-status badge (contains `{number}`). */
     readonly ingredientStatusLabel: string;
     /** Add-ingredient action label. */
@@ -194,6 +230,12 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         ingredientQuantityLabel: 'Ingredient {number} quantity',
         ingredientQuantityHighLabel: 'Ingredient {number} maximum quantity',
         ingredientUnitLabel: 'Ingredient {number} unit',
+        ingredientPreparationLabel: 'Ingredient {number} preparation',
+        ingredientPreparationPlaceholder: 'e.g. finely chopped, melted, at room temperature',
+        ingredientGroupLabel: 'Ingredient {number} section',
+        ingredientGroupPlaceholder: 'e.g. For the marinade',
+        ingredientUnitSubjectiveNote: 'Cook\u2019s measure',
+        ingredientUnitUnknownNote: 'Unrecognised unit',
         ingredientStatusLabel: 'Ingredient {number} status',
         addIngredient: 'Add ingredient',
         removeIngredient: 'Remove ingredient {number}',

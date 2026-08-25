@@ -35,15 +35,18 @@
  * reuse `diff.ts`'s exported {@link stepContentChanged}, {@link ingredientIdentity}, and
  * {@link ingredientContentChanged} — the SAME "what counts as changed content" rules the W6 two-way diff
  * uses, so the two-way and three-way diffs can never disagree about whether a given step or ingredient
- * changed. Ingredient line formatting reuses {@link formatQuantity} (the detail view's own formatter) for
- * the same reason — one authoritative "how a quantity+unit reads" regardless of which surface renders it.
+ * changed. Ingredient line formatting reuses {@link formatIngredientLine} (`detail/model.ts`) for the same
+ * reason — one authoritative "how an ingredient line reads" regardless of which surface renders it. That
+ * function was EXTRACTED for U26: this module and `model.ts`'s version-preview projection each carried a
+ * byte-identical copy of it, so a field added to one and forgotten in the other rendered a version's
+ * history and its conflict merge differently for the same line.
  *
  * Pure: never mutates `base`, `mine`, `theirs`, or their nested `steps`/`ingredients`.
  */
 import type { Locale } from '@commise/i18n';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep } from '@kitchensink/recipe-core';
 
-import { formatQuantity } from '../detail/model.js';
+import { formatIngredientLine } from '../detail/model.js';
 import { ingredientContentChanged, ingredientIdentity, stepContentChanged } from './diff.js';
 
 /** Whether a field/element differs between two sides: `[=]` neither side changed it, `[→]` exactly one side
@@ -120,22 +123,22 @@ const formatStep = (step: RecipeStep | undefined): string => {
     return step.timerSeconds !== undefined ? `${step.instruction} (${step.timerSeconds}s timer)` : step.instruction;
 };
 
-/** Format an ingredient line for display: "{quantity}{unit} {name}", with any `displayText` override appended
- *  in parens. `undefined` (no ingredient with this identity on this side) formats as the empty string. Pure. */
-const formatIngredient = (ingredient: RecipeIngredient | undefined, locale: Locale): string => {
-    if (ingredient === undefined) {
-        return '';
-    }
-
-    const name =
-        ingredient.displayText !== undefined
-            ? `${ingredient.ingredientName} (${ingredient.displayText})`
-            : ingredient.ingredientName;
-
-    // `.trim()`: an ABSENT quantity with no unit formats to `''` (R40 — it renders no fabricated number),
-    // which would otherwise leave this row starting with a space.
-    return `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${name}`.trim();
-};
+/**
+ * Format an ingredient line for a MERGE ROW. `undefined` (no ingredient with this identity on this side)
+ * formats as the empty string. Pure.
+ *
+ * ⚠️ The line itself comes from the SHARED {@link formatIngredientLine}, which the version-preview
+ * projection also calls — this function used to be a byte-identical copy of it, so a field added to one and
+ * forgotten in the other rendered a version's history and its conflict merge differently for the same line.
+ *
+ * ⛔ The SECTION comes from that shared formatter too, and DELIBERATELY not from a bracket added here. This
+ * surface needs it most — `ingredientContentChanged` counts a section-only edit as changed, so a merge row
+ * without the label would ask a cook to CHOOSE between two strings that read identically — but the version
+ * preview reads off the same tally, so rendering it on one surface and not the other is exactly the
+ * self-contradiction the preparation argument rules out.
+ */
+const formatIngredient = (ingredient: RecipeIngredient | undefined, locale: Locale): string =>
+    ingredient === undefined ? '' : formatIngredientLine(ingredient, locale);
 
 /**
  * `conflict` iff both sides changed it to DIFFERENT values; `changed` iff exactly one side changed it, or

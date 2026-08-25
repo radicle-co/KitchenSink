@@ -303,3 +303,60 @@ describe('diffSnapshots', () => {
         expect(target).toEqual(targetSnapshot);
     });
 });
+
+/**
+ * U26/U27 — the SAME positive-enumeration trap the range case above records, one migration later.
+ *
+ * ⛔ A version diff that reports "no changes" for an edit the cook made is a version-history screen that
+ * LIES — and `ingredientContentChanged` names its fields one by one, so a new column is invisible to it and
+ * nothing fails to compile. `computeConflictDiff` (`../conflictDiff.ts`) reuses the same predicate, so the
+ * three-way merge inherits the lie: a concurrent edit to a preparation would read as "no conflict" and one
+ * side's value would be lost without anyone being asked.
+ */
+describe('diffSnapshots — preparation + group label are CONTENT (U26/U27)', () => {
+    it('counts a PREPARATION-only change as modified', () => {
+        const base = makeSnapshot({ ingredients: [makeIngredient({ preparation: 'finely chopped' })] });
+        const target = makeSnapshot({ ingredients: [makeIngredient({ preparation: 'roughly torn' })] });
+
+        expect(diffSnapshots(base, target).ingredients).toEqual({ added: 0, removed: 0, modified: 1 });
+    });
+
+    it('counts a GROUP-LABEL-only change as modified — moving a line changes what the recipe says', () => {
+        const base = makeSnapshot({ ingredients: [makeIngredient({ groupLabel: 'For the marinade' })] });
+        const target = makeSnapshot({ ingredients: [makeIngredient({ groupLabel: 'For the topping' })] });
+
+        expect(diffSnapshots(base, target).ingredients).toEqual({ added: 0, removed: 0, modified: 1 });
+    });
+
+    it('counts ADDING a preparation to a line that had none as modified', () => {
+        const base = makeSnapshot({ ingredients: [makeIngredient({})] });
+        const target = makeSnapshot({ ingredients: [makeIngredient({ preparation: 'melted' })] });
+
+        expect(diffSnapshots(base, target).ingredients).toEqual({ added: 0, removed: 0, modified: 1 });
+    });
+
+    it('counts CLEARING a group label (ungrouping a line) as modified', () => {
+        const base = makeSnapshot({ ingredients: [makeIngredient({ groupLabel: 'Dry' })] });
+        const target = makeSnapshot({ ingredients: [makeIngredient({})] });
+
+        expect(diffSnapshots(base, target).ingredients).toEqual({ added: 0, removed: 0, modified: 1 });
+    });
+
+    // ⛔ The other half: two lines that state neither must NOT read as modified. `undefined !== undefined`
+    // is false, so this passes trivially today — it is here so a later `?? ''` normalisation on one side
+    // only (the shape that breaks the equivalent server-side comparison) reds instead of shipping.
+    it('does NOT count two lines that state neither as changed', () => {
+        const base = makeSnapshot({ ingredients: [makeIngredient({})] });
+        const target = makeSnapshot({ ingredients: [makeIngredient({})] });
+
+        expect(diffSnapshots(base, target).ingredients).toEqual(ZERO_TALLY);
+    });
+
+    it('does NOT count two lines carrying the SAME preparation and section as changed', () => {
+        const line = { preparation: 'finely chopped', groupLabel: 'For the marinade' };
+        const base = makeSnapshot({ ingredients: [makeIngredient(line)] });
+        const target = makeSnapshot({ ingredients: [makeIngredient(line)] });
+
+        expect(diffSnapshots(base, target).ingredients).toEqual(ZERO_TALLY);
+    });
+});

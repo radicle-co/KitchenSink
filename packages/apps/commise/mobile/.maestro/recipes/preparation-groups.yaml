@@ -1,0 +1,154 @@
+appId: io.commise.mobile
+---
+# A line's PREPARATION and its SECTION (plan U26 / U27). Mobile mirror of the web Playwright
+# `recipeIngredientDetail.spec.ts`, per the cross-platform mandate — two fields that ship to one platform and
+# not the other are exactly what §14 exists to stop, and the two form leaves are separate files with no
+# compiler edge between them.
+#
+# Assumes an authenticated session (the auth flow runs first in CI ordering) and the app pointed at a seeded
+# recipe API. It CREATES its own recipe rather than editing a seeded one, so `Ingredient 1 …` addresses the
+# line this flow itself made — the seeded recipes carry five lines of their own, and addressing by position
+# into a fixture is what made `recipes/edit.yaml`'s original checkpoint pass without proving anything.
+#
+# ONE flow covers three facts, because they share a single emulator run and each is worthless alone:
+#   1. Both fields can be STATED, on their own controls — never folded into the food's name.
+#   2. They SURVIVE the round trip: the detail shows the preparation, and re-opening the editor re-seeds
+#      BOTH. The failure this guards is silent narrowing — a mapper that drops the section label lets a
+#      grouped recipe re-open flat, with nothing to signal the loss.
+#   3. The SECTION HEADING appears as soon as a line carries a label, derived from the draft rather than from
+#      a save.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+# Step 1 of 4 (Basic). servings/prep/cook keep their valid defaults, as in `create.yaml`.
+- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Title'
+- tapOn: 'Title'
+- inputText: 'Maestro Marinade Bowl'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients). Resolve a line through the freeform create (no food-service dependency in this
+# job — same rationale as `create.yaml`), then state its preparation and its section.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+# The picker RESETS only after the resolved line is handed up, so this disappearing IS the create resolving
+# (see `edit.yaml`'s note on why this is the honest checkpoint).
+- extendedWaitUntil:
+      notVisible: 'Create .*Tomato.*'
+      timeout: 30000
+
+- scrollUntilVisible:
+      element: 'Ingredient 1 quantity'
+      direction: DOWN
+      timeout: 30000
+- tapOn: 'Ingredient 1 quantity'
+- eraseText
+- inputText: '2'
+- tapOn: 'Ingredient 1 unit'
+- inputText: 'cups'
+
+- scrollUntilVisible:
+      element: 'Ingredient 1 preparation'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Ingredient 1 preparation'
+- inputText: 'finely chopped'
+
+- scrollUntilVisible:
+      element: 'Ingredient 1 section'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Ingredient 1 section'
+- inputText: 'For the marinade'
+
+# ⛔ THE HEADING APPEARS IN THE EDITOR, from the draft alone — the section fold is derived, not saved.
+- scrollUntilVisible:
+      element:
+          text: 'For the marinade'
+      direction: UP
+      timeout: 20000
+
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+
+# Step 3 of 4 (Instructions) — a fresh create has no steps, so this is `Step 1`.
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Marinate and grill.'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+# Landed on the new recipe's detail. The title regex tolerates this emulator's occasional last-character
+# input duplication (see `create.yaml`).
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Marinade Bowl.*'
+      timeout: 40000
+
+# ⛔ THE PREPARATION IS ON THE SURFACE A COOK COOKS FROM. Without this the field round-trips and is invisible.
+- scrollUntilVisible:
+      element:
+          text: 'finely chopped'
+      direction: DOWN
+      timeout: 20000
+# ⛔ And it is its OWN text, never welded into the food's name.
+- assertNotVisible:
+      text: 'Tomato finely chopped'
+
+# Re-open the editor: the seed must carry BOTH. Dropping either here is the narrowing defect.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Step 1 of 4'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+# A TextInput's own value is matchable text in this suite (see `search-navigation.yaml`), so the seeded
+# fields are assertable directly — as is the section heading the fold re-derives from them.
+- scrollUntilVisible:
+      element:
+          text: 'finely chopped'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element:
+          text: 'For the marinade'
+      direction: UP
+      timeout: 20000

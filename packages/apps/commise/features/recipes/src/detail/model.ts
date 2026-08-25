@@ -9,7 +9,13 @@ import type { ReactNode } from 'react';
 
 import type { Locale } from '@commise/i18n';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { IngredientQuantity, RecipeDetail, RecipeIngredientView, RecipeNutrition } from '@kitchensink/recipe-core';
+import type {
+    IngredientQuantity,
+    RecipeDetail,
+    RecipeIngredient,
+    RecipeIngredientView,
+    RecipeNutrition,
+} from '@kitchensink/recipe-core';
 
 import { fillTemplate } from '../list/model.js';
 
@@ -72,6 +78,55 @@ export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, uni
     }
 
     return hasUnit ? `${formattedQuantity} ${unit}` : formattedQuantity;
+};
+
+/**
+ * Format one SNAPSHOT ingredient line as a reader sees it — `2 cups Flour (sifted), finely chopped`.
+ *
+ * DESIGN PATTERN: one authoritative formatting per piece of knowledge, the same rule {@link formatQuantity}
+ * exists for. ⚠️ EXTRACTED, not added: `versions/model.ts`'s version-preview projection and
+ * `versions/conflictDiff.ts`'s merge-row formatter were BYTE-IDENTICAL copies of this function, so a field
+ * added to one and forgotten in the other would have rendered a version's history and its conflict merge
+ * differently for the same line. Both now call this.
+ *
+ * ⛔ `displayText` is PARENTHESISED beside the name and `preparation` is a trailing CLAUSE, and the two are
+ * not interchangeable. `displayText` is an author-chosen DISPLAY override — parenthesising it beside the
+ * name is exactly what it is for — while U26's rule is that a preparation is NEVER concatenated into the
+ * food's name, because a name carrying one matches no catalog row. The name variable below is built from
+ * `ingredientName` alone plus that override; the preparation is appended after it.
+ *
+ * ⚠️ Rendering the preparation at all is a CORRECTNESS requirement rather than polish. `diffSnapshots`
+ * counts a preparation-only edit as `modified`, so a formatter that omitted it would show two IDENTICAL
+ * lines beside a history entry claiming one changed — and, on the conflict merge, would ask a cook to
+ * CHOOSE between two strings that read the same.
+ *
+ * ⚠️ The comma is PUNCTUATION, not copy — the same call the ingredient row makes for the EN DASH between
+ * two quantity bounds. It carries no meaning to translate; the words on either side are the cook's own.
+ *
+ * @param ingredient - The snapshot ingredient line.
+ * @param locale - The active BCP-47 locale.
+ * @returns The formatted line. Pure.
+ */
+export const formatIngredientLine = (ingredient: RecipeIngredient, locale: Locale): string => {
+    const name =
+        ingredient.displayText !== undefined
+            ? `${ingredient.ingredientName} (${ingredient.displayText})`
+            : ingredient.ingredientName;
+    const described = ingredient.preparation === undefined ? name : `${name}, ${ingredient.preparation}`;
+    // `.trim()`: an ABSENT quantity with no unit formats to `''` (R40), which would otherwise leave the line
+    // starting with a space.
+    const line = `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${described}`.trim();
+
+    // ⛔ THE SECTION, for the SAME reason as the preparation and it must not be treated as the lesser case.
+    // `ingredientContentChanged` counts a section-only edit as `modified` on exactly the same footing, so a
+    // formatter that rendered the preparation and omitted the section would still show two IDENTICAL lines
+    // beside a history entry claiming one changed — and, on the conflict merge, would ask a cook to CHOOSE
+    // between two strings that read the same. Rendering one and not the other is the inconsistency the
+    // preparation argument itself rules out.
+    //
+    // ⚠️ The brackets are PUNCTUATION, not copy — this function takes no messages, and the label inside them
+    // is the cook's own free text.
+    return ingredient.groupLabel === undefined ? line : `${line} [${ingredient.groupLabel}]`;
 };
 
 /** Which bound a collapsed range contributed from — DERIVED from the model, never re-declared. */

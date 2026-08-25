@@ -203,6 +203,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             </Pressable>
                             <Text style={styles.ingredientQty}>{qty}</Text>
                             <Text style={styles.ingredientName}>{ingredient.name}</Text>
+                            {/* U26 — the PREPARATION, its own element after the name and never folded into
+                                it. Mirrors the web leaf: without it a saved preparation would be invisible on
+                                the surface a cook actually cooks from. */}
+                            {ingredient.preparation !== undefined && ingredient.preparation.length > 0 && (
+                                <Text style={styles.ingredientNotes}>{ingredient.preparation}</Text>
+                            )}
                             {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
                                 <Text style={styles.ingredientNotes}>{ingredient.notes}</Text>
                             )}

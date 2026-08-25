@@ -190,6 +190,13 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             stated_quantity: { type: 'numeric(10,3)', notNull: false },
             stated_quantity_high: { type: 'numeric(10,3)', notNull: false },
             stated_unit: { type: 'text', notNull: false },
+            // U26/U27 (migration 0030) — how this recipe prepares the food, and which section the line sits
+            // in. Both NULLABLE, and `NULL` is the ONLY spelling of absent: a `NOT VALID` CHECK refuses `''`
+            // and whitespace-only, so "no preparation" and "ungrouped" cannot acquire a second
+            // representation. ⛔ `preparation` is distinct from `display_text`, which is a free-form display
+            // OVERRIDE whose one producer (the cookbook importer) fills it with the source's whole clause.
+            preparation: { type: 'text', notNull: false },
+            group_label: { type: 'text', notNull: false },
             sort_order: { type: 'integer', notNull: true },
             ingredient_name: { type: 'text', notNull: true },
             is_user_entered: { type: 'boolean', notNull: true },

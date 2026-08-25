@@ -9,6 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState, type FC } from 'react';
 
 import { compositeOver, ringContrast, utilityContrast } from '@commise/test-utils';
 import { palette, semantic } from '@commise/ui';
@@ -1494,5 +1495,338 @@ describe('RecipeForm (web) — the range separator is decorative', () => {
         );
 
         expect(separators).toHaveLength(1);
+    });
+});
+
+/**
+ * U25/U26/U27 — the three new ingredient-row affordances on the WEB leaf, in every state.
+ *
+ * ⛔ THE STATE THAT MUST NOT REGRESS is the ungrouped one. Most recipes will never use a section, and the
+ * brief is explicit that grouping "has to feel like something a cook reaches for when a recipe needs it,
+ * never a step every recipe has to satisfy" — so an ungrouped list renders with NO section chrome at all,
+ * and that is asserted here rather than assumed.
+ */
+describe('RecipeForm (web) — preparation, section and unit class (U25/U26/U27)', () => {
+    it('renders a preparation field per line, seeded from the draft', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, preparation: 'finely chopped' }],
+            }),
+        });
+
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 preparation' }).value).toBe(
+            'finely chopped',
+        );
+    });
+
+    it('renders an EMPTY preparation field for a line that states none', () => {
+        renderForm();
+
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 preparation' }).value).toBe('');
+    });
+
+    it('reports a preparation edit upward without touching the food name', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2 }] }),
+            onChange,
+        });
+
+        await user.type(screen.getByRole('textbox', { name: 'Ingredient 1 preparation' }), 'd');
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, preparation: 'd' }],
+            }),
+        );
+    });
+
+    it('renders a section field per line, seeded from the draft', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, groupLabel: 'For the marinade' }],
+            }),
+        });
+
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 section' }).value).toBe(
+            'For the marinade',
+        );
+    });
+
+    it('reports a section edit upward, preserving the line’s other fields', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'cup', preparation: 'diced' }],
+            }),
+            onChange,
+        });
+
+        await user.type(screen.getByRole('textbox', { name: 'Ingredient 1 section' }), 'D');
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ingredients: [
+                    {
+                        ingredientId: 'ing_1',
+                        name: 'Onion',
+                        quantity: 2,
+                        unit: 'cup',
+                        preparation: 'diced',
+                        groupLabel: 'D',
+                    },
+                ],
+            }),
+        );
+    });
+
+    // ⛔ THE NO-CHROME STATE. A heading rendered here would make every ordinary recipe look unfinished.
+    it('⛔ an UNGROUPED recipe renders NO section heading at all', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Rice', quantity: 300 },
+                    { ingredientId: 'ing_2', name: 'Stock', quantity: 1 },
+                ],
+            }),
+        });
+
+        // `level: 3` is the section-heading level; the section's own `h2` ("Ingredients") is unaffected.
+        expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    });
+
+    it('a GROUPED recipe renders one heading per section, in stored order', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Sugar', quantity: 1, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_3', name: 'Milk', quantity: 1, groupLabel: 'Wet' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+            'Dry',
+            'Wet',
+        ]);
+    });
+
+    // ⛔ Folding by label identity would show TWO headings and reorder the lines. The recipe's own order wins.
+    it('⛔ a label repeated NON-ADJACENTLY renders THREE headings, in stored order', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1, groupLabel: 'Wet' },
+                    { ingredientId: 'ing_3', name: 'Sugar', quantity: 1, groupLabel: 'Dry' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+            'Dry',
+            'Wet',
+            'Dry',
+        ]);
+    });
+
+    // A MIXED recipe: the leading ungrouped run gets no heading, and the numbering still addresses the
+    // ORIGINAL line index — a section-relative index would edit the wrong row while looking correct.
+    it('a MIXED recipe leaves the leading ungrouped run unheaded, and keeps the line numbering', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Salt', quantity: 1 },
+                    { ingredientId: 'ing_2', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                ],
+            }),
+        });
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).value).toBe('Salt');
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 2 name' }).value).toBe('Flour');
+    });
+
+    /**
+     * U25 — the unit is MARKED by kind, and the marking is DERIVED at render from `classifyUnit`, never
+     * stored. Three outcomes, and the third is not an error: an unknown unit is ACCEPTED, never rejected.
+     *
+     * ⛔ The mark is TEXT, not colour. The Figma Make mockup distinguishes a recognised unit from an
+     * unrecognised one by styling alone (seafoam medium vs italic slate), which is WCAG 1.4.1's exact
+     * failure — "colour alone" — and it also cannot tell a deliberate `handful` from a mistyped `blorp`,
+     * which is the whole distinction U25 exists to draw. A short localized note, wired through
+     * `aria-describedby`, says it in words.
+     */
+    it('marks a CANONICAL unit with no note at all — the ordinary line stays quiet', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'cups' }],
+            }),
+        });
+
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+        expect(screen.getByRole('textbox', { name: 'Ingredient 1 unit' }).getAttribute('aria-describedby')).toBeNull();
+    });
+
+    it('marks a SUBJECTIVE unit as a cook’s measure, and describes the field with it', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Basil', quantity: 1, unit: 'handful' }],
+            }),
+        });
+
+        const note = screen.getByText('Cook’s measure');
+        const unit = screen.getByRole('textbox', { name: 'Ingredient 1 unit' });
+
+        expect(unit.getAttribute('aria-describedby')).toBe(note.id);
+        expect(unit.getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('marks an UNKNOWN unit as unrecognised — and still ACCEPTS it, never flagging it invalid', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Onion', quantity: 2, unit: 'blorp' }],
+            }),
+        });
+
+        const note = screen.getByText('Unrecognised unit');
+        const unit = screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 unit' });
+
+        expect(unit.getAttribute('aria-describedby')).toBe(note.id);
+        // ⛔ Accepted, never rejected: the value is still the cook's, and nothing marks the field invalid.
+        expect(unit.value).toBe('blorp');
+        expect(unit.getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('marks an EMPTY unit with NO note — a unitless line is not an unrecognised one', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Eggs', quantity: 2 }] }),
+        });
+
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+    });
+
+    // ⛔ Two lines, two different units, ONE render: each note describes ITS OWN row. A shared id would make
+    // every unit field point at the first row's note — the defect `fieldErrorIds` exists to avoid.
+    it('scopes each unit note to its own row', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Basil', quantity: 1, unit: 'handful' },
+                    { ingredientId: 'ing_2', name: 'Onion', quantity: 2, unit: 'blorp' },
+                ],
+            }),
+        });
+
+        const first = screen.getByRole('textbox', { name: 'Ingredient 1 unit' }).getAttribute('aria-describedby');
+        const second = screen.getByRole('textbox', { name: 'Ingredient 2 unit' }).getAttribute('aria-describedby');
+
+        expect(first).not.toBe(second);
+        expect(screen.getByText('Cook’s measure').id).toBe(first);
+        expect(screen.getByText('Unrecognised unit').id).toBe(second);
+    });
+});
+
+/**
+ * U27 — TYPING A SECTION LABEL MUST NOT COST THE COOK THEIR CARET.
+ *
+ * ⛔ THE DEFECT THIS EXISTS FOR, and why nothing else could see it. Every other test in this file drives
+ * `onChange` with a `vi.fn()` that never feeds the next `values` back, so the component never re-renders
+ * against the edit and the section runs never RESPLIT. This one is STATEFUL — it applies each `onChange`
+ * and re-renders, which is what the real editor does — and that is the only way the bug is reachable.
+ *
+ * The bug: `ingredientSections` folds by consecutive run, so the first character typed into row 2's section
+ * field turns one run into three. If the leaf renders a WRAPPER per run, React matches the first wrapper by
+ * key and reconciles its `<ul>` from three `<li>`s down to one — UNMOUNTING the `<li>` that holds the
+ * focused input. The caret disappears after one character and every later keystroke goes nowhere. The fix
+ * is structural: one flat `<ul>` with headings interleaved, so a resplit only INSERTS a heading beside a row
+ * that never leaves its parent.
+ */
+describe('RecipeForm (web) — typing a section keeps focus (U27)', () => {
+    /** Render the form as the real editor does: every `onChange` is applied and re-rendered. */
+    const renderStateful = (initial: RecipeFormValues) => {
+        const Harness: FC = () => {
+            const [values, setValues] = useState(initial);
+
+            return <RecipeForm values={values} mode="create" onChange={setValues} onSubmit={noop} onCancel={noop} />;
+        };
+
+        return render(<Harness />);
+    };
+
+    const THREE_UNGROUPED = filledValues({
+        ingredients: [
+            { ingredientId: 'ing_1', name: 'Flour', quantity: 2 },
+            { ingredientId: 'ing_2', name: 'Milk', quantity: 1 },
+            { ingredientId: 'ing_3', name: 'Sugar', quantity: 1 },
+        ],
+    });
+
+    it('⛔ keeps the caret in the section field across SEVERAL characters', async () => {
+        const user = userEvent.setup();
+        renderStateful(THREE_UNGROUPED);
+
+        const section = screen.getByRole('textbox', { name: 'Ingredient 2 section' });
+        await user.click(section);
+        await user.keyboard('Dry');
+
+        // ⛔ Re-query: the assertion is about the LIVE document, and a stale node reference would pass even
+        // if the input had been unmounted and replaced.
+        const live = screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 2 section' });
+
+        expect(live.value).toBe('Dry');
+        expect(document.activeElement).toBe(live);
+    });
+
+    it('renders the heading the typing created, without moving any line', async () => {
+        const user = userEvent.setup();
+        renderStateful(THREE_UNGROUPED);
+
+        await user.click(screen.getByRole('textbox', { name: 'Ingredient 2 section' }));
+        await user.keyboard('Dry');
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).value).toBe('Flour');
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 2 name' }).value).toBe('Milk');
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 3 name' }).value).toBe('Sugar');
+    });
+
+    // ⛔ F2's half: clearing a label must REJOIN the run above, not leave an empty heading behind.
+    it('⛔ CLEARING a section leaves NO empty heading, and rejoins the ungrouped run', async () => {
+        const user = userEvent.setup();
+        renderStateful(
+            filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2 },
+                    { ingredientId: 'ing_2', name: 'Milk', quantity: 1, groupLabel: 'Wet' },
+                ],
+            }),
+        );
+
+        expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(1);
+
+        await user.clear(screen.getByRole('textbox', { name: 'Ingredient 2 section' }));
+
+        expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    });
+
+    // ⛔ The other half of the trim rule, at the DRAFT layer where the wire's `.trim()` has not run: two
+    // labels differing only by padding are ONE section, not two headings a reader cannot tell apart.
+    it('⛔ treats a PADDED label as the same section as its trimmed twin', () => {
+        renderStateful(
+            filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Flour', quantity: 2, groupLabel: 'Dry' },
+                    { ingredientId: 'ing_2', name: 'Sugar', quantity: 1, groupLabel: '  Dry  ' },
+                ],
+            }),
+        );
+
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Dry']);
     });
 });

@@ -455,9 +455,9 @@ the two columns comparable.
 | quantity                                          | before (as §1 measured it) | after U22a |           delta |
 | ------------------------------------------------- | -------------------------: | ---------: | --------------: |
 | Blocks accepted as recipes                        |                        351 |    **351** |               0 |
-| Ingredient clauses harvested                      |                      1,860 |  **1,845** |     −15 (−0.8%) |
-| Distinct corpus lines (the billed population)     |                  **2,584** |  **2,491** |    −93 (−3.60%) |
-| Characters of ingredient text sent to the engines |                     57,948 | **51,032** | −6,916 (−11.9%) |
+| Ingredient clauses harvested                      |                      1,860 |  **1,846** |    −14 (−0.75%) |
+| Distinct corpus lines (the billed population)     |                  **2,584** |  **2,490** |    −94 (−3.64%) |
+| Characters of ingredient text sent to the engines |                     57,948 | **51,056** | −6,892 (−11.9%) |
 
 **≈12% of every character the two engines were asked to parse was instruction residue.** That is the
 inflation, and it fell on `differ` disproportionately, because residue is precisely what the two engines
@@ -465,7 +465,7 @@ disagree about.
 
 ### 9.3 Which lines moved
 
-**324 spans were bounded; 309 came back shortened; 14 were removed entirely.** Every one of the 14 is
+**324 spans were bounded; 310 came back shortened; 14 were removed entirely.** Every one of the 14 is
 equipment, and none is a food:
 
 ```
@@ -507,9 +507,18 @@ corpus**, and it was measured: `five minutes` and `twenty minutes` are quantity 
 KTD-11a's own examples of residue to remove. What separates a second food from a duration is a **unit of
 substance**, which is the same requirement `proseRecipe`'s scan already applies to the head.
 
+⛔ **The "no food was deleted" claim above is load-bearing, and the first implementation broke it.** This
+before/after name diff — not code review — caught `Melt one tablespoon of butter in a large frying-pan`
+losing its butter. `a large frying-pan` parses to `1 large :: frying-pan` (`parse-ingredient` reads `large`
+as a unit), so the guard read a vessel as a second food and refused the cut; the equipment test then ran on
+the refused span, whose last word is `frying-pan`, and dropped the line. Both halves are fixed and pinned:
+equipment is judged on the head the boundary PROPOSES, never on a refused span, and a tail naming a vessel
+is not a second food. **A corpus-wide diff of names, quantities and units is the check that found it, and
+it is the check any future change to this module owes.**
+
 ### 9.5 The new review reason, and whether it is a signal
 
-`instruction_text_dropped` is raised when a tail is cut. **309 of 1,845 ingredient lines (16.7%)** carry
+`instruction_text_dropped` is raised when a tail is cut. **310 of 1,846 ingredient lines (16.8%)** carry
 it. It is deliberately NOT in `VALUE_CORRUPTING_REVIEW_REASONS`: the amount and unit reported are exactly
 what the source stated for the food that was kept, and membership would make `cookbook-import` discard a
 line it can read.
@@ -521,7 +530,7 @@ KTD-11 rules against.
 ### 9.6 ⛔ What is NOT measured here
 
 - **The engines were not re-run.** Re-measuring `differ` needs live Bedrock (billed, and no ADR-0024
-  reservation guards a script) plus a full CRF pass over 2,491 lines. **No new agreement, determinism or
+  reservation guards a script) plus a full CRF pass over 2,490 lines. **No new agreement, determinism or
   cost figure is claimed, and none of §§1–8's rates has been recomputed.** They remain the last measured
   values and they remain inflated by the residue quantified in §9.2.
 - **The direction is inferable but not proven.** Removing residue can only remove disagreements it caused;

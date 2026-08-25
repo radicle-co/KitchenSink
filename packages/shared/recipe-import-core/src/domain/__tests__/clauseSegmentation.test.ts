@@ -135,6 +135,53 @@ describe('segmentClause — equipment is an instruction, not an ingredient', () 
     );
 });
 
+describe('segmentClause — ⛔ a VESSEL is not a second food, and a refused cut is not equipment', () => {
+    /**
+     * ⛔ THE DEFECT THIS PINS, found on 2026-08-25 by re-running the extractor over the whole 1919 book
+     * and diffing the NAMES it produced — not by reading the code. `Melt one tablespoon of butter in a
+     * large frying-pan` LOST its butter: a real food, one tablespoon of it, deleted from a published
+     * recipe by the very unit that exists to stop text being lost.
+     *
+     * Two defects compounded, and each is fixed here:
+     *
+     *  1. `a large frying-pan` parses to `1 large :: frying-pan` — `parse-ingredient` reads `large` as a
+     *     UNIT — so the second-food guard saw a quantity, a unit and a name, and refused the cut. A vessel
+     *     is not a food however it parses, so the guard now asks the same {@link ClauseSegment} vocabulary
+     *     that classifies a whole span.
+     *  2. The equipment test then ran on the span whose cut had been REFUSED, whose last word is the
+     *     tail's last word (`frying-pan`) rather than the food the span is about. The test now always runs
+     *     on the head the boundary PROPOSES, which is the only text a span is ever "about".
+     */
+    it('cuts the vessel off "one tablespoon of butter in a large frying-pan" instead of losing the butter', () => {
+        expect(ingredientSegment('one tablespoon of butter in a large frying-pan')).toEqual({
+            kind: 'ingredient',
+            span: 'one tablespoon of butter',
+            trailingInstruction: 'in a large frying-pan',
+        });
+    });
+
+    it.each([
+        ['two tablespoons of fresh butter in a spider', 'two tablespoons of fresh butter'],
+        ['a cup of sweet cream in a kettle', 'a cup of sweet cream'],
+        ['four ounces of butter into a saucepan', 'four ounces of butter'],
+    ])('cuts the vessel off %j, whose "unit" is a size word', (span, expected) => {
+        expect(ingredientSegment(span).span).toBe(expected);
+    });
+
+    /**
+     * The second defect on its own. Here the cut IS correctly refused — `one cup of water` is a real
+     * second food — and the whole span therefore ends on a vessel word. Judging equipment by that word
+     * would throw away a span carrying TWO foods, which is the worst outcome this module can produce.
+     */
+    it('keeps a span whose refused cut leaves it ending on a vessel word', () => {
+        expect(ingredientSegment('one-half pound chocolate in one cup of water in a kettle')).toEqual({
+            kind: 'ingredient',
+            span: 'one-half pound chocolate in one cup of water in a kettle',
+            trailingInstruction: null,
+        });
+    });
+});
+
 describe('segmentClause — R29: a boundary inside a quantity phrase is not a boundary', () => {
     /**
      * ⛔ The R29 defect, one layer down. `and` is in the cut lexicon AND is the middle of

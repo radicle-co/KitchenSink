@@ -39,7 +39,9 @@
  * ⚠️ Accepted conservatism, stated rather than hidden: a tail whose unit is a DIMENSION (`one-quarter
  * inch thick`) reads as a food to this guard and refuses the cut. That leaves the status quo for such a
  * span — never a loss — and the vocabulary that would sharpen it (`NOT_A_MEASURE`) belongs to the
- * importer's own gate, not here.
+ * importer's own gate, not here. A VESSEL is a different matter and is NOT conservative in the safe
+ * direction: `a large frying-pan` parses as a measured thing, and treating it as a food refused a cut and
+ * lost a real ingredient, so the vessel vocabulary settles the tail as well as the head.
  */
 import { parseIngredientLine } from '../ingredientLine.js';
 import { findQuantityPhrases } from '../quantityPhrases.js';
@@ -157,20 +159,25 @@ const VESSELS: ReadonlySet<string> = new Set([
 export function segmentClause(span: string): ClauseSegment {
     const trimmed = span.trim();
     const boundary = instructionBoundaryIn(trimmed);
-    const cutHead = boundary === null ? trimmed : trimmed.slice(0, boundary).trim();
-    const cutTail = boundary === null ? null : trimmed.slice(boundary).trim();
+    const head = boundary === null ? trimmed : trimmed.slice(0, boundary).trim();
+    const tail = boundary === null ? null : trimmed.slice(boundary).trim();
 
-    // ⛔ THE GUARD. A tail stating its own measured food is not an instruction, and cutting it would
-    // delete an amount the source printed. The whole span survives instead.
-    const keepsWhole = cutTail === null || cutTail === '' || statesASecondFood(cutTail);
-    const head = keepsWhole ? trimmed : cutHead;
-    const trailingInstruction = keepsWhole ? null : cutTail;
-
+    // ⛔ EQUIPMENT IS JUDGED ON THE PROPOSED HEAD, ALWAYS — never on a span whose cut was refused below.
+    // Measured 2026-08-25 over the whole 1919 book: judging the refused span instead reads its LAST word,
+    // which is the tail's last word rather than the food the span is about, and
+    // `one tablespoon of butter in a large frying-pan` was classified as a frying-pan and dropped. A span
+    // is only ever "about" the text before its boundary.
     if (head === '' || isEquipment(head)) {
         return { kind: 'instruction' };
     }
 
-    return { kind: 'ingredient', span: head, trailingInstruction };
+    // ⛔ THE GUARD. A tail stating its own measured food is not an instruction, and cutting it would
+    // delete an amount the source printed. The whole span survives instead, for `ParsedLine.foods` to carry.
+    if (tail === null || tail === '' || statesASecondFood(tail)) {
+        return { kind: 'ingredient', span: trimmed, trailingInstruction: null };
+    }
+
+    return { kind: 'ingredient', span: head, trailingInstruction: tail };
 }
 
 /**
@@ -235,7 +242,22 @@ function statesASecondFood(tail: string): boolean {
     return findQuantityPhrases(tail).some((phrase) => {
         const parsed = parseIngredientLine(tail.slice(phrase.start));
 
-        return parsed.quantity.kind !== 'absent' && parsed.unit !== null && parsed.name.trim() !== '';
+        return (
+            parsed.quantity.kind !== 'absent' &&
+            parsed.unit !== null &&
+            parsed.name.trim() !== '' &&
+            // ⛔ A VESSEL IS NOT A FOOD, however it parses. `a large frying-pan` comes back as
+            // `1 large :: frying-pan` because `parse-ingredient` reads `large` as a unit, which cleared
+            // every structural test above and refused a cut that should have been made — measured on the
+            // whole 1919 book, it cost `Melt one tablespoon of butter in a large frying-pan` its butter.
+            // The same vocabulary that classifies a whole span settles it, rather than a second rule.
+            //
+            // ⚠️ Bounded FIRST. A tail's own name carries the same residue the span does — `one cup of
+            // water in a kettle` parses to the name `water in a kettle` — and asking the head-final test
+            // about that reads `kettle` and throws away a real second food. The food is what the name is
+            // about, which is exactly what `dropTrailingInstruction` returns.
+            !isEquipment(dropTrailingInstruction(parsed.name))
+        );
     });
 }
 

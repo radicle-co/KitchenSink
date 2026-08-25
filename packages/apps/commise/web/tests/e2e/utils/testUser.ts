@@ -90,6 +90,13 @@ export async function ensureSignInTestUser(): Promise<string> {
  * On timeout this throws LOUD, naming the webhook prerequisite — so a genuine sandbox webhook outage surfaces
  * as a clear setup failure rather than a mystery flake, and is never masked.
  *
+ * ⚠️ The message also names the SCHEDULED cause, because the first version did not and that omission cost a
+ * whole diagnosis. ADR-0007 stops the sandbox RDS **and** NAT instance nightly, 00:00–09:00 ET, and the
+ * webhook is a VPC-attached Lambda that needs both — so inside that window the backfill is not slow, it is
+ * impossible. Observed 2026-08-25 01:37 ET on dcf2aaef: all eight CI shards died here in ~1 minute, reading
+ * as a webhook outage. `_ci.yml`'s `e2e-web` job now runs `.github/scripts/sandbox-wake.sh ensure` before the
+ * suite; if this fires in CI anyway, that gate is the first thing to look at.
+ *
  * @sideEffect Polls the Clerk Backend API (`users.getUser`) and sleeps between attempts.
  */
 export async function waitForTestUserExternalId(
@@ -111,7 +118,12 @@ export async function waitForTestUserExternalId(
             throw new Error(
                 `waitForTestUserExternalId: Clerk user ${userId} still has no externalId after ${timeoutMs}ms. ` +
                     'The user.created webhook (identity-webhooks → clerk.users.updateUser) must backfill it; a ' +
-                    'persistent failure here is a sandbox webhook outage, not a test bug.',
+                    'persistent failure here is a sandbox webhook outage, not a test bug. ' +
+                    'FIRST CHECK THE CLOCK: ADR-0007 stops the sandbox RDS and NAT instance nightly, ' +
+                    '00:00–09:00 ET, and this webhook is a VPC-attached Lambda that needs both — so inside ' +
+                    'that window the backfill cannot arrive at all. CI wakes the sandbox first ' +
+                    '(.github/scripts/sandbox-wake.sh ensure, in _ci.yml::e2e-web); locally, run that same ' +
+                    'command or wait for 09:00 ET.',
             );
         }
 

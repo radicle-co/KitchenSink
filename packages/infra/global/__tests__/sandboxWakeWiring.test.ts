@@ -15,6 +15,20 @@
  * today, so a NEW sandbox job that deploys a stack is covered the moment it is written and has to argue its
  * way OUT via {@link EXEMPT_DEPLOY_STEPS} rather than silently in.
  *
+ * ## The second class — a job that CONSUMES the sandbox rather than deploying to it
+ *
+ * Observed 2026-08-25 at 01:37 ET on `dcf2aaef`: every one of the eight `e2e-web` Playwright shards died in
+ * ~1 minute, producing NO test results at all. Nothing deployed, so the deploy rule above could not have
+ * covered it. The suite's `globalSetup` creates a Clerk user and then waits 30s for the `user.created`
+ * webhook to backfill its `external_id` — and that webhook is a VPC-attached Lambda on the sandbox, which
+ * reaches Secrets Manager and the Clerk API through the sandbox NAT and writes to the sandbox RDS. ADR-0007
+ * stops BOTH nightly, so inside the window the backfill can never arrive and the setup fails with a message
+ * that reads like a webhook outage.
+ *
+ * So the rule is stated over two step shapes, not one: a step that DEPLOYS a sandbox stack, and a step that
+ * RUNS a suite whose fixtures depend on the sandbox identity webhook. Both must be preceded by the gate in
+ * their own job.
+ *
  * ⚠️ Prod is deliberately out of scope. The prod instance is never stopped, and `sandbox-wake.sh` is scoped so
  * that it cannot address a prod database at all (see `sandboxWake.test.ts`).
  */
@@ -51,6 +65,15 @@ const WAKE_INVOCATION = 'sandbox-wake.sh ensure';
  * literal `cdk deploy` would miss it.
  */
 const DEPLOY_STEP = /\bcdk deploy\b|\binfra:deploy\b/;
+
+/**
+ * A step that runs a suite whose FIXTURES live on the shared sandbox — today, the web Playwright suite,
+ * whose `globalSetup` blocks on the sandbox `user.created` webhook backfilling `external_id`.
+ *
+ * Matched on the workspace invocation rather than on a job name, so a new job (or a new workflow) that runs
+ * the same suite is covered the moment it is written.
+ */
+const SANDBOX_FIXTURE_STEP = /npm run test:e2e --workspace=@commise\/web/;
 
 /**
  * Deploy steps in a sandbox workflow that legitimately need no database wake, each with the reason.
@@ -118,6 +141,45 @@ function findUnwokenDeploys(): readonly string[] {
     return [...violations].sort();
 }
 
+/**
+ * Every step in ANY workflow that runs a sandbox-fixture suite and is NOT preceded, in its own job, by the
+ * wake gate.
+ *
+ * ⚠️ Deliberately NOT restricted to `sandbox-*.yml`. This class lives in `_ci.yml`, which is not a sandbox
+ * workflow by filename but drives the shared sandbox Clerk instance and, through it, the sandbox webhook
+ * Lambda. Scoping the rule by filename is exactly what left this uncovered until 2026-08-25.
+ *
+ * @returns Violation ids (`<file>::<job>::<step>`).
+ */
+function findUnwokenSandboxFixtureSuites(): readonly string[] {
+    const violations: string[] = [];
+
+    for (const { file, doc } of workflows()) {
+        for (const [jobName, job] of Object.entries(doc.jobs ?? {})) {
+            let woken = false;
+
+            for (const step of job.steps ?? []) {
+                const run = step.run ?? '';
+
+                if (run.includes(WAKE_INVOCATION)) {
+                    woken = true;
+                    continue;
+                }
+
+                if (!SANDBOX_FIXTURE_STEP.test(run)) {
+                    continue;
+                }
+
+                if (!woken) {
+                    violations.push(`${file}::${jobName}::${label(step)}`);
+                }
+            }
+        }
+    }
+
+    return [...violations].sort();
+}
+
 /** Every step in the tree that invokes the wake gate. */
 function wakeSteps(): readonly { id: string; step: Step }[] {
     const found: { id: string; step: Step }[] = [];
@@ -157,6 +219,39 @@ describe('sandbox DB wake wiring — no sandbox deploy runs against a possibly-s
 
     it('is wired in at least as many jobs as deploy DB-backed sandbox stacks', () => {
         expect(wakeSteps().length).toBeGreaterThanOrEqual(3);
+    });
+});
+
+describe('sandbox DB wake wiring — no sandbox-fixture suite runs against a sleeping sandbox', () => {
+    it('every sandbox-fixture suite step is preceded by the wake gate in its own job', () => {
+        expect(
+            findUnwokenSandboxFixtureSuites(),
+            "the web Playwright suite's globalSetup blocks on the sandbox `user.created` webhook backfilling " +
+                "`external_id`. Inside ADR-0007's 00:00–09:00 ET window the sandbox RDS and NAT are both STOPPED, " +
+                'so that backfill can never arrive: every shard dies in ~1 minute with no test results at all ' +
+                '(observed 2026-08-25 01:37 ET on dcf2aaef). Add `sandbox-wake.sh ensure` before the suite runs.',
+        ).toEqual([]);
+    });
+
+    // Named explicitly because the generic rule above passes VACUOUSLY when nothing matches — deleting the
+    // suite step, renaming the workspace, or dropping the wake would otherwise all read as green.
+    it('_ci.yml::e2e-web wakes the sandbox before the Playwright shards run', () => {
+        expect(wakeSteps().map(({ id }) => id.split('::').slice(0, 2).join('::'))).toContain('_ci.yml::e2e-web');
+    });
+
+    // Guards the vacuity directly: the rule above is only meaningful while the step shape it keys on still
+    // exists somewhere in the tree.
+    it('the sandbox-fixture step shape still matches something', () => {
+        const matched = workflows().flatMap(({ doc }) =>
+            Object.values(doc.jobs ?? {}).flatMap((job) =>
+                (job.steps ?? []).filter((step) => SANDBOX_FIXTURE_STEP.test(step.run ?? '')),
+            ),
+        );
+
+        expect(
+            matched.length,
+            'SANDBOX_FIXTURE_STEP matches nothing — the suite invocation was renamed and this guard has gone vacuous.',
+        ).toBeGreaterThan(0);
     });
 });
 

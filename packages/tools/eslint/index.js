@@ -443,7 +443,6 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     // that rule would partition the cache on a distinction carrying no
                                     // meaning. Both stay OUT of the barrel because the barrel is inside the
                                     // recipe service's contract corpus.
-                                    '!@kitchensink/*/parsing',
                                     '!@kitchensink/*/parsing/parse-prompt',
                                     '!@kitchensink/*/parsing/parse-answer',
                                     // `food-service` spells the same barrel `db/schema`, not `database/*`. It

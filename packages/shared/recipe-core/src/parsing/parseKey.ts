@@ -49,9 +49,9 @@ import type { HexDigest } from '../resolution/verificationKey.js';
 /**
  * A hex digest function. `createHash('sha256').update(x).digest('hex')` at the worker.
  *
- * ⚠️ ONE definition, shared with {@link verificationKey}. Two copies of a Port type is how a caller ends up
- * satisfying one and not the other; the alias is re-exported here so a consumer of the parse key never has to
- * reach into the resolution namespace for it.
+ * ⚠️ ONE definition, shared with `verificationKey` (`../resolution/verificationKey.ts`). Two copies of a Port
+ * type is how a caller ends up satisfying one and not the other; the alias is re-exported here so a consumer
+ * of the parse key never has to reach into the resolution namespace for it.
  */
 export type { HexDigest };
 

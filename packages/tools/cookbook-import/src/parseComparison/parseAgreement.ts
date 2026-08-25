@@ -74,6 +74,90 @@ export interface ParseAgreement {
 export type ParseField = 'measure' | 'foods' | 'prep';
 
 /**
+ * What is DONE about a shape — KTD-11's disposition column, which this module classified toward and did
+ * not carry.
+ *
+ * ⛔ THIS IS THE ONE PLACE IN THIS FILE THAT TAKES A SIDE, AND IT TAKES IT PER SHAPE, NEVER PER LINE.
+ * Everything above deliberately refuses to say which reading is right, because there is no ground truth
+ * for an individual line here. A DISPOSITION is a different claim: it says what the corpus-wide evidence
+ * licenses for a whole class, and KTD-11 measured that evidence before writing it down. Keeping the two
+ * apart is why `crfUnitInName` can be "the LLM wins" here while `judgeMeasure` still calls it a fact about
+ * two outputs and an argument for neither.
+ */
+export type AgreementDisposition =
+    /** The two readings said the same thing. There is nothing to dispose of. */
+    | 'agreed'
+    /**
+     * The CRF's reading stands, and the LLM's is RECORDED beside it rather than discarded.
+     *
+     * ⚠️ "Record both" is KTD-11's wording and it is load-bearing: the losing reading is the only evidence
+     * a later calibration has that the rule was ever wrong. U23's oracle found one class where it IS —
+     * see the report's §10 on `one and a half`, where the CRF drops the fraction and this disposition
+     * would publish two thirds of the stated amount.
+     */
+    | 'crfWins'
+    /**
+     * The LLM's reading stands, silently — no human sees the line.
+     *
+     * Reserved for the shapes where the CRF is DEMONSTRABLY wrong rather than merely different: it has no
+     * vocabulary for a historical unit, and it cannot express more than one food.
+     */
+    | 'llmWins'
+    /**
+     * Neither engine wins: KTD-11b decides where the word goes, on BOTH answers, and the disagreement
+     * stops existing rather than being won.
+     *
+     * ⛔ Strictly better than picking a side, and KTD-11 says why: "a winner rule would keep re-deciding,
+     * per line, a question that has one answer."
+     */
+    | 'canonicalised'
+    /** The residue KTD-11 calls "the genuine adjudication list". A human reads it. */
+    | 'adjudicate';
+
+/**
+ * KTD-11's disposition per shape.
+ *
+ * ⛔ A TOTAL `Record` over {@link AgreementKind}, never a lookup with a fallback. A new verdict added to
+ * any of the three per-field unions is a COMPILE error here, which is the property that made this table
+ * worth writing at all — the alternative, a `switch` with a `default`, would silently dispose of a shape
+ * nobody had decided about, and "silently disposed of" is indistinguishable from "decided" in every
+ * downstream number.
+ *
+ * ⚠️ `crfPrepInModelName` is in KTD-11's TYPE but not in its measured TABLE — it scored n = 0 on Nova
+ * Micro, so a table transcribed from the report would have had no row for it. It is the exact mirror of
+ * `modelPrepInCrfName`, and KTD-11b settles both the same way, so it is `canonicalised` rather than the
+ * `llmWins` its mirror carries. Reading the mirror's disposition off the report and stopping there would
+ * have handed the LLM a placement win in one direction only — on the axis where the CRF's filing matched
+ * the ruling 125 times to the LLM's 58.
+ */
+const DISPOSITIONS: Readonly<Record<AgreementKind, AgreementDisposition>> = {
+    agree: 'agreed',
+    // Amounts — "CRF wins, record both" (KTD-11).
+    quantityDiffers: 'crfWins',
+    unitDiffers: 'crfWins',
+    amountCountDiffers: 'crfWins',
+    // The CRF is demonstrably wrong, so the LLM wins silently (KTD-11).
+    crfUnitInName: 'llmWins',
+    modelSplitsFoods: 'llmWins',
+    modelPrepInCrfName: 'llmWins',
+    // Placement, decided by KTD-11b on both answers rather than won by either.
+    crfSizeField: 'canonicalised',
+    crfPrepInModelName: 'canonicalised',
+    // The residue.
+    differ: 'adjudicate',
+};
+
+/**
+ * What KTD-11 says is done about a shape.
+ *
+ * @param kind - The first-disagreeing-field verdict from {@link compareParses}.
+ * @returns The disposition. Pure and TOTAL — every inhabitant of the union has a row.
+ */
+export function disposeAgreement(kind: AgreementKind): AgreementDisposition {
+    return DISPOSITIONS[kind];
+}
+
+/**
  * Compare a model's reading of a line with the CRF parser's.
  *
  * @param model - The model's parse.

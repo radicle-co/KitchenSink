@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { CrfParse } from '../crfParse.js';
-import { compareParses, divergentFields, divergentResponses } from '../parseAgreement.js';
+import { compareParses, disposeAgreement, divergentFields, divergentResponses } from '../parseAgreement.js';
+import type { AgreementKind } from '../parseAgreement.js';
 import type { ModelParse } from '../parseResponse.js';
 
 function crf(overrides: Partial<CrfParse> = {}): CrfParse {
@@ -269,5 +270,68 @@ describe('divergentResponses', () => {
 
     it('reports a cut-off fragment as incomparable — an unfinished answer states nothing to compare', () => {
         expect(divergentResponses(BARE, '{"measure":"one-half cup","foods":[{"na')).toEqual({ kind: 'incomparable' });
+    });
+});
+
+describe('disposeAgreement — KTD-11’s disposition column, which the shape classifier did not carry', () => {
+    it('disposes of every shape the classifier can produce', () => {
+        const shapes: readonly AgreementKind[] = [
+            'agree',
+            'crfUnitInName',
+            'crfSizeField',
+            'amountCountDiffers',
+            'unitDiffers',
+            'quantityDiffers',
+            'modelSplitsFoods',
+            'crfPrepInModelName',
+            'modelPrepInCrfName',
+            'differ',
+        ];
+
+        for (const shape of shapes) {
+            expect(() => disposeAgreement(shape), `no disposition for ${shape}`).not.toThrow();
+        }
+    });
+
+    it('gives agreement nothing to dispose of', () => {
+        expect(disposeAgreement('agree')).toBe('agreed');
+    });
+
+    it('gives the CRF the amounts — KTD-11: "CRF wins, record both"', () => {
+        expect(disposeAgreement('quantityDiffers')).toBe('crfWins');
+        expect(disposeAgreement('unitDiffers')).toBe('crfWins');
+        expect(disposeAgreement('amountCountDiffers')).toBe('crfWins');
+    });
+
+    it('gives the LLM the three shapes KTD-11 marks "LLM wins silently"', () => {
+        expect(disposeAgreement('crfUnitInName')).toBe('llmWins');
+        expect(disposeAgreement('modelSplitsFoods')).toBe('llmWins');
+        expect(disposeAgreement('modelPrepInCrfName')).toBe('llmWins');
+    });
+
+    it('canonicalises the size field rather than picking a side — `large` is an adjective (KTD-11b)', () => {
+        expect(disposeAgreement('crfSizeField')).toBe('canonicalised');
+    });
+
+    it('canonicalises placement in BOTH directions, so the mirror shape is not silently a human problem', () => {
+        // ⛔ `crfPrepInModelName` is absent from KTD-11's measured table (it scored n = 0 on Nova Micro),
+        // so a table-driven map transcribed from the report would have had no row for it. It is the
+        // MIRROR of `modelPrepInCrfName` and the same ruling settles it: placement is canonicalised,
+        // never won.
+        expect(disposeAgreement('crfPrepInModelName')).toBe('canonicalised');
+    });
+
+    it('sends only the unstructured residue to a human — the adjudication list', () => {
+        expect(disposeAgreement('differ')).toBe('adjudicate');
+    });
+
+    it('never lets a shape KTD-11 disposes of reach a human as well', () => {
+        const adjudicated = (
+            ['crfUnitInName', 'crfSizeField', 'amountCountDiffers', 'unitDiffers', 'quantityDiffers'] as const
+        ).filter((shape) => disposeAgreement(shape) === 'adjudicate');
+
+        expect(adjudicated, `shapes KTD-11 disposes of that still reach a human: ${adjudicated.join(', ')}`).toEqual(
+            [],
+        );
     });
 });

@@ -60,8 +60,14 @@ export interface AgreementRow {
      * Who owns the recipe the phrase came from, so account erasure can reach it (migration 0026).
      *
      * ⚠️ `undefined` for a message enqueued by a producer that predates the field. The memo is still written
-     * — refusing it would lose knowledge over a missing correlation — but it carries no owner, which is
-     * exactly the position every memo was in before 0026 rather than a worse one.
+     * — refusing it would lose knowledge over a missing correlation — but it then records the MACHINE's
+     * conclusion ONLY: `food_id` and `verified_by`, and no phrase.
+     *
+     * ⛔ That last part is migration 0031 and is not a detail. Writing the phrase with no owner beside it
+     * leaves a cook's typed words on a row the sweep's `WHERE owner_id = $owner` can never match — the exact
+     * defect a `corroboration` mapping had, where the words outlived the erasure that should have removed
+     * them. "No worse than before 0026" was true and was still an unbounded retention window; a conclusion
+     * with no phrase is strictly better than a phrase with no owner.
      */
     readonly ownerId?: string | undefined;
 }
@@ -128,11 +134,18 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
             // on the normalized phrase, so two users whose lines normalize alike share one row and the later
             // write replaces both columns together. Updating the phrase while leaving a previous owner's id
             // beside it would point erasure at the wrong person — it would sweep a phrase the erased user
-            // never typed, and leave the one they did.
+            // never typed, and leave the one they did. Migration 0031 makes the split row unrepresentable
+            // rather than leaving that pairing to whoever edits this statement next.
+            //
+            // ⛔ Which is also why an OWNERLESS message stores no phrase. The memo is still written — the
+            // machine's conclusion is what every future cook's cascade reads — but a phrase with nobody to
+            // attribute it to is unreachable by the sweep's predicate, so it would sit here permanently.
+            const phrase = row.ownerId === undefined ? null : row.sourceLine;
+
             await db.execute(sql`
                 INSERT INTO ingredient_resolution_memos
                     (normalized_key, food_id, source_phrase, verified_by, owner_id)
-                VALUES (${key}, ${row.foodId}, ${row.sourceLine}, ${row.modelId}, ${row.ownerId ?? null})
+                VALUES (${key}, ${row.foodId}, ${phrase}, ${row.modelId}, ${row.ownerId ?? null})
                 ON CONFLICT (normalized_key) DO UPDATE
                    SET food_id     = EXCLUDED.food_id,
                        source_phrase = EXCLUDED.source_phrase,

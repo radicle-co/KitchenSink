@@ -48,7 +48,12 @@ export const ingredientResolutionMappings = pgTable(
         normalizedKey: text('normalized_key').notNull(),
         /**
          * The raw phrase the key was derived FROM — what makes the key derivation a two-way door, since a
-         * change to that function is then a backfill rather than data loss. NULL after erasure.
+         * change to that function is then a backfill rather than data loss.
+         *
+         * ⛔ It moves as a PAIR with {@link ingredientResolutionMappings.authorId}, and migration 0031 makes
+         * that a CONSTRAINT rather than a convention. NULL for an erased author AND for a `corroboration`
+         * binding, which copies nobody's words: a phrase on a row with no author is unreachable by the
+         * erasure sweep's `WHERE author_id = $owner`, so it would outlive the erasure it should have honoured.
          */
         sourcePhrase: text('source_phrase'),
         /** Opaque food-service golden-record id. May dangle after a reseed; readers fall through. */
@@ -57,7 +62,11 @@ export const ingredientResolutionMappings = pgTable(
         scope: text('scope').notNull(),
         /** On whose authority it holds: its writer alone, a grant holder, or two authors agreeing. */
         origin: text('origin').notNull(),
-        /** The app-user ULID that wrote it (R20). NULL for a corroboration binding and for an erased author. */
+        /**
+         * The app-user ULID that wrote it (R20). NULL for a corroboration binding — nobody wrote it, two
+         * people's agreement produced it — and for an erased author. Either way, migration 0031 requires
+         * {@link ingredientResolutionMappings.sourcePhrase} to be NULL with it.
+         */
         authorId: varchar('author_id', { length: 255 }),
         /** Which affordance produced the correction (R20). Free text: a new surface must never fail a write. */
         surfacing: text('surfacing').notNull(),
@@ -100,6 +109,14 @@ export const ingredientResolutionMappings = pgTable(
             'ingredient_resolution_mappings_supersession_forward',
             sql`${table.supersededBy} IS DISTINCT FROM ${table.id}`,
         ),
+        // ⛔ THE PAIR INVARIANT (migration 0031). A typed phrase and the person it belongs to exist together
+        // or not at all. It makes two states unrepresentable rather than merely discouraged: a phrase on a
+        // row nothing can point erasure at (which is how a corroboration binding kept a cook's words
+        // forever), and a half-run sweep leaving a previous author's id beside somebody else's wording.
+        check(
+            'ingredient_resolution_mappings_phrase_needs_owner',
+            sql`(${table.authorId} IS NULL) = (${table.sourcePhrase} IS NULL)`,
+        ),
         // ⛔ THE CORROBORATION COUNTER. A count of live author-scoped rows for a phrase equals a count of
         // DISTINCT AUTHORS only because this index makes a second live row from one author impossible.
         uniqueIndex('idx_resolution_mappings_live_author')
@@ -138,6 +155,10 @@ export const ingredientResolutionMemos = pgTable(
         /**
          * The phrase the key was derived from. ⚠️ NULLABLE since migration 0026: account erasure nulls it,
          * along with {@link ingredientResolutionMemos.ownerId}, for the user who typed it.
+         *
+         * ⛔ Since migration 0031 the pairing is a CONSTRAINT: a memo whose owner is unknown records the
+         * machine's conclusion and NO phrase, because a phrase nothing can point erasure at outlives the
+         * erasure it should have honoured.
          */
         sourcePhrase: text('source_phrase'),
         /**
@@ -171,6 +192,13 @@ export const ingredientResolutionMemos = pgTable(
         index('idx_resolution_memos_owner')
             .on(table.ownerId)
             .where(sql`${table.ownerId} IS NOT NULL`),
+        // ⛔ THE PAIR INVARIANT (migration 0031), the mappings tier's constraint one tier down. The table is
+        // keyed on the phrase alone, so two cooks share ONE row and the upsert must move the phrase and the
+        // owner link together — this is what makes "together" a fact the database enforces.
+        check(
+            'ingredient_resolution_memos_phrase_needs_owner',
+            sql`(${table.ownerId} IS NULL) = (${table.sourcePhrase} IS NULL)`,
+        ),
     ],
 );
 

@@ -143,6 +143,17 @@ export interface VerifiedMemo {
      * and cannot construct this value.
      */
     readonly verifiedBy: string;
+    /**
+     * Who owns the recipe whose line produced this memo — SOLELY so account erasure has a predicate to
+     * sweep on (migration 0026).
+     *
+     * ⛔ REQUIRED, for the reason `verifiedBy` is: the statement below used to omit `owner_id` entirely, so
+     * every memo it wrote carried a cook's typed phrase that the sweep's `WHERE owner_id = $owner` could
+     * never match. A caller with a phrase to remember and nobody to attribute it to is not a caller this
+     * method can serve, and 0031's CHECK now refuses the row it would produce — so the field is required
+     * here to make that a COMPILE error rather than a runtime one.
+     */
+    readonly ownerId: string;
 }
 
 /** The raw shape of a mapping row as projected by this DAL's reads. */
@@ -330,7 +341,19 @@ export class ResolutionMappingsDal {
      * gets zero rows and reads that as "somebody else already promoted this"** — no audit signal, no error,
      * and no failure of the user's own correction, which stands on its own regardless.
      *
-     * @param input - The phrase, the agreed food, and the two mappings the binding cites.
+     * ⛔ AND IT COPIES NOBODY'S WORDS. `source_phrase` is left NULL, and the input type has no member for
+     * one, so a caller cannot supply it. This binding carries `author_id = NULL` — nobody wrote it — and the
+     * erasure sweep reaches this table by `WHERE author_id = $owner`, so a phrase stored here would be
+     * STRUCTURALLY unreachable: both contributing cooks could exercise their right to erasure and this third
+     * row would keep one of their phrases forever, with nothing to point erasure at. Migration 0031 makes
+     * that row unrepresentable; the missing member is what stops it being written in the first place.
+     *
+     * ⚠️ Nothing is lost. 0021 keeps the phrase to make the key derivation a two-way door
+     * (`SET normalized_key = f(source_phrase)`), and this binding CITES two rows that each carry their own —
+     * so a backfill for it runs through `corroborated_a`, and when both citations have been erased their
+     * phrases are NULL anyway. 0029 already ships this rule for the sibling parse-correction tier.
+     *
+     * @param input - The agreed food, its key, and the two mappings the binding cites.
      * @param writer - The open transaction, when enlisted in one.
      * @returns The binding's row id, or `undefined` when another writer had already promoted this pair.
      * @sideEffect Updates and inserts into `ingredient_resolution_mappings`.
@@ -339,7 +362,6 @@ export class ResolutionMappingsDal {
         input: {
             readonly normalizedKey: NormalizedIngredientKey;
             readonly foodId: string;
-            readonly sourcePhrase: string;
             readonly citesExisting: string;
             readonly citesNew: string;
             readonly supersedesGlobal: string | undefined;
@@ -360,7 +382,7 @@ export class ResolutionMappingsDal {
             INSERT INTO ingredient_resolution_mappings
                 (normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing,
                  corroborated_a, corroborated_b)
-            VALUES (${input.normalizedKey}, ${input.sourcePhrase}, ${input.foodId}, 'global', 'corroboration',
+            VALUES (${input.normalizedKey}, NULL, ${input.foodId}, 'global', 'corroboration',
                     NULL, 'corroboration', ${first}, ${second})
             ON CONFLICT (corroborated_a, corroborated_b) WHERE origin = 'corroboration' DO NOTHING
             RETURNING id
@@ -376,6 +398,12 @@ export class ResolutionMappingsDal {
      * beside it, because a memo is a food id rather than a vector — a newer judge's answer supersedes an
      * older one rather than being incomparable to it.
      *
+     * ⛔ `owner_id` MOVES WITH `source_phrase`, in the insert AND in the update — the rule
+     * `verdictStore.rememberAgreement` states for the same table. Two cooks whose lines normalize alike
+     * share ONE row, so replacing the phrase while leaving the previous owner's id beside it would aim the
+     * NEXT erasure at the wrong person: it would sweep a phrase that cook never typed and leave the one they
+     * did. Migration 0031 refuses the split row rather than trusting these two statements to stay paired.
+     *
      * ⚠️ Nothing in U10 calls this. It exists so the tier's write bar — "only a resolution the gate agreed
      * with, and record which model agreed" — is expressed as a REQUIRED field on the input type rather than a
      * sentence in a plan, before U11 has a writer to forget it.
@@ -385,12 +413,15 @@ export class ResolutionMappingsDal {
      */
     public async recordMemo(memo: VerifiedMemo, writer: Writer = this.db): Promise<void> {
         await writer.execute(sql`
-            INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
-            VALUES (${memo.normalizedKey}, ${memo.foodId}, ${memo.sourcePhrase}, ${memo.verifiedBy})
+            INSERT INTO ingredient_resolution_memos
+                (normalized_key, food_id, source_phrase, verified_by, owner_id)
+            VALUES (${memo.normalizedKey}, ${memo.foodId}, ${memo.sourcePhrase}, ${memo.verifiedBy},
+                    ${memo.ownerId})
             ON CONFLICT (normalized_key) DO UPDATE
                 SET food_id = EXCLUDED.food_id,
                     source_phrase = EXCLUDED.source_phrase,
                     verified_by = EXCLUDED.verified_by,
+                    owner_id = EXCLUDED.owner_id,
                     verified_at = now()
         `);
     }
@@ -506,7 +537,6 @@ export class ResolutionMappingsDal {
                 {
                     normalizedKey: request.normalizedKey,
                     foodId: request.foodId,
-                    sourcePhrase: request.sourcePhrase,
                     citesExisting: decision.promotion.citesExisting,
                     citesNew: mappingId,
                     supersedesGlobal: decision.promotion.supersedesGlobal,

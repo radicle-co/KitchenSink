@@ -17,6 +17,27 @@
  * gate has to cover, because review cannot: the sweep lives in `recipe-workers` and the table arrives in
  * `recipe-service`, in a different package, usually in a different change.
  *
+ * ## ⛔ THE ROW-LEVEL HOLE THIS GATE ORIGINALLY COULD NOT SEE — and the rule that closes it
+ *
+ * Everything above reasons per TABLE, and a fourth instance of the defect class arrived that a per-table
+ * gate reports as COVERED. `promoteByCorroboration` inserted a `corroboration` binding into
+ * `ingredient_resolution_mappings` with `author_id = NULL` — nobody wrote it — carrying a COPY of the
+ * promoting cook's typed phrase. The table IS swept, so this gate was green; the sweep's predicate is
+ * `WHERE author_id = $owner`, so the ROW was structurally unreachable and that phrase outlived both
+ * contributing cooks' erasures. `ingredient_resolution_memos` had the same hole by a different route
+ * (a writer that omitted `owner_id` from its statement entirely).
+ *
+ * The generalisation is mechanical, and it is asserted below. A de-identifying `UPDATE` — one that NULLs
+ * columns under an owner-column equality — can only reach rows whose owner column is SET. So every OTHER
+ * column that statement nulls must be tied to the predicate's column by a CHECK constraint: *the payload and
+ * the person exist together or not at all*. Without that pairing the sweep has a blind spot the shape of
+ * "rows with no owner", and no per-table reasoning can see it.
+ *
+ * ⚠️ The rule also guards the sweep in the OTHER direction — a future edit that clears only one of a pair is
+ * refused by the database rather than leaving a previous owner's id beside somebody else's data, which would
+ * aim the NEXT erasure at the wrong person. `ingredient_parse_corrections_owner_line_pair` (0029) shipped
+ * that reasoning first; migration 0031 brought the other two tables to it.
+ *
  * ## What is asserted, and why it is bidirectional
  *
  * The owner-bearing tables are DISCOVERED from the migration files — never enumerated here — and the swept
@@ -26,7 +47,9 @@
  *  * every exemption names a table that still EXISTS and still carries an owner column, so an exemption
  *    cannot outlive the thing it excused;
  *  * no exemption is also swept, so an exemption that has quietly been closed is reported rather than left
- *    standing as a lie about the sweep.
+ *    standing as a lie about the sweep;
+ *  * every column a de-identifying statement NULLs is pair-checked against the owner column that statement
+ *    keys on, so no row shape can exist that carries the data and not the predicate.
  *
  * A non-vacuity floor guards the discovery itself: if the parser stops finding tables — a syntax change, a
  * moved directory, a renamed function — the gate must go RED rather than pass by finding nothing, which is
@@ -48,9 +71,9 @@
  * a sweep adds an entry to {@link SWEPT_DATABASES}; the pure predicates below are subject-neutral so that
  * costs one line and no new logic.
  *
- * DESIGN PATTERN: Specification module over two pure parsers — {@link ownerBearingTablesIn} and
- * {@link sweptTablesIn} are pure verdicts over a source, fired at deliberately-violating fakes below as well
- * as at the working tree.
+ * DESIGN PATTERN: Specification module over four pure parsers — {@link ownerBearingTablesIn},
+ * {@link sweptTablesIn}, {@link deIdentifyingStatementsIn} and {@link checkExpressionsFor} are pure verdicts
+ * over a source, fired at deliberately-violating fakes below as well as at the working tree.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -114,6 +137,15 @@ const EXEMPT_FROM_SWEEP: ReadonlyMap<string, string> = new Map([
  * set is most exposed to.
  */
 const MINIMUM_OWNER_BEARING_TABLES = 6;
+
+/**
+ * The fewest de-identifying statements a working parse must find.
+ *
+ * Same role as {@link MINIMUM_OWNER_BEARING_TABLES}: the pairing assertion iterates a DERIVED set, so a
+ * parser that silently stops matching would satisfy it vacuously. Three today — the curated mapping tier,
+ * the memo tier and the parse-correction tier.
+ */
+const MINIMUM_DE_IDENTIFYING_STATEMENTS = 3;
 
 /**
  * Strip SQL comments so prose about a column is never read as a column.
@@ -201,6 +233,35 @@ function ownerBearingTablesIn(source: SourceFile): readonly string[] {
 function sweptTablesIn(source: SourceFile, functionName: string): readonly string[] {
     const swept = new Set<string>();
 
+    for (const text of statementTextsIn(source, functionName)) {
+        // ⛔ MUTATING forms only. A bare `FROM` would count a table the sweep merely READS — the removed-
+        // set `SELECT … FROM recipes` is one — as covered, which is a false NEGATIVE in the one direction
+        // that matters: a table this sweep looks at but never erases would be reported as reached.
+        for (const match of text.matchAll(/\b(?:UPDATE|DELETE\s+FROM|INSERT\s+INTO)\s+"?([a-z_][a-z0-9_]*)"?/gi)) {
+            if (match[1] !== undefined) {
+                swept.add(match[1]);
+            }
+        }
+    }
+
+    return [...swept];
+}
+
+/**
+ * The SQL text of every template literal inside the named function's declaration.
+ *
+ * Interpolations become ` ? `, so a bound parameter can never be mistaken for a literal and a fragment
+ * spliced in from ANOTHER template literal (the sweep's shared `ownerOnly` predicate is one) contributes to
+ * its own text rather than to this statement's. Read from the AST for the reason the header gives: the
+ * docstring above the function names every table it touches and several it deliberately does not.
+ *
+ * @param source - The source declaring the sweep.
+ * @param functionName - The declaration whose statements are read.
+ * @returns One string per template literal. Pure.
+ */
+function statementTextsIn(source: SourceFile, functionName: string): readonly string[] {
+    const texts: string[] = [];
+
     visit(parse(source), (node) => {
         if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || node.name.text !== functionName) {
             return;
@@ -211,22 +272,127 @@ function sweptTablesIn(source: SourceFile, functionName: string): readonly strin
                 return;
             }
 
-            const text = ts.isNoSubstitutionTemplateLiteral(inner)
-                ? inner.text
-                : [inner.head.text, ...inner.templateSpans.map((span) => span.literal.text)].join(' ? ');
-
-            // ⛔ MUTATING forms only. A bare `FROM` would count a table the sweep merely READS — the removed-
-            // set `SELECT … FROM recipes` is one — as covered, which is a false NEGATIVE in the one direction
-            // that matters: a table this sweep looks at but never erases would be reported as reached.
-            for (const match of text.matchAll(/\b(?:UPDATE|DELETE\s+FROM|INSERT\s+INTO)\s+"?([a-z_][a-z0-9_]*)"?/gi)) {
-                if (match[1] !== undefined) {
-                    swept.add(match[1]);
-                }
-            }
+            texts.push(
+                ts.isNoSubstitutionTemplateLiteral(inner)
+                    ? inner.text
+                    : [inner.head.text, ...inner.templateSpans.map((span) => span.literal.text)].join(' ? '),
+            );
         });
     });
 
-    return [...swept];
+    return texts;
+}
+
+/** One de-identifying statement: the columns it clears, and the owner column it can reach rows by. */
+interface DeIdentifyingStatement {
+    /** The table being de-identified. */
+    readonly table: string;
+    /** The owner column the statement's `WHERE` keys on — the ONLY rows it can reach. */
+    readonly ownerColumn: string;
+    /** Every column the statement sets to `NULL`, the owner column included. */
+    readonly nulledColumns: readonly string[];
+}
+
+/**
+ * Every `UPDATE … SET x = NULL … WHERE <owner> = ?` the named function issues.
+ *
+ * ⛔ Both halves of the shape are REQUIRED, and each exclusion is deliberate rather than incidental:
+ *
+ *  * **`= NULL`, not any `SET`.** The sweep's author-handle scrub writes a PSEUDONYM rather than clearing a
+ *    column, and the donate-flip writes a visibility — neither leaves a row shape that can hide data.
+ *  * **An owner-column EQUALITY in the `WHERE`.** The clone-detach `UPDATE` nulls `cloned_from_id` under a
+ *    subquery on recipe ids; it is not attributing anything to a person, so pairing it against an owner
+ *    column would be meaningless. Only a statement that reaches rows BY their owner has the blind spot.
+ *
+ * @param source - The source declaring the sweep.
+ * @param functionName - The declaration whose statements are read.
+ * @returns One entry per de-identifying statement. Pure.
+ */
+function deIdentifyingStatementsIn(source: SourceFile, functionName: string): readonly DeIdentifyingStatement[] {
+    const found: DeIdentifyingStatement[] = [];
+    const ownerColumn = `(?:${OWNER_COLUMNS.join('|')})`;
+
+    for (const text of statementTextsIn(source, functionName)) {
+        const update = new RegExp(
+            `\\bUPDATE\\s+"?([a-z_][a-z0-9_]*)"?\\s+SET\\s+([\\s\\S]*?)\\sWHERE\\s([\\s\\S]*)`,
+            'i',
+        ).exec(text);
+
+        if (update === null) {
+            continue;
+        }
+
+        const [, table, assignments = '', predicate = ''] = update;
+        const nulledColumns = [...assignments.matchAll(/"?([a-z_][a-z0-9_]*)"?\s*=\s*NULL\b/gi)].flatMap(
+            (match) => match[1] ?? [],
+        );
+        const keyedOn = new RegExp(`"?(${ownerColumn})"?\\s*=\\s*\\?`, 'i').exec(predicate);
+
+        if (table === undefined || nulledColumns.length === 0 || keyedOn === null || keyedOn[1] === undefined) {
+            continue;
+        }
+
+        found.push({ table, ownerColumn: keyedOn[1], nulledColumns });
+    }
+
+    return found;
+}
+
+/**
+ * Every `CHECK (…)` expression declared for one table across a set of migrations.
+ *
+ * Both spellings this repository uses are read: a `CONSTRAINT … CHECK (…)` inside the `CREATE TABLE` body,
+ * and a later `ALTER TABLE … ADD CONSTRAINT … CHECK (…)`. Comments are stripped first, for the header's
+ * reason — 0021's own header prints the prescribed sweep, `author_id` and all.
+ *
+ * @param sources - The migration files.
+ * @param table - The table whose constraints are wanted.
+ * @returns The text inside each `CHECK`. Pure.
+ */
+function checkExpressionsFor(sources: readonly SourceFile[], table: string): readonly string[] {
+    const expressions: string[] = [];
+
+    for (const source of sources) {
+        const sql = stripSqlComments(source.contents);
+        const create = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"?${table}"?\\s*\\(`, 'i').exec(sql);
+        const bodies: string[] = [];
+
+        if (create !== null) {
+            bodies.push(balancedBody(sql, sql.indexOf('(', create.index + create[0].length - 1)));
+        }
+
+        for (const alter of sql.matchAll(
+            new RegExp(`ALTER\\s+TABLE\\s+"?${table}"?\\s+ADD\\s+CONSTRAINT[\\s\\S]*?CHECK\\s*\\(`, 'gi'),
+        )) {
+            bodies.push(`CHECK (${balancedBody(sql, sql.indexOf('(', alter.index + alter[0].length - 1))})`);
+        }
+
+        for (const body of bodies) {
+            for (const check of body.matchAll(/\bCHECK\s*\(/gi)) {
+                expressions.push(balancedBody(body, body.indexOf('(', (check.index ?? 0) + check[0].length - 1)));
+            }
+        }
+    }
+
+    return expressions;
+}
+
+/**
+ * Whether some CHECK on `table` mentions BOTH columns — i.e. makes one without the other unrepresentable.
+ *
+ * @param sources - The migration files.
+ * @param table - The table.
+ * @param first - One column.
+ * @param second - The other.
+ * @returns True when a single constraint ties them together. Pure.
+ */
+function pairChecked(sources: readonly SourceFile[], table: string, first: string, second: string): boolean {
+    const mentions = (expression: string, column: string): boolean =>
+        new RegExp(`"?\\b${column}\\b"?`).test(expression);
+
+    return checkExpressionsFor(sources, table).some(
+        (expression) => mentions(expression, first) && mentions(expression, second),
+    );
 }
 
 /**
@@ -256,6 +422,21 @@ function readSource(file: string): SourceFile {
  * @sideEffect Shells out to git and reads the working tree.
  */
 function ownerBearingTables(database: SweptDatabase): readonly string[] {
+    return [...new Set(migrationsOf(database).flatMap((source) => ownerBearingTablesIn(source)))].sort();
+}
+
+/**
+ * Every migration file of one database, read.
+ *
+ * The FILES are discovered from git, so a migration that lands tomorrow is covered the day it does and
+ * cannot opt out by not being listed. See {@link ownerBearingTables} for why {@link presentFiles} and not
+ * `trackedFiles`.
+ *
+ * @param database - The database to read.
+ * @returns Its migrations. Impure.
+ * @sideEffect Shells out to git and reads the working tree.
+ */
+function migrationsOf(database: SweptDatabase): readonly SourceFile[] {
     const files = presentFiles([database.migrations]).filter((file) => file.endsWith('.sql'));
 
     expect(
@@ -263,7 +444,7 @@ function ownerBearingTables(database: SweptDatabase): readonly string[] {
         `no migrations found under ${database.migrations} — the gate has stopped discovering`,
     ).toBeGreaterThan(0);
 
-    return [...new Set(files.flatMap((file) => ownerBearingTablesIn(readSource(file))))].sort();
+    return files.map((file) => readSource(file));
 }
 
 describe('account-erasure sweep coverage', () => {
@@ -285,6 +466,30 @@ describe('account-erasure sweep coverage', () => {
                 // ⛔ A table here is personal data with no route to erasure. Add a statement to the sweep, or
                 // add an exemption above SAYING how erasure reaches it — never neither.
                 expect(owned.filter((table) => !swept.has(table) && !EXEMPT_FROM_SWEEP.has(table))).toEqual([]);
+            });
+
+            it('⛔ pairs every column its de-identifying statements NULL with the owner they key on', () => {
+                const statements = deIdentifyingStatementsIn(readSource(database.sweepFile), database.sweepFunction);
+                const migrations = migrationsOf(database);
+
+                expect(
+                    statements.length,
+                    `${database.sweepFunction} de-identifies nothing — the parser has broken`,
+                ).toBeGreaterThanOrEqual(MINIMUM_DE_IDENTIFYING_STATEMENTS);
+
+                const unpaired = statements.flatMap((statement) =>
+                    statement.nulledColumns
+                        .filter((column) => column !== statement.ownerColumn)
+                        .filter((column) => !pairChecked(migrations, statement.table, statement.ownerColumn, column))
+                        .map((column) => `${statement.table}.${column} ↮ ${statement.ownerColumn}`),
+                );
+
+                // ⛔ Each entry is a column this sweep clears on rows it can reach, sitting in a table where a
+                // row with NO owner may still carry it — and such a row is invisible to `WHERE <owner> = $1`
+                // forever. That is exactly how a `corroboration` binding kept a cook's typed phrase through
+                // their erasure. Add a CHECK tying the two columns together (see 0029 and 0031), which also
+                // makes a half-run sweep a row the database refuses.
+                expect(unpaired).toEqual([]);
             });
 
             it('carries no exemption for a table that no longer bears an owner column', () => {
@@ -343,6 +548,106 @@ describe('account-erasure sweep coverage', () => {
         // Named in the docstring, named in a SQL comment, and swept by neither — which is precisely how
         // `ingredient_resolution_mappings` and `ingredient_resolution_memos` both shipped.
         expect(owned.filter((table) => !swept.has(table))).toEqual(['widgets']);
+    });
+
+    it('⛔ FAILS the exact shape that shipped: a phrase nulled under an owner the row need not have', () => {
+        // `ingredient_resolution_mappings` as 0021 created it, and the sweep as step 10 writes it. The table
+        // IS swept, so the coverage assertions above were green — and a `corroboration` row with
+        // `author_id = NULL` carrying `source_phrase` was unreachable by that predicate forever.
+        const migration = {
+            file: 'fake/0021_mappings.sql',
+            contents: `
+                CREATE TABLE "mappings" (
+                    "id" uuid PRIMARY KEY,
+                    "author_id" varchar(255),
+                    "source_phrase" text,
+                    CONSTRAINT "mappings_supersession_coherent"
+                        CHECK ("superseded_by" IS NULL OR "superseded_at" IS NOT NULL)
+                );
+            `,
+        };
+        const sweep = {
+            file: 'fake/sweep.ts',
+            contents: `
+                export const eraseRows = async (tx) => {
+                    await tx.execute(sql\`
+                        UPDATE mappings SET superseded_at = now(), author_id = NULL, source_phrase = NULL
+                        WHERE author_id = \${ownerId} AND superseded_at IS NULL
+                    \`);
+                };
+            `,
+        };
+        const [statement] = deIdentifyingStatementsIn(sweep, 'eraseRows');
+
+        expect(statement).toEqual({
+            table: 'mappings',
+            ownerColumn: 'author_id',
+            nulledColumns: ['author_id', 'source_phrase'],
+        });
+        expect(pairChecked([migration], 'mappings', 'author_id', 'source_phrase')).toBe(false);
+
+        // …and the same migration WITH the pairing constraint passes, so the verdict tracks the constraint
+        // rather than something incidental about the fake.
+        expect(
+            pairChecked(
+                [
+                    {
+                        file: 'fake/0031_pair.sql',
+                        contents: `ALTER TABLE "mappings" ADD CONSTRAINT "mappings_phrase_needs_owner"
+                                       CHECK (("author_id" IS NULL) = ("source_phrase" IS NULL));`,
+                    },
+                ],
+                'mappings',
+                'author_id',
+                'source_phrase',
+            ),
+        ).toBe(true);
+    });
+
+    it('⛔ ignores an UPDATE that writes a value rather than clearing one, and one not keyed on an owner', () => {
+        const sweep = {
+            file: 'fake/sweep.ts',
+            contents: `
+                export const eraseRows = async (tx) => {
+                    await tx.execute(sql\`
+                        UPDATE recipes SET author_handle = \${pseudonym} WHERE owner_id = \${ownerId}
+                    \`);
+                    await tx.execute(sql\`
+                        UPDATE recipes SET cloned_from_id = NULL WHERE cloned_from_id IN (SELECT id FROM x)
+                    \`);
+                    await tx.execute(sql\`
+                        UPDATE memos SET owner_id = NULL, source_phrase = NULL WHERE owner_id = \${ownerId}
+                    \`);
+                };
+            `,
+        };
+
+        // A pseudonym is not a blind spot — the row shape it leaves still carries its owner. Neither is a
+        // statement that reaches rows by something other than a person; there is no owner to pair against.
+        expect(deIdentifyingStatementsIn(sweep, 'eraseRows')).toEqual([
+            { table: 'memos', ownerColumn: 'owner_id', nulledColumns: ['owner_id', 'source_phrase'] },
+        ]);
+    });
+
+    it('reads a CHECK from the SQL and not from a header quoting one', () => {
+        expect(
+            pairChecked(
+                [
+                    {
+                        file: 'fake/0099_prose.sql',
+                        contents: `
+                            -- The pairing this table needs would be
+                            --   CHECK (("owner_id" IS NULL) = ("source_line" IS NULL))
+                            -- and it is deliberately NOT added here.
+                            CREATE TABLE "notes" ("id" uuid PRIMARY KEY, "owner_id" text, "source_line" text);
+                        `,
+                    },
+                ],
+                'notes',
+                'owner_id',
+                'source_line',
+            ),
+        ).toBe(false);
     });
 
     it('reads a column from SQL but not from the prose describing it', () => {

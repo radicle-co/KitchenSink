@@ -1,4 +1,4 @@
-import { createConfig } from '@kitchensink/eslint';
+import { createConfig, restrictedImportsRule } from '@kitchensink/eslint';
 
 const base = createConfig('./tsconfig.json', import.meta.dirname);
 
@@ -13,36 +13,40 @@ const base = createConfig('./tsconfig.json', import.meta.dirname);
  * hold and pass a `CallerToken` freely; they just cannot read it.
  *
  * If you are hitting this rule: pass the `CallerToken` along instead of unwrapping it.
+ *
+ * ⛔ COMPOSED with the shared rule through {@link restrictedImportsRule}, never spelled as a bare
+ * `no-restricted-imports` entry of its own. In ESLint flat config a later config object's rule entry
+ * REPLACES the earlier one — options do not merge — so writing `{ paths: [...] }` here switched the base
+ * config's `patterns` allow-list (the "don't reach into another package's internals" guard) OFF for every
+ * `src/**\/*.ts` in this package. Measured on an identical probe file importing
+ * `@kitchensink/recipe-core/src/parsing/parseKey.js`: `contract/zzprobe.ts` reported the error and
+ * `src/zzprobe.ts` was clean. `packages/infra/global/__tests__/restrictedImportsOverride.test.ts` now
+ * fires that probe at the real config from inside `src/`, so the override cannot come back quietly.
  */
 const restrictCredentialAccessor = {
     files: ['src/**/*.ts'],
     ignores: ['src/ingredients/FoodServiceClients.factory.ts', 'src/auth/CallerToken.ts', 'src/**/__tests__/**'],
     rules: {
-        'no-restricted-imports': [
-            'error',
+        'no-restricted-imports': restrictedImportsRule([
             {
-                paths: [
-                    {
-                        name: './CallerToken.js',
-                        importNames: ['revealCallerToken'],
-                        message:
-                            'revealCallerToken is restricted to ingredients/FoodServiceClients.factory.ts — pass the CallerToken along instead of unwrapping the credential.',
-                    },
-                    {
-                        name: '../auth/CallerToken.js',
-                        importNames: ['revealCallerToken'],
-                        message:
-                            'revealCallerToken is restricted to ingredients/FoodServiceClients.factory.ts — pass the CallerToken along instead of unwrapping the credential.',
-                    },
-                    {
-                        name: '../../auth/CallerToken.js',
-                        importNames: ['revealCallerToken'],
-                        message:
-                            'revealCallerToken is restricted to ingredients/FoodServiceClients.factory.ts — pass the CallerToken along instead of unwrapping the credential.',
-                    },
-                ],
+                name: './CallerToken.js',
+                importNames: ['revealCallerToken'],
+                message:
+                    'revealCallerToken is restricted to ingredients/FoodServiceClients.factory.ts — pass the CallerToken along instead of unwrapping the credential.',
             },
-        ],
+            {
+                name: '../auth/CallerToken.js',
+                importNames: ['revealCallerToken'],
+                message:
+                    'revealCallerToken is restricted to ingredients/FoodServiceClients.factory.ts — pass the CallerToken along instead of unwrapping the credential.',
+            },
+            {
+                name: '../../auth/CallerToken.js',
+                importNames: ['revealCallerToken'],
+                message:
+                    'revealCallerToken is restricted to ingredients/FoodServiceClients.factory.ts — pass the CallerToken along instead of unwrapping the credential.',
+            },
+        ]),
     },
 };
 

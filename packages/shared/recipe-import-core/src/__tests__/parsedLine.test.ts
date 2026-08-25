@@ -18,13 +18,28 @@
  * would still pass against a projection that did nothing at all, so each is paired with a positive case
  * that fails the moment the rule is inverted.
  */
+import { readFileSync } from 'node:fs';
+
 import { ABSENT_QUANTITY, statedQuantity } from '@kitchensink/recipe-core';
+import { PARSE_ENGINES } from '@kitchensink/recipe-core/parsing/parse-key';
 import { describe, it, expect } from 'vitest';
 
 import { corruptsStatedValue, type IngredientReviewReason } from '../ingredientLine.js';
-import { projectToIngredientLine, type ParsedFacts, type ParseEngine, type ParseProvenance } from '../parsedLine.js';
+import {
+    projectToIngredientLine,
+    type ParsedFacts,
+    type ParseEngine,
+    type ParseFactSource,
+    type ParseProvenance,
+} from '../parsedLine.js';
 
 import { makeParsedFood, makeParsedLine } from './__fixtures__/makeParsedLine.js';
+
+/**
+ * Type-level equality, in the form `recipe-workers`' `llmParse.test.ts` and `recipe-core`'s
+ * `parsePrompt.test.ts` already use. Invariant position, so a merely-assignable type fails.
+ */
+type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 
 /**
  * ⛔ COMPILE-TIME, and it is the whole guarantee that provenance cannot fall behind the facts.
@@ -330,5 +345,75 @@ describe('projectToIngredientLine, on U31 — a measurement in the name', () => 
         expect(projected.unit).toBeNull();
         // Exactly the producer's reason — nothing derived here, nothing swallowed.
         expect(projected.reviewReasons).toEqual(['no_quantity']);
+    });
+});
+
+/**
+ * ⛔ ONE `ParseEngine`, AND A SEPARATE AXIS FOR A CORRECTION (ADR-0026's two contract defects).
+ *
+ * Both defects are of the INVISIBLE kind, and the first one cannot be caught by a type assertion at all —
+ * which is why the first test below reads the module's SOURCE.
+ *
+ *  - **`ParseEngine` was declared twice**, here and in `recipe-core/src/parsing/parseKey.ts`, as two
+ *    structurally identical unions. `Exact<A, B>` is `true` for two copies of `'crf' | 'llm'`, so no
+ *    type-level assertion can tell a re-export from a duplicate, and neither can `tsc`. What CAN be
+ *    asserted is the property that actually matters — that this module holds no second declaration — and
+ *    the shape for that is the source-reading guard `packages/infra/global/__tests__/` uses for the same
+ *    class of problem.
+ *  - **`ParseProvenance` had no inhabitant for a human correction.** U21's correction tier ships, and a
+ *    cook is neither `crf` nor `llm`, so its output was untypeable. The fix is a SECOND AXIS —
+ *    `ParseFactSource` — and never a widening of `PARSE_ENGINES`, which is
+ *    `ingredient_parse_cache.engine`'s CHECK-constrained key domain: a third member there is, in that
+ *    module's own words, "a compile error and a migration".
+ */
+describe('⛔ the parse contract`s two source axes', () => {
+    it('holds no ParseEngine declaration of its own, and re-exports the cache`s key domain instead', () => {
+        const source = readFileSync(new URL('../parsedLine.ts', import.meta.url), 'utf8');
+
+        // A local declaration in ANY of its spellings — `type`, `enum`, `interface` — is the defect.
+        expect(source).not.toMatch(/^\s*(?:export\s+)?(?:type|enum|interface)\s+ParseEngine\b/mu);
+        expect(source).toContain("from '@kitchensink/recipe-core/parsing/parse-key'");
+    });
+
+    /**
+     * ⛔ COMPILE-TIME. `ParseFactSource` is the cache's engine set PLUS the human tier, DERIVED from the
+     * runtime constant rather than respelled — so widening `PARSE_ENGINES` (which is a migration) shows up
+     * here, and adding a non-engine source does NOT silently widen the cache's key domain.
+     */
+    it('names exactly the cache`s engines plus the correction tier', () => {
+        const sourceIsEnginesPlusCorrection: Exact<ParseFactSource, (typeof PARSE_ENGINES)[number] | 'correction'> =
+            true;
+        const engineIsTheCacheKeyDomain: Exact<ParseEngine, (typeof PARSE_ENGINES)[number]> = true;
+
+        expect(sourceIsEnginesPlusCorrection).toBe(true);
+        expect(engineIsTheCacheKeyDomain).toBe(true);
+        // ⛔ The axes are NOT the same set: a correction is representable as a fact's SOURCE and is not
+        // representable as a cache row's ENGINE. Runtime, so it holds even where the types were collapsed.
+        expect([...PARSE_ENGINES]).not.toContain('correction');
+    });
+
+    /**
+     * ⛔ THE DEFECT, STATED AS BEHAVIOUR. A line whose amount a cook corrected and whose foods an engine
+     * read is exactly what U21's tier produces, and it did not type before this repair.
+     */
+    it('lets a corrected fact sit beside an engine`s on one line', () => {
+        const corrected = makeParsedLine({
+            provenance: { statedMeasure: 'correction', quantity: 'correction', unit: 'correction', foods: 'llm' },
+        });
+
+        expect(corrected.provenance.quantity).toBe('correction');
+        expect(projectToIngredientLine(corrected).name).toBe('butter');
+    });
+
+    /**
+     * ⛔ `ParseProvenance` stays DERIVED from `ParsedFacts`. Changing its VALUE type must not turn its KEY
+     * set into a hand-written list — that is the drift the mapped type exists to prevent.
+     */
+    it('still derives one source per fact, and no key that is not a fact', () => {
+        const keysAreExactlyTheFacts: Exact<keyof ParseProvenance, keyof ParsedFacts> = true;
+        const valuesAreTheSourceAxis: Exact<ParseProvenance[keyof ParsedFacts], ParseFactSource> = true;
+
+        expect(keysAreExactlyTheFacts).toBe(true);
+        expect(valuesAreTheSourceAxis).toBe(true);
     });
 });

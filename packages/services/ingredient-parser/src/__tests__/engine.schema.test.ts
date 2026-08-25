@@ -23,13 +23,31 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import type { CrfReading } from '@kitchensink/recipe-import-core';
+
 import {
     MAX_LINES,
     MAX_LINE_CHARS,
     engineRequestSchema,
     engineResponseSchema,
     parseEngineResponse,
+    type EngineResult,
 } from '../engine.schema.js';
+
+/**
+ * ⛔ COMPILE-TIME — THE ROW IS ONE PIECE OF KNOWLEDGE, THE ENVELOPES ARE TWO (plan U22, phase 2).
+ *
+ * This response wraps its row in an envelope (`status`, and at the top level `engine`/`engineVersion`);
+ * `cookbook-import`'s measurement sidecar prints the SAME six fields as a bare JSONL row. The envelopes
+ * genuinely differ and stay separate — this one exists because the answer arrives over
+ * `lambda:InvokeFunction`. The ROW does not differ, and it is what `promoteCrfReading` reads.
+ *
+ * ⚠️ The dependency points the RIGHT way. `recipe-import-core` is a shared library and must never import a
+ * service package — that is what keeps it transport-free — so the assertion lives here, beside the zod it
+ * guards, where it is in front of whoever edits that zod. `@kitchensink/recipe-import-core` is a TYPE-only
+ * devDependency; nothing in this package's deployed asset is TypeScript at all.
+ */
+const parsedRowIsACrfReading: Extract<EngineResult, { status: 'parsed' }> extends CrfReading ? true : false = true;
 
 const parsedRow = {
     status: 'parsed',
@@ -44,6 +62,10 @@ const parsedRow = {
 const response = { engine: 'crf', engineVersion: '2.3.0', results: [parsedRow] };
 
 describe('engineResponseSchema', () => {
+    it('infers a parsed row the promotion layer can read as a CrfReading', () => {
+        expect(parsedRowIsACrfReading).toBe(true);
+    });
+
     it('accepts the shape the handler emits', () => {
         expect(engineResponseSchema.safeParse(response).success).toBe(true);
     });

@@ -4,7 +4,17 @@ export type { MeasureSystem } from './historicalUnits.js';
 export { corruptsStatedValue, parseIngredientLine, roundToQuantityStorageScale } from './ingredientLine.js';
 export type { IngredientReviewReason, ParsedIngredientLine } from './ingredientLine.js';
 export { projectToIngredientLine } from './parsedLine.js';
-export type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance } from './parsedLine.js';
+export type {
+    ParsedFacts,
+    ParsedFood,
+    ParsedLine,
+    ParseEngine,
+    ParseFactSource,
+    ParseProvenance,
+} from './parsedLine.js';
+export { promoteCrfReading } from './domain/promoteCrfReading.js';
+export type { CrfReading } from './domain/promoteCrfReading.js';
+export { promoteLlmParse } from './domain/promoteLlmParse.js';
 export { compareParses } from './domain/parseComparator.js';
 export type {
     ComparedFact,

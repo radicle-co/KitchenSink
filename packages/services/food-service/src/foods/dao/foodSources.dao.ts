@@ -7,7 +7,7 @@
  *
  * @implements FR-008 FR-028 FR-029 FR-032
  */
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { food, foodSources, type FoodSourceRow } from '../../db/schema/index.js';
@@ -97,6 +97,40 @@ export class FoodSourcesDao {
             .limit(1);
 
         return rows[0]?.foodId;
+    }
+
+    /**
+     * Resolve MANY `(source, external_key)` pairs to their internal food ids in ONE query.
+     *
+     * The on-demand live search (plan U29) needs this for every hit the source returned, so that a hit
+     * already admitted to our catalog can be picked with zero further source calls while an unknown one is
+     * marked as costing an admission. Doing it with {@link findFoodIdByExternalKey} in a loop would be a
+     * textbook N+1 on the one path a cook is actively waiting on — twenty round-trips inside a request that
+     * has already spent a multi-second source call.
+     *
+     * ⚠️ Absent keys are simply ABSENT from the returned map rather than mapped to `undefined`, so a caller
+     * distinguishes "not in our catalog" by lookup failure and cannot mistake a present-but-undefined entry
+     * for a real id.
+     *
+     * @param source - The source identifier.
+     * @param externalKeys - That source's item keys. An empty list short-circuits without querying.
+     * @returns A map from `external_key` to food id, containing only the keys that are crosswalked.
+     * @sideEffect Reads `food_sources`.
+     */
+    public async findFoodIdsByExternalKeys(
+        source: FoodSource,
+        externalKeys: readonly string[],
+    ): Promise<Map<string, string>> {
+        if (externalKeys.length === 0) {
+            return new Map();
+        }
+
+        const rows = await this.db
+            .select({ externalKey: foodSources.externalKey, foodId: foodSources.foodId })
+            .from(foodSources)
+            .where(and(eq(foodSources.source, source), inArray(foodSources.externalKey, [...externalKeys])));
+
+        return new Map(rows.map((row) => [row.externalKey, row.foodId]));
     }
 
     /**

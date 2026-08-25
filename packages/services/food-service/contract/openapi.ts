@@ -34,6 +34,8 @@ import {
     candidateViewSchema,
     foodErrorSchema,
     foodResponseSchema,
+    liveSearchResponseSchema,
+    liveSearchResultViewSchema,
     nutrientViewSchema,
     pendingResponseSchema,
     portionViewSchema,
@@ -77,6 +79,8 @@ export const openApiComponents = {
     CandidatesResponse: candidatesResponseSchema,
     SearchResultView: searchResultViewSchema,
     SearchResponse: searchResponseSchema,
+    LiveSearchResultView: liveSearchResultViewSchema,
+    LiveSearchResponse: liveSearchResponseSchema,
     AddResponse: addResponseSchema,
     BatchItemView: batchItemViewSchema,
     BatchResponse: batchResponseSchema,
@@ -193,6 +197,51 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                 responses: {
                     '200': { description: 'Ranked hits, possibly empty.', schema: 'SearchResponse' },
                     '401': unauthorized,
+                },
+            },
+        },
+        '/api/v1/foods/search/live': {
+            get: {
+                operationId: 'searchFoodsLive',
+                summary: 'Search the upstream source on demand (an explicit action, quota-charged)',
+                description:
+                    'The ON-DEMAND live source search behind the ingredient picker\'s "Search USDA for …" ' +
+                    'affordance. Unlike `/search` it LEAVES our database and spends one call against the ' +
+                    "shared per-IP source quota, out of FR-019's reserved interactive lane.\n\n" +
+                    '⛔ It is an explicit action a cook chooses, NOT autocomplete: at 50 concurrent users a ' +
+                    'per-settled-query typeahead would want roughly three times the entire hourly key.\n\n' +
+                    'Three outcomes are deliberately distinguishable: an empty `200` means the source has ' +
+                    'nothing; `503` means our lane is exhausted or the source throttled us (retry); `502` ' +
+                    'means the source did not answer. The route is user-agnostic — the source rate-limits ' +
+                    'our egress IP, so the aggregate limiter is the only quota authority.',
+                parameters: [
+                    {
+                        name: 'query',
+                        in: 'query',
+                        description:
+                            'The search text. Must meet the shared search minimum (003-FR-010a); shorter is ' +
+                            'REJECTED rather than emptied, because an empty page here would be ' +
+                            'indistinguishable from "the source has nothing".',
+                        schema: z.string(),
+                    },
+                ],
+                responses: {
+                    '200': {
+                        description: "The source's hits, possibly EMPTY — which means it has nothing.",
+                        schema: 'LiveSearchResponse',
+                    },
+                    '400': {
+                        description: 'Below the search minimum — `code: VALIDATION_FAILED` (003-FR-010a).',
+                        schema: 'ApiError',
+                    },
+                    '401': unauthorized,
+                    '502': {
+                        description:
+                            'The upstream source did not answer — `code: SOURCE_UNAVAILABLE`. Carries no ' +
+                            '`Retry-After`: the fault is upstream and we know nothing about its recovery.',
+                        schema: 'ApiError',
+                    },
+                    '503': shed,
                 },
             },
         },

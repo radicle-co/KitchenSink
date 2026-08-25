@@ -210,15 +210,5 @@ describe.skipIf(!DATABASE_URL)('RollingWindowLimiter (integration)', () => {
             expect(await limiter.count('usda')).toBeLessThanOrEqual(caps.usda.hardCap);
             expect(await limiter.count('usda', 'worker')).toBeLessThanOrEqual(caps.usda.pauseThreshold);
         });
-
-        it('reports the interactive headroom the live search sheds on, and floors it at zero', async () => {
-            const limiter = new RollingWindowLimiter(dao, { caps });
-
-            await seedWorkerCalls(7);
-            expect(await limiter.interactiveHeadroom('usda')).toBe(3);
-
-            await seedWorkerCalls(5); // 12 rows against a hard cap of 10 — over, not merely at, the cap
-            expect(await limiter.interactiveHeadroom('usda')).toBe(0);
-        });
     });
 });

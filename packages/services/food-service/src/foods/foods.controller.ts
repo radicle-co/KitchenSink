@@ -66,6 +66,7 @@ import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
 import { isFoodPendingError } from './foods.errors.js';
 import { FoodsService } from './foods.service.js';
+import { LiveFoodSearchService } from './liveSearch.service.js';
 // The AUTHORED wire contract (CODING_STANDARDS §15.2): the request schemas below are the validators this
 // controller runs AND the definitions `@kitchensink/schema-food` publishes to every client, so there is one
 // representation of each shape instead of a server-side check and a client-side belief about it.
@@ -81,6 +82,7 @@ import type {
     BatchResponse,
     CandidatesResponse,
     FoodResponse,
+    LiveSearchResponse,
     PendingResponse,
     ResolveResponse,
     SearchResponse,
@@ -95,6 +97,7 @@ import type {
 export class FoodsController {
     public constructor(
         private readonly foodsService: FoodsService,
+        private readonly liveSearch: LiveFoodSearchService,
         private readonly config: ConfigService<Environment, true>,
     ) {}
 
@@ -108,6 +111,34 @@ export class FoodsController {
     @Get('search')
     public async search(@Query() query: SearchFoodQueryDto): Promise<SearchResponse> {
         return this.foodsService.search(query.query);
+    }
+
+    /**
+     * `GET /api/v1/foods/search/live?query=` — the ON-DEMAND source search behind the picker's
+     * "Search USDA for '…'" affordance (plan U29). The only read path here that leaves our own database.
+     *
+     * ⚠️ **Declared BEFORE every `:id` route** (and before `search` would be irrelevant — a two-segment path
+     * cannot be swallowed by the one-segment `search`, but it CAN be swallowed by `:id`). Nest matches in
+     * declaration order; registered after `:id` this would bind `search` as an id and 404 with no clue why —
+     * the same trap `nutrition` documents below.
+     *
+     * ⛔ **This is an explicit action, not autocomplete.** It spends a call against a SHARED 1,000/hr per-IP
+     * source quota out of FR-019's reserved interactive lane. At 50 concurrent cooks even a perfect
+     * one-call-per-settled-query typeahead would want ~3x the whole key, so no amount of debouncing makes a
+     * live blend affordable — see {@link LiveFoodSearchService} for the arithmetic and the three outcomes.
+     *
+     * ⛔ **USER-AGNOSTIC by design.** The source rate-limits our egress IP, not our users, so the aggregate
+     * limiter is the ONLY quota authority and no caller identity is needed or accepted here. (The route is
+     * still authenticated — `FoodAuthGuard` covers the whole controller — because authentication proves the
+     * caller is ours; it is simply not what enforces the quota.)
+     *
+     * Reuses {@link SearchFoodQueryDto}: the wire SHAPE is identical to the local search's, and the search
+     * MINIMUM is a domain rule the service applies (003-FR-010a) rather than a wire constraint — the food
+     * contract's import allowlist is zod-only on purpose, so it cannot read the shared minimum.
+     */
+    @Get('search/live')
+    public async searchLive(@Query() query: SearchFoodQueryDto): Promise<LiveSearchResponse> {
+        return this.liveSearch.search(query.query);
     }
 
     /** `POST /api/v1/foods` — add by name → `202` + `id` (FR-005); empty name → `400` (FR-006). */

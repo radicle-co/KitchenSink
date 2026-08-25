@@ -128,23 +128,6 @@ export class RollingWindowLimiter {
     }
 
     /**
-     * How many more calls the INTERACTIVE lane may make before the hard cap denies it — `0` when the window
-     * is already at or past the cap, never a negative number.
-     *
-     * Read by the on-demand live search so it can shed BEFORE it charges: a user-facing surface that is
-     * about to be refused should say so, rather than issue a request that is denied at the ledger.
-     *
-     * ⚠️ It is a snapshot, not a reservation. Between this read and the {@link tryRecord} that follows, the
-     * drain can spend the last of the window — so the charge itself is still the authority and its `allowed`
-     * must be honoured. This exists to make the common refusal cheap, not to make the rare race impossible.
-     *
-     * @sideEffect Reads `source_call_log` via the DAO.
-     */
-    public async interactiveHeadroom(source: FoodSourceId): Promise<number> {
-        return Math.max(0, this.ceilingFor(source, 'interactive') - (await this.count(source)));
-    }
-
-    /**
      * The trailing-60-minute call count for a source.
      *
      * @param source - The source.

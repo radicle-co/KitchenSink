@@ -39,6 +39,7 @@ import {
     NotResolvableError,
 } from '../foods.errors.js';
 import { FoodsService } from '../foods.service.js';
+import type { LiveFoodSearchService } from '../liveSearch.service.js';
 
 const VALID_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
 
@@ -106,7 +107,12 @@ function makeController(): { controller: FoodsController; service: Record<string
     // Mirror the boot-validated ConfigModule: the batch cap comes from the coerced Environment.
     const config = new ConfigService<Environment, true>({ FOOD_MAX_BATCH_NAMES: 100 } as Environment);
 
-    return { controller: new FoodsController(service as unknown as FoodsService, config), service };
+    // The live-search collaborator is unused by every case in this file (they exercise the LOCAL routes),
+    // so it is a bare double rather than a configured one — a real `LiveFoodSearchService` here would give
+    // these cases a source adapter and a rate limiter they have no business owning.
+    const liveSearch = {} as unknown as LiveFoodSearchService;
+
+    return { controller: new FoodsController(service as unknown as FoodsService, liveSearch, config), service };
 }
 
 describe('FoodsController.getFood', () => {

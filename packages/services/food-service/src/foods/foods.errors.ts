@@ -139,3 +139,69 @@ export class FetchUnavailableError extends Error {
 export function isFetchUnavailableError(error: unknown): error is FetchUnavailableError {
     return error instanceof FetchUnavailableError;
 }
+
+/**
+ * A query too short to be honoured — below 003-FR-010a's search minimum — on the ON-DEMAND live search
+ * (plan U29). Maps to `400 VALIDATION_FAILED`, naming the field and the floor.
+ *
+ * ⛔ The LOCAL `GET /api/v1/foods/search` deliberately does NOT do this: it short-circuits a short query to
+ * an empty page, which costs nothing. The live route must refuse instead, for two reasons. It spends a call
+ * against a SHARED 1,000/hr external quota, so a request that cannot be honoured must not be allowed to
+ * consume one. And an empty page there would be indistinguishable from "the source has nothing for this",
+ * which is the one outcome that surface exists to report — collapsing them tells a cook to stop looking for
+ * a food the source was never asked about.
+ *
+ * ⚠️ The rule lives in the SERVICE, not in the query schema, because the food contract's import allowlist is
+ * zod-only on purpose: `@kitchensink/recipe-core` is a RECIPE domain package, and the one-directional rule
+ * (feature 001 T150) forbids the ingredient contract from depending on it. So the wire schema constrains the
+ * SHAPE and the service applies the DOMAIN rule — reading the same `meetsSearchMinimum` the DAO, the local
+ * search and both clients read, so there is still exactly one authority for the number.
+ */
+export class SearchQueryTooShortError extends Error {
+    /** The minimum character count, reported so a client need not restate it to explain the refusal. */
+    public readonly minimum: number;
+
+    public constructor(minimum: number, message = 'The search query is shorter than the minimum') {
+        super(message);
+        this.name = 'SearchQueryTooShortError';
+        this.minimum = minimum;
+        Object.setPrototypeOf(this, SearchQueryTooShortError.prototype);
+    }
+}
+
+/** Type guard for {@link SearchQueryTooShortError}. */
+export function isSearchQueryTooShortError(error: unknown): error is SearchQueryTooShortError {
+    return error instanceof SearchQueryTooShortError;
+}
+
+/**
+ * The upstream source did not answer — a transport failure, a timeout, or a source `5xx` — on a path a
+ * user is WAITING on (the on-demand live search, plan U29). Maps to `502 Bad Gateway`: the fault is
+ * upstream rather than ours, and it carries no `Retry-After`, because we know nothing about when the
+ * source will recover.
+ *
+ * ⛔ The distinction from its two neighbours is load-bearing at the picker, not merely tidy. A cook must
+ * be able to tell "the source has nothing for this" (an empty `200`) from "the source is busy, try again
+ * shortly" ({@link FetchUnavailableError}, `503` + `Retry-After`) from "the source did not answer"
+ * (this). The first means stop looking; the other two mean try again — and only one of them is our own
+ * rate limit. Collapsing any pair strands a cook in the wrong loop.
+ *
+ * ⚠️ A source `429` is deliberately NOT this: it is our budget meeting the source's, so it raises
+ * {@link FetchUnavailableError} and trips the limiter's 429 failsafe (FR-026).
+ */
+export class SourceUnavailableError extends Error {
+    /** The source that failed — named for the log, never for the sanitized wire body (FR-ADP-1). */
+    public readonly source: string;
+
+    public constructor(source: string, message = 'The food data source is unavailable') {
+        super(message);
+        this.name = 'SourceUnavailableError';
+        this.source = source;
+        Object.setPrototypeOf(this, SourceUnavailableError.prototype);
+    }
+}
+
+/** Type guard for {@link SourceUnavailableError}. */
+export function isSourceUnavailableError(error: unknown): error is SourceUnavailableError {
+    return error instanceof SourceUnavailableError;
+}

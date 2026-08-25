@@ -348,6 +348,44 @@ export const searchResponseSchema = z.object({
 
 export type SearchResponse = z.infer<typeof searchResponseSchema>;
 
+/**
+ * A single ON-DEMAND live-source hit (`GET /api/v1/foods/search/live`, plan U29).
+ *
+ * ⛔ It is NOT a {@link searchResultViewSchema}, and must not be merged into one. A local hit is a golden
+ * record we hold: it always has an `id` and carries a relevance `score` from our own ranking. A live hit is
+ * something a source just told us about: it may have no counterpart here at all, and the source's ordering is
+ * the only ordering there is — a `score` field would have to be fabricated. Two shapes that differ in what
+ * they can promise are not duplication.
+ */
+export const liveSearchResultViewSchema = z.object({
+    /** The source's own description for the item. */
+    name: z.string(),
+    /**
+     * Our internal food id, present ONLY when this hit is already crosswalked into our catalog. Its absence
+     * means "not yet admitted", which is what tells a caller the pick costs an admission rather than being
+     * free. ⛔ The source-native key (`fdcId`) is never on the wire (FR-IDN-2).
+     */
+    id: z.string().optional(),
+});
+
+export type LiveSearchResultView = z.infer<typeof liveSearchResultViewSchema>;
+
+/**
+ * Body for `GET /api/v1/foods/search/live` (plan U29).
+ *
+ * ⚠️ An EMPTY `results` is a SUCCESS — "the source has nothing for this" — and is deliberately distinct from
+ * the `503` (busy / our lane exhausted) and the `502` (the source did not answer) this route can also return.
+ * A cook who sees the first should stop looking; one who sees either other should try again. That is why a
+ * below-minimum query is REJECTED here (`400`) rather than short-circuited to an empty page the way the local
+ * `GET /api/v1/foods/search` is: an empty page would be indistinguishable from the first outcome.
+ */
+export const liveSearchResponseSchema = z.object({
+    /** The source's hits, in the source's order, capped by the service. Empty = the source has nothing. */
+    results: z.array(liveSearchResultViewSchema),
+});
+
+export type LiveSearchResponse = z.infer<typeof liveSearchResponseSchema>;
+
 /** Body for `POST /api/v1/foods` and `POST /api/v1/foods/{id}/refetch` (`202 Accepted`, FR-005/FR-039). */
 export const addResponseSchema = z.object({
     id: z.string(),
@@ -517,6 +555,8 @@ export const foodErrorCodeSchema = z.enum([
     'NOT_REQUEUEABLE',
     /** Backpressure / flood-shed / resolve cap — a `503` + `Retry-After`, NEVER a per-user `429` (FR-046). */
     'FETCH_UNAVAILABLE',
+    /** An upstream food-data source did not answer a live search — a `502`, distinct from our own `503` (U29). */
+    'SOURCE_UNAVAILABLE',
     /** An unmapped server fault. The body carries no internal detail, by design. */
     'INTERNAL_ERROR',
 ]);
@@ -627,6 +667,7 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
                 .loose(),
         })
         .loose(),
+    z.object({ code: z.literal('SOURCE_UNAVAILABLE'), message: z.string() }).loose(),
     z
         .object({
             code: z.literal('FETCH_UNAVAILABLE'),

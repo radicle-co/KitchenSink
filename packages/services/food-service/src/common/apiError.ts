@@ -27,7 +27,8 @@ import type { ApiErrorBody } from './apiError.schema.js';
 /**
  * Canonical, exhaustive mapping from each published {@link FoodErrorCode} to the HTTP status the API answers
  * with — the FR-051 precedence contract (`FOOD_PENDING` → 202, `FOOD_NOT_FOUND` → 404, candidate/lifecycle
- * conflicts → 409, `FETCH_UNAVAILABLE` → 503 and never `429`).
+ * conflicts → 409, `FETCH_UNAVAILABLE` → 503 and never `429`, `SOURCE_UNAVAILABLE` → 502 because the
+ * fault is UPSTREAM rather than ours and carries no `Retry-After`).
  *
  * Kept as a COMPLETE `Record` so adding a code to `foodErrorCodeSchema` fails to compile until it is mapped.
  * There is deliberately no default arm: a code without a status is a contract that cannot be served.
@@ -45,6 +46,7 @@ export const FOOD_ERROR_STATUS: Readonly<Record<FoodErrorCode, number>> = {
     NOT_RESOLVABLE: HttpStatus.CONFLICT,
     NOT_REQUEUEABLE: HttpStatus.CONFLICT,
     FETCH_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+    SOURCE_UNAVAILABLE: HttpStatus.BAD_GATEWAY,
     INTERNAL_ERROR: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 

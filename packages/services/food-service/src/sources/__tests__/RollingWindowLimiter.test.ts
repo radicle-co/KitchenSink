@@ -228,17 +228,4 @@ describe('RollingWindowLimiter — interactive vs worker lanes (F-W1, FR-019)', 
         await expect(limiter.tryRecord('usda', 'worker')).resolves.toMatchObject({ allowed: false });
         expect(dao.rows).toHaveLength(0);
     });
-
-    it('reports the interactive lane headroom, so a caller can shed before it charges', async () => {
-        const dao = ledgerDao([...Array.from({ length: 4 }, () => 'worker' as const), 'interactive']);
-
-        // 10 (hard cap) − 5 (the whole window, both lanes) = 5 calls of interactive headroom left.
-        await expect(new RollingWindowLimiter(dao, { caps }).interactiveHeadroom('usda')).resolves.toBe(5);
-    });
-
-    it('reports zero headroom rather than a negative number when the window is already full', async () => {
-        const dao = ledgerDao(Array.from({ length: 12 }, () => 'worker' as const));
-
-        await expect(new RollingWindowLimiter(dao, { caps }).interactiveHeadroom('usda')).resolves.toBe(0);
-    });
 });

@@ -130,8 +130,10 @@ describe('route input validation — the closed inventory', () => {
     it('reads Nest route metadata at all (guards every other case in this file from vacuity)', () => {
         expect(ALL_INPUTS.length).toBeGreaterThanOrEqual(7);
         expect(ALL_INPUTS.filter((input) => input.kind === 'body')).toHaveLength(3);
-        // Two queries now: `GET /foods` search and `GET /foods/nutrition` (plan U8), both zod DTOs.
-        expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(2);
+        // Three queries now: `GET /foods/search`, `GET /foods/search/live` (plan U29) and
+        // `GET /foods/nutrition` (plan U8) — all three zod DTOs, and the live one deliberately REUSES
+        // `SearchFoodQueryDto` rather than declaring a second identical shape.
+        expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(3);
         expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(6);
         // Nothing reads a caller-supplied HEADER. §15.4(1) puts headers under the pipe too, so a new one has to
         // arrive as a zod DTO — and this assertion is what makes adding one a decision rather than an accident.

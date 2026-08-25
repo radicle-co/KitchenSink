@@ -30,6 +30,7 @@ import {
     isFetchUnavailableError,
     isInvalidRequestError,
     isNotFoundError,
+    isSourceUnavailableError,
 } from '../index.js';
 
 const BASE = 'https://food.example.test';
@@ -615,5 +616,89 @@ describe('FoodServiceClient — outbound request validation', () => {
         });
 
         await expect(client.addByName('tomato')).resolves.toStrictEqual({ id: 'f_1', status: 'PENDING' });
+    });
+});
+
+/**
+ * `searchLive` — the ON-DEMAND source search (plan U29). The three outcomes it can produce are the whole
+ * point of the method: an EMPTY `results` (the source has nothing), a `503` (our reserved lane is exhausted
+ * or the source throttled us) and a `502` (the source did not answer). A caller renders three different
+ * sentences from them, so a client that collapsed any pair would strand a cook in the wrong loop.
+ */
+describe('FoodServiceClient.searchLive', () => {
+    it('GETs the live path — a DIFFERENT route from the local search, because it spends source quota', async () => {
+        const fetchMock = stubFetch(200, { results: [] });
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        await client.searchLive('broccoli rabe');
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, Record<string, never>];
+        expect(url).toBe(`${BASE}/api/v1/foods/search/live?query=broccoli%20rabe`);
+        expect(init.method).toBe('GET');
+        expect(init.headers['authorization']).toBe('Bearer tok');
+    });
+
+    it('returns the source hits, carrying our internal id only where the catalog already has one', async () => {
+        const body = { results: [{ name: 'Broccoli, raw', id: 'food_1' }, { name: 'Broccoli rabe' }] };
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, body) });
+
+        await expect(client.searchLive('broccoli')).resolves.toEqual(body);
+    });
+
+    it('treats an EMPTY result set as a SUCCESS — the source has nothing, which is an answer', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, { results: [] }) });
+
+        await expect(client.searchLive('nosuchfood')).resolves.toEqual({ results: [] });
+    });
+
+    it('throws FetchUnavailableError on 503, carrying the Retry-After a caller can act on', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(
+                503,
+                { code: 'FETCH_UNAVAILABLE', message: 'shed', details: { retryAfterSeconds: 60 } },
+                { 'retry-after': '60' },
+            ),
+        });
+
+        const error = await client.searchLive('broccoli').catch((thrown: unknown) => thrown);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+        expect((error as FetchUnavailableError).retryAfterSeconds).toBe(60);
+    });
+
+    it('throws SourceUnavailableError on 502 — a DISTINCT error, with no retry window to promise', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(502, { code: 'SOURCE_UNAVAILABLE', message: 'The food data source is unavailable' }),
+        });
+
+        const error = await client.searchLive('broccoli').catch((thrown: unknown) => thrown);
+
+        // ⛔ NOT a FetchUnavailableError. Collapsing the two would make the picker promise a retry window
+        // that does not exist, for a source we know nothing about the recovery of.
+        expect(isSourceUnavailableError(error)).toBe(true);
+        expect(isFetchUnavailableError(error)).toBe(false);
+    });
+
+    it('throws BadRequestError when the service refuses a below-minimum query', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(400, {
+                code: 'VALIDATION_FAILED',
+                message: 'The search query is shorter than the minimum',
+                details: { fields: ['query: at least 3 characters'] },
+            }),
+        });
+
+        await expect(client.searchLive('br')).rejects.toThrow(BadRequestError);
+    });
+
+    it('refuses a structurally illegal query WITHOUT spending a round trip on the quota-charging path', async () => {
+        const fetchMock = stubFetch(200, { results: [] });
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock });
+
+        await expect(client.searchLive('   ')).rejects.toSatisfy(isInvalidRequestError);
+        expect(apiCalls(fetchMock)).toHaveLength(0);
     });
 });

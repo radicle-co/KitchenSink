@@ -8,6 +8,15 @@
  * `evaluateProvenance` takes one: a policy that can reach a request cannot be exhausted as a truth table, and
  * this policy's whole defensibility is that it CAN be.
  *
+ * ⛔ **THE RULE ITSELF NOW LIVES IN `correctionScopePolicy.ts`; this module is its MAPPING specialization**
+ * (plan U21 / KTD-15). U21 found the identical question being asked of a second subject — a line's PARSE
+ * rather than a phrase's meaning — and KTD-15 rules that "one business rule, one representation" makes the
+ * subject a parameter rather than a second rule. What stayed here is everything that is genuinely about
+ * MAPPINGS: the vocabulary (`foodId`), the grant (`CURATOR_MAPPING_SCOPE`), and the reasoning below, which
+ * was written about this subject and is not the parse tier's. ⚠️ This module's public API is UNCHANGED across
+ * that extraction, and its truth-table suite was not touched — that is the evidence the behaviour did not
+ * move with the code.
+ *
  * ⚠️ ONE DIVERGENCE FROM THE SIBLING, STATED SO IT IS NOT READ AS PARITY: `evaluateProvenance` is pure AND
  * stateless. This one is pure but NOT stateless — its decision genuinely depends on what the knowledge base
  * already holds, so the caller reads those facts and passes them in. Purity is preserved (same inputs, same
@@ -74,6 +83,15 @@
  * prevent collusion and must not be read as if it did.
  */
 import { CURATOR_MAPPING_SCOPE } from '../ingredients.schema.js';
+import {
+    CORRECTION_ORIGINS,
+    CORRECTION_SCOPES,
+    evaluateCorrectionScope,
+    type CorrectionOrigin,
+    type CorrectionScope,
+    type CorrectionScopeDecision,
+    type CorroboratingCorrection,
+} from './correctionScopePolicy.js';
 
 /*
  * ✅ MOVED, as this module's earlier note required. `CURATOR_MAPPING_SCOPE` was sited here only because U10
@@ -84,11 +102,17 @@ import { CURATOR_MAPPING_SCOPE } from '../ingredients.schema.js';
  */
 export { CURATOR_MAPPING_SCOPE };
 
-/** The two reaches a mapping can hold. `global` binds every user; `author` binds only its writer. */
-export const MAPPING_SCOPES = ['author', 'global'] as const;
+/**
+ * The two reaches a mapping can hold. `global` binds every user; `author` binds only its writer.
+ *
+ * An ALIAS of the subject-neutral {@link CORRECTION_SCOPES}, not a second declaration: the reaches are the
+ * same two whatever is being corrected, and a copy would let this table's CHECK and the parse table's drift
+ * apart while both still compiled.
+ */
+export const MAPPING_SCOPES = CORRECTION_SCOPES;
 
 /** How far a curated mapping reaches. */
-export type MappingScope = (typeof MAPPING_SCOPES)[number];
+export type MappingScope = CorrectionScope;
 
 /**
  * On whose authority a mapping holds.
@@ -97,10 +121,10 @@ export type MappingScope = (typeof MAPPING_SCOPES)[number];
  * DIFFERENT authority, and the supersession rule turns on which one it was: a pair may displace a pair, but
  * not a curator.
  */
-export const MAPPING_ORIGINS = ['author', 'curator', 'corroboration'] as const;
+export const MAPPING_ORIGINS = CORRECTION_ORIGINS;
 
 /** On whose authority a mapping holds. */
-export type MappingOrigin = (typeof MAPPING_ORIGINS)[number];
+export type MappingOrigin = CorrectionOrigin;
 
 /** The global mapping currently in force for the phrase being corrected. */
 export interface LiveGlobalMapping {
@@ -113,12 +137,7 @@ export interface LiveGlobalMapping {
 }
 
 /** One other author's live mapping from the same phrase to the same food. */
-export interface CorroboratingMapping {
-    /** Its row id — cited by the promotion, which is what makes the promotion auditable. */
-    readonly id: string;
-    /** The author who wrote it. Never the caller: the reader excludes the caller by predicate. */
-    readonly authorId: string;
-}
+export type CorroboratingMapping = CorroboratingCorrection;
 
 /** The complete input to a mapping-write decision. */
 export interface MappingWriteInput {
@@ -138,7 +157,7 @@ export interface MappingWriteInput {
     readonly liveOwn: { readonly id: string; readonly foodId: string } | undefined;
     /**
      * The OTHER authors who already hold a live author-scoped mapping from this phrase to
-     * {@link correctedFoodId}, ordered `created_at, id`.
+     * {@link MappingWriteInput.correctedFoodId}, ordered `created_at, id`.
      *
      * ⛔ The caller's own mapping is EXCLUDED by the reader that builds this (`author_id <> :caller`), which
      * is what makes "the same author correcting twice does not promote" a property of the SET rather than a
@@ -150,7 +169,7 @@ export interface MappingWriteInput {
 }
 
 /**
- * The outcome of a mapping-write decision.
+ * The outcome of a mapping-write decision — an ALIAS of {@link CorrectionScopeDecision}.
  *
  * A DISCRIMINATED UNION over `write` rather than `{ allowed, scope?, promotion? }`, for the reason
  * `ProvenanceDecision` gives: a member has no field it does not need, and an optional field would let a
@@ -161,117 +180,32 @@ export interface MappingWriteInput {
  * that applies to this caller, so writing would mint a churn row and inflate the corroboration count that
  * feeds promotion.
  */
-export type MappingWriteDecision =
-    | {
-          readonly write: 'none';
-          readonly reason: string;
-      }
-    | {
-          /** A grant holder's own global ruling. */
-          readonly write: 'global';
-          readonly scope: 'global';
-          readonly origin: 'curator';
-          /** The live global mapping this write retires, or `undefined` when there was none to retire. */
-          readonly supersedes: string | undefined;
-          readonly reason: string;
-      }
-    | {
-          /** An ordinary caller's own correction. */
-          readonly write: 'author';
-          readonly scope: 'author';
-          readonly origin: 'author';
-          /** The caller's OWN earlier mapping this write retires, or `undefined`. Never anybody else's. */
-          readonly supersedes: string | undefined;
-          /**
-           * The additional corroboration binding this write earns, or `undefined` when it earns none.
-           *
-           * A promotion is a SEPARATE global row citing both agreeing mappings — never a flip of an existing
-           * one. Flipping would rewrite the meaning of a record its author authored: the row would claim
-           * global authority attributed to an author who never asserted it, carrying a `surfacing` that is
-           * not what caused the promotion, and it would destroy that author's own personal mapping.
-           */
-          readonly promotion:
-              | {
-                    /** The corroborating mapping cited alongside the one this write creates. */
-                    readonly citesExisting: string;
-                    /** The live global mapping the promotion retires, or `undefined`. */
-                    readonly supersedesGlobal: string | undefined;
-                }
-              | undefined;
-          readonly reason: string;
-      };
+export type MappingWriteDecision = CorrectionScopeDecision;
 
 /**
  * Evaluate how far a caller's correction reaches and what it displaces. Pure — inputs only.
+ *
+ * A thin ADAPTER over {@link evaluateCorrectionScope}: it names the mapping subject's answer (`food_id`) and
+ * the mapping subject's grant, and contributes no rule of its own. Every branch this function's behaviour
+ * depends on lives there, which is why this module's own truth-table suite — unchanged across that
+ * extraction — is the evidence the extraction preserved the behaviour.
  *
  * @param input - The corrected food, the caller's grants, and what the knowledge base already holds for the
  *   phrase (the live global mapping, the caller's own, and the other authors who already agree).
  * @returns The write the service will perform, or `write: 'none'` when the correction changes nothing.
  */
 export function evaluateMappingWrite(input: MappingWriteInput): MappingWriteDecision {
-    const { correctedFoodId, grantedScopes, liveGlobal, liveOwn, corroboratorsForSameFood } = input;
-
-    // Idempotence FIRST, and before the grant check, because "nothing to do" is true regardless of authority.
-    // A caller re-asserting the binding already in force for them writes nothing: otherwise every re-open of
-    // a corrected line mints a churn row, and the corroboration count it feeds becomes a count of visits.
-    if (liveOwn?.foodId === correctedFoodId) {
-        return { write: 'none', reason: 'The caller already holds this exact mapping.' };
-    }
-
-    if (liveGlobal?.foodId === correctedFoodId && liveOwn === undefined) {
-        return { write: 'none', reason: 'The global mapping already in force says exactly this.' };
-    }
-
-    if (grantedScopes.includes(CURATOR_MAPPING_SCOPE)) {
-        return {
-            write: 'global',
-            scope: 'global',
-            origin: 'curator',
-            // Retire whatever global mapping was in force, whoever produced it: a grant holder outranks both
-            // a previous curator and a corroboration pair.
-            supersedes: liveGlobal?.id,
-            reason: 'The caller holds the curator grant, which binds the phrase globally on first correction.',
-        };
-    }
-
-    return {
-        write: 'author',
-        scope: 'author',
-        origin: 'author',
-        // ⛔ Only the caller's OWN mapping. Nothing here can name another author's row, which is what makes
-        // "an author-scoped mapping is superseded only by its own author" a property of the decision's SHAPE
-        // rather than a rule the DAL has to be trusted to apply.
-        supersedes: liveOwn?.id,
-        promotion: decidePromotion(liveGlobal, corroboratorsForSameFood),
-        reason: 'An ungranted correction binds only its own author until a second independent author agrees.',
-    };
-}
-
-/**
- * Decide whether this correction earns a corroboration binding, and what that binding displaces. Pure.
- *
- * ⛔ The `curator` guard is the second escalation path being closed, and it NARROWS the plan — see the module
- * docstring. Two accounts held by one person clear a distinct-author check, so allowing a fresh pair to
- * displace a curator's deliberate ruling would make the grant decorative: the escalation would simply move
- * from the edit path to the corroboration path.
- *
- * @param liveGlobal - The global mapping in force, if any.
- * @param corroborators - Other authors already mapping this phrase to this food, ordered `created_at, id`.
- * @returns The promotion this write earns, or `undefined`.
- */
-function decidePromotion(
-    liveGlobal: LiveGlobalMapping | undefined,
-    corroborators: readonly CorroboratingMapping[],
-): { readonly citesExisting: string; readonly supersedesGlobal: string | undefined } | undefined {
-    const earliest = corroborators[0];
-
-    if (earliest === undefined) {
-        return undefined;
-    }
-
-    if (liveGlobal !== undefined && liveGlobal.origin === 'curator') {
-        return undefined;
-    }
-
-    return { citesExisting: earliest.id, supersedesGlobal: liveGlobal?.id };
+    return evaluateCorrectionScope({
+        correctedAnswer: input.correctedFoodId,
+        // ⛔ The mapping subject's OWN grant, supplied here rather than baked into the shared rule. A grant
+        // shared between subjects would silently widen whichever one got reused.
+        requiredGrant: CURATOR_MAPPING_SCOPE,
+        grantedScopes: input.grantedScopes,
+        liveGlobal:
+            input.liveGlobal === undefined
+                ? undefined
+                : { id: input.liveGlobal.id, answer: input.liveGlobal.foodId, origin: input.liveGlobal.origin },
+        liveOwn: input.liveOwn === undefined ? undefined : { id: input.liveOwn.id, answer: input.liveOwn.foodId },
+        corroboratorsForSameAnswer: input.corroboratorsForSameFood,
+    });
 }

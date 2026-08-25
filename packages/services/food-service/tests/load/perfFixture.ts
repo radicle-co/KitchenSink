@@ -547,8 +547,11 @@ export interface PerfSearchProbes {
     readonly alias: readonly string[];
     /** Matches ZERO rows: the predicate is evaluated in full and cannot short-circuit on the limit. */
     readonly miss: readonly string[];
-    /** A 2-character prefix: too short for trigram extraction, so `ILIKE '%..%'` cannot use the GIN index. */
-    readonly short: readonly string[];
+    // ⛔ There is deliberately NO two-character `short` probe (003-FR-010a, plan U37). A query below the
+    // three-character minimum is answered without touching the database, so timing it would report the p95
+    // of a short-circuit as evidence that SEARCH is fast — the "speed of doing no work" defect the
+    // `expectHits` assertion in `search.load.js` exists to catch, arriving through the shape list instead.
+    // `tests/load/__tests__/searchLoadShapes.test.ts` asserts it stays absent from both sides.
     /** A seeded GTIN-13: exercises the barcode crosswalk branch (`findFoodIdByBarcode`). */
     readonly barcode: readonly string[];
 }
@@ -594,9 +597,6 @@ export function buildSearchProbes(count: number): PerfSearchProbes {
         // Nonsense tokens: no lexeme, no trigram and no substring in any seeded name or description, so
         // every branch of the search predicate runs to completion and returns nothing.
         miss: range.map((index) => `zqxjkvwf${index}`),
-        // Two characters: `show_trgm('ch')` yields only padded partial trigrams, so `ILIKE '%ch%'` is not
-        // index-supported. This is the query shape a real user types after two keystrokes.
-        short: range.map((index) => at(INGREDIENTS, index).slice(0, 2)),
         barcode: range.map((index) => perfBarcode(index)),
     };
 }

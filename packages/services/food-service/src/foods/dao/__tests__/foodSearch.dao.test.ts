@@ -1,39 +1,55 @@
 /**
- * Unit tests for `FoodSearchDao`'s routing (T-198, SC-007/FR-008/FR-010) — TWO tiers of guard, both
- * database-free and both running on EVERY pull request (the `unit` job in `_ci.yml`):
+ * Unit tests for `FoodSearchDao`'s routing (003-FR-010a / plan U37, SC-007/FR-008/FR-010) — TWO tiers of
+ * guard, both database-free and both running on EVERY pull request (the `unit` job in `_ci.yml`):
  *
- *  1. {@link selectSearchStrategy} — the pure routing DECISION: which of the two statements a query
- *     resolves to, and the tsquery text handed to `to_tsquery`.
+ *  1. {@link selectSearchStrategy} — the pure routing DECISION: whether a query is searched at all, and
+ *     which statement it resolves to.
  *  2. The STATEMENT `FoodSearchDao.search` actually executes, rendered through drizzle's `PgDialect`
  *     exactly as the `pg` driver would receive it. This is the layer that catches a revert: (1) alone
  *     passes if `search` stops honouring the strategy it selected.
  *
  * Requirement → test mapping:
- * - SC-007  → a 1–2 character query must NOT reach the `ILIKE '%q%'` statement (it cannot be
- *             index-served below 3 characters — the measured 85–157ms sequential scan).
- * - FR-008  → a query of 3+ characters keeps the existing relevance statement, byte for byte.
- * - FR-010  → the prefix strategy carries the token needed to rank name-initial matches first, and the
- *             row cap reaches SQL as a `LIMIT`.
+ * - FR-010a → a query below {@link MIN_SEARCH_QUERY_LENGTH} executes NO statement at all: it cannot
+ *             discriminate (one character matches 51% of the real catalog, two 23%), so an arbitrary slice
+ *             of it is worse than nothing.
+ * - FR-008  → a query of 3+ characters keeps the existing relevance statement, byte for byte — and the
+ *             fifteen genuine three-character foods (`egg`, `ham`, `rye`, …) are searched, not refused.
+ * - FR-010  → the row cap reaches SQL as a `LIMIT`.
+ * - SC-007  → below 3 characters the `ILIKE '%q%'` / `name % q` branches cannot be index-served (the
+ *             measured 85–157ms sequential scan). They are now unreachable at that length because NO
+ *             statement is, which is a strictly stronger guarantee than routing them elsewhere.
+ *
+ * ## ⛔ WHAT THIS FILE STOPPED TESTING, AND WHERE THAT COVERAGE WENT (plan U37)
+ *
+ * T-198's `wordInitialPrefix` strategy — the 1–2 character `to_tsquery('simple', '<token>:*')` path, its
+ * `simple`-vs-`english` config subtlety, its name-initial ranking, and the character WHITELIST that kept a
+ * raw `&`/`|`/`!`/`:`/`(`/`'` from reaching `to_tsquery` and raising `syntax error in tsquery` (a 500 on a
+ * keystroke) — is DELETED, and so are the ~20 cases that proved it. It is not weakened coverage: the
+ * hazard those cases guarded no longer exists, because the input can no longer reach a tsquery PARSER.
+ * What replaces them is one assertion that is stronger than all of them together —
+ * {@link NO_TSQUERY_PARSER} — which fails if any executed statement ever calls bare `to_tsquery` again,
+ * whitelist or no whitelist. The 1–2 character behaviour they described is now a product decision
+ * (FR-010a), asserted here as "no round trip" and on both clients as the localized empty state.
  *
  * ## Why the statement TEXT and not the query PLAN
  *
- * SC-007's claim is that a short query is index-served rather than scanned, so the tempting assertion is
+ * SC-007's claim is that search is index-served rather than scanned, so the tempting assertion is
  * `EXPLAIN … LIKE '%food_search_vector_idx%'`. That guard was written, measured and deliberately removed —
  * `tests/foodSearch.dao.integration.test.ts` records the two reproductions (forcing the planner does not
  * discriminate, because `food_status_idx` lets the OLD statement avoid a `Seq Scan` too; and the natural
  * plan choice is cost-model noise below production scale). The statement text is the honest deterministic
- * invariant underneath it: the sequential scan existed *because* the `ILIKE '%q%'` / `name % q` branches
- * ran at 1–2 characters, so "those branches are absent from the executed SQL" is the cause, asserted
- * directly, with no dependence on the planner, on row count, or on timing.
+ * invariant underneath it, with no dependence on the planner, on row count, or on timing.
  *
- * Mutation lens: every case below fails if the length threshold moves, if the `:*` prefix marker is
- * dropped, if the tsquery-metacharacter whitelist is removed (an unsanitised `&`/`:`/`!` makes Postgres'
- * `to_tsquery` raise `syntax error in tsquery`, i.e. a 500 on a keystroke), if `search` is reverted to run
- * one statement for every length, or if either statement loses its `RESOLVED` filter or its `LIMIT`.
+ * Mutation lens: every case below fails if the minimum moves in EITHER direction (a floor of 4 breaks
+ * `egg`; a floor of 2 restores the 23%-of-catalog slice), if `search` stops honouring the strategy it
+ * selected, if a bare `to_tsquery` returns, or if the relevance statement loses its `RESOLVED` filter or
+ * its `LIMIT`.
  */
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
+
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 import type { FoodDrizzle } from '../../../database/database.module.js';
 import { FoodSearchDao, selectSearchStrategy } from '../foodSearch.dao.js';
@@ -97,137 +113,141 @@ function stringParams(statement: CapturedStatement): string[] {
     return statement.params.filter((param): param is string => typeof param === 'string');
 }
 
+/**
+ * Every genuine three-character food FR-010a enumerates from the real catalog. They are the reason the floor
+ * is three and not four, and they are asserted BY NAME rather than as "some 3-character string" so a raised
+ * floor fails with the food it broke.
+ */
+const THREE_CHARACTER_FOODS = [
+    'egg',
+    'ham',
+    'rye',
+    'cod',
+    'soy',
+    'oat',
+    'fig',
+    'yam',
+    'nut',
+    'tea',
+    'pie',
+    'elk',
+    'gin',
+    'rum',
+    'poi',
+] as const;
+
+/**
+ * A call to the bare tsquery PARSER. `to_tsquery` parses its argument, so a raw `&`, `|`, `!`, `:`, `(` or
+ * `'` in it raises `syntax error in tsquery` — a 500 on a keystroke — and the only defence was a hand-rolled
+ * character whitelist. `plainto_tsquery` SANITISES instead of parsing and is safe, so the lookbehind is what
+ * makes this assertion meaningful rather than a substring accident.
+ */
+const NO_TSQUERY_PARSER = /(?<![a-z_])to_tsquery\(/;
+
 describe('selectSearchStrategy', () => {
-    describe('short queries (1–2 characters) route to the word-initial prefix statement', () => {
-        it('routes a single character to a prefix tsquery over the stored search vector', () => {
-            expect(selectSearchStrategy('c')).toEqual({ kind: 'wordInitialPrefix', tsquery: 'c:*', token: 'c' });
-        });
-
-        it('routes two characters to a prefix tsquery', () => {
-            expect(selectSearchStrategy('ch')).toEqual({ kind: 'wordInitialPrefix', tsquery: 'ch:*', token: 'ch' });
-        });
-
-        it('preserves case in both the tsquery and the token (Postgres folds case on both sides)', () => {
-            // The `simple` config lowercases the tsquery token, and the ranking predicate compares
-            // `lower(left(name, …))` to `lower(token)`; folding in SQL keeps ONE case-folding authority and
-            // avoids a JS/Postgres collation divergence.
-            expect(selectSearchStrategy('Ch')).toEqual({ kind: 'wordInitialPrefix', tsquery: 'Ch:*', token: 'Ch' });
-        });
-
-        it('keeps digits and non-ASCII letters, which are legitimate query characters', () => {
-            expect(selectSearchStrategy('2%')).toEqual({ kind: 'wordInitialPrefix', tsquery: '2:*', token: '2' });
-            expect(selectSearchStrategy('ég')).toEqual({ kind: 'wordInitialPrefix', tsquery: 'ég:*', token: 'ég' });
-        });
-
-        it('counts CHARACTERS, not UTF-16 code units, when choosing the strategy', () => {
-            // '🍎' is two UTF-16 units but one character; it must not be mistaken for a 2-char query. It
-            // carries no letter or digit, so nothing searchable survives.
-            expect(selectSearchStrategy('🍎')).toEqual({ kind: 'none' });
-        });
-    });
-
-    describe('tsquery metacharacters are stripped, never interpolated', () => {
-        it.each(['&', '|', '!', ':', '(', ')', "'", '<', '*', '\\'])(
-            'strips the metacharacter %j rather than handing it to to_tsquery',
-            (metacharacter) => {
-                expect(selectSearchStrategy(`c${metacharacter}`)).toEqual({
-                    kind: 'wordInitialPrefix',
-                    tsquery: 'c:*',
-                    token: 'c',
-                });
-            },
-        );
-
-        it.each(['&', '::', '!!', '((', '||', "''", '<>', '  ', ''])(
-            'yields no strategy for %j, which leaves nothing searchable',
+    describe('below the FR-010a minimum, nothing is searched at all', () => {
+        it.each(['', 'e', 'eg', ' ', '  ', 'c', 'ch', '&', '::', '🍎', ' eg '])(
+            'yields no strategy for %j',
             (query) => {
                 expect(selectSearchStrategy(query)).toEqual({ kind: 'none' });
             },
         );
+
+        it('refuses everything shorter than the shared minimum, whatever that minimum is', () => {
+            // Derived from the constant rather than pinned to 2, so this case cannot silently disagree with
+            // the policy module the clients also read.
+            const justShort = 'a'.repeat(MIN_SEARCH_QUERY_LENGTH - 1);
+
+            expect(selectSearchStrategy(justShort)).toEqual({ kind: 'none' });
+        });
     });
 
-    describe('queries of 3+ characters keep the existing relevance statement', () => {
+    describe('at and above the minimum, the relevance statement is selected', () => {
+        it.each(THREE_CHARACTER_FOODS)('searches the real three-character food %j', (query) => {
+            expect(selectSearchStrategy(query)).toEqual({ kind: 'relevance' });
+        });
+
         // `'&&&'` / `'<->'` route here too, and that is correct: `plainto_tsquery` SANITISES rather than
-        // parses, so the relevance statement has always been safe against metacharacters. Only
-        // `to_tsquery` on the prefix path needs the whitelist.
-        it.each(['abc', 'egg', 'chicken', 'grilled chicken', 'a b', '   ', '&&&', '2%!', '<->'])(
+        // parses, so the relevance statement has always been safe against metacharacters. There is no longer
+        // any path on which a metacharacter reaches a tsquery PARSER, so there is no whitelist to keep.
+        it.each(['abc', 'chicken', 'grilled chicken', 'a b', '&&&', '2%!', '<->'])(
             'routes %j to the relevance strategy, untouched',
             (query) => {
                 expect(selectSearchStrategy(query)).toEqual({ kind: 'relevance' });
             },
         );
 
-        it('routes the shortest query pg_trgm can index (3 characters) to relevance, not to prefix', () => {
-            // The boundary IS the trigram: `show_trgm('ch')` yields only padded partials, so 2 characters
-            // cannot be index-served, while 3 can. Moving this boundary either re-opens the sequential scan
-            // (threshold too high) or needlessly narrows working substring search (threshold too low).
-            expect(selectSearchStrategy('chi')).toEqual({ kind: 'relevance' });
-            expect(selectSearchStrategy('ch')).toMatchObject({ kind: 'wordInitialPrefix' });
+        it('counts CHARACTERS, not UTF-16 code units, when applying the minimum', () => {
+            // '🍎' is two UTF-16 units but ONE character. Counting code units would admit two of them as a
+            // 4-character query and search on what the cook reads as two.
+            expect(selectSearchStrategy('🍎🍎')).toEqual({ kind: 'none' });
+            expect(selectSearchStrategy('🍎🍎🍎')).toEqual({ kind: 'relevance' });
+        });
+    });
+
+    describe('the boundary is exactly three, in both directions', () => {
+        it('refuses two characters and admits three', () => {
+            // The pair, together, is the FR-010a ruling: a floor of 2 restores the 23%-of-catalog slice, a
+            // floor of 4 breaks `egg`. Either mutation fails one half of this.
+            expect(selectSearchStrategy('eg')).toEqual({ kind: 'none' });
+            expect(selectSearchStrategy('egg')).toEqual({ kind: 'relevance' });
         });
     });
 });
 
 describe('FoodSearchDao.search — the statement it actually executes', () => {
-    // The `ILIKE '%q%'` / `name % q` branches ARE the sequential scan T-195 measured. Their absence from
-    // the short-query SQL is therefore the direct, planner-independent statement of the SC-007 fix, and
-    // their presence at 3+ characters is the statement that nothing else changed.
+    // The `ILIKE '%q%'` / `name % q` branches ARE the sequential scan T-195 measured. Their presence at
+    // 3+ characters is the statement that FR-010a changed nothing above the minimum; below it they are
+    // unreachable because no statement is.
     const SUBSTRING_BRANCHES = ['ILIKE', 'name %', 'similarity(', 'plainto_tsquery'];
 
-    describe('a 1–2 character query executes the word-initial prefix statement, and ONLY that', () => {
-        // Placeholder NUMBERS are deliberately matched as `$\d+` rather than pinned: the score expression
-        // binds parameters too, so hardcoding `$5` would turn any unrelated ranking edit into a confusing
-        // failure here while adding no discrimination — the SHAPE is the invariant, not the numbering.
-        it.each(['c', 'ch'])('runs a prefix tsquery over the GIN-indexed search_vector for %j', async (query) => {
-            const statement = await soleStatementFor(query);
-
-            expect(statement.text).toMatch(/search_vector @@ to_tsquery\('simple', \$\d+::text\)/);
-            expect(stringParams(statement)).toContain(`${query}:*`);
+    describe('a query below the minimum executes NOTHING', () => {
+        // ⚠️ REPLACES the ~10 cases that proved the deleted `wordInitialPrefix` statement (T-198). Those
+        // asserted which statement a 1–2 character query ran; there is no longer a statement to assert, and
+        // "no round trip at all" is strictly stronger than any of them — it cannot be satisfied by a
+        // statement that merely looks different.
+        it.each(['', ' ', 'c', 'ch', ' eg ', '&', '::', '🍎'])('issues no statement for %j', async (query) => {
+            await expect(statementsFor(query)).resolves.toEqual([]);
         });
 
-        it.each(SUBSTRING_BRANCHES)('does NOT reach the %s branch at 2 characters', async (branch) => {
-            const statement = await soleStatementFor('ch');
+        it('reaches the database for three characters, so the guard above is not vacuous', async () => {
+            // Without this, deleting `search`'s body entirely would pass every case above.
+            await expect(statementsFor('egg')).resolves.toHaveLength(1);
+        });
+    });
 
-            expect(statement.text).not.toContain(branch);
+    describe('the tsquery PARSER is gone from every statement, at every length', () => {
+        // ⚠️ THIS IS WHERE THE DELETED WHITELIST'S COVERAGE WENT. `to_tsquery` was reachable only from the
+        // short path, and it PARSES its argument, so a raw `&`/`|`/`!`/`:`/`(`/`'` raised
+        // `syntax error in tsquery` — a 500 on a keystroke — unless application code stripped it first. The
+        // whitelist was a hand-rolled sanitiser guarding a parser we did not need; both are deleted, and
+        // this case fails if either returns.
+        it.each(['egg', 'chicken', 'grilled chicken', "a'b", 'a&b', 'a|b', 'a!b', 'a:b', 'a(b', '2% milk'])(
+            'never calls bare to_tsquery for %j',
+            async (query) => {
+                const statements = await statementsFor(query);
+
+                expect(statements).not.toEqual([]);
+
+                for (const statement of statements) {
+                    expect(statement.text).not.toMatch(NO_TSQUERY_PARSER);
+                }
+            },
+        );
+
+        it('still uses the SANITISING plainto_tsquery, so the guard discriminates', async () => {
+            const statement = await soleStatementFor('chicken');
+
+            expect(statement.text).toContain("plainto_tsquery('english'");
+            expect(statement.text).not.toMatch(NO_TSQUERY_PARSER);
         });
 
-        it('binds no LIKE wildcard pattern, at all — a `%ch%` param is the reverted statement', async () => {
-            const statement = await soleStatementFor('ch');
+        it('passes a tsquery metacharacter through as an ordinary bound VALUE', async () => {
+            // Nothing strips it any more, and nothing needs to: it travels as a parameter into
+            // `plainto_tsquery`, `similarity()` and an escaped `ILIKE` pattern, none of which parse it.
+            const statement = await soleStatementFor('a&b');
 
-            expect(statement.params).not.toContain('%ch%');
-            expect(stringParams(statement).filter((param) => param.includes('%'))).toEqual([]);
-        });
-
-        it("uses the 'simple' config, never 'english' (an english prefix tsquery is EMPTY for a stopword)", async () => {
-            const statement = await soleStatementFor('be');
-
-            // `to_tsquery('english', 'be:*')` is an empty tsquery, so this exact flip silently turns every
-            // short stopword query into zero results — the pre-T-198 behaviour, restored invisibly.
-            expect(statement.text).toContain(`to_tsquery('simple'`);
-            expect(statement.text).not.toContain(`to_tsquery('english'`);
-        });
-
-        it('surfaces only RESOLVED, named rows and caps them (the short path can match the whole store)', async () => {
-            const statement = await soleStatementFor('ch');
-
-            expect(statement.text).toContain(`WHERE status = 'RESOLVED'`);
-            expect(statement.text).toContain('AND name IS NOT NULL');
-            // A single letter can be word-initial in the ENTIRE store (measured: `m` matched all 50,000
-            // rows on the T-195 fixture), so an unbounded prefix statement is an SC-007 breach by itself.
-            expect(statement.text).toMatch(/LIMIT \$\d+/);
-            expect(statement.params.at(-1)).toBe(20);
-        });
-
-        it('orders by the score ALIAS, which is the ordering the recipe service re-sorts on', async () => {
-            const statement = await soleStatementFor('ch');
-
-            expect(statement.text).toContain('AS score');
-            expect(statement.text).toContain('ORDER BY score DESC, name ASC');
-        });
-
-        it('passes an explicit row cap through to the SQL rather than dropping it', async () => {
-            const statement = await soleStatementFor('ch', 5);
-
-            expect(statement.params.at(-1)).toBe(5);
+            expect(stringParams(statement)).toContain('a&b');
         });
     });
 
@@ -243,15 +263,15 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
             expect(statement.text).toMatch(/OR name ILIKE \$\d+/);
             expect(statement.text).toMatch(/OR description ILIKE \$\d+/);
             expect(statement.params).toContain(`%${query}%`);
-            // The prefix statement must NOT leak up into the substring-capable range.
-            expect(statement.text).not.toContain(`to_tsquery('simple'`);
+            // No bare tsquery PARSER anywhere in it — see NO_TSQUERY_PARSER for why that matters.
+            expect(statement.text).not.toMatch(NO_TSQUERY_PARSER);
         });
 
-        it('orders by the score ALIAS with a deterministic tiebreak, exactly as the prefix statement does', async () => {
+        it('orders by the score ALIAS with a deterministic tiebreak', async () => {
             const statement = await soleStatementFor('chicken');
 
             expect(statement.text).toContain('AS score');
-            // `name ASC` is not cosmetic and this assertion is not a duplicate of the prefix statement's.
+            // `name ASC` is not cosmetic.
             // Without the tiebreak, rows sharing a score come back in whatever order the ACCESS PATH
             // happened to produce them — so the same query returns a different top 20 as the plan changes,
             // and T-202 changed the plan (`food_name_trgm_gist_idx`). Ties are the normal case here, not an
@@ -285,8 +305,8 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
      *
      * Mutation lens: these fail if the alias predicate is dropped from the WHERE (an alias-only query would
      * return nothing), if it is added to the WHERE but not to the score (an alias hit would rank at 0 and
-     * be truncated out of the 20-row page — the failure mode a "does it match?" test cannot see), if the
-     * second vector is folded into the first, or if the alias branch leaks into the 1–2 character statement.
+     * be truncated out of the 20-row page — the failure mode a "does it match?" test cannot see), or if the
+     * second vector is folded into the first.
      */
     describe('the curated-alias branch (U2)', () => {
         it('matches the second vector as well as the first', async () => {
@@ -334,12 +354,6 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
             expect(score).not.toContain('regexp_split_to_table');
         });
 
-        it('keeps aliases OUT of the 1–2 character statement, which ranks by name-initial position', async () => {
-            const statement = await soleStatementFor('ch');
-
-            expect(statement.text).not.toContain('aliases_search_vector');
-        });
-
         it('does not add a second trigram or ILIKE branch over the alias text', async () => {
             // The alias column gets a tsvector and nothing else. `name %` already cost 30.5ms of a 45.8ms
             // statement before 0004 gave it a GiST index; a fourth `ILIKE '%q%'` over a second free-text
@@ -377,8 +391,8 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
             ['_', '\\_'],
             ['\\', '\\\\'],
         ])('escapes %j inside the pattern as %j', async (needle, escaped) => {
-            // Padded to 3+ characters so the query routes to the relevance statement rather than the prefix
-            // one; `abc` carries no metacharacter of its own, so the only escaping observed is the needle's.
+            // Padded past the FR-010a minimum so the query is searched at all; `abc` carries no
+            // metacharacter of its own, so the only escaping observed is the needle's.
             const statement = await soleStatementFor(`abc${needle}`);
 
             expect(stringParams(statement)).toContain(`%abc${escaped}%`);
@@ -421,18 +435,18 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
         });
     });
 
-    describe('the routing boundary, asserted through the DAO and not just the pure selector', () => {
-        // `selectSearchStrategy` can be right while `search` ignores it. These two cases are what fail if
-        // the dispatch is collapsed back to a single statement, or if the threshold moves by one.
-        it('runs the prefix statement AT 2 characters and the relevance statement AT 3', async () => {
-            expect((await soleStatementFor('ch')).text).toContain(`to_tsquery('simple'`);
-            expect((await soleStatementFor('chi')).text).toContain(`plainto_tsquery('english'`);
+    describe('the FR-010a boundary, asserted through the DAO and not just the pure selector', () => {
+        // `selectSearchStrategy` can be right while `search` ignores it. These cases are what fail if the
+        // dispatch stops honouring the strategy, or if the minimum moves by one in either direction.
+        it('issues no statement AT 2 characters and the relevance statement AT 3', async () => {
+            await expect(statementsFor('eg')).resolves.toEqual([]);
+            expect((await soleStatementFor('egg')).text).toContain("plainto_tsquery('english'");
         });
-    });
 
-    describe('a query with nothing searchable costs no round trip', () => {
-        it.each(['', ' ', '  ', '&', '::', '🍎'])('executes no statement for %j', async (query) => {
-            await expect(statementsFor(query)).resolves.toEqual([]);
+        it.each(THREE_CHARACTER_FOODS)('actually searches for the real three-character food %j', async (query) => {
+            const statement = await soleStatementFor(query);
+
+            expect(stringParams(statement)).toContain(query);
         });
     });
 });

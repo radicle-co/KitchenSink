@@ -19,19 +19,18 @@
 //                                           description carries the alias vocabulary
 //   miss     a nonsense token               ZERO matches: every branch runs to completion, and the limit
 //                                           can never short-circuit the scan
-//   short    two characters                 the 1-2 character path (T-198): word-initial prefix matching
-//                                           over `food_search_vector_idx`. This shape is the LATENCY gate
-//                                           on that path — losing the index is the regression only a timed
-//                                           tier can see, and it is what a real user's first two
-//                                           keystrokes cost
 //   barcode  a seeded GTIN-13               drives the crosswalk branch (`findFoodIdByBarcode`), which runs
 //                                           on EVERY search regardless of the text predicate
 //
 // Every shape carries its own threshold at the SAME 200ms SC-007 budget, so a fast narrow query can never
-// hide a slow broad or short one. `short` used to get its own separately-overridable budget; that existed
-// only so T-195's short-query finding could be quantified without deleting the gate, and T-198 fixed the
-// finding (125-157ms sequential scan -> 3.9-15.1ms index scan), so the exemption is gone. There is no
-// per-shape budget left to raise.
+// hide a slow broad one. There is no per-shape budget to raise: `short` used to get its own separately
+// overridable one, which was deleted with the exemption it existed for.
+//
+// ⛔ There is deliberately NO two-character `short` shape any more (003-FR-010a, plan U37). Below the
+// three-character minimum `FoodsService.search` returns an empty set without issuing a single statement, so
+// the shape would have measured the p95 of a short-circuit and reported it as search latency — the "speed of
+// doing no work" defect `expectHits` guards against, arriving through the shape list instead of through the
+// data. Do not re-add it; `tests/load/__tests__/searchLoadShapes.test.ts` fails if either side comes back.
 //
 //   npm run test:load:tokens
 //   DATABASE_URL=… npm run test:load:fixture
@@ -76,7 +75,6 @@ const SHAPES = [
     // `expectHits` assertion above exists to catch.
     { name: 'alias', probes: new SharedArray('probes-alias', () => fixture.search.alias), expectHits: true },
     { name: 'miss', probes: new SharedArray('probes-miss', () => fixture.search.miss), expectHits: false },
-    { name: 'short', probes: new SharedArray('probes-short', () => fixture.search.short), expectHits: true },
     { name: 'barcode', probes: new SharedArray('probes-barcode', () => fixture.search.barcode), expectHits: true },
 ];
 

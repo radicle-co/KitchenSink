@@ -7,11 +7,9 @@
 
 export {
     INGREDIENT_SEARCH_DEBOUNCE_MS,
-    MIN_INGREDIENT_QUERY_LENGTH,
     deriveViewState,
     isTerminalStatus,
     isUnresolvedStatus,
-    meetsIngredientSearchThreshold,
     nextMatchAction,
     suggestionKey,
     suggestionName,

@@ -18,6 +18,7 @@ import type { Ingredient } from '@kitchensink/recipe-core';
 import type { FC, ReactElement } from 'react';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
+import { recipeMessages } from '../messages.js';
 import { filterMessages, type FilterMessages } from './messages.js';
 import {
     TIME_BUCKETS_MINUTES,
@@ -94,6 +95,8 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     onClearAll,
 }) => {
     const m = useMessages(filterMessages);
+    // The FR-010a minimum copy is shared by all four ingredient-search surfaces — see its message doc.
+    const { ingredientSearch: minimumCopy } = useMessages(recipeMessages);
     const locale = useLocale();
     const countLabels = { one: m.chipCountOne, other: m.chipCountOther };
 
@@ -196,6 +199,15 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         node is zero-height (invisible to a sighted viewer) and silent (a live region
                         announces content CHANGES, and there is none). Same doctrine as `RecipePhotoManager`
                         and the mobile `LoadingState` — the contextual label doubles as the visible caption. */}
+                    {/* 003-FR-010a: something is typed but below the minimum. Deliberately NOT the
+                        no-matches copy — nothing was searched — and deliberately not a `role="status"`,
+                        because it is guidance about the input rather than the outcome of a request. */}
+                    {viewState.kind === 'tooShort' && (
+                        <p className="text-body-sm text-slate">
+                            {fillTemplate(minimumCopy.tooShort, { minimum: viewState.minimum })}
+                        </p>
+                    )}
+
                     {viewState.kind === 'searching' && (
                         <p role="status" aria-label={m.ingredientSearching} className="text-body-sm text-slate">
                             {m.ingredientSearching}

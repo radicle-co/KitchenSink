@@ -456,6 +456,15 @@ export type ResolveFoodRequest = z.infer<typeof resolveFoodRequestSchema>;
  * set, and the `400` is what lets a caller tell "no results" from "you sent nothing". Its length is bounded for
  * the reason given on {@link MAX_FOOD_NAME_LENGTH}.
  *
+ * ⛔ **The FR-010a three-character minimum is NOT enforced here, and that is deliberate** (owner ruling
+ * 2026-08-24, plan U37). A query of one or two characters is a well-formed request that answers `200` with
+ * an EMPTY result set — never a `400`. FR-010a's words are that the system "returns no results and says so",
+ * and the "says so" is the localized empty state both clients render; a `400` would force a debouncing
+ * typeahead to model an ordinary keystroke as an error, and would make the boundary a wire-breaking change
+ * every time the minimum is retuned. `FoodsService.search` short-circuits below the minimum WITHOUT issuing
+ * the ranked statement or either crosswalk read — see `@kitchensink/recipe-core/resolution/search-minimum`,
+ * which both clients read as well, so the number the cook is shown is the number the server enforces.
+ *
  * ⚠️ Wildcards are NOT escaped here. `?query=%` built the `ILIKE` pattern `'%%%'`, which matches every row that
  * has a name; that is fixed at the point the pattern is BUILT (`toIlikePattern` in `dao/foodSearch.dao.ts`),
  * because escaping at validation time would corrupt the full-text and trigram branches, which receive the same

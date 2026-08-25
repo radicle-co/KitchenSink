@@ -43,7 +43,7 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         vi.useRealTimers();
     });
 
-    it('never calls the search endpoint below the 2-character trigger', async () => {
+    it('never calls the search endpoint below the FR-010a minimum', async () => {
         const client = createFakeRecipeServiceClient();
         const searchSpy = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
 
@@ -58,19 +58,22 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
     });
 
     // Regression (final-review Finding 1, mobile parity): mirrors the web proof above. The instant the
-    // input crosses the 2-char threshold, the debounced value hasn't caught up (search still
-    // `enabled: false`), so the leaf must not render its empty-state copy — that would invite a premature
-    // freeform-add tap before the real search has even fired. Mobile has no distinct "searching" copy
-    // (see `IngredientPicker.tsx`'s `showEmpty` — gated on `kind === 'results'`), so the observable proof
-    // here is that the empty text stays ABSENT during the debounce window and only appears once it
-    // genuinely settles empty.
+    // input crosses the minimum, the debounced value hasn't caught up (search still `enabled: false`), so
+    // the leaf must not render its empty-state copy — that would invite a premature freeform-add tap before
+    // the real search has even fired. Mobile has no distinct "searching" copy (see `IngredientPicker.tsx`'s
+    // `showEmpty` — gated on `kind === 'results'`), so the observable proof here is that the empty text
+    // stays ABSENT during the debounce window and only appears once it genuinely settles empty.
+    //
+    // ⚠️ The needle moved from 'zz' to 'zzz' with plan U37 (003-FR-010a): at two characters the query is now
+    // below the minimum and can never settle into `results`, so the old needle asserted an empty state that
+    // no longer arrives. The debounce invariant is unchanged.
     it('does not show the empty state during the debounce-pending window — only once it genuinely settles empty', async () => {
         const client = createFakeRecipeServiceClient();
         const searchSpy = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
 
         renderWithRecipeClient(<IngredientPicker onResolve={vi.fn()} />, client);
 
-        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'zz' } });
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'zzz' } });
         // Flush React's state update WITHOUT advancing the debounce timer.
         await act(async () => {
             await Promise.resolve();

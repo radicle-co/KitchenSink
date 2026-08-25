@@ -277,9 +277,9 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
      * equivalence proof is worse than no proof, because it would keep proving two forms of a statement
      * nobody runs are the same. The statement is identified by the `name % $n` predicate that IS the
      * subject of this suite, and the identification is asserted, so losing that branch fails loudly
-     * instead of quietly proving the word-initial prefix statement equivalent to itself.
+     * instead of quietly proving some other statement equivalent to itself.
      *
-     * @param query - A 3+ character query (1–2 characters route elsewhere — T-198).
+     * @param query - A query at or above the FR-010a minimum (below it nothing is executed at all).
      * @returns SQL text plus bound parameters.
      * @sideEffect Executes one search against `food`.
      */

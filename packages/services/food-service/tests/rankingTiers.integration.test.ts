@@ -223,16 +223,23 @@ describe.skipIf(!DATABASE_URL)('catalog tiered ranking (integration)', () => {
             expect(hits[0]!.score).toBeGreaterThan(0);
         });
 
-        it('does not disturb the 1–2 character prefix statement, which has its own score', async () => {
+        it('is never consulted below the FR-010a minimum, because nothing is searched there', async () => {
+            // ⚠️ REWRITTEN, not deleted (plan U37). It used to assert that the tier ladder left the
+            // separate 1–2 character prefix statement and its own score alone. That statement is gone, so
+            // the invariant underneath it — the ladder cannot change what a short query returns — is now
+            // the stronger claim that a short query returns nothing at all. The rows below are the ones
+            // the prefix statement used to rank.
             await seedFoods(pool, [
                 { id: 'f-chicken', name: 'Chicken, broilers or fryers, breast' },
                 { id: 'f-cheddar', name: 'Cheddar cheese' },
             ]);
 
-            const ranked = await rank('ch');
-
-            expect(ranked).toHaveLength(2);
-            expect(ranked[0]).toBe('Cheddar cheese');
+            expect(await rank('ch')).toEqual([]);
+            // …and one character longer the ladder ranks as usual, so the case above is not passing
+            // because the seed failed. ('che' is a substring of `Cheddar cheese` only — `Chicken` has no
+            // `che` — which is itself the point: at three characters retrieval discriminates.)
+            expect(await rank('che')).toEqual(['Cheddar cheese']);
+            expect(await rank('chi')).toEqual(['Chicken, broilers or fryers, breast']);
         });
     });
 

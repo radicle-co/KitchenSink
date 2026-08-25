@@ -15,8 +15,11 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
+
 import { FoodMetrics } from '../../observability/emfMetrics.js';
-import type { FoodDao, FoodStatus, GoldenFoodRecord } from '../dao/index.js';
+import type { FoodDao, FoodSourcesDao, FoodStatus, GoldenFoodRecord } from '../dao/index.js';
+import type { FoodSearchDao } from '../dao/foodSearch.dao.js';
 import { FoodsService } from '../foods.service.js';
 
 const FOOD_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
@@ -112,5 +115,96 @@ describe('FoodsService.getFood — local-store serve rate (SC-004/SC-005)', () =
         await service.getFood(FOOD_ID);
 
         expect(serveRateValues(sink)).toEqual([100, 100]);
+    });
+});
+
+/**
+ * The FR-010a minimum, asserted at the SERVICE rather than only at the DAO (plan U37).
+ *
+ * ⛔ THE DAO GUARD IS NOT ENOUGH, and that is the whole point of this suite. `FoodsService.search` issues
+ * THREE reads per call — the ranked statement plus two crosswalk lookups (`findFoodIdByBarcode`, then
+ * `findFoodIdByExternalKey`) — and the crosswalks do not go through `FoodSearchDao` at all. A gate that
+ * lived only in the DAO would still put two round trips on every keystroke of a query the product has ruled
+ * unanswerable. FR-010a says the system returns no results; the cheapest way to return no results is to make
+ * no query.
+ *
+ * Nothing is lost by skipping the crosswalks below the minimum: a GTIN is 8–14 digits and a USDA `fdcId` is
+ * 4–7, so no identifier this branch can resolve is shorter than three characters.
+ *
+ * Mutation lens: every case fails if the gate is removed, if it is weakened back to "non-empty", if it is
+ * moved below the crosswalk reads, or if the minimum stops being the shared one.
+ */
+describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
+    /** Build the service with only the collaborators `search` touches, each recording its calls. */
+    function makeSearchService(): {
+        service: FoodsService;
+        searchDao: { search: ReturnType<typeof vi.fn> };
+        sources: { findFoodIdByBarcode: ReturnType<typeof vi.fn>; findFoodIdByExternalKey: ReturnType<typeof vi.fn> };
+    } {
+        const searchDao = { search: vi.fn().mockResolvedValue([]) };
+        const sources = {
+            findFoodIdByBarcode: vi.fn().mockResolvedValue(undefined),
+            findFoodIdByExternalKey: vi.fn().mockResolvedValue(undefined),
+        };
+        const unused = undefined as unknown as never;
+        const service = new FoodsService(
+            unused,
+            unused,
+            sources as unknown as FoodSourcesDao,
+            searchDao as unknown as FoodSearchDao,
+            unused,
+            unused,
+            unused,
+            unused,
+            unused,
+            new FoodMetrics(vi.fn()),
+        );
+
+        return { service, searchDao, sources };
+    }
+
+    describe('below the minimum, NOTHING is read', () => {
+        it.each(['', ' ', 'e', 'eg', ' eg ', '  '])(
+            'answers %j with an empty result set and no read',
+            async (query) => {
+                const { service, searchDao, sources } = makeSearchService();
+
+                await expect(service.search(query)).resolves.toEqual({ results: [] });
+
+                expect(searchDao.search).not.toHaveBeenCalled();
+                // ⛔ The two reads a DAO-only gate would leave running on every keystroke.
+                expect(sources.findFoodIdByBarcode).not.toHaveBeenCalled();
+                expect(sources.findFoodIdByExternalKey).not.toHaveBeenCalled();
+            },
+        );
+
+        it('refuses everything shorter than the shared minimum, whatever that minimum is', async () => {
+            const { service, searchDao } = makeSearchService();
+
+            await service.search('a'.repeat(MIN_SEARCH_QUERY_LENGTH - 1));
+
+            expect(searchDao.search).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('at and above the minimum, the full three-read path runs', () => {
+        it.each(['egg', 'ham', 'rye', 'chicken breast'])('searches for %j', async (query) => {
+            const { service, searchDao, sources } = makeSearchService();
+
+            await service.search(query);
+
+            // Without this the suite above would pass on a `search` that does nothing at all.
+            expect(searchDao.search).toHaveBeenCalledWith(query);
+            expect(sources.findFoodIdByBarcode).toHaveBeenCalledWith(query);
+            expect(sources.findFoodIdByExternalKey).toHaveBeenCalledWith('usda', query);
+        });
+
+        it('still trims before measuring, so a padded three-character query is searched', async () => {
+            const { service, searchDao } = makeSearchService();
+
+            await service.search('  egg  ');
+
+            expect(searchDao.search).toHaveBeenCalledWith('egg');
+        });
     });
 });

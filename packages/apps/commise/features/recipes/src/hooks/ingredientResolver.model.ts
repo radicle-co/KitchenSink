@@ -38,6 +38,7 @@
  */
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
+import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import type {
     IngredientCandidate,
     IngredientCatalogAvailability,
@@ -46,22 +47,21 @@ import type {
 
 import type { RecipeFormIngredient } from '../form/model.js';
 
-/** The minimum trimmed-query length that triggers an ingredient search (REQ-057). */
-export const MIN_INGREDIENT_QUERY_LENGTH = 2;
-
 /** The debounce window (ms) between a keystroke and the search it triggers (REQ-057). */
 export const INGREDIENT_SEARCH_DEBOUNCE_MS = 300;
 
-/**
- * Whether a trimmed query is long enough to trigger the ingredient typeahead (REQ-057 — at least
- * {@link MIN_INGREDIENT_QUERY_LENGTH} characters). Pure.
+/*
+ * ⛔ `MIN_INGREDIENT_QUERY_LENGTH` (2) and `meetsIngredientSearchThreshold` USED TO LIVE HERE, and were
+ * this package's own. They are DELETED, not renamed: 003-FR-010a (owner ruling 2026-08-24, plan U37)
+ * raised the floor to three characters and made it a rule the SERVER enforces too, so a client-owned copy
+ * of the number is a second authority that can only ever drift. Both surfaces now read
+ * `MIN_SEARCH_QUERY_LENGTH` / `meetsSearchMinimum` from
+ * `@kitchensink/recipe-core/resolution/search-minimum`, which food-service's DAO and service read as well.
  *
- * @param trimmed - The trimmed search-box query.
- * @returns `true` once the query meets the trigger threshold.
+ * ⚠️ The DEBOUNCE stays local. It is a client-only interaction concern with no server counterpart, and it
+ * changes for entirely different reasons than the minimum does — merging the two would be DRY applied to
+ * keystrokes rather than to knowledge.
  */
-export function meetsIngredientSearchThreshold(trimmed: string): boolean {
-    return trimmed.length >= MIN_INGREDIENT_QUERY_LENGTH;
-}
 
 /** The display name of a blended suggestion, whichever provenance it has. Pure. */
 export function suggestionName(suggestion: IngredientSuggestion): string {
@@ -139,8 +139,13 @@ export interface MutationView {
 /**
  * The picker's current view — a discriminated union so a leaf renders it with an exhaustive `switch`
  * instead of re-deriving the same implicit state machine from raw query/mutation flags. Kinds:
- *  - `idle` — no query typed yet, the query is below the {@link MIN_INGREDIENT_QUERY_LENGTH} search trigger
- *    (REQ-057), and nothing is being disambiguated.
+ *  - `idle` — no query typed yet (and nothing is being disambiguated). The search box is untouched, so
+ *    there is nothing to say about it.
+ *  - `tooShort` — something is typed, but fewer than {@link MIN_SEARCH_QUERY_LENGTH} characters
+ *    (003-FR-010a). ⛔ DISTINCT FROM `idle` on purpose: collapsing the two either puts "type at least three
+ *    characters" over an untouched box on every open, or drops the explanation and leaves the cook typing
+ *    into a surface that silently does nothing. FR-010a requires the cook to be TOLD. `minimum` rides on
+ *    the state rather than being re-derived by each leaf, so the sentence and the gate cannot disagree.
  *  - `searching` — a query is in flight (no data yet), OR `trimmed` has crossed the search threshold but
  *    the debounced query gating the fetch (REQ-057, ~300ms behind keystrokes) hasn't caught up to it yet
  *    — see {@link DeriveViewStateInput.debouncedTrimmed}. Without this second half, the instant `trimmed`
@@ -167,6 +172,7 @@ export interface MutationView {
  */
 export type IngredientResolverViewState =
     | { readonly kind: 'idle' }
+    | { readonly kind: 'tooShort'; readonly minimum: number }
     | { readonly kind: 'searching' }
     | {
           readonly kind: 'results';
@@ -238,8 +244,11 @@ export function deriveViewState(input: DeriveViewStateInput): IngredientResolver
         };
     }
 
-    if (!meetsIngredientSearchThreshold(input.trimmed)) {
-        return { kind: 'idle' };
+    // ⛔ The minimum is checked BEFORE the debounce window, not after. `trimmed !== debouncedTrimmed`
+    // normally means `searching`, but below the minimum no request will ever be issued — so falling through
+    // to `searching` would spin a promise that is never kept, on every one of the first two keystrokes.
+    if (!meetsSearchMinimum(input.trimmed)) {
+        return input.trimmed.length === 0 ? { kind: 'idle' } : { kind: 'tooShort', minimum: MIN_SEARCH_QUERY_LENGTH };
     }
 
     // REQ-057 debounce-flash fix: `trimmed` can cross the search threshold before `debouncedTrimmed` (and

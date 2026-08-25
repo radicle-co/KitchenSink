@@ -9,6 +9,17 @@
         "zod its callers parse its response with -- never its runtime. See",
         "docs/architecture/decisions/0025-ingredient-parser-python-deployable.md."
     ],
+    "//recipe-import-core": [
+        "@kitchensink/recipe-import-core is TYPE-ONLY, and a devDependency on purpose (plan U22). This",
+        "package's parsed row and cookbook-import's JSONL row are the SAME six fields in two different",
+        "envelopes, and CrfReading is the shared row U22's promotion layer reads. The assertion that this",
+        "zod still satisfies it lives beside the zod (src/__tests__/engine.schema.test.ts) rather than in",
+        "the shared package, because a shared library must never import a service's. Nothing in this",
+        "package's deployed asset is TypeScript, so nothing here reaches the Lambda.",
+        "-- A comment key must sit at the TOP LEVEL, never inside dependencies/devDependencies: turbo",
+        "refuses to parse a non-string value there ('Incorrect type, expected a string, but received an",
+        "array'), which takes down every turbo-driven guard in packages/infra/global."
+    ],
     "exports": {
         ".": "./src/index.ts"
     },
@@ -34,6 +45,7 @@
         "@kitchensink/eslint": "*",
         "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
+        "@kitchensink/recipe-import-core": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@types/node": "^24.0.0",

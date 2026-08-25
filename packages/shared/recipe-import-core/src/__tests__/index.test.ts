@@ -54,6 +54,16 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // since the `exports` map publishes nothing but `.`. Its `modifierLexicon` collaborator is
         // deliberately NOT here: KTD-11b's vocabulary is an implementation detail of the comparator, the
         // same way `WHOLE_NUMBER_WORDS` is of the pre-normalizer, and its word sets are not functions.
+        // ⚠️ GREW BY TWO in U22's promotion layer, and they are the pair that lets an ENGINE'S output
+        // become a `ParsedLine` at all — the step nothing in the tree performed, and without which
+        // `compareParses` (which consumes two of them) had no producer but a test fixture. They are public
+        // because their callers are the engine adapters in `cookbook-import` and the parse leg in
+        // `recipe-workers`, both a different package, and this barrel is the package's only door.
+        //
+        // ⛔ `readStatedMeasure` is deliberately NOT here. It is the promotions' shared reading of a measure
+        // phrase — an implementation detail of exactly these two functions, the same way `modifierLexicon`
+        // is of the comparator — and nothing outside this package reads a measure without also promoting a
+        // line. It goes on the barrel the day a caller outside needs it, and not before.
         expect(Object.keys(publicApi).sort()).toEqual([
             'compareParses',
             'corruptsStatedValue',
@@ -64,6 +74,8 @@ describe('@kitchensink/recipe-import-core barrel', () => {
             'normalizeServings',
             'parseIngredientLine',
             'projectToIngredientLine',
+            'promoteCrfReading',
+            'promoteLlmParse',
             'roundToQuantityStorageScale',
             'sanitizeToPlainText',
             'splitMeasurement',

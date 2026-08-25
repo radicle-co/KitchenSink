@@ -34,17 +34,25 @@
  * contract's.
  */
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
+import type { ParseEngine } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import type { IngredientReviewReason, ParsedIngredientLine } from './ingredientLine.js';
 
 /**
- * Which reader produced a fact.
+ * Which ENGINE produced a fact — re-exported, never redeclared.
  *
- * `crf` is the conditional-random-field parser (`ingredient-parser-nlp`); `llm` is the Bedrock parse leg.
- * A merged line genuinely carries both — the comparator takes the amount from one engine and the food
- * identity from the other — which is why provenance is per fact rather than per line.
+ * ⛔ THIS FILE USED TO DECLARE ITS OWN `'crf' | 'llm'` (ADR-0026's first contract defect). The two spellings
+ * were structurally identical, so assignment worked in both directions, `tsc` was silent, and every test
+ * passed — the invisible kind of drift, which would have surfaced only when one of them gained a member.
+ * The authority is the PARSE KEY, because the engine is a member of that key and of
+ * `ingredient_parse_cache.engine`'s CHECK constraint; a copy here could not have carried that consequence.
+ *
+ * ⚠️ A re-export rather than an import-and-re-declare, following `cookbook-import`'s `parsePrompt.ts` — the
+ * precedent for exactly this move, made for exactly this reason ("one authoritative representation,
+ * imported"). Consumers of this package keep reading `ParseEngine` off its barrel and never learn that the
+ * definition moved.
  */
-export type ParseEngine = 'crf' | 'llm';
+export type { ParseEngine };
 
 /** One food a line named, and what the line says is done to it. */
 export interface ParsedFood {
@@ -121,13 +129,30 @@ export interface ParsedFacts {
 }
 
 /**
- * Which engine produced each fact.
+ * Which READER produced a fact — an engine, or a person.
+ *
+ * ⛔ A SECOND AXIS, and deliberately NOT a third member of `PARSE_ENGINES` (ADR-0026's second contract
+ * defect). `ParseProvenance` used to be keyed on `ParseEngine` alone, which left U21's shipped
+ * correction tier UNTYPEABLE: a cook is neither `crf` nor `llm`, so a line carrying a corrected amount
+ * beside an engine's foods could not be expressed at all.
+ *
+ * ⛔ The obvious repair — adding `'correction'` to `PARSE_ENGINES` — is the wrong one, and its own module
+ * says why: that set is `ingredient_parse_cache.engine`'s CHECK-constrained key domain, where a third
+ * member is "a compile error **and a migration** — never a value that quietly appears in a cache row nobody
+ * can interpret". A correction is not a cache row and has no engine version; it is a different KIND of
+ * source. So the two sets stay separate: {@link ParseEngine} is what a cache row may say, and this is what
+ * a FACT may say. Every engine is a source; the reverse does not hold, which is the whole point.
+ */
+export type ParseFactSource = ParseEngine | 'correction';
+
+/**
+ * Which reader produced each fact.
  *
  * ⛔ DERIVED from {@link ParsedFacts}, never enumerated — the same discipline as `UNIT_WORDS` in
  * `ingredientLine.ts` and the guard tables in `packages/infra/global/__tests__/`. A hand-written list is
  * a second representation of the fact set and rots the moment a fact is added.
  */
-export type ParseProvenance = { readonly [Fact in keyof ParsedFacts]: ParseEngine };
+export type ParseProvenance = { readonly [Fact in keyof ParsedFacts]: ParseFactSource };
 
 /**
  * One free-text ingredient line, parsed — the CANONICAL result of the parse pipeline.

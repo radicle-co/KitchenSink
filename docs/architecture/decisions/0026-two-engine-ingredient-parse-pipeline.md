@@ -474,9 +474,19 @@ accountability the silent `instruction` verdict cannot provide at runtime.
 
 #### Stated limits and residual risk
 
-- ⚠️ **`glass` and `cup` are not in `VESSELS`.** The ruling's own third example, `a glass of milk`, therefore
-  does not move in either direction. That is a VOCABULARY question and this change is a POSITION one; adding
-  words moves corpus lines nobody asked to move. Left open deliberately.
+- ⛔ **`glass` and `cup` are not in `VESSELS`, and RESOLVED 2026-08-26: they must not be added.** The ruling's
+  own third example, `a glass of milk`, does not move in either direction — and the reason is not that the
+  vocabulary is merely incomplete. **Both words are already CANONICAL UNITS** (`cup`/`cups`/`cupful` and
+  `wineglass`/`wineglasses`/`wineglassful` in `recipe-core`'s `UNIT_ALIASES`), so the unit table already
+  answers "unit" for them unconditionally and the position rule never needs to arbitrate.
+  Adding them to `VESSELS` would give ONE word TWO authorities — and since `namesEquipment` is head-final, a
+  span headed by `cup` would answer "not an ingredient". That is `a cup` in this corpus, one step from the
+  commonest measure phrase in any cookbook. MEASURED 2026-08-26 on the current tree: `a cup of flour`,
+  `one cup of milk`, `a glass of milk` and `a cup` all already segment as `ingredient`, while
+  `butter in a frying-pan` still cuts at the pan. Nothing is broken and there is nothing to add.
+  ⚠️ The general lesson is the one this package keeps paying for: a second authority for one fact is the
+  defect, not the fix — the same shape as `ParseEngine` declared twice and `normalizeMeasure` competing with
+  `readStatedMeasure`.
 - ⚠️ **A count-form food whose name mentions a vessel, sitting as a prepositional object, has no partitive to
   bound the scan.** The delimiter requirement means it is only at risk when the span carries some other
   delimiter. No such line exists in this book — but the corpus is one book, and that is the failure this

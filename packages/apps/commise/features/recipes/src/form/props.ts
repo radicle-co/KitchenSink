@@ -580,13 +580,13 @@ export const removeChipAt = (list: readonly string[], index: number): string[] =
  * @returns The note, or `undefined` when the unit is canonical or absent.
  */
 export const unitClassNote = (messages: RecipeFormMessages, unit?: string): string | undefined => {
-    const cleaned = unit?.trim().toLowerCase() ?? '';
+    const written = unit?.trim() ?? '';
 
-    if (cleaned === '') {
+    if (written === '') {
         return undefined;
     }
 
-    switch (classifyUnit(cleaned)) {
+    switch (classifyUnit(written)) {
         case 'canonical':
             return undefined;
         case 'subjective':
@@ -599,7 +599,14 @@ export const unitClassNote = (messages: RecipeFormMessages, unit?: string): stri
             //
             // ⚠️ Only the UNKNOWN note is deferred. A subjective unit is typed whole (`handful`, `to taste`)
             // and its note is reassurance rather than a correction, so there is nothing to soften.
-            return UNIT_VOCABULARY.some((candidate) => candidate.startsWith(cleaned))
+            //
+            // ⛔ THE PREFIX TEST FOLDS CASE AND THE CLASSIFICATION ABOVE DOES NOT, and that asymmetry is the
+            // point rather than an inconsistency (U35, owner ruling 2026-08-25). `classifyUnit` is asked
+            // about the spelling the cook TYPED, because `T` (tablespoon) and `t` (teaspoon) are different
+            // units; `UNIT_VOCABULARY` holds only lower-case canonical forms, so asking it whether `Cup`
+            // begins one has to fold, or a cook typing a capital `C` would be told "Unrecognised unit"
+            // while still on their way to `Cup`. Two questions, two folds, each right for its own.
+            return UNIT_VOCABULARY.some((candidate) => candidate.startsWith(written.toLowerCase()))
                 ? undefined
                 : messages.ingredientUnitUnknownNote;
     }

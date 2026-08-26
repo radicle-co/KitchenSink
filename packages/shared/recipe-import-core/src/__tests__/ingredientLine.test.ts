@@ -145,6 +145,53 @@ describe('parseIngredientLine', () => {
             expect(result.name).toBe(name);
             expect(result.needsReview).toBe(false);
         });
+
+        /**
+         * U35 — capital `T` is a tablespoon, lowercase `t` is a teaspoon (owner ruling, 2026-08-25).
+         *
+         * ⛔ THIS IS THE ASSERTION THAT CATCHES AN UPSTREAM LOWERCASE, and it is why the case lives here
+         * rather than only in `recipe-core`'s own suite. A fix confined to `normalizeUnit` is worthless if
+         * `parse-ingredient` has already folded the case away before we ever see the token: the unit test
+         * would pass and the pipeline would still store `t` for both spellings.
+         *
+         * Measured 2026-08-25 against `parse-ingredient@2.2.0`: it PRESERVES the case — `"2 T butter"`
+         * yields `unitOfMeasure: 'T'` and `"2 t vanilla"` yields `unitOfMeasure: 't'` — so the token
+         * reaches `normalizeUnit` intact and the ruling is implementable at this seam. These cases pin
+         * that, so a library upgrade that started lower-casing would fail HERE rather than silently.
+         */
+        describe('U35 — the case-sensitive pair, end to end through the real parser', () => {
+            it.each([
+                ['2 T butter', 'tablespoon', 'butter'],
+                ['2 t vanilla', 'teaspoon', 'vanilla'],
+                ['1 T olive oil', 'tablespoon', 'olive oil'],
+                ['1 t salt', 'teaspoon', 'salt'],
+            ])('reads %j as %j of %j', (raw, unit, name) => {
+                const result = parseIngredientLine(raw);
+
+                expect(result.quantity).toEqual({ kind: 'exact', value: raw.startsWith('2') ? 2 : 1 });
+                expect(result.unit).toBe(unit);
+                expect(result.name).toBe(name);
+                expect(result.needsReview).toBe(false);
+            });
+
+            it('keeps the two APART through the whole pipeline — conflating them IS the defect', () => {
+                expect(parseIngredientLine('2 T butter').unit).not.toBe(parseIngredientLine('2 t vanilla').unit);
+            });
+
+            it('never reads a lowercase t as a tablespoon — the 3x error in the other direction', () => {
+                expect(parseIngredientLine('2 t vanilla').unit).not.toBe('tablespoon');
+            });
+
+            it.each([
+                ['2 tbsp butter', 'tablespoon'],
+                ['2 Tbsp. butter', 'tablespoon'],
+                ['2 TBSP butter', 'tablespoon'],
+                ['2 tsp vanilla', 'teaspoon'],
+                ['2 Cups flour', 'cup'],
+            ])('leaves every OTHER spelling case-insensitive: %j still reads as %j', (raw, unit) => {
+                expect(parseIngredientLine(raw).unit).toBe(unit);
+            });
+        });
     });
 
     describe('never fabricates a quantity', () => {

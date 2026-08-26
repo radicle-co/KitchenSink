@@ -37,7 +37,7 @@
  * unit token — the latter matters, because a unit alias table run over a FOOD name is a category error
  * (`cloves` is a unit; `carrots` is not).
  */
-import { normalizeUnit } from '@kitchensink/recipe-core';
+import { normalizeUnit, unitSpellingDependsOnCase } from '@kitchensink/recipe-core';
 import { rankingTokens } from '@kitchensink/recipe-core/resolution/ranking-terms';
 import { normalizeQuantity } from '@kitchensink/recipe-import-core';
 
@@ -76,11 +76,21 @@ export function normalizeName(raw: string): string {
  * why `recipe-import-core`'s R31 teaches the `*ful` family to the tokenizer in the first place). The
  * detector therefore missed its own subject and dumped those lines into the unexplained residue.
  *
+ * ⛔ A CASE-DEPENDENT SPELLING IS LEFT ALONE (U35, owner ruling 2026-08-25), and this is NOT the fix its
+ * sibling `foldMeasureWords` got. That one still HAS the case and simply discarded it, so it stopped. This
+ * one receives `rankingTokens` output, and `foldForRanking` lower-cased it on the way to a rule the
+ * PERSISTED match grain mirrors in SQL — that fold cannot be undone, and reaching for an un-folded name
+ * here would bind a measurement convenience to a one-way door. So for `t`, whose meaning depends on a case
+ * this token no longer carries, the unit is genuinely UNDETERMINED and is reported as the letter it is.
+ * Measured before this: `unitComparableWords('vitamin t supplement')` yielded `teaspoon` — a real unit word
+ * manufactured out of a stray letter, in the set that answers "did the CRF swallow the model's unit into
+ * the food name?", so a manufactured unit is a manufactured YES.
+ *
  * @param raw - A food name from either parser.
- * @returns Its words, unit-canonicalised, as a set. Pure.
+ * @returns Its words, unit-canonicalised except where case decides the unit, as a set. Pure.
  */
 export function unitComparableWords(raw: string): ReadonlySet<string> {
-    return new Set(rankingTokens(raw).map(normalizeUnit));
+    return new Set(rankingTokens(raw).map((word) => (unitSpellingDependsOnCase(word) ? word : normalizeUnit(word))));
 }
 
 /**
@@ -200,7 +210,14 @@ function foldMeasureWords(rest: string): readonly string[] {
 
         remaining = trimmed.slice(word.length);
 
-        for (const part of word.toLowerCase().split(MEASURE_WORD_SEPARATOR)) {
+        // ⛔ SPLIT WITH THE CASE INTACT (U35, owner ruling 2026-08-25). `normalizeUnit` folds case itself,
+        // once, AFTER reading the two spellings whose meaning depends on it — `T` is a tablespoon and `t` a
+        // teaspoon. Lower-casing here threw that away one line before the lookup, which was harmless only
+        // while the normalizer folded unconditionally: the moment it stopped, `2 T sugar` reported a
+        // CONFIDENT `teaspoon`, a threefold understatement in the one fold every agreement and determinism
+        // figure in this census is computed through. It costs no other spelling anything, because
+        // `normalizeUnit`'s fallback returns the FOLDED form and never the raw one.
+        for (const part of word.split(MEASURE_WORD_SEPARATOR)) {
             if (part.length > 0) {
                 words.push(normalizeUnit(part));
             }

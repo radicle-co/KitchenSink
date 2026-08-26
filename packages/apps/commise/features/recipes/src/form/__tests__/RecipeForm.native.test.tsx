@@ -1516,6 +1516,42 @@ describe('RecipeForm (native) — preparation, section and unit class (U25/U26/U
         expect(screen.queryByText('Unrecognised unit')).toBeNull();
         expect(screen.queryByText('Cook’s measure')).toBeNull();
     });
+
+    /**
+     * U35 — the NATIVE half of "capital `T` is a tablespoon, lowercase `t` is a teaspoon".
+     *
+     * ⛔ §14's cross-platform rule, and it is not ceremony here: the two leaves are separate files with no
+     * compiler edge between them, and BOTH derive their unit styling from `classifyUnit` independently. A
+     * ruling that landed on web and not on mobile would show the same recipe two different ways.
+     *
+     * ⚠️ The NOTE was already absent for both spellings before the ruling (the prefix rule withheld it,
+     * because `t` begins `teaspoon`), so the note assertions alone cannot see this change — the subdued
+     * style is what moved, exactly as on web.
+     */
+    it.each(['T', 't'])('marks the case-sensitive unit %j as ordinary — no note, no subdued style (U35)', (unit) => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Butter', quantity: 2, unit }],
+            }),
+        });
+
+        expect(screen.getByLabelText('Ingredient 1 unit').getAttribute('aria-describedby')).toBeNull();
+        expect(inputValue('Ingredient 1 unit')).toBe(unit);
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+    });
+
+    it('still marks a genuinely unrecognised short unit — the ruling covers T and t, not the alphabet', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Butter', quantity: 2, unit: 'zq' }],
+            }),
+        });
+
+        expect(screen.getByLabelText('Ingredient 1 unit').getAttribute('aria-describedby')).toBe(
+            screen.getByText('Unrecognised unit').id,
+        );
+    });
 });
 
 /**

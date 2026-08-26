@@ -50,6 +50,7 @@
         "@kitchensink/vitest": "*",
         "@types/node": "^24.0.0",
         "aws-cdk": "^2.1134.0",
+        "dotenv": "*",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "^4.23.12",

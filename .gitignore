@@ -142,7 +142,13 @@ tmp/
 
 # The staged Python Lambda asset (packages/services/ingredient-parser). ~90 MB of pip output,
 # rebuilt by `npm run bundle:lambda`; never committed. See ADR-0025.
-build/asset/
+#
+# ⛔ `**/` IS LOAD-BEARING. A gitignore pattern containing a slash is ANCHORED to the directory of the
+# file it appears in, so a root-level `build/asset/` matches only `<root>/build/asset/` — never the
+# package path this comment names. Measured 2026-08-26: `git check-ignore` exited 1 on
+# `packages/services/ingredient-parser/build/asset/…` and 1,853 files (650k lines) staged themselves
+# into a commit. The rule read correctly and did nothing.
+**/build/asset/
 
 # Python bytecode — the handler is imported by its integration tier and by the packaging guard.
 __pycache__/

@@ -1027,6 +1027,13 @@ jobs:
             # limit) — including the mutation, where it deletes the model and asserts the guard reports it;
             # the HANDLER tier imports handler.py into a real interpreter with the pinned engine (installed
             # by the step above) and feeds its answer through the caller's zod. Needs network for pip.
+            # ⚠️ `@kitchensink/infra-security` exports BUILT js only (`main: ./dist/index.js`, ADR-0013), and
+            # this job calls `npm run test:integration` per workspace rather than going through turbo — so
+            # nothing here builds it and vitest fails to resolve the entry. `packaging.ts` imports
+            # `PYTHON_LAMBDA_RUNTIME` from it, so the packaging tier below cannot load without it. Same
+            # fallback shape as the `@commise/ui` step above, for the same reason.
+            - name: Ensure @kitchensink/infra-security is built (it exports dist, not src)
+              run: '[ -n "$(ls -A packages/infra/security/dist 2>/dev/null)" ] || npm run build --workspace=@kitchensink/infra-security'
             - name: Run ingredient-parser integration tests
               run: npm run test:integration --workspace=@kitchensink/ingredient-parser
 

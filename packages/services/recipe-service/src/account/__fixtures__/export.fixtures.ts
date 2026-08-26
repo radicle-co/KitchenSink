@@ -118,7 +118,6 @@ export function makeVersionRow(overrides: Partial<VersionMetadataRow> = {}): Ver
         s3Key: null,
         createdBy: FIXTURE_OWNER,
         changeSummary: 'Initial version',
-        deviceLabel: null,
         editorHandle: 'chef-anna',
         createdAt: CREATED,
         ...overrides,

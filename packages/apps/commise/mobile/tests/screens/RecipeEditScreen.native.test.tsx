@@ -182,7 +182,6 @@ function toVersionConflictSide(detail: RecipeDetail): VersionConflictSide {
 
     return {
         versionNumber: detail.currentVersion,
-        deviceLabel: 'iPhone',
         updatedAt: '2026-05-09T14:30:00.000Z',
         snapshot,
     };
@@ -391,7 +390,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         publish();
 
         expect(await screen.findByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
-        expect(screen.getByText(/^Server version \(v5\): Saved .* on iPhone$/)).toBeTruthy();
+        expect(screen.getByText(/^Server version \(v5\): Saved .*ago$/u)).toBeTruthy();
         expect(screen.getByText('Your version: local unsaved changes')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Keep server version' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Overwrite with your version' })).toBeTruthy();

@@ -226,8 +226,14 @@ describe('recipeSchema — CR-001 rating aggregate + derived fields', () => {
     });
 });
 
-describe('recipeVersionSchema — deviceLabel attribution (W8-a.6)', () => {
-    /** A minimal, schema-valid `RecipeVersion` the cases layer deviceLabel onto. */
+/**
+ * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution. Two cases here used to pin
+ * `deviceLabel`'s acceptance and its 80-char bound; the field is gone from `RecipeVersion`, so what is
+ * asserted instead is that the response schema DROPS it — `recipeVersionSchema` is a non-strict
+ * `z.object`, so a stale server still emitting the key must not smuggle it back onto the parsed value.
+ */
+describe('recipeVersionSchema — editor attribution (W8-a.2)', () => {
+    /** A minimal, schema-valid `RecipeVersion` the cases layer overrides onto. */
     function makeVersion(overrides: Record<string, unknown> = {}): Record<string, unknown> {
         return {
             id: 'ver-1',
@@ -249,15 +255,12 @@ describe('recipeVersionSchema — deviceLabel attribution (W8-a.6)', () => {
         };
     }
 
-    it('accepts a bounded deviceLabel and tolerates its absence (unknown device)', () => {
-        expect(recipeVersionSchema.parse(makeVersion({ deviceLabel: "Brandon's iPhone" })).deviceLabel).toBe(
-            "Brandon's iPhone",
-        );
-        expect(recipeVersionSchema.parse(makeVersion()).deviceLabel).toBeUndefined();
-    });
+    it('strips a deviceLabel a stale server still sends — the 2026-08-26 ruling removed it from the contract', () => {
+        const parsed = recipeVersionSchema.parse(makeVersion({ deviceLabel: "Brandon's iPhone" }));
 
-    it('rejects a deviceLabel past the 80-char bound (unbounded free text is not persisted)', () => {
-        expect(recipeVersionSchema.safeParse(makeVersion({ deviceLabel: 'x'.repeat(81) })).success).toBe(false);
+        expect(parsed).not.toHaveProperty('deviceLabel');
+        // Asserted alongside, so the case cannot pass by the schema rejecting the whole object instead.
+        expect(parsed.versionNumber).toBe(1);
     });
 
     it('accepts the denormalized editorHandle (W8-a.2) and tolerates its absence', () => {

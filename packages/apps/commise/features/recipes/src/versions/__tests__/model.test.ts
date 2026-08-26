@@ -32,7 +32,6 @@ import {
     formatServerBanner,
     formatServerCardHeading,
     formatVersionAttribution,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatVersionTimestamp,
     formatYourCardHeading,
@@ -131,23 +130,16 @@ describe('formatRelativeTimeAgo (W7 Task 3 / X3)', () => {
     });
 });
 
+/**
+ * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution (`deviceLabel`). The banner
+ * used to have two branches — with and without a device suffix — and the pair of cases below it existed to
+ * pin both. There is now ONE rendering, so the surviving case asserts the WHOLE string (never `toContain`),
+ * which is what makes it fail if the version number, the relative time, or the template wording moves.
+ */
 describe('formatServerBanner (W7 Task 3 / X3)', () => {
-    it('renders "Server version (vN): Saved {time} ago on {device}" when a device is known', () => {
+    it('renders "Server version (vN): Saved {time} ago" — version and relative time, and nothing else', () => {
         const server = makeVersionConflictSide({
             versionNumber: 6,
-            deviceLabel: 'iPhone',
-            updatedAt: '2026-05-09T14:30:00.000Z',
-        });
-
-        expect(formatServerBanner(server, new Date('2026-05-09T14:32:00.000Z'), conflict, 'en')).toBe(
-            'Server version (v6): Saved 2 minutes ago on iPhone',
-        );
-    });
-
-    it('omits the device clause when deviceLabel is absent', () => {
-        const server = makeVersionConflictSide({
-            versionNumber: 6,
-            deviceLabel: undefined,
             updatedAt: '2026-05-09T14:30:00.000Z',
         });
 
@@ -155,12 +147,26 @@ describe('formatServerBanner (W7 Task 3 / X3)', () => {
             'Server version (v6): Saved 2 minutes ago',
         );
     });
+
+    it('carries no device clause even when the caller hands it a stray deviceLabel-shaped property', () => {
+        // The field is gone from `VersionConflictSide`, but an OLD server (or a stale cache) can still put
+        // the key on the wire. The banner must ignore it rather than resurrect the deleted suffix.
+        const server = { ...makeVersionConflictSide({ versionNumber: 6, updatedAt: '2026-05-09T14:30:00.000Z' }) };
+
+        expect(
+            formatServerBanner(
+                { ...server, deviceLabel: 'iPhone' } as typeof server,
+                new Date('2026-05-09T14:32:00.000Z'),
+                conflict,
+                'en',
+            ),
+        ).toBe('Server version (v6): Saved 2 minutes ago');
+    });
 });
 
 describe('two-column per-side summary cards (wireframe gap #2)', () => {
     const server = makeVersionConflictSide({
         versionNumber: 6,
-        deviceLabel: 'iPhone',
         updatedAt: '2026-05-09T14:30:00.000Z',
     });
 
@@ -180,14 +186,6 @@ describe('two-column per-side summary cards (wireframe gap #2)', () => {
 
     it('formatVersionCardSavedLine renders an ABSOLUTE date, distinct from the banner’s relative time', () => {
         expect(formatVersionCardSavedLine(server, 'en', conflict)).toContain('Saved: May 9, 2026');
-    });
-
-    it('formatVersionCardDeviceLine renders "Device: {device}" when a deviceLabel is present', () => {
-        expect(formatVersionCardDeviceLine(server, conflict)).toBe('Device: iPhone');
-    });
-
-    it('formatVersionCardDeviceLine returns undefined (never a fabricated line) when deviceLabel is absent', () => {
-        expect(formatVersionCardDeviceLine({ ...server, deviceLabel: undefined }, conflict)).toBeUndefined();
     });
 });
 
@@ -554,21 +552,26 @@ describe('formatChangedFieldNames (W6 Task 2)', () => {
     });
 });
 
+/**
+ * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution (`deviceLabel`). The function
+ * used to take a device label and branch on it; two of the four cases here existed only to pin that branch.
+ * What survives is the editor-only rendering, and it is asserted as a WHOLE string on purpose — the two
+ * deleted cases were the only ones that pinned the `by @` prefix and the handle's position, so asserting
+ * merely "contains clara" here would let the surviving format rot unnoticed.
+ */
 describe('formatVersionAttribution (W6 Task 2)', () => {
-    it('renders the editor + device when both are present', () => {
-        expect(formatVersionAttribution('clara', 'iPhone', versionList)).toBe('by @clara (from iPhone)');
+    it('renders exactly "by @{handle}" — the prefix, the sigil and the handle, with no suffix', () => {
+        expect(formatVersionAttribution('clara', versionList)).toBe('by @clara');
     });
 
-    it('renders the editor alone when the device is absent', () => {
-        expect(formatVersionAttribution('clara', undefined, versionList)).toBe('by @clara');
+    it('renders undefined when the editor is unknown (never "by @undefined")', () => {
+        expect(formatVersionAttribution(undefined, versionList)).toBeUndefined();
     });
 
-    it('renders undefined when neither the editor nor the device is present (never "by @undefined")', () => {
-        expect(formatVersionAttribution(undefined, undefined, versionList)).toBeUndefined();
-    });
-
-    it('renders undefined when only the device is present (no editor to attribute to)', () => {
-        expect(formatVersionAttribution(undefined, 'iPhone', versionList)).toBeUndefined();
+    it('attributes to the handle it was GIVEN, not to a fixed one', () => {
+        // Guards the template's `{handle}` substitution: a formatter that ignored its argument and returned
+        // a constant would pass the case above and fail here.
+        expect(formatVersionAttribution('devon', versionList)).toBe('by @devon');
     });
 });
 

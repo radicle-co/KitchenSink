@@ -959,7 +959,6 @@ export class RecipesService {
         aggregate: RecipeAggregate,
         ownerId: string,
         changeSummary: string,
-        deviceLabel?: string,
         editorHandle?: string,
     ): Promise<void> {
         try {
@@ -969,8 +968,6 @@ export class RecipesService {
                 snapshot: aggregateToSnapshot(aggregate),
                 createdBy: ownerId,
                 changeSummary,
-                // Device attribution (W8-a.6) — from the write request; omitted (→ NULL) on clone/restore.
-                ...(deviceLabel !== undefined ? { deviceLabel } : {}),
                 // Editor handle (W8-a.2) — the version editor's denormalized display name; omitted → NULL.
                 ...(editorHandle !== undefined ? { editorHandle } : {}),
             });
@@ -1069,7 +1066,7 @@ export class RecipesService {
             steps: dto.steps.map(toStepInput),
         });
 
-        await this.recordSnapshot(aggregate, principal.userId, 'Created', dto.deviceLabel, authorHandle);
+        await this.recordSnapshot(aggregate, principal.userId, 'Created', authorHandle);
 
         // Ask the verification gate about the transcribed lines (plan U11 / ADR-0024). A create has nothing
         // already on record, so `previous` is empty. Never throws — see `requestVerification`.
@@ -1413,13 +1410,7 @@ export class RecipesService {
             // token claims via the ONE shared rule create uses; `author_handles` is deliberately NOT the
             // source here (it is seeded only by rename events, so it is NULL for any un-renamed user).
             const editorHandle = deriveDisplayName(principal) || undefined;
-            await this.recordSnapshot(
-                updated,
-                ownerId,
-                options.changeSummary ?? 'Updated',
-                dto.deviceLabel,
-                editorHandle,
-            );
+            await this.recordSnapshot(updated, ownerId, options.changeSummary ?? 'Updated', editorHandle);
         }
 
         if (resolved !== undefined) {
@@ -1503,7 +1494,7 @@ export class RecipesService {
         // Editor handle (W8-a.2): the CLONER (not the source author) is the editor of the clone's first
         // version — derived from the caller's claims via the ONE shared rule, matching create/update.
         const editorHandle = deriveDisplayName(principal) || undefined;
-        await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`, undefined, editorHandle);
+        await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`, editorHandle);
 
         // A fresh clone starts with no photos (not copied from the source); nutrition is computed from its lines.
         return this.toDetailResponse(created, [], { caller });
@@ -1568,7 +1559,6 @@ export class RecipesService {
 
         const server: VersionConflictSide = {
             versionNumber: conflict.current.recipe.currentVersion,
-            ...(conflict.serverVersion?.deviceLabel != null ? { deviceLabel: conflict.serverVersion.deviceLabel } : {}),
             updatedAt: conflict.current.recipe.updatedAt.toISOString(),
             snapshot: aggregateToSnapshot(conflict.current),
         };
@@ -1576,9 +1566,6 @@ export class RecipesService {
             conflict.baseVersion !== undefined
                 ? {
                       versionNumber: conflict.baseVersion.versionNumber,
-                      ...(conflict.baseVersion.deviceLabel != null
-                          ? { deviceLabel: conflict.baseVersion.deviceLabel }
-                          : {}),
                       updatedAt: conflict.baseVersion.createdAt.toISOString(),
                       snapshot: conflict.baseVersion.snapshot as RecipeSnapshot,
                   }

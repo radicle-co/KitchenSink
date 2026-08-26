@@ -2771,7 +2771,6 @@ components:
                 s3Key: { type: string, nullable: true }
                 createdBy: { type: string }
                 changeSummary: { type: string, nullable: true }
-                deviceLabel: { type: string, nullable: true }
                 editorHandle: { type: string, nullable: true }
                 createdAt: { type: string, format: date-time }
 

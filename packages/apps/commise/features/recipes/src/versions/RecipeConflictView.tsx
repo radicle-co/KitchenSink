@@ -43,7 +43,6 @@ import {
     formatMergeSummary,
     formatServerBanner,
     formatServerCardHeading,
-    formatVersionCardDeviceLine,
     formatVersionCardSavedLine,
     formatYourCardHeading,
     isConflictBaseStale,
@@ -123,12 +122,10 @@ const DiscardAndCloseButton: FC<{ readonly label: string; readonly onDiscardAndC
 const VersionSideCard: FC<{
     readonly heading: string;
     readonly savedLine?: string;
-    readonly deviceLine?: string;
-}> = ({ heading, savedLine, deviceLine }) => (
+}> = ({ heading, savedLine }) => (
     <div className="flex-1 rounded-2xl bg-card p-4 ring-1 ring-border">
         <p className="text-caption font-semibold uppercase tracking-wide text-charcoal">{heading}</p>
         {savedLine !== undefined && <p className="text-body-sm text-slate">{savedLine}</p>}
-        {deviceLine !== undefined && <p className="text-body-sm text-slate">{deviceLine}</p>}
     </div>
 );
 
@@ -307,7 +304,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 <VersionSideCard
                     heading={formatServerCardHeading(server, conflict)}
                     savedLine={formatVersionCardSavedLine(server, locale, conflict)}
-                    deviceLine={formatVersionCardDeviceLine(server, conflict)}
                 />
                 <VersionSideCard
                     heading={formatYourCardHeading(base, conflict)}
@@ -315,7 +311,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                         ? {}
                         : {
                               savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                              deviceLine: formatVersionCardDeviceLine(base, conflict),
                           })}
                 />
             </div>

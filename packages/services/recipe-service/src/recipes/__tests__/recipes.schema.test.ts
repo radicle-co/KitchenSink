@@ -41,7 +41,6 @@ import {
     RECIPE_MEAL_TYPES,
     recipeMealTypeSchema,
     MAX_RECIPE_DESCRIPTION_LENGTH,
-    MAX_RECIPE_DEVICE_LABEL_LENGTH,
     MAX_RECIPE_INGREDIENTS,
     MAX_RECIPE_INGREDIENT_GROUP_LABEL_LENGTH,
     MAX_RECIPE_INGREDIENT_NAME_LENGTH,
@@ -56,7 +55,6 @@ import {
     MIN_RECIPE_INGREDIENT_QUANTITY,
     recipeCuisineSchema,
     recipeDescriptionSchema,
-    recipeDeviceLabelSchema,
     recipeExpectedVersionSchema,
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
@@ -160,7 +158,6 @@ describe('the request fields ARE the recipe-core Value Objects (identity, not eq
 
         expect(unwrap(createRecipeRequestSchema.shape.description)).toBe(recipeDescriptionSchema);
         expect(unwrap(createRecipeRequestSchema.shape.cuisine)).toBe(recipeCuisineSchema);
-        expect(unwrap(createRecipeRequestSchema.shape.deviceLabel)).toBe(recipeDeviceLabelSchema);
         expect(unwrap(recipeIngredientInputSchema.shape.unit)).toBe(recipeIngredientUnitSchema);
         expect(unwrap(recipeIngredientInputSchema.shape.notes)).toBe(recipeIngredientNotesSchema);
         expect(unwrap(recipeStepInputSchema.shape.timerSeconds)).toBe(recipeTimerSecondsSchema);
@@ -202,13 +199,24 @@ describe('there is ONE representation of each request body, and it is this file�
      *  • a passing bidirectional assertion between two declarations is evidence that a SECOND declaration
      *    exists, which is the thing §15 rule 4 forbids. The test was documenting the defect.
      *
-     * What replaces it is the property that actually matters: the inferred type IS derived from the schema, so
-     * `deviceLabel` — the field the old document forbade while the server persisted it — is present on exactly
-     * one type, and there is no second one to compare against.
+     * What replaces it is the property that actually matters: the inferred type IS derived from the schema,
+     * so a field's presence or absence is decidable from exactly one declaration, with no second one to
+     * reconcile against.
      */
-    it('the inferred type carries deviceLabel, the field the published document used to forbid', () => {
-        expectTypeOf<CreateRecipeRequest>().toHaveProperty('deviceLabel');
-        expect(createAccepts({ deviceLabel: 'iPhone 15' })).toBe(true);
+    /**
+     * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution. This case used to assert
+     * the OPPOSITE — that `deviceLabel` was carried on the inferred type and accepted by the schema — as the
+     * proof that the document no longer forbade a field the server relied on. The server no longer relies on
+     * it, so the same property is now asserted in the other direction, and the STRICT object is what makes
+     * that assertion have teeth: a removed field on a strict body is REJECTED, not silently stripped.
+     *
+     * This is also where `dto/__tests__/deviceLabel.dto.test.ts` went. That file pinned the field's length
+     * and charset bounds through the real `ZodValidationPipe`; with the field gone there are no bounds left
+     * to pin, and what remains worth proving is that a body still carrying it is turned away.
+     */
+    it('rejects deviceLabel outright — the strict body has no field for it any more', () => {
+        expect(Object.keys(createRecipeRequestSchema.shape)).not.toContain('deviceLabel');
+        expect(createAccepts({ deviceLabel: 'iPhone 15' })).toBe(false);
     });
 
     it('the nested inputs are the schema’s own inferred types, with no rival declaration to reconcile', () => {
@@ -582,9 +590,6 @@ describe('updateRecipeRequestSchema — a partial of create, minus visibility, p
     it('carries every content bound over from create', () => {
         expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, title: 'a'.repeat(201) }).success).toBe(false);
         expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, cuisine: '' }).success).toBe(false);
-        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, deviceLabel: 'a'.repeat(81) }).success).toBe(
-            false,
-        );
         expect(
             updateRecipeRequestSchema.safeParse({
                 expectedVersion: 1,
@@ -597,13 +602,15 @@ describe('updateRecipeRequestSchema — a partial of create, minus visibility, p
         expect(Object.keys(updateRecipeRequestSchema.shape)).not.toContain('visibility');
     });
 
-    it('declares deviceLabel with the same length bound recipe-core publishes on the response', () => {
-        expect(
-            updateRecipeRequestSchema.safeParse({
-                expectedVersion: 1,
-                deviceLabel: 'a'.repeat(MAX_RECIPE_DEVICE_LABEL_LENGTH),
-            }).success,
-        ).toBe(true);
+    /**
+     * REWRITTEN for the 2026-08-26 owner ruling. This case used to assert that update DECLARED `deviceLabel`
+     * with recipe-core's shared length bound. The field is deleted, and update derives from the create base,
+     * so the property worth pinning now is that the deletion reached the PATCH body too — otherwise a caller
+     * could still stamp a device onto an existing recipe.
+     */
+    it('does NOT declare deviceLabel — the 2026-08-26 ruling removed it from the base, and update derives from it', () => {
+        expect(Object.keys(updateRecipeRequestSchema.shape)).not.toContain('deviceLabel');
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, deviceLabel: 'iPhone' }).success).toBe(false);
     });
 });
 

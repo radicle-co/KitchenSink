@@ -148,7 +148,6 @@ export function mapVersion(row: VersionMetadataRow): VersionExport {
         s3Key: row.s3Key,
         createdBy: row.createdBy,
         changeSummary: row.changeSummary,
-        deviceLabel: row.deviceLabel,
         editorHandle: row.editorHandle,
         createdAt: toIsoString(row.createdAt),
     };

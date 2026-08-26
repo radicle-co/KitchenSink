@@ -24,7 +24,6 @@ const noop = () => undefined;
 
 const server = makeVersionConflictSide({
     versionNumber: 6,
-    deviceLabel: 'iPhone',
     updatedAt: '2026-05-09T14:30:00.000Z',
 });
 const base = makeVersionConflictSide({ versionNumber: 5 });
@@ -122,11 +121,12 @@ describe('RecipeConflictView (native) — structure', () => {
 });
 
 describe('RecipeConflictView (native) — per-side banner (X3)', () => {
-    it('renders the server banner with version, relative time, and device', () => {
+    it('renders the server banner with version and relative time, and no device clause', () => {
         freezeClock();
         renderConflict();
 
-        expect(screen.getByText('Server version (v6): Saved 2 minutes ago on iPhone')).toBeTruthy();
+        // The WHOLE string, so the 2026-08-26 ruling's removal of the ` on {device}` suffix stays removed.
+        expect(screen.getByText('Server version (v6): Saved 2 minutes ago')).toBeTruthy();
     });
 
     it('renders the user’s own banner as local unsaved changes', () => {
@@ -136,32 +136,34 @@ describe('RecipeConflictView (native) — per-side banner (X3)', () => {
         expect(screen.getByText('Your version: local unsaved changes')).toBeTruthy();
     });
 
-    it('omits the device clause when the server side carries no deviceLabel', () => {
-        freezeClock();
-        renderConflict({ server: { ...server, deviceLabel: undefined } });
-
-        expect(screen.getByText('Server version (v6): Saved 2 minutes ago')).toBeTruthy();
-        expect(screen.queryByText(/on iPhone/)).toBeNull();
-    });
-
     it('renders the server banner BEFORE the your-version banner (X7 — server-first ordering)', () => {
         freezeClock();
         renderConflict();
 
-        const serverBanner = screen.getByText('Server version (v6): Saved 2 minutes ago on iPhone');
+        const serverBanner = screen.getByText('Server version (v6): Saved 2 minutes ago');
         const mineBanner = screen.getByText('Your version: local unsaved changes');
 
         expect(serverBanner.compareDocumentPosition(mineBanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('escapes an untrusted deviceLabel as text — renders no element from it', () => {
+    /**
+     * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution. This guard used to fire its
+     * markup payload at the server side's device label. That field is gone and the banner now renders only a
+     * version NUMBER and a formatted relative time — neither user-controlled — so aiming the payload there
+     * would have made the case vacuous. It is re-aimed at a diff ROW VALUE instead, which is the untrusted
+     * recipe text this surface still renders, so the conflict view keeps an XSS guard rather than losing one.
+     */
+    it('escapes an untrusted diff value as text — renders no element from it', () => {
         freezeClock();
         const { container } = render(
             <RecipeConflictView
                 {...({
-                    server: { ...server, deviceLabel: '<img src=x onerror=alert(1)>' },
+                    server,
                     base,
-                    diff,
+                    diff: {
+                        ...diff,
+                        rows: [{ ...diff.rows[0]!, theirs: '<img src=x onerror=alert(1)>' }],
+                    },
                     versionsBehind: 1,
                     isResolving: false,
                     selections: {},
@@ -226,27 +228,27 @@ describe('RecipeConflictView (native) — "Discard and close" header exit (wiref
 });
 
 describe('RecipeConflictView (native) — two-column per-side summary cards (wireframe gap #2)', () => {
-    // A distinct `updatedAt`/`deviceLabel` on `base` (the fixture default otherwise matches `server`'s own
-    // "iPhone" / same timestamp) so the SERVER and YOUR-version cards' Saved/Device lines are individually
-    // addressable, not two identical strings.
-    const distinctBase = { ...base, deviceLabel: 'MacBook', updatedAt: '2026-05-08T10:00:00.000Z' };
+    // A distinct `updatedAt` on `base` (the fixture default otherwise matches `server`'s own timestamp) so
+    // the SERVER and YOUR-version cards' Saved lines are individually addressable, not two identical
+    // strings. The cards' "Device:" row went with the 2026-08-26 owner ruling.
+    const distinctBase = { ...base, updatedAt: '2026-05-08T10:00:00.000Z' };
 
-    it('renders the SERVER card with its heading, Saved, and Device lines', () => {
+    it('renders the SERVER card with its heading and Saved line', () => {
         freezeClock();
         renderConflict({ base: distinctBase });
 
         expect(screen.getByText('Server version (v6)')).toBeTruthy();
         expect(screen.getByText('Saved: May 9, 2026, 2:30 PM')).toBeTruthy();
-        expect(screen.getByText('Device: iPhone')).toBeTruthy();
+        // The 2026-08-26 ruling removed the card's device row; nothing on a card may reintroduce it.
+        expect(screen.queryByText(/^Device:/)).toBeNull();
     });
 
-    it('renders the YOUR-version card from `base`, with its OWN heading, Saved, and Device lines', () => {
+    it('renders the YOUR-version card from `base`, with its OWN heading and Saved line', () => {
         freezeClock();
         renderConflict({ base: distinctBase });
 
         expect(screen.getByText('Your version (v5)')).toBeTruthy();
         expect(screen.getByText('Saved: May 8, 2026, 10:00 AM')).toBeTruthy();
-        expect(screen.getByText('Device: MacBook')).toBeTruthy();
     });
 
     it('renders the SERVER card BEFORE the YOUR-version card (X7 — server-first ordering)', () => {
@@ -259,14 +261,13 @@ describe('RecipeConflictView (native) — two-column per-side summary cards (wir
         expect(serverHeading.compareDocumentPosition(yourHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('falls back to a version-less YOUR-version heading, with no Saved/Device rows, when base is undefined (evicted)', () => {
+    it('falls back to a version-less YOUR-version heading, with no Saved row, when base is undefined (evicted)', () => {
         freezeClock();
         renderConflict({ base: undefined });
 
         expect(screen.getByText('Your version')).toBeTruthy();
         expect(screen.queryByText('Your version (v5)')).toBeNull();
         expect(screen.getAllByText(/^Saved:/)).toHaveLength(1);
-        expect(screen.getAllByText(/^Device:/)).toHaveLength(1);
     });
 });
 

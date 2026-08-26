@@ -3,7 +3,6 @@
 import { z } from 'zod';
 
 import { ingredientQuantitySchema, type IngredientQuantity } from './ingredientQuantity.js';
-import { MAX_RECIPE_DEVICE_LABEL_LENGTH } from './recipeRequestBounds.js';
 
 const idSchema = z.string().min(1);
 const isoDateTimeStringSchema = z.string().datetime({ offset: true });
@@ -576,8 +575,8 @@ export const recipeIngredientViewSchema = z.object({
     notes: z.string().min(1).optional(),
     // U26/U27 — `.min(1)` and NO maximum, matching `notes` above and for the same two reasons: `''` would be
     // a response no client can read back, and a response must be able to carry a value persisted before the
-    // request-side bound existed (the `recipeDeviceLabelSchema` precedent). The bounds live on the REQUEST
-    // schemas in `recipeRequestBounds.ts`.
+    // request-side bound existed (the `recipeIngredientNotesSchema` precedent). The bounds live on the
+    // REQUEST schemas in `recipeRequestBounds.ts`.
     preparation: z.string().min(1).optional(),
     groupLabel: z.string().min(1).optional(),
     isUserEntered: z.boolean(),
@@ -957,13 +956,6 @@ export interface RecipeVersion {
      * the editor is `createdBy` (the ULID), always the authoritative identity.
      */
     editorHandle?: string;
-    /**
-     * The device that authored this version (W8-a.6 / FR-007b) — bounded free text captured from the write
-     * request. ABSENT for versions written before the field existed (or when the client sent none); the UI
-     * renders "unknown device" rather than a fabricated value. User-controlled → ALWAYS escaped at render
-     * (both the version-history attribution and the conflict banner), never `dangerouslySetInnerHTML`.
-     */
-    deviceLabel?: string;
     createdAt: IsoDateTimeString;
 }
 
@@ -979,8 +971,6 @@ export const recipeVersionSchema = z.object({
     s3Key: z.string().min(1).optional(),
     createdBy: idSchema,
     changeSummary: z.string().min(1).optional(),
-    // Device attribution (W8-a.6) — bounded free text; absent for pre-feature versions / when unsent.
-    deviceLabel: z.string().min(1).max(MAX_RECIPE_DEVICE_LABEL_LENGTH).optional(),
     editorHandle: z.string().min(1).optional(),
     createdAt: isoDateTimeStringSchema,
 });
@@ -993,8 +983,6 @@ export const recipeVersionSchema = z.object({
 export interface VersionConflictSide {
     /** The version number this snapshot is at. */
     versionNumber: number;
-    /** The device that authored this version (W8-a.6), when known. */
-    deviceLabel?: string;
     /** When this version was written (ISO-8601). */
     updatedAt: IsoDateTimeString;
     /** The full recipe content at this version. */
@@ -1006,7 +994,6 @@ export interface VersionConflictSide {
  */
 export const versionConflictSideSchema = z.object({
     versionNumber: positiveIntSchema,
-    deviceLabel: z.string().min(1).max(MAX_RECIPE_DEVICE_LABEL_LENGTH).optional(),
     updatedAt: isoDateTimeStringSchema,
     snapshot: recipeSnapshotSchema,
 });

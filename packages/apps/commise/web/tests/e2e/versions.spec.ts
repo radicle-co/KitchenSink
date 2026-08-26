@@ -85,7 +85,6 @@ const v2 = makeRecipeVersion({
     versionNumber: 2,
     snapshot: v2Snapshot,
     editorHandle: 'chef_e2e',
-    deviceLabel: 'iPhone 15',
     createdAt: '2026-01-02T00:00:00.000Z',
 });
 const v3 = makeRecipeVersion({
@@ -94,7 +93,6 @@ const v3 = makeRecipeVersion({
     versionNumber: 3,
     snapshot: v3Snapshot,
     editorHandle: 'chef_e2e',
-    deviceLabel: 'MacBook Pro',
     createdAt: '2026-01-03T00:00:00.000Z',
 });
 
@@ -134,9 +132,10 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await expect(page.getByText('Current version')).toBeVisible();
         await expect(page.getByRole('button', { name: 'Restore version 3' })).toHaveCount(0);
 
-        // v2's row: `by @{handle} (from {device})` attribution, plus the changed-fields summary versus its
-        // immediately-prior sibling (v1) — only the title differs between v1 and v2.
-        await expect(page.getByText('by @chef_e2e (from iPhone 15)')).toBeVisible();
+        // v2's row: `by @{handle}` attribution, plus the changed-fields summary versus its immediately-prior
+        // sibling (v1) — only the title differs between v1 and v2. The ` (from {device})` half of this
+        // assertion went with the 2026-08-26 owner ruling that deleted device attribution.
+        await expect(page.getByText('by @chef_e2e')).toBeVisible();
         await expect(page.getByText('Changed: Title')).toBeVisible();
 
         // v1 is the earliest version — nothing to diff against.

@@ -155,34 +155,6 @@ export const MAX_RECIPE_LIST_PAGE_SIZE = 100;
  */
 export const MAX_SEARCH_PAGE_SIZE = 50;
 
-/**
- * Allowed device-label charset (W8-a.6): letters, digits, spaces and `. , ' ( ) -`.
- *
- * DEFENSE IN DEPTH over the render-time escaping that is the actual XSS control, not a replacement for it.
- * ANCHORED at both ends deliberately — unanchored, it would admit `<script>` for merely containing letters.
- */
-export const RECIPE_DEVICE_LABEL_PATTERN = /^[\p{L}\p{N} .,'()-]+$/u;
-
-/**
- * Max length of a version's device label (W8-a.6 / FR-007b).
- *
- * ONE authority for the bound, shared by the two RESPONSE shapes that carry the label
- * (`recipeVersionSchema`, `versionConflictSideSchema` in `recipe.types.ts`) and by the recipe service's
- * REQUEST schema (`src/recipes/recipes.schema.ts`), which additionally applies the charset rule above that
- * the responses must not — a response has to be able to carry a label persisted before that rule existed.
- * Bounded at all because the value is user-controlled and surfaced in the version history and the conflict
- * banner; the cap is defense in depth over the render-time escaping that is the actual XSS control.
- *
- * ⚠️ MOVED HERE FROM `recipe.types.ts` (U8), and it must not move back. It was declared there and imported
- * BACKWARDS into this module — the bounds module depending on the types module for a bound. Harmless until
- * `recipe.types.ts` gained an import of its own, at which point the edge closed a cycle
- * (`recipeRequestBounds → recipe.types → ingredientQuantity → recipeRequestBounds`) and this constant
- * evaluated to `undefined` during module init. The symptom was not an import error: `z.string().max(undefined)`
- * builds fine and only dies later, inside zod's error FORMATTER, as
- * `TypeError: Cannot read properties of undefined (reading 'toString')` on an unrelated valid request.
- */
-export const MAX_RECIPE_DEVICE_LABEL_LENGTH = 80;
-
 // ── Text value objects ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -222,21 +194,6 @@ export const recipeSourceAttributionSchema = z.string().min(1).max(MAX_RECIPE_SO
 
 /** A cuisine label. `.min(1)` for the same round-trip reason as {@link recipeTitleSchema}. */
 export const recipeCuisineSchema = z.string().min(1).max(MAX_RECIPE_CUISINE_LENGTH);
-
-/**
- * The device that authored a version (W8-a.6 / FR-007b).
- *
- * The LENGTH comes from {@link MAX_RECIPE_DEVICE_LABEL_LENGTH}, the constant the `RecipeVersion` RESPONSE
- * also uses, so the two cannot disagree. The CHARSET is request-only on purpose: a response must be able to
- * carry a label persisted before the charset rule existed.
- */
-export const recipeDeviceLabelSchema = z
-    .string()
-    .min(1)
-    .max(MAX_RECIPE_DEVICE_LABEL_LENGTH)
-    .regex(RECIPE_DEVICE_LABEL_PATTERN, {
-        message: "Device label may contain only letters, digits, spaces and . , ' ( ) -",
-    });
 
 /**
  * One instruction step's text.

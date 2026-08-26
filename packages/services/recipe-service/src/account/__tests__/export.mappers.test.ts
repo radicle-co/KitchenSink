@@ -193,7 +193,6 @@ describe('mapVersion', () => {
             s3Key: null,
             createdBy: expect.any(String),
             changeSummary: 'Initial version',
-            deviceLabel: null,
             editorHandle: 'chef-anna',
             createdAt: '2026-01-15T12:00:00.000Z',
         });

@@ -193,7 +193,7 @@ packages/
     - ✅ **RULED 2026-08-12.** `recipe_versions` ships today at
       `packages/services/recipe-service/src/database/schema/versions.ts` (`recipe_id` FK → `recipes` with cascade,
       `version_number`, immutable `snapshot` jsonb, `base_version`, `s3_key`, `created_by`, `change_summary`,
-      `device_label`, `editor_handle`, plus `uniqueIndex(recipe_id, version_number)`), specified at
+      `editor_handle`, plus `uniqueIndex(recipe_id, version_number)`), specified at
       `specs/001-commise-recipe-app/data-model.md`. Earlier revisions of this plan listed it among the tables 011
       creates, and `tasks.md` T-012 targeted
       `packages/services/digitization-service/src/db/migrations/011_005_create_recipe_versions.sql` — a **second table

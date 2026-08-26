@@ -666,7 +666,7 @@ MASTER PROGRAM ORDER there.
 - [x] **T173** S-I2 — delete the dead `POST /api/v1/users/upsert` endpoint + drop it from the identity OpenAPI contract. _Shipped._
 - [x] **T174** Transport pass — B16 (client safe-JSON on error bodies), B26 (web `apiClient` 202/empty-body), DA1 (parse-don't-validate at the wire boundary), P6 (`expect` helper).
 - [x] **T175** S-R3 — Specification-to-SQL predicate module (before W8-a.3).
-- [x] **T176** W8-a — shared contract & data (calories, handle + sync, draft status, read-path 404, enriched-409, deviceLabel, S3-fallback, pull-preview, sort/facets, erasure assertion), each with its own e2e + k6.
+- [x] **T176** W8-a — shared contract & data (calories, handle + sync, draft status, read-path 404, enriched-409, ~~deviceLabel~~ _(deleted by owner ruling 2026-08-26 — see CR-004's amendment)_, S3-fallback, pull-preview, sort/facets, erasure assertion), each with its own e2e + k6.
 - [x] **T177** W1/W2/W4 — list (FAB, merged card, chips, tabs, responsive nav), detail (dead-end + carousel + badges + interactivity), search (cards, facet registry, sort, paginate).
 - [x] **T178** Child plan CP-1 — W3 recipe-edit wizard (statechart + compound `Wizard`).
 - [x] **T179** Child plan CP-2 — W5 collections (pull-preview / clone / visibility).

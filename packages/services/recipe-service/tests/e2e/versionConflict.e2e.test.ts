@@ -19,7 +19,6 @@ const OWNER = '01JVERSIONE2E00OWNER00000A';
 
 interface ConflictSide {
     versionNumber: number;
-    deviceLabel?: string;
     snapshot: { title: string };
 }
 
@@ -57,7 +56,6 @@ describe.skipIf(!hasDatabaseUrl)('enriched version conflict (e2e, assembled app)
                     },
                 ],
                 steps: [{ instruction: 'Mix.' }],
-                deviceLabel: 'MacBook Pro',
             }),
         });
         expect(res.status).toBe(201);

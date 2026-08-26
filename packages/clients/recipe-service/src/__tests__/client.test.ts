@@ -289,9 +289,8 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
     });
 
     it('409 → VersionConflictError carrying the ENRICHED server + base snapshots (W8-a.5)', async () => {
-        const side = (versionNumber: number, title: string, deviceLabel?: string) => ({
+        const side = (versionNumber: number, title: string) => ({
             versionNumber,
-            ...(deviceLabel !== undefined ? { deviceLabel } : {}),
             updatedAt: '2026-07-19T00:00:00.000Z',
             snapshot: {
                 version: versionNumber,
@@ -312,7 +311,7 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
                 details: {
                     currentVersion: 7,
                     conflictingVersion: 5,
-                    server: side(7, 'Server title', 'Pixel 8'),
+                    server: side(7, 'Server title'),
                     base: side(5, 'Base title'),
                 },
             }),
@@ -326,7 +325,10 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
         const conflict = error as VersionConflictError;
         expect(conflict.server?.versionNumber).toBe(7);
         expect(conflict.server?.snapshot.title).toBe('Server title');
-        expect(conflict.server?.deviceLabel).toBe('Pixel 8');
+        // The per-side metadata the enriched body still carries. `deviceLabel` was asserted here until the
+        // 2026-08-26 owner ruling deleted it; `updatedAt` is what remains beside the version number, and it
+        // is what the conflict banner's relative time is computed from.
+        expect(conflict.server?.updatedAt).toBe('2026-07-19T00:00:00.000Z');
         expect(conflict.base?.versionNumber).toBe(5);
         expect(conflict.base?.snapshot.title).toBe('Base title');
     });

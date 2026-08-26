@@ -1394,7 +1394,6 @@ describe('auto-save, wired to the real editor (U34)', () => {
 
         const server = makeSide({
             versionNumber: 9,
-            deviceLabel: 'Kitchen tablet',
             snapshot: makeSnapshot({ version: 9, title: 'Changed on another device' }),
         });
         const mutation = updateMutation([

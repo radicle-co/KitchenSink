@@ -268,30 +268,25 @@ export const formatChangedFieldNames = (
 // ─── Row-level editor/device attribution (W6 Task 2) ────────────────────────────────────────────────
 
 /**
- * Render a version row's editor/device attribution line — `by @{handle}`, with a device suffix appended
- * when a device is also known. `undefined` when `editorHandle` is ABSENT (a pre-feature version, or one
- * whose editor could not be resolved) — the caller renders no attribution line at all, never
- * `by @undefined`. `deviceLabel` is untrusted free text: this returns a plain string for the caller to
- * render as TEXT (React escapes it) — NEVER via `dangerouslySetInnerHTML`. Pure.
+ * Render a version row's editor attribution line — `by @{handle}`. `undefined` when `editorHandle` is
+ * ABSENT (a pre-feature version, or one whose editor could not be resolved) — the caller renders no
+ * attribution line at all, never `by @undefined`. `editorHandle` is untrusted free text: this returns a
+ * plain string for the caller to render as TEXT (React escapes it) — NEVER via `dangerouslySetInnerHTML`.
+ * Pure.
+ *
+ * ⚠️ This took a device label and appended a ` (from {device})` suffix until the owner ruling of
+ * **2026-08-26** deleted device attribution outright. The suffix branch is gone, not disabled — do not
+ * reintroduce a device parameter here (see the `recipeVersions` table docstring in `recipe-service`).
  *
  * @param editorHandle - The version's editor handle, if known.
- * @param deviceLabel - The version's device label, if known.
  * @param messages - The localized attribution templates.
  * @returns The formatted attribution line, or `undefined` when there is nothing to attribute.
  */
 export const formatVersionAttribution = (
     editorHandle: string | undefined,
-    deviceLabel: string | undefined,
     messages: RecipeVersionListMessages,
-): string | undefined => {
-    if (editorHandle === undefined) {
-        return undefined;
-    }
-
-    const byEditor = fillTemplate(messages.byEditor, { handle: editorHandle });
-
-    return deviceLabel === undefined ? byEditor : byEditor + fillTemplate(messages.fromDevice, { device: deviceLabel });
-};
+): string | undefined =>
+    editorHandle === undefined ? undefined : fillTemplate(messages.byEditor, { handle: editorHandle });
 
 // ─── Per-side banner (W7 Task 3 / X3) ────────────────────────────────────────────────────────────────
 //
@@ -333,12 +328,11 @@ export const formatRelativeTimeAgo = (isoDateTime: string, now: Date, locale: Lo
 };
 
 /**
- * Render the server-side banner line: "Server version (v{n}): Saved {time}", with " on {device}" appended
- * ONLY when `server.deviceLabel` is present — mirroring {@link formatVersionAttribution}'s own
- * base-template-plus-optional-device-suffix split, the same reuse pattern for the same reason (a
- * caller-supplied device label is optional free text, never fabricated). `deviceLabel` is untrusted: this
- * returns a plain string for the caller to render as TEXT (React/RN escape it) — NEVER via
- * `dangerouslySetInnerHTML`. Pure — the caller supplies `now`.
+ * Render the server-side banner line: "Server version (v{n}): Saved {time}". Pure — the caller supplies
+ * `now`.
+ *
+ * ⚠️ A ` on {device}` suffix hung off this line until the owner ruling of **2026-08-26** deleted device
+ * attribution. There is now exactly ONE rendering; do not reintroduce the optional suffix.
  *
  * @param server - The 409's winning server side.
  * @param now - The current instant, supplied by the caller.
@@ -351,25 +345,24 @@ export const formatServerBanner = (
     now: Date,
     messages: RecipeConflictMessages,
     locale: Locale,
-): string => {
-    const relative = formatRelativeTimeAgo(server.updatedAt, now, locale);
-    const base = fillTemplate(messages.serverBanner, { version: server.versionNumber, time: relative });
-
-    return server.deviceLabel === undefined
-        ? base
-        : base + fillTemplate(messages.serverBannerDevice, { device: server.deviceLabel });
-};
+): string =>
+    fillTemplate(messages.serverBanner, {
+        version: server.versionNumber,
+        time: formatRelativeTimeAgo(server.updatedAt, now, locale),
+    });
 
 // ─── Two-column per-side summary cards (wireframe gap #2 — `conflict-resolution.md:46-50`) ──────────
 //
 // Below the prose banner above, the wireframe ALSO shows two dedicated cards — "SERVER VERSION (v6)" /
 // "YOUR VERSION (v5)", each with a "Saved:" and (when known) a "Device:" row. This is a SEPARATE rendering
-// of the same underlying data (versionNumber/updatedAt/deviceLabel), not a replacement for the banner: the
+// of the same underlying data (versionNumber/updatedAt), not a replacement for the banner: the
 // banner reads as a sentence with a RELATIVE time ("Saved 2 minutes ago"); the cards are a structured,
-// scannable ABSOLUTE-date summary, matching the wireframe's own two distinct blocks. "Your version"'s data
-// is `base` (the version the draft was edited from) — the wireframe's own `client_version`/`client_recipe`,
-// NOT a fabricated "current device" the hook has no way to know; `base` is ABSENT when evicted from version
-// history, in which case the card falls back to a version-less heading with no Saved/Device rows (mirroring
+// scannable ABSOLUTE-date summary, matching the wireframe's own two distinct blocks. ⚠️ The wireframe's
+// per-card "Device:" row went with the 2026-08-26 owner ruling on device attribution; what is left on a
+// card is its heading and its Saved line. "Your version"'s data
+// is `base` (the version the draft was edited from) — the wireframe's own `client_version`/`client_recipe`;
+// `base` is ABSENT when evicted from version
+// history, in which case the card falls back to a version-less heading with no Saved row (mirroring
 // `mineBanner`'s own "local unsaved changes" framing for the same case).
 
 /**
@@ -413,24 +406,6 @@ export const formatVersionCardSavedLine = (
     locale: Locale,
     messages: RecipeConflictMessages,
 ): string => fillTemplate(messages.versionCardSavedLabel, { time: formatVersionTimestamp(side.updatedAt, locale) });
-
-/**
- * A side's card "Device: {device}" line, or `undefined` when that side carries no `deviceLabel` — the caller
- * renders NOTHING for an absent device (never a fabricated "Device: unknown"), mirroring
- * {@link formatServerBanner}'s own optional-device-suffix pattern. `deviceLabel` is untrusted free text: the
- * caller renders the returned string as TEXT, never `dangerouslySetInnerHTML`. Pure.
- *
- * @param side - The card's own side (`server` or `base`).
- * @param messages - The localized conflict copy.
- * @returns The formatted "Device: {device}" line, or `undefined`.
- */
-export const formatVersionCardDeviceLine = (
-    side: VersionConflictSide,
-    messages: RecipeConflictMessages,
-): string | undefined =>
-    side.deviceLabel === undefined
-        ? undefined
-        : fillTemplate(messages.versionCardDeviceLabel, { device: side.deviceLabel });
 
 // ─── Changed-field labeling (W7 Task 1 → Task 3) ─────────────────────────────────────────────────────
 

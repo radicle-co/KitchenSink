@@ -76,8 +76,6 @@ function toRecipeVersion(row: RecipeVersionRow): RecipeVersion {
         ...(row.s3Key !== null ? { s3Key: row.s3Key } : {}),
         createdBy: row.createdBy,
         ...(row.changeSummary !== null ? { changeSummary: row.changeSummary } : {}),
-        // Device attribution (W8-a.6) — OMITTED (not null) when unknown; the UI renders "unknown device".
-        ...(row.deviceLabel !== null ? { deviceLabel: row.deviceLabel } : {}),
         // Editor handle (W8-a.2) — the "by @handle" attribution; OMITTED when NULL (falls back to the ULID).
         ...(row.editorHandle !== null ? { editorHandle: row.editorHandle } : {}),
         createdAt: row.createdAt.toISOString(),

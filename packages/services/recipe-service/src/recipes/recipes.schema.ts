@@ -40,7 +40,6 @@ import {
     recipeCuisineSchema,
     recipeDescriptionSchema,
     recipeDetailSchema,
-    recipeDeviceLabelSchema,
     recipeDifficultySchema,
     recipeMealTypeSchema,
     recipeExpectedVersionSchema,
@@ -275,9 +274,12 @@ export type RecipeSourceInput = z.infer<typeof recipeSourceInputSchema>;
  * `ownerId` is deliberately absent and unaccepted: ownership comes from the verified principal, so there is no
  * field for a caller to smuggle one through, and the STRICT object answers `400` if one is sent.
  *
- * `deviceLabel` IS PUBLISHED ON THE REQUEST SIDE. The server has always accepted and persisted it while the
- * document listed it only on `RecipeVersion` (a RESPONSE) and marked both request bodies
- * `additionalProperties: false` — so the contract forbade a field the service relies on.
+ * ⚠️ `deviceLabel` USED TO SIT HERE, and its removal is a RULING rather than an oversight. The owner ruled
+ * on **2026-08-26** that device attribution comes out entirely — *"I don't care what device they were on
+ * when they edited something."* Nothing ever sent the field (no writer existed in either app or in the
+ * typed client), so every persisted value was NULL and the attribution it fed never rendered. Because this
+ * object is STRICT, a body that still carries it is now REJECTED with a `400` rather than silently
+ * stripped; that is the intended behaviour, and `recipes.schema.test.ts` pins it.
  *
  * ⚠️ `steps` and `dietaryFlags` carry no upper CARDINALITY bound, matching what the DTO enforced; both are bounded
  * in practice only by the 100 kB JSON body limit. The asymmetry with `ingredients` (100) and `tags` (50) is
@@ -305,7 +307,6 @@ const createRecipeRequestBaseSchema = z.strictObject({
     visibility: recipeVisibilitySchema.optional(),
     /** Publication status (W8-a.3). Defaults to `published` server-side; the wizard's Save-Draft sends `draft`. */
     status: recipeStatusSchema.optional(),
-    deviceLabel: recipeDeviceLabelSchema.optional(),
     ingredients: z.array(recipeIngredientInputSchema).max(MAX_RECIPE_INGREDIENTS),
     steps: z.array(recipeStepInputSchema),
     servings: recipeServingsSchema,

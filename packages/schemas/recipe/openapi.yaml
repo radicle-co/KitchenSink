@@ -3297,10 +3297,6 @@ components:
                       type: integer
                       minimum: 0
                       exclusiveMinimum: true
-                    deviceLabel:
-                      type: string
-                      minLength: 1
-                      maxLength: 80
                     updatedAt:
                       type: string
                       format: date-time
@@ -3472,10 +3468,6 @@ components:
                       type: integer
                       minimum: 0
                       exclusiveMinimum: true
-                    deviceLabel:
-                      type: string
-                      minLength: 1
-                      maxLength: 80
                     updatedAt:
                       type: string
                       format: date-time
@@ -4517,11 +4509,6 @@ components:
           enum:
             - draft
             - published
-        deviceLabel:
-          type: string
-          minLength: 1
-          maxLength: 80
-          pattern: ^[\p{L}\p{N} .,'()-]+$
         ingredients:
           maxItems: 100
           type: array
@@ -4784,11 +4771,6 @@ components:
           enum:
             - draft
             - published
-        deviceLabel:
-          type: string
-          minLength: 1
-          maxLength: 80
-          pattern: ^[\p{L}\p{N} .,'()-]+$
         ingredients:
           maxItems: 100
           type: array
@@ -5576,10 +5558,6 @@ components:
         changeSummary:
           type: string
           minLength: 1
-        deviceLabel:
-          type: string
-          minLength: 1
-          maxLength: 80
         editorHandle:
           type: string
           minLength: 1
@@ -6404,9 +6382,6 @@ components:
               changeSummary:
                 nullable: true
                 type: string
-              deviceLabel:
-                nullable: true
-                type: string
               editorHandle:
                 nullable: true
                 type: string
@@ -6421,7 +6396,6 @@ components:
               - s3Key
               - createdBy
               - changeSummary
-              - deviceLabel
               - editorHandle
               - createdAt
         authorHandles:

@@ -361,7 +361,6 @@ export const versionExportSchema = z
         /** The version's author (`recipe_versions.created_by`, the app-user ULID) — always the caller. */
         createdBy: exportIdSchema,
         changeSummary: z.string().nullable(),
-        deviceLabel: z.string().nullable(),
         editorHandle: z.string().nullable(),
         createdAt: exportTimestampSchema,
     })

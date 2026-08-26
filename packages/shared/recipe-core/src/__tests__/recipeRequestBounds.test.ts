@@ -33,10 +33,8 @@ import {
     MAX_RECIPE_TITLE_LENGTH,
     MIN_RECIPE_INGREDIENT_QUANTITY,
     NUMERIC_8_2_CEILING,
-    RECIPE_DEVICE_LABEL_PATTERN,
     recipeCuisineSchema,
     recipeDescriptionSchema,
-    recipeDeviceLabelSchema,
     recipeExpectedVersionSchema,
     recipeIngredientGroupLabelSchema,
     recipeIngredientIdSchema,
@@ -54,7 +52,6 @@ import {
     recipeStepInstructionSchema,
     recipeTimerSecondsSchema,
     recipeTitleSchema,
-    MAX_RECIPE_DEVICE_LABEL_LENGTH,
 } from '../recipeRequestBounds.js';
 import { recipeIngredientViewSchema, recipeSchema, recipeStepViewSchema } from '../recipe.types.js';
 
@@ -140,37 +137,6 @@ describe('cuisine — max 100, min(1) adopted', () => {
     it('rejects `""`, which the read schema also rejects', () => {
         expect(accepts(recipeCuisineSchema, '')).toBe(false);
         expect(accepts(recipeSchema.shape.cuisine, '')).toBe(false);
-    });
-});
-
-describe('deviceLabel — the response length bound, plus a request-only charset', () => {
-    it('accepts a label at the length recipe-core publishes on the RESPONSE and rejects one past it', () => {
-        // The length comes from `MAX_RECIPE_DEVICE_LABEL_LENGTH` so the request and the `RecipeVersion`
-        // response cannot disagree about it.
-        expect(accepts(recipeDeviceLabelSchema, 'a'.repeat(MAX_RECIPE_DEVICE_LABEL_LENGTH))).toBe(true);
-        expect(accepts(recipeDeviceLabelSchema, 'a'.repeat(MAX_RECIPE_DEVICE_LABEL_LENGTH + 1))).toBe(false);
-    });
-
-    it('accepts real device names', () => {
-        expect(accepts(recipeDeviceLabelSchema, "Brandon's iPhone")).toBe(true);
-        expect(accepts(recipeDeviceLabelSchema, 'MacBook Pro (Work)')).toBe(true);
-        expect(accepts(recipeDeviceLabelSchema, 'Pixel 9 Pro, XL')).toBe(true);
-    });
-
-    it('rejects markup delimiters and control characters — defense in depth, not the XSS control', () => {
-        expect(accepts(recipeDeviceLabelSchema, '<script>alert(1)</script>')).toBe(false);
-        // Spelled as ESCAPES, never as literal bytes: a raw control character in source is invisible in a
-        // diff and mangled by some tooling, so the thing under test would be unreviewable.
-        expect(accepts(recipeDeviceLabelSchema, 'Phone\u0000')).toBe(false);
-        expect(accepts(recipeDeviceLabelSchema, 'Phone\n')).toBe(false);
-        expect(accepts(recipeDeviceLabelSchema, 'Phone\u001b[31m')).toBe(false);
-        expect(accepts(recipeDeviceLabelSchema, '')).toBe(false);
-    });
-
-    it('the pattern is ANCHORED at both ends, so a bad character anywhere fails', () => {
-        // An unanchored pattern would accept `<script>` merely because it contains letters.
-        expect(RECIPE_DEVICE_LABEL_PATTERN.source.startsWith('^')).toBe(true);
-        expect(RECIPE_DEVICE_LABEL_PATTERN.source.endsWith('$')).toBe(true);
     });
 });
 
@@ -383,7 +349,7 @@ describe('U26 — ingredient preparation', () => {
     it('the READ schema accepts what the request schema produces, and still rejects `""`', () => {
         expect(accepts(recipeIngredientViewSchema.shape.preparation, 'finely chopped')).toBe(true);
         expect(accepts(recipeIngredientViewSchema.shape.preparation, '')).toBe(false);
-        // ⚠️ NO maximum on the read side, deliberately — the `recipeDeviceLabelSchema` precedent: a response
+        // ⚠️ NO maximum on the read side, deliberately — the `recipeIngredientNotesSchema` precedent: a response
         // has to be able to carry a value persisted before the bound existed.
         expect(accepts(recipeIngredientViewSchema.shape.preparation, 'a'.repeat(500))).toBe(true);
     });

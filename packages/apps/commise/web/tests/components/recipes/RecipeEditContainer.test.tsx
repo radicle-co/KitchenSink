@@ -87,7 +87,6 @@ function toVersionConflictSide(detail: RecipeDetail): VersionConflictSide {
 
     return {
         versionNumber: detail.currentVersion,
-        deviceLabel: 'iPhone',
         updatedAt: '2026-05-09T14:30:00.000Z',
         snapshot,
     };
@@ -253,7 +252,7 @@ describe('RecipeEditContainer', () => {
 
         // The conflict view replaces the form: the per-side banner (server first, X7/X3) …
         expect(await screen.findByText('This recipe changed while you were editing')).toBeInTheDocument();
-        expect(screen.getByText(/^Server version \(v4\): Saved .* on iPhone$/)).toBeInTheDocument();
+        expect(screen.getByText(/^Server version \(v4\): Saved .*ago$/u)).toBeInTheDocument();
         expect(screen.getByText('Your version: local unsaved changes')).toBeInTheDocument();
         // … the three A/B/C option cards (X2) …
         expect(screen.getByRole('button', { name: 'Keep server version' })).toBeInTheDocument();

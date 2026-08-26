@@ -155,23 +155,22 @@ describe('RecipeVersionList (native) — restoring state', () => {
     });
 });
 
-describe('RecipeVersionList (native) — editor/device attribution', () => {
-    it('shows "by @handle (from device)" when both are present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: 'iPhone' })];
-        renderList({ versions, currentVersion: 1 });
-
-        expect(screen.getByText('by @clara (from iPhone)')).toBeTruthy();
-    });
-
-    it('shows "by @handle" with no device suffix when only the handle is present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara', deviceLabel: undefined })];
+/**
+ * REWRITTEN for the 2026-08-26 owner ruling that deleted device attribution — the web leaf's sibling, kept
+ * in step with it deliberately (a fix to one platform must not miss the other). The two cases that pinned
+ * the ` (from {device})` suffix are gone; the escaping guard the web file keeps has no native counterpart
+ * here because this file never had one.
+ */
+describe('RecipeVersionList (native) — editor attribution', () => {
+    it('shows "by @handle" when the handle is present', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: 'clara' })];
         renderList({ versions, currentVersion: 1 });
 
         expect(screen.getByText('by @clara')).toBeTruthy();
     });
 
-    it('renders no attribution line when neither the handle nor the device is present', () => {
-        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: undefined, deviceLabel: undefined })];
+    it('renders no attribution line when the handle is absent', () => {
+        const versions = [makeRecipeVersion({ versionNumber: 1, editorHandle: undefined })];
         renderList({ versions, currentVersion: 1 });
 
         expect(screen.queryByText(/^by @/)).toBeNull();

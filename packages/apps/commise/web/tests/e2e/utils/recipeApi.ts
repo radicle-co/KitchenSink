@@ -749,9 +749,6 @@ export interface EnrichedConflictSeed {
      *  `{ servings: 8 }`) — applied to the store immediately the 409 fires, mirroring how the real service
      *  already committed the other device's write by the time a client observes this conflict. */
     readonly serverChanges: Partial<RecipeDetail>;
-    /** The server side's `deviceLabel` (W8-a.6), when a spec needs to assert the banner's device suffix.
-     *  Omitted → the server side carries no device (the banner renders with no " on {device}" suffix). */
-    readonly deviceLabel?: string;
     /** How many versions the server side is ahead of the base (the X6 staleness signal) — defaults to `1`
      *  (a single intervening save). A spec exercising the >10-versions-behind stale-base warning overrides
      *  this directly rather than the mock replaying N literal intervening writes. */
@@ -1373,7 +1370,6 @@ export async function mockRecipeApi(
                         versionNumber: serverVersion,
                         updatedAt: new Date().toISOString(),
                         snapshot: detailToConflictSnapshot(serverDetail, serverVersion),
-                        ...(enrichedSeed.deviceLabel === undefined ? {} : { deviceLabel: enrichedSeed.deviceLabel }),
                     };
                     // The other device's write already landed — the store reflects it from here on, exactly
                     // as the real service already committed it by the time this 409 is observed.

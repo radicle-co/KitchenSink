@@ -96,11 +96,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                 {sortVersionsDescending(versions).map((version) => {
                     const isCurrent = version.versionNumber === currentVersion;
                     const isBusy = restoringVersion === version.versionNumber;
-                    const attribution = formatVersionAttribution(
-                        version.editorHandle,
-                        version.deviceLabel,
-                        versionList,
-                    );
+                    const attribution = formatVersionAttribution(version.editorHandle, versionList);
                     const { hasPrior, changedFields } = changeSummaryForVersion(versions, version);
 
                     return (

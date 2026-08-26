@@ -114,7 +114,6 @@ describe('the published account-export document is TRUE of what AccountExportSer
                 baseVersion: null,
                 s3Key: null,
                 changeSummary: null,
-                deviceLabel: null,
                 editorHandle: null,
             }),
         ]);
@@ -127,7 +126,7 @@ describe('the published account-export document is TRUE of what AccountExportSer
         // The portability decision, pinned: an absent value is an EXPLICIT null, never an omitted key.
         expect(parsed.recipes[0]).toHaveProperty('description', null);
         expect(parsed.photos[0]).toHaveProperty('thumbnailUrl', null);
-        expect(parsed.versions[0]).toHaveProperty('deviceLabel', null);
+        expect(parsed.versions[0]).toHaveProperty('editorHandle', null);
     });
 
     it('parses a TOMBSTONED recipe — an export is a faithful mirror, so a soft-deleted row is included', async () => {

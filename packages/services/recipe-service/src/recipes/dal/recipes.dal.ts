@@ -285,8 +285,8 @@ export class RecipesDal {
      * so the current server aggregate and the two version rows are read from a single coherent snapshot — a
      * third concurrent writer cannot make the returned `server` a version ahead of the `currentVersion` this
      * reports. Returns the current aggregate plus the `recipe_versions` rows for the client's `expectedVersion`
-     * (the conflict base — absent when evicted past the DB retention window) and the current version (whose
-     * `device_label` labels the server side).
+     * (the conflict base — absent when evicted past the DB retention window) and the current version, which
+     * is the one the returned `server` side reports.
      *
      * @returns The conflict material, or `undefined` when the recipe is missing/tombstoned (→ a 404, not a 409).
      * @sideEffect Read-only (reads `recipes`, `recipe_steps`, `recipe_ingredients`, `recipe_versions`).

@@ -31,10 +31,6 @@ export interface RecipeVersionListMessages {
     readonly restoreGenericError: string;
     /** Editor attribution template (contains `{handle}`); rendered ONLY when `editorHandle` is present. */
     readonly byEditor: string;
-    /** Device attribution suffix template (contains `{device}`), appended after {@link byEditor} when
-     *  `deviceLabel` is also present. `deviceLabel` is untrusted free text — always rendered as text, never
-     *  `dangerouslySetInnerHTML`. */
-    readonly fromDevice: string;
     /** Changed-fields summary template (contains `{fields}`, a localized comma-joined field-name list). */
     readonly changedFields: string;
     /** Label shown on the earliest version in the list (which has no prior version to diff against). */
@@ -67,11 +63,6 @@ export interface RecipeConflictMessages {
      *  is an already-formatted "N units ago" string — see `formatRelativeTimeAgo`).
      *  Server is ALWAYS the first/left side (X7). */
     readonly serverBanner: string;
-    /** The server banner's device suffix template (contains `{device}`), appended after {@link serverBanner}
-     *  ONLY when the server side carries a `deviceLabel` — mirrors {@link RecipeVersionListMessages.fromDevice}'s
-     *  own optional-suffix split. `deviceLabel` is untrusted free text — always rendered as text, never
-     *  `dangerouslySetInnerHTML`. */
-    readonly serverBannerDevice: string;
     /** The user's own banner line (W7 Task 3 / X3) — the in-progress draft was never persisted, so it carries
      *  no version number of its own; static copy, no template. */
     readonly mineBanner: string;
@@ -91,10 +82,6 @@ export interface RecipeConflictMessages {
      *  own RELATIVE "N minutes ago" (`formatRelativeTimeAgo`); the wireframe itself
      *  uses an absolute date for the card. */
     readonly versionCardSavedLabel: string;
-    /** A card's "Device: {device}" line template (contains `{device}`); rendered ONLY when that side carries
-     *  a `deviceLabel` — mirrors {@link serverBannerDevice}'s own optional-suffix pattern. `deviceLabel` is
-     *  untrusted free text — always rendered as text, never `dangerouslySetInnerHTML`. */
-    readonly versionCardDeviceLabel: string;
     /** Shown when a save hit a version conflict this hook could NOT resolve into a side-by-side view (an
      *  un-enriched 409 body, or no cached recipe to project it onto) — `useRecipeEditor`'s
      *  `conflictDataUnavailable` flag. The save did NOT apply; this is the generic actionable fallback so the
@@ -315,7 +302,6 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
                 'This recipe changed since you opened its history. Review the refreshed list and try again.',
             restoreGenericError: 'We couldn’t restore that version. Please try again.',
             byEditor: 'by @{handle}',
-            fromDevice: ' (from {device})',
             changedFields: 'Changed: {fields}',
             initialVersion: 'Initial version',
             preview: 'Preview',
@@ -329,13 +315,11 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             heading: 'This recipe changed while you were editing',
             explanation: 'Someone saved a new version while you were making changes. Choose which version to keep.',
             serverBanner: 'Server version (v{version}): Saved {time}',
-            serverBannerDevice: ' on {device}',
             mineBanner: 'Your version: local unsaved changes',
             serverCardHeading: 'Server version (v{version})',
             yourCardHeading: 'Your version (v{version})',
             yourCardHeadingUnknown: 'Your version',
             versionCardSavedLabel: 'Saved: {time}',
-            versionCardDeviceLabel: 'Device: {device}',
             dataUnavailable: 'This recipe was changed elsewhere. Reload and try again.',
             changedFieldsHeading: 'Changed fields',
             wasValueLabel: 'Was: {value}',

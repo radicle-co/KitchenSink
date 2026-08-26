@@ -463,43 +463,6 @@ describe('VersionsService.get', () => {
         });
     });
 
-    it('surfaces a stored deviceLabel on the version projection (W8-a.6)', async () => {
-        const row = makeVersionRow({ id: 'v-3', recipeId: RECIPE_ID, versionNumber: 3, deviceLabel: 'Pixel 8' });
-        const recipes = {
-            getById: vi.fn().mockResolvedValue({ ownerId: OWNER, currentVersion: 3 }),
-        } as unknown as RecipesService;
-        const service = new VersionsService(
-            fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(row) }),
-            recipes,
-            fakePendingArchives() as unknown as PendingArchivesDal,
-            noArchive(),
-        );
-
-        const result = await service.get(OWNER, RECIPE_ID, 3);
-
-        expect(result.deviceLabel).toBe('Pixel 8');
-    });
-
-    it('OMITS deviceLabel (not null) when the version has none — the UI renders "unknown device" (W8-a.6)', async () => {
-        const row = makeVersionRow({ id: 'v-4', recipeId: RECIPE_ID, versionNumber: 4, deviceLabel: null });
-        const recipes = {
-            getById: vi.fn().mockResolvedValue({ ownerId: OWNER, currentVersion: 4 }),
-        } as unknown as RecipesService;
-        const service = new VersionsService(
-            fakeDal({ findByRecipeAndVersion: vi.fn().mockResolvedValue(row) }),
-            recipes,
-            fakePendingArchives() as unknown as PendingArchivesDal,
-            noArchive(),
-        );
-
-        const result = await service.get(OWNER, RECIPE_ID, 4);
-
-        expect(result.deviceLabel).toBeUndefined();
-        expect('deviceLabel' in result).toBe(false);
-    });
-});
-
-describe('versionArchiveKey', () => {
     it('builds a deterministic per-owner, per-recipe, per-version key', () => {
         const row = makeVersionRow({ createdBy: 'owner-9', recipeId: 'r-1', versionNumber: 7 });
         expect(versionArchiveKey(row)).toBe('recipes/owner-9/r-1/versions/7.json');

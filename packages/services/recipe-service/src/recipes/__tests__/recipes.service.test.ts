@@ -208,26 +208,6 @@ describe('RecipesService.create', () => {
         );
     });
 
-    it('forwards the write-request deviceLabel onto the version snapshot (W8-a.6)', async () => {
-        const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-            nutritionGatewayDouble,
-            fakeVerificationQueue(),
-            fakeLineVerificationsDal(),
-        );
-
-        await service.create(principal(), { ...CREATE_DTO, deviceLabel: 'Pixel 8' });
-
-        expect(versions.createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ deviceLabel: 'Pixel 8' }));
-    });
-
     it('denormalizes the author handle from the token claims onto the recipe + version (W8-a.2)', async () => {
         const versions = makeFakeVersionsService();
         const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
@@ -258,27 +238,6 @@ describe('RecipesService.create', () => {
 
         const createArg = (dal.create as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0];
         expect(createArg).not.toHaveProperty('authorHandle');
-    });
-
-    it('does NOT put a deviceLabel key on the snapshot when the write omits it (device stays unknown)', async () => {
-        const versions = makeFakeVersionsService();
-        const dal = fakeDal({ create: vi.fn().mockResolvedValue(aggregate({ currentVersion: 1 })) });
-        const service = new RecipesService(
-            dal,
-            fakeIngredientsDal(),
-            versions,
-            fakePhotosDal(),
-            RECIPE_PHOTOS_CDN,
-            fakeRatingsDal(),
-            nutritionGatewayDouble,
-            fakeVerificationQueue(),
-            fakeLineVerificationsDal(),
-        );
-
-        await service.create(principal(), CREATE_DTO);
-
-        const snapshotArg = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-        expect(snapshotArg).not.toHaveProperty('deviceLabel');
     });
 
     it('captures the FULL recipe content in the snapshot (faithful for restore)', async () => {
@@ -810,7 +769,6 @@ describe('RecipesService.update', () => {
                 current,
                 baseVersion: {
                     versionNumber: 3,
-                    deviceLabel: 'Pixel 8',
                     createdAt: new Date('2026-07-19T00:00:00.000Z'),
                     snapshot: {
                         version: 3,
@@ -836,7 +794,7 @@ describe('RecipesService.update', () => {
                 currentVersion: number;
                 conflictingVersion: number;
                 server: { versionNumber: number; snapshot: { title: string } };
-                base?: { versionNumber: number; deviceLabel?: string; snapshot: { title: string } };
+                base?: { versionNumber: number; snapshot: { title: string } };
             };
             expect(details.currentVersion).toBe(5);
             expect(details.conflictingVersion).toBe(3);
@@ -844,7 +802,6 @@ describe('RecipesService.update', () => {
             expect(details.server.versionNumber).toBe(5);
             expect(details.server.snapshot.title).toBe('Server title');
             expect(details.base?.versionNumber).toBe(3);
-            expect(details.base?.deviceLabel).toBe('Pixel 8');
             expect(details.base?.snapshot.title).toBe('Base title');
             // The pre-check reads the conflict material coherently, keyed on the client's expectedVersion.
             expect(dal.readConflict).toHaveBeenCalledWith('r-1', 3);

@@ -182,7 +182,7 @@ export type EditorState =
           /** The in-progress per-field/per-element merge resolution; owned here so `RecipeConflictView` can
            *  be controlled. */
           readonly mergeSelections: RecipeMergeSelections;
-          /** The 409's winning server side verbatim (versionNumber/deviceLabel/updatedAt/snapshot) — the
+          /** The 409's winning server side verbatim (versionNumber/updatedAt/snapshot) — the
            *  enriched W8-a.5 body every resolution's resubmit CAS-tokens against (W7 Task 2). */
           readonly server: VersionConflictSide;
           /** The version the draft was edited from, when still retained in the DB window; ABSENT when

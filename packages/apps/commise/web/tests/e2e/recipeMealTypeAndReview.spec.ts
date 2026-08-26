@@ -124,7 +124,13 @@ test.describe('the Review step, which replaced the Preview overlay (U33)', () =>
 });
 
 test.describe('auto-save writes a draft, unattended (U34)', () => {
-    test('PATCHes after a quiet window with nobody pressing anything', async ({ page }) => {
+    test('PATCHes after its interval with nobody pressing anything', async ({ page }) => {
+        // ⛔ A FAKE CLOCK, not a wait. The interval is five minutes (owner ruling 2026-08-26 — an auto-save
+        // mints a version row, and at two seconds an editing session pushed a cook's own deliberate versions
+        // out of the last-ten window in under a minute). No e2e run waits that out, and `waitForTimeout` is
+        // banned anyway. `page.clock` is installed BEFORE navigation because it can only patch timers the
+        // page has not yet created — the same reason `visualCapture` installs it where it does.
+        await page.clock.install();
         await openEditor(page);
 
         const patched = page.waitForRequest(
@@ -133,6 +139,14 @@ test.describe('auto-save writes a draft, unattended (U34)', () => {
 
         // The ONLY interaction. No Save Draft, no Publish — the write has to arrive on its own.
         await page.getByLabel('Title').fill('Weeknight Pasta, edited and left alone');
+
+        // Well past the interval, deliberately as an UPPER BOUND rather than the constant itself. What this
+        // tier proves is that an unattended write reaches the wire carrying its concurrency token; the exact
+        // cadence is `useRecipeAutoSave`'s own unit test, which pins it with a case that distinguishes an
+        // interval from a debounce. Importing the constant here would mean a barrel export existing only for
+        // a test. If someone raises the interval past ten minutes this fails loudly, which is correct — that
+        // is a behaviour change worth noticing.
+        await page.clock.fastForward('10:00');
 
         const body = (await patched).postDataJSON() as { expectedVersion?: number; status?: string };
 

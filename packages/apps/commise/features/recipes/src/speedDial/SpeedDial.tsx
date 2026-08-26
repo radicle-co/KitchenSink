@@ -29,9 +29,9 @@
  * is not installed, and installing it to render one item would be the heavier answer. Reach for it then;
  * do not grow the handler below instead.
  *
- * ⚠️ Anything outside `Dialog.Content` is `aria-hidden` while the dial is open, which is why the scrim is
- * decorative and carries no label: on this platform there is no such thing as a labelled dismiss surface
- * outside the content. Native's backdrop IS a real tap target and does carry one.
+ * ⚠️ Anything outside `Dialog.Content` is `aria-hidden` while the dial is open, so on this platform there is
+ * no such thing as a labelled dismiss surface outside the content — which is why this leaf takes no
+ * `dismissLabel` while the native one does, and why it renders no scrim at all (see the note at the anchor).
  */
 import { EnterTransition } from '@commise/ui/motion';
 import * as Dialog from '@radix-ui/react-dialog';
@@ -99,10 +99,17 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
                 anchor (rather than on the button) so the menu can be positioned against the SAME expression
                 instead of a second copy of it. */}
             <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 lg:bottom-8">
-                {/* Decorative scrim only: dismissal is owned by the dismissable layer, and `hideOthers`
-                    already hides this from assistive tech. `bg-charcoal/20` is Tailwind's alpha syntax, not
-                    a decimal `rgba(...)` literal. */}
-                <Dialog.Overlay className="fixed inset-0 -z-10 bg-charcoal/20" />
+                {/* ⛔ No `Dialog.Overlay` — deliberately, and NOT an omission to "fix". A scrim here is purely
+                    decorative (the dismissable layer already makes the page inert to the pointer, and
+                    `hideOthers` already hides it from assistive tech), and it cannot be layered correctly
+                    from inside this anchor: the anchor is a `z-40` stacking context, so a scrim within it
+                    paints UNDER the narrow-breakpoint bottom tab bar, which is `z-50`
+                    (`HomeTabBar.tsx`). The result would be a dimmed page with one bright bar
+                    across the foot of it that answers no taps — worse than no dim at all. Raising the anchor
+                    to sit above that chrome is a layering decision about the app shell, not about this
+                    control, so it is left to be made deliberately rather than guessed at here. Native keeps
+                    its backdrop because an RN `Modal` is its own window (no z-index question) and because
+                    there the backdrop is the real dismiss TARGET, not decoration. */}
                 <Dialog.Trigger
                     aria-label={triggerLabel}
                     aria-haspopup="menu"

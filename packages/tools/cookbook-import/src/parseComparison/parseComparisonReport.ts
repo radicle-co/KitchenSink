@@ -27,6 +27,8 @@
  */
 import { divergentResponses, type AgreementKind, type ParseAgreement, type ParseField } from './parseAgreement.js';
 import type { LineOrigin } from './parseCorpus.js';
+import { NON_FOOD_KINDS, type NonFoodKind } from './nonFoodInFoods.js';
+import type { AnswerReader } from './parseResponse.js';
 import { PARSE_RESPONSE_KINDS, type ParseResponseKind } from './parseResponse.js';
 
 /** Every corpus half, so a breakdown cannot silently omit one. */
@@ -85,6 +87,15 @@ export interface ParseTrial {
     readonly shapeDetail: string | undefined;
     /** Present only when this trial was COMPLIANT and the CRF produced a reading of the same line. */
     readonly agreement: ParseAgreement | undefined;
+    /**
+     * Every entry this trial filed under `foods` that does not name a food — one kind per offending entry.
+     *
+     * ⛔ THE PROMPT BAKE-OFF'S HEADLINE, and it is a per-ENTRY list rather than a boolean because one line
+     * can name two vessels and a food. Empty for a trial that produced no reading at all, which is why
+     * {@link ParseComparisonReport.nonFoodInFoods} carries its own denominator: a model with 40% compliance
+     * would otherwise look clean here for the same reason it looks clean everywhere.
+     */
+    readonly nonFoods: readonly NonFoodKind[];
 }
 
 /** The figures that are meaningful for one half of the corpus on its own. */
@@ -93,6 +104,13 @@ export interface OriginBreakdown {
     readonly contractComplianceRate: number;
     readonly crfCompared: number;
     readonly crfAgreementRate: number;
+    /**
+     * ⛔ Per HALF, because the two halves are not one population. The `dropped` half is mostly not ingredient
+     * lines at all — "Serve on a heated platter", "See that you have a good fire" — so it is exactly where a
+     * vessel in `foods` is most likely, and a blended rate would be a rate about a population nobody meant
+     * to ask about.
+     */
+    readonly nonFoodInFoods: NonFoodCensus;
 }
 
 /**
@@ -108,6 +126,30 @@ export interface MeasureSplit {
     readonly quantityAgreed: number;
     /** Trials on which the quantity comparison happened at all — i.e. the units agreed. */
     readonly quantityObservable: number;
+}
+
+/**
+ * How often `foods` held something that is not a food.
+ *
+ * ⛔ Denominated in COMPLIANT trials — the responses that actually produced a reading — and never in every
+ * trial. A prompt that lowers compliance would otherwise "improve" this rate by producing fewer readings to
+ * be wrong in, which is precisely the artefact a prompt bake-off must not reward.
+ *
+ * ⚠️ Two numerators, not one, and they answer different questions. {@link lines} is how many lines were
+ * affected, which is what a cook experiences; {@link entries} is how many bad entries there were, which is
+ * what a fix has to remove. A line naming two vessels contributes 1 and 2.
+ */
+export interface NonFoodCensus {
+    /** Compliant trials — the denominator. */
+    readonly compliant: number;
+    /** Compliant trials with at least one non-food entry. */
+    readonly lines: number;
+    /** Non-food entries, across every compliant trial. */
+    readonly entries: number;
+    /** {@link lines} over {@link compliant}. */
+    readonly lineRate: number;
+    /** Entries by kind, always all three, so a census cannot silently omit one. */
+    readonly byKind: Readonly<Record<NonFoodKind, number>>;
 }
 
 /** What one model scored. */
@@ -142,6 +184,8 @@ export interface ParseComparisonReport {
     readonly measureSplit: MeasureSplit;
     /** How each shape failure failed. See {@link ParseTrial.shapeDetail}. */
     readonly wrongShapeReasons: Readonly<Record<string, number>>;
+    /** ⛔ THE PROMPT BAKE-OFF'S HEADLINE — see {@link NonFoodCensus}. */
+    readonly nonFoodInFoods: NonFoodCensus;
     /** ⛔ The two halves of the corpus, never blended — see `parseCorpus.ts`. */
     readonly byOrigin: Readonly<Record<LineOrigin, OriginBreakdown>>;
 }
@@ -287,6 +331,7 @@ function scoreOne(modelId: string, own: readonly ParseTrial[]): ParseComparisonR
             quantityObservable: unitAgreed,
         },
         wrongShapeReasons,
+        nonFoodInFoods: censusNonFoods(own),
         byOrigin: Object.fromEntries(
             LINE_ORIGINS.map((origin) => [origin, breakdownFor(own.filter((trial) => trial.origin === origin))]),
         ) as Record<LineOrigin, OriginBreakdown>,
@@ -313,7 +358,38 @@ function breakdownFor(own: readonly ParseTrial[]): OriginBreakdown {
         contractComplianceRate: rate(responses.filter((trial) => trial.outcome === 'valid').length, responses.length),
         crfCompared: compared.length,
         crfAgreementRate: rate(compared.filter((trial) => trial.agreement?.agrees === true).length, compared.length),
+        nonFoodInFoods: censusNonFoods(own),
     };
+}
+
+/**
+ * Count the non-foods a set of trials filed under `foods`.
+ *
+ * ⛔ `valid` ONLY, and not "anything a reader could recover". The recovered-from-a-wrapper set is a claim
+ * about what a change to OUR code would buy; this is a claim about what the model DID, and mixing the two
+ * would let an arm's headline move because its wrapper habits changed.
+ *
+ * @param own - Every trial for one model, both corpus halves or one.
+ * @returns The census. Pure.
+ */
+function censusNonFoods(own: readonly ParseTrial[]): NonFoodCensus {
+    const compliant = own.filter((trial) => trial.outcome === 'valid');
+    const byKind = Object.fromEntries(NON_FOOD_KINDS.map((kind) => [kind, 0])) as Record<NonFoodKind, number>;
+    let lines = 0;
+    let entries = 0;
+
+    for (const trial of compliant) {
+        if (trial.nonFoods.length > 0) {
+            lines += 1;
+        }
+
+        for (const kind of trial.nonFoods) {
+            byKind[kind] += 1;
+            entries += 1;
+        }
+    }
+
+    return { compliant: compliant.length, lines, entries, lineRate: rate(lines, compliant.length), byKind };
 }
 
 /** One pass of one line by one model, as the runner records it. */
@@ -336,12 +412,18 @@ export interface DeterminismPass {
  * @param modelId - The bare model id.
  * @param first - The first pass.
  * @param second - The second pass over the same line.
+ * @param readAnswer - The arm's shape verdict. Omitted for the shipped shape.
  * @returns The pair, with both gates decided. Pure.
  */
-export function pairDeterminism(modelId: string, first: DeterminismPass, second: DeterminismPass): DeterminismPair {
+export function pairDeterminism(
+    modelId: string,
+    first: DeterminismPass,
+    second: DeterminismPass,
+    readAnswer?: AnswerReader,
+): DeterminismPair {
     const responded = first.responded && second.responded;
     const divergence = responded
-        ? divergentResponses(first.responseText, second.responseText)
+        ? divergentResponses(first.responseText, second.responseText, readAnswer)
         : ({ kind: 'incomparable' } as const);
 
     return {

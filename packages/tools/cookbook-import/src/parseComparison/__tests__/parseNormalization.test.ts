@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeMeasure, normalizeName, normalizePrep, unitComparableWords } from '../parseNormalization.js';
+import {
+    normalizeMeasure,
+    normalizeName,
+    normalizePrep,
+    unitComparableWords,
+    withStatedUnit,
+} from '../parseNormalization.js';
 
 describe('normalizeName', () => {
     it('folds case to a literal lower-case form', () => {
@@ -210,5 +216,59 @@ describe('unitComparableWords', () => {
     it('U35 — still canonicalises every spelling whose meaning does NOT depend on case', () => {
         expect(unitComparableWords('tbsp of butter').has('tablespoon')).toBe(true);
         expect(unitComparableWords('teaspoonful of salt').has('teaspoon')).toBe(true);
+    });
+});
+
+/**
+ * The fold for an arm that STATES its unit rather than leaving it to be derived (the bake-off's v3).
+ *
+ * ⛔ The claim under test is narrow and load-bearing: the stated unit REPLACES the derived one and leaves
+ * the quantity and the residue exactly where `normalizeMeasure` put them. A fold that appended instead
+ * manufactures a second amount out of a model that filled both slots consistently, and `judgeMeasure`
+ * reports `amountCountDiffers` — a disagreement about nothing.
+ */
+describe('withStatedUnit', () => {
+    it('replaces the derived unit and keeps the quantity', () => {
+        const folded = withStatedUnit(normalizeMeasure('2'), 'cups');
+
+        expect(folded).toEqual({ quantity: '2', unit: 'cup', residue: '' });
+    });
+
+    it('does not leave a consistently-restated unit behind as a second amount', () => {
+        expect(withStatedUnit(normalizeMeasure('2 cups'), 'cups')).toEqual({
+            quantity: '2',
+            unit: 'cup',
+            residue: '',
+        });
+    });
+
+    it('keeps a genuine second amount in the residue', () => {
+        expect(withStatedUnit(normalizeMeasure('2 cups 3 tablespoons'), 'cups')).toEqual({
+            quantity: '2',
+            unit: 'cup',
+            residue: '3 tablespoon',
+        });
+    });
+
+    it('canonicalises the stated unit through the same alias table every other unit goes through', () => {
+        // ⚠️ The 1919 corpus spells these `*ful`. A raw comparison answered NO for exactly the historical
+        // spellings this whole harness is made of.
+        expect(withStatedUnit(normalizeMeasure('one'), 'teaspoonful').unit).toBe('teaspoon');
+        expect(withStatedUnit(normalizeMeasure('one'), 'wineglassful').unit).toBe('wineglass');
+    });
+
+    it('records a stated absence as no unit, without falling back to the phrase', () => {
+        // ⛔ The arm ANSWERED "this line states no unit". Re-deriving `cup` from the phrase would overwrite a
+        // reading with our own, on exactly the lines where the two disagree.
+        expect(withStatedUnit(normalizeMeasure('a cup'), '')).toEqual({ quantity: '1', unit: '', residue: '' });
+        expect(withStatedUnit(normalizeMeasure('a cup'), '   ')).toEqual({ quantity: '1', unit: '', residue: '' });
+    });
+
+    it('reads the quantity out of a spelled-out measure the same way the derived fold does', () => {
+        expect(withStatedUnit(normalizeMeasure('one and one-half'), 'cups')).toEqual({
+            quantity: '3/2',
+            unit: 'cup',
+            residue: '',
+        });
     });
 });

@@ -40,11 +40,13 @@ import {
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 
 import type { CrfParse } from './crfParse.js';
+import { nonFoodsIn } from './nonFoodInFoods.js';
 import { compareParses } from './parseAgreement.js';
 import type { ParseCorpusLine } from './parseCorpus.js';
 import { CALL_FAILED, UNUSABLE_RESPONSE, type ParseTrial } from './parseComparisonReport.js';
-import { PARSE_MAX_OUTPUT_TOKENS, buildParsePrompt } from './parsePrompt.js';
+import { PARSE_MAX_OUTPUT_TOKENS } from './parsePrompt.js';
 import { classifyParseResponse, recoverableParse } from './parseResponse.js';
+import { PARSE_VARIANT_V1, buildVariantPrompt, type ParseVariant } from './promptVariant.js';
 
 /**
  * An upper bound on a prompt's input tokens, with no tokenizer.
@@ -70,12 +72,20 @@ export interface ParseTrialRequest {
     readonly line: ParseCorpusLine;
     /** The CRF's reading of the same line, or `undefined` when it produced none. */
     readonly crf: CrfParse | undefined;
+    /**
+     * Which prompt arm to send.
+     *
+     * ⚠️ Defaults to the SHIPPED prompt, so a caller that predates the bake-off keeps measuring the thing
+     * the shipped pipeline sends. A required parameter would have made the baseline's numbers depend on a
+     * call-site edit, which is the one thing a baseline may not do.
+     */
+    readonly variant?: ParseVariant;
 }
 
 /**
  * Ask one model to parse one line.
  *
- * @param request - The client, the bare model id, the line and the CRF's reading of it.
+ * @param request - The client, the bare model id, the line, the CRF's reading of it, and the prompt arm.
  * @returns What came back, classified and costed.
  * @throws When the model is not in the rate table. ⛔ Thrown BEFORE the call: `BEDROCK_MODEL_REGISTRY`'s own
  *   docstring says membership is authorization, so an unpriced id must not be spent on and then reported
@@ -83,7 +93,7 @@ export interface ParseTrialRequest {
  * @sideEffect Calls Amazon Bedrock. Billed.
  */
 export async function runParseTrial(request: ParseTrialRequest): Promise<ParseTrialRecord> {
-    const { client, modelId, line, crf } = request;
+    const { client, modelId, line, crf, variant = PARSE_VARIANT_V1 } = request;
     const entry = registryEntryFor(modelId);
     const rate = rateFor(modelId);
 
@@ -91,7 +101,7 @@ export async function runParseTrial(request: ParseTrialRequest): Promise<ParseTr
         throw new Error(`parseComparison: ${modelId} is not in BEDROCK_MODEL_REGISTRY, so it may not be called`);
     }
 
-    const prompt = buildParsePrompt(line.text);
+    const prompt = buildVariantPrompt(variant, line.text);
     const base = { modelId, lineId: line.id, origin: line.origin } as const;
 
     let outcome;
@@ -121,6 +131,9 @@ export async function runParseTrial(request: ParseTrialRequest): Promise<ParseTr
             recovered: false,
             shapeDetail: undefined,
             agreement: undefined,
+            // ⛔ Empty, not "no vessels seen". The model said nothing, so there is no `foods` array to
+            // census — and `censusNonFoods` keeps this trial out of its denominator for exactly that reason.
+            nonFoods: [],
             responseText: '',
         };
     }
@@ -143,11 +156,12 @@ export async function runParseTrial(request: ParseTrialRequest): Promise<ParseTr
             recovered: false,
             shapeDetail: undefined,
             agreement: undefined,
+            nonFoods: [],
             responseText: '',
         };
     }
 
-    const reading = classifyParseResponse(outcome.text, outcome.stopReason);
+    const reading = classifyParseResponse(outcome.text, outcome.stopReason, variant.readAnswer);
 
     return {
         ...base,
@@ -157,9 +171,12 @@ export async function runParseTrial(request: ParseTrialRequest): Promise<ParseTr
         // ⚠️ Derived from whether a conformant parse could be READ, not from which bucket the response
         // landed in: a document followed by a stray `]` is bucketed `malformedJson` and its content is
         // nonetheless right there, so gating on `proseWrapper` under-reported what a reader change buys.
-        recovered: reading.kind !== 'valid' && recoverableParse(outcome.text) !== undefined,
+        recovered: reading.kind !== 'valid' && recoverableParse(outcome.text, variant.readAnswer) !== undefined,
         shapeDetail: reading.kind === 'wrongShape' ? reading.detail : undefined,
         agreement: reading.kind === 'valid' && crf !== undefined ? compareParses(reading.parse, crf) : undefined,
+        // ⚠️ `valid` only, matching `censusNonFoods`' denominator. A parse dug out of a prose wrapper is a
+        // claim about what OUR reader could recover; the headline is a claim about what the MODEL did.
+        nonFoods: reading.kind === 'valid' ? nonFoodsIn(reading.parse) : [],
         responseText: outcome.text,
     };
 }

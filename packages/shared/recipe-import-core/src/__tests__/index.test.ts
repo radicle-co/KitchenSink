@@ -80,7 +80,19 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // ingredient") and this package's segmentation guard must never disagree about which words those
         // are. The gate used to hold its own `NOT_A_MEASURE` copy; the guard needed the same vocabulary
         // to tell `for five minutes` from `with two eggs`, and two copies across a package boundary is
-        // exactly the drift the DRY rule is about. `namesNoFood` stays private: only the segmenter asks it.
+        // exactly the drift the DRY rule is about.
+        //
+        // ⚠️ `namesEquipment` and `namesNoFood` JOINED IT on 2026-08-26, and the entry above no longer says
+        // `namesNoFood` stays private — the reason it gave ("only the segmenter asks it") stopped being
+        // true. `cookbook-import`'s prompt bake-off counts how often a model files a VESSEL or a DURATION
+        // under `foods`, which is the same question this vocabulary already answers, asked of a different
+        // input. It is admitted for `measuresNoSubstance`'s reason verbatim: the alternative is a second
+        // vessel list in the harness, and a second list cannot be told that this one has grown.
+        //
+        // ⛔ The VOCABULARY is still private. `VESSELS` and `NOT_A_MEASURE` are not exported and the control
+        // below would refuse them anyway — what crosses this door is a question with an answer, never a word
+        // list. `mentionsAVessel` and `lastWordOf` also stay off it: the first carries a precondition only
+        // `clauseSegmentation.ts` can satisfy, and the second is a tokenizer.
         //
         // ⚠️ GREW BY THREE in U22's phase 4 — the orchestration — and two of them are NOT functions, which
         // is why the control below was AMENDED rather than left alone. `runParsePipeline` is the order
@@ -105,6 +117,8 @@ describe('@kitchensink/recipe-import-core barrel', () => {
             'findQuantityPhrases',
             'measuresNoSubstance',
             'millilitresPerUnit',
+            'namesEquipment',
+            'namesNoFood',
             'normalizeDurationToMinutes',
             'normalizeQuantity',
             'normalizeServings',

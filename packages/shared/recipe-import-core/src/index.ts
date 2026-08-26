@@ -16,7 +16,7 @@ export { promoteCrfReading } from './domain/promoteCrfReading.js';
 export type { CrfReading } from './domain/promoteCrfReading.js';
 export { promoteLlmParse } from './domain/promoteLlmParse.js';
 export { dropTrailingInstruction, segmentClause } from './domain/clauseSegmentation.js';
-export { measuresNoSubstance } from './domain/notAFoodLexicon.js';
+export { measuresNoSubstance, namesEquipment, namesNoFood } from './domain/notAFoodLexicon.js';
 export type { ClauseSegment } from './domain/clauseSegmentation.js';
 export { NO_CACHE, NO_CORRECTIONS, runParsePipeline } from './domain/parsePipeline.js';
 export type {

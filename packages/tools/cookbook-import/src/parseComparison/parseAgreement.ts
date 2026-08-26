@@ -42,9 +42,15 @@
  * argument and for why it does not overturn KTD-11's amount column.
  */
 import type { CrfParse } from './crfParse.js';
-import { normalizeMeasure, normalizeName, normalizePrep, unitComparableWords } from './parseNormalization.js';
+import {
+    normalizeMeasure,
+    normalizeName,
+    normalizePrep,
+    unitComparableWords,
+    withStatedUnit,
+} from './parseNormalization.js';
 import { classifyParseResponse } from './parseResponse.js';
-import type { ModelParse } from './parseResponse.js';
+import type { AnswerReader, VariantParse } from './parseResponse.js';
 
 /** How the two readings of the MEASURE relate. */
 export type MeasureVerdict =
@@ -218,12 +224,17 @@ export function disposeAgreement(kind: AgreementKind): AgreementDisposition {
 /**
  * Compare a model's reading of a line with the CRF parser's.
  *
- * @param model - The model's parse.
+ * ⚠️ The MEASURE fold depends on the arm. An arm with a unit slot (`promptVariant.ts`'s v3) states the unit
+ * and it is taken at face value; v1 and v2 have no such slot and their unit is DERIVED from the phrase by
+ * `normalizeMeasure`. {@link foldReading} owns that choice so it is made once, and every unit figure in a
+ * report must be published beside the arm's `unitSource` for the same reason.
+ *
+ * @param model - The model's parse, already projected to the common vocabulary.
  * @param crf - The CRF parser's parse of the same line.
  * @returns A verdict per field plus the first-disagreeing-field summary. Pure.
  */
-export function compareParses(model: ModelParse, crf: CrfParse): ParseAgreement {
-    const modelMeasure = normalizeMeasure(model.measure);
+export function compareParses(model: VariantParse, crf: CrfParse): ParseAgreement {
+    const modelMeasure = foldReading(model);
     const crfMeasure = normalizeMeasure(crf.measure);
     // ⚠️ Empty names are filtered on BOTH sides, like preps: a model emitting `{"name":""}` contributes a
     // token nothing can ever match, which would force `differ` for a food it did not actually name.
@@ -346,10 +357,10 @@ function judgePrep(
  * @param second - The second pass's parse.
  * @returns The fields that moved, in answer-shape order. Empty when the two readings say the same thing. Pure.
  */
-export function divergentFields(first: ModelParse, second: ModelParse): readonly ParseField[] {
+export function divergentFields(first: VariantParse, second: VariantParse): readonly ParseField[] {
     const moved: ParseField[] = [];
-    const firstMeasure = normalizeMeasure(first.measure);
-    const secondMeasure = normalizeMeasure(second.measure);
+    const firstMeasure = foldReading(first);
+    const secondMeasure = foldReading(second);
 
     if (firstMeasure.quantity !== secondMeasure.quantity || firstMeasure.unit !== secondMeasure.unit) {
         moved.push('measure');
@@ -402,11 +413,16 @@ export type ResponseDivergence =
  *
  * @param firstText - The first pass's response, verbatim.
  * @param secondText - The second pass's response, verbatim.
+ * @param readAnswer - The arm's shape verdict. Omitted for the shipped shape.
  * @returns Whether the pair was comparable and, if so, which fields moved. Pure.
  */
-export function divergentResponses(firstText: string, secondText: string): ResponseDivergence {
-    const first = readableParse(firstText);
-    const second = readableParse(secondText);
+export function divergentResponses(
+    firstText: string,
+    secondText: string,
+    readAnswer?: AnswerReader,
+): ResponseDivergence {
+    const first = readableParse(firstText, readAnswer);
+    const second = readableParse(secondText, readAnswer);
 
     if (first === undefined || second === undefined) {
         return { kind: 'incomparable' };
@@ -415,9 +431,25 @@ export function divergentResponses(firstText: string, secondText: string): Respo
     return { kind: 'comparable', fields: divergentFields(first, second) };
 }
 
+/**
+ * Fold one arm's reading of a measure.
+ *
+ * ⛔ THE ONE PLACE THE `derived` / `model-stated` CHOICE IS MADE. Two call sites need it — the CRF
+ * comparison and the determinism comparison — and a second copy would let a report's agreement figure and
+ * its stability figure disagree about what an arm's unit even is.
+ *
+ * @param reading - One arm's reading, already projected to the common vocabulary.
+ * @returns The folded measure. Pure.
+ */
+function foldReading(reading: VariantParse): ReturnType<typeof normalizeMeasure> {
+    const folded = normalizeMeasure(reading.measure);
+
+    return reading.statedUnit === undefined ? folded : withStatedUnit(folded, reading.statedUnit);
+}
+
 /** The parse a response states, whether bare or wrapped. `undefined` when it states none. */
-function readableParse(text: string): ModelParse | undefined {
-    const reading = classifyParseResponse(text, 'end_turn');
+function readableParse(text: string, readAnswer: AnswerReader | undefined): VariantParse | undefined {
+    const reading = classifyParseResponse(text, 'end_turn', readAnswer);
 
     if (reading.kind === 'valid') {
         return reading.parse;

@@ -43,18 +43,76 @@ export const modelParseSchema = z.strictObject({
 
 export type ModelParse = z.infer<typeof modelParseSchema>;
 
+/**
+ * A reading in the ONE vocabulary every figure in a run is computed in.
+ *
+ * ⛔ v1's shape PLUS the single thing an arm may state that v1 structurally cannot. The bake-off's candidate
+ * prompts declare different documents — v2 adds `equipment`, v3 replaces the measure phrase with five
+ * slots — and each arm's Adapter (`promptVariant.ts`) projects its own document down to THIS, so the
+ * contract census, the CRF comparator, the non-food census and the cost arithmetic are one implementation
+ * rather than three. Three comparators would let the arms disagree about what "the same" means, and the
+ * report would be internally inconsistent with nothing to point at.
+ *
+ * ⚠️ `ModelParse` is assignable to this, because the added member is optional. That is what keeps every
+ * pre-existing caller and test compiling unchanged while the new dimension is threaded through.
+ */
+export interface VariantParse extends ModelParse {
+    /**
+     * The unit the arm's answer STATED, when the arm has a unit slot at all.
+     *
+     * ⛔ `undefined` means "this arm has no unit slot — derive the unit from the measure phrase, as v1 and
+     * v2 do". The empty string means "this arm HAS a unit slot and answered that the line states none",
+     * which is a reading and is taken at face value. See `promptVariant.ts`'s `statedUnitOf`: collapsing the
+     * two would let a model-stated arm silently fall back to the derived one, and no figure downstream could
+     * then say which mechanism produced a unit.
+     */
+    readonly statedUnit?: string;
+}
+
+/**
+ * How one arm judges a JSON document against the shape ITS prompt declared, and projects it.
+ *
+ * DESIGN PATTERN: **injected Strategy.** {@link classifyParseResponse} owns the ORDER in which a response is
+ * judged — the whole of its measurement decision — and knows nothing about which document was asked for. An
+ * arm supplies only the shape verdict, so a candidate prompt cannot accidentally change what "truncated" or
+ * "wrapped in prose" means and make its column incomparable.
+ */
+export type AnswerReader = (
+    value: unknown,
+) => { readonly ok: true; readonly parse: VariantParse } | { readonly ok: false; readonly detail: string };
+
+/**
+ * The default reader: the SHIPPED answer shape.
+ *
+ * ⚠️ Defaulted rather than required so every pre-existing caller keeps measuring exactly what it measured
+ * before this parameter existed. A required parameter would have made the baseline arm's numbers depend on
+ * a call site edit, which is the one thing a baseline may not do.
+ */
+export const readModelParseAnswer: AnswerReader = (value) => {
+    const parsed = modelParseSchema.safeParse(value);
+
+    return parsed.success
+        ? { ok: true, parse: parsed.data }
+        : {
+              ok: false,
+              detail: parsed.error.issues
+                  .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+                  .join('; '),
+          };
+};
+
 /** How a response failed to be a bare document, when the JSON inside it was still findable. */
 export type ProseWrapperKind = 'codeFence' | 'proseText';
 
 /** What one response WAS. */
 export type ParseResponseOutcome =
-    | { readonly kind: 'valid'; readonly parse: ModelParse }
+    | { readonly kind: 'valid'; readonly parse: VariantParse }
     | { readonly kind: 'truncated' }
     | {
           readonly kind: 'proseWrapper';
           readonly wrapper: ProseWrapperKind;
           /** The parse recovered from inside the wrapper, or `undefined` when the inside was unreadable too. */
-          readonly parse: ModelParse | undefined;
+          readonly parse: VariantParse | undefined;
       }
     | { readonly kind: 'wrongShape'; readonly detail: string }
     | { readonly kind: 'malformedJson'; readonly detail: string };
@@ -88,9 +146,15 @@ const CARRIES_A_WORD = /\p{L}/u;
  *
  * @param text - The first assistant text block, verbatim.
  * @param stopReason - The response's stop reason, passed through as Bedrock gave it.
+ * @param readAnswer - How to judge a JSON document against the shape the arm's prompt declared. Defaults to
+ *   the shipped shape, so a caller that predates the bake-off measures exactly what it always did.
  * @returns What the response was. Pure.
  */
-export function classifyParseResponse(text: string, stopReason: string): ParseResponseOutcome {
+export function classifyParseResponse(
+    text: string,
+    stopReason: string,
+    readAnswer: AnswerReader = readModelParseAnswer,
+): ParseResponseOutcome {
     if (stopReason === 'max_tokens') {
         return { kind: 'truncated' };
     }
@@ -104,7 +168,7 @@ export function classifyParseResponse(text: string, stopReason: string): ParseRe
     const bare = readJson(trimmed);
 
     if (bare.ok) {
-        return judgeShape(bare.value);
+        return judgeShape(bare.value, readAnswer);
     }
 
     const fenced = CODE_FENCE.exec(trimmed);
@@ -112,7 +176,7 @@ export function classifyParseResponse(text: string, stopReason: string): ParseRe
     if (fenced !== null) {
         const inner = readJson((fenced[1] ?? '').trim());
 
-        return { kind: 'proseWrapper', wrapper: 'codeFence', parse: readParse(inner) };
+        return { kind: 'proseWrapper', wrapper: 'codeFence', parse: readParse(inner, readAnswer) };
     }
 
     const open = trimmed.indexOf('{');
@@ -123,7 +187,7 @@ export function classifyParseResponse(text: string, stopReason: string): ParseRe
         const outside = trimmed.slice(0, open) + trimmed.slice(close + 1);
 
         if (span.ok && CARRIES_A_WORD.test(outside)) {
-            return { kind: 'proseWrapper', wrapper: 'proseText', parse: readParse(span) };
+            return { kind: 'proseWrapper', wrapper: 'proseText', parse: readParse(span, readAnswer) };
         }
     }
 
@@ -146,13 +210,17 @@ export function classifyParseResponse(text: string, stopReason: string): ParseRe
  * this function anywhere a value reaches a user.
  *
  * @param text - The response verbatim.
+ * @param readAnswer - The arm's shape verdict. Defaults to the shipped shape.
  * @returns The conformant parse inside it, or `undefined`. Pure.
  */
-export function recoverableParse(text: string): ModelParse | undefined {
+export function recoverableParse(
+    text: string,
+    readAnswer: AnswerReader = readModelParseAnswer,
+): VariantParse | undefined {
     const trimmed = text.trim();
     const fenced = CODE_FENCE.exec(trimmed);
     const inner = fenced === null ? trimmed : (fenced[1] ?? '').trim();
-    const direct = readParse(readJson(inner));
+    const direct = readParse(readJson(inner), readAnswer);
 
     if (direct !== undefined) {
         return direct;
@@ -161,7 +229,7 @@ export function recoverableParse(text: string): ModelParse | undefined {
     const open = inner.indexOf('{');
     const close = inner.lastIndexOf('}');
 
-    return open !== -1 && close > open ? readParse(readJson(inner.slice(open, close + 1))) : undefined;
+    return open !== -1 && close > open ? readParse(readJson(inner.slice(open, close + 1)), readAnswer) : undefined;
 }
 
 type JsonRead = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
@@ -174,27 +242,20 @@ function readJson(candidate: string): JsonRead {
     }
 }
 
-function readParse(read: JsonRead): ModelParse | undefined {
+function readParse(read: JsonRead, readAnswer: AnswerReader): VariantParse | undefined {
     if (!read.ok) {
         return undefined;
     }
 
-    const parsed = modelParseSchema.safeParse(read.value);
+    const answer = readAnswer(read.value);
 
-    return parsed.success ? parsed.data : undefined;
+    return answer.ok ? answer.parse : undefined;
 }
 
-function judgeShape(value: unknown): ParseResponseOutcome {
-    const parsed = modelParseSchema.safeParse(value);
+function judgeShape(value: unknown, readAnswer: AnswerReader): ParseResponseOutcome {
+    const answer = readAnswer(value);
 
-    return parsed.success
-        ? { kind: 'valid', parse: parsed.data }
-        : {
-              kind: 'wrongShape',
-              detail: parsed.error.issues
-                  .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
-                  .join('; '),
-          };
+    return answer.ok ? { kind: 'valid', parse: answer.parse } : { kind: 'wrongShape', detail: answer.detail };
 }
 
 /** Enough of an unreadable response to recognise it in a report, without pasting a whole log line. */

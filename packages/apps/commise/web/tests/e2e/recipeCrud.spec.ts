@@ -76,8 +76,8 @@ test.describe('recipe CRUD (T079)', () => {
 
         await page.getByRole('button', { name: 'Next: Review' }).click();
 
-        // Step 4 (Photos) — a fresh create has no recipe id yet, so this step is a "save first" notice, not
-        // the photo manager; Publish is the top-bar action, present on every step.
+        // Step 4 (Review) — U33 replaced the old Photos step with Review and moved photos onto step 1, and
+        // U32 made Publish the action bar's FINAL-step primary rather than a top-bar action live everywhere.
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 
@@ -119,7 +119,8 @@ test.describe('recipe CRUD (T079)', () => {
         await page.getByRole('radio', { name: 'Not stated' }).click();
         // The edited recipe is fully valid, so the rail can jump straight to the final step; forward navigation
         // is ungated even with the unsaved title/difficulty edits (only backward navigation is guarded).
-        await page.getByRole('button', { name: /Details:/ }).click();
+        await page.getByRole('button', { name: /Review:/ }).click();
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille (edited)' })).toBeVisible();
 

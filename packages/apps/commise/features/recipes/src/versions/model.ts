@@ -99,7 +99,7 @@ export interface RecipeVersionListProps {
  * merge both read `diff.rows` instead).
  */
 export interface RecipeConflictViewProps {
-    /** The 409's winning server side (version/device/updatedAt/snapshot, W8-a.5) — the view's LEFT/FIRST side
+    /** The 409's winning server side (version/updatedAt/snapshot, W8-a.5) — the view's LEFT/FIRST side
      *  everywhere (X7). Drives the per-side banner (X3). */
     readonly server: VersionConflictSide;
     /** The version the draft was edited from, when still retained in the DB window; ABSENT when evicted (the
@@ -291,8 +291,8 @@ export const formatVersionAttribution = (
 // ─── Per-side banner (W7 Task 3 / X3) ────────────────────────────────────────────────────────────────
 //
 // The conflict view's top banner names each side plainly: the server's winning version (its version number,
-// when it was saved, and — when known — which device saved it) and the user's own in-progress draft (which
-// was never persisted, so it carries no version number of its own). Server is ALWAYS first (X7).
+// and when it was saved) and the user's own in-progress draft (which was never persisted, so it carries no
+// version number of its own). Server is ALWAYS first (X7).
 
 /**
  * Format an ISO 8601 instant as a localized "N units ago" relative-time string via `Intl.RelativeTimeFormat`

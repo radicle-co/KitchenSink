@@ -74,7 +74,8 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await expect(page.getByLabel('Ingredient 1 maximum quantity')).toHaveValue('3');
 
         await page.getByLabel('Ingredient 1 maximum quantity').fill('4');
-        await page.getByRole('button', { name: /Details:/ }).click();
+        await page.getByRole('button', { name: /Review:/ }).click();
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 
         await expect(page.getByRole('checkbox', { name: '2–4 cups Salt' })).toBeVisible();
@@ -123,7 +124,8 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await expect(page.getByLabel('Ingredient 1 quantity')).toHaveValue('');
         await expect(page.getByLabel('Ingredient 1 maximum quantity')).toHaveValue('');
 
-        await page.getByRole('button', { name: /Details:/ }).click();
+        await page.getByRole('button', { name: /Review:/ }).click();
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
         await expect(page.getByRole('checkbox', { name: 'the size of an egg Salt' })).toBeVisible();
     });

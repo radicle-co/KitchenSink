@@ -35,6 +35,23 @@ const THIRTY_INGREDIENT_RECIPE = makeRecipeDetail({
     })),
 });
 
+/**
+ * The same long recipe with NO instructions — the only state in which step 3 can legitimately refuse.
+ *
+ * ⛔ This seed is the whole point of the refusal test below, and its absence is what made that test vacuous:
+ * `makeRecipeDetail` defaults `steps` to one instruction, so the seed above is VALID on every step and
+ * `Next: Review` simply advanced. The assertion then waited on an `alert` that correctly never appeared and
+ * failed reading Next.js's empty route announcer — a test that could not have distinguished a working gate
+ * from a deleted one. `steps: []` is preserved by the factory (`over.steps ?? …` — an empty array is not
+ * nullish), so this recipe really does reach the wizard with an empty Instructions step.
+ */
+const NO_INSTRUCTIONS_RECIPE = makeRecipeDetail({
+    id: 'rec_bar_no_steps',
+    title: 'Stew with no method yet',
+    ingredients: THIRTY_INGREDIENT_RECIPE.ingredients,
+    steps: [],
+});
+
 /** Open the seeded recipe's edit wizard and land on the Ingredients step, where the long list lives. */
 async function openIngredientsStep(page: Page): Promise<void> {
     await signInWithTicket(page);
@@ -167,10 +184,29 @@ test.describe('recipe wizard action bar — 1024px desktop (U32)', () => {
     test('still refuses an invalid Next, and still says why', async ({ page }) => {
         // The shipped `canAdvanceFromStep` gate and its voiced refusal must survive the re-layout — the
         // mockup's own `goNext` advances unconditionally into an empty form.
-        await openIngredientsStep(page);
+        //
+        // ⚠️ REWRITTEN (this run): the seed is now `NO_INSTRUCTIONS_RECIPE`, and the assertions prove
+        // BOTH halves of the gate rather than one vague substring. What changed and why:
+        //  - it drives a recipe whose Instructions step is genuinely empty, so `Next` has something to refuse;
+        //  - it asserts the wizard STAYED on step 3, which is the refusal itself — voicing a message while
+        //    advancing anyway would have passed the old assertion;
+        //  - it asserts the EXACT sentence `stepsRequired` carries, not `toContainText('step')`, which the
+        //    word "step" in "Step 3 of 4" alone could have satisfied;
+        //  - it scopes to that sentence, because an unscoped `getByRole('alert')` also matches Next's
+        //    `__next-route-announcer__` and would be a strict-mode violation the moment the notice renders.
+        //  - it asserts the rail marker flipped to `needs attention`, the other half of the same refusal.
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium', recipes: [NO_INSTRUCTIONS_RECIPE] });
+        await page.goto(route('/recipes/rec_bar_no_steps/edit'));
+
         await page.getByRole('button', { name: /Instructions:/ }).click();
+        await expect(page.getByText('Step 3 of 4')).toBeVisible();
+
         await page.getByRole('button', { name: 'Next: Review' }).click();
 
-        await expect(page.getByRole('alert')).toContainText('step');
+        await expect(page.getByRole('alert').filter({ hasText: 'Add at least one instruction step.' })).toBeVisible();
+        await expect(page.getByText('Step 3 of 4')).toBeVisible();
+        await expect(page.getByRole('button', { name: /Instructions: needs attention/ })).toBeVisible();
     });
 });

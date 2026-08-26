@@ -43,7 +43,18 @@ test.describe('create SpeedDial (U34)', () => {
 
         await trigger.click();
 
-        await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+        // ⚠️ REWRITTEN (this run). The old assertion here was `expect(trigger).toHaveAttribute(
+        // 'aria-expanded', 'true')`, which cannot hold in a real browser and never could: `SpeedDial.tsx`
+        // adapts `@radix-ui/react-dialog`, whose modal content calls `hideOthers(content)` — and the trigger
+        // lives OUTSIDE the content, so while the dial is open the trigger is `aria-hidden` and no role query
+        // can reach it. That is DEVIATION 2 recorded in that module's own docstring, an accepted consequence
+        // of the adapter (and harmless in practice: while the dial is open, focus is trapped inside it).
+        //
+        // So the deviation is asserted instead of asserting against it — a checked property rather than a
+        // comment. The day the flip condition fires and this becomes `@radix-ui/react-dropdown-menu`, whose
+        // trigger stays exposed, THIS assertion fails and points at the docstring that predicted it.
+        await expect(trigger).toHaveCount(0);
+
         const menu = page.getByRole('menu', { name: 'Create a recipe' });
         await expect(menu).toBeVisible();
         // ONE destination, asserted as a count rather than as "the one I looked for is present" — the latter

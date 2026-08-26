@@ -2,7 +2,7 @@
  * @module @commise/features-recipes — web recipe version-history view (T069 building block).
  *
  * Controlled, presentational version list: renders a recipe's versions newest-first, each with its number,
- * timestamp, editor/device attribution (when known), and a computed "Changed: {fields}" summary versus its
+ * timestamp, editor attribution (when known), and a computed "Changed: {fields}" summary versus its
  * immediately-prior version (the earliest version shows an "Initial version" label instead). The current
  * version is marked and not restorable; every other version offers Restore and (when `onPreview` is wired)
  * Preview actions, and the version being restored shows a busy status (with all restore actions disabled to

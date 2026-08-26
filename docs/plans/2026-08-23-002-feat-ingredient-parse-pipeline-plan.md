@@ -289,6 +289,13 @@ Two tables, two erasure treatments, and the split is deliberate.
   **de-identifying `UPDATE`, never a `DELETE`** — the row is consulted by every user's pipeline, so
   deleting it would silently un-correct that line installation-wide. `owner_id` and the text move as a
   pair or not at all.
+- ⛔ **REVERSED 2026-08-25 — ADR-0027.** The bullet above describes the erasure treatment as it was
+  designed. The owner has since ruled that an ingredient phrase is **not personal data**: migration `0033`
+  removed the sweep, renamed `owner_id`/`author_id` to `user_id` (a DISTINCT-USER COUNTER and an
+  authorization predicate, never an erasure predicate), dropped the pair CHECKs, and dropped
+  `ingredient_resolution_memos.owner_id` entirely. Read
+  `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md` before implementing anything
+  from this section.
 
 ### KTD-6 — The correction tier reuses `mappingScopePolicy`, applied to a different subject
 
@@ -642,6 +649,17 @@ second independent corroboration promotes an author-scoped correction · erasure
 text **together**, never one without the other · erasure never deletes the row · the sweep succeeds
 against a row whose text column is already NULL (idempotent) · the new gate fails when a table with an
 `owner_id` is absent from the sweep.
+
+⛔ **REVERSED 2026-08-25 — ADR-0027.** The Files block above is also stale for this section: there is no
+twelfth numbered step in `accountErasureWorker.ts` (steps 10-12 were removed), and
+`__tests__/integration/erasure/parseCorrectionErasure.integration.test.ts` was DELETED — its coverage
+inverted into `ingredientTiersRetained.integration.test.ts`, which proves the rows survive a real erasure
+untouched.
+
+⛔ **REVERSED 2026-08-25 — ADR-0027.** The three erasure scenarios above no longer apply: no sweep reaches
+this table, so there is nothing to NULL, nothing to be idempotent about, and the coverage gate now records
+the table in `RETAINED_BY_RULING` instead of demanding a sweep. What replaced them: the sweep must issue no
+statement against these tables, and the rows must survive a real erasure untouched.
 
 **Verification.** Integration tier green; erasure suite green.
 

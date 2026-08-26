@@ -69,7 +69,7 @@
  * R20 says "a later correction supersedes" an earlier mapping. Read without a scope gate that hands any
  * authenticated caller a one-step path to overwrite a curator's global mapping through the EDIT path. The
  * plan closes that one. ⛔ But its own remedy opens a second: it permits supersession "by a grant holder **or
- * by a fresh independent-corroboration pair**" — and two accounts held by one person clear a distinct-author
+ * by a fresh independent-corroboration pair**" — and two accounts held by one person clear a distinct-user
  * check, so sock puppets would displace a curator by the corroboration path instead. This policy therefore
  * NARROWS the plan: a `corroboration`-origin global mapping may be displaced by a fresh pair, a
  * `curator`-origin one may not. ⚠️ **That narrowing is flagged for the owner, not assumed** — without it the
@@ -159,11 +159,11 @@ export interface MappingWriteInput {
      * The OTHER authors who already hold a live author-scoped mapping from this phrase to
      * {@link MappingWriteInput.correctedFoodId}, ordered `created_at, id`.
      *
-     * ⛔ The caller's own mapping is EXCLUDED by the reader that builds this (`author_id <> :caller`), which
-     * is what makes "the same author correcting twice does not promote" a property of the SET rather than a
+     * ⛔ The caller's own mapping is EXCLUDED by the reader that builds this (`user_id <> :caller`), which
+     * is what makes "the same user correcting twice does not promote" a property of the SET rather than a
      * rule this policy has to remember. Distinctness is guaranteed upstream by the partial unique index on
-     * `(normalized_key, author_id)` over live author rows — the reason corroboration is a row count and never
-     * a read-modify-write counter. The ORDER is the reader's, not re-derived here.
+     * `(normalized_key, user_id)` over live author-scoped rows — the reason corroboration is a row count and
+     * never a read-modify-write counter. The ORDER is the reader's, not re-derived here.
      */
     readonly corroboratorsForSameFood: readonly CorroboratingMapping[];
 }

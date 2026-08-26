@@ -59,6 +59,6 @@ export function createCuratedTier(dal: ResolutionMappingsDal): ResolutionTier {
          * @returns This tier's verdict.
          * @sideEffect Reads `ingredient_resolution_mappings`.
          */
-        resolve: async (query, context) => decideCuratedTier(await dal.findInForce(query.key, context.authorId)),
+        resolve: async (query, context) => decideCuratedTier(await dal.findInForce(query.key, context.userId)),
     };
 }

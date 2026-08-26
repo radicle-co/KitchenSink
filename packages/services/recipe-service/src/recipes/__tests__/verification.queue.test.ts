@@ -87,14 +87,23 @@ describe('createVerificationQueue — nothing unsendable leaves the process', ()
      * happened to read like a ULID without being one; nothing at THIS layer, where the drop happens, said a
      * word.
      *
-     * ⚠️ The rule this pins is a PRIORITY, not a format. `ownerId` exists so a memo can be erased later;
-     * verification is why the message exists at all. A field that cannot fail the thing it annotates must
-     * never be able to veto it — so an unrecognised owner id costs an erasure correlation, and nothing else.
+     * ⚠️ REWRITTEN for the 2026-08-25 owner ruling (ADR-0027), which REMOVED `ownerId` from the contract:
+     * it existed only so a memo's phrase could be erased, and migration 0033 removed the memo's person column
+     * and the sweep, leaving it with no consumer at all. The regression above is the reason this assertion
+     * survives in a stronger form rather than being deleted with the field.
+     *
+     * ⛔ What it pins NOW is the property that makes removing a field SAFE IN BOTH DEPLOY DIRECTIONS: the
+     * queue holds messages from the previous producer that still carry `ownerId`, and `z.object` STRIPS an
+     * unknown key rather than refusing the message. If that ever became `z.strict()`, every in-flight message
+     * would be dropped by the very partition this suite covers — the same silent, whole-recipe drop the
+     * `z.ulid()` defect caused, arriving by a different route.
      */
-    it('sends a message whose ownerId is unrecognised — a correlation id may not veto verification', async () => {
+    it('sends a message still carrying the REMOVED ownerId — an unknown key is stripped, never a veto', async () => {
         const send = vi.fn().mockResolvedValue({ failedIds: [] });
 
-        await createVerificationQueue(send, QUEUE_URL).enqueue([makeMessage({ ownerId: 'not-a-ulid' })]);
+        await createVerificationQueue(send, QUEUE_URL).enqueue([
+            makeMessage({ ownerId: 'not-a-ulid' } as Record<string, unknown>),
+        ]);
 
         expect(send).toHaveBeenCalledTimes(1);
     });

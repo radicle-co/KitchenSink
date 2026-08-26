@@ -56,20 +56,6 @@ export interface AgreementRow {
     readonly sourceLine: string;
     readonly foodId: string;
     readonly modelId: string;
-    /**
-     * Who owns the recipe the phrase came from, so account erasure can reach it (migration 0026).
-     *
-     * ⚠️ `undefined` for a message enqueued by a producer that predates the field. The memo is still written
-     * — refusing it would lose knowledge over a missing correlation — but it then records the MACHINE's
-     * conclusion ONLY: `food_id` and `verified_by`, and no phrase.
-     *
-     * ⛔ That last part is migration 0031 and is not a detail. Writing the phrase with no owner beside it
-     * leaves a cook's typed words on a row the sweep's `WHERE owner_id = $owner` can never match — the exact
-     * defect a `corroboration` mapping had, where the words outlived the erasure that should have removed
-     * them. "No worse than before 0026" was true and was still an unbounded retention window; a conclusion
-     * with no phrase is strictly better than a phrase with no owner.
-     */
-    readonly ownerId?: string | undefined;
 }
 
 /** The gate's entire write surface. */
@@ -130,27 +116,22 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
                 return;
             }
 
-            // ⛔ `owner_id` MOVES WITH `source_phrase`, in both the insert and the update. The table is keyed
-            // on the normalized phrase, so two users whose lines normalize alike share one row and the later
-            // write replaces both columns together. Updating the phrase while leaving a previous owner's id
-            // beside it would point erasure at the wrong person — it would sweep a phrase the erased user
-            // never typed, and leave the one they did. Migration 0031 makes the split row unrepresentable
-            // rather than leaving that pairing to whoever edits this statement next.
-            //
-            // ⛔ Which is also why an OWNERLESS message stores no phrase. The memo is still written — the
-            // machine's conclusion is what every future cook's cascade reads — but a phrase with nobody to
-            // attribute it to is unreachable by the sweep's predicate, so it would sit here permanently.
-            const phrase = row.ownerId === undefined ? null : row.sourceLine;
-
+            // ⛔ THE PHRASE IS STORED UNCONDITIONALLY, and that is the 2026-08-25 owner ruling (ADR-0027)
+            // rather than a simplification. This statement used to carry an `owner_id` and to write
+            // `source_phrase` only when the message named an owner — migration 0026 had added the column so
+            // an erasure sweep had a predicate, and 0031 made the pairing a CHECK. The owner reversed the
+            // premise: an ingredient phrase is not private data. Migration 0033 dropped the column, the CHECK
+            // and the sweep, so a memo now records exactly what it always meant to — the machine's conclusion
+            // and the words it judged. ⛔ Do not reintroduce a conditional here; a memo with no phrase would
+            // silently cost the two-way door 0021 keeps the phrase for.
             await db.execute(sql`
                 INSERT INTO ingredient_resolution_memos
-                    (normalized_key, food_id, source_phrase, verified_by, owner_id)
-                VALUES (${key}, ${row.foodId}, ${phrase}, ${row.modelId}, ${row.ownerId ?? null})
+                    (normalized_key, food_id, source_phrase, verified_by)
+                VALUES (${key}, ${row.foodId}, ${row.sourceLine}, ${row.modelId})
                 ON CONFLICT (normalized_key) DO UPDATE
                    SET food_id     = EXCLUDED.food_id,
                        source_phrase = EXCLUDED.source_phrase,
                        verified_by = EXCLUDED.verified_by,
-                       owner_id    = EXCLUDED.owner_id,
                        verified_at = now()
             `);
         },

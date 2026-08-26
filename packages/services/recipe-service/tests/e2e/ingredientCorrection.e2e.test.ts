@@ -54,7 +54,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient correction surface (e2e, assembled 
     });
 
     afterEach(async () => {
-        await pool.query('DELETE FROM ingredient_resolution_mappings WHERE author_id = $1', [CALLER]);
+        await pool.query('DELETE FROM ingredient_resolution_mappings WHERE user_id = $1', [CALLER]);
     });
 
     afterAll(async () => {
@@ -89,7 +89,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient correction surface (e2e, assembled 
         expect(json).toEqual({ recorded: true, mappingId: expect.any(String), scope: 'author' });
 
         const { rows } = await pool.query<{ food_id: string; scope: string; origin: string; surfacing: string }>(
-            'SELECT food_id, scope, origin, surfacing FROM ingredient_resolution_mappings WHERE author_id = $1',
+            'SELECT food_id, scope, origin, surfacing FROM ingredient_resolution_mappings WHERE user_id = $1',
             [CALLER],
         );
 
@@ -108,7 +108,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient correction surface (e2e, assembled 
         await correct(validBody());
 
         const { rows } = await pool.query<{ normalized_key: string; source_phrase: string }>(
-            'SELECT normalized_key, source_phrase FROM ingredient_resolution_mappings WHERE author_id = $1',
+            'SELECT normalized_key, source_phrase FROM ingredient_resolution_mappings WHERE user_id = $1',
             [CALLER],
         );
 
@@ -126,9 +126,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient correction surface (e2e, assembled 
         expect(status).toBe(200);
         expect(json).toEqual({ recorded: false, outcome: 'already_in_force' });
 
-        const { rows } = await pool.query('SELECT id FROM ingredient_resolution_mappings WHERE author_id = $1', [
-            CALLER,
-        ]);
+        const { rows } = await pool.query('SELECT id FROM ingredient_resolution_mappings WHERE user_id = $1', [CALLER]);
 
         // ⛔ Exactly ONE. A churn row per re-open would inflate the corroboration count that decides
         // promotion, turning "two independent authors agreed" into "somebody visited the line twice".
@@ -142,10 +140,13 @@ describe.skipIf(!hasDatabaseUrl)('ingredient correction surface (e2e, assembled 
         expect(status).toBe(400);
     });
 
-    it('REJECTS an authorId, so a caller cannot write a correction as somebody else', async () => {
-        const { status } = await correct(validBody({ authorId: '01JSOMEONEELSE0000000000AA' }));
-
-        expect(status).toBe(400);
+    it('REJECTS a caller-supplied identity, under EITHER spelling — nobody writes as somebody else', async () => {
+        // ⚠️ BOTH spellings, since migration 0033 renamed the column `author_id` → `user_id` (ADR-0027). The
+        // request body has never carried either — identity comes from the verified principal — and the
+        // `z.strictObject` boundary is what makes that unforgeable. Asserting only the OLD name would let a
+        // future `userId` field slip in under a test that reads as though it covers this.
+        expect((await correct(validBody({ authorId: '01JSOMEONEELSE0000000000AA' }))).status).toBe(400);
+        expect((await correct(validBody({ userId: '01JSOMEONEELSE0000000000AA' }))).status).toBe(400);
     });
 
     it('REJECTS a surfacing outside the published vocabulary, keeping the audit dimension aggregable', async () => {
@@ -170,9 +171,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient correction surface (e2e, assembled 
 
         expect(status).toBe(400);
 
-        const { rows } = await pool.query('SELECT id FROM ingredient_resolution_mappings WHERE author_id = $1', [
-            CALLER,
-        ]);
+        const { rows } = await pool.query('SELECT id FROM ingredient_resolution_mappings WHERE user_id = $1', [CALLER]);
 
         expect(rows).toHaveLength(0);
     });

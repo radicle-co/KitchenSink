@@ -88,12 +88,18 @@ export interface LiveGlobalCorrection {
     readonly origin: Exclude<CorrectionOrigin, 'author'>;
 }
 
-/** One other author's live correction asserting the same answer. */
+/** One other user's live correction asserting the same answer. */
 export interface CorroboratingCorrection {
     /** Its row id — cited by the promotion, which is what makes the promotion auditable. */
     readonly id: string;
-    /** The author who wrote it. Never the caller: the reader excludes the caller by predicate. */
-    readonly authorId: string;
+    /**
+     * The user who wrote it. Never the caller: the reader excludes the caller by predicate.
+     *
+     * ⛔ This field IS the distinct-user count — the whole reason a correction row keeps a user id at all
+     * (owner ruling 2026-08-25, ADR-0027). It is `user_id` on both tiers since migration 0033, which is what
+     * lets ONE shared policy decide reach for two subjects without translating two spellings.
+     */
+    readonly userId: string;
 }
 
 /** The complete input to a correction-write decision. */
@@ -127,11 +133,11 @@ export interface CorrectionScopeInput {
      * The OTHER authors who already hold a live author-scoped correction asserting
      * {@link CorrectionScopeInput.correctedAnswer}, ordered `created_at, id`.
      *
-     * ⛔ The caller's own row is EXCLUDED by the reader that builds this (`author_id <> :caller`), which is
-     * what makes "the same author correcting twice does not promote" a property of the SET rather than a rule
+     * ⛔ The caller's own row is EXCLUDED by the reader that builds this (`user_id <> :caller`), which is
+     * what makes "the same user correcting twice does not promote" a property of the SET rather than a rule
      * this policy has to remember. Distinctness is guaranteed upstream by the partial unique index over live
-     * author rows — the reason corroboration is a row count and never a read-modify-write counter. The ORDER
-     * is the reader's, not re-derived here.
+     * author-scoped rows — the reason corroboration is a row count and never a read-modify-write counter. The
+     * ORDER is the reader's, not re-derived here.
      */
     readonly corroboratorsForSameAnswer: readonly CorroboratingCorrection[];
 }

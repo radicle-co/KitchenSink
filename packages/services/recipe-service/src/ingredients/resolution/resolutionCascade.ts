@@ -111,7 +111,7 @@ export interface ResolutionContext {
      * treat it as such: the curated tier shows an unattended caller global mappings and nobody's personal
      * ones, because one user's private correction must never silently rewrite an import.
      */
-    readonly authorId: string | undefined;
+    readonly userId: string | undefined;
 }
 
 /**

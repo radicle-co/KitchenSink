@@ -1,5 +1,13 @@
 -- 0026_memo_owner_erasure.sql (plan U10; owner ruling 2026-08-23) — make a memo's phrase erasable.
 --
+-- ⛔⛔ THIS MIGRATION'S RULING WAS REVERSED ON 2026-08-25. Read
+-- `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md` BEFORE reasoning from
+-- anything below. The owner ruled that an ingredient phrase is NOT private data, so migration 0033 DROPPED
+-- the `owner_id` column this file adds, along with its partial index and the erasure sweep it existed for.
+-- What survives of this file is the `source_phrase` `NOT NULL` relaxation — kept for a different reason
+-- (0031's backfills already nulled the column, so it can no longer be restored). Everything below is the
+-- record of a decision that no longer holds.
+--
 -- ## The gap this closes
 --
 -- `ingredient_resolution_memos.source_phrase` is text a user typed, remembered because the verification gate

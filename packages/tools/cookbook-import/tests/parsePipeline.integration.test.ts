@@ -171,7 +171,7 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
             engines: { crf, llm },
             digest: sha256,
         };
-        const outcomes = await runParsePipeline(LINES, deps, { ownerId: undefined }, observers);
+        const outcomes = await runParsePipeline(LINES, deps, { userId: undefined }, observers);
 
         expect(observers.tierFailures).toEqual([]);
         expect(outcomes).toHaveLength(LINES.length);
@@ -198,7 +198,7 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
         const [outcome] = await runParsePipeline(
             ['one gill of milk'],
             { corrections: NO_CORRECTIONS, cache: NO_CACHE, engines: { crf, llm }, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -216,7 +216,7 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
         const [outcome] = await runParsePipeline(
             ['two cups of flour'],
             { corrections: NO_CORRECTIONS, cache: NO_CACHE, engines: { crf, llm }, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -233,7 +233,7 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
         const cold = await runParsePipeline(
             LINES,
             { corrections: NO_CORRECTIONS, cache, engines: { crf: await createCrfEngine(), llm }, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -251,7 +251,7 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
         const warm = await runParsePipeline(
             LINES,
             { corrections: NO_CORRECTIONS, cache, engines: { crf: forbidden, llm }, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             observers,
         );
 
@@ -266,7 +266,7 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
         await runParsePipeline(
             ['one cup of brown sugar'],
             { corrections: NO_CORRECTIONS, cache, engines: { crf: await createCrfEngine(), llm }, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 

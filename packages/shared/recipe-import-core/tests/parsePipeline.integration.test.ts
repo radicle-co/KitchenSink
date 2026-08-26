@@ -266,7 +266,7 @@ describe('a cold run over the corpus, then a warm one', () => {
         const engines = makeEngines();
         const observers = makeObservers();
         const deps: ParsePipelineDeps = { corrections: NO_CORRECTIONS, cache, engines, digest: sha256 };
-        const outcomes = await runParsePipeline(CORPUS_LINES, deps, { ownerId: undefined }, observers);
+        const outcomes = await runParsePipeline(CORPUS_LINES, deps, { userId: undefined }, observers);
 
         expect(observers.tierFailures).toEqual([]);
         expect(observers.unreadable).toEqual([]);
@@ -297,7 +297,7 @@ describe('a cold run over the corpus, then a warm one', () => {
         const coldOutcomes = await runParsePipeline(
             CORPUS_LINES,
             { corrections: NO_CORRECTIONS, cache, engines: cold, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             observers,
         );
 
@@ -305,7 +305,7 @@ describe('a cold run over the corpus, then a warm one', () => {
         const warmOutcomes = await runParsePipeline(
             CORPUS_LINES,
             { corrections: NO_CORRECTIONS, cache, engines: warm, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             observers,
         );
 
@@ -325,7 +325,7 @@ describe('a cold run over the corpus, then a warm one', () => {
         await runParsePipeline(
             CORPUS_LINES,
             { corrections: NO_CORRECTIONS, cache, engines, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -351,7 +351,7 @@ describe('a cold run over the corpus, then a warm one', () => {
         await runParsePipeline(
             CORPUS_LINES,
             { corrections: NO_CORRECTIONS, cache, engines, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -367,7 +367,7 @@ describe('downstream contract — every resolved value is storable', () => {
         const outcomes = await runParsePipeline(
             CORPUS_LINES,
             { corrections: NO_CORRECTIONS, cache: NO_CACHE, engines, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -401,7 +401,7 @@ describe('downstream contract — every resolved value is storable', () => {
         const outcomes = await runParsePipeline(
             CORPUS_LINES,
             { corrections: NO_CORRECTIONS, cache: NO_CACHE, engines, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -451,7 +451,7 @@ describe('the correction tier, over the REAL match grain', () => {
         await runParsePipeline(
             [subject],
             { corrections: NO_CORRECTIONS, cache, engines: cold, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -475,7 +475,7 @@ describe('the correction tier, over the REAL match grain', () => {
         const [outcome] = await runParsePipeline(
             [subject],
             { corrections, cache, engines: warm, digest: sha256 },
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -514,7 +514,7 @@ describe('the correction tier, over the REAL match grain', () => {
         const [outcome] = await runParsePipeline(
             [shouted],
             { corrections, cache: NO_CACHE, engines, digest: sha256 },
-            { ownerId: 'user_1' },
+            { userId: 'user_1' },
             makeObservers(),
         );
 
@@ -532,7 +532,7 @@ describe('the correction tier, over the REAL match grain', () => {
         const [outcome] = await runParsePipeline(
             [subject],
             { corrections, cache: NO_CACHE, engines, digest: sha256 },
-            { ownerId: 'user_1' },
+            { userId: 'user_1' },
             observers,
         );
 
@@ -564,7 +564,7 @@ describe('the correction tier, over the REAL match grain', () => {
         const outcomes = await runParsePipeline(
             CORPUS_LINES,
             { corrections, cache, engines, digest: sha256 },
-            { ownerId: 'user_1' },
+            { userId: 'user_1' },
             makeObservers(),
         );
 

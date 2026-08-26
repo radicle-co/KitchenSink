@@ -13,7 +13,7 @@
  *     curator's mapping through the EDIT path — the exact escalation the grant exists to prevent, reached by
  *     editing rather than by writing.
  *  2. **A corroboration pair may NOT supersede a CURATOR's global mapping.** Two accounts held by one person
- *     clear a distinct-author check, so without this rule the grant is decorative: sock puppets override a
+ *     clear a distinct-user check, so without this rule the grant is decorative: sock puppets override a
  *     curator by the corroboration path instead of the edit path. ⚠️ This NARROWS the plan's sentence "a
  *     global mapping may be superseded by a grant holder **or by a fresh independent-corroboration pair**",
  *     and the narrowing is flagged for the owner rather than assumed.
@@ -61,7 +61,7 @@ function corroboratedGlobal(foodId: string): MappingWriteInput['liveGlobal'] {
 }
 
 /** One other author already mapping this phrase to the same food. */
-const ONE_CORROBORATOR = [{ id: CORROBORATOR_ID, authorId: AUTHOR_B }] as const;
+const ONE_CORROBORATOR = [{ id: CORROBORATOR_ID, userId: AUTHOR_B }] as const;
 
 /**
  * Assert a decision's `write` AND that it carries a non-empty reason.
@@ -146,7 +146,7 @@ describe('evaluateMappingWrite — an ungranted caller stays AUTHOR-SCOPED until
     });
 
     it('does NOT promote when nobody else agrees — one author correcting twice cannot promote itself', () => {
-        // The caller's own row is excluded upstream (`author_id <> :caller`), so "the same author corrected
+        // The caller's own row is excluded upstream (`user_id <> :caller`), so "the same author corrected
         // twice" reaches the policy as an EMPTY set. A mutant counting the caller's own row makes one account
         // a curator.
         const decision = evaluateMappingWrite(input({ liveOwn: { id: OWN_ID, foodId: OTHER_FOOD } }));
@@ -158,8 +158,8 @@ describe('evaluateMappingWrite — an ungranted caller stays AUTHOR-SCOPED until
         const decision = evaluateMappingWrite(
             input({
                 corroboratorsForSameFood: [
-                    { id: CORROBORATOR_ID, authorId: AUTHOR_B },
-                    { id: OWN_ID, authorId: '01JU10AUTHOR000000000000CC' },
+                    { id: CORROBORATOR_ID, userId: AUTHOR_B },
+                    { id: OWN_ID, userId: '01JU10AUTHOR000000000000CC' },
                 ],
             }),
         );
@@ -181,7 +181,7 @@ describe('evaluateMappingWrite — supersession is SCOPE-GATED (the two escalati
     });
 
     it('⛔ does NOT let a corroboration pair supersede a CURATOR’s global mapping', () => {
-        // Two accounts held by one person clear a distinct-author check. If corroboration could displace a
+        // Two accounts held by one person clear a distinct-user check. If corroboration could displace a
         // curator's deliberate ruling, the grant would be decorative — the escalation would simply move from
         // the edit path (already closed) to the corroboration path.
         const decision = evaluateMappingWrite(

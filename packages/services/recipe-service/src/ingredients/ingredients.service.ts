@@ -357,14 +357,14 @@ export class IngredientsService {
      *
      * @param caller - The requesting user's credential, forwarded to food-service on admission.
      * @param name - The phrase the caller supplied, already in canonical display form.
-     * @param authorId - The requesting user, or `undefined` for an unattended import (R22).
+     * @param userId - The requesting user, or `undefined` for an unattended import (R22).
      * @returns The admitted ingredient, or `undefined` when the cascade could not (or should not) answer.
      * @sideEffect Runs the cascade's tiers, then admits a food (one food-service read + an `ingredients` write).
      */
     private async resolveThroughCascade(
         caller: CallerToken | undefined,
         name: CanonicalIngredientName,
-        authorId: string | undefined,
+        userId: string | undefined,
     ): Promise<Ingredient | undefined> {
         if (this.resolutionTiers.length === 0) {
             return undefined;
@@ -379,7 +379,7 @@ export class IngredientsService {
         const outcome = await runResolutionCascade(
             this.resolutionTiers,
             { key, phrase: name },
-            { authorId },
+            { userId },
             {
                 onTierFailure: (tier, error) =>
                     this.logger.warn(
@@ -483,7 +483,7 @@ export class IngredientsService {
      *
      * @param caller - The requesting user's credential, forwarded to food-service.
      * @param name - The display name, already parsed to its canonical form by the controller.
-     * @param authorId - The requesting user's ULID, so a curated mapping THEY wrote outranks the global one.
+     * @param userId - The requesting user's ULID, so a curated mapping THEY wrote outranks the global one.
      *   `undefined` means an unattended import (R22): the cascade then sees global mappings and nobody's
      *   personal ones, because one user's private correction must never silently rewrite an import.
      * @returns The created (or deduped) food-backed ingredient with its current resolution status.
@@ -492,9 +492,9 @@ export class IngredientsService {
     public async addByName(
         caller: CallerToken | undefined,
         name: CanonicalIngredientName,
-        authorId?: string,
+        userId?: string,
     ): Promise<Ingredient> {
-        const mapped = await this.resolveThroughCascade(caller, name, authorId);
+        const mapped = await this.resolveThroughCascade(caller, name, userId);
 
         if (mapped !== undefined) {
             return mapped;

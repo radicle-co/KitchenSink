@@ -118,13 +118,13 @@ export class ResolutionMappingsService {
             };
         }
 
-        const authorId = input.principal.userId;
+        const userId = input.principal.userId;
         // `scopes` ∪ `permissions`, mirroring identity's `ScopesGuard` rule that a grant is satisfied by
         // EITHER list. Both come from the token's SIGNED `public_metadata`; a top-level claim is never a grant.
         const grantedScopes = [...input.principal.scopes, ...input.principal.permissions];
 
         const { result, decidedScope, corroboratingAuthorIds } = await this.dal.runInTransaction(async (tx) => {
-            const facts = await this.dal.findWriteFacts(normalizedKey, authorId, input.foodId, tx);
+            const facts = await this.dal.findWriteFacts(normalizedKey, userId, input.foodId, tx);
             const decision = evaluateMappingWrite({ correctedFoodId: input.foodId, grantedScopes, ...facts });
 
             return {
@@ -138,14 +138,19 @@ export class ResolutionMappingsService {
                         normalizedKey,
                         sourcePhrase: input.phrase,
                         foodId: input.foodId,
-                        authorId,
+                        userId,
                         surfacing: input.surfacing,
                     },
                     tx,
                 ),
                 // Captured inside the transaction, where the facts the decision was made on are still the
-                // facts: the audit line must name the authors whose agreement actually produced the binding.
-                corroboratingAuthorIds: facts.corroboratorsForSameFood.map((mapping) => mapping.authorId),
+                // facts: the audit line must name the users whose agreement actually produced the binding.
+                // ⚠️ The SIGNAL keeps the name `corroboratingAuthorIds` even though the column is now
+                // `user_id` (migration 0033): it is an emitted log-field key, so renaming it would move an
+                // operational contract a dashboard or query may already read, for no gain. The concept it
+                // names — the AUTHORS of the corroborating author-scoped rows — is the one `scope`/`origin`
+                // still spell `author`.
+                corroboratingAuthorIds: facts.corroboratorsForSameFood.map((mapping) => mapping.userId),
             };
         });
 
@@ -159,7 +164,7 @@ export class ResolutionMappingsService {
             // one binding and point a reviewer at a row this request did not create.
             this.audit.recordPromotion({
                 mappingId: result.promotion.mappingId,
-                corroboratingAuthorIds: [...corroboratingAuthorIds, authorId],
+                corroboratingAuthorIds: [...corroboratingAuthorIds, userId],
                 normalizedKey,
             });
         }

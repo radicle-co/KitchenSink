@@ -213,7 +213,7 @@ async function observeParses(
         // ⛔ An unattended import has NO caller, and the correction tier must treat it as such: global
         // corrections and nobody's personal ones (R22). `cookbook-import` runs `NO_CORRECTIONS` anyway, so
         // this is belt and braces — but the belt is the one that would matter if it ever acquired a store.
-        { ownerId: undefined },
+        { userId: undefined },
         {
             onTierFailure: (tier) => {
                 data.tierFailures[tier] = (data.tierFailures[tier] ?? 0) + 1;

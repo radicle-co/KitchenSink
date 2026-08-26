@@ -530,3 +530,23 @@ describe('U35 — the case-sensitive table cannot be extended badly', () => {
         }
     });
 });
+
+describe('C/c as cup (owner ruling 2026-08-25, same class as T/t)', () => {
+    it('reads both cases as cup', () => {
+        expect(normalizeUnit('C')).toBe('cup');
+        expect(normalizeUnit('c')).toBe('cup');
+        expect(classifyUnit('C')).toBe('canonical');
+        expect(classifyUnit('c')).toBe('canonical');
+    });
+
+    it('⛔ does NOT disturb the case-sensitive pair: T and t keep their distinct meanings', () => {
+        expect(normalizeUnit('T')).toBe('tablespoon');
+        expect(normalizeUnit('t')).toBe('teaspoon');
+    });
+
+    it('leaves the long spellings alone', () => {
+        expect(normalizeUnit('cup')).toBe('cup');
+        expect(normalizeUnit('cups')).toBe('cup');
+        expect(normalizeUnit('Cup')).toBe('cup');
+    });
+});

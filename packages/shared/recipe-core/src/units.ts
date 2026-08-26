@@ -85,6 +85,15 @@ const UNIT_ALIASES: Readonly<Record<string, string>> = {
     teaspoon: 'teaspoon',
     teaspoons: 'teaspoon',
     tsp: 'teaspoon',
+    // R31 sibling of the `T`/`t` pair below, and DELIBERATELY here in the case-INSENSITIVE table rather
+    // than in `CASE_SENSITIVE_UNIT_ALIASES`. `parse-ingredient` carries `C` and `c` as cup alternates and
+    // this table carried neither, so `2 C flour` normalized to itself, classified `unknown`, and lost its
+    // gram conversion — the same defect `T`/`t` had. ⛔ But it is NOT the same RULING: `T` vs `t` needed a
+    // convention asserted (capital means tablespoon) and pays for it with a silent-tripling risk, whereas
+    // BOTH cases of `c` mean cup. There is no second meaning to collide with, so the ordinary fold is
+    // correct and no case-sensitive entry is owed. Adding one would be the wrong abstraction: it would
+    // imply a distinction that does not exist.
+    c: 'cup',
     // R31 — the `*ful` family. A 1900s cookbook writes `teaspoonful`, and the de-pluralization fallback
     // below cannot reach it (no trailing `s`), so it normalized to itself, matched no portion, and cost
     // the line its gram conversion.

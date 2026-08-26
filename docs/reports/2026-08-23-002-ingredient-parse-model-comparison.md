@@ -1615,3 +1615,168 @@ this repository fetches Project Gutenberg (ADR-0023). The tolerant re-read, the 
 comparison and the `"null"`-string count are scratch analyses over the `--out` trial files and are
 deliberately not committed, on the rule the earlier "Reproducing" sections state; each is a few lines over
 `{corpus, crf, trials}` reusing `classifyFoodName` and `normalizeParseAnswer` rather than a second lexicon.
+
+---
+
+## 16. The oracle census RE-BASELINED — the seeds moved, the census did not (2026-08-26)
+
+⛔ **Nothing above is restated or corrected in place**, on the rule §9 opens with and §§10–15 keep. §10's
+census figures remain the 2026-08-25 capture. This section adds one delta: what §13's position ruling did to
+a census whose seeds are positional by design, and what the re-capture found.
+
+### 16.1 The failure was the design working, and it named its own cause
+
+`parseOracle.integration.test.ts` failed three assertions. The fixture's own seed docstring predicted it in
+as many words — _"Positional and stable… A change to the extractor renumbers it, which is exactly when this
+census is owed a re-run."_ §13's ruling renumbered the corpus, so:
+
+| assertion                                                     | what it reported                             |
+| ------------------------------------------------------------- | -------------------------------------------- |
+| `resolves every seed to a line the extractor really produces` | `L02494` names no corpus line                |
+| `quotes each seeded line BYTE-IDENTICALLY`                    | 48 cases quoting the line at the wrong index |
+| `draws every case from the INGREDIENT half`                   | 23 cases now pointing into the dropped half  |
+
+⚠️ **This tier SKIPS in CI** — `COOKBOOK_IMPORT_BOOK` is never set there, because ADR-0023 forbids
+committing the book — so the census can rot for as long as nobody runs it locally. That is a property of the
+guard rather than a defect introduced here, and it is why the re-baseline was owed for days rather than
+minutes.
+
+### 16.2 The corpus delta, line by line — 14 out, 2 in
+
+Rebuilt at the census-capture tree (`6a565a00`) and at `87b1e692`: same book, same
+`toCandidateRecipe → harvestSourceTexts → buildParseCorpus` path, no engine calls. The capture tree
+reproduces §10.2 exactly on all three rows, which is what makes the two columns comparable.
+
+| quantity              | at capture (§10.2) | after the position ruling |
+| --------------------- | -----------------: | ------------------------: |
+| Distinct corpus lines |          **2,502** |                 **2,490** |
+| — the ingredient half |          **1,298** |                 **1,295** |
+| — the dropped half    |          **1,204** |                 **1,195** |
+
+**Removed — 14 lines, and 12 of them are one contiguous block.** `L00765`–`L00776` is the whole SPINACH
+recipe, which §13.4 records falling to `too_few_ingredients`: its two fabricated ingredient lines
+(`a large pan of water`, `a cup is plenty for one quart of spinach`) and the ten dropped-half sentences that
+went with the block. The other two removals are §13.3's replacements —
+`a large bowl sift one pound of fine flour` and `a large mixing bowl whip to a cream two eggs`.
+
+⚠️ `one-quarter teaspoon of pepper`, the one real ingredient §13.4 records losing with the block, does **not**
+appear in this list: the corpus is de-duplicated and other recipes print the same line, so it survives here
+while being lost from that recipe. Two denominators again, not a contradiction.
+
+**Added — 2 lines:** `one pound of fine flour` (the KINDLECH recovery, §13.3, in the ingredient half at the
+same index its predecessor held) and `In a large mixing bowl whip to a cream two eggs` — the full clause,
+now that the vessel span inside it is refused and no sub-span is harvested from it, so it lands in the
+**dropped** half.
+
+That is where the shift comes from: one 12-line block removed, everything after it renumbered by exactly
+**−12**, and the two replacements netting zero.
+
+### 16.3 The census: 81 in, 81 out, zero verdicts moved
+
+| outcome                                       |  cases |
+| --------------------------------------------- | -----: |
+| Situations that **entered**                   |  **0** |
+| Situations that **left**                      |  **0** |
+| Verdicts that **changed**                     |  **0** |
+| Seeds **re-based** (all by exactly −12)       | **48** |
+| Seeds unchanged (all below the removed block) | **33** |
+
+Every one of the 81 situations still resolves to a line the extractor really produces, **byte-identical**,
+in the **ingredient** half. The ruled/undecided split is therefore unchanged at **56 / 25** over **246 / 92**
+occurrences, and every per-clause count in §10.5 stands.
+
+⛔ **Nothing entered, and that is measured rather than assumed.** The one line the ruling added to the
+ingredient half is `one pound of fine flour`. The pinned CRF reads it
+`measure "1 pound" · names ["fine flour"]`, and the rubric reads it identically — R3, an adjective is
+identity. A census of rubric-vs-CRF situations cannot admit a line the two read the same way, so it enters
+the population without entering the census.
+
+⛔ **Nothing left**, and that is measured too: none of the 14 removed lines is a case here, and none carries
+a case's contested word in the position that case's clause fires on. The three `R9` vessel cases in
+particular all survive — `in frying-pan`, `on well-buttered pans` and `five large pans greased ready` are a
+prepositional object, a prepositional object, and a head-final span with no governor, which §13.7 records as
+the shapes the position rule deliberately leaves refused.
+
+### 16.4 ⛔ The measurement RESTORES ITSELF, which is what makes this a re-baseline and not a patch
+
+Before the re-seed the tier printed `55 of 55 ruled cases (100.00%), standing for 245 corpus occurrences` —
+one ruled case (`L02494`) had silently fallen out of the denominator, and a suite that only asserts the rate
+is finite would have reported a _better_ number for a _worse_ census. After the re-seed:
+
+```
+[U23 oracle] CRF disagrees with the rubric on 55 of 56 ruled cases (98.21%), standing for 246 corpus occurrences.
+```
+
+That is §10.7's published figure to the digit, over the same 246 occurrences. A re-baseline that had moved an
+adjudication could not have reproduced it.
+
+### 16.5 ⚠️ THE FINDING — an owner ruling has closed 7 of gap A's 16 words, and the census does not know
+
+⛔ **This is NOT a finding about the segmentation change, and it is deliberately NOT applied here.** It is
+the one thing the re-capture turned up that is worth more than a green suite.
+
+§10.5's gap **A** put 17 cases over 58 occurrences into `undecided` because the `-ed` suffix rule files
+denominal/product/provenance adjectives as preparation, while R5's adjective list — consulted first
+_precisely because_ the suffix rule is wrong about adjectives — did not carry them. On **2026-08-26** the
+owner ruled again, in `modifierLexicon.ts`, citing this bucket by name: _"a purchasable FORM is identity
+whatever its morphology."_ Seven words were added to that list.
+
+Verified against the live lexicon (`classifyModifier`, run 2026-08-26):
+
+| word                                                                                                                                | classifies as   |
+| ----------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `candied` · `canned` · `granulated` · `imported` · `powdered` · `prepared` · `unsweetened`                                          | **identity**    |
+| `compressed` · `concentrated` · `crystallized` · `colored` · `light-colored` · `pulverized` · `rolled` · `silver-skinned` · `sized` | **preparation** |
+
+So **R5 now reaches seven cases this census still records as `undecided`** — and on all seven the pinned CRF
+already agreed with the reading R5 produces, which is the half that makes it a closed gap rather than a new
+dispute:
+
+| seed (re-based) | line                                             | contested word | CRF `names`                   | occurrences |
+| --------------- | ------------------------------------------------ | -------------- | ----------------------------- | ----------: |
+| `L00407`        | `one tablespoon of canned tomatoes`              | `canned`       | `["canned tomatoes"]`         |           3 |
+| `L00780`        | `quarter cup of granulated sugar`                | `granulated`   | `["granulated sugar"]`        |          16 |
+| `L00900`        | `a half teaspoon of powdered cinnamon`           | `powdered`     | `["powdered cinnamon"]`       |          16 |
+| `L00924`        | `one teaspoon of prepared mustard`               | `prepared`     | `["prepared mustard"]`        |           3 |
+| `L01237`        | `one-quarter pound imported Swiss cheese grated` | `imported`     | `["imported Swiss cheese"]`   |           1 |
+| `L01613`        | `one cup of unsweetened apple sauce`             | `unsweetened`  | `["unsweetened apple sauce"]` |           2 |
+| `L01690`        | `one-half ounce of candied orange peel cut`      | `candied`      | `["candied orange peel cut"]` |           1 |
+
+**Seven cases, 42 occurrences.** Applying it would move the split from 56 / 25 to **63 / 18**, and would give
+R5 — one of the five clauses §10.5 records as deciding nothing — its first rulings.
+
+⛔ **Why it is not applied in this change.** A corpus re-baseline and a rubric re-adjudication are
+independent deltas, and folding them together makes neither attributable: the split would move by seven cases
+with nothing in the artifact saying whether the corpus or the lexicon moved it, and §16.4's exact
+restoration — the only evidence that the re-seed changed no adjudication — would be destroyed by the same
+edit that proves it. It is the owner's pass to authorise, and the nine words that did **not** move are why it
+is a pass rather than a sweep: `pulverized` sits beside `granulated` and `powdered` in the same three-way
+contrast the book prints (`L01575`), and it is still `preparation`.
+
+### 16.6 ⛔ What is NOT closed by this
+
+- **No engine was re-run and no rate above moves.** The CRF leg re-runs for free and did; the LLM leg is
+  still unmeasured on §10.1's grounds, unchanged.
+- **`occurrences` was NOT re-derived, and neither was `331 lines fire at least one clause`.** The matcher
+  that collapsed the firing lines into these situations was an analysis, not committed code, so re-deriving
+  it would mean inventing a second matcher and reporting its answer as U23's. The counts are carried forward,
+  bounded by §16.3's check that no removed line carries a case's contested word.
+- **The tier still skips in CI**, so the next extractor change renumbers the census silently again. Closing
+  that needs either a committed corpus digest or a book in CI, and both are their own decision.
+- **R9's clause statement is now narrower than the ruling it cites.** It says a span whose head noun is a
+  vessel _is not an ingredient at all_; ADR-0026 §7a says a vessel HEADING the measure phrase is a **unit**.
+  No case here turns on the difference — all three are prepositional objects or head-final with no governor —
+  so the clause is left exactly as it was ruled rather than reworded, which is not a licence a re-baseline
+  carries.
+
+### Reproducing §16
+
+```
+COOKBOOK_IMPORT_BOOK=/tmp/pg12350.txt npm run test:integration \
+  --workspace=packages/tools/cookbook-import
+```
+
+⛔ `pg12350.txt` is downloaded by hand, once — nothing in this repository fetches Project Gutenberg
+(ADR-0023). The corpus-at-`6a565a00` half is a scratch build of the same harvest path against an archived
+checkout, diffed by line text, and is deliberately not committed on the rule the earlier "Reproducing"
+sections state.

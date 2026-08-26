@@ -52,6 +52,51 @@
  * ⚠️ Deduplicating by situation is deliberate, and it is the same anti-vacuity concern read in the other
  * direction: adjudicating `cold water` twenty-six times would inflate every count here without adding one
  * decision. The count is preserved instead of the repetition.
+ *
+ * ## RE-BASELINE (2026-08-26) — the seeds moved because the CORPUS moved, and nothing else did
+ *
+ * ⛔ **Nothing above is corrected in place**, on the convention report 002 §§9–15 keep. Every figure in the
+ * paragraphs above is the 2026-08-25 capture and stays readable as one. What follows is the delta.
+ *
+ * The vessel POSITION ruling (owner 2026-08-26, ADR-0026 §7a; measured in report 002 §13) changed what the
+ * extractor publishes, so the corpus renumbered underneath a census whose {@link OracleCase.seed} is
+ * positional by design — the failure this fixture's own seed docstring says is intended, firing as intended.
+ * Re-measured over the same book on the same harvest path:
+ *
+ * | quantity                | at capture (2026-08-25) | after the position ruling |
+ * | ----------------------- | ----------------------: | ------------------------: |
+ * | Distinct corpus lines   |               **2,502** |                 **2,490** |
+ * | — the ingredient half   |               **1,298** |                 **1,295** |
+ * | — the dropped half      |               **1,204** |                 **1,195** |
+ *
+ * ⛔ **The census itself lost nothing and gained nothing.** All 81 situations still resolve to a line the
+ * extractor really produces, byte-identical, in the ingredient half: 33 kept their seed and 48 shifted by
+ * exactly −12. The 14 corpus lines removed and the 2 added are none of them a case here, and the one line
+ * the ruling ADDED to the ingredient half (`one pound of fine flour`) is read the same way by the rubric
+ * (R3 — `fine` is an adjective) and by the pinned CRF, so it is not a rubric-vs-CRF situation and does not
+ * enter. No verdict, clause, reading or occurrence count changed.
+ *
+ * ⚠️ **What was NOT re-derived:** the `331 lines fire at least one clause` figure and every
+ * {@link OracleCase.occurrences} count. The matcher that collapsed 331 firing lines into these situations
+ * was an analysis, not committed code, so re-deriving them would mean inventing a second matcher and
+ * reporting its answer as U23's. They are carried forward unchanged, and no removed line carries a
+ * contested word in the position its case's clause fires on.
+ *
+ * ## ⚠️ A SEPARATE re-adjudication is OWED and is deliberately NOT bundled here
+ *
+ * Between the capture and this re-baseline the owner ruled again — *a purchasable FORM is identity, not
+ * preparation* (2026-08-26, `modifierLexicon.ts`), naming seven words and citing this census's `undecided`
+ * bucket as its motivation. Verified against the live lexicon: `candied`, `canned`, `granulated`,
+ * `imported`, `powdered`, `prepared` and `unsweetened` now classify as identity; `compressed`,
+ * `concentrated`, `crystallized`, `colored`, `light-colored`, `pulverized`, `rolled`, `silver-skinned` and
+ * `sized` still classify as preparation.
+ *
+ * R5 — *the adjective list is consulted BEFORE the `-ed` suffix rule* — therefore now reaches seven cases
+ * this census records as `undecided` under rubric gap A. ⛔ **They are left `undecided` here on purpose.**
+ * A corpus re-baseline and a rubric re-adjudication are independent deltas, and folding them into one
+ * census makes neither attributable; the ruled/undecided split above would move by seven cases and 42
+ * occurrences with nothing in the artifact saying which change moved it. It is the owner's pass to
+ * authorise, and it is recorded in report 002 §16 with the evidence rather than taken silently.
  */
 
 /** A clause of the written rubric. The ids are stable; a ruling cites one. */
@@ -898,7 +943,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00792',
+        seed: 'L00780',
         line: 'quarter cup of granulated sugar',
         occurrences: 16,
         regimes: ['prep', 'singleAmount'],
@@ -914,7 +959,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00804',
+        seed: 'L00792',
         line: 'two saltspoons of white pepper',
         occurrences: 1,
         regimes: ['historicalUnit', 'singleAmount'],
@@ -931,7 +976,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00839',
+        seed: 'L00827',
         line: 'one pound of dried Lima beans',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -948,7 +993,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00852',
+        seed: 'L00840',
         line: 'three tablespoons of uncooked rice',
         occurrences: 2,
         regimes: ['prep', 'singleAmount'],
@@ -965,7 +1010,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00885',
+        seed: 'L00873',
         line: 'one-half cup shelled roasted peanuts',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -982,7 +1027,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00886',
+        seed: 'L00874',
         line: 'one-half cup of toasted bread crumby one-half teaspoon of salt',
         occurrences: 1,
         regimes: ['multiFood', 'prep', 'composite'],
@@ -998,7 +1043,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00912',
+        seed: 'L00900',
         line: 'a half teaspoon of powdered cinnamon',
         occurrences: 16,
         regimes: ['prep', 'singleAmount'],
@@ -1014,7 +1059,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00934',
+        seed: 'L00922',
         line: 'a drop at a time',
         occurrences: 1,
         regimes: ['subjectiveMeasure'],
@@ -1026,7 +1071,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00936',
+        seed: 'L00924',
         line: 'one teaspoon of prepared mustard',
         occurrences: 3,
         regimes: ['prep', 'singleAmount'],
@@ -1041,7 +1086,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L00976',
+        seed: 'L00964',
         line: 'a large cup of stewed prunes',
         occurrences: 3,
         regimes: ['prep', 'subjectiveMeasure'],
@@ -1058,7 +1103,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01013',
+        seed: 'L01001',
         line: 'one cup of buttered bread crumbs',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1075,7 +1120,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01077',
+        seed: 'L01065',
         line: 'a piece of compressed yeast',
         occurrences: 1,
         regimes: ['subjectiveMeasure'],
@@ -1090,7 +1135,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01096',
+        seed: 'L01084',
         line: 'One-half cup of pounded almonds mixed',
         occurrences: 5,
         regimes: ['prep', 'singleAmount'],
@@ -1107,7 +1152,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01164',
+        seed: 'L01152',
         line: 'one and one-half cups of grated cheese',
         occurrences: 3,
         regimes: ['composite', 'prep'],
@@ -1124,7 +1169,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01178',
+        seed: 'L01166',
         line: 'one cup of washed rice in frying-pan with four or five tablespoons of poultry fat',
         occurrences: 1,
         regimes: ['multiFood', 'range', 'prep'],
@@ -1144,7 +1189,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01200',
+        seed: 'L01188',
         line: 'a tablespoon of butter rubbed very hard',
         occurrences: 3,
         regimes: ['prep', 'singleAmount'],
@@ -1161,7 +1206,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01249',
+        seed: 'L01237',
         line: 'one-quarter pound imported Swiss cheese grated',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1178,7 +1223,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01264',
+        seed: 'L01252',
         line: 'one tablespoon of flour blended together',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1195,7 +1240,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01291',
+        seed: 'L01279',
         line: 'two cups of boiling water over two cups of rolled oats',
         occurrences: 3,
         regimes: ['multiFood', 'prep', 'singleAmount'],
@@ -1210,7 +1255,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01362',
+        seed: 'L01350',
         line: 'one-half cup of seeded raisins',
         occurrences: 7,
         regimes: ['prep', 'singleAmount'],
@@ -1227,7 +1272,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01381',
+        seed: 'L01369',
         line: 'two pounds of rendered butter',
         occurrences: 4,
         regimes: ['prep', 'singleAmount'],
@@ -1244,7 +1289,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01399',
+        seed: 'L01387',
         line: 'two cups of scalded milk',
         occurrences: 2,
         regimes: ['prep', 'singleAmount'],
@@ -1261,7 +1306,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01401',
+        seed: 'L01389',
         line: 'one-half cup of light colored raisins',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1270,13 +1315,13 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
             lenses: {
                 cookAloud: '"Light coloured raisins" is one colour phrase — sultanas rather than dark raisins.',
                 catalog: 'Golden and dark raisins are different rows; the colour IS the identity.',
-                sourceSentence: 'The book means a variety, and prints the same thing hyphenated at L01739.',
+                sourceSentence: 'The book means a variety, and prints the same thing hyphenated at L01727.',
             },
             note: '⛔ RUBRIC GAP A, and it is TRAP 1 by another route. `ADJECTIVES` carries eleven colours exactly so a colour stays identity; `colored` — the word that says the phrase IS a colour — ends in `-ed` and is filed preparation, splitting `light` (identity) from `colored` (prep). The trap note names `red` and `green`; this is the same failure one word out.',
         },
     },
     {
-        seed: 'L01446',
+        seed: 'L01434',
         line: 'one cup of cleaned currants',
         occurrences: 2,
         regimes: ['prep', 'singleAmount'],
@@ -1293,7 +1338,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01453',
+        seed: 'L01441',
         line: 'one-half pound of creamed butter',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1310,7 +1355,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01547',
+        seed: 'L01535',
         line: 'one to one and one-half boxes of strawberries to taste',
         occurrences: 1,
         regimes: ['range', 'composite'],
@@ -1327,7 +1372,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01587',
+        seed: 'L01575',
         line: 'one-half cup of butter with one and one-half cups of pulverized sugar',
         occurrences: 7,
         regimes: ['multiFood', 'composite', 'prep'],
@@ -1338,11 +1383,11 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
                 catalog: '`Sugars, powdered` is a row distinct from granulated.',
                 sourceSentence: 'The book lists it beside `granulated` and `powdered` as alternatives at the shop.',
             },
-            note: "⛔ RUBRIC GAP A, third spelling of the same contrast (L00792 `granulated`, L00912 `powdered`). ⚠️ The line also states two amounts for two foods — L00178's unrepresentable shape — and the CRF here named only `butter` and `pulverized sugar` with ONE measure.",
+            note: "⛔ RUBRIC GAP A, third spelling of the same contrast (L00780 `granulated`, L00900 `powdered`). ⚠️ The line also states two amounts for two foods — L00178's unrepresentable shape — and the CRF here named only `butter` and `pulverized sugar` with ONE measure.",
         },
     },
     {
-        seed: 'L01598',
+        seed: 'L01586',
         line: 'one cup of water alternately with two and one-half cups of flour in which has been sifted two teaspoons of baking-powder',
         occurrences: 1,
         regimes: ['multiFood', 'composite', 'prep'],
@@ -1363,7 +1408,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01625',
+        seed: 'L01613',
         line: 'one cup of unsweetened apple sauce',
         occurrences: 2,
         regimes: ['prep', 'singleAmount'],
@@ -1378,7 +1423,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01654',
+        seed: 'L01642',
         line: 'one cup of flour three times',
         occurrences: 1,
         regimes: ['singleAmount'],
@@ -1395,7 +1440,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01702',
+        seed: 'L01690',
         line: 'one-half ounce of candied orange peel cut',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1411,22 +1456,22 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01739',
+        seed: 'L01727',
         line: 'one-half cup of light-colored raisins',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
         verdict: {
             kind: 'undecided',
             lenses: {
-                cookAloud: 'Identical to L01401, and the book hyphenates it here.',
-                catalog: 'Same row question as L01401.',
+                cookAloud: 'Identical to L01389, and the book hyphenates it here.',
+                catalog: 'Same row question as L01389.',
                 sourceSentence: 'The hyphen makes the single-phrase reading explicit in the source itself.',
             },
-            note: "⛔ RUBRIC GAP A. Kept as its own case because the HYPHEN changes which rule fires: `modifierLexicon`'s `head()` reads a compound by its last segment, so `light-colored` classifies on `colored` and the `light` that would have been identity is not even consulted. The unhyphenated L01401 at least filed half the phrase correctly.",
+            note: "⛔ RUBRIC GAP A. Kept as its own case because the HYPHEN changes which rule fires: `modifierLexicon`'s `head()` reads a compound by its last segment, so `light-colored` classifies on `colored` and the `light` that would have been identity is not even consulted. The unhyphenated L01389 at least filed half the phrase correctly.",
         },
     },
     {
-        seed: 'L01782',
+        seed: 'L01770',
         line: 'one wineglass of brandy',
         occurrences: 4,
         regimes: ['historicalUnit', 'singleAmount'],
@@ -1443,7 +1488,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01785',
+        seed: 'L01773',
         line: 'five large pans greased ready',
         occurrences: 1,
         regimes: ['singleAmount'],
@@ -1455,7 +1500,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01800',
+        seed: 'L01788',
         line: 'a teaspoon on well-buttered pans',
         occurrences: 1,
         regimes: ['singleAmount'],
@@ -1467,7 +1512,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01801',
+        seed: 'L01789',
         line: 'Two pounds of soup fat rendered a day or two before using',
         occurrences: 1,
         regimes: ['singleAmount', 'range'],
@@ -1484,7 +1529,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01837',
+        seed: 'L01825',
         line: 'one cup of finely-pounded nut meats',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1497,11 +1542,11 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
                 unit: 'cup',
                 foods: [{ name: 'nut meats', prep: 'finely-pounded' }],
             },
-            note: 'The compound head rule working as designed: `head()` reads `pounded`, which is a participle, and `finely` is the qualifier that moves with it. Contrast L01739, where the same rule reaches the wrong half.',
+            note: 'The compound head rule working as designed: `head()` reads `pounded`, which is a participle, and `finely` is the qualifier that moves with it. Contrast L01727, where the same rule reaches the wrong half.',
         },
     },
     {
-        seed: 'L01852',
+        seed: 'L01840',
         line: 'one cup of blanched almonds chopped finely',
         occurrences: 2,
         regimes: ['prep', 'singleAmount'],
@@ -1518,7 +1563,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01925',
+        seed: 'L01913',
         line: 'one cup of stale rye bread crumbs added gradually',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1535,7 +1580,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01949',
+        seed: 'L01937',
         line: 'four tablespoons of flour over one and one-half pints huckleberries',
         occurrences: 1,
         regimes: ['multiFood', 'composite'],
@@ -1555,7 +1600,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L01950',
+        seed: 'L01938',
         line: 'one pint crumbed bread in one quart milk',
         occurrences: 1,
         regimes: ['multiFood', 'prep'],
@@ -1575,7 +1620,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L02008',
+        seed: 'L01996',
         line: 'one cup of suet shaved very fine',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1590,7 +1635,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L02038',
+        seed: 'L02026',
         line: 'one cup of scalding milk',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1607,7 +1652,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L02083',
+        seed: 'L02071',
         line: 'one-fourth pound of crystallized cherries',
         occurrences: 2,
         regimes: ['prep', 'singleAmount'],
@@ -1618,11 +1663,11 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
                 catalog: 'A distinct row from fresh cherries, and mostly sugar.',
                 sourceSentence: 'Bought, not made, in this book.',
             },
-            note: '⛔ RUBRIC GAP A, the sibling of L01702 and with the same nutritional consequence.',
+            note: '⛔ RUBRIC GAP A, the sibling of L01690 and with the same nutritional consequence.',
         },
     },
     {
-        seed: 'L02086',
+        seed: 'L02074',
         line: 'one-fourth cup of stoned raisins',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1639,7 +1684,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L02116',
+        seed: 'L02104',
         line: 'a tablespoon of whipped cream',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1656,7 +1701,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L02256',
+        seed: 'L02244',
         line: 'one quart small silver-skinned onions',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],
@@ -1671,7 +1716,7 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         },
     },
     {
-        seed: 'L02494',
+        seed: 'L02482',
         line: 'one-quarter pound of finely-grated vanilla chocolate',
         occurrences: 1,
         regimes: ['prep', 'singleAmount'],

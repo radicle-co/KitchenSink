@@ -233,7 +233,24 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   BOTH ways (`two eggs` is `{quantity: 2, unit: null}`, the normal form of every count ingredient, so a
   second food was DELETED; `a large frying-pan` reads as `1 large :: frying-pan` and wrongly refused a cut,
   losing the butter). The settled rule is TWO questions over two vocabularies — only a VESSEL says "not an
-  ingredient"; a vessel OR a duration says "cutting would delete a food". ⛔ A unit suite CANNOT verify this:
+  ingredient"; a vessel OR a duration says "cutting would delete a food". ⛔ **A VESSEL'S ROLE IS ITS POSITION, NOT THE WORD** (owner ruling
+  2026-08-26, ADR-0026 §7a) — "the WORD is the signal" is a THIRD disproved guard beside those two. Object of
+  a preposition → an instruction (`butter IN A FRYING-PAN`); heading the measure phrase → a UNIT (`A BOWL of
+flour`), because a cook genuinely measures by vessel. `In a large mixing bowl whip to a cream two eggs`
+  published an ingredient named `mixing bowl whip` (q=1, unit `large`) in a public recipe. `segmentClause`
+  therefore takes a **required** second parameter — the clause text in FRONT of the span — required because a
+  default is a POSITION silently asserted for every caller. ⛔ Head-final `namesEquipment` is UNCHANGED and
+  the position test is purely ADDITIVE (a disjunction): three measured removals have no preposition in front
+  of them (`Line a large salad bowl…`, `Pour into jelly-glasses OR one large mould`, `Have at least five
+large pans…`) and would come back if position REPLACED head-finality. ⛔ The governed test is word-anywhere
+  and a **DELIMITER IS REQUIRED** to make it sound — the measure phrase ends at the first partitive `of` or
+  the first instruction boundary, so `one pound of pot roast` offers `one pound`. Do not restore the "…or the
+  whole span" arm (it deletes `with two pot roasts`), and do not defend it with the accept gate's unit
+  requirement, which is a CALLER-held invariant of exactly the kind F3 warns about. ⛔ It runs BEFORE the
+  second-food guard without reopening F3, because the measure phrase is a PREFIX OF THE HEAD by construction
+  and cannot see the tail. ⛔ `through` was missing from the boundary lexicon and its absence DELETED food.
+  Measured: −1 recipe (`SPINACH`, two-thirds fabrication), −5 accepted lines / +1, six firings costing one
+  stated food and recovering one. ⛔ A unit suite CANNOT verify this:
   three food losses were found ONLY by a corpus-wide diff over the full 1919 book, and that diff is the
   check any future change here owes. ⛔ Two contract defects were REPAIRED 2026-08-25 and the repairs are load-bearing.
   `ParseEngine` was declared twice — structurally identical, so `tsc` is blind to it BY CONSTRUCTION

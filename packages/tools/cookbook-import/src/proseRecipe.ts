@@ -496,6 +496,11 @@ function suffixStarts(clause: string): readonly number[] {
  * corrupt refusal that an earlier one shadowed, and each rejection spends one of
  * {@link MAX_SUFFIX_SKIP}'s attempts.
  *
+ * ⚠️ Since the 2026-08-26 position ruling the predicate ALSO reads the clause text in front of the start,
+ * so the same span can be an ingredient at one start and equipment at another — `a large bowl sift one
+ * pound of fine flour` is equipment after `Into `, and the scan then reaches `one pound of fine flour`,
+ * which it had shadowed. That is the retry this loop already owned, doing the work the ruling needs.
+ *
  * @param clause - One clause of prose.
  * @returns The bounded parse plus anything cut off it, or a refusal. Pure.
  */
@@ -522,7 +527,11 @@ function ingredientInClause(clause: string): ClauseReading {
             continue;
         }
 
-        const segment = segmentClause(sourceText);
+        // ⛔ The clause text in FRONT of the span rides along, because a vessel's role is decided by its
+        // POSITION and a span alone cannot see the preposition that governs it (owner ruling 2026-08-26).
+        // `In a large mixing bowl whip to a cream two eggs` published an ingredient named `mixing bowl
+        // whip`; the `In` that makes it a place rather than an amount is at `trimmed[0]`, outside `at`.
+        const segment = segmentClause(sourceText, trimmed.slice(0, at));
 
         if (segment.kind === 'instruction') {
             // Equipment, not a food — `a large preserving kettle` parses to `1 large :: preserving kettle`

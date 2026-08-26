@@ -825,3 +825,165 @@ instead of silently switching the verdict off.
   source plainly states (R7 arithmetic), not against a real model answer. No Bedrock call is billed by a
   test. §10.8's list stands unchanged.
 - **One book, still.** Every limit in §7, §9.6 and §10.8 is inherited unchanged.
+
+---
+
+## 12. The vessel POSITION ruling — the corpus delta, measured (2026-08-26)
+
+⛔ **Nothing above is restated or corrected in place**, on the rule §9 opens with and §§10–11 keep. §§1–8
+remain the 2026-08-23 measurements, §9 remains U22a's corpus delta, §§10–11 remain the oracle and the
+`one and a half` ruling. This section adds one more delta: what the owner's **position ruling** of 2026-08-26
+changes about what the extractor publishes.
+
+⚠️ **The baseline here is `ddcd80f5`, not §9's tree.** Between §9 and this section the unit reader was fixed
+twice (`T`/`t`, then `c`/`C`), so the corpus moved under changes that have nothing to do with this one. Every
+"before" number below was re-measured on `ddcd80f5` rather than copied from §9 — and §9.2's four headline
+figures **reproduce exactly** on that tree, which is what makes the two sections comparable.
+
+### 12.1 The ruling, and the defect that surfaced it
+
+Owner ruling: _a vessel's role is decided by its POSITION in the clause, not by the word being a vessel._
+Object of a preposition → an instruction; heading the measure phrase → a unit. Recorded in full at
+**ADR-0026 §7a**, including the THIRD disproved guard it adds ("the WORD is the signal") and the two §7
+already carries.
+
+The line that surfaced it, `pg12350.txt:14546`:
+
+> _In a large mixing bowl whip to a cream two eggs, three tablespoons of sugar, and two tablespoons of
+> butter._
+
+What the extractor published for PEACH PUDDING before this change, verbatim from the sweep:
+
+```
+Peach Pudding   mixing bowl whip   {"kind":"exact","value":1}   large   a large mixing bowl whip to a cream two eggs
+```
+
+A fabricated ingredient — a quantity, a unit and a name, clearing every structural gate — in a public recipe.
+
+### 12.2 The corpus, before and after — same book, same harvest path, no engine calls
+
+Measured over `pg12350.txt` (1,499 blocks) through `toCandidateRecipe` → `harvestSourceTexts` →
+`buildParseCorpus`, the identical path §9.2 used.
+
+| quantity                                          | before (`ddcd80f5`) | after the ruling |         delta |
+| ------------------------------------------------- | ------------------: | ---------------: | ------------: |
+| Blocks accepted as recipes                        |             **351** |          **350** |        **−1** |
+| Ingredient clauses harvested                      |           **1,846** |        **1,842** |   −4 (−0.22%) |
+| Distinct corpus lines (the billed population)     |           **2,502** |        **2,490** |  −12 (−0.48%) |
+| Characters of ingredient text sent to the engines |          **52,164** |       **52,012** | −152 (−0.29%) |
+| Lines carrying `instruction_text_dropped`         |             **273** |          **272** |        **−1** |
+| Spans refused as equipment                        |              **34** |           **38** |        **+4** |
+
+⚠️ The "before" column reproduces §9.2's "after U22a" column exactly on all four shared rows, which is the
+check that the two sections measure the same thing.
+
+### 12.3 Every accepted line that moved — five removed, one added
+
+The whole `(name | quantity | unit | sourceText)` diff, in full. It is short enough to print, and printing it
+is the point:
+
+| recipe        | before                                                                                        | after                                                             |
+| ------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Kindlech      | `bowl sift one pound of fine flour` — 1 `large` — _a large bowl sift one pound of fine flour_ | **replaced** by `fine flour` — 1 `lb` — _one pound of fine flour_ |
+| Peach Pudding | `mixing bowl whip` — 1 `large` — _a large mixing bowl whip to a cream two eggs_               | **gone**                                                          |
+| Spinach       | `pan of water` — 1 `large` — _a large pan of water_                                           | **gone**                                                          |
+| Spinach       | `plenty` — 1 `cup` — _a cup is plenty for one quart of spinach_                               | **gone**                                                          |
+| Spinach       | `pepper` — 0.25 `teaspoon` — _one-quarter teaspoon of pepper_                                 | **gone**                                                          |
+
+**KINDLECH is the clean win.** `Into a large bowl sift one pound of fine flour` — the vessel is the object of
+`Into`, so the span is refused, the suffix scan reaches the start it had shadowed, and a fabricated ingredient
+is replaced by the real one the book prints.
+
+**PEACH PUDDING is the ruling's own case**, closed. `two eggs` is not recovered — it parses
+`{quantity: 2, unit: null}` and the extractor's accept gate requires a unit — so the trade is a fabricated
+non-food for a missing ingredient, not food for nothing.
+
+### 12.4 ⛔ The one recipe lost, named — SPINACH
+
+`SPINACH` fell to `too_few_ingredients`. Its three accepted "ingredients" before this change were:
+
+1. `a large pan of water` — from _"drop them in a large pan of water; rinse well"_. Rinsing water. Equipment.
+2. `a cup is plenty for one quart of spinach` → named `plenty`. Not a food in any reading.
+3. `one-quarter teaspoon of pepper` — the only real one.
+
+Removing (1) took the block below the three-ingredient floor, and (2) and (3) went with the block. ⚠️ Stated
+plainly: **one real ingredient (`one-quarter teaspoon of pepper`) is lost as a second-order effect.** The
+judgement is that a published recipe whose ingredient list was two-thirds fabrication is worse than no
+recipe, and that the floor doing its job once the fabrication stopped propping the block up is the floor
+working rather than failing. It is recorded here so a future reader can disagree with the judgement rather
+than discover the fact.
+
+### 12.5 The six position firings, each with the stated foods it costs
+
+⛔ Every span the POSITION rule refused that the head-final rule would have KEPT — the false-positive list,
+which is the only place the word-anywhere scan is really adjudicated. The "costs" column is the second-food
+guard run as an **OBSERVER**, not a guard: it reports what refusing the span throws away.
+
+| governor                | span                                                       | costs                                                                                                       |
+| ----------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `Into `                 | _a large bowl sift one pound of fine flour_                | `1 lb :: fine flour` — **RECOVERED** at the next start (§12.3)                                              |
+| `2 Into `               | _a large mixing bowl place one and one-half cups of flour_ | `1.5 cup :: flour` — block (`APPLE STRUDEL, No. 2`) is skipped before and after, so nothing published moves |
+| `In `                   | _a large mixing bowl whip to a cream two eggs_             | `2 :: eggs` — unrecoverable by the accept gate, before and after                                            |
+| `drop them in `         | _a large pan of water_                                     | none — rinsing water                                                                                        |
+| `put over the fire in ` | _a large kettle of boiling water_                          | none — the vessel's contents                                                                                |
+| `Put in `               | _a large platter in a cool place_                          | none — `cool place` is not a food; dropped before and after                                                 |
+
+**Six firings, one real cost (`two eggs`), one recovery, four costing nothing.** No firing deletes a stated
+food that the extractor was publishing.
+
+### 12.6 `through` measured ALONE — zero accepted lines moved
+
+The ruling also completed the boundary lexicon: `through` is a preposition and was missing, so
+`one and one-half cups of canned tomatoes rubbed through a strainer` and
+`one quart of fine cottage cheese through a coarse sieve or colander` were judged head-final on the vessel
+and refused **entirely** — a stated cup of tomatoes and a stated quart of cheese.
+
+Isolated (position rule disabled, `through` added):
+
+| quantity                       | before | `through` only | delta |
+| ------------------------------ | -----: | -------------: | ----: |
+| Blocks accepted                |    351 |            351 | **0** |
+| Ingredient clauses             |  1,846 |          1,846 | **0** |
+| Distinct corpus lines          |  2,502 |          2,502 | **0** |
+| Accepted lines added / removed |      — |          0 / 0 | **0** |
+| Spans refused as equipment     |     34 |             32 |    −2 |
+
+⚠️ **Honest reading:** the two spans stop being refused, and neither reaches a published recipe, because both
+blocks are skipped for unrelated reasons. The fix is real at `segmentClause`'s contract (pinned in the unit
+tier) and **invisible in this book's output**. It is not a recovered ingredient and is not claimed as one.
+
+### 12.7 The anti-regression bar — every equipment removal still removed
+
+The bar was: all of U22a's equipment removals must still be removed. ⚠️ Re-measured on `ddcd80f5`, the removal
+set is **21 distinct spans / 34 occurrences**, not §9.3's fourteen — the corpus moved under the two unit
+fixes, not under this change. Of those 21, **19 are still refused, occurrence for occurrence**, including
+every span §9.3 names by hand (`a large platter` ×9, `a large kettle` ×3, `a large preserving kettle`,
+`a large earthen jar`, `a large stone jar`, `a large salad bowl with lettuce leaves`,
+`a large colander to drain`, `a large platter to dry`, `one large mould`).
+
+The **two** that stop being refused are §12.6's pair — the two that were deleting food. That is the intended
+delta, not a regression.
+
+⚠️ Three of the 21 are refused with **no preposition in front of them** — `Line a large salad bowl with
+lettuce leaves`, `Pour into jelly-glasses **or** one large mould`, `Have at least five large pans…` — which
+is why the head-final rule stayed untouched. Had the position test REPLACED it rather than joined it, all
+three would have come back.
+
+### 12.8 ⛔ What is NOT measured here
+
+- **The engines were not re-run.** No new agreement, determinism or cost figure is claimed, and none of
+  §§1–3's rates has been recomputed. They remain inflated by the residue §9.2 quantified, minus this
+  section's further 0.29%.
+- **Already-published recipes are not repaired.** `mixing bowl whip` is fixed in the parser, not in anything
+  already written from it. A re-import or correction pass is owed and is not this change.
+- **One book.** Every figure is conditional on `pg12350.txt`, and the residual risk ADR-0026 §7a states — a
+  count-form food whose name mentions a vessel, sitting as a prepositional object with some other delimiter —
+  has no instance here and is not disproved by that.
+
+### Reproducing §12
+
+The sweep is scratch tooling and is deliberately not committed, on the rule the "Reproducing" section above
+states. It is: `segmentCookbook(stripGutenbergBoilerplate(read(book)))` → `toCandidateRecipe` per block →
+dump `(title, name, quantity, unit, sourceText)` for every accepted ingredient, plus `droppedInstructions`
+and `droppedLines`, then diff two trees. ⛔ `pg12350.txt` is downloaded by hand, once — nothing in this
+repository fetches Project Gutenberg (ADR-0023).

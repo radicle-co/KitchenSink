@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 import {
@@ -24,6 +24,7 @@ import {
     runMigrations,
 } from '../src/lambdas/migrate/handler.js';
 import { DATABASE_URL } from './support/db.js';
+import { ensureSeededBaseDatabase } from './support/maintenanceDb.js';
 
 const sourceMigrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
 
@@ -112,6 +113,12 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             return url.toString();
         };
 
+        // U38: a per-PR database is CLONED from the base, so the base must exist here as it does on a
+        // deployed stage. Bootstrapped explicitly rather than relying on another suite having run first.
+        beforeAll(async () => {
+            await ensureSeededBaseDatabase();
+        });
+
         beforeEach(async () => {
             await dropDatabase({ maintenancePool, databaseName: perPrName });
         });
@@ -130,19 +137,30 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             );
         });
 
-        it('creates the per-PR database, is idempotent, migrates into it, then drops it', async () => {
-            expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('created');
+        /**
+         * ⚠️ REWRITTEN for U38, not relaxed. This used to assert `'created'` and a full `applied` list —
+         * the shape of an EMPTY database being migrated from nothing. A per-PR database is now cloned
+         * from the seeded base, so it arrives WITH the base's `schema_migrations` history and the run
+         * that follows correctly applies nothing. The warm-start guarantee itself (the base's ROWS
+         * arriving, and the loud failure when the template is held) is proven in
+         * `migrateTemplateClone.integration.test.ts`; what this case still owns is the LIFECYCLE —
+         * clone, idempotent re-invoke, migrate into it, force-drop, idempotent re-drop.
+         */
+        it('clones the per-PR database, is idempotent, migrates into it, then drops it', async () => {
+            expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('cloned');
             // Re-invoke is a no-op.
             expect(await ensureDatabaseExists({ maintenancePool, databaseName: perPrName })).toBe('exists');
 
-            // Migrate INTO the freshly created per-PR database (a separate connection).
+            // Migrate INTO the freshly cloned per-PR database (a separate connection).
             const perPrPool = new pg.Pool({ connectionString: perPrConnectionString() });
 
             try {
                 const result = await runMigrations({ pool: perPrPool, migrationsDir: sourceMigrationsDir });
 
-                // The runner discovers the full ordered set — every `.sql` in the directory, no exceptions.
-                expect(result.applied).toEqual(expectedMigrationNames());
+                // The runner discovers the full ordered set — every `.sql` in the directory, no exceptions
+                // — and finds every one of them already recorded, carried over by the clone.
+                expect(result.skipped).toEqual(expectedMigrationNames());
+                expect(result.applied).toEqual([]);
                 expect(result.validated.tables).toBeGreaterThanOrEqual(13);
             } finally {
                 await perPrPool.end();

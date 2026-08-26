@@ -25,6 +25,8 @@ describe('emf-metrics', () => {
                 fetchQueueDepth: 'food-fetch-queue-depth',
                 resolutionLatencySeconds: 'food-resolution-latency-seconds',
                 sourceRollingWindowCount: 'source-rolling-window-count',
+                sourceRateLimitRemaining: 'source-rate-limit-remaining',
+                sourceRateLimitLimit: 'source-rate-limit-limit',
                 sourceApiSuccessRate: 'source-api-success-rate',
                 unresolvedBacklog: 'food-unresolved-backlog',
                 tombstoneCount: 'food-tombstone-count',
@@ -69,6 +71,7 @@ describe('emf-metrics', () => {
             metrics.recordLocalStoreServe(true);
             metrics.recordRetryBudgetExhausted();
             metrics.recordSourceWindowCount('usda', 1);
+            metrics.recordSourceRateLimit('usda', { limit: 1000, remaining: 1 });
 
             const emitted = new Set(
                 lines.flatMap((line) =>
@@ -89,6 +92,8 @@ describe('emf-metrics', () => {
                 'food-tombstone-count',
                 'food-unresolved-backlog',
                 'food-worker-error-count',
+                'source-rate-limit-limit',
+                'source-rate-limit-remaining',
                 'source-rolling-window-count',
             ]);
             expect(pending).toEqual([FOOD_METRIC.sourceApiSuccessRate, FOOD_METRIC.auth401Rate]);
@@ -187,6 +192,53 @@ describe('emf-metrics', () => {
             expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['source']]);
             expect(parsed['source']).toBe('usda');
             expect(parsed['source-rolling-window-count']).toBe(12);
+        });
+
+        /**
+         * U38 — the quota USDA REPORTS, charted beside `source-rolling-window-count`, the quota we MODEL.
+         * The pair is the evidence: while the two track each other the window is ours alone (per-key);
+         * a `remaining` that falls faster than our count says the bucket is shared (per-IP).
+         *
+         * Both values ride ONE EMF line so a chart can subtract them without joining two series, and a
+         * field USDA did not report is OMITTED — publishing `0` for an absent `remaining` would draw
+         * exactly the picture an exhausted quota draws.
+         */
+        it('records the reported rate limit on one line, under the source dimension', () => {
+            const sink = vi.fn();
+            new FoodMetrics(sink).recordSourceRateLimit('usda', { limit: 1000, remaining: 987 });
+
+            expect(sink).toHaveBeenCalledTimes(1);
+
+            const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
+
+            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([['source']]);
+            expect(parsed['source']).toBe('usda');
+            expect(parsed._aws.CloudWatchMetrics[0].Metrics).toEqual([
+                { Name: 'source-rate-limit-remaining', Unit: 'Count' },
+                { Name: 'source-rate-limit-limit', Unit: 'Count' },
+            ]);
+            expect(parsed['source-rate-limit-remaining']).toBe(987);
+            expect(parsed['source-rate-limit-limit']).toBe(1000);
+        });
+
+        it('omits the half USDA did not report rather than publishing a zero for it', () => {
+            const sink = vi.fn();
+            new FoodMetrics(sink).recordSourceRateLimit('usda', { remaining: 0 });
+
+            const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
+
+            expect(parsed._aws.CloudWatchMetrics[0].Metrics).toEqual([
+                { Name: 'source-rate-limit-remaining', Unit: 'Count' },
+            ]);
+            expect(parsed['source-rate-limit-remaining']).toBe(0);
+            expect(Object.hasOwn(parsed, 'source-rate-limit-limit')).toBe(false);
+        });
+
+        it('emits nothing at all when the snapshot carries neither value', () => {
+            const sink = vi.fn();
+            new FoodMetrics(sink).recordSourceRateLimit('usda', {});
+
+            expect(sink).not.toHaveBeenCalled();
         });
 
         /**

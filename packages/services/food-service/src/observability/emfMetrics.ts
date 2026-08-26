@@ -33,6 +33,18 @@ export const FOOD_METRIC = {
     resolutionLatencySeconds: 'food-resolution-latency-seconds',
     /** Per-source rolling-60-min windowed call count (dimension: `source`). */
     sourceRollingWindowCount: 'source-rolling-window-count',
+    /**
+     * Calls the SOURCE says are left in its own window, from its `X-RateLimit-Remaining` header
+     * (dimension: `source`, U38).
+     *
+     * Charted against {@link FOOD_METRIC.sourceRollingWindowCount} — the same quantity as we MODEL it —
+     * this is what settles whether USDA's 1,000/hr is charged per API key or per egress IP: the two track
+     * each other under the first reading and diverge under the second. It does not replace the counter,
+     * which is what admission is decided on and the only number available BEFORE a call is made.
+     */
+    sourceRateLimitRemaining: 'source-rate-limit-remaining',
+    /** The window size the source reports in `X-RateLimit-Limit` (dimension: `source`, U38). */
+    sourceRateLimitLimit: 'source-rate-limit-limit',
     /** ⛔ NOT EMITTED. Per-source API success rate as a percentage (dimension: `source`) — US-10. */
     sourceApiSuccessRate: 'source-api-success-rate',
     /** Count of foods awaiting human disambiguation (UNRESOLVED). */
@@ -329,5 +341,39 @@ export class FoodMetrics {
             },
             this.sink,
         );
+    }
+
+    /**
+     * Record the rate-limit window a source REPORTED on its own response (U38).
+     *
+     * Both values ride ONE EMF line so a dashboard can put the reported `remaining` beside our modelled
+     * {@link FOOD_METRIC.sourceRollingWindowCount} without joining two series. A value the source did not
+     * report is OMITTED, never emitted as `0` — a zero `remaining` is precisely what an exhausted quota
+     * looks like, so publishing one for an absent header would fabricate the alarm this metric exists to
+     * make trustworthy. A snapshot with nothing in it emits nothing.
+     *
+     * @param source - The source that reported the window.
+     * @param reported - The reported window; each field present only when the source sent it.
+     * @sideEffect Emits at most one EMF line.
+     */
+    public recordSourceRateLimit(
+        source: string,
+        reported: { readonly limit?: number; readonly remaining?: number },
+    ): void {
+        const metrics: MetricDatum[] = [];
+
+        if (reported.remaining !== undefined) {
+            metrics.push({ name: FOOD_METRIC.sourceRateLimitRemaining, value: reported.remaining, unit: 'Count' });
+        }
+
+        if (reported.limit !== undefined) {
+            metrics.push({ name: FOOD_METRIC.sourceRateLimitLimit, value: reported.limit, unit: 'Count' });
+        }
+
+        if (metrics.length === 0) {
+            return;
+        }
+
+        emitMetric({ metrics, dimensions: { source } }, this.sink);
     }
 }

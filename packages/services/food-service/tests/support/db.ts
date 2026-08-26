@@ -22,7 +22,8 @@ export const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DAT
 /** The Drizzle client type used by every food-domain DAO (node-postgres driver + the food schema). */
 export type TestDb = ReturnType<typeof drizzle<typeof schema>>;
 
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/db/migrations');
+/** The ordered hand-authored `.sql` migrations — the source of truth the runner applies. */
+export const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/db/migrations');
 
 /**
  * Drop and recreate the `public` schema, then apply every ordered `.sql` migration to it.

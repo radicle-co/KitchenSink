@@ -1553,6 +1553,38 @@ refuses to clone a database that has any open session, and the sandbox base has 
 a direct consequence of the rule above. ⚠️ It would break silently if a persistent sandbox food service
 were ever added, so the clone path needs a guard that says so rather than a comment that hopes so.
 
+### Implemented (U38, 2026-08-26) — and what is still OWED
+
+**Shipped.** `ensureDatabaseExists` now issues `CREATE DATABASE "<name>" TEMPLATE "kitchensink_food"` and
+returns `'cloned'`; the base short-circuit is unchanged, so no base stage ever clones onto itself. The
+guard the entry above asked for is `FoodDatabaseCloneError`
+(`src/lambdas/migrate/migrate.errors.ts`), which classifies the three refusals — `template-in-use`
+(SQLSTATE 55006), `template-missing` (3D000), `insufficient-privilege` (42501) — and carries the operator
+remedy in the message. ⛔ There is deliberately **no** branch that creates the database without the
+template: an empty per-PR catalog passes every check and surfaces only as
+`catalogAvailability: 'unavailable'`. The base-versus-branch migration interaction the entry called for a
+test on is covered: a clone arrives with the base's `schema_migrations`, so the run that follows applies
+only what is newer (`tests/migrateTemplateClone.integration.test.ts`, and the rewritten lifecycle case in
+`tests/migrate.integration.test.ts`). Concurrent clones from one template were measured to succeed, since
+copying takes a share lock rather than a session — relevant because several previews deploy at once.
+
+`UsdaApiClient` now reads `X-RateLimit-Limit`/`X-RateLimit-Remaining` (`src/rateLimit.ts`) and reports them
+through an injected observer; `createUsdaSourceRegistry` — the ONE composition all three roots share —
+wires that to two EMF metrics, `source-rate-limit-remaining` and `source-rate-limit-limit`, under the
+`source` dimension. An absent or unreadable header is reported as ABSENT, never as `0`, and never fails the
+call. ⛔ `RollingWindowLimiter` and U29's interactive/worker lanes are UNCHANGED: the header is evidence
+observed AFTER a call, the counter is the only number that exists BEFORE one, so it remains the admission
+rule. Charting `source-rate-limit-remaining` against `source-rolling-window-count` is what answers the
+per-IP-versus-per-key question — they track under one reading and diverge under the other.
+
+**⛔ OWED — the live sandbox clone has NOT been observed warm.** The plan's verification line is
+"integration tier green against a real Postgres; one live sandbox clone observed warm." The first half is
+done (local Docker PostgreSQL 18). The second is **not**: sandbox RDS was stopped when this was built, and
+no deploy was made. Before this is called complete, seed the sandbox base, deploy one `pr-{N}`, and confirm
+its catalog is populated with the queries in `src/foods/seed/README.md` §5. Two things only that run can
+settle: that `food_app` may copy `kitchensink_food` (ownership / `datistemplate`, untested against RDS),
+and that nothing holds a session on the sandbox base in practice.
+
 ---
 
 **Original entry, kept for the evidence and the option costs:**

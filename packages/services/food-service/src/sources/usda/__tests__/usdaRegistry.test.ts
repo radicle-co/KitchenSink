@@ -18,6 +18,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EnvironmentSchema } from '../../../config/env.schema.js';
+import { FOOD_METRIC, FoodMetrics, type EmfPayload } from '../../../observability/emfMetrics.js';
 import { createUsdaSourceRegistry } from '../usdaRegistry.js';
 
 /** The `USDA_API_BASE_URL` default the boot-time schema applies — never restated here as a literal. */
@@ -80,6 +81,48 @@ describe('createUsdaSourceRegistry', () => {
         vi.stubEnv('USDA_API_KEY', undefined);
 
         expect(() => createUsdaSourceRegistry()).toThrow(/USDA_API_KEY/);
+    });
+
+    /**
+     * U38 — the registry is where the client's rate-limit observer is wired, because it is the ONE
+     * composition every process shares. The reading has to LAND somewhere observable: parsing
+     * `X-RateLimit-Remaining` and dropping it settles nothing, and settling the per-IP-versus-per-key
+     * question empirically is the whole reason for reading it.
+     */
+    describe('X-RateLimit reading (U38)', () => {
+        /** Answer with an empty USDA search envelope carrying the supplied headers. */
+        function respondWithHeaders(headers: Record<string, string>): void {
+            vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+                new Response(JSON.stringify({ foods: [], totalHits: 0 }), { status: 200, headers }),
+            );
+        }
+
+        it('emits the quota USDA reported as an EMF line under the usda source dimension', async () => {
+            respondWithHeaders({ 'X-RateLimit-Limit': '1000', 'X-RateLimit-Remaining': '873' });
+            const sink = vi.fn();
+
+            await createUsdaSourceRegistry(new FoodMetrics(sink)).adapterFor('usda').searchByName('broccoli');
+
+            expect(sink).toHaveBeenCalledTimes(1);
+
+            const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
+
+            expect(parsed['source']).toBe('usda');
+            expect(parsed[FOOD_METRIC.sourceRateLimitRemaining]).toBe(873);
+            expect(parsed[FOOD_METRIC.sourceRateLimitLimit]).toBe(1000);
+        });
+
+        it('emits nothing, and still resolves, when USDA reported no rate-limit headers', async () => {
+            respondWithHeaders({ 'content-type': 'application/json' });
+            const sink = vi.fn();
+
+            const result = await createUsdaSourceRegistry(new FoodMetrics(sink))
+                .adapterFor('usda')
+                .searchByName('broccoli');
+
+            expect(result).toEqual([]);
+            expect(sink).not.toHaveBeenCalled();
+        });
     });
 
     it.each(['', 'not-a-url', 'usda.example.com'])(

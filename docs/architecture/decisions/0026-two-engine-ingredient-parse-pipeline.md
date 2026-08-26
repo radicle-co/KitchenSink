@@ -347,7 +347,9 @@ either.** They are recorded because each is what a careful reader arrives at ind
 
 The settled rule is **two questions over two vocabularies**, not one test: _is this span an ingredient at
 all?_ — only a **vessel** answers no; and _would cutting this tail delete a food?_ — a **vessel or a
-duration** answers no. `measuresNoSubstance` (`domain/notAFoodLexicon.ts`) is shared across the package
+duration** answers no. ⚠️ **§7a AMENDS the first of those two questions** (owner ruling, 2026-08-26): a
+vessel's role is decided by its POSITION, not by the word, and "the WORD is the signal" is now a THIRD
+disproved guard recorded beside the two below. Read §7a before changing anything here. `measuresNoSubstance` (`domain/notAFoodLexicon.ts`) is shared across the package
 boundary with `cookbook-import`'s accept gate deliberately: the gate previously held its own `NOT_A_MEASURE`
 copy, and two copies of "which words are not a measure of an ingredient" is exactly the drift DRY governs.
 
@@ -362,6 +364,128 @@ number is understated). It is deliberately NOT in `VALUE_CORRUPTING_REVIEW_REASO
 reported are exactly what the source stated, and membership would make `cookbook-import` discard a whole
 line it can read. ⚠️ That set is a `Set`, not an exhaustive map, so adding a reason produces **no** compile
 error there — the membership decision must be argued in its comment, as the existing exclusions are.
+
+### 7a. Update (2026-08-26) — a vessel's role is its POSITION, and "the WORD is the signal" is the THIRD disproved guard
+
+⛔ **Nothing in §7 is rewritten.** Its two disproved guards stay recorded exactly as they are: they are still
+disproved, and a careful reader still arrives at both independently. This section AMENDS §7's settled rule
+with a third axis, on an owner ruling of 2026-08-26.
+
+**The ruling, verbatim in substance:** _a vessel's role is decided by its POSITION in the clause, not by the
+word being a vessel._
+
+- **Object of a preposition** → an instruction, cut it — `one tablespoon of butter **in a frying-pan**`,
+  `milk **for five minutes**`, `flour **to it**`.
+- **Heading the measure phrase** → **a unit**, keep it — `**a large mixing bowl** [of] flour`,
+  `**a bowl** of flour`, `**a glass** of milk`.
+
+**What surfaced it.** `In a large mixing bowl whip to a cream two eggs` (PEACH PUDDING, 1919 corpus). The LLM
+returned `measure: 'large'`, `foods: ['mixing bowl', 'two eggs']`; the extractor published an ingredient
+literally named **`mixing bowl whip`**, quantity 1, unit `large`, in a public recipe. Owner: _"mixing bowl is
+wrong — that's just obviously not a food"_, _"mixing bowl is a unit"_, _"'large mixing bowl' is the whole
+measurement"_. §7's rule could not see it: nothing reaching `segmentClause` carried the `In`.
+
+#### The third disproved position, recorded beside the other two
+
+3. **"The WORD is the signal — any vessel means not an ingredient."** This is §7's own rule read one step too
+   far, and it is what the ruling overturns. A cook genuinely measures by vessel, so a rule keyed on the word
+   discards a real measurement. ⛔ Do not re-widen `namesEquipment` to a word-anywhere test: measured on this
+   corpus it calls `one pound of pot roast`, `two cups of pan gravy`, `one-half pound of pot cheese` and
+   `a dish of stewed prunes` equipment. The head-final discipline is what separates them and it is unchanged.
+
+#### The settled rule is now THREE positions, and the composition is a disjunction
+
+A vessel occupies exactly one of three positions, and only the first two refuse the span:
+
+| position                                                            | verdict         | test                                                               |
+| ------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------ |
+| the **subject** of the span — head-final, nothing is measured by it | **instruction** | `namesEquipment(span)` — unchanged from §7                         |
+| **governed** by a preposition, inside the leading measure phrase    | **instruction** | `isGovernedByAPreposition(precededBy) && mentionsAVessel(measure)` |
+| **heading the measure phrase**, ungoverned — a food follows it      | **a unit**      | neither fires; the span survives                                   |
+
+`segmentClause(span, precededBy)` therefore takes a **required** second parameter — the clause text in front
+of the span. Required, not defaulted: a default is a POSITION, silently asserted for every caller that had
+not thought about it, and the wrong one deletes an amount the source printed. This follows §1's precedent
+that a **signature is the enforcement**.
+
+⚠️ **Where the position lives, and where it deliberately does not.** `notAFoodLexicon.ts` still answers only
+_which words are vessels_. All three grammatical judgements — what a preposition governs, where a measure
+phrase ends, what a vessel in each place means — are in `clauseSegmentation.ts`, because a vocabulary is an
+implementation detail of the policy that consumes it. The lexicon gained exactly two exports for this:
+`mentionsAVessel` (below) and `lastWordOf`, so that "does a preposition govern this span?" folds words the
+same way `a large pan.` is folded and a second hand-rolled tokenizer cannot drift.
+
+#### ⛔ `mentionsAVessel` is a loaded gun, and a DELIMITER is what unloads it
+
+The governed test is **word-anywhere**, which this package's head-final discipline forbids for a whole
+phrase. It is sound only because the phrase it scans is bounded first: the **measure phrase** runs to the
+first partitive `of` or the first instruction boundary, whichever comes first. That is what a preposition
+would govern, and it is never the food behind it — `one pound of pot roast` offers `one pound`.
+
+⛔ **A span with NO delimiter gets no answer.** An earlier draft read the measure phrase as "…or the whole
+span", and that arm is the word-only rule wearing the position rule's name: `with two pot roasts`,
+`in a pot roast` and `two tin cups` all fire on it and delete real food. Declining costs nothing — a bare
+governed vessel phrase (`into a large preserving kettle`) is head-final a vessel and the subject test already
+refuses it. ⛔ Do not restore the third arm, and do not defend it with "`namesAQuantifiedIngredient` requires
+a unit so count-form foods never reach here": that is a **caller-held** invariant of exactly the kind §7's F3
+note warns about — _"today's single caller owns a retrying suffix scan, and U22's `parsePipeline` will not."_
+
+⚠️ Head-finality cannot serve instead, and no tagger is coming: `a large mixing bowl whip` is head-final
+`whip`, a verb, and §5 rules that this package answers definitions with a lexicon rather than a tagger.
+
+#### The position test runs BEFORE the second-food guard, and that does not reopen F3
+
+F3's hazard was head-finality applied to a span whose cut had been **refused**, which reads the TAIL's noun.
+The measure phrase ends at or before the same `boundary` the head is cut at, so it is a **prefix of the head
+by construction** — the position test cannot see the tail under any input. It needs no second-food guard of
+its own, and giving it one would defeat the ruling on the very case that surfaced it (the tail of
+`a large mixing bowl whip to a cream two eggs` states `two eggs`, so the cut is refused and the whole span
+would survive).
+
+⚠️ **The accepted cost, stated rather than hidden.** A governed vessel span that ALSO carries a second food is
+dropped whole, silently — `instruction` raises no review reason, and that silence must not change (§7, and
+the `ClauseSegment` docstring). On this corpus it costs `two eggs` in PEACH PUDDING, which the extractor's own
+unit gate could never have kept anyway, traded against a fabricated ingredient it WAS publishing. ⚠️ Under
+U22's `parsePipeline` the LLM leg could in principle have recovered `two eggs` from a whole-span reading;
+this removes that possibility.
+
+#### `through` was missing from the boundary lexicon, and its absence DELETED food
+
+Read in the other direction, the ruling says a governed vessel is a tail to **cut**, never a verdict on the
+whole span. Two 1919 spans proved the boundary lexicon incomplete:
+
+- `one and one-half cups of canned tomatoes rubbed **through a strainer**`
+- `one quart of fine cottage cheese **through a coarse sieve or colander**`
+
+`through` is a preposition and was simply not in `INSTRUCTION_BOUNDARY`, so no cut was ever proposed and the
+head-final test condemned the whole span — refusing a stated cup of tomatoes and a stated quart of cheese. A
+lexicon that silently lacks a member of its own category is the lexicon's contract breached, not a missing
+word. ⚠️ The list is completed by **measured evidence**, not by enumerating English: `upon`, `onto` and
+`under` are not added, because no corpus line asks for them and every addition moves lines.
+
+#### ⛔ The corpus diff, which is the only evidence that counts here
+
+§7's rule stands: a green unit tier is not evidence. Full sweep over `pg12350.txt`, base (`ddcd80f5`) versus
+this change, recorded in `docs/reports/2026-08-23-002-ingredient-parse-model-comparison.md` §12. Headline:
+**−1 recipe, −5 accepted ingredient lines, +1**, and the recipe lost (`SPINACH`) fell below the minimum only
+because a fabricated ingredient stopped propping it up. The **six** rule-(b) firings are listed there
+individually with the stated foods each refusal costs — `statesASecondFood` run as an OBSERVER, which is the
+accountability the silent `instruction` verdict cannot provide at runtime.
+
+#### Stated limits and residual risk
+
+- ⚠️ **`glass` and `cup` are not in `VESSELS`.** The ruling's own third example, `a glass of milk`, therefore
+  does not move in either direction. That is a VOCABULARY question and this change is a POSITION one; adding
+  words moves corpus lines nobody asked to move. Left open deliberately.
+- ⚠️ **A count-form food whose name mentions a vessel, sitting as a prepositional object, has no partitive to
+  bound the scan.** The delimiter requirement means it is only at risk when the span carries some other
+  delimiter. No such line exists in this book — but the corpus is one book, and that is the failure this
+  would take.
+- ⚠️ **Already-published data is not repaired by this.** `mixing bowl whip` is fixed in the parser, not in any
+  recipe already written from it. A re-import or correction pass is owed and is not in this change.
+- ⚠️ **Adding `through` moved ZERO accepted lines on its own** (isolated run). Both spans it rescues belong to
+  blocks the extractor skips for unrelated reasons, so the fix is real at the segmenter's contract and
+  invisible in this book's output.
 
 ### 8. A SIZE WORD IS A UNIT — an absent CRF unit is rescued whatever unit the LLM read (U36)
 

@@ -233,7 +233,24 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   BOTH ways (`two eggs` is `{quantity: 2, unit: null}`, the normal form of every count ingredient, so a
   second food was DELETED; `a large frying-pan` reads as `1 large :: frying-pan` and wrongly refused a cut,
   losing the butter). The settled rule is TWO questions over two vocabularies — only a VESSEL says "not an
-  ingredient"; a vessel OR a duration says "cutting would delete a food". ⛔ A unit suite CANNOT verify this:
+  ingredient"; a vessel OR a duration says "cutting would delete a food". ⛔ **A VESSEL'S ROLE IS ITS POSITION, NOT THE WORD** (owner ruling
+  2026-08-26, ADR-0026 §7a) — "the WORD is the signal" is a THIRD disproved guard beside those two. Object of
+  a preposition → an instruction (`butter IN A FRYING-PAN`); heading the measure phrase → a UNIT (`A BOWL of
+flour`), because a cook genuinely measures by vessel. `In a large mixing bowl whip to a cream two eggs`
+  published an ingredient named `mixing bowl whip` (q=1, unit `large`) in a public recipe. `segmentClause`
+  therefore takes a **required** second parameter — the clause text in FRONT of the span — required because a
+  default is a POSITION silently asserted for every caller. ⛔ Head-final `namesEquipment` is UNCHANGED and
+  the position test is purely ADDITIVE (a disjunction): three measured removals have no preposition in front
+  of them (`Line a large salad bowl…`, `Pour into jelly-glasses OR one large mould`, `Have at least five
+large pans…`) and would come back if position REPLACED head-finality. ⛔ The governed test is word-anywhere
+  and a **DELIMITER IS REQUIRED** to make it sound — the measure phrase ends at the first partitive `of` or
+  the first instruction boundary, so `one pound of pot roast` offers `one pound`. Do not restore the "…or the
+  whole span" arm (it deletes `with two pot roasts`), and do not defend it with the accept gate's unit
+  requirement, which is a CALLER-held invariant of exactly the kind F3 warns about. ⛔ It runs BEFORE the
+  second-food guard without reopening F3, because the measure phrase is a PREFIX OF THE HEAD by construction
+  and cannot see the tail. ⛔ `through` was missing from the boundary lexicon and its absence DELETED food.
+  Measured: −1 recipe (`SPINACH`, two-thirds fabrication), −5 accepted lines / +1, six firings costing one
+  stated food and recovering one. ⛔ A unit suite CANNOT verify this:
   three food losses were found ONLY by a corpus-wide diff over the full 1919 book, and that diff is the
   check any future change here owes. ⛔ Two contract defects were REPAIRED 2026-08-25 and the repairs are load-bearing.
   `ParseEngine` was declared twice — structurally identical, so `tsc` is blind to it BY CONSTRUCTION
@@ -252,43 +269,43 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   rather than tidied away: `one and a half cups of sugar` → `[('1',''),('half','cup')]` has a POPULATED
   unit, so it is a genuine `quantityDiffers` and still resolves to half a cup.
 
-    ⛔ **U36 (owner ruling 2026-08-26) — the ruling reached the MERGE, and A SIZE WORD IS A UNIT.**
-    `parseComparator.ts`'s `llmRescuedTheMeasure` required `isHistoricalUnit(llm.unit)`. Measured on a real
-    Nova Micro run over the 2,502-line corpus, **53** lines have a bare-number CRF measure — 29 mutually
-    silent, 13 a plain unit, 7 a SIZE used as the unit, 4 an alternation — and **only 4 of the 13** are
-    historical, so on nine lines the merged line carried NO UNIT AT ALL. The predicate now asks only whether
-    the LLM stated a unit and the CRF did not, through `statesAUnit` rather than `!== null`, because
-    `normalizeUnit` answers `''` for a unit of `.` and that is a second spelling of silence.
+        ⛔ **U36 (owner ruling 2026-08-26) — the ruling reached the MERGE, and A SIZE WORD IS A UNIT.**
+        `parseComparator.ts`'s `llmRescuedTheMeasure` required `isHistoricalUnit(llm.unit)`. Measured on a real
+        Nova Micro run over the 2,502-line corpus, **53** lines have a bare-number CRF measure — 29 mutually
+        silent, 13 a plain unit, 7 a SIZE used as the unit, 4 an alternation — and **only 4 of the 13** are
+        historical, so on nine lines the merged line carried NO UNIT AT ALL. The predicate now asks only whether
+        the LLM stated a unit and the CRF did not, through `statesAUnit` rather than `!== null`, because
+        `normalizeUnit` answers `''` for a unit of `.` and that is a second spelling of silence.
 
-    ⛔ **Do NOT "fix" this by rejecting `small`/`large` as fabricated units — PROPOSED and DISPROVED.** The
-    merged `foods` come from the LLM, which reads `onion` with `small` in the unit, so refusing the unit
-    DELETES the word from every field; and `unitToGrams` (`recipe-core/src/units.ts`) resolves a unit against
-    the catalog's own portion LABELS, which the food service ingests VERBATIM from USDA's
-    `modifier`/`portion_description` (`mapBulkPortions`) — literally `small`/`medium`/`large`/`extra large`
-    for eggs. `one large cinnamon cake` FAILS SAFE: no portion matches, `unitToGrams` returns `null`, the same
-    outcome an unconvertible unit has always had. Rejecting size words guarantees the loss; admitting them
-    cannot make a nutrition figure wrong.
+        ⛔ **Do NOT "fix" this by rejecting `small`/`large` as fabricated units — PROPOSED and DISPROVED.** The
+        merged `foods` come from the LLM, which reads `onion` with `small` in the unit, so refusing the unit
+        DELETES the word from every field; and `unitToGrams` (`recipe-core/src/units.ts`) resolves a unit against
+        the catalog's own portion LABELS, which the food service ingests VERBATIM from USDA's
+        `modifier`/`portion_description` (`mapBulkPortions`) — literally `small`/`medium`/`large`/`extra large`
+        for eggs. `one large cinnamon cake` FAILS SAFE: no portion matches, `unitToGrams` returns `null`, the same
+        outcome an unconvertible unit has always had. Rejecting size words guarantees the loss; admitting them
+        cannot make a nutrition figure wrong.
 
-    ⛔ **It reaches ONLY the absent case.** `quantityDiffers`/`unitDiffers` → `crfWins` are untouched (two
-    engines that each STATE a unit and differ still go to the CRF), the rescue still never takes the QUANTITY,
-    the 29 mutually-silent lines do not move, and U16 is untouched — `promoteCrfReading` still canonicalises
-    the CRF's `size` FIELD into that engine's own NAME, because U16 places a word inside ONE engine's line
-    while the winner rule picks WHOSE measure is stored, and the two never touch the same value. The census
-    moved with the merge: `crfSizeField` disposes **`llmWins`**, not `canonicalised` (placement cannot move a
-    word into the unit), so all three verdicts in `judgeMeasure`'s `crf.unit === ''` branch agree with it.
+        ⛔ **It reaches ONLY the absent case.** `quantityDiffers`/`unitDiffers` → `crfWins` are untouched (two
+        engines that each STATE a unit and differ still go to the CRF), the rescue still never takes the QUANTITY,
+        the 29 mutually-silent lines do not move, and U16 is untouched — `promoteCrfReading` still canonicalises
+        the CRF's `size` FIELD into that engine's own NAME, because U16 places a word inside ONE engine's line
+        while the winner rule picks WHOSE measure is stored, and the two never touch the same value. The census
+        moved with the merge: `crfSizeField` disposes **`llmWins`**, not `canonicalised` (placement cannot move a
+        word into the unit), so all three verdicts in `judgeMeasure`'s `crf.unit === ''` branch agree with it.
 
-    ⚠️ **Two limits stay open.** Alternation (`one large onion or two small ones`, 4 lines) is two measures
-    against ONE measure field — a modelling gap, and a sensible single reading is taken. And the merge can
-    hold the LLM's measure PHRASE beside the CRF's NUMBER: `one and a half quarts` stores `1 quart`, which is
-    REPORTED as `differ: ['quantity']` rather than silent, but is not fixed. ⚠️ A vessel HEADING the measure
-    phrase (`a large mixing bowl of flour`, `a glass of milk`) is a UNIT while one after a preposition
-    (`butter in a frying-pan`) is instruction (owner ruling 2026-08-26) — that implementation lands in the
-    SEGMENTATION layer and never in the comparator; a PRONOUN food (`a small one` → `foods: ['one']`) is still
-    OPEN.
+        ⚠️ **Two limits stay open.** Alternation (`one large onion or two small ones`, 4 lines) is two measures
+        against ONE measure field — a modelling gap, and a sensible single reading is taken. And the merge can
+        hold the LLM's measure PHRASE beside the CRF's NUMBER: `one and a half quarts` stores `1 quart`, which is
+        REPORTED as `differ: ['quantity']` rather than silent, but is not fixed. ⚠️ A vessel HEADING the measure
+        phrase (`a large mixing bowl of flour`, `a glass of milk`) is a UNIT while one after a preposition
+        (`butter in a frying-pan`) is instruction (owner ruling 2026-08-26) — that implementation lands in the
+        SEGMENTATION layer and never in the comparator; a PRONOUN food (`a small one` → `foods: ['one']`) is still
+        OPEN.
 
-    ⚠️ Still open: `sentence` means two different things in the two CRF schemas (`crfParse.ts` "echoed back"
-    vs `engine.schema.ts` "NORMALISED"), which is why the promotion adapters take `raw` as a PARAMETER rather
-    than trusting either.
+        ⚠️ Still open: `sentence` means two different things in the two CRF schemas (`crfParse.ts` "echoed back"
+        vs `engine.schema.ts` "NORMALISED"), which is why the promotion adapters take `raw` as a PARAMETER rather
+        than trusting either.
 
 - **ADR-0027 — an ingredient PHRASE is NOT personal data, and the `user_id` beside it is a DISTINCT-USER
   COUNTER, not an erasure predicate (owner ruling 2026-08-25).** This REVERSES two recorded rulings:

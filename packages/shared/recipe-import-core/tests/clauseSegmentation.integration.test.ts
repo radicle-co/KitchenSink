@@ -87,12 +87,30 @@ function splitClauses(body: string): readonly string[] {
     return clauses;
 }
 
-/** Each unit of text, from each quantity phrase in it to its end — `trimmed.slice(at)` in `suffixStarts`' terms. */
-function spansIn(units: readonly string[]): readonly string[] {
+/** One span, with the clause text in front of it — exactly the pair `ingredientInClause` hands the segmenter. */
+interface PositionedSpan {
+    readonly span: string;
+    readonly precededBy: string;
+}
+
+/**
+ * Each unit of text, from each quantity phrase in it to its end — `trimmed.slice(at)` in `suffixStarts`'
+ * terms — paired with `trimmed.slice(0, at)`, the clause text the position ruling reads.
+ *
+ * ⛔ The prefix is taken from the SAME slice as the span, so the pair is what the real caller produces. A
+ * suite that passed `''` here would test the segmenter in a position no caller ever uses, and the 2026-08-26
+ * ruling would be exercised only by the cases a unit test happened to imagine.
+ */
+function spansIn(units: readonly string[]): readonly PositionedSpan[] {
     return units
         .map((unit) => unit.replace(/\s+/g, ' ').trim())
         .filter((unit) => unit.length >= 3)
-        .flatMap((unit) => findQuantityPhrases(unit).map((phrase) => unit.slice(phrase.start)));
+        .flatMap((unit) =>
+            findQuantityPhrases(unit).map((phrase) => ({
+                span: unit.slice(phrase.start),
+                precededBy: unit.slice(0, phrase.start),
+            })),
+        );
 }
 
 /**
@@ -108,19 +126,64 @@ function spansIn(units: readonly string[]): readonly string[] {
  * is also the CONTRACT case: `segmentClause` is a barrel export, and U22's `parsePipeline` will hand it
  * spans that nothing pre-split on ` and `.
  */
-function everySpan(): readonly string[] {
+function everySpan(): readonly PositionedSpan[] {
     const corpus = readCorpus();
 
     return [...spansIn(splitClauses(corpus)), ...spansIn(corpus.split(/[;.]/))];
 }
 
-const SPANS = everySpan();
-const SEGMENTS = SPANS.map((span) => ({ span, segment: segmentClause(span) }));
+const POSITIONED = everySpan();
+const SPANS = POSITIONED.map(({ span }) => span);
+const SEGMENTS = POSITIONED.map(({ span, precededBy }) => ({ span, segment: segmentClause(span, precededBy) }));
 const BOUNDED = SEGMENTS.flatMap(({ span, segment }) =>
     segment.kind === 'ingredient' && segment.trailingInstruction !== null
         ? [{ input: span, head: segment.span, tail: segment.trailingInstruction }]
         : [],
 );
+
+/**
+ * The VESSEL half of {@link NOT_A_FOOD_NOUN}, written out separately because the position ruling is about
+ * vessels only. A DURATION (`an hour`) is residue by a different rule entirely — it is never a measuring
+ * vessel, so moving it behind a preposition changes nothing and asserting that it does would be wrong.
+ */
+const ORACLE_VESSELS: ReadonlySet<string> = new Set([
+    'bowl',
+    'bowls',
+    'dish',
+    'dishes',
+    'jar',
+    'jars',
+    'kettle',
+    'kettles',
+    'mould',
+    'moulds',
+    'oven',
+    'pan',
+    'pans',
+    'platter',
+    'pot',
+    'pots',
+    'saucepan',
+    'skillet',
+    'spider',
+    'stove',
+    'tin',
+    'tins',
+]);
+
+/** The prepositions the segmenter treats as governing, restated here so this file can DISAGREE with it. */
+const GOVERNORS: ReadonlySet<string> = new Set([
+    'in',
+    'into',
+    'with',
+    'over',
+    'for',
+    'from',
+    'through',
+    'to',
+    'on',
+    'at',
+]);
 
 /**
  * ⛔ THE INDEPENDENT ORACLE — written out here, deliberately NOT imported from `notAFoodLexicon.ts`.
@@ -189,6 +252,26 @@ describe('segmentClause over real 1919 prose — anti-vacuity', () => {
         );
 
         expect(compounds.length).toBeGreaterThan(0);
+
+        // ⛔ The POSITION regime (owner ruling 2026-08-26). A span whose clause governs it with a
+        // preposition must actually occur, or every case about what a governed vessel means is a statement
+        // about spans this corpus does not contain — the same vacuity that made R29 green for nothing.
+        const governed = POSITIONED.filter(({ precededBy }) =>
+            GOVERNORS.has((precededBy.trim().split(/\s+/).at(-1) ?? '').toLowerCase()),
+        );
+
+        expect(governed.length).toBeGreaterThan(0);
+
+        // ⛔ And the regime must actually BITE. A governed span that no vessel measures leaves the position
+        // test a no-op over this corpus, so every case below would be a statement about the head-final
+        // rule wearing the position rule's name. What is asserted is a span the position test refuses and
+        // the head-final rule would NOT have — the only evidence that rule (b) does anything here at all.
+        const refusedOnlyByPosition = governed.filter(
+            ({ span, precededBy }) =>
+                segmentClause(span, precededBy).kind === 'instruction' && segmentClause(span, '').kind === 'ingredient',
+        );
+
+        expect(refusedOnlyByPosition.length).toBeGreaterThan(0);
     });
 
     /**
@@ -289,8 +372,80 @@ describe('segmentClause over real 1919 prose — what it may never do', () => {
 
     /** Totality. A segmenter that throws on one span in a corpus takes the whole import down with it. */
     it('answers for every span the corpus produces, without throwing', () => {
-        for (const span of SPANS) {
-            expect(() => segmentClause(span)).not.toThrow();
+        for (const { span, precededBy } of POSITIONED) {
+            expect(() => segmentClause(span, precededBy)).not.toThrow();
+        }
+    });
+});
+
+describe('segmentClause over real 1919 prose — ⛔ POSITION decides a vessel (owner ruling 2026-08-26)', () => {
+    /**
+     * ⛔ THE PROPERTY THE RULING ADDS, judged against this file's own {@link GOVERNORS} list rather than
+     * the module's. A span may only be refused outright when the vessel is what the span is ABOUT
+     * (head-final) or when a preposition GOVERNS the span. A span that is neither — a measure phrase headed
+     * by a vessel, standing at the head of its clause — is a real measurement and must survive.
+     *
+     * This is the corpus-level form of MUTANT 1: revert the module to "any vessel means not an ingredient"
+     * and every ungoverned `a bowl of …` in the book stops being a measure, which this loop catches.
+     */
+    it('never refuses an UNGOVERNED span whose head noun is a food, and judged at least one', () => {
+        let judged = 0;
+
+        for (const { span, precededBy } of POSITIONED) {
+            const governor = (precededBy.trim().split(/\s+/).at(-1) ?? '').toLowerCase();
+            const finalWord = finalNoun(span);
+
+            if (GOVERNORS.has(governor) || NOT_A_FOOD_NOUN.has(finalWord) || finalWord === '') {
+                continue;
+            }
+
+            judged += 1;
+
+            expect(
+                segmentClause(span, precededBy).kind,
+                `refused ${JSON.stringify(span)}, which nothing governs and which is about ${finalWord}`,
+            ).toBe('ingredient');
+        }
+
+        // ⛔ The loop must actually run. A property test whose body never executes is green and worthless.
+        expect(judged).toBeGreaterThan(0);
+    });
+
+    /**
+     * The counterpart, and the one that makes the pair non-vacuous: the SAME span, moved behind a
+     * preposition, must be refused whenever its measure phrase is a vessel. Taken from the corpus rather
+     * than invented — every span here is text the book printed.
+     */
+    it('refuses a corpus span whose measure phrase is a vessel once a preposition governs it', () => {
+        // The oracle's OWN reading of "the phrase a preposition would govern": everything up to the first
+        // partitive `of` or the first function word, derived here from literal lists rather than by asking
+        // the module. `two cakes in layer pans` therefore offers `two cakes`, and its pans are a tail.
+        const measurePhraseOf = (span: string): string =>
+            span.split(/\s+(?:of|in|into|with|over|for|from|through|to|on|at|and|or|until|then|when)\s+|[,;:(]/)[0] ??
+            '';
+
+        // ⛔ A DELIMITER IS REQUIRED, and the oracle must say so too. Without a partitive `of` or a
+        // function word there is nothing separating a measure from a food, so the position test declines —
+        // `a quick oven twenty-five minutes` stays an ingredient, which is the `Sift one cup of flour three
+        // times` protection doing its job. An oracle that ignored the delimiter would demand the very
+        // word-anywhere-over-a-whole-span reading this module refuses.
+        const vesselMeasured = SPANS.filter((span) => {
+            const measure = measurePhraseOf(span);
+
+            return (
+                measure.length < span.trim().length &&
+                measure
+                    .split(/\s+/)
+                    .some((word) => ORACLE_VESSELS.has(word.toLowerCase().replace(/[^\p{L}\p{N}-]/gu, '')))
+            );
+        });
+
+        expect(vesselMeasured.length).toBeGreaterThan(0);
+
+        for (const span of vesselMeasured) {
+            expect(segmentClause(span, 'put it into ').kind, `kept ${JSON.stringify(span)} behind a preposition`).toBe(
+                'instruction',
+            );
         }
     });
 });

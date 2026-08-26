@@ -49,10 +49,38 @@
  * answers. A vessel, a duration, a dimension and a count of people are not; everything else is treated as
  * a food, which is the direction that loses nothing — a refused cut costs only the status quo, while a
  * wrong cut deletes an amount the source printed.
+ *
+ * ## ⛔ A VESSEL'S ROLE IS ITS POSITION, NOT THE WORD (owner ruling, 2026-08-26)
+ *
+ * U22a decided a vessel by the WORD alone, so every vessel meant "not an ingredient". That is too broad,
+ * because a cook genuinely measures by vessel. The owner ruled the two apart by GRAMMAR:
+ *
+ *  - **object of a preposition** → an instruction (`butter IN A FRYING-PAN`, `flour INTO A DEEP BOWL`);
+ *  - **heading the measure phrase** → a UNIT (`A BOWL of flour`, `A LARGE MIXING BOWL of batter`).
+ *
+ * The book's own case is `In a large mixing bowl whip to a cream two eggs` (PEACH PUDDING). Nothing here
+ * could see the `In`, so the span survived and the extractor published an ingredient literally named
+ * `mixing bowl whip`, quantity 1, unit `large`, in a public recipe. Owner: _"mixing bowl is wrong — that's
+ * just obviously not a food"_; _"'large mixing bowl' is the whole measurement"_.
+ *
+ * Position needs the clause, which a span alone is not — hence {@link segmentClause}'s second parameter.
+ * It is REQUIRED rather than defaulted: a default would be a position, silently asserted for every caller
+ * that had not thought about it, and the wrong one would delete an amount the source printed.
+ *
+ * ⚠️ The ruling costs the module NO vocabulary. `notAFoodLexicon.ts` still answers only _which words are
+ * vessels_; the three grammatical judgements — what a preposition governs, where a measure phrase ends,
+ * and what a vessel in each of those places means — are all HERE, because they are policy.
+ *
+ * ⛔ The same ruling read in the other direction removed two FOOD LOSSES the word-only rule was causing,
+ * both measured over the whole 1919 book: `one and one-half cups of canned tomatoes rubbed through a
+ * strainer` and `one quart of fine cottage cheese through a coarse sieve or colander` were classified
+ * head-final on the vessel and thrown away ENTIRELY. `through` is a preposition and was simply missing
+ * from {@link PREPOSITIONS}, so no cut was ever proposed and the governed vessel condemned the food in
+ * front of it. A vessel a preposition governs is a tail to CUT — never a verdict on the whole span.
  */
 import { parseIngredientLine } from '../ingredientLine.js';
 import { findQuantityPhrases } from '../quantityPhrases.js';
-import { measuresNoSubstance, namesEquipment, namesNoFood } from './notAFoodLexicon.js';
+import { lastWordOf, measuresNoSubstance, mentionsAVessel, namesEquipment, namesNoFood } from './notAFoodLexicon.js';
 
 /**
  * What one accepted span of prose turned out to be.
@@ -78,6 +106,49 @@ export type ClauseSegment =
     | { readonly kind: 'instruction' };
 
 /**
+ * The words that GOVERN a following noun phrase — the half of the boundary lexicon the position ruling
+ * asks about.
+ *
+ * ⛔ Split out of {@link INSTRUCTION_BOUNDARY} rather than restated beside it, because "which words are
+ * prepositions" is ONE piece of knowledge asked two ways: where may an instruction begin INSIDE a span,
+ * and does the clause govern this span from OUTSIDE it. A second list would drift, and the drift would be
+ * invisible — a preposition present in one and absent from the other changes which spans survive, and
+ * nothing downstream can report that.
+ *
+ * ⚠️ `through` is here and was NOT in the pre-ruling boundary lexicon. Its absence deleted two real
+ * ingredients from the 1919 book (module docstring). The list is completed by measured evidence rather
+ * than by enumerating English: an unlisted preposition costs only the status quo, and the words this book
+ * actually uses to place a vessel are the ones that earn a line.
+ */
+const PREPOSITIONS: readonly string[] = ['in', 'into', 'with', 'over', 'for', 'from', 'through', 'to', 'on', 'at'];
+
+/**
+ * The rest of the boundary lexicon — conjunctions, relatives and the auxiliaries these books attach to a
+ * verb. None of them GOVERN a noun phrase, so none of them can make a vessel the object of anything.
+ */
+const CONNECTIVES: readonly string[] = [
+    'and',
+    'or',
+    'that',
+    'which',
+    'until',
+    'then',
+    'when',
+    'will',
+    'has',
+    'have',
+    'had',
+    'is',
+    'are',
+    'was',
+    'were',
+    'may',
+    'should',
+    'must',
+    'can',
+];
+
+/**
  * Where an instruction may begin inside a span.
  *
  * ⚠️ This is GRAMMAR — prepositions, conjunctions and the auxiliaries these books attach to a verb — and
@@ -87,26 +158,71 @@ export type ClauseSegment =
  *
  * The punctuation alternative has no surrounding whitespace requirement because a comma, semicolon, colon
  * or opening bracket ends a noun phrase wherever it sits.
+ *
+ * ⚠️ Composed from the two lists above rather than written out, so the preposition half has exactly one
+ * home. Alternation ORDER is not load-bearing here: every alternative is fenced by `\s+` on both sides, so
+ * no word can match inside another (` into ` cannot match the `in` branch, which needs whitespace straight
+ * after `in`), and the corpus diff over the whole book confirms the composed pattern selects the same
+ * boundaries the literal did.
  */
-const INSTRUCTION_BOUNDARY =
-    /\s+(?:in|into|with|and|or|that|which|until|then|over|for|from|when|to|on|at|will|has|have|had|is|are|was|were|may|should|must|can)\s+|[,;:(]/g;
+const INSTRUCTION_BOUNDARY = new RegExp(`\\s+(?:${[...PREPOSITIONS, ...CONNECTIVES].join('|')})\\s+|[,;:(]`, 'g');
+
+/**
+ * The partitive that introduces the substance a measure phrase MEASURES — `a bowl OF flour`.
+ *
+ * ⚠️ Not a boundary and never cut at: it is the seam that ends a measure phrase, which is what makes the
+ * word-anywhere scan {@link measurePhraseOf} feeds safe. Everything before it is the measure; everything
+ * after it is the food. `one pound of pot roast` therefore offers the scan `one pound` and never `pot`.
+ */
+const PARTITIVE_OF = /\s+of\s+/;
 
 /**
  * Bound one accepted span at the end of its ingredient.
  *
  * @param span - The suffix of a clause that read as a quantified ingredient, in the source's own words.
+ * @param precededBy - The clause text in FRONT of the span, in the source's own words — `''` when the span
+ *   opens its clause. Only the last word of it is read, and only to answer whether a preposition governs
+ *   the span. REQUIRED: see the module docstring on why a default would be a silent position claim.
  * @returns The bounded ingredient plus whatever was cut, or `instruction` when the span names no food at
  *   all. Pure and TOTAL — never throws, and answers for empty input.
  */
-export function segmentClause(span: string): ClauseSegment {
+export function segmentClause(span: string, precededBy: string): ClauseSegment {
     const trimmed = span.trim();
+
+    if (trimmed === '') {
+        return { kind: 'instruction' };
+    }
+
     const boundary = instructionBoundaryIn(trimmed);
+    const measurePhrase = measurePhraseOf(trimmed, boundary);
+
+    // ⛔ POSITION, AND IT RUNS BEFORE THE SECOND-FOOD GUARD. A vessel the clause governs with a preposition
+    // names a PLACE, so the amount in front of it is an amount of equipment — `In a large mixing bowl
+    // whip …`, which published an ingredient called `mixing bowl whip`.
+    //
+    // ⛔ The ordering does NOT reopen F3. F3's hazard was head-finality applied to a span whose cut had
+    // been REFUSED, which reads the TAIL's noun; this test cannot see the tail at all, because
+    // `measurePhraseOf` ends at or before `boundary` and is therefore a PREFIX of the head. That is a
+    // property of the code, not a claim in a comment.
+    //
+    // ⚠️ The accepted cost, recorded in ADR-0026 §7a: a governed vessel span that ALSO carries a second
+    // food is dropped whole. On this corpus that is `two eggs` in PEACH PUDDING — which the extractor's
+    // own unit gate could never have kept anyway — traded against a fabricated ingredient it WAS
+    // publishing. Under U22's `parsePipeline` the LLM leg could in principle have recovered it, and this
+    // removes that possibility.
+    if (measurePhrase !== null && isGovernedByAPreposition(precededBy) && mentionsAVessel(measurePhrase)) {
+        return { kind: 'instruction' };
+    }
 
     if (boundary === null) {
         // Nothing to cut. The span is an ingredient unless the whole of it names something that is not a
         // food — `a large preserving kettle`, which parses to `1 large :: preserving kettle` and clears
         // every structural gate the importer has.
-        return trimmed === '' || namesEquipment(trimmed)
+        //
+        // ⚠️ Head-final, and the ruling does NOT weaken it. A vessel that is the noun the span is ABOUT
+        // measures nothing, so it is not a measure phrase in any position — which is why
+        // `Line a large salad bowl with lettuce leaves` stays an instruction with no preposition in sight.
+        return namesEquipment(trimmed)
             ? { kind: 'instruction' }
             : { kind: 'ingredient', span: trimmed, trailingInstruction: null };
     }
@@ -152,6 +268,10 @@ export function segmentClause(span: string): ClauseSegment {
  * empty-name check drops a line on. A name that is nothing but a boundary is now returned intact and the
  * caller's own `NOT_AN_INGREDIENT` gate judges it, which is the layer that owns that decision.
  *
+ * ⚠️ It takes NO position, and that is the third difference. A name has already been lifted out of its
+ * clause by a parse engine, so there is no clause left to be governed by — and a name has nowhere to keep
+ * a vessel either way. Position is a question only a SPAN can be asked.
+ *
  * @param name - The description a parse engine returned.
  * @returns The name up to the first instruction boundary that is really one. Pure and TOTAL.
  */
@@ -188,6 +308,48 @@ function instructionBoundaryIn(text: string): number | null {
     }
 
     return null;
+}
+
+/**
+ * Whether the clause governs this span with a preposition — the POSITION half of the 2026-08-26 ruling.
+ *
+ * ⛔ The LAST word only, never "a preposition appears somewhere in front of this span". `Have a large
+ * stew-pan half full of boiling water` is a real measurement of real water and the book prints it; reading
+ * its `of` — or any preposition further back in the sentence — as the governor would delete it.
+ *
+ * ⚠️ A CONNECTIVE does not govern, so `Pour into jelly-glasses or one large mould` is not caught here.
+ * It does not need to be: `one large mould` is head-final a vessel and the whole-span test already refuses
+ * it. Teaching this function to see through a coordination would be a parse, for a case nothing needs.
+ *
+ * @param precededBy - The clause text in front of the span, or `''`.
+ * @returns `true` when the span is the object of a preposition. Pure and TOTAL.
+ */
+function isGovernedByAPreposition(precededBy: string): boolean {
+    return PREPOSITIONS.includes(lastWordOf(precededBy));
+}
+
+/**
+ * The MEASURE PHRASE a span opens with — the text a preposition in front of it would govern.
+ *
+ * ⛔ A DELIMITER IS REQUIRED, and "or else the whole span" is the arm that must not exist. Without one
+ * there is nothing separating the measure from the food, and the word-anywhere scan this feeds would then
+ * run over a whole span — the exact test `notAFoodLexicon.ts`'s head-final discipline forbids, deleting
+ * `with two pot roasts` and `in a pot roast`. Refusing to answer costs nothing: a bare governed vessel
+ * phrase (`into a large preserving kettle`) is head-final a vessel and the whole-span test already refuses
+ * it, so the delimiter requirement removes risk and no capability.
+ *
+ * ⛔ It is a PREFIX OF THE HEAD by construction, because it ends at or before the same `boundary` the
+ * caller cut at. That is what makes the position test structurally unable to see the tail — which is the
+ * whole reason it may run before the second-food guard without reopening F3.
+ *
+ * @param trimmed - The trimmed span.
+ * @param boundary - The first real instruction boundary in it, or `null`.
+ * @returns The measure phrase, or `null` when the span carries no delimiter at all. Pure.
+ */
+function measurePhraseOf(trimmed: string, boundary: number | null): string | null {
+    const ends = [trimmed.search(PARTITIVE_OF), boundary ?? -1].filter((at) => at >= 0);
+
+    return ends.length === 0 ? null : trimmed.slice(0, Math.min(...ends));
 }
 
 /**

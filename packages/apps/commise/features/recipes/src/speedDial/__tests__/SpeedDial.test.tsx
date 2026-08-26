@@ -28,7 +28,10 @@ const SCRATCH = 'Create from Scratch';
 
 /** The dial as it actually ships: exactly ONE destination. `extra` proves the arithmetic generalises. */
 function renderDial(onSelect = vi.fn(), extra: readonly SpeedDialAction[] = []) {
-    const actions: readonly SpeedDialAction[] = [{ id: 'scratch', label: SCRATCH, onSelect }, ...extra];
+    const actions: readonly [SpeedDialAction, ...SpeedDialAction[]] = [
+        { id: 'scratch', label: SCRATCH, onSelect },
+        ...extra,
+    ];
     render(<SpeedDial triggerLabel={TRIGGER_LABEL} menuLabel={MENU_LABEL} actions={actions} />);
 
     return { onSelect, trigger: screen.getByRole('button', { name: TRIGGER_LABEL }) };
@@ -121,16 +124,25 @@ describe('SpeedDial (web) — open', () => {
         expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: SCRATCH }));
     });
 
-    it('gates its open animation behind motion-safe, so a reduce-motion viewer gets no animation at all', async () => {
+    it('carries its gated open animation on the element that MOUNTS on open, not on a wrapper', async () => {
+        // REWRITTEN after review. This first asserted the class on the menu's PARENT — a design-system
+        // `EnterTransition` wrapper. That wrapper was rendered unconditionally, so it mounted with the recipe
+        // list and its pure-CSS keyframe ran once, immediately, over an empty box, finishing long before a
+        // cook could press anything: the dial never animated, and the old assertion passed anyway because a
+        // class name is not a behaviour. A CSS mount animation fires when the element CARRYING it is
+        // inserted, so the utility has to live on the menu itself — which is the only thing here that mounts
+        // on open. `motion-safe:` remains the gate: under `prefers-reduced-motion: reduce` no animation, and
+        // therefore no hidden from-state, is emitted at all.
         const user = userEvent.setup();
         const { trigger } = renderDial();
 
         await user.click(trigger);
 
-        // The design-system `EnterTransition` wrapper carries the gated utility. An UNgated `animate-…`
-        // would mean a reduce-motion viewer still sees the rise + fade.
-        const wrapper = screen.getByRole('menu', { name: MENU_LABEL }).parentElement;
-        expect(wrapper?.className).toContain('motion-safe:animate-section-enter');
+        const menu = screen.getByRole('menu', { name: MENU_LABEL });
+        expect(menu.className).toContain('motion-safe:animate-section-enter');
+        // And nothing above it animates: a re-introduced always-mounted wrapper would put the keyframe back
+        // on an element that is already on screen.
+        expect(menu.parentElement?.className ?? '').not.toContain('animate-section-enter');
     });
 
     it('closes again when the FAB itself is pressed while the dial is open', async () => {
@@ -254,7 +266,11 @@ describe('SpeedDial (web) — keyboard', () => {
         expect(document.activeElement).toBe(trigger);
     });
 
-    it('TRAPS Tab inside the open menu instead of letting focus escape to the page', async () => {
+    it('TRAPS Tab inside the open menu — a DELIBERATE deviation from the Menu Button pattern', async () => {
+        // WAI-ARIA APG says Tab should leave the menu and dismiss it. The requirement for THIS control is the
+        // opposite, and it is the requirement that wins: focus trapped while open, restored on close, because
+        // a dial that drops focus to `<body>` strands the keyboard user it exists to serve. Recorded as a
+        // deviation rather than dressed up as compliance — see the module docstring.
         const user = userEvent.setup();
         render(
             <>

@@ -58,7 +58,20 @@ appId: io.commise.mobile
 - assertVisible: 'Recipes'
 - assertVisible: 'New recipe'
 
-# --- 3. Re-open and take the destination ----------------------------------------------------------------
+# --- 3. Android hardware BACK dismisses the dial, and does not pop the surface behind it ----------------
+# The modal wires `onRequestClose` to the same close as the backdrop, and the recipes surface separately
+# registers its own `BackHandler` that pops the navigation stack. The modal should consume the press first;
+# this is the ONLY tier that can prove it, because there is no back button in jsdom.
+- tapOn: 'New recipe'
+- extendedWaitUntil:
+      visible: 'Create from Scratch'
+      timeout: 20000
+- back
+- assertNotVisible: 'Create from Scratch'
+- assertVisible: 'Recipes'
+- assertVisible: 'New recipe'
+
+# --- 4. Re-open and take the destination ----------------------------------------------------------------
 # The second press is the one that creates — the accepted +1 tap, asserted rather than assumed.
 - tapOn: 'New recipe'
 - tapOn: 'Create from Scratch'

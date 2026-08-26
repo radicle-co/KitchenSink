@@ -194,7 +194,7 @@ describe('RecipesScreen — navigation', () => {
         expect(screen.queryByText('Bright and zesty.')).toBeNull();
     });
 
-    it('opens the create screen from the create dial s ONE destination', () => {
+    it('opens the create screen from the create dial’s ONE destination', () => {
         // REWRITTEN for U34 (owner ruling 2026-08-25): the list's pinned FAB is now a menu TRIGGER, so the
         // create screen is reached from "Create from Scratch". Asserting that opening the dial alone
         // navigates NOWHERE is what stops this passing against a dial wired to nothing — the accepted +1 tap

@@ -76,7 +76,7 @@ describe('RecipeList (native) — chrome', () => {
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
 
-    it('reports create requests upward from the dial s ONE destination', () => {
+    it('reports create requests upward from the dial’s ONE destination', () => {
         // REWRITTEN for U34 (owner ruling 2026-08-25). This previously asserted that pressing the FAB called
         // `onCreateRecipe` directly. The FAB is now a menu TRIGGER, so the create request comes from the
         // dial's single destination instead — the accepted +1 tap. The old assertion would have passed
@@ -93,7 +93,7 @@ describe('RecipeList (native) — chrome', () => {
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
 
-    it('lands on the create surface when the dial s destination is chosen', () => {
+    it('lands on the create surface when the dial’s destination is chosen', () => {
         // Driven STATEFULLY rather than with a bare `vi.fn()`: a spy proves a handler ran, not that anything
         // downstream happened. Here choosing the destination actually swaps the surface, which is what the
         // Maestro flow asserts on a device.

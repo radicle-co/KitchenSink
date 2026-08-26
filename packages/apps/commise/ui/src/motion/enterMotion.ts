@@ -8,9 +8,24 @@
  * allowed" and a reduce-motion user sees the first half of the animation before the preference lands. This
  * module isolates the branch so it is provable without a renderer.
  *
- * The web leaf needs no counterpart: CSS answers the same question declaratively and synchronously via the
- * `motion-safe:` variant, so there is nothing to decide in JS there (mirroring `pressedScale.ts`).
+ * The web leaf needs no counterpart DECISION: CSS answers the same question declaratively and synchronously
+ * via the `motion-safe:` variant, so there is nothing to decide in JS there (mirroring `pressedScale.ts`).
+ * What does live here is the NAME of that gated utility — a value, not a decision — so that the barrel can
+ * export it to consumers that apply the enter gesture to an element of their own instead of wrapping one in
+ * `EnterTransition`. It has to sit in this module rather than beside the web leaf, because the leaf specifier
+ * resolves to `EnterTransition.native.tsx` on React Native, where no such export exists.
  */
+
+/**
+ * The design-system section-enter utility: a short rise + fade, applied ONLY when motion is safe. Registered
+ * as the `--animate-section-enter` theme token, so a reduce-motion viewer gets the settled element directly,
+ * with no animation and therefore no hidden from-state.
+ *
+ * ⚠️ A pure-CSS mount animation fires when the element CARRYING it is inserted. Put this on the element that
+ * actually appears; on a wrapper that is always rendered, the keyframe runs once at mount over whatever is
+ * (not) inside it and is finished before the content the author meant to animate ever exists.
+ */
+export const enterTransitionClassName = 'motion-safe:animate-section-enter';
 
 /**
  * Enter-motion duration in milliseconds. Matches the web `--animate-section-enter` keyframe so the two

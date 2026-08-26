@@ -33,7 +33,10 @@ const SCRATCH = 'Create from Scratch';
 
 /** The dial as it actually ships: exactly ONE destination. */
 function renderDial(onSelect = vi.fn(), extra: readonly SpeedDialAction[] = []) {
-    const actions: readonly SpeedDialAction[] = [{ id: 'scratch', label: SCRATCH, onSelect }, ...extra];
+    const actions: readonly [SpeedDialAction, ...SpeedDialAction[]] = [
+        { id: 'scratch', label: SCRATCH, onSelect },
+        ...extra,
+    ];
     render(
         <SpeedDial
             triggerLabel={TRIGGER_LABEL}

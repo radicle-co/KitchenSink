@@ -156,6 +156,12 @@ export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX
     // bar. Without the bottom inset, the foot of a scroll (e.g. the recipe detail's owner actions) renders
     // under the 3-button nav bar — the left-aligned "Delete recipe" action overlaps the nav bar's back
     // button, so a tap there fires BACK (popping the detail) instead of opening the confirm.
+    //
+    // ⚠️ `paddingBottom` is now load-bearing for a control in ANOTHER package. The recipe list's create dial
+    // (`@commise/features-recipes`'s `SpeedDial.native.tsx`) pins its FAB inside this padded box while
+    // opening its menu in a modal WINDOW, which spans the whole display and inherits none of this — so the
+    // menu re-adds `insets.bottom` itself to line up. Drop or change this padding when a real navigator
+    // lands and the FAB slides under the gesture bar while its menu stays put, opening a visible gap.
     const containerStyle = [styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }];
 
     if (isTab(current)) {

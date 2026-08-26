@@ -92,7 +92,7 @@ describe('RecipeList (web) — chrome', () => {
         expect(fab.textContent).toBe('');
     });
 
-    it('reports create requests upward from the dial s ONE destination', async () => {
+    it('reports create requests upward from the dial’s ONE destination', async () => {
         // REWRITTEN for U34 (owner ruling 2026-08-25). This previously asserted that pressing the FAB called
         // `onCreateRecipe` directly. The FAB is now a menu TRIGGER, so the create request comes from the
         // dial's single destination instead — the accepted +1 tap. The old assertion would have passed
@@ -110,7 +110,7 @@ describe('RecipeList (web) — chrome', () => {
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
 
-    it('lands on the create surface when the dial s destination is chosen', async () => {
+    it('lands on the create surface when the dial’s destination is chosen', async () => {
         // Driven STATEFULLY rather than with a bare `vi.fn()`: a spy proves a handler ran, not that anything
         // downstream happened. Here choosing the destination actually swaps the surface, which is the thing
         // the Playwright and Maestro flows assert end to end.

@@ -42,8 +42,16 @@ export interface SpeedDialProps {
     readonly triggerLabel: string;
     /** Accessible name of the disclosed menu. */
     readonly menuLabel: string;
-    /** The destinations, in the order they are presented. Rendering none renders no menu. */
-    readonly actions: readonly SpeedDialAction[];
+    /**
+     * The destinations, in the order they are presented — at least one.
+     *
+     * ⛔ A NON-EMPTY tuple, not a plain array, because an empty dial is an illegal state that a leaf cannot
+     * render safely: it would disclose a `role="menu"` with no `menuitem` children (invalid ARIA), trap
+     * focus over nothing tabbable, and hand the open-focus handler an `undefined` element to focus —
+     * stranding the very keyboard user the trap exists to protect. Making it unrepresentable is cheaper than
+     * a guard in each leaf, and it costs the two call sites nothing: both already pass one literal.
+     */
+    readonly actions: readonly [SpeedDialAction, ...SpeedDialAction[]];
 }
 
 /**

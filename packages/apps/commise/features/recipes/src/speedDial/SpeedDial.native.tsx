@@ -24,9 +24,18 @@
  *    declarative and free; React Native would need an async preference read to suppress a gesture worth two
  *    frames on a one-item dial.
  *
- * ⚠️ The FAB is positioned INSIDE the recipes screen, which already pads by the device's bottom inset. The
- * menu is not: a modal window spans the whole display, so it re-adds that inset itself. Both offsets are
- * composed from the SAME exported constants, so the pair cannot drift apart.
+ * ⚠️ The FAB and the menu are laid out in DIFFERENT coordinate spaces, and the two offsets are reconciled
+ * deliberately. The FAB is an absolute child of the recipe list, which sits inside a screen already padded by
+ * the device's bottom inset; the menu escapes into a modal WINDOW, which spans the whole display and inherits
+ * none of that. So the menu re-adds `insets.bottom` and then composes the FAB's own offsets from the SAME
+ * exported constants, which is what stops the pair drifting when one of them is tuned.
+ *
+ * ⚠️ **Unverified on a device, and stated rather than assumed:** the horizontal reconciliation assumes CSS /
+ * Yoga-3 semantics, under which an absolutely positioned child is offset from its parent's PADDING BOX — so
+ * the FAB's `right` is measured from the screen edge and NOT from inside the list's own horizontal padding.
+ * React Native 0.86's Yoga and react-native-web both behave that way, which is why the menu uses the same
+ * `right` value verbatim. If a device shows the menu overhanging the FAB by exactly the list's gutter, that
+ * assumption is what is wrong — add the gutter here rather than nudging either value by eye.
  */
 import { palette, tint } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';

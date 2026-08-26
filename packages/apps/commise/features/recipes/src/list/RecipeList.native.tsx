@@ -133,8 +133,14 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     }
 
     // Whether the pinned create dial (L1) is mounted. Both gates — never over a TRUE empty library, never on
-    // the Community tab — live in the ONE `shouldShowCreateDial` policy, shared with the web leaf, so the two
-    // platforms cannot drift on a rule neither of them spells any more.
+    // the Community tab — live in the ONE `shouldShowCreateDial` policy, which the other platform's leaf
+    // calls too, so the two cannot drift on it.
+    //
+    // ⚠️ The policy owns ONE SIDE of a two-sided invariant. The rule it serves is "exactly one create
+    // affordance is on screen", and the other side — the empty-state CTA above — is still spelled inline in
+    // each leaf as the complement of this condition. Nothing structural keeps the two in step; what does is
+    // the pair of assertions in this leaf's tests, which check the true-empty and the narrowed-zero branches
+    // from BOTH directions. Widen this policy into the affordance itself before adding a third branch.
     const showDial = shouldShowCreateDial({
         status,
         recipeCount: recipes.length,

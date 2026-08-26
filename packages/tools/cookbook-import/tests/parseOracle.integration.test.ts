@@ -75,12 +75,38 @@ function buildCorpus(): ReturnType<typeof buildParseCorpus> {
     return buildParseCorpus(harvestSourceTexts(outcomes).clauses);
 }
 
-describeIfRunnable('the oracle census against the real corpus', () => {
-    const corpus = buildCorpus();
-    const byId = new Map(corpus.map((line) => [line.id, line]));
-    const ingredientLines = corpus.filter((line) => line.origin === 'ingredient');
+/**
+ * The corpus, built ONCE and only when a test actually asks for it.
+ *
+ * ⛔ LAZY, and that is the whole point. `describe.skip` still EXECUTES its callback to collect the tests it
+ * is about to skip, so building the corpus in the suite body ran it even when `canRun` was false — and the
+ * guard that exists to skip this file instead produced `ENOENT: open ''` at collection time, failing the
+ * whole `test:integration` run. CI never sets `COOKBOOK_IMPORT_BOOK`, so that was every CI run. A guard
+ * that fails the thing it is guarding is worse than no guard, because it reads as a real regression.
+ *
+ * @returns The rebuilt corpus, memoized for the file. Impure: reads the book from disk on first call.
+ * @sideEffect Reads `COOKBOOK_IMPORT_BOOK` from the filesystem.
+ */
+const corpusOnce = (() => {
+    let built: ReturnType<typeof buildParseCorpus> | undefined;
 
+    return (): ReturnType<typeof buildParseCorpus> => (built ??= buildCorpus());
+})();
+
+/**
+ * The corpus indexed by seed, built off {@link corpusOnce} so the book is still read at most once.
+ *
+ * @returns Every corpus line by its id. Impure for the same reason {@link corpusOnce} is.
+ * @sideEffect Reads `COOKBOOK_IMPORT_BOOK` from the filesystem on first call.
+ */
+function corpusById(): ReadonlyMap<string, ReturnType<typeof buildParseCorpus>[number]> {
+    return new Map(corpusOnce().map((line) => [line.id, line]));
+}
+
+describeIfRunnable('the oracle census against the real corpus', () => {
     it('is denominated in a corpus that is not empty and not degenerate', () => {
+        const ingredientLines = corpusOnce().filter((line) => line.origin === 'ingredient');
+
         // ⛔ Anti-vacuity at the source. Every rate below divides by this; a corpus that came back empty
         // would make every comparison trivially agree and every count trivially zero.
         expect(
@@ -90,6 +116,7 @@ describeIfRunnable('the oracle census against the real corpus', () => {
     });
 
     it('resolves every seed to a line the extractor really produces', () => {
+        const byId = corpusById();
         const missing = PARSE_ORACLE.filter((entry) => !byId.has(entry.seed));
 
         expect(
@@ -99,6 +126,7 @@ describeIfRunnable('the oracle census against the real corpus', () => {
     });
 
     it('quotes each seeded line BYTE-IDENTICALLY, so no case is prose somebody typed', () => {
+        const byId = corpusById();
         const drifted = PARSE_ORACLE.filter((entry) => byId.get(entry.seed)?.text !== entry.line).map((entry) => ({
             seed: entry.seed,
             fixture: entry.line,
@@ -112,6 +140,7 @@ describeIfRunnable('the oracle census against the real corpus', () => {
         // The dropped half is mostly not ingredient lines at all ("See that you have a good fire"), and
         // `parseCorpus.ts` is explicit that a rate blended across both halves describes a population nobody
         // meant to ask about.
+        const byId = corpusById();
         const wrongHalf = PARSE_ORACLE.filter((entry) => byId.get(entry.seed)?.origin !== 'ingredient');
 
         expect(
@@ -124,6 +153,7 @@ describeIfRunnable('the oracle census against the real corpus', () => {
         // A cheap consistency check on `occurrences`: the census counts SITUATIONS, and one line can carry
         // several, so the sum may exceed the line count — but not by an order of magnitude, and it must
         // never exceed what a plausible multiple of the ingredient half could produce.
+        const ingredientLines = corpusOnce().filter((line) => line.origin === 'ingredient');
         const coverage = oracleLineCoverage(PARSE_ORACLE);
 
         expect(
@@ -137,6 +167,7 @@ describeIfRunnable('the oracle census against the real corpus', () => {
         // The unit tier asserts the FIXTURE covers every regime. This asserts the fixture's regime labels
         // are attached to lines that exist — a regime whose only case had drifted out of the corpus would
         // otherwise still count.
+        const byId = corpusById();
         const census = oracleRegimeCensus(PARSE_ORACLE.filter((entry) => byId.has(entry.seed)));
         const empty = ORACLE_REGIMES.filter((regime) => census[regime] === 0);
 

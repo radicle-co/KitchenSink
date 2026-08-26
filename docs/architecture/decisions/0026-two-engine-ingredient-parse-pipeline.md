@@ -130,6 +130,65 @@ differed**, which its suite asserts as a property rather than on one convenient 
 legitimate answer about a heading — and conflating them hands every field to the CRF while **reporting
 agreement**.
 
+#### Update (2026-08-25) — an ABSENT FIELD is not dissent either, and KTD-11 is NOT overturned
+
+U23's oracle found the failure this section's principle predicts, one field down. Measured against the real
+`ingredient-parser-nlp==2.3.0`:
+
+| line                                     | the CRF returns         | what the line says |
+| ---------------------------------------- | ----------------------- | ------------------ |
+| `one and a half quarts of boiling water` | `[('1', '')]`           | 1.5 quarts         |
+| `two and a half pounds of beef`          | `[('2', '')]`           | 2.5 pounds         |
+| `one and a quarter cups of milk`         | `[('1', '')]`           | 1.25 cups          |
+| `one and one-half cups of flour`         | `[('3/2', 'cup')]` ✅   | correct            |
+| `one-half pound chocolate`               | `[('1/2', 'pound')]` ✅ | correct            |
+
+The discriminator is exact and is asserted against the live engine: **every mis-read line comes back with an
+EMPTY unit; every correctly-read line comes back with a populated one.** The first row is oracle seed
+`L00177`, and it stands for **9 corpus lines**.
+
+KTD-11 sends `quantityDiffers` and `unitDiffers` to `crfWins`, so those lines resolved to one quart — with no
+unit at all — against a source printing one and a half.
+
+**⛔ The ruling (owner, 2026-08-25) does NOT overturn KTD-11.** `quantityDiffers → crfWins` and
+`unitDiffers → crfWins` stay exactly as they are. What changed is narrower and PRIOR to them: a fourth
+measure verdict, `crfUnitAbsent`, disposed of `llmWins` in
+`cookbook-import/src/parseComparison/parseAgreement.ts`.
+
+Three things make the narrow form the right one:
+
+- **It is this section's own principle at FIELD granularity.** §3 rules `single-engine` is not `differ`
+  because a leg that did not answer is absence rather than dissent, and collapsing them corrupts every
+  measured rate. An empty unit is the same shape one field down: `crfWins` on it does not pick the better of
+  two readings, it publishes silence. A winner rule has nothing to resolve when only one leg spoke.
+- **KTD-11 already carries the precedent.** `crfUnitInName → llmWins` is commented _"the CRF is demonstrably
+  wrong, so the LLM wins silently"_. This is that category, discovered later.
+- **It fires ONLY on an empty CRF unit, never on two engines naming different units.** The verdict is decided
+  inside the existing `crf.unit === ''` branch, so it is reached before the generic `unitDiffers` and an
+  absent unit can never also register as a unit disagreement. It sits LAST within that branch, behind
+  `crfSizeField` and `crfUnitInName`, which say WHERE the word went and therefore carry more information —
+  `two and a half pounds of beef` keeps `crfUnitInName` because `pounds` survives inside the CRF's food name.
+  Both already dispose the same way, so the ordering changes what the census NAMES and never what is done.
+  Mutual silence never reaches the branch at all (the `model.unit === crf.unit` equality returns first), and
+  the mirror case — a silent MODEL against a CRF that answered — is deliberately left on `unitDiffers`, where
+  `crfWins` already hands the unit to the engine that spoke.
+
+⚠️ **One measured spelling is deliberately NOT covered, and it is recorded rather than tidied away.** The CRF
+reads `one and a half cups of sugar` as **two** amounts, `('1', '')` and `('half', 'cup')`, which the sidecar
+joins to `1 half cups` and the comparison fold reads as half a cup. Its unit is `cup`, **not empty** — the CRF
+answered, and answered a different number — so it is a genuine `quantityDiffers` that KTD-11 governs.
+Widening the new verdict to reach it would overturn the amount column outright. The consequence is real: that
+spelling still resolves to half a cup for one and a half.
+
+⛔ **`DISPOSITIONS` is a total `Record` over the verdict union, and adding the member produced the compile
+error that table exists for** (`TS2741: Property 'crfUnitAbsent' is missing`). The shape could not be
+classified without someone deciding what is done about it — which is the whole argument for the table.
+
+⚠️ **The oracle did not move.** No case changed between `ruled` and `undecided` (58 / 27, unchanged):
+`parseOracle.ts` never reads a disposition — its verdicts are hand-written rubric rulings, and R13/R14 appear
+in it only as prose citations. `L00177` keeps its `ruled` verdict and its R7 clause, because R7 was always
+what decided the READING; only its note was corrected, so it no longer describes the defect as open.
+
 ### 4. Food identity resolution stays OURS; the engine's own is not a shortcut to it
 
 The CRF engine can attach a Food Data Central match to every name it finds
@@ -340,6 +399,21 @@ error there — the membership decision must be argued in its comment, as the ex
   decided who is right** on the residual list. Observe-only until it lands — and note that the oracle is
   deliberately neither the previous parser nor a model from either engine's family, since the earlier
   bake-off measured self-preference at −31.5 points.
+- ⛔ **The 2026-08-25 absent-unit ruling landed in the CENSUS, not in the MERGE — and the merge has the same
+  defect.** `DISPOSITIONS` (`cookbook-import`) says what a shape amounts to for the report; the code that
+  actually decides what a merged `ParsedLine` holds is `parseComparator.ts`'s `DEFAULT_WINNERS`
+  (`unit: 'crf'`), narrowed only by `llmRescuedTheMeasure`. That predicate reads
+  `unitView(crf.unit) === null && isHistoricalUnit(llm.unit)` — it requires the LLM's unit to be a
+  **HISTORICAL** one. So the very shape the ruling was made about, where the LLM reads a plain modern
+  `quart`, does **not** rescue: the CRF's `null` unit wins and the merged line carries **no unit at all**.
+  The ruling as given names one table in one tools package and does not reach this predicate, so the
+  behaviour is unchanged and is stated here rather than changed unilaterally. ⚠️ It is not currently
+  publishing anything — `cookbook-import`'s wiring is observational (bullet below) and
+  `runImport.test.ts` asserts the wire is byte-identical with the observation on and off — but it is what
+  goes live the moment the winner rule stops being observe-only, and it is the same nine corpus lines.
+  Whoever un-gates the winner rule owes this predicate a decision: generalising it to
+  `unitView(crf.unit) === null && unitView(llm.unit) !== null` is the merge-side form of the ruling, and it
+  is a change to stored provenance rather than to a report, so it wants its own ruling.
 - ⚠️ **Every rate above comes from one 1919 cookbook, and is inflated by the extractor.** 1,148 blocks were
   skipped whole, and `differ` is substantially `proseRecipe` handing both engines instruction text and
   equipment. Historical prose is the hardest input this pipeline will meet, and **nothing here has been

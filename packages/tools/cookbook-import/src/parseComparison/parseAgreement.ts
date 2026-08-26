@@ -29,6 +29,15 @@
  *
  * A shape NOT anticipated arrives as a plain `unitDiffers` / `differ`, and that residue is exactly the
  * candidate list for human adjudication. It is meant to be read, not explained away.
+ *
+ * ## ⚠️ A FOURTH SHAPE, FOUND AFTERWARDS — and this is what that residue is FOR
+ *
+ * `crfUnitAbsent` was not anticipated. It arrived exactly as the paragraph above says an unanticipated
+ * shape arrives — inside the `unitDiffers` residue — and U23's oracle read it out of there: the CRF returns
+ * a bare `1` and NO unit for `one and a half quarts of boiling water`, which `crfWins` would publish as one
+ * quart, unit-less, against a source stating one and a half. It is named here (owner ruling 2026-08-25)
+ * because a leg that stated no unit did not offer a competing reading; see {@link DISPOSITIONS} for the
+ * argument and for why it does not overturn KTD-11's amount column.
  */
 import type { CrfParse } from './crfParse.js';
 import { normalizeMeasure, normalizeName, normalizePrep, unitComparableWords } from './parseNormalization.js';
@@ -39,6 +48,7 @@ import type { ModelParse } from './parseResponse.js';
 export type MeasureVerdict =
     | 'agree'
     | 'crfUnitInName'
+    | 'crfUnitAbsent'
     | 'crfSizeField'
     | 'amountCountDiffers'
     | 'unitDiffers'
@@ -91,9 +101,16 @@ export type AgreementDisposition =
      * The CRF's reading stands, and the LLM's is RECORDED beside it rather than discarded.
      *
      * ⚠️ "Record both" is KTD-11's wording and it is load-bearing: the losing reading is the only evidence
-     * a later calibration has that the rule was ever wrong. U23's oracle found one class where it IS —
-     * see the report's §10 on `one and a half`, where the CRF drops the fraction and this disposition
-     * would publish two thirds of the stated amount.
+     * a later calibration has that the rule was ever wrong. U23's oracle found one class where it WAS —
+     * the report's §10 on `one and a half`, where the CRF drops the fraction and this disposition would
+     * have published two thirds of the stated amount. That class is now `crfUnitAbsent` and no longer
+     * reaches here (owner ruling 2026-08-25).
+     *
+     * ⚠️ ONE MEASURED SPELLING OF IT STILL DOES, and it is recorded rather than tidied away: the CRF reads
+     * `one and a half cups of sugar` as TWO amounts, `('1', '')` and `('half', 'cup')`, which the sidecar
+     * joins to `1 half cups` and the fold reads as half a cup. Its unit is `cup`, not empty — the CRF
+     * ANSWERED, and answered a different number — so it is a genuine `quantityDiffers` and KTD-11 governs
+     * it. Widening the new shape to cover it would overturn the amount column outright.
      */
     | 'crfWins'
     /**
@@ -129,6 +146,11 @@ export type AgreementDisposition =
  * `llmWins` its mirror carries. Reading the mirror's disposition off the report and stopping there would
  * have handed the LLM a placement win in one direction only — on the axis where the CRF's filing matched
  * the ruling 125 times to the LLM's 58.
+ *
+ * ⚠️ `crfUnitAbsent` is likewise not in KTD-11's table — it did not exist when that table was measured. The
+ * compile error this `Record` produced when the verdict was added to `MeasureVerdict` is precisely the
+ * property described above, working: the shape could not be classified without someone deciding what is
+ * done about it.
  */
 const DISPOSITIONS: Readonly<Record<AgreementKind, AgreementDisposition>> = {
     agree: 'agreed',
@@ -138,6 +160,23 @@ const DISPOSITIONS: Readonly<Record<AgreementKind, AgreementDisposition>> = {
     amountCountDiffers: 'crfWins',
     // The CRF is demonstrably wrong, so the LLM wins silently (KTD-11).
     crfUnitInName: 'llmWins',
+    // ⛔ ABSENCE IS NOT DISSENT — owner ruling 2026-08-25, and it does NOT overturn KTD-11.
+    //
+    // The amount block above — `quantityDiffers`, `unitDiffers`, `amountCountDiffers` — stands exactly as
+    // it was: when both engines name a unit and name different ones, the CRF still wins. What this row says
+    // is narrower and PRIOR to that: a leg that stated NO unit has not offered a competing reading, so there
+    // is no disagreement for a winner rule to resolve in the first place.
+    //
+    // It mirrors ADR-0026 §3 one field DOWN. That section rules `single-engine` is not `differ` because an
+    // engine that did not answer is absence rather than dissent, and collapsing the two corrupts every
+    // measured rate. An empty unit is the same shape at FIELD granularity: `crfWins` on it does not pick
+    // the better of two readings, it publishes silence.
+    //
+    // KTD-11 already carries the precedent, one line above: `crfUnitInName` is "the CRF is demonstrably
+    // wrong, so the LLM wins silently". This is that category, discovered later — by U23's oracle, on
+    // `one and a half quarts of boiling water` (seed L00177, 9 corpus lines), where the CRF returns `1`
+    // with no unit at all against a source that plainly states one and a half quarts.
+    crfUnitAbsent: 'llmWins',
     modelSplitsFoods: 'llmWins',
     modelPrepInCrfName: 'llmWins',
     // Placement, decided by KTD-11b on both answers rather than won by either.
@@ -204,6 +243,18 @@ function judgeMeasure(
 
     // The CRF read no unit. Three shapes explain that without either side being wrong, and each is checked
     // before the generic verdict because each names a different downstream consequence.
+    //
+    // ⛔ THIS WHOLE BRANCH RETURNS. Nothing inside it can fall through to `unitDiffers`, which is the
+    // ordering the 2026-08-25 ruling turns on: a unit the CRF never stated must not ALSO be counted as a
+    // disagreement about which unit it is.
+    //
+    // ⚠️ `crf.unit === ''` is the whole of the narrowness, and it is narrow only because of the equality
+    // return ABOVE. Mutual silence never reaches here — `model.unit === crf.unit === ''` was already sent
+    // to the quantity comparison — which also makes `model.unit !== ''` redundant rather than load-bearing.
+    // It is kept because it states the claim (the CRF's silence AGAINST an answer) at the point the claim
+    // is made, and a reader must not have to re-derive it from a guard twelve lines up. The mirror case, a
+    // silent MODEL, is left on `unitDiffers`, where `crfWins` already gives the unit to the engine that
+    // spoke.
     if (crf.unit === '' && model.unit !== '') {
         if (crfSize !== '' && unitComparableWords(crfSize).has(model.unit)) {
             return 'crfSizeField';
@@ -215,6 +266,14 @@ function judgeMeasure(
         if (crfNames.some((name) => unitComparableWords(name).has(model.unit))) {
             return 'crfUnitInName';
         }
+
+        // ⚠️ LAST within the branch, deliberately. `crfSizeField` and `crfUnitInName` are both true of a
+        // line whose unit went somewhere findable, and they say WHERE — which is strictly more information.
+        // Both already dispose the same way this one does, so the order changes what the census NAMES and
+        // never what is done about it. Measured: `two and a half pounds of beef` keeps `crfUnitInName`
+        // because `pounds` survives inside the CRF's food name, while `one and a half quarts of boiling
+        // water` lands here, the unit having vanished entirely.
+        return 'crfUnitAbsent';
     }
 
     return 'unitDiffers';

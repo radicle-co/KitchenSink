@@ -62,6 +62,20 @@ describe('SpeedDial (web) — closed', () => {
         expect(trigger.className).toContain('hover:bg-ocean-dark');
     });
 
+    it('gives the trigger AND every destination a visible keyboard focus indicator', async () => {
+        // This is the control a keyboard user lives in, and a background tint alone (which is what the
+        // destinations first shipped with) is a weak indicator on a card surface. The package's own
+        // convention is an explicit `focus-visible:ring-2`, so it is asserted rather than left to the UA.
+        const user = userEvent.setup();
+        const { trigger } = renderDial();
+
+        expect(trigger.className).toContain('focus-visible:ring-2');
+
+        await user.click(trigger);
+
+        expect(screen.getByRole('menuitem', { name: SCRATCH }).className).toContain('focus-visible:ring-2');
+    });
+
     it('keeps the FAB offset DERIVED from the bottom nav and the device safe-area inset', () => {
         // Not a hardcoded pixel value: `calc(5rem + env(safe-area-inset-bottom))` clears the narrow-breakpoint
         // bottom nav plus the gesture bar, and `lg:bottom-8` drops to the base offset once that nav becomes a

@@ -114,7 +114,7 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
                     aria-label={triggerLabel}
                     aria-haspopup="menu"
                     onKeyDown={onTriggerKeyDown}
-                    className="flex h-14 w-14 items-center justify-center rounded-full bg-seafoam text-white shadow-lg transition hover:bg-ocean-dark"
+                    className="flex h-14 w-14 items-center justify-center rounded-full bg-seafoam text-white shadow-lg transition hover:bg-ocean-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean-dark focus-visible:ring-offset-2"
                 >
                     {/* An SVG, not the text "+": flex centres the LINE BOX but ink is placed by the BASELINE,
                         so a "+" character paints ~1.7px low and no centring property can correct it. This
@@ -150,7 +150,7 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
                                     setOpen(false);
                                     action.onSelect();
                                 }}
-                                className="min-h-11 whitespace-nowrap rounded-xl px-4 py-2 text-left text-body-sm font-medium text-charcoal transition hover:bg-pearl focus-visible:bg-pearl"
+                                className="min-h-11 whitespace-nowrap rounded-xl px-4 py-2 text-left text-body-sm font-medium text-charcoal transition hover:bg-pearl focus-visible:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
                             >
                                 {action.label}
                             </button>

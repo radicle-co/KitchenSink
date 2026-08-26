@@ -110,9 +110,9 @@ import { settingFromEnv } from '../../src/config/env.schema.js';
 import * as schema from '../../src/db/schema/index.js';
 import { FetchQueueDao } from '../../src/foods/dao/fetchQueue.dao.js';
 import {
-    BRANDS,
-    CUTS,
-    INGREDIENTS,
+    BRAND_AXIS,
+    CUT_AXIS,
+    INGREDIENT_AXIS,
     PERF_KIND_LETTER,
     PREPARATIONS,
     perfExternalKey,
@@ -281,7 +281,13 @@ const db = drizzle(pool, { schema });
 const dao = new FetchQueueDao(db);
 
 const VOCAB_PARAMS = { preparations: 1, ingredients: 2, cuts: 3, brands: 4 } as const;
-const vocabValues = [[...PREPARATIONS], [...INGREDIENTS], [...CUTS], [...BRANDS]];
+// ⛔ The three drawn axes pass `.draw` — the EXPANDED table — not the raw vocabulary. `drawFromSql`
+// renders `[((i * stride) % cycle) + 1]` where `cycle` is a prime near 1000 (U30's Zipf ladder), so a
+// 36-entry vocabulary is indexed far past its end and Postgres returns NULL. That surfaced as
+// `23502 null value in column "normalized_name"` on the heavy tier, ~1,300 rows into the seed, because
+// this is the SECOND caller of `perfWordsSql` and U30 updated only `preparePerfFixture.ts`.
+// `PREPARATIONS` stays raw: it is drawn by `index % length`, not through an axis.
+const vocabValues = [[...PREPARATIONS], [...INGREDIENT_AXIS.draw], [...CUT_AXIS.draw], [...BRAND_AXIS.draw]];
 
 /**
  * Fail with an actionable message and a non-zero exit.

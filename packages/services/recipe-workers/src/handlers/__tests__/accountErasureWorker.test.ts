@@ -475,6 +475,63 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(scrubIndex).toBeGreaterThan(deleteIndex);
     });
 
+    it('pseudonymizes a CLONE’s frozen source_owner_handle BEFORE the collection delete nulls its pointer', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const scrubIndex = statements.findIndex((s) => /update collections set source_owner_handle/i.test(s.text));
+        const deleteIndex = statements.findIndex((s) => /delete from collections/i.test(s.text));
+        const scrub = statements[scrubIndex];
+
+        // ⚠️ Narrowed, never optional-chained: `expect(scrub?.text)` passes vacuously when the statement was
+        // never issued, which is the entire defect this case exists for.
+        if (scrub === undefined) {
+            throw new Error('the clone-provenance handle sweep was not issued');
+        }
+
+        expect(scrub.text).toMatch(/set source_owner_handle = \$\d/i);
+        // ⛔ Keyed on the SOURCE POINTER, never on the handle VALUE. `author_handles.display_name` is
+        // identity's `profiles.displayName` and is not unique, so a value match would rewrite a bystander's
+        // provenance for an unrelated owner who shares a display name.
+        expect(scrub.text).toMatch(/source_collection_id in \(select id from collections where owner_id = \$\d\)/i);
+        expect(scrub.text).not.toMatch(/where source_owner_handle = \$/i);
+        expect(scrub.params[0]).toBe(`user_${OWNER}`);
+        expect(scrub.params[1]).toBe(OWNER);
+        // ⛔ BEFORE the collection delete. `source_collection_id` is ON DELETE SET NULL, so running after it
+        // would key on a pointer the same transaction had just erased and reach nothing.
+        expect(deleteIndex).toBeGreaterThanOrEqual(0);
+        expect(scrubIndex).toBeLessThan(deleteIndex);
+    });
+
+    it('scrubs the editor_handle on a KEPT recipe’s surviving versions, keyed as the sync worker keys it', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const scrubIndex = statements.findIndex((s) => /update recipe_versions set editor_handle/i.test(s.text));
+        const deleteIndex = statements.findIndex((s) => /^delete from recipes where/i.test(s.text));
+        const scrub = statements[scrubIndex];
+
+        if (scrub === undefined) {
+            throw new Error('the editor-handle residue sweep was not issued');
+        }
+
+        // The same pseudonym as `recipes.author_handle` — one derivation, so a kept recipe and its version
+        // history name the same stranger.
+        expect(scrub.text).toMatch(/where created_by = \$\d and editor_handle is not null/i);
+        expect(scrub.params[0]).toBe(`user_${OWNER}`);
+        expect(scrub.params[1]).toBe(OWNER);
+        // AFTER the recipe delete: a REMOVED recipe's versions go with the cascade, so only the KEPT ones
+        // are still here to scrub.
+        expect(deleteIndex).toBeGreaterThanOrEqual(0);
+        expect(scrubIndex).toBeGreaterThan(deleteIndex);
+    });
+
     it('deletes the author_handles read-model row (the user-keyed root — W8-a.2/.10)', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);

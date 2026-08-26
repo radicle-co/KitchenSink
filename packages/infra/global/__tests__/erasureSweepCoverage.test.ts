@@ -38,7 +38,31 @@
  * aim the NEXT erasure at the wrong person. `ingredient_parse_corrections_owner_line_pair` (0029) shipped
  * that reasoning first; migration 0031 brought the other two tables to it.
  *
- * ## ⛔ THE 2026-08-25 OWNER RULING, and what it changed here (ADR-0027)
+ * ## ⛔ THE SECOND ROW-LEVEL HOLE — a person's data on ANOTHER PERSON'S ROW (owner ruling 2026-08-25)
+ *
+ * The pairing rule above closes "a row with no owner". It does not close "a row with the WRONG owner", and
+ * that is where the next instance came from. `collections.source_owner_handle` (migration 0016) freezes the
+ * SOURCE owner's display handle when somebody clones their collection — so A's handle is written onto B's
+ * row. Erasure's collection statement is `DELETE FROM collections WHERE owner_id = $1`, which reaches A's own
+ * collections and, by construction, never the copy of A's name on B's. `collections` counted as SWEPT, every
+ * assertion in this file was green, and the same datum was pseudonymized in `recipes` and left intact here.
+ * `recipe_versions.editor_handle` was the identical defect one table over, surviving on every KEPT recipe's
+ * version rows.
+ *
+ * Two things had to change, and only the second is a widening of the gate's REACH:
+ *
+ *  * the verdict had to become PER COLUMN. No per-table statement can express "this table is swept and this
+ *    column of it is not", and that sentence is the whole defect.
+ *  * the discovery vocabulary had to grow. {@link OWNER_COLUMNS} lists IDENTIFIERS — the things a sweep keys
+ *    on — and a handle is not one. So {@link HANDLE_COLUMN} matches the PAYLOAD by shape, and every location
+ *    it finds must be written by the sweep or claimed by a person.
+ *
+ * ⚠️ Stated plainly, because it bounds what this file promises: the vocabulary is still a vocabulary. A
+ * personal column that is neither an id nor a handle — an address, a phone number, a free-text note — is
+ * invisible to both, exactly as `source_owner_handle` was invisible to the first. This gate narrows the class
+ * twice; it does not close it.
+ *
+ * ## ⛔ THE 2026-08-25 OWNER RULING ON INGREDIENT PHRASES, and what it changed here (ADR-0027)
  *
  * The owner ruled that **an ingredient phrase — the original a cook typed, or a corrected one — is NOT
  * private data.** It is not erasable, no sweep targets it, and migration 0033 removed the three statements
@@ -51,7 +75,8 @@
  * swept" — and it must not be folded into {@link EXEMPT_FROM_SWEEP}. The two claims are checked differently:
  *
  *  * an EXEMPTION claims a MECHANISM — "erasure still reaches this data by some other means" — and is
- *    verified against that mechanism (`recipe_versions` is covered by the cascade from `recipes`);
+ *    verified against that mechanism (`recipe_versions` held the only such entry, on the strength of the
+ *    cascade from `recipes`, until the 2026-08-25 handle ruling gave it a sweep statement of its own);
  *  * a RETENTION claims CONTENT — "the only user-derived thing left here is an opaque identifier, kept for a
  *    stated purpose" — which no mechanism can discharge, so it is verified by PINNING the table's whole
  *    current column set. That pin is the only mechanical check on what a retention entry actually asserts:
@@ -76,7 +101,10 @@
  *  * a retention's reason cites an ADR file that EXISTS on disk — a stricter bar than an exemption's, because
  *    a retention converts "RED unless swept" into "green forever";
  *  * every column a de-identifying statement NULLs is pair-checked against the owner column that statement
- *    keys on, so no row shape can exist that carries the data and not the predicate.
+ *    keys on, so no row shape can exist that carries the data and not the predicate;
+ *  * every discovered HANDLE-bearing `table.column` is WRITTEN by the sweep, or claimed to be destroyed with
+ *    the row that carries it — a per-COLUMN verdict, because a handle can sit on a row belonging to somebody
+ *    other than the person it names, and every assertion above it reasons per TABLE.
  *
  * A non-vacuity floor guards the discovery itself: if the parser stops finding tables — a syntax change, a
  * moved directory, a renamed function — the gate must go RED rather than pass by finding nothing, which is
@@ -112,10 +140,11 @@
  * a sweep adds an entry to {@link SWEPT_DATABASES}; the pure predicates below are subject-neutral so that
  * costs one line and no new logic.
  *
- * DESIGN PATTERN: Specification module over six pure verdicts — {@link userColumnEffectsIn} (folded by
- * {@link userBearingTablesAfter}), {@link currentColumnsOf}, {@link sweptTablesIn},
- * {@link deIdentifyingStatementsIn} and {@link checkExpressionsFor} are pure functions over a source, fired
- * at deliberately-violating fakes below as well as at the working tree.
+ * DESIGN PATTERN: Specification module over eight pure verdicts — {@link columnEffectsIn} (folded by
+ * {@link trackedColumnsAfter} for both vocabularies), {@link declaredColumnsIn}, {@link currentColumnsOf},
+ * {@link sweptTablesIn}, {@link writtenColumnsIn}, {@link deIdentifyingStatementsIn} and
+ * {@link checkExpressionsFor} are pure functions over a source, fired at deliberately-violating fakes below
+ * as well as at the working tree.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -133,6 +162,39 @@ import { parse, presentFiles, repoRoot, visit, type SourceFile } from './service
  * than inferred from a shape.
  */
 const OWNER_COLUMNS = ['owner_id', 'author_id', 'user_id', 'created_by'] as const;
+
+/**
+ * The columns that hold a person's DISPLAY HANDLE — their name as other people read it.
+ *
+ * ## ⛔ WHY THIS IS A SECOND VOCABULARY AND NOT FOUR MORE ENTRIES IN {@link OWNER_COLUMNS}
+ *
+ * An owner column is a PREDICATE: it is how a sweep REACHES a row. A handle column is PAYLOAD: it is what a
+ * sweep has to CLEAR, and it is useless as a predicate — `author_handles.display_name` is identity's
+ * `profiles.displayName`, which carries no uniqueness constraint anywhere, so keying on the value would let
+ * one person's erasure rewrite an unrelated person's row. Merging the two sets would feed handle spellings
+ * into {@link deIdentifyingStatementsIn}'s "keyed on" regex and quietly bless exactly that.
+ *
+ * ## ⛔ THE INSTANCE THIS WAS ADDED FOR, and why the per-TABLE assertions could not see it
+ *
+ * `collections.source_owner_handle` (migration 0016) freezes the source owner's handle at clone time — so it
+ * sits on the CLONER's row. Erasure's collection statement is `DELETE FROM collections WHERE owner_id = $1`,
+ * which reaches the erased user's OWN collections and, by construction, not a copy of their handle on
+ * somebody else's. `collections` therefore counted as SWEPT and every table-level assertion in this file was
+ * green while the handle survived. `recipe_versions.editor_handle` was the same defect one table over: a KEPT
+ * (truly-public or donated) recipe's version rows are not reached by the cascade, so they too kept the
+ * cleartext. Both are now swept; the assertion below is what turns the THIRD one RED the day it lands.
+ *
+ * ⚠️ A PATTERN, not a closed list — deliberately the opposite choice from {@link OWNER_COLUMNS}. The closed
+ * list is defensible there because an owner column must be one the sweep can key on, and adding a spelling is
+ * a decision somebody takes. A handle column is discovered by SHAPE, and the whole reason this hole existed
+ * is that nobody wrote `source_owner_handle` down. A false positive costs one line of adjudication, which is
+ * the friction this file exists to create.
+ *
+ * ⚠️ `display_name` is matched EXACTLY, not as a `*_name` suffix. `collections.source_collection_name` is a
+ * collection's title — authored content of the same kind as a kept public recipe's title, which erasure keeps
+ * by design — and sweeping every `_name` column would drag it in without anybody deciding to.
+ */
+const HANDLE_COLUMN = /^(?:[a-z0-9_]+_)?handle$|^display_name$/;
 
 /** One database whose owner-bearing tables are gated, and the sweep that must reach them. */
 interface SweptDatabase {
@@ -159,15 +221,37 @@ const SWEPT_DATABASES: readonly SweptDatabase[] = [
  * ⛔ An exemption is a claim that erasure still reaches the data by some OTHER means, and it is checked in
  * both directions below: it must name a table that exists and still carries an owner column, and it must not
  * name a table the sweep already touches. "It seemed fine" is not an entry.
+ *
+ * ⚠️ **Currently EMPTY, and that is a true statement about the sweep rather than an emptied map.** Its one
+ * entry was `recipe_versions`, on the claim that the cascade from `recipes` covered it. That claim was only
+ * ever about `created_by`; the `editor_handle` beside it survived on every KEPT recipe's versions, and the
+ * owner ruling of 2026-08-25 added a statement that writes it. A swept table may not hold an exemption (the
+ * assertion below), so the entry went with the fix. The assertions over this map are therefore STANDING
+ * RULES that fire the day an exemption returns — the same posture, and for the same reason, as the deleted
+ * `MINIMUM_DE_IDENTIFYING_STATEMENTS` constant discussed further down.
  */
-const EXEMPT_FROM_SWEEP: ReadonlyMap<string, string> = new Map([
+const EXEMPT_FROM_SWEEP: ReadonlyMap<string, string> = new Map([]);
+
+/**
+ * Handle-bearing `table.column` locations the sweep deliberately does not WRITE, because erasure destroys the
+ * whole row that carries them.
+ *
+ * ⛔ A column-level claim, and it needs its own map for the reason the module docstring gives about the two
+ * table-level ones: an entry here says something a table-level entry cannot say, and a map with two meanings
+ * is a map with two unenforceable meanings. The claim is narrow — "this handle goes with its row" — and it is
+ * checked in both directions below, exactly as {@link EXEMPT_FROM_SWEEP}'s is.
+ *
+ * ⚠️ This is the ONE place a `DELETE` may stand in for a pseudonym write, and the difference from
+ * `collections` is the whole point. `DELETE FROM author_handles WHERE user_id = $1` removes the row that IS
+ * the erased user's; `DELETE FROM collections WHERE owner_id = $1` removes the erased user's collections
+ * while their handle sits on somebody else's. Syntactically the two statements are the same shape, which is
+ * why the distinction has to be written down by a person rather than inferred.
+ */
+const HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW: ReadonlyMap<string, string> = new Map([
     [
-        'recipe_versions',
-        // `eraseRecipeRows`' own docstring, verbatim in substance: mutations are owner-only and `created_by`
-        // cannot diverge from its recipe's `owner_id`, so the recipe DELETE cascades over it. A "defensive"
-        // delete here would destroy the version history of a user who never asked to be erased, if that
-        // invariant ever broke.
-        'covered by the cascade from `recipes`; `created_by` cannot diverge from the recipe’s `owner_id`',
+        'author_handles.display_name',
+        'the row IS the erased user’s (`DELETE FROM author_handles WHERE user_id = $1`), so the cleartext ' +
+            'goes with it; no other person’s row carries this column',
     ],
 ]);
 
@@ -251,6 +335,20 @@ const RETAINED_BY_RULING: ReadonlyMap<string, { readonly why: string; readonly c
 const MINIMUM_OWNER_BEARING_TABLES = 8;
 
 /**
+ * The fewest handle-bearing `table.column` locations a working discovery must find.
+ *
+ * A floor, never the list — the same posture as {@link MINIMUM_OWNER_BEARING_TABLES} and for the same reason:
+ * a shape predicate that silently stops matching must go RED rather than pass by finding nothing, and a
+ * per-column dimension is more exposed to that than a per-table one, because it depends on the clause parser
+ * as well as on the pattern.
+ *
+ * ⚠️ The current schema has exactly four (`recipes.author_handle`, `recipe_versions.editor_handle`,
+ * `collections.source_owner_handle`, `author_handles.display_name`), so the slack is ZERO and a migration
+ * that adds a fifth must raise this in the same change.
+ */
+const MINIMUM_HANDLE_BEARING_COLUMNS = 4;
+
+/**
  * Strip SQL comments so prose about a column is never read as a column.
  *
  * @param sql - Raw migration text.
@@ -319,9 +417,66 @@ function balancedBody(text: string, start: number): string {
     return '';
 }
 
+/** Leading words of a `CREATE TABLE` clause that introduces a constraint rather than a column. */
+const NOT_A_COLUMN: ReadonlySet<string> = new Set([
+    'constraint',
+    'check',
+    'primary',
+    'unique',
+    'foreign',
+    'exclude',
+    'like',
+]);
+
 /**
- * What one migration file does to the schema's user columns: which tables it gives one, and which it takes
- * one away from.
+ * The columns DECLARED by a `CREATE TABLE` body — its clauses that define a column rather than a constraint.
+ *
+ * ⚠️ Splits on TOP-LEVEL commas, not on newlines, and that is load-bearing in both directions. Real
+ * migrations in this tree write one column per line; the deliberately-violating fakes below write a whole
+ * table on one line. A newline split reads the fakes as a single `id` column, which would silently disarm
+ * every case that drives this parser at a violation. Depth tracking is what makes the comma split safe over
+ * `varchar(255)` and `numeric(10, 2)`.
+ *
+ * @param body - The parenthesised body of a `CREATE TABLE`, comments already stripped.
+ * @returns The declared column names, in declaration order. Pure.
+ */
+function declaredColumnsIn(body: string): readonly string[] {
+    const columns: string[] = [];
+    let depth = 0;
+    let start = 0;
+
+    const take = (clause: string): void => {
+        const definition = /^\s*"?([a-z_][a-z0-9_]*)"?\s+[a-z]/i.exec(clause);
+
+        if (definition?.[1] !== undefined && !NOT_A_COLUMN.has(definition[1].toLowerCase())) {
+            columns.push(definition[1]);
+        }
+    };
+
+    for (let i = 0; i < body.length; i += 1) {
+        if (body[i] === '(') {
+            depth += 1;
+        } else if (body[i] === ')') {
+            depth -= 1;
+        } else if (body[i] === ',' && depth === 0) {
+            take(body.slice(start, i));
+            start = i + 1;
+        }
+    }
+
+    take(body.slice(start));
+
+    return columns;
+}
+
+/**
+ * What one migration file does to the columns a predicate TRACKS: which tables it gives one, and which it
+ * takes one away from.
+ *
+ * ⚠️ Parameterized by the predicate rather than hardcoding {@link OWNER_COLUMNS}, because two different
+ * vocabularies are folded over the same DDL — owner columns (a sweep's predicate) and handle columns (a
+ * sweep's payload). One tested fold, two subjects; a copy for the second would be a copy of every subtlety
+ * the comments below record.
  *
  * Reads the four spellings that occur in this repository — a `CREATE TABLE` whose body declares the column,
  * an `ALTER TABLE … ADD COLUMN` that adds one later (0026's shape), an `ALTER TABLE … DROP COLUMN` that
@@ -334,23 +489,27 @@ function balancedBody(text: string, start: number): string {
  * remove a real column from the derived schema. Asserted directly by a fake below.
  *
  * @param source - One migration file.
+ * @param tracked - Whether a column name is one this fold follows.
  * @returns The `[table, column]` pairs it introduces and retires. PAIRS, not tables — see
  *   `userBearingTablesAfter` for why a table leaves the set only when its last one goes. Pure.
  */
-function userColumnEffectsIn(source: SourceFile): {
+function columnEffectsIn(
+    source: SourceFile,
+    tracked: (column: string) => boolean,
+): {
     readonly gained: readonly (readonly [string, string])[];
     readonly lost: readonly (readonly [string, string])[];
 } {
     const sql = stripSqlComments(source.contents);
     const gained: [string, string][] = [];
     const lost: [string, string][] = [];
-    const isUserColumn = (column: string): boolean => (OWNER_COLUMNS as readonly string[]).includes(column);
+    const isUserColumn = tracked;
 
     for (const match of sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?\s*\(/gi)) {
         const body = balancedBody(sql, sql.indexOf('(', (match.index ?? 0) + match[0].length - 1));
 
-        for (const column of OWNER_COLUMNS) {
-            if (match[1] !== undefined && new RegExp(`"?\\b${column}\\b"?`).test(body)) {
+        for (const column of declaredColumnsIn(body)) {
+            if (match[1] !== undefined && isUserColumn(column)) {
                 gained.push([match[1], column]);
             }
         }
@@ -406,13 +565,41 @@ function userColumnEffectsIn(source: SourceFile): {
  * @returns The user-bearing table names, sorted. Pure.
  */
 function userBearingTablesAfter(migrations: readonly SourceFile[]): readonly string[] {
-    // ⛔ A table's USER COLUMNS, not a bare table set. A table leaves this gate's scope only when its LAST
-    // user column goes — subtracting the table on any drop would take a two-user-column table out of the
-    // derived set on losing one of them, which is the fold's one genuinely dangerous direction.
+    return [...trackedColumnsAfter(migrations, isOwnerColumn).keys()].sort();
+}
+
+/** Whether a column name is one a sweep can KEY ON — an identifier for a person. Pure. */
+function isOwnerColumn(column: string): boolean {
+    return (OWNER_COLUMNS as readonly string[]).includes(column);
+}
+
+/** Whether a column name HOLDS a person's display handle — payload a sweep must clear. Pure. */
+function isHandleColumn(column: string): boolean {
+    return HANDLE_COLUMN.test(column);
+}
+
+/**
+ * The tracked columns each table carries AFTER the whole ordered migration set has been applied.
+ *
+ * ⛔ A FOLD, not a union, and the order therefore matters — see the module docstring for why it changed. The
+ * caller is responsible for supplying the sources in APPLY order; {@link migrationsOf} sorts them.
+ *
+ * ⛔ Keyed by table to a SET OF COLUMNS, never to a bare table flag. A table leaves the derived set only when
+ * its LAST tracked column goes — subtracting the table on any drop would take a two-tracked-column table out
+ * on losing one of them, which is the fold's one genuinely dangerous direction.
+ *
+ * @param migrations - The migration files, in apply order.
+ * @param tracked - Whether a column name is one this fold follows.
+ * @returns Table name → the tracked columns it still carries. Pure.
+ */
+function trackedColumnsAfter(
+    migrations: readonly SourceFile[],
+    tracked: (column: string) => boolean,
+): ReadonlyMap<string, ReadonlySet<string>> {
     const carried = new Map<string, Set<string>>();
 
     for (const source of migrations) {
-        const { gained, lost } = userColumnEffectsIn(source);
+        const { gained, lost } = columnEffectsIn(source, tracked);
 
         for (const [table, column] of lost) {
             const columns = carried.get(table);
@@ -434,7 +621,25 @@ function userBearingTablesAfter(migrations: readonly SourceFile[]): readonly str
         }
     }
 
-    return [...carried.keys()].sort();
+    return carried;
+}
+
+/**
+ * Every `table.column` holding a person's display handle AFTER the whole ordered migration set has been
+ * applied.
+ *
+ * ⛔ Per COLUMN, not per table, and that is the entire point of this dimension. A handle can sit on a row
+ * belonging to somebody OTHER than the person it names (`collections.source_owner_handle` is exactly that),
+ * so its table is reached by the sweep while the datum is not. A per-table verdict reports that as covered —
+ * which is what it did, for as long as the defect stood.
+ *
+ * @param migrations - The migration files, in apply order.
+ * @returns The `table.column` locations, sorted. Pure.
+ */
+function handleBearingColumnsAfter(migrations: readonly SourceFile[]): readonly string[] {
+    return [...trackedColumnsAfter(migrations, isHandleColumn)]
+        .flatMap(([table, columns]) => [...columns].map((column) => `${table}.${column}`))
+        .sort();
 }
 
 /**
@@ -448,7 +653,9 @@ function userBearingTablesAfter(migrations: readonly SourceFile[]): readonly str
  */
 function userBearingTablesEver(migrations: readonly SourceFile[]): readonly string[] {
     return [
-        ...new Set(migrations.flatMap((source) => userColumnEffectsIn(source).gained.map(([table]) => table))),
+        ...new Set(
+            migrations.flatMap((source) => columnEffectsIn(source, isOwnerColumn).gained.map(([table]) => table)),
+        ),
     ].sort();
 }
 
@@ -478,6 +685,47 @@ function sweptTablesIn(source: SourceFile, functionName: string): readonly strin
     }
 
     return [...swept];
+}
+
+/**
+ * The `table.column` locations the named function's SQL actually WRITES — the left-hand side of every `SET`
+ * assignment in every `UPDATE` it issues.
+ *
+ * ⛔ WRITES, not "mentions". A column named only in a `WHERE` is one the sweep reads to FIND a row, not one
+ * it clears, and counting that would report `collections.source_owner_handle` as covered by any statement
+ * that merely filtered on it.
+ *
+ * ⛔ And a `DELETE` deliberately does NOT count, which is the whole distinction this dimension exists to
+ * draw. `DELETE FROM collections WHERE owner_id = $1` and `DELETE FROM author_handles WHERE user_id = $1` are
+ * the same shape; the first removes the erased user's own rows while their handle sits on somebody else's,
+ * the second removes the row that IS the handle. No parser can tell those apart, so the one legitimate case
+ * is written down by a person in {@link HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW} instead of being inferred.
+ *
+ * @param source - The source declaring the sweep.
+ * @param functionName - The declaration whose statements are read.
+ * @returns The `table.column` locations it assigns to. Pure.
+ */
+function writtenColumnsIn(source: SourceFile, functionName: string): readonly string[] {
+    const written = new Set<string>();
+
+    for (const text of statementTextsIn(source, functionName)) {
+        const update = /\bUPDATE\s+"?([a-z_][a-z0-9_]*)"?\s+SET\s+([\s\S]*?)(?:\sWHERE\s[\s\S]*)?$/i.exec(text);
+        const [, table, assignments] = update ?? [];
+
+        if (table === undefined || assignments === undefined) {
+            continue;
+        }
+
+        // Anchored to a clause boundary — the start of the SET list or a comma — so `now()` in
+        // `updated_at = now()` cannot be read as an assignment target of its own.
+        for (const assignment of assignments.matchAll(/(?:^|,)\s*"?([a-z_][a-z0-9_]*)"?\s*=/g)) {
+            if (assignment[1] !== undefined) {
+                written.add(`${table}.${assignment[1]}`);
+            }
+        }
+    }
+
+    return [...written].sort();
 }
 
 /**
@@ -669,7 +917,6 @@ function checkExpressionsFor(sources: readonly SourceFile[], table: string): rea
  */
 function currentColumnsOf(migrations: readonly SourceFile[], table: string): readonly string[] {
     const columns = new Set<string>();
-    const notAColumn = new Set(['constraint', 'check', 'primary', 'unique', 'foreign', 'exclude', 'like']);
 
     for (const source of migrations) {
         const sql = stripSqlComments(source.contents);
@@ -678,12 +925,10 @@ function currentColumnsOf(migrations: readonly SourceFile[], table: string): rea
         if (create !== null) {
             const body = balancedBody(sql, sql.indexOf('(', create.index + create[0].length - 1));
 
-            for (const line of body.split('\n')) {
-                const definition = /^\s*"?([a-z_][a-z0-9_]*)"?\s+[a-z]/i.exec(line);
-
-                if (definition?.[1] !== undefined && !notAColumn.has(definition[1].toLowerCase())) {
-                    columns.add(definition[1]);
-                }
+            // ⚠️ The SAME clause parser the user-column fold uses — one authoritative reading of what a
+            // `CREATE TABLE` body declares. Two copies had already drifted apart on newline-vs-comma.
+            for (const column of declaredColumnsIn(body)) {
+                columns.add(column);
             }
         }
 
@@ -817,6 +1062,41 @@ describe('account-erasure sweep coverage', () => {
                 ).toEqual([]);
             });
 
+            it('⛔ WRITES every handle-bearing column, or deletes the row that carries it, per COLUMN', () => {
+                const handles = handleBearingColumnsAfter(migrationsOf(database));
+                const written = new Set(writtenColumnsIn(readSource(database.sweepFile), database.sweepFunction));
+
+                expect(
+                    handles.length,
+                    'fewer handle-bearing columns than this database is known to have — discovery has broken',
+                ).toBeGreaterThanOrEqual(MINIMUM_HANDLE_BEARING_COLUMNS);
+                expect(
+                    written.size,
+                    `${database.sweepFunction} assigns to no columns — the parser has broken`,
+                ).toBeGreaterThan(0);
+
+                // ⛔ Each entry here is a COPY of a person's display name that survives their erasure. The
+                // table-level assertion above cannot see one: `collections` is swept, and the handle it kept
+                // was on a bystander's row. Pseudonymize it in the sweep, or record in
+                // `HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW` that erasure destroys the row that holds it.
+                expect(
+                    handles.filter(
+                        (location) => !written.has(location) && !HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.has(location),
+                    ),
+                ).toEqual([]);
+            });
+
+            it('carries no handle-column claim for a column that is gone, or one the sweep already writes', () => {
+                const handles = new Set(handleBearingColumnsAfter(migrationsOf(database)));
+                const written = new Set(writtenColumnsIn(readSource(database.sweepFile), database.sweepFunction));
+
+                // Both directions, exactly as the table-level maps are checked. A claim outliving its column
+                // excuses nothing and would silently cover a future column that reused the name; a claim about
+                // a column the sweep now writes reads as "erasure does not clear this", the opposite of true.
+                expect([...HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.keys()].filter((at) => !handles.has(at))).toEqual([]);
+                expect([...HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.keys()].filter((at) => written.has(at))).toEqual([]);
+            });
+
             it('⛔ never REMOVES a table the union found — a fold may only ever subtract', () => {
                 const migrations = migrationsOf(database);
                 const ever = new Set(userBearingTablesEver(migrations));
@@ -918,12 +1198,109 @@ describe('account-erasure sweep coverage', () => {
         });
     }
 
+    it('⛔ FAILS a handle-bearing column on a table the sweep never writes, and NAMES the column', () => {
+        // ⛔ THE EXACT SHAPE THAT SHIPPED. The table IS swept — `DELETE FROM notes WHERE owner_id = $1`, the
+        // same statement `collections` gets — and the handle is on a row the predicate cannot reach, because
+        // it names the row's SOURCE rather than its owner. Every table-level assertion in this file reports
+        // this as covered.
+        const migration = {
+            file: 'fake/0099_provenance.sql',
+            contents: `
+                -- The handle here is frozen from the SOURCE owner, so it sits on the cloner's row.
+                ALTER TABLE "notes"
+                    ADD COLUMN "last_pulled_at" timestamptz,
+                    ADD COLUMN "source_owner_handle" text,
+                    ADD COLUMN "source_collection_name" text;
+            `,
+        };
+        const sweep = {
+            file: 'fake/sweep.ts',
+            contents: `
+                export const eraseRows = async (tx) => {
+                    await tx.execute(sql\`DELETE FROM notes WHERE owner_id = \${ownerId}\`);
+                    await tx.execute(sql\`UPDATE recipes SET author_handle = \${pseudonym} WHERE owner_id = \${ownerId}\`);
+                };
+            `,
+        };
+
+        const handles = handleBearingColumnsAfter([migration]);
+        const written = new Set(writtenColumnsIn(sweep, 'eraseRows'));
+
+        // Discovered by SHAPE — nobody wrote `source_owner_handle` into a vocabulary — and reported as a
+        // COLUMN, so the failure says which datum survived rather than which table to go and read.
+        expect(handles).toEqual(['notes.source_owner_handle']);
+        // ⚠️ `source_collection_name` is NOT here. A collection's name is authored content, of the same kind
+        // as a kept public recipe's title, and a `*_name` pattern would have swept it in without a decision.
+        expect(handles).not.toContain('notes.source_collection_name');
+        expect(handles.filter((at) => !written.has(at) && !HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.has(at))).toEqual([
+            'notes.source_owner_handle',
+        ]);
+        // …and the sweep's own pseudonym write IS recognised as covering the column it assigns to, so the
+        // verdict tracks the statement rather than something incidental about the fake.
+        expect(written.has('recipes.author_handle')).toBe(true);
+    });
+
+    it('⛔ counts a column WRITTEN by the sweep, never one it merely filters on', () => {
+        const sweep = {
+            file: 'fake/sweep.ts',
+            contents: `
+                export const eraseRows = async (tx) => {
+                    await tx.execute(sql\`
+                        UPDATE collections SET source_owner_handle = \${pseudonym}, updated_at = now()
+                        WHERE source_owner_handle IS NOT NULL
+                          AND source_collection_id IN (SELECT id FROM collections WHERE owner_id = \${ownerId})
+                    \`);
+                    await tx.execute(sql\`
+                        UPDATE notes SET body = 'x' WHERE editor_handle = \${handle}
+                    \`);
+                };
+            `,
+        };
+
+        // `notes.editor_handle` appears only in a WHERE — the sweep READS it to find a row and never clears
+        // it, which is a false NEGATIVE in the one direction that matters. `updated_at = now()` is an
+        // assignment; `now()` is not.
+        expect(writtenColumnsIn(sweep, 'eraseRows')).toEqual([
+            'collections.source_owner_handle',
+            'collections.updated_at',
+            'notes.body',
+        ]);
+    });
+
+    it('⛔ reads every clause of the REAL 0016 ALTER, not just its first', () => {
+        // ⛔ The fake above proves the parser handles the FORM; this proves it against the FILE the defect
+        // actually came through. 0016 adds three columns under one `ALTER TABLE collections`, and while the
+        // parser was anchored to `ALTER TABLE <t> ADD COLUMN <x>` the second and third were invisible.
+        const columns = new Set(currentColumnsOf(migrationsOf(SWEPT_DATABASES[0]!), 'collections'));
+
+        expect([...columns].filter((column) => column.startsWith('source_') || column === 'last_pulled_at').sort()) //
+            .toEqual(['last_pulled_at', 'source_collection_id', 'source_collection_name', 'source_owner_handle']);
+    });
+
     it('states a real reason for every exemption', () => {
-        // An exemption is one of two places this gate accepts a human's word. A blank or throwaway entry would
-        // turn "no route to erasure" into "somebody typed something", which is worse than no gate at all
+        // An exemption is one of three places this gate accepts a human's word. A blank or throwaway entry
+        // would turn "no route to erasure" into "somebody typed something", which is worse than no gate at all
         // because it reads as reviewed.
         for (const [table, why] of EXEMPT_FROM_SWEEP) {
             expect(why.trim().length, `the exemption for ${table} must say how erasure reaches it`).toBeGreaterThan(20);
+        }
+    });
+
+    it('states a real reason for every handle column claimed to go with its row', () => {
+        // ⛔ Non-vacuity FIRST, unlike the exemption case above. That map is legitimately empty today (nothing
+        // is exempt), and its assertion is a standing rule. This one makes a live claim about a real column
+        // that a real `DELETE` covers, so an emptied map here means the claim was dropped rather than settled.
+        expect(HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.size, 'the handle-column claims have been emptied') //
+            .toBeGreaterThan(0);
+
+        for (const [location, why] of HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW) {
+            expect(location, `${location} must name a table and a column`).toMatch(
+                /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/,
+            );
+            expect(
+                why.trim().length,
+                `the claim for ${location} must say which statement destroys the row that carries it`,
+            ).toBeGreaterThan(20);
         }
     });
 

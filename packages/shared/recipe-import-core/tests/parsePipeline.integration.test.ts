@@ -32,7 +32,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { recipeIngredientNameSchema, recipeIngredientQuantitySchema } from '@kitchensink/recipe-core';
+import {
+    ABSENT_QUANTITY,
+    recipeIngredientNameSchema,
+    recipeIngredientQuantitySchema,
+    statedQuantity,
+    type IngredientQuantity,
+} from '@kitchensink/recipe-core';
 import type { HexDigest, LineDigest, ParseEngine } from '@kitchensink/recipe-core/parsing/parse-key';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { describe, it, expect } from 'vitest';
@@ -591,6 +597,19 @@ describe('the correction tier, over the REAL match grain', () => {
  * Measured here against the real `parse-ingredient@2.2.0`: it does. `one small` reads `{ 1, 'small' }`,
  * `four large` reads `{ 4, 'large' }`, `two and a half pounds` reads `{ 2.5, 'lb' }` — canonicalised by
  * `recipe-core`'s `normalizeUnit`, which is the second boundary a fixture would have hidden.
+ *
+ * ## U36a — AND THE SAME ARGUMENT APPLIES TWICE OVER TO THE AMOUNT (2026-08-26)
+ *
+ * The rescue now takes the amount as well, and the amount is derived by the same reader from the same
+ * phrase — so the unit tier is doubly unable to check it. Three premises this tier measures and a fixture
+ * would have invented:
+ *
+ *  - `one and a half quarts` really reads `1.5`, and the CRF's `one` really reads `1` — the third-short
+ *    store that motivated the ruling is real, not assumed.
+ *  - the CRF's `2 3 tablespoons` reads an exact `2` with NO unit (plus `measurement_in_name`), while
+ *    `two or three tablespoons` reads the RANGE — so the rescue fires on the collapse and repairs it.
+ *  - a bare `large` reads `{ absent, 'large' }` and NOT "no measure at all", which is the entire premise
+ *    of the guard: the rescue fires, and the amount must still stay behind.
  */
 describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
     /** One measured line: what the CRF read, what the LLM read, and what the merge must hold. */
@@ -609,10 +628,21 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
         readonly llmName: string;
         /** The unit the merged line must carry — `null` when neither engine named one. */
         readonly mergedUnit: string | null;
+        /**
+         * The AMOUNT the merged line must carry, and which engine must be credited with it (U36a).
+         *
+         * ⛔ DERIVED by the real reader from one of the two phrases above — never written by an engine —
+         * which is exactly why this belongs at this tier. `null` means no amount at all.
+         */
+        readonly mergedAmount: number | { readonly low: number; readonly high: number } | null;
+        /** Which engine the merged amount must be attributed to. */
+        readonly amountFrom: ParseEngine;
     }
 
     const CASES: readonly RescueCase[] = [
         // Bucket 2 — a plain MODERN unit, unreachable by the historical rule this ruling replaced.
+        // ⛔ U36a: the CRF read `one` where the source says one and a HALF, so the amount moves too. This
+        // is the seed line (L00177) the whole ruling was argued from.
         {
             line: 'one and a half quarts of boiling water',
             crfMeasure: 'one',
@@ -621,6 +651,8 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
             llmMeasure: 'one and a half quarts',
             llmName: 'water',
             mergedUnit: 'quart',
+            mergedAmount: 1.5,
+            amountFrom: 'llm',
         },
         {
             line: 'two and a half pounds of beef',
@@ -631,6 +663,60 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
             llmName: 'beef',
             // ⚠️ `lb`, not `pounds` — `normalizeUnit` canonicalises, and a hand-written fixture hides it.
             mergedUnit: 'lb',
+            mergedAmount: 2.5,
+            amountFrom: 'llm',
+        },
+        // The other two measured fraction lines (L00181, L01973). ⚠️ `1.667`, not `5/3` — the reader
+        // rounds, and asserting the exact value here is what proves the merge stores what it derived.
+        {
+            line: 'one and a half teaspoons of salt',
+            crfMeasure: 'one',
+            crfSize: null,
+            crfName: 'salt',
+            llmMeasure: 'one and a half teaspoons',
+            llmName: 'salt',
+            mergedUnit: 'teaspoon',
+            mergedAmount: 1.5,
+            amountFrom: 'llm',
+        },
+        {
+            line: 'one and two-third cups of flour sifted',
+            crfMeasure: 'one',
+            crfSize: null,
+            crfName: 'flour',
+            llmMeasure: 'one and two-third cups',
+            llmName: 'flour',
+            mergedUnit: 'cup',
+            mergedAmount: 1.667,
+            amountFrom: 'llm',
+        },
+        // ⛔ U36a's LARGEST class — 57 of the 115 rescues. The CRF read NO measure at all, so before the
+        // ruling the merged line carried `tablespoon` with an ABSENT amount: a unit for a number nobody
+        // wrote down. The CRF's `''` is the engine's own spelling of "I read none" (U16 collapses it).
+        {
+            line: 'a tablespoon of flour',
+            crfMeasure: '',
+            crfSize: null,
+            crfName: 'flour',
+            llmMeasure: 'a tablespoon',
+            llmName: 'flour',
+            mergedUnit: 'tablespoon',
+            mergedAmount: 1,
+            amountFrom: 'llm',
+        },
+        // ⛔ U36a — the RANGE class, 8 measured lines. The real reader gives the CRF's `2 3 tablespoons`
+        // an exact `2` with no unit (plus a `measurement_in_name` reason), and the LLM's phrase the range
+        // the source actually states. A fixture-written quantity could not have shown either.
+        {
+            line: 'two or three tablespoons of rum',
+            crfMeasure: '2 3 tablespoons',
+            crfSize: null,
+            crfName: 'rum',
+            llmMeasure: 'two or three tablespoons',
+            llmName: 'rum',
+            mergedUnit: 'tablespoon',
+            mergedAmount: { low: 2, high: 3 },
+            amountFrom: 'llm',
         },
         // Bucket 2 — the HISTORICAL shape, which already rescued. ⛔ THE ANTI-REGRESSION: the old rule is
         // a strict subset of the new one, so widening must not cost a wineglass its rescue.
@@ -642,6 +728,9 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
             llmMeasure: 'one wineglass',
             llmName: 'sherry',
             mergedUnit: 'wineglass',
+            // Both engines read `1`, so the amount is unchanged and only its attribution moves.
+            mergedAmount: 1,
+            amountFrom: 'llm',
         },
         // Bucket 3 — a SIZE word as the unit. The CRF's `size` goes to its NAME (U16); the LLM's phrase
         // yields it as the UNIT, and rescuing it is the only thing that keeps the word at all.
@@ -653,6 +742,8 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
             llmMeasure: 'one small',
             llmName: 'onion',
             mergedUnit: 'small',
+            mergedAmount: 1,
+            amountFrom: 'llm',
         },
         {
             line: 'four large onions',
@@ -662,6 +753,25 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
             llmMeasure: 'four large',
             llmName: 'onions',
             mergedUnit: 'large',
+            mergedAmount: 4,
+            amountFrom: 'llm',
+        },
+        // ⛔ U36a's GUARD, and the row that stops the ruling being applied literally. Measured line L01984.
+        // The real reader gives the LLM's bare `large` a unit AND `ABSENT_QUANTITY` — so an unconditional
+        // "take the whole measure" would replace the CRF's `2` with nothing, DELETING an amount the source
+        // plainly states. Absence is silence (ADR-0026 §3), so the phrase and the unit are rescued and the
+        // number is not. ⚠️ Only this tier can prove the premise: that `large` really does read as
+        // `{ absent, 'large' }` rather than as no measure at all.
+        {
+            line: 'a large mixing bowl whip to a cream two eggs',
+            crfMeasure: 'two',
+            crfSize: null,
+            crfName: 'eggs',
+            llmMeasure: 'large',
+            llmName: 'eggs',
+            mergedUnit: 'large',
+            mergedAmount: 2,
+            amountFrom: 'crf',
         },
         // Bucket 1 — mutual silence. Neither engine named a unit, so nothing is rescued and the merged
         // line states none. ⛔ This is the 29-line majority and it must not move.
@@ -673,8 +783,28 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
             llmMeasure: 'two',
             llmName: 'eggs',
             mergedUnit: null,
+            mergedAmount: 2,
+            amountFrom: 'crf',
         },
     ];
+
+    /** The measured amount as the contract spells it, so a case row cannot state an impossible one. */
+    function expectedQuantity(rescue: RescueCase): IngredientQuantity {
+        if (rescue.mergedAmount === null) {
+            return ABSENT_QUANTITY;
+        }
+
+        const amount =
+            typeof rescue.mergedAmount === 'number'
+                ? statedQuantity(rescue.mergedAmount)
+                : statedQuantity(rescue.mergedAmount.low, rescue.mergedAmount.high);
+
+        if (amount === null) {
+            throw new Error(`case ${JSON.stringify(rescue.line)} states an impossible amount`);
+        }
+
+        return amount;
+    }
 
     const RESCUE_LINES: readonly string[] = CASES.map((rescue) => rescue.line);
 
@@ -753,6 +883,9 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
         expect(outcomes.map((outcome) => outcome.parsed?.unit ?? null)).toEqual(
             CASES.map((rescue) => rescue.mergedUnit),
         );
+        // ⛔ U36a, as ONE table for the same reason: a merge that dropped every amount would otherwise
+        // pass row by row wherever the expected amount happened to be absent.
+        expect(outcomes.map((outcome) => outcome.parsed?.quantity ?? null)).toEqual(CASES.map(expectedQuantity));
 
         for (const [index, rescue] of CASES.entries()) {
             const outcome = outcomes[index];
@@ -761,9 +894,30 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
             expect(outcome?.parsed?.raw).toBe(rescue.line);
             // The rescue is credited to the engine that read it, and never to the silent one.
             expect(outcome?.parsed?.provenance.unit).toBe(rescue.mergedUnit === null ? 'crf' : 'llm');
-            // ⛔ KTD-11 is untouched: the NUMBER stays the CRF's on every one of these lines.
-            expect(outcome?.parsed?.provenance.quantity).toBe('crf');
+            // ⛔ U36a: the amount travels WITH the rescued measure — except where the rescued phrase
+            // states no amount, which is silence rather than a competing reading.
+            expect(outcome?.parsed?.provenance.quantity, rescue.line).toBe(rescue.amountFrom);
         }
+    });
+
+    it('⛔ U36a — the merged amount is never absent where either engine read one', async () => {
+        // ⛔ THE PROPERTY, over every row, and the one that would have caught the 57-line class before it
+        // was measured: a merged line may state no amount ONLY when neither engine did. `a tablespoon of
+        // flour` stored `tablespoon` with `ABSENT_QUANTITY` under U36 and passed every assertion above,
+        // because the table then said nothing about the amount.
+        const cache = makeJsonCache();
+        const outcomes = await runParsePipeline(
+            RESCUE_LINES,
+            { corrections: NO_CORRECTIONS, cache, engines: makeRescueEngines(), digest: sha256 },
+            { userId: undefined },
+            makeObservers(),
+        );
+
+        expect(outcomes).toHaveLength(CASES.length);
+        // ⚠️ Guards the assertion itself: every measured row DOES state an amount, so an implementation
+        // that returned no merged line at all could not pass by making the filter vacuous.
+        expect(CASES.every((rescue) => rescue.mergedAmount !== null)).toBe(true);
+        expect(outcomes.map((outcome) => outcome.parsed?.quantity.kind ?? 'missing')).not.toContain('absent');
     });
 
     it('a warm run serves the rescued unit from the cache, byte for byte', async () => {

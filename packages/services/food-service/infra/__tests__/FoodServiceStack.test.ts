@@ -139,6 +139,8 @@ const FOOD_METRIC = {
     tombstoneCount: 'food-tombstone-count',
     pendingAgeSeconds: 'food-fetch-pending-age-seconds',
     localStoreServeRate: 'food-local-store-serve-rate',
+    sourceRollingWindowCount: 'source-rolling-window-count',
+    sourceRateLimitRemaining: 'source-rate-limit-remaining',
 } as const;
 
 // NetworkStack/DataStack/SharedAlbStack assertions live with the deployed (global) definitions in
@@ -680,6 +682,25 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
                 `dashboard charts ${metricName} with no dimensions, but it is only emitted with "${dimension}"`,
             ).toBe(false);
         }
+    });
+
+    /**
+     * U38 — the reading and the model must land on ONE widget, because the comparison IS the evidence.
+     * `source-rolling-window-count` is what we MODEL in Postgres; `source-rate-limit-remaining` is what
+     * USDA REPORTS. While the two move together the window is ours alone (per-key); a `remaining` that
+     * falls faster than our count says the bucket is shared (per-IP). Charting them on separate widgets —
+     * or emitting the reading with nothing charting it at all — leaves that question to be settled by
+     * argument, which is exactly what the unit set out to stop.
+     */
+    it('charts the REPORTED rate limit beside the MODELLED window count, on one widget', () => {
+        // The body is not parseable JSON — CDK renders unresolved tokens into it — so widgets are split
+        // on their titles, which CDK emits before each widget's own `metrics` array.
+        const widgets = dashboardBody().split('"title":"');
+        const modelled = widgets.filter((widget) => widget.includes(FOOD_METRIC.sourceRollingWindowCount));
+
+        // Length 1 is the non-vacuity guard in both directions: charted nowhere fails, charted twice fails.
+        expect(modelled).toHaveLength(1);
+        expect(modelled[0]).toContain(FOOD_METRIC.sourceRateLimitRemaining);
     });
 
     it('charts the local-store serve rate as an Average on a 0–100 axis (SC-004/SC-005, T-199b)', () => {

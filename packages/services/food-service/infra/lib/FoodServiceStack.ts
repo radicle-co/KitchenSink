@@ -67,6 +67,7 @@ const FOOD_METRIC = {
     fetchQueueDepth: 'food-fetch-queue-depth',
     resolutionLatencySeconds: 'food-resolution-latency-seconds',
     sourceRollingWindowCount: 'source-rolling-window-count',
+    sourceRateLimitRemaining: 'source-rate-limit-remaining',
     unresolvedBacklog: 'food-unresolved-backlog',
     tombstoneCount: 'food-tombstone-count',
     pendingAgeSeconds: 'food-fetch-pending-age-seconds',
@@ -1034,7 +1035,7 @@ export class FoodServiceStack extends Stack {
         );
         dashboard.addWidgets(
             new cloudwatch.GraphWidget({
-                title: 'Per-source rolling-60-min calls',
+                title: 'Per-source rolling-60-min calls — modelled vs reported',
                 // ⛔ A SEARCH EXPRESSION, NOT `emfMetric`. `recordSourceRollingWindow` publishes this one
                 // under `Dimensions: [['source']]`, and EMF publishes ONLY the dimension sets it is given —
                 // there is no aggregate series beside them. The dimensionless `emfMetric` form therefore
@@ -1044,6 +1045,18 @@ export class FoodServiceStack extends Stack {
                 left: [
                     new cloudwatch.MathExpression({
                         expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},source} MetricName="${FOOD_METRIC.sourceRollingWindowCount}"', 'Sum', 300)`,
+                        usingMetrics: {},
+                        label: '',
+                        period: Duration.minutes(5),
+                    }),
+                    // U38 — the quota the SOURCE reports, on the same axis as the one we MODEL. That
+                    // pairing is the point: while the two move together the window is ours alone
+                    // (per-key), and a `remaining` falling faster than our count says the bucket is
+                    // shared (per-IP) — the question food's public-subnet tasks make load-bearing, since
+                    // each already has its own address. `Minimum` because the closest approach to zero in
+                    // the period is the reading that matters; an average would hide it.
+                    new cloudwatch.MathExpression({
+                        expression: `SEARCH('{${FOOD_METRIC_NAMESPACE},source} MetricName="${FOOD_METRIC.sourceRateLimitRemaining}"', 'Minimum', 300)`,
                         usingMetrics: {},
                         label: '',
                         period: Duration.minutes(5),

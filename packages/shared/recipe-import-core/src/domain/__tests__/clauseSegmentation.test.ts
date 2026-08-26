@@ -532,3 +532,33 @@ describe('segmentClause — ⛔ ANTI-REGRESSION: every equipment removal U22a me
         expect(segmentClause(span, '').kind).toBe('ingredient');
     });
 });
+
+/**
+ * ⛔ ReDoS REGRESSION GUARD (CodeQL `js/polynomial-redos`, PR 91, 2026-08-26).
+ *
+ * `PARTITIVE_OF` shipped as `/\s+of\s+/` — two UNANCHORED `\s+` quantifiers around a literal. `search()`
+ * retries at every start position, and at each one the leading `\s+` consumes the whole run before
+ * backtracking to look for `o`. MEASURED before the fix: 0.8ms → 2.8ms → 11.0ms → 43.7ms across
+ * 2k → 16k spaces, i.e. doubling the input roughly QUADRUPLED the time.
+ *
+ * ⚠️ This is the SECOND instance of this exact shape in this package — `splitMeasurement.ts` carries the
+ * first, with the same measurement in its own guard. Both read a span lifted from imported recipe prose,
+ * and nothing between the source text and either function bounds a run of whitespace.
+ */
+describe('clause segmentation — ReDoS guard', () => {
+    it('does not backtrack catastrophically on a long whitespace run inside a real span', () => {
+        // ⚠️ The run must sit INSIDE a span that reaches the partitive scan — a span of pure whitespace
+        // short-circuits earlier (measured: 0.0ms at 40k) and would make this assertion vacuous.
+        const pathological = `one pound${' '.repeat(20_000)}beef in a frying-pan`;
+        const started = performance.now();
+
+        segmentClause(pathological, '');
+
+        // ⚠️ 100ms, not 5ms, and the gap is DELIBERATE. `partitiveOfAt` costs 0.09ms here; the remaining
+        // ~68ms is `INSTRUCTION_BOUNDARY`, whose own alternation carries the SAME unanchored-quantifier
+        // shape and which §7a's author measured at 65ms for this input and accepted as residual risk.
+        // MEASURED 2026-08-26: 136ms before this fix, 68ms after — so a bound of 100 catches a
+        // reintroduction of the regex without falsely failing on the residual that is already recorded.
+        expect(performance.now() - started).toBeLessThan(100);
+    });
+});

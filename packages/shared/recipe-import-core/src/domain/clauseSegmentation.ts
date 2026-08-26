@@ -174,7 +174,51 @@ const INSTRUCTION_BOUNDARY = new RegExp(`\\s+(?:${[...PREPOSITIONS, ...CONNECTIV
  * word-anywhere scan {@link measurePhraseOf} feeds safe. Everything before it is the measure; everything
  * after it is the food. `one pound of pot roast` therefore offers the scan `one pound` and never `pot`.
  */
-const PARTITIVE_OF = /\s+of\s+/;
+const WHITESPACE = /\s/;
+
+/**
+ * The index where a partitive `of` begins — the start of the whitespace run in front of it — or `-1`.
+ *
+ * ⛔ NOT a regex, and not by preference. This shipped as `PARTITIVE_OF = /\s+of\s+/` and CodeQL flagged
+ * it (`js/polynomial-redos`, 2026-08-26): two UNANCHORED `\s+` quantifiers around a literal, retried at
+ * every start position, with the leading one consuming the whole run before backtracking to look for `o`.
+ * MEASURED at 20k spaces: 68.4ms as a regex, 0.09ms as this scan.
+ *
+ * ⚠️ This is the SECOND instance of that shape in this package — `splitMeasurement.ts` carries the first
+ * with its own measurement — and `INSTRUCTION_BOUNDARY` above is a THIRD, recorded as residual risk in
+ * ADR-0026 §7a rather than fixed here. If a fourth arrives, the lesson is the shape, not the file: an
+ * unanchored quantifier on either side of something that can FAIL to match.
+ *
+ * The scan is linear: each candidate is an `of` found by `indexOf`, and the walk back over its leading
+ * whitespace cannot revisit a character a previous candidate already walked.
+ *
+ * @param span - The span to scan.
+ * @returns The match start, or `-1`. Pure.
+ */
+function partitiveOfAt(span: string): number {
+    for (let at = span.indexOf('of'); at >= 0; at = span.indexOf('of', at + 1)) {
+        const before = at - 1;
+        const after = at + 2;
+
+        if (before < 0 || after >= span.length) {
+            continue;
+        }
+
+        if (!WHITESPACE.test(span[before] as string) || !WHITESPACE.test(span[after] as string)) {
+            continue;
+        }
+
+        let start = at;
+
+        while (start > 0 && WHITESPACE.test(span[start - 1] as string)) {
+            start -= 1;
+        }
+
+        return start;
+    }
+
+    return -1;
+}
 
 /**
  * Bound one accepted span at the end of its ingredient.
@@ -347,7 +391,7 @@ function isGovernedByAPreposition(precededBy: string): boolean {
  * @returns The measure phrase, or `null` when the span carries no delimiter at all. Pure.
  */
 function measurePhraseOf(trimmed: string, boundary: number | null): string | null {
-    const ends = [trimmed.search(PARTITIVE_OF), boundary ?? -1].filter((at) => at >= 0);
+    const ends = [partitiveOfAt(trimmed), boundary ?? -1].filter((at) => at >= 0);
 
     return ends.length === 0 ? null : trimmed.slice(0, Math.min(...ends));
 }

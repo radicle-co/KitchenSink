@@ -30,13 +30,21 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         await mockRecipeApi(page, { viewerId, tier: 'premium' });
 
         await page.goto(route('/recipes/new'));
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
+        // Rail-scoped for the same reason `recipePhotos.spec.ts` is: a direct `goto` into this route can
+        // briefly hold both the server-rendered wizard and its hydrated replacement, so a bare
+        // `getByText('Step 1 of 4')` has two matches (one hidden) and trips strict mode. `getByRole` reads
+        // the accessibility tree and cannot see the hidden copy.
+        await expect(page.getByRole('navigation', { name: 'Recipe wizard steps' })).toContainText('Step 1 of 4');
 
-        // Save Draft's floor is step 1 only (title/servings/times) — no ingredients/steps needed. U6 chrome
-        // demoted Save Draft off the header into the "More actions" overflow menu.
+        // Save Draft's floor is step 1 only (title/servings/times) — no ingredients/steps needed.
+        //
+        // ⚠️ REWRITTEN (this run): U32 PROMOTED Save Draft back out of the "More actions" overflow menu and
+        // into the pinned action bar, at every width — the point of that ruling was that a phone user should
+        // not have to go looking for it. `recipeWizardActionBar.spec.ts` asserts the other half (the menu
+        // carries Cancel and NOT a second Save Draft), so driving it through the menu here would have been
+        // asserting a control that must no longer exist.
         await page.getByLabel('Title').fill('E2E Weeknight Draft');
-        await page.getByRole('button', { name: 'More actions' }).click();
-        await page.getByRole('menuitem', { name: 'Save Draft' }).click();
+        await page.getByRole('button', { name: 'Save Draft' }).click();
 
         // A successful save (draft or publish) navigates to the new recipe's detail, same as Publish.
         await expect(page.getByRole('heading', { name: 'E2E Weeknight Draft' })).toBeVisible();
@@ -71,7 +79,7 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         // Publish is the footer's FINAL-step primary (U6: no longer a top-bar action live on every step). Jump
         // to Review (step 4) via the rail — FORWARD navigation is ungated even with an invalid earlier step —
         // and attempt to publish from there.
-        await page.getByRole('button', { name: /Details:/ }).click();
+        await page.getByRole('button', { name: /Review:/ }).click();
         await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 
@@ -118,7 +126,7 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         await page.goto(route('/recipes/rec_seed/edit'));
         // Jump to step 1 (Details) via the rail — photos are a FIELD of Details now, not a step (U33).
         await page.getByRole('button', { name: /Details:/ }).click();
-        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+        await expect(page.getByText('Step 1 of 4')).toBeVisible();
 
         const photosRegion = page.getByRole('region', { name: 'Photos' });
         await expect(photosRegion).toBeVisible();

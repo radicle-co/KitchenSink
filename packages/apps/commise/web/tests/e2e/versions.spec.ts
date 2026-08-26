@@ -133,13 +133,33 @@ test.describe('recipe version history (W6 Task 6)', () => {
         await expect(page.getByRole('button', { name: 'Restore version 3' })).toHaveCount(0);
 
         // v2's row: `by @{handle}` attribution, plus the changed-fields summary versus its immediately-prior
-        // sibling (v1) — only the title differs between v1 and v2. The ` (from {device})` half of this
-        // assertion went with the 2026-08-26 owner ruling that deleted device attribution.
-        await expect(page.getByText('by @chef_e2e')).toBeVisible();
-        await expect(page.getByText('Changed: Title')).toBeVisible();
+        // sibling (v1) — only the title differs between v1 and v2.
+        //
+        // ⚠️ REWRITTEN (this run), and the reason is the point. The ` (from {device})` half of the old
+        // assertion went with the 2026-08-26 owner ruling that deleted device attribution — but that suffix
+        // was also the only thing making each row's attribution text UNIQUE, so an unscoped
+        // `getByText('by @chef_e2e')` became a 3-element strict-mode violation the moment it was dropped.
+        // Scoping each claim to the row it is about is what the assertion always meant; it was passing on an
+        // accident of the copy. Per-row scoping also makes this STRONGER than before — "Changed: Title" is
+        // now pinned to v2 rather than to "somewhere on the page", so a summary rendered against the wrong
+        // sibling would fail here instead of passing.
 
-        // v1 is the earliest version — nothing to diff against.
-        await expect(page.getByText('Initial version')).toBeVisible();
+        // Scoped by the row's OWN "Version N" label element, not by a `hasText` substring: the row's
+        // concatenated text content runs the label straight into the timestamp ("Version 2Jan 3, 2026"), so a
+        // text-prefix match has no word boundary to anchor on and would silently match the wrong row.
+        const rowFor = (version: number) =>
+            page.getByRole('listitem').filter({ has: page.getByText(`Version ${version}`, { exact: true }) });
+
+        // All three rows carry the attribution — the property the old single assertion could only sample.
+        await expect(page.getByText('by @chef_e2e')).toHaveCount(3);
+
+        await expect(rowFor(2).getByText('by @chef_e2e')).toBeVisible();
+        await expect(rowFor(2).getByText('Changed: Title')).toBeVisible();
+
+        // v1 is the earliest version — nothing to diff against, so it gets the initial-version note and no
+        // changed-fields summary at all.
+        await expect(rowFor(1).getByText('Initial version')).toBeVisible();
+        await expect(rowFor(1).getByText(/^Changed: /u)).toHaveCount(0);
     });
 
     test('previews a past version’s content and its changed-from-current summary', async ({ page }) => {

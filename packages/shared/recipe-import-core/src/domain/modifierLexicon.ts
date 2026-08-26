@@ -159,6 +159,24 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     'light',
     'new',
     'old',
+    // ⛔ PAST PARTICIPLES THAT ARE IDENTITY, NOT PREPARATION — owner ruling 2026-08-23 as REFINED
+    // 2026-08-26 after U23's oracle put 17 cases over 58 corpus lines in its `undecided` bucket.
+    //
+    // The `-ed` suffix rule below files any past participle as preparation, which is right for what a
+    // COOK DOES (`sifted`, `chopped`, `grated`, `melted`) and wrong for what a cook BUYS. You buy sugar
+    // already granulated; you sift the flour yourself. `imported Swiss cheese` is the clearest case —
+    // `swiss` was already here, and `imported` is the same kind of word about the same food.
+    //
+    // ⚠️ This list is consulted BEFORE the suffix rule, which is the whole reason the rule can stay
+    // simple. It is also why NLTK's tagger cannot arbitrate: it agrees these are `VBN`, and the ruling
+    // was never a claim about English grammar — a purchasable FORM is identity whatever its morphology.
+    'candied',
+    'canned',
+    'granulated',
+    'imported',
+    'powdered',
+    'prepared',
+    'unsweetened',
     'pastry',
     'plain',
     'raw',

@@ -18,6 +18,8 @@
  *
  * The examples are the ones KTD-11a measured on the 1919 corpus, quoted from the plan, not invented here.
  */
+import { readFile } from 'node:fs/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { dropTrailingInstruction, segmentClause, type ClauseSegment } from '../clauseSegmentation.js';
@@ -538,27 +540,31 @@ describe('segmentClause — ⛔ ANTI-REGRESSION: every equipment removal U22a me
  *
  * `PARTITIVE_OF` shipped as `/\s+of\s+/` — two UNANCHORED `\s+` quantifiers around a literal. `search()`
  * retries at every start position, and at each one the leading `\s+` consumes the whole run before
- * backtracking to look for `o`. MEASURED before the fix: 0.8ms → 2.8ms → 11.0ms → 43.7ms across
- * 2k → 16k spaces, i.e. doubling the input roughly QUADRUPLED the time.
+ * backtracking to look for `o`. MEASURED at 20k spaces: 68.4ms as a regex, 0.09ms as `partitiveOfAt`.
  *
- * ⚠️ This is the SECOND instance of this exact shape in this package — `splitMeasurement.ts` carries the
- * first, with the same measurement in its own guard. Both read a span lifted from imported recipe prose,
- * and nothing between the source text and either function bounds a run of whitespace.
+ * ⛔ THIS ASSERTS THE SOURCE, NOT A STOPWATCH, and the first attempt taught me why. A wall-clock bound
+ * measured 68ms locally and **841ms on CI** — a 12x machine difference that made the threshold a coin
+ * toss rather than a fact about the code. A timing test also cannot isolate what was fixed here:
+ * `INSTRUCTION_BOUNDARY` carries the SAME shape in its own alternation, is recorded as residual risk in
+ * ADR-0026 §7a rather than fixed, and dominates any measurement of `segmentClause`. So the guard reads
+ * the module and asserts the shape is absent — deterministic on every machine, and precise about which
+ * of the two it is guarding.
+ *
+ * ⚠️ It guards a SHAPE, not a spelling: an unanchored quantifier on either side of something that can
+ * FAIL to match. `splitMeasurement.ts` carries the first instance of it in this package with its own
+ * measurement, and `INSTRUCTION_BOUNDARY` is the third.
  */
 describe('clause segmentation — ReDoS guard', () => {
-    it('does not backtrack catastrophically on a long whitespace run inside a real span', () => {
-        // ⚠️ The run must sit INSIDE a span that reaches the partitive scan — a span of pure whitespace
-        // short-circuits earlier (measured: 0.0ms at 40k) and would make this assertion vacuous.
-        const pathological = `one pound${' '.repeat(20_000)}beef in a frying-pan`;
-        const started = performance.now();
+    it('scans for the partitive without a backtracking regex', async () => {
+        const source = await readFile(new URL('../clauseSegmentation.ts', import.meta.url), 'utf-8');
+        // ⚠️ COMMENTS STRIPPED FIRST. The module's own docstring QUOTES the forbidden pattern to explain
+        // why it went — so matching raw source fails on the documentation rather than on the code, which
+        // is how the first version of this guard failed.
+        const code = source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/.*/gu, '');
 
-        segmentClause(pathological, '');
-
-        // ⚠️ 100ms, not 5ms, and the gap is DELIBERATE. `partitiveOfAt` costs 0.09ms here; the remaining
-        // ~68ms is `INSTRUCTION_BOUNDARY`, whose own alternation carries the SAME unanchored-quantifier
-        // shape and which §7a's author measured at 65ms for this input and accepted as residual risk.
-        // MEASURED 2026-08-26: 136ms before this fix, 68ms after — so a bound of 100 catches a
-        // reintroduction of the regex without falsely failing on the residual that is already recorded.
-        expect(performance.now() - started).toBeLessThan(100);
+        expect(code).not.toMatch(/\/\\s\+of\\s\+\//);
+        expect(code).not.toMatch(/search\(PARTITIVE_OF\)/);
+        // ...and the linear scan is what replaced it, so this cannot pass by the function being deleted.
+        expect(code).toContain('function partitiveOfAt(');
     });
 });

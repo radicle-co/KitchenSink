@@ -1615,3 +1615,190 @@ this repository fetches Project Gutenberg (ADR-0023). The tolerant re-read, the 
 comparison and the `"null"`-string count are scratch analyses over the `--out` trial files and are
 deliberately not committed, on the rule the earlier "Reproducing" sections state; each is a few lines over
 `{corpus, crf, trials}` reusing `classifyFoodName` and `normalizeParseAnswer` rather than a second lexicon.
+
+---
+
+## 16. U37 — §14.6's census/merge divergence, REPAIRED (2026-08-26)
+
+⛔ **APPENDED, NEVER REPLACING.** Every figure in §1–§15 stands exactly as measured. This section re-measures
+the census over the **same** `parseTrialsFull.json` Nova Micro run §14 was taken from, with the repaired fold,
+and prints the before and after side by side. **No engine was called and no money was spent**: the CRF runs
+locally, the census is pure, and the model's answers are replayed out of the stored run.
+
+### 16.1 The defect, and why it was not "just a harness wart"
+
+`normalizeMeasure` read the unit **positionally** — the first word after the leading quantity, whatever it
+was. Measured:
+
+| phrase                  | before                             |     |
+| ----------------------- | ---------------------------------- | --- |
+| `2 3 tablespoons`       | `{ '2', unit: '3', 'tablespoon' }` | ✗   |
+| `1 2 cups`              | `{ '1', unit: '2', 'cup' }`        | ✗   |
+| `2 tablespoons`         | `{ '2', unit: 'tablespoon', '' }`  | ✓   |
+| `one and a half quarts` | `{ '3/2', unit: 'quart', '' }`     | ✓   |
+
+The input is not malformed. The CRF returns several amount tuples for one line and `crfProcess.ts` **joins**
+them, so `[('2',''),('3','tablespoons')]` arrives as the string `2 3 tablespoons`. The shape means _the engine
+read more than one amount_, not _the unit is 3_.
+
+The consequence crossed a seam. `'3'` is not `''`, so `judgeMeasure`'s `crf.unit === ''` branch never fired
+and the line disposed `crfWins`, while `readStatedMeasure` read the same text as an exact `2` with no unit and
+the merge **rescued** it. That is §14.6's 8-line divergence: two code paths answering one question
+differently, from a defect neither knew it had.
+
+### 16.2 The ruling — the measure states MULTIPLE AMOUNTS, and the first of them stated no unit
+
+The unit position now **rejects an amount**. The unit is the first word after the quantity _that the quantity
+reader did not produce_; when the first word IS an amount, the phrase states no unit and the number falls to
+the residue — which is exactly where `NormalizedMeasure.residue`'s own contract already says a joined amount
+goes ("a SECOND amount the CRF joined into one string").
+
+⛔ **The other reading was considered and rejected: "skip forward to the next non-numeric word."** It answers
+`unit: 'tablespoon'` for `2 3 tablespoons`, asserting that the first amount (`2`) is two tablespoons — while
+the engine's own tuples attach that unit to the `3`. It manufactures a unit for an amount that stated none,
+and it leaves `crf.unit !== ''`, so the empty-unit branch still never fires: it fixes the symptom and
+**preserves the divergence**. Asserted against, by name, in `parseNormalization.test.ts`.
+
+⚠️ **The guard is narrow to a NUMBER, and the narrowness is measured rather than timid.** The connective in
+`two or three tablespoons` folds to `unit: 'or'` and is no more a unit than `3` was. Dropping it as well
+would fold that phrase and `2 3 tablespoons` to the **same** empty-unit reading — the census would answer
+`agree` (disposition `agreed`) while the merge still rescues, **re-opening the divergence one verdict over**.
+Left alone deliberately, and pinned by a test that carries this argument.
+
+⛔ **The production reader was not touched.** `readStatedMeasure`, `parseComparator.ts` and
+`promoteCrfReading` are unchanged: ADR-0024 §4b makes the bake-off an operator path, and a repair that leaked
+into the shipped leg is a different change with a different review. Only the comparison harness moved.
+
+### 16.3 ⛔ Every figure that moves — before and after, over the same 1,975 replayed trials
+
+**Population: the 1,975 valid Nova Micro answers in `parseTrialsFull.json`** (2,502-line corpus, 1,289
+`ingredient`-origin + 686 `dropped`-origin). ⚠️ This is §14's population, **not** §3's (2,584-line corpus) and
+**not** §15's (2,490-line corpus, three arms) — read the denominator before comparing across sections.
+
+**Every agreement figure is UNCHANGED. Nothing moves except how the disagreements are named and disposed of.**
+
+| figure                          | before |     after |
+| ------------------------------- | -----: | --------: |
+| all three fields agree          |    739 |   **739** |
+| `measure` agrees                |  1,108 | **1,108** |
+| `names` agrees                  |    975 |   **975** |
+| `prep` agrees                   |  1,163 | **1,163** |
+| `differ` (adjudication residue) |    356 |   **356** |
+
+⛔ **This falsifies the reason the repair was declined.** §14.6 recorded that "the repair … would move every
+count in this report"; measured, it moves **no agreement rate at all**. 26 of 1,975 lines change verdict and
+every one of them leaves `unitDiffers` for another **non-agreeing** verdict.
+
+**The verdict census (whole population):**
+
+| verdict              | before | after | Δ       |
+| -------------------- | -----: | ----: | ------- |
+| `agree`              |    739 |   739 | —       |
+| `differ`             |    356 |   356 | —       |
+| `crfUnitInName`      |    301 |   302 | **+1**  |
+| `crfUnitAbsent`      |    229 |   243 | **+14** |
+| `quantityDiffers`    |    152 |   152 | —       |
+| `amountCountDiffers` |     90 |   101 | **+11** |
+| `unitDiffers`        |     68 |    42 | **−26** |
+| `crfSizeField`       |     27 |    27 | —       |
+| `modelSplitsFoods`   |      9 |     9 | —       |
+| `modelPrepInCrfName` |      4 |     4 | —       |
+
+**Every transition, exhaustively** — there are only three:
+
+| transition                           |   n |
+| ------------------------------------ | --: |
+| `unitDiffers` → `crfUnitAbsent`      |  14 |
+| `unitDiffers` → `amountCountDiffers` |  11 |
+| `unitDiffers` → `crfUnitInName`      |   1 |
+
+**The disposition census (whole population):**
+
+| disposition  | before | after | Δ       |
+| ------------ | -----: | ----: | ------- |
+| `agreed`     |    739 |   739 | —       |
+| `llmWins`    |    570 |   585 | **+15** |
+| `adjudicate` |    356 |   356 | —       |
+| `crfWins`    |    310 |   295 | **−15** |
+
+**One transition, `crfWins` → `llmWins`, 15 lines.** ⚠️ **The adjudication residue does not move**, so no line
+newly needs a human and no line stops needing one.
+
+**Ingredient-origin only (n = 1,289)** — the population §3 and §15.5 are denominated in:
+
+| verdict              | before | after | ·   | disposition  | before | after |
+| -------------------- | -----: | ----: | --- | ------------ | -----: | ----: |
+| `agree`              |    722 |   722 | ·   | `agreed`     |    722 |   722 |
+| `differ`             |    235 |   235 | ·   | `adjudicate` |    235 |   235 |
+| `quantityDiffers`    |    111 |   111 | ·   | `crfWins`    |    243 |   228 |
+| `amountCountDiffers` |     89 |    89 | ·   | `llmWins`    |     89 |   104 |
+| `unitDiffers`        |     43 |    28 | ·   |              |        |       |
+| `crfUnitInName`      |     28 |    29 | ·   |              |        |       |
+| `crfUnitAbsent`      |     27 |    41 | ·   |              |        |       |
+| `crfSizeField`       |     25 |    25 | ·   |              |        |       |
+
+All 15 disposition changes are `ingredient`-origin; the 11 `unitDiffers` → `amountCountDiffers` moves are all
+`dropped`-origin and change nothing about what is done.
+
+### 16.4 §14.6's 8 lines — 7 close, and the 8th was never this defect
+
+The rescues stay at **115** (86 `ingredient`, 29 `dropped`) — the merge did not move. The census's `llmWins`
+over them goes **107 → 114**, and the divergence **8 → 1**.
+
+| id     | line                                                          | CRF measure       | before                           | after                       |
+| ------ | ------------------------------------------------------------- | ----------------- | -------------------------------- | --------------------------- |
+| L00054 | `one and one-half or two pounds of beef`                      | `1 1/2 2 pounds`  | `unitDiffers` / `crfWins`        | `crfUnitAbsent` / `llmWins` |
+| L00290 | `three or four large spoonfuls)`                              | `3 4`             | `unitDiffers` / `crfWins`        | `crfUnitAbsent` / `llmWins` |
+| L00843 | `three or four ounces of smoked fat meat in the centre`       | `3 4 ounces`      | `unitDiffers` / `crfWins`        | `crfUnitAbsent` / `llmWins` |
+| L01547 | `one to one and one-half boxes of strawberries to taste`      | `1 1 1/2 boxes`   | `unitDiffers` / `crfWins`        | `crfUnitAbsent` / `llmWins` |
+| L01548 | `one to one and one-half boxes of berries to each short cake` | `1 1 1/2 boxes`   | `unitDiffers` / `crfWins`        | `crfUnitAbsent` / `llmWins` |
+| L01724 | `six or eight tablespoons of cold water`                      | `6 8 tablespoons` | `unitDiffers` / `crfWins`        | `crfUnitAbsent` / `llmWins` |
+| L02100 | `two or three tablespoons of rum`                             | `2 3 tablespoons` | `unitDiffers` / `crfWins`        | `crfUnitAbsent` / `llmWins` |
+| L00777 | `a quart of spinach about fifteen minutes`                    | `quart 15`        | `amountCountDiffers` / `crfWins` | **unchanged**               |
+
+⛔ **The 8th is a DIFFERENT defect and is deliberately still open.** L00777's measure text is `quart 15` — a
+**real** unit followed by a stray amount harvested out of a duration. `normalizeMeasure` reads `quart`
+correctly, so the units MATCH and the verdict turns on the residue (`amountCountDiffers` → `crfWins`), while
+`readStatedMeasure` finds no unit and the merge rescues. Closing it means deciding whether a unit with no
+adjacent number counts as **stated**, which lives in `readStatedMeasure` — the **production** reader, outside
+this harness — so it is not U37's to take. Recorded so "the divergence is closed" cannot round 7 up to 8;
+pinned by its own test in `parseAgreement.test.ts`.
+
+⚠️ **The 7 land on `crfUnitAbsent` via the LLM's unit, which is itself `or`.** The verdict requires
+`model.unit !== ''`, and the model's phrase (`two or three tablespoons`) folds to `unit: 'or'` for the same
+positional reason the CRF's used to fold to `'3'`. The **disposition** is right and now matches the merge; the
+verdict's _name_ rests on a token that is not a unit either. That is the residual §16.2 declines to take, and
+it is why the connective is pinned rather than left undocumented.
+
+### 16.5 ⛔ What is NOT re-measured here, and what is OWED
+
+- ⛔ **§15's three-arm figures are NOT re-derived.** Those trial files were scratch artifacts and are gone;
+  reproducing them is a **billed** run and none was made. §15.5's agreement rates are the ones most likely to
+  be asked about, and the mechanism above says they should not move — every transition U37 produces is
+  between two **non-agreeing** verdicts — but that is an argument, not a measurement, and the arms' verdict
+  **shape** tables (if anyone recomputes them) will move the way §16.3's do. **Owed, and unpaid.**
+- ⛔ **§1–§3 and §8 are not re-derived either**, for the same reason and on a different corpus again.
+- ⚠️ **`agree` could in principle move on another corpus, by TWO mechanisms.** (a) A `unitDiffers` becomes
+  `agree` where the MODEL's phrase also folds to no unit and the residues and quantities then match — zero
+  times in 1,975 trials, but not proved impossible. (b) ⛔ **On `v3` only**, the residue moves as well:
+  `withStatedUnit` replaces the phrase's first word with the arm's stated unit, so where that first word used
+  to be a swallowed number the residue was silently one amount short, and it now carries the amount. That is
+  the behaviour `withStatedUnit`'s own docstring claims ("what survives in the residue is … exactly the
+  second amount"), which was false for a joined amount and is now true — but it is a second reason `v3`'s
+  numbers cannot be assumed unchanged. Neither mechanism is exercised by this population's `v1` answers.
+- **One book, one model, still.** Every limit in §7, §9.6, §10.8, §11.4, §12.7, §14.7 and §15.12 is inherited
+  unchanged.
+
+### Reproducing §16
+
+The census is pure and the CRF is local, so both halves are free:
+
+```bash
+npm run test --workspace=@kitchensink/cookbook-import
+npm run test:integration --workspace=@kitchensink/cookbook-import   # drives the real CRF sidecar
+```
+
+The before/after tables above are a scratch replay over a `--out` trial file — `{corpus, crf, trials}`,
+`classifyParseResponse` + `compareParses` + `disposeAgreement`, with the pre-repair `parseNormalization.ts`
+taken from git and loaded beside the repaired one. It is deliberately not committed, on the rule the earlier
+"Reproducing" sections state.

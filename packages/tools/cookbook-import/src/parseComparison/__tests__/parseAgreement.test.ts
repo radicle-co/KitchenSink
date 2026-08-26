@@ -356,30 +356,54 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
         }
     });
 
-    it('⚠️ U36a — PINS the 8-line divergence: a joined CRF amount reads its second NUMBER as the unit', () => {
-        // ⚠️ RECORDED, NOT FIXED — the residual the U36a alignment check found, and it predates U36a.
+    it('U37 — a joined CRF amount now REACHES the empty-unit branch, closing 7 of the 8 U36a divergences', () => {
+        // ⛔ REWRITTEN, AND IT ASSERTS THE OPPOSITE OF WHAT IT DID. As "PINS the 8-line divergence" this
+        // expected `unitDiffers` / `crfWins` and pinned `normalizeMeasure('2 3 tablespoons')` at
+        // `{ '2', '3', 'tablespoon' }` — a NUMBER in the unit slot — on the argument that the repair "would
+        // move every count in the frozen report". U37 takes that repair (owner-directed, 2026-08-26): the
+        // report is APPENDED to rather than edited, which is the precedent §§9–15 already set, and a census
+        // that disposes `crfWins` because it mistook an amount for a unit is not a figure worth freezing.
         //
-        // The census and the merge read the CRF's measure text with DIFFERENT readers. `normalizeMeasure`
-        // takes the second token of `2 3 tablespoons` as the unit and answers `{ '2', '3', 'tablespoon' }`
-        // — `3` is not a unit — so `crf.unit !== ''`, the empty-unit branch never fires, and the line is
-        // disposed `crfWins`. `readStatedMeasure` (via `parse-ingredient`) reads the same text as an exact
-        // `2` with NO unit and a `measurement_in_name` reason, so the merge RESCUES it and now stores the
-        // range `2–3` the source states.
+        // The census and the merge now read the CRF's measure text COMPATIBLY. `normalizeMeasure` reports
+        // no unit for `2 3 tablespoons` — the first amount stated none — so `judgeMeasure`'s
+        // `crf.unit === ''` branch fires and the line disposes `llmWins`, which is what
+        // `readStatedMeasure` and `llmRescuedTheMeasure` were already doing on the merge side.
         //
-        // Measured over the 2,502-line corpus: this is **8 of the 115** rescued lines (7 `unitDiffers`,
-        // 1 `amountCountDiffers`), all of them a CRF row whose measure text joins several amounts.
-        //
-        // ⛔ Not repaired here on purpose. The repair belongs in `normalizeMeasure`, it would move counts
-        // throughout the frozen 2026-08-23 report, and this ruling is about what the PIPELINE stores.
-        // Recorded in ADR-0026 §8 and in the report's 2026-08-26 subsection.
-        expect(normalizeMeasure('2 3 tablespoons')).toEqual({ quantity: '2', unit: '3', residue: 'tablespoon' });
+        // ⚠️ 7, NOT 8. The eighth divergent line (L00777, `a quart of spinach about fifteen minutes` →
+        // measure text `quart 15`) has a REAL unit in the unit position and is a different reader
+        // mismatch entirely; the row below keeps it visible. Re-measured over the same Nova Micro run:
+        // the rescues stay at 115 and the census verdict `llmWins` over them goes 107 to 114.
+        expect(normalizeMeasure('2 3 tablespoons')).toEqual({ quantity: '2', unit: '', residue: '3 tablespoon' });
 
         const agreement = compareParses(
             { measure: 'two or three tablespoons', foods: [{ name: 'rum', prep: null }] },
             crf({ sentence: 'two or three tablespoons of rum', measure: '2 3 tablespoons', names: ['rum'] }),
         );
 
-        expect(agreement.measure).toBe('unitDiffers');
+        expect(agreement.measure).toBe('crfUnitAbsent');
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
+    });
+
+    it('⚠️ U37 — PINS the ONE divergence that remains: a real unit joined to a stray amount', () => {
+        // ⚠️ RECORDED, NOT REPAIRED, and it is NOT the defect U37 fixed. Corpus L00777,
+        // `a quart of spinach about fifteen minutes`, reaches the CRF as the measure text `quart 15` — a
+        // genuine unit followed by a stray amount harvested out of a duration. `normalizeMeasure` reads
+        // `quart` (correctly, it is the first non-amount word) with `15` in the residue, so the units MATCH
+        // and the verdict turns on the residue: `amountCountDiffers` → `crfWins`. `readStatedMeasure` reads
+        // the same text and finds NO unit, so the merge rescues it.
+        //
+        // ⛔ Fixing this is a different change with a different argument: it is a disagreement about whether
+        // a unit with no adjacent number counts as stated, which lives in `readStatedMeasure` — the
+        // PRODUCTION reader, outside this harness — and U37 deliberately did not touch it. Naming it here
+        // keeps the residual honest instead of letting "the divergence was fixed" round 7 up to 8.
+        expect(normalizeMeasure('quart 15')).toEqual({ quantity: null, unit: 'quart', residue: '15' });
+
+        const agreement = compareParses(
+            { measure: 'a quart', foods: [{ name: 'spinach', prep: null }] },
+            crf({ sentence: 'a quart of spinach about fifteen minutes', measure: 'quart 15', names: ['spinach'] }),
+        );
+
+        expect(agreement.measure).toBe('amountCountDiffers');
         expect(disposeAgreement(agreement.measure)).toBe('crfWins');
     });
 

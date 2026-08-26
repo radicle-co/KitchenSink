@@ -127,6 +127,50 @@ describe('compareParses — agreement', () => {
 
         expect(result.merged?.reviewReasons).toEqual(['no_quantity', 'name_too_long', 'group_header']);
     });
+
+    /**
+     * U35 — one engine reading `T` while the other reads `t` is a REAL disagreement, and the comparison
+     * must say so (owner ruling, 2026-08-25: capital `T` is a tablespoon, lowercase `t` a teaspoon).
+     *
+     * ⛔ `unitView` used to lower-case before handing the token to `normalizeUnit`, which was harmless
+     * while the normalizer lower-cased anyway and became a MUTED SIGNAL the moment it stopped: both
+     * spellings would have folded to one canonical form, and a threefold disagreement between the two
+     * engines would have been reported as AGREEMENT. That is the failure ADR-0026 rules against — the
+     * census metric moving because the detector stopped detecting — so the fold is asserted away here
+     * rather than left to a comment.
+     *
+     * ⚠️ `statedMeasure` deliberately still AGREES on `'2 T'` against `'2 t'`, and that is not an oversight
+     * left over from the fix. `measureView` compares the phrase the two engines ECHOED, as text, and a
+     * text fold is case-insensitive for the same reason a food name's is. The meaning lives in `unit`, and
+     * `unit` is where the difference is now reported. Widening the text fold to be case-sensitive would
+     * make `'2 Tbsp'` differ from `'2 tbsp'` — a spelling, not a disagreement — which is exactly the noise
+     * this comparison exists to suppress.
+     */
+    it('U35 — reports T against t as a unit DISAGREEMENT, never as agreement', () => {
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: '2 T', quantity: exactly(2), unit: 'T' }),
+            llm: llmParse({ statedMeasure: '2 t', quantity: exactly(2), unit: 't' }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'differ', fields: ['unit'] });
+    });
+
+    it('U35 — still agrees when the two engines write the SAME case-sensitive spelling', () => {
+        const line = { statedMeasure: '2 T', quantity: exactly(2), unit: 'T' };
+        const result = compareParses({ crf: crfParse(line), llm: llmParse(line) });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(result.merged?.unit).toBe('T');
+    });
+
+    it('U35 — every OTHER unit still compares case-insensitively, so a mere spelling is not a difference', () => {
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: '2 Tbsp', quantity: exactly(2), unit: 'Tbsp' }),
+            llm: llmParse({ statedMeasure: '2 Tbsp', quantity: exactly(2), unit: 'tablespoons' }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+    });
 });
 
 describe('compareParses — the field-level winner rule', () => {

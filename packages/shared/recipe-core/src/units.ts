@@ -35,6 +35,16 @@
  * for reasons that cannot reach the wire"). Composing the vocabulary INTO a request schema — a `z.enum` over
  * it, say — would drag this file into `CONTRACT_HASH` and reverse that decision, for a rule the wire must
  * not have anyway: **an unknown unit is accepted, never rejected.**
+ *
+ * ## ⛔ 2026-08-25 — CAPITALISATION CARRIES MEANING IN EXACTLY ONE PLACE
+ *
+ * `T` is a tablespoon and `t` is a teaspoon — the standard American recipe convention, ruled by the owner.
+ * Every other unit here is case-INSENSITIVE and stays that way. The distinction lives in
+ * {@link CASE_SENSITIVE_UNIT_ALIASES}, read by {@link normalizeUnit} BEFORE the lower-casing fold, and the
+ * accepted risk it takes is written down beside it. There is now exactly ONE fold in this module, inside
+ * {@link normalizeUnit} and after that read; {@link classifyUnit} delegates rather than cleaning. Do not
+ * hoist the fold back above the case-sensitive read, and do not give either function a pre-clean of its
+ * own — that step IS the defect.
  */
 import type { IngredientPortion } from './recipe.types.js';
 
@@ -208,26 +218,80 @@ const SUBJECTIVE_UNIT_ALIASES: Readonly<Record<string, string>> = {
 };
 
 /**
- * The deduplicated, sorted image of a spellings table — its canonical vocabulary.
+ * Aliases → canonical unit for the ONE pair whose CAPITALISATION carries meaning: `T` is a tablespoon and
+ * `t` is a teaspoon (owner ruling, 2026-08-25).
  *
- * @param aliases - The alias table to take the image of.
- * @returns Every distinct canonical form the table can produce, sorted. Pure.
+ * ⛔ SEPARATE FROM {@link UNIT_ALIASES} BECAUSE IT IS READ DIFFERENTLY, not because it is a different kind
+ * of knowledge. {@link normalizeUnit} lower-cases before every lookup, which is right for every other unit
+ * in the vocabulary — `Tbsp`, `TBSP`, `Cup` and `GRAM` are all the same word as their lower-case selves —
+ * and it is exactly what destroyed this pair. Measured before this table existed: `normalizeUnit('T')` and
+ * `normalizeUnit('t')` both returned `'t'`, which is in no table at all, so both classified `unknown` and
+ * `parseIngredientLine('2 T butter')` stored `unit: 't'`. Two genuinely different units were
+ * INDISTINGUISHABLE in the persisted data, which is why a later fix could not have separated them
+ * retroactively — see the note on data at rest below.
+ *
+ * ⚠️ THE ACCEPTED RISK, RECORDED BESIDE THE DECISION THAT TAKES IT. A sloppy source that writes `t` meaning
+ * TABLESPOON is now read three times too SMALL, silently — nothing downstream can tell an under-stated
+ * amount from a correct one. The owner accepted that on 2026-08-25, on the grounds that the convention is
+ * the standard American one and that the alternative (leaving both `unknown`) loses the amount entirely for
+ * BOTH spellings. It is the same silent-wrongness class as summing an equivalence in
+ * `recipe-import-core`'s `splitMeasurement` (stated vs restated), and it is written here rather than in a
+ * plan so that the next reader of this table meets it as a decision instead of discovering it.
+ *
+ * ⚠️ DATA AT REST. Rows persisted BEFORE this ruling carry `unit: 't'` for both spellings and are
+ * permanently ambiguous — the information needed to separate them was destroyed at write time. No
+ * migration may guess: a backfill mapping historical `'t'` to either canonical form would assert a fact the
+ * data does not contain, and would silently triple or third a real cook's amount. They stay `'t'`, which
+ * classifies `unknown` and is honest.
+ *
+ * ⛔ EXACTLY TWO ENTRIES, and adding a third is a decision, not a convenience. Any key here SHADOWS the
+ * case-insensitive path for that exact spelling, so a key whose lower-case form is already a
+ * {@link UNIT_ALIASES} key would split one unit into two silently — `G`/`g` is the live example (`g` is
+ * gram) and `L`/`l` the near miss (`l` is litre, and `L` must keep meaning litre). `units.test.ts` pins
+ * both of those staying case-INSENSITIVE.
  */
-const vocabularyOf = (aliases: Readonly<Record<string, string>>): readonly string[] =>
-    Object.freeze([...new Set(Object.values(aliases))].sort());
+export const CASE_SENSITIVE_UNIT_ALIASES: Readonly<Record<string, string>> = {
+    T: 'tablespoon',
+    t: 'teaspoon',
+};
 
 /**
- * Every canonical unit {@link normalizeUnit} can produce from {@link UNIT_ALIASES} — the list an ingredient
- * editor's unit autocomplete binds to (plan U25).
+ * The case-sensitive spellings, FOLDED — the question "is this a spelling whose meaning depends on case?"
+ * can only be asked of a token that has already lost its case, so the key it is asked with is lower-case.
+ */
+const CASE_DEPENDENT_UNIT_SPELLINGS: ReadonlySet<string> = new Set(
+    Object.keys(CASE_SENSITIVE_UNIT_ALIASES).map((spelling) => spelling.toLowerCase()),
+);
+
+/**
+ * The deduplicated, sorted image of one or more spellings tables — their canonical vocabulary.
  *
- * ⛔ DERIVED FROM THE TABLE, never restated. A hand-written second list cannot detect that the first one is
- * incomplete, which is precisely the defect the volume block above records.
+ * ⛔ VARIADIC so that {@link UNIT_VOCABULARY} stays the image of EVERY table {@link normalizeUnit} reads.
+ * A second table that the derivation did not see would reintroduce exactly the defect U25 removed: a
+ * vocabulary that cannot detect that it is incomplete.
+ *
+ * @param aliases - The alias tables to take the combined image of.
+ * @returns Every distinct canonical form those tables can produce, sorted. Pure.
+ */
+const vocabularyOf = (...aliases: readonly Readonly<Record<string, string>>[]): readonly string[] =>
+    Object.freeze([...new Set(aliases.flatMap((table) => Object.values(table)))].sort());
+
+/**
+ * Every canonical unit {@link normalizeUnit} can produce from the amount-naming tables — the list an
+ * ingredient editor's unit autocomplete binds to (plan U25).
+ *
+ * ⛔ DERIVED FROM THE TABLES, never restated. A hand-written second list cannot detect that the first one is
+ * incomplete, which is precisely the defect the volume block above records. {@link CASE_SENSITIVE_UNIT_ALIASES}
+ * is derived through the SAME function rather than assumed to be covered — and the derivation is what proves
+ * the 2026-08-25 ruling adds SPELLINGS and no canonical FORM, since `tablespoon` and `teaspoon` were already
+ * members. Had `T` mapped to something new, it would be in the vocabulary automatically instead of missing
+ * from it.
  *
  * ⚠️ It is the RECOGNITION vocabulary, not a suggestion list: it includes `gill`, `wineglass`, `saltspoon`
  * and `dessertspoon`, which are right to recognise in a transcribed 1900s cookbook and odd to offer a modern
  * cook. Narrowing what is SUGGESTED is a product decision for the surface that suggests, not a change here.
  */
-export const UNIT_VOCABULARY: readonly string[] = vocabularyOf(UNIT_ALIASES);
+export const UNIT_VOCABULARY: readonly string[] = vocabularyOf(UNIT_ALIASES, CASE_SENSITIVE_UNIT_ALIASES);
 
 /**
  * Every canonical form {@link normalizeUnit} can produce from {@link SUBJECTIVE_UNIT_ALIASES} — the words a
@@ -253,26 +317,68 @@ const SUBJECTIVE_UNITS: ReadonlySet<string> = new Set(SUBJECTIVE_UNIT_VOCABULARY
 export type UnitClass = 'canonical' | 'subjective' | 'unknown';
 
 /**
- * Lower-case, trim, and drop a trailing `.` — the one spelling of "cleaned" both readers below share.
+ * Trim and drop a trailing `.` — the punctuation-and-whitespace half of "cleaned", with CASE UNTOUCHED.
  *
- * Extracted rather than repeated so {@link normalizeUnit} and {@link classifyUnit} cannot disagree about
- * what `Tbsp.` and ` Tbsp ` are the same word as.
+ * ⛔ THE PARSE BOUNDARY, AND THE ONLY ONE (owner ruling, 2026-08-25). It replaced a single helper that
+ * trimmed AND lower-cased in one step, which is what made `T` and `t` the same word. Splitting it — rather
+ * than bolting a second normalization path onto {@link normalizeUnit} — is what keeps this ONE fold
+ * expressed as two ordered steps: `T.` and ` T ` are still the same word as `T`, and nobody has to restate
+ * what "trailing punctuation" means. Adding a second cleaner anywhere is the "two folds" failure
+ * `cookbook-import`'s `parseNormalization.ts` exists to prevent.
  *
  * @param raw - The unit as written.
- * @returns The cleaned form. Pure.
+ * @returns The trimmed form, case preserved. Pure.
  */
-const cleanUnit = (raw: string): string => raw.trim().toLowerCase().replace(/\.$/, '');
+const trimUnit = (raw: string): string => raw.trim().replace(/\.$/, '');
 
 /**
- * Reduce a raw unit string to its canonical form: lower-cased, trimmed, trailing `.` stripped, known
- * aliases mapped, and an unknown trailing `s` removed (so `carrots` → `carrot`). Pure.
+ * Whether a spelling's canonical unit is decided by its CAPITALISATION — `T`/`t` and nothing else today.
+ *
+ * ⛔ DERIVED from {@link CASE_SENSITIVE_UNIT_ALIASES}, never restated, on the same terms as
+ * {@link UNIT_VOCABULARY}: a second hand-written list of case-sensitive spellings could not detect that the
+ * table had grown.
+ *
+ * ⚠️ IT EXISTS FOR A CALLER THAT HAS ALREADY FOLDED CASE AND THEREFORE CANNOT ANSWER — never for one
+ * deciding how to normalise. `cookbook-import`'s `unitComparableWords` receives `rankingTokens` output,
+ * which `foldForRanking` lower-cased on the way to a rule the persisted match grain mirrors in SQL, so the
+ * case is irrecoverable there. For such a token the unit is genuinely UNDETERMINED, and this is how that
+ * caller says so instead of guessing: a stray `t` inside a food name is a letter, not a teaspoon.
+ *
+ * ⛔ A caller that still HAS the case must not reach for this. It hands the spelling to
+ * {@link normalizeUnit} intact, which is the whole point of the ruling.
+ *
+ * @param spelling - A unit spelling, in any case.
+ * @returns `true` when capitalisation decides which unit it names. Pure.
+ */
+export const unitSpellingDependsOnCase = (spelling: string): boolean =>
+    CASE_DEPENDENT_UNIT_SPELLINGS.has(trimUnit(spelling).toLowerCase());
+
+/**
+ * Reduce a raw unit string to its canonical form: trimmed, trailing `.` stripped, the two case-sensitive
+ * spellings resolved, then lower-cased, known aliases mapped, and an unknown trailing `s` removed (so
+ * `carrots` → `carrot`). Pure.
+ *
+ * ⛔ {@link CASE_SENSITIVE_UNIT_ALIASES} IS CONSULTED FIRST, AND IT IS THE ONLY LOOKUP THAT CAN SEE CASE.
+ * `T` is a tablespoon and `t` is a teaspoon; every other unit in the vocabulary is case-INSENSITIVE and
+ * must stay that way, which is why this is one small table read before the fold rather than a
+ * case-sensitivity rule spread over the main one. See that table for the accepted risk this takes.
  *
  * ⚠️ {@link SUBJECTIVE_UNIT_ALIASES} is consulted AFTER {@link UNIT_ALIASES}, so no spelling that resolved
  * before this table existed resolves differently now. It canonicalises the SPELLING only — no gram weight
  * follows, exactly as none follows for a historical unit.
  */
 export function normalizeUnit(raw: string): string {
-    const cleaned = cleanUnit(raw);
+    const trimmed = trimUnit(raw);
+    const cased = CASE_SENSITIVE_UNIT_ALIASES[trimmed];
+
+    if (cased !== undefined) {
+        return cased;
+    }
+
+    // ⛔ THE ONLY FOLD IN THIS MODULE, and it happens exactly once, after the case-sensitive read. Nothing
+    // else here or in any caller may lower-case a unit; `classifyUnit` delegates rather than cleaning, so
+    // there is no second place for the two to disagree.
+    const cleaned = trimmed.toLowerCase();
     const alias = UNIT_ALIASES[cleaned] ?? SUBJECTIVE_UNIT_ALIASES[cleaned];
 
     if (alias !== undefined) {
@@ -294,17 +400,23 @@ export function normalizeUnit(raw: string): string {
  * ⛔ The two tables are disjoint, so the order of the two membership tests below cannot change an answer —
  * `units.test.ts` asserts the disjointness rather than relying on the order.
  *
+ * ⛔ IT CLEANS NOTHING — it is a set-membership verdict over {@link normalizeUnit}'s output and no more
+ * (owner ruling, 2026-08-25). It used to pre-clean with a lower-casing helper, which would have destroyed
+ * `T` vs `t` on the way in even with {@link normalizeUnit} fixed; trimming first instead would have worked
+ * but left a SECOND fold, and the two could still disagree — the old double-clean answered `canonical` for
+ * `Tbsp..` while `normalizeUnit` answered `tbsp.`, a word in no vocabulary. Delegating outright removes
+ * the disagreement by construction rather than by care. Anything that folds a unit BEFORE handing it to
+ * either function has the same defect; there is no reason to, because `normalizeUnit` cleans its own input.
+ *
  * @param raw - The unit as the cook wrote it.
  * @returns Which kind of unit it is. Pure.
  */
 export function classifyUnit(raw: string): UnitClass {
-    const cleaned = cleanUnit(raw);
+    const normalized = normalizeUnit(raw);
 
-    if (cleaned === '') {
+    if (normalized === '') {
         return 'unknown';
     }
-
-    const normalized = normalizeUnit(cleaned);
 
     if (SUBJECTIVE_UNITS.has(normalized)) {
         return 'subjective';

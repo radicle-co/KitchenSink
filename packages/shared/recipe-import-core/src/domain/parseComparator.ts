@@ -357,6 +357,14 @@ function measureView(stated: string | null): string | null {
 /**
  * A unit as the COMPARISON sees it.
  *
+ * ⛔ IT DOES NOT LOWER-CASE (U35, owner ruling 2026-08-25). `normalizeUnit` already folds case for every
+ * unit whose case is meaningless, and it is the only thing that knows the two spellings whose case is NOT:
+ * `T` is a tablespoon and `t` is a teaspoon. A `.toLowerCase()` here was harmless while the normalizer
+ * lower-cased unconditionally and became a MUTED SIGNAL the moment it stopped — both spellings would fold
+ * to one canonical form, so one engine reading `T` while the other read `t` would be reported as
+ * AGREEMENT, a threefold error the census could no longer see. Folding a unit before handing it to
+ * `normalizeUnit` is never right; it cleans its own input.
+ *
  * @param unit - The unit an engine read, or `null`.
  * @returns Its canonical spelling, or `null` when the line states none. `''` folds to `null` because the
  *   contract admits exactly one representation of "no unit". Pure.
@@ -366,7 +374,7 @@ function unitView(unit: string | null): string | null {
         return null;
     }
 
-    return normalizeUnit(unit.trim().toLowerCase());
+    return normalizeUnit(unit);
 }
 
 /**

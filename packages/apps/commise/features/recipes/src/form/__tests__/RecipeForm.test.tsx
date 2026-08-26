@@ -1748,6 +1748,53 @@ describe('RecipeForm (web) — preparation, section and unit class (U25/U26/U27)
         expect(screen.queryByText('Cook’s measure')).toBeNull();
     });
 
+    /**
+     * U35 — `T` and `t` render as ORDINARY units now (owner ruling, 2026-08-25).
+     *
+     * ⛔ THIS IS A GENUINELY NEW RENDERED STATE, which is why it is asserted at the component tier and not
+     * only in `props.test.ts`. `classifyUnit` answered `unknown` for both spellings before the ruling, and
+     * this leaf styles the unit field from that verdict — so a capital `T` wore the unrecognised styling,
+     * while `unitClassNote` withheld the NOTE because `t` is a prefix of `teaspoon`. The row said one thing
+     * in colour and another in words. Both now agree that it is an ordinary unit.
+     *
+     * ⛔ The value is asserted BYTE-FOR-BYTE. The cook's `T` must survive into the field: canonicalising for
+     * a verdict must never rewrite what they typed.
+     */
+    it.each(['T', 't'])('marks the case-sensitive unit %j as ordinary — styled and worded alike (U35)', (unit) => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Butter', quantity: 2, unit }],
+            }),
+        });
+
+        const field = screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 unit' });
+
+        // ⛔ THE ASSERTION THAT ACTUALLY WENT RED. The note was already absent before the ruling (the
+        // prefix rule withheld it, because `t` begins `teaspoon`), so only the STYLING can see the change:
+        // the field wore `text-slate italic` — the unrecognised look — while saying nothing was wrong.
+        expect(field.className).toContain('text-charcoal');
+        expect(field.className).not.toContain('italic');
+        // The cook's spelling survives byte-for-byte: canonicalising for a verdict never rewrites the field.
+        expect(field.value).toBe(unit);
+        expect(field.getAttribute('aria-describedby')).toBeNull();
+        expect(field.getAttribute('aria-invalid')).toBeNull();
+        expect(screen.queryByText('Unrecognised unit')).toBeNull();
+        expect(screen.queryByText('Cook’s measure')).toBeNull();
+    });
+
+    it('still marks a genuinely unrecognised short unit — the ruling covers T and t, not the alphabet', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [{ ingredientId: 'ing_1', name: 'Butter', quantity: 2, unit: 'zq' }],
+            }),
+        });
+
+        const field = screen.getByRole('textbox', { name: 'Ingredient 1 unit' });
+
+        expect(field.getAttribute('aria-describedby')).toBe(screen.getByText('Unrecognised unit').id);
+        expect(field.className).toContain('italic');
+    });
+
     // ⛔ Two lines, two different units, ONE render: each note describes ITS OWN row. A shared id would make
     // every unit field point at the first row's note — the defect `fieldErrorIds` exists to avoid.
     it('scopes each unit note to its own row', () => {

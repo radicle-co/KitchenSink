@@ -31,10 +31,30 @@ import { MEASUREMENT_JOIN_SOURCE } from './splitMeasurement.js';
  *
  * Each entry SPREADS the library's own definition rather than restating it, so the conversion factors and
  * existing alternates (`tsp`, `T`, `c.`) cannot drift out from under us.
+ *
+ * ⚠️ Exported at MODULE scope, and deliberately NOT from `index.ts`. `corpusPipeline.integration.test.ts`
+ * needs it to ask the library its OWN verdict on a token and check that verdict against ours — the only
+ * way a half-registered case-sensitive pair becomes visible (U35). A consumer wants `parseIngredientLine`.
  */
-const IMPORT_UNITS: UnitOfMeasureDefinitions = {
-    teaspoon: withAlternates('teaspoon', ['teaspoonfuls']),
-    tablespoon: withAlternates('tablespoon', ['tablespoonfuls']),
+export const IMPORT_UNITS: UnitOfMeasureDefinitions = {
+    // U35 — the PERIOD spellings of the case-sensitive pair. Measured 2026-08-25 against
+    // `parse-ingredient@2.2.0`: it carries `T`, `t`, `tbsp.` and `Tbsp.` as alternates but NOT `T.` or
+    // `t.`, so `"2 T. butter"` did not read as a measurement at all. `recipe-core` strips a trailing `.`
+    // before it looks a unit up, so `T.` already meant tablespoon in the EDITOR — two modules implementing
+    // one ruling and disagreeing. This is the same R31 split as the `*ful` family: canonicalising a
+    // spelling is recipe-core's, recognising a word as a unit at all is the tokenizer's, and no table of
+    // ours can do the latter.
+    //
+    // ⛔ BOTH HALVES OR NEITHER, and this is the non-obvious part — measured, because the obvious
+    // assumption is wrong. The library matches SINGLE-character alternates case-sensitively (`T` is a
+    // tablespoon, `t` a teaspoon) but MULTI-character ones CASE-INSENSITIVELY. So registering only `'t.'`
+    // makes the library answer `unitOfMeasureID: 'teaspoon'` for `"2 T. butter"` — a threefold
+    // disagreement with our own reading of the same token, which this module happens not to consume
+    // (`:300` re-normalises the verbatim `unitOfMeasure` instead) and which therefore hides from every
+    // assertion about `parseIngredientLine`'s output. `corpusPipeline.integration.test.ts` asks the
+    // library its OWN verdict for exactly this reason; do not remove one of these two entries.
+    teaspoon: withAlternates('teaspoon', ['teaspoonfuls', 't.']),
+    tablespoon: withAlternates('tablespoon', ['tablespoonfuls', 'T.']),
     cup: withAlternates('cup', ['cupful', 'cupfuls']),
     // R32 — the historical measures, which the library does not define AT ALL (not even a stem to extend).
     // They carry no conversion factor on purpose: what a gill is worth is a fact about the SOURCE BOOK, not

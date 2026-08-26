@@ -6,7 +6,7 @@
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { RECIPE_MEAL_TYPES, RecipeDifficulty } from '@kitchensink/recipe-core';
+import { classifyUnit, normalizeUnit, RECIPE_MEAL_TYPES, RecipeDifficulty } from '@kitchensink/recipe-core';
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
 import { recipeFormMessages, type RecipeFormMessages } from '../messages.js';
@@ -25,6 +25,7 @@ import {
     setIngredientQuantityHigh,
     setIngredientQuantityLow,
     setMealType,
+    unitClassNote,
     unresolvedLineNote,
     updateIngredientAt,
 } from '../props.js';
@@ -586,5 +587,93 @@ describe('setMealType / mealTypeOptions (U34 — the closed axis, cleared by KEY
         const labels = mealTypeOptions(recipeFormMessages.en).map((option) => option.label);
 
         expect(new Set(labels).size).toBe(labels.length);
+    });
+});
+
+/**
+ * U25 / U35 — the note a NON-CANONICAL unit wears, and the fold that must not stand in front of it.
+ *
+ * DESIGN PATTERN: Specification-to-copy adapter — ONE mapping from `recipe-core`'s `classifyUnit` verdict
+ * to a localized string, shared by both platform leaves so a unit cannot be marked differently on web and
+ * mobile.
+ *
+ * ⛔ THIS FUNCTION LOWER-CASED ITS INPUT BEFORE ASKING (U35, owner ruling 2026-08-25). That was invisible
+ * while `classifyUnit` lower-cased anyway, and it became a second fold in front of a case-SENSITIVE
+ * verdict the moment `T` (tablespoon) and `t` (teaspoon) stopped being the same word: the surface would
+ * have judged the unit the cook did NOT type. `classifyUnit` cleans its own input, so there was never a
+ * reason to fold first — which is why these cases ask about the spelling as WRITTEN.
+ *
+ * ⚠️ HONEST LIMIT, stated rather than dressed up. No assertion on this function's RETURN can catch the
+ * removed fold on its own: `T` and `t` are both canonical, so both carry no note either way. What the
+ * fold cost was that the surface's verdict was computed for a different unit than the one on screen — a
+ * latent defect the moment a third case-sensitive spelling or a per-class rendering lands. The
+ * `classifyUnit`/`normalizeUnit` assertions below therefore state the verdict directly, and are labelled
+ * as such rather than counted as coverage of the fold.
+ *
+ * ⛔ What the "capital prefix" case DOES catch is the NAIVE repair — deleting the `.toLowerCase()`
+ * outright. `UNIT_VOCABULARY` holds lower-case canonical forms, so the prefix test still has to fold or a
+ * cook typing `C` on the way to `Cup` is told "Unrecognised unit" mid-word.
+ *
+ * ⚠️ This suite is also new coverage for a function that had none of its own: it was reachable only
+ * through `RecipeForm.test.tsx`, which exercises the canonical and unknown branches through the DOM and
+ * cannot state the case-sensitivity contract directly.
+ */
+describe('U25 / U35 — unitClassNote', () => {
+    const noteMessages = {
+        ingredientUnitSubjectiveNote: 'A measure we cannot weigh.',
+        ingredientUnitUnknownNote: 'Unrecognised unit.',
+    };
+    const m = noteMessages as unknown as RecipeFormMessages;
+
+    it.each(['cup', 'Cup', 'CUPS', 'Tbsp.', 'ml', 'GRAM'])('marks the canonical unit %j with nothing', (unit) => {
+        expect(unitClassNote(m, unit)).toBeUndefined();
+    });
+
+    it.each(['T', 't', 'T.', 't.'])('marks the case-sensitive %j as canonical — no note (U35)', (unit) => {
+        expect(unitClassNote(m, unit)).toBeUndefined();
+    });
+
+    it('the verdict this adapter asks for is CASE-SENSITIVE for exactly the T/t pair (U35)', () => {
+        // ⚠️ Stated directly, and labelled: this asserts `recipe-core`'s contract that the adapter now
+        // consults with the spelling as written. It is NOT a guard on the removed `.toLowerCase()` — see
+        // this suite's docstring for why no return-value assertion can be.
+        expect(classifyUnit('T')).toBe('canonical');
+        expect(classifyUnit('t')).toBe('canonical');
+        expect(normalizeUnit('T')).toBe('tablespoon');
+        expect(normalizeUnit('t')).toBe('teaspoon');
+        expect(unitClassNote(m, 'T')).toBeUndefined();
+    });
+
+    it.each(['handful', 'Handfuls', 'to taste', 'To Taste.'])('marks the subjective %j with its note', (unit) => {
+        expect(unitClassNote(m, unit)).toBe(noteMessages.ingredientUnitSubjectiveNote);
+    });
+
+    it.each(['blorp', 'zzz', 'quux'])('marks the unrecognised %j with its note', (unit) => {
+        expect(unitClassNote(m, unit)).toBe(noteMessages.ingredientUnitUnknownNote);
+    });
+
+    it('withholds the unknown note while the value is still a PREFIX of a real unit', () => {
+        // A cook mid-word on the way to `cup` must not be told they are wrong. `c` and `cu` are prefixes;
+        // `cux` is not, and is judged.
+        expect(unitClassNote(m, 'c')).toBeUndefined();
+        expect(unitClassNote(m, 'cu')).toBeUndefined();
+        expect(unitClassNote(m, 'cux')).toBe(noteMessages.ingredientUnitUnknownNote);
+    });
+
+    it('withholds it for a CAPITALISED prefix too — the vocabulary is lower-case, the typing is not', () => {
+        // ⛔ MUTATION GUARD for the naive repair: deleting the prefix test's own `.toLowerCase()` because
+        // the classification above stopped folding. `UNIT_VOCABULARY` holds `cup`, not `Cup`, so a cook
+        // typing `C` on the way to `Cups` would be told "Unrecognised unit" while still mid-word.
+        expect(unitClassNote(m, 'C')).toBeUndefined();
+        expect(unitClassNote(m, 'Cu')).toBeUndefined();
+        expect(unitClassNote(m, 'MILLIL')).toBeUndefined();
+        // And the boundary still holds: a capitalised NON-prefix is judged like any other.
+        expect(unitClassNote(m, 'CUX')).toBe(noteMessages.ingredientUnitUnknownNote);
+    });
+
+    it('carries NO note for an absent or blank unit — that is a unitless line, not a wrong one', () => {
+        expect(unitClassNote(m)).toBeUndefined();
+        expect(unitClassNote(m, '')).toBeUndefined();
+        expect(unitClassNote(m, '   ')).toBeUndefined();
     });
 });

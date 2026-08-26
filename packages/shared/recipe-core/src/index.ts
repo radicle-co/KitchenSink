@@ -185,9 +185,13 @@ export { statedAmountSchema } from './ingredientQuantity.js';
 export type { IngredientQuantity, StatedAmount } from './ingredientQuantity.js';
 export { statedMeasureSchema } from './statedMeasure.js';
 export type { StatedMeasure } from './statedMeasure.js';
+// ⛔ `CASE_SENSITIVE_UNIT_ALIASES` is deliberately NOT re-exported here. It is module-scope-exported so
+// `units.test.ts` can hold a TOTAL invariant over the live table rather than a hand-picked list of
+// spellings; a consumer wants `normalizeUnit` or `unitSpellingDependsOnCase`, never the table itself.
 export {
     classifyUnit,
     normalizeUnit,
+    unitSpellingDependsOnCase,
     unitToGrams,
     MASS_UNIT_TO_GRAMS,
     SUBJECTIVE_UNIT_VOCABULARY,

@@ -67,6 +67,44 @@ describe('normalizeMeasure', () => {
         expect(normalizeMeasure('  ')).toEqual({ quantity: null, unit: '', residue: '' });
     });
 
+    /**
+     * U35 — capital `T` is a tablespoon, lowercase `t` is a teaspoon (owner ruling, 2026-08-25).
+     *
+     * ⛔ THIS FOLD DISCARDED THE CASE ONE LINE BEFORE THE LOOKUP, and that was harmless only for as long as
+     * `normalizeUnit` discarded it too. Measured the moment the ruling landed and before this was fixed:
+     * `normalizeMeasure('2 T sugar')` reported `teaspoon` — a CONFIDENT threefold understatement in the ONE
+     * fold every agreement and determinism figure in the parse census is computed through. Before the
+     * ruling the same phrase produced the unmatched token `'t'`; unmatched-becoming-silently-wrong is the
+     * worst direction available, and it is precisely the "two folds" failure this module's own header
+     * exists to prevent.
+     *
+     * `normalizeUnit` folds case itself, so splitting the word with its case intact changes nothing for any
+     * other spelling — its fallback returns the FOLDED form, never the raw one, which the case-insensitive
+     * cases below pin.
+     */
+    describe('U35 — the case-sensitive pair survives the measure fold', () => {
+        it('reads a capital T as a tablespoon and a lowercase t as a teaspoon', () => {
+            expect(normalizeMeasure('2 T sugar')).toEqual({ quantity: '2', unit: 'tablespoon', residue: 'sugar' });
+            expect(normalizeMeasure('2 t sugar')).toEqual({ quantity: '2', unit: 'teaspoon', residue: 'sugar' });
+        });
+
+        it('keeps the two APART, so the census cannot score a threefold difference as agreement', () => {
+            expect(normalizeMeasure('2 T sugar').unit).not.toBe(normalizeMeasure('2 t sugar').unit);
+        });
+
+        it('never reads a lowercase t as a tablespoon — the 3x error in the other direction', () => {
+            expect(normalizeMeasure('2 t sugar').unit).not.toBe('tablespoon');
+        });
+
+        it('still folds case for every OTHER unit, so a mere spelling is not a difference', () => {
+            expect(normalizeMeasure('2 Tbsp sugar').unit).toBe('tablespoon');
+            expect(normalizeMeasure('2 TBSP sugar').unit).toBe('tablespoon');
+            expect(normalizeMeasure('2 Cups flour').unit).toBe('cup');
+            // The residue is a NAME, so it stays folded — a food is not case-sensitive.
+            expect(normalizeMeasure('2 Cups FLOUR').residue).toBe('flour');
+        });
+    });
+
     it('reports a bare count as a quantity with no unit', () => {
         expect(normalizeMeasure('3')).toEqual({ quantity: '3', unit: '', residue: '' });
     });
@@ -146,5 +184,31 @@ describe('unitComparableWords', () => {
 
     it('yields nothing for text with no words', () => {
         expect(unitComparableWords('   ').size).toBe(0);
+    });
+
+    /**
+     * U35 — a token whose case is ALREADY GONE cannot be canonicalised into a case-sensitive unit.
+     *
+     * ⛔ THIS IS THE OTHER HALF OF THE SAME DEFECT, and it does NOT have the same fix. `foldMeasureWords`
+     * above still HAS the case and simply threw it away, so it stops. This function receives
+     * `rankingTokens` output, and `foldForRanking` lower-cased it on the way to a rule the persisted match
+     * grain mirrors in SQL — that fold cannot be undone, and asking for it here would bind a measurement
+     * convenience to a one-way door.
+     *
+     * So for a spelling whose meaning DEPENDS on case, the honest answer is "undetermined", and the token is
+     * left as it is rather than guessed at. Measured before this: `unitComparableWords('vitamin t
+     * supplement')` yielded `teaspoon`, which is a real unit word manufactured out of a stray letter — and
+     * this set exists to answer "did the CRF swallow the model's unit into the food name?", so a
+     * manufactured unit is a manufactured YES.
+     */
+    it('U35 — leaves a case-dependent token alone rather than inventing a unit the case cannot support', () => {
+        expect([...unitComparableWords('vitamin t supplement')]).toEqual(['vitamin', 't', 'supplement']);
+        // Capital or lower, the token reaches here folded, so both must be left alone identically.
+        expect([...unitComparableWords('T butter')]).toEqual(['t', 'butter']);
+    });
+
+    it('U35 — still canonicalises every spelling whose meaning does NOT depend on case', () => {
+        expect(unitComparableWords('tbsp of butter').has('tablespoon')).toBe(true);
+        expect(unitComparableWords('teaspoonful of salt').has('teaspoon')).toBe(true);
     });
 });

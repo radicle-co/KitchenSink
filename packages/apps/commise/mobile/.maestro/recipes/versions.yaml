@@ -171,10 +171,21 @@ appId: io.commise.mobile
 - tapOn: 'Version history'
 - assertVisible: 'Version history'
 
-# v3 (current, not restorable) changed ONLY the title versus its immediate prior (v2, the OLDEST recorded
-# version — the seed itself recorded none, so v2 has no prior of its own and reads "Initial version").
+# The current version changed ONLY the title versus its immediate prior; the OLDEST recorded version has no
+# prior of its own and reads "Initial version".
+#
+# ⛔ `scrollUntilVisible`, not a bare assert. U34's auto-save writes a DRAFT on a 2s debounce, and FR-007b
+# makes every save record a version — so this screen now holds MORE cards than before and the oldest one
+# sits below the fold. MEASURED on CI 2026-08-26: the accessibility dump showed `Version 4` rendered at
+# y≈2274-2400 on a 2400-high screen with `visible: false`, and the bare assert failed on a list that was
+# entirely correct. Asserting without scrolling makes this flow a function of card height, which is not
+# what it is testing.
 - assertVisible: 'Current version'
 - assertVisible: 'Changed: Title'
+- scrollUntilVisible:
+      element: 'Initial version'
+      direction: DOWN
+      timeout: 20000
 - assertVisible: 'Initial version'
 
 # PREVIEW — a past version's own content, plus its changed-from-current summary. v2 and v3 share the SAME

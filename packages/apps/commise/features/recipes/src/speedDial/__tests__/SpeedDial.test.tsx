@@ -208,6 +208,24 @@ describe('SpeedDial (web) — keyboard', () => {
         expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: SCRATCH }));
     });
 
+    it('REOPENS on the first destination, not wherever the last arrow press left it', async () => {
+        // A pointer user who opens the menu expects its top item. Carrying the previous session's cursor
+        // over is invisible on today's one-item dial and wrong the moment a second destination exists —
+        // which is exactly the class of defect that survives until the feature that adds one.
+        const user = userEvent.setup();
+        const { trigger } = renderDial(vi.fn(), [{ id: 'import', label: 'Import', onSelect: vi.fn() }]);
+
+        await user.click(trigger);
+        await user.keyboard('{ArrowDown}');
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Import' }));
+
+        await user.keyboard('{Escape}');
+        await user.click(trigger);
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: SCRATCH }));
+    });
+
     it('closes on Escape and RETURNS FOCUS to the trigger', async () => {
         // Mandatory mutant: suppress the focus restoration and this fails with `<body>` active — a keyboard
         // user whose next Tab starts over from the top of the page.

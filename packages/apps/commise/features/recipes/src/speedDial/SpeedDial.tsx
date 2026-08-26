@@ -79,7 +79,20 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
     };
 
     return (
-        <Dialog.Root open={open} onOpenChange={setOpen}>
+        <Dialog.Root
+            open={open}
+            // Every OPEN that did not come from an arrow key lands on the first destination. Without the
+            // reset the dial reopens wherever the last arrow press left it — invisible on today's one-item
+            // dial, and wrong the moment a second destination exists, because a pointer user who opens the
+            // menu expects its top item, not a position they set two interactions ago.
+            onOpenChange={(next) => {
+                if (next) {
+                    setFocusIndex(0);
+                }
+
+                setOpen(next);
+            }}
+        >
             {/* The offset is DERIVED, not hardcoded — inherited verbatim from the FAB this replaces. It
                 clears the narrow-breakpoint bottom nav plus the device safe-area inset, and drops to the base
                 offset once that nav becomes a desktop sidebar at the shared `lg` cutover. It lives on the

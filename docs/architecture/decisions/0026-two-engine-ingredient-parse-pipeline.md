@@ -363,6 +363,161 @@ reported are exactly what the source stated, and membership would make `cookbook
 line it can read. ⚠️ That set is a `Set`, not an exhaustive map, so adding a reason produces **no** compile
 error there — the membership decision must be argued in its comment, as the existing exclusions are.
 
+### 8. A SIZE WORD IS A UNIT — an absent CRF unit is rescued whatever unit the LLM read (U36)
+
+The residual risk §7 recorded below ("the 2026-08-25 ruling landed in the CENSUS, not in the MERGE") is
+**closed here**, and it is closed the way that bullet said it would have to be: with its own ruling, because
+it changes stored provenance rather than a report.
+
+#### The ruling (owner, 2026-08-26)
+
+**Take the LLM's measure whenever the CRF's is a bare number and the LLM's is not.** `llmRescuedTheMeasure`
+(`packages/shared/recipe-import-core/src/domain/parseComparator.ts`) required
+`isHistoricalUnit(llm.unit)` on its second conjunct; it now asks only whether the LLM stated a unit at all.
+
+The acceptance bar is the owner's own, and it is deliberately not "the measure is precise":
+
+> _"it's ok to leave interpretation up to users too. As long as we aren't saving words that don't make sense
+> or blatantly incorrectly parsing measurement values, users won't see us having 'large' as a measurement as
+> incorrect. Cooking is an art just as much as it is chemistry."_
+
+So the test a merged line must pass is **the words saved make sense** and **the numeric values are not
+wrong**. An ambiguous-but-sensible reading is acceptable; `1 quart` where the source printed `1.5 quarts`
+is not.
+
+#### The measurement that overturns the old conjunct
+
+A real Nova Micro run over the 2,502-line 1919 corpus (2026-08-26) found **53** ingredient lines on which
+the CRF's measure is a bare number with no unit at all:
+
+| bucket           |   n | what the LLM gave                                                                                     |
+| ---------------- | --: | ----------------------------------------------------------------------------------------------------- |
+| LLM also silent  |  29 | nothing — no disagreement; the CRF is right and these are genuine counts                              |
+| plain unit       |  13 | `one and a half quarts`, `two and a half pounds`, `one-half saltspoon`, `one wineglass`, `half a can` |
+| **size-as-unit** |   7 | `one small` (onion), `four large` (onions), `one small` (carrot), `one large` (cauliflower)           |
+| alternation      |   4 | `one large onion or two small ones` — genuinely two candidate measures                                |
+
+**Only 4 of the 13 plain rescues are historical**, so the old rule reached under a third of the cases it
+existed to serve. On the other nine `unit: 'crf'` won and the merged line carried **no unit at all** —
+which, as §3's update puts it one field down, is not the better of two readings but the publication of
+silence.
+
+#### ⛔ "Reject size words as FABRICATED units" was proposed and DISPROVED — do not re-propose it
+
+This is the repair a later reader will arrive at independently, so the disproof is recorded rather than the
+conclusion alone. It fails on two counts:
+
+1. **It does not blur the measure; it DELETES the word.** `DEFAULT_WINNERS` takes `foods` from the LLM, and
+   on `one small onion` the LLM reads the food as `onion` with `small` in the unit. Refusing the unit stores
+   neither — the merged line becomes `1 onion` and the word appears in no field.
+2. **The word is not fabricated: this system already resolves it.** `unitToGrams`
+   (`packages/shared/recipe-core/src/units.ts`) matches a parsed unit against the catalog's own portion
+   labels —
+
+    ```ts
+    const portion = portions.find((candidate) => normalizeUnit(candidate.unit) === normalized);
+
+    if (portion !== undefined) {
+        return quantity * portion.gramsPerUnit;
+    }
+    ```
+
+    — and those labels are ingested **verbatim** from USDA's `modifier` / `portion_description`
+    (`packages/services/food-service/src/sources/usda/bulk/usdaBulk.parser.ts`, `mapBulkPortions`:
+    `label = (row.modifier || row.portionDescription || measureUnitLabel).trim()`), which for eggs are
+    literally `small`, `medium`, `large`, `extra large`. So `3 large eggs` → unit `large` → portion → grams.
+    Canonicalising the size into the NAME instead yields `"large egg"`, which USDA does not publish — it
+    ships `Egg, whole, raw, fresh` **with** a `large` portion — and the nutrition is lost rather than
+    approximated.
+
+⚠️ **The chain is conditional and the condition is worth knowing.** `normalizePortion`
+(`food-service/src/foods/nutrition/portionNormalization.ts`) requires a label of **at least two tokens with a
+leading amount**, so a portion labelled `large` alone is dropped while `1 large` normalises to
+`{ unit: 'large', gramsPerUnit: … }`. The argument does not depend on which form a given food publishes,
+because of the fail-safe below.
+
+⛔ **AND IT FAILS SAFE.** `one large cinnamon cake` also yields the unit `large`, on a food that publishes no
+such portion. `MASS_UNIT_TO_GRAMS` has no entry, no portion matches, `unitToGrams` returns `null`, and no
+gram weight is invented — the identical outcome an unconvertible unit has always had. Admitting size words
+therefore cannot make a nutrition figure WRONG: its worst case is the one already reached today, while
+rejecting them guarantees the word is lost. Asserted in `units.test.ts`, both halves.
+
+#### ⛔ The guard does NOT belong on the measure — it belongs in segmentation
+
+Of the 24 rescues, exactly two are bad, and in both the **measure is fine** while the **food** is not:
+
+- `a large mixing bowl whip to a cream two eggs` → `foods: ['mixing bowl', 'two eggs']`. ⛔ **RULED
+  2026-08-26 (owner): a vessel's role is decided by POSITION, not by the word.** A vessel as the object of a
+  preposition — `one tablespoon of butter **in a frying-pan**` — is instruction, and §7's cut is correct
+  (all 14 of U22a's equipment removals are that form and they stand). A vessel **heading the measure
+  phrase** — `a large mixing bowl [of] flour`, `a bowl of flour`, `a glass of milk` — is a **unit**. So this
+  line's measure is `a large mixing bowl` and `mixing bowl` in `foods` is a **MISFILED UNIT**, not nonsense.
+  ⚠️ This may need §7's "only a VESSEL answers no" rule revisited. **The implementation lands in the
+  segmentation layer (`clauseSegmentation.ts` / `notAFoodLexicon.ts`), NOT in the comparator** — U36
+  deliberately touches neither.
+- `a small one` → `foods: ['one']`. The food is a pronoun. ⚠️ **OPEN** — no rule is asserted for anaphora
+  here, and none was invented; `VESSELS` / `measuresNoSubstance` do not cover it.
+
+⛔ Neither of these is guarded in `parseComparator.ts`, and neither should be. Putting a food-shaped guard on
+a measure rule would make the comparator the second owner of "what is not an ingredient", which
+`notAFoodLexicon.ts` already owns and which §7 says is shared across the package boundary precisely so there
+is one copy.
+
+#### What did NOT change
+
+- **KTD-11's amount column stands, untouched.** `quantityDiffers → crfWins` and `unitDiffers → crfWins` are
+  exactly as they were: two engines that each STATE a unit and state different ones still go to the CRF, and
+  the disagreement is reported. U36 is PRIOR to that rule, not a narrowing of it — it fires only where one
+  leg named no unit and so offered no competing reading. The anti-over-reach assertion is in both tiers.
+- **The historical rescue is now a strict SUBSET, and still fires.** `gill`, `wineglass`, `saltspoon` are
+  asserted to rescue in the unit tier and `gill` in cookbook-import's real-engine tier.
+- **The 29 mutually-silent lines do not move.** The rescue requires the LLM to have named a unit, so when
+  both engines give a bare measure the CRF still wins and the provenance is unchanged.
+- **U16 is untouched, and it does not conflict with this.** `ParsedLine` still has no `size` member, and
+  `promoteCrfReading` still canonicalises the CRF's `size` FIELD into that engine's own food NAME because
+  `large` is an adjective and an adjective is identity. The two rules never operate on the same value: U16
+  decides where a word goes **inside one engine's promoted line**, and the winner rule decides **which
+  engine's measure is stored** when both answered. On `one small onion` the CRF's promoted name is
+  `small onion` and the LLM's unit is `small`; the merge takes `foods` from the LLM (`onion`) and the unit
+  from the LLM (`small`), so the word is stored exactly once, as the unit.
+- **The rescue still does NOT reach the quantity.** Missing the unit does not necessarily stop the CRF
+  reading the leading number, and KTD-11's "amounts from the CRF" is measured.
+
+#### The census and the merge now agree — and one census row MOVED to make that true
+
+They answer the same question and a disagreement between them would be its own defect. `judgeMeasure`'s
+`crf.unit === '' && model.unit !== ''` branch can return **three** verdicts, and the merge gives the LLM the
+measure on all three. Two already disposed `llmWins`; `crfSizeField` disposed `canonicalised`, and that is
+now **`llmWins`**.
+
+⛔ It had to move, because `canonicalised` had become **false about what the system does**. It means _"KTD-11b
+decides where the word goes, on BOTH answers, and the disagreement stops existing rather than being won"_ —
+but `canonicaliseFood` moves words between `name` and `prep` and **cannot** move one into the unit, so
+placement never decided that row. ⚠️ Both dispositions already meant "no human adjudicates", so the
+adjudication residue and every rate in the report are unchanged; what changed is what the census SAYS was
+done. A test now asserts all three verdicts in that branch dispose identically, so a fourth added later
+cannot split the two paths silently.
+
+#### ⚠️ Limitations PINNED rather than closed
+
+- **Alternation is a modelling gap.** `one large onion or two small ones` states two candidate measures and
+  `ParsedFacts` has one measure field (4 corpus lines). Per the ruling a sensible single reading is
+  acceptable, so the rescue takes the LLM's and the second measure is lost with **nothing in the shape
+  recording that it existed**. Alternation support would be a contract change and is not attempted.
+- ⚠️ **The merged line can hold the LLM's measure PHRASE beside the CRF's NUMBER, and they can disagree.**
+  On `one and a half quarts of boiling water` the real engine returns `('1', '')` — the fraction is gone
+  **as well as** the unit — so the merge stores `statedMeasure: 'one and a half quarts'`, `unit: 'quart'`
+  and `quantity: 1`. That is `1 quart` against a source printing one and a half, which is exactly the
+  "blatantly incorrect measurement value" the acceptance bar rules out. **It is not silent** — it is
+  reported as `differ: ['quantity']`, where before this change the unit vanished as well — but it is **not
+  fixed**, because fixing it means handing the LLM the quantity too on this shape, which is KTD-11's amount
+  column and wants its own ruling. ⛔ The census's whole-measure `llmWins` and the merge's field-level split
+  differ here by GRANULARITY: the census's `MeasureVerdict` cannot express "unit from one leg, number from
+  the other", and the merge can. They agree on the unit, which is the axis both can state.
+- ⚠️ **The 53 are one model's answers over one book.** Nova Micro, the 1919 corpus, the U22a extractor. The
+  LLM half of every case in the suites is a stated reading rather than a billed call; the CRF half is
+  measured against the real `ingredient-parser-nlp==2.3.0`.
+
 ## Consequences
 
 **Accepted:**
@@ -373,9 +528,10 @@ error there — the membership decision must be argued in its comment, as the ex
   keyed the verification table's way, the second engine's answer would overwrite the first and the comparator
   would have nothing to compare.
 - **A field-level winner rule**, not a whole-line one: `statedMeasure`, `quantity` and `unit` from the CRF,
-  `foods` from the LLM — with the LLM taking the measure phrase **and** the unit when the CRF was blind to a
-  historical unit, and never the quantity, because missing the unit does not stop the CRF reading the leading
-  number and a differing number is a genuine disagreement that must be reported.
+  `foods` from the LLM — with the LLM taking the measure phrase **and** the unit whenever the CRF named **no
+  unit at all** (§8, owner ruling 2026-08-26; it was limited to the HISTORICAL units before that), and never
+  the quantity, because missing the unit does not stop the CRF reading the leading number and a differing
+  number is a genuine disagreement that must be reported.
 - **Placement is canonicalised rather than won.** `foods: 'llm'` records the LLM's measured strength on
   multi-food lines and on pulling a unit out of a food name — **not** on filing modifiers. Scored against
   KTD-11b over the contested modifier words, the **CRF's filing matched 125 times to the LLM's 58**. That
@@ -399,21 +555,15 @@ error there — the membership decision must be argued in its comment, as the ex
   decided who is right** on the residual list. Observe-only until it lands — and note that the oracle is
   deliberately neither the previous parser nor a model from either engine's family, since the earlier
   bake-off measured self-preference at −31.5 points.
-- ⛔ **The 2026-08-25 absent-unit ruling landed in the CENSUS, not in the MERGE — and the merge has the same
-  defect.** `DISPOSITIONS` (`cookbook-import`) says what a shape amounts to for the report; the code that
-  actually decides what a merged `ParsedLine` holds is `parseComparator.ts`'s `DEFAULT_WINNERS`
-  (`unit: 'crf'`), narrowed only by `llmRescuedTheMeasure`. That predicate reads
-  `unitView(crf.unit) === null && isHistoricalUnit(llm.unit)` — it requires the LLM's unit to be a
-  **HISTORICAL** one. So the very shape the ruling was made about, where the LLM reads a plain modern
-  `quart`, does **not** rescue: the CRF's `null` unit wins and the merged line carries **no unit at all**.
-  The ruling as given names one table in one tools package and does not reach this predicate, so the
-  behaviour is unchanged and is stated here rather than changed unilaterally. ⚠️ It is not currently
-  publishing anything — `cookbook-import`'s wiring is observational (bullet below) and
-  `runImport.test.ts` asserts the wire is byte-identical with the observation on and off — but it is what
-  goes live the moment the winner rule stops being observe-only, and it is the same nine corpus lines.
-  Whoever un-gates the winner rule owes this predicate a decision: generalising it to
-  `unitView(crf.unit) === null && unitView(llm.unit) !== null` is the merge-side form of the ruling, and it
-  is a change to stored provenance rather than to a report, so it wants its own ruling.
+- ✅ **CLOSED 2026-08-26 (§8) — the absent-unit ruling reached the MERGE.** This bullet recorded that the
+  2026-08-25 ruling landed only in `cookbook-import`'s `DISPOSITIONS` while `parseComparator.ts`'s
+  `llmRescuedTheMeasure` still required `isHistoricalUnit(llm.unit)`, so a plain `quart` did not rescue and
+  the merged line carried no unit at all on nine corpus lines. It predicted the fix — _"generalising it to
+  `unitView(crf.unit) === null && unitView(llm.unit) !== null` is the merge-side form of the ruling … it
+  wants its own ruling"_ — and that is what §8 is. ⚠️ Two things the bullet did not anticipate are recorded
+  there rather than here: the rescue also had to admit SIZE words (7 of the 53), and the predicate needed
+  `statesAUnit` rather than a bare `!== null`, because `normalizeUnit` answers `''` for a unit of `.`, which
+  is a second spelling of silence.
 - ⚠️ **Every rate above comes from one 1919 cookbook, and is inflated by the extractor.** 1,148 blocks were
   skipped whole, and `differ` is substantially `proseRecipe` handing both engines instruction text and
   equipment. Historical prose is the hardest input this pipeline will meet, and **nothing here has been

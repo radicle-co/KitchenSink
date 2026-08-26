@@ -11,6 +11,8 @@
  * | R19 — two spellings of one line COLLIDE on the correction key | "two spellings, one correction" |
  * | GR-007 — every value the pipeline resolves is storable by recipe-core's schemas | "downstream contract" |
  * | HAZ-041 — `raw` is the source line byte-identical | asserted on every line of the corpus |
+ * | U36 — an absent CRF unit is rescued through the REAL measure reader | "the merged line keeps the unit the CRF never named" |
+ * | U36 — and the rescued unit survives the `jsonb` round trip | "a warm run serves the rescued unit from the cache" |
  *
  * What this tier proves that the unit tier structurally cannot:
  *
@@ -572,5 +574,266 @@ describe('the correction tier, over the REAL match grain', () => {
         expect(engines.crfBatches[0]).not.toContain(subject);
         expect(engines.crfBatches[0]).toHaveLength(new Set(CORPUS_LINES).size - 1);
         expect(cache.reads[0]).not.toContain(subject);
+    });
+});
+
+/**
+ * U36 — the rescue, through the REAL adapters, the REAL measure reader and a REAL `JSON` round trip.
+ *
+ * ⛔ WHAT THIS TIER PROVES THAT THE UNIT TIER STRUCTURALLY CANNOT. `parseComparator.test.ts` hands the
+ * comparator a `ParsedLine` whose `unit` a test author WROTE. But no engine writes that field: both
+ * promotion adapters DERIVE it from the measure phrase through {@link readStatedMeasure}, which reads the
+ * phrase with `parse-ingredient`'s own vocabulary. So the unit suite cannot answer the question the ruling
+ * actually turns on — **does a size word ever reach `ParsedLine.unit` at all?** If `parse-ingredient` read
+ * `one small` as unitless, every size-word assertion in the unit tier would be describing a value the real
+ * pipeline never produces, and all of them would still pass.
+ *
+ * Measured here against the real `parse-ingredient@2.2.0`: it does. `one small` reads `{ 1, 'small' }`,
+ * `four large` reads `{ 4, 'large' }`, `two and a half pounds` reads `{ 2.5, 'lb' }` — canonicalised by
+ * `recipe-core`'s `normalizeUnit`, which is the second boundary a fixture would have hidden.
+ */
+describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
+    /** One measured line: what the CRF read, what the LLM read, and what the merge must hold. */
+    interface RescueCase {
+        /** The source line, as the extractor produced it. */
+        readonly line: string;
+        /** The CRF's own bare-number measure text. */
+        readonly crfMeasure: string;
+        /** The CRF's `size` field, which U16 canonicalises into the NAME. */
+        readonly crfSize: string | null;
+        /** The food the CRF named. */
+        readonly crfName: string;
+        /** The LLM's measure phrase, from which its unit is DERIVED. */
+        readonly llmMeasure: string;
+        /** The food the LLM named. */
+        readonly llmName: string;
+        /** The unit the merged line must carry — `null` when neither engine named one. */
+        readonly mergedUnit: string | null;
+    }
+
+    const CASES: readonly RescueCase[] = [
+        // Bucket 2 — a plain MODERN unit, unreachable by the historical rule this ruling replaced.
+        {
+            line: 'one and a half quarts of boiling water',
+            crfMeasure: 'one',
+            crfSize: null,
+            crfName: 'water',
+            llmMeasure: 'one and a half quarts',
+            llmName: 'water',
+            mergedUnit: 'quart',
+        },
+        {
+            line: 'two and a half pounds of beef',
+            crfMeasure: 'two',
+            crfSize: null,
+            crfName: 'beef',
+            llmMeasure: 'two and a half pounds',
+            llmName: 'beef',
+            // ⚠️ `lb`, not `pounds` — `normalizeUnit` canonicalises, and a hand-written fixture hides it.
+            mergedUnit: 'lb',
+        },
+        // Bucket 2 — the HISTORICAL shape, which already rescued. ⛔ THE ANTI-REGRESSION: the old rule is
+        // a strict subset of the new one, so widening must not cost a wineglass its rescue.
+        {
+            line: 'one wineglass of sherry',
+            crfMeasure: 'one',
+            crfSize: null,
+            crfName: 'sherry',
+            llmMeasure: 'one wineglass',
+            llmName: 'sherry',
+            mergedUnit: 'wineglass',
+        },
+        // Bucket 3 — a SIZE word as the unit. The CRF's `size` goes to its NAME (U16); the LLM's phrase
+        // yields it as the UNIT, and rescuing it is the only thing that keeps the word at all.
+        {
+            line: 'one small onion',
+            crfMeasure: 'one',
+            crfSize: 'small',
+            crfName: 'onion',
+            llmMeasure: 'one small',
+            llmName: 'onion',
+            mergedUnit: 'small',
+        },
+        {
+            line: 'four large onions',
+            crfMeasure: 'four',
+            crfSize: 'large',
+            crfName: 'onions',
+            llmMeasure: 'four large',
+            llmName: 'onions',
+            mergedUnit: 'large',
+        },
+        // Bucket 1 — mutual silence. Neither engine named a unit, so nothing is rescued and the merged
+        // line states none. ⛔ This is the 29-line majority and it must not move.
+        {
+            line: 'two eggs',
+            crfMeasure: 'two',
+            crfSize: null,
+            crfName: 'eggs',
+            llmMeasure: 'two',
+            llmName: 'eggs',
+            mergedUnit: null,
+        },
+    ];
+
+    const RESCUE_LINES: readonly string[] = CASES.map((rescue) => rescue.line);
+
+    /** Both engines, promoting the measured readings through the REAL adapters and the REAL measure reader. */
+    function makeRescueEngines(): ParseEnginePorts {
+        const byLine = new Map(CASES.map((rescue) => [rescue.line, rescue]));
+
+        const caseFor = (line: string): RescueCase => {
+            const rescue = byLine.get(line);
+
+            if (rescue === undefined) {
+                throw new Error(`no measured case for ${JSON.stringify(line)}`);
+            }
+
+            return rescue;
+        };
+
+        return {
+            crf: {
+                engine: 'crf',
+                engineVersion: CRF_VERSION,
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((line) => {
+                        const rescue = caseFor(line);
+
+                        return promoteCrfReading(
+                            {
+                                sentence: line,
+                                measure: rescue.crfMeasure,
+                                names: [rescue.crfName],
+                                size: rescue.crfSize,
+                                preparation: null,
+                                comment: null,
+                            },
+                            line,
+                        );
+                    });
+                },
+            },
+            llm: {
+                engine: 'llm',
+                engineVersion: LLM_VERSION,
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((line) => {
+                        const rescue = caseFor(line);
+
+                        return promoteLlmParse(
+                            {
+                                statedMeasure: rescue.llmMeasure,
+                                foods: [{ name: rescue.llmName, prep: null }],
+                            },
+                            line,
+                        );
+                    });
+                },
+            },
+        };
+    }
+
+    it('the merged line keeps the unit the CRF never named', async () => {
+        const cache = makeJsonCache();
+        const observers = makeObservers();
+        const outcomes = await runParsePipeline(
+            RESCUE_LINES,
+            { corrections: NO_CORRECTIONS, cache, engines: makeRescueEngines(), digest: sha256 },
+            { userId: undefined },
+            observers,
+        );
+
+        expect(observers.tierFailures).toEqual([]);
+        expect(observers.unreadable).toEqual([]);
+        expect(outcomes).toHaveLength(CASES.length);
+
+        // ⛔ Compared as ONE table rather than assertion-by-assertion, so a merge that dropped every unit
+        // cannot pass by failing a `?.` into `undefined` on a row nobody looked at.
+        expect(outcomes.map((outcome) => outcome.parsed?.unit ?? null)).toEqual(
+            CASES.map((rescue) => rescue.mergedUnit),
+        );
+
+        for (const [index, rescue] of CASES.entries()) {
+            const outcome = outcomes[index];
+
+            expect(outcome?.parsed).not.toBeNull();
+            expect(outcome?.parsed?.raw).toBe(rescue.line);
+            // The rescue is credited to the engine that read it, and never to the silent one.
+            expect(outcome?.parsed?.provenance.unit).toBe(rescue.mergedUnit === null ? 'crf' : 'llm');
+            // ⛔ KTD-11 is untouched: the NUMBER stays the CRF's on every one of these lines.
+            expect(outcome?.parsed?.provenance.quantity).toBe('crf');
+        }
+    });
+
+    it('a warm run serves the rescued unit from the cache, byte for byte', async () => {
+        // ⛔ The rescued unit is not stored as a merged line — the cache holds each ENGINE's parse and the
+        // comparator re-runs. So this proves the rescue survives `JSON`, which is what `jsonb` is.
+        const cache = makeJsonCache();
+        const observers = makeObservers();
+        const deps = { corrections: NO_CORRECTIONS, cache, engines: makeRescueEngines(), digest: sha256 };
+
+        const cold = await runParsePipeline(RESCUE_LINES, deps, { userId: undefined }, observers);
+        const warm = await runParsePipeline(RESCUE_LINES, deps, { userId: undefined }, observers);
+
+        expect(observers.tierFailures).toEqual([]);
+        expect(warm.map((outcome) => outcome.parsed)).toEqual(cold.map((outcome) => outcome.parsed));
+        expect(warm.map((outcome) => outcome.parsed?.unit ?? null)).toEqual(CASES.map((rescue) => rescue.mergedUnit));
+        expect(warm.every((outcome) => 'fromCache' in outcome && outcome.fromCache.length === 2)).toBe(true);
+    });
+
+    it('⛔ still gives the CRF the unit when BOTH engines read one, through the same real readers', async () => {
+        // THE ANTI-OVER-REACH ASSERTION AT THE INTEGRATION TIER. Both phrases yield a unit from the real
+        // reader — `cup` and `pint` — so this is `unitDiffers`, which KTD-11 sends to the CRF. Nothing in
+        // U36 touches it, and a rescue widened to "the LLM's unit whenever they differ" fails here.
+        const line = 'one cup of milk';
+        const engines: ParseEnginePorts = {
+            crf: {
+                engine: 'crf',
+                engineVersion: CRF_VERSION,
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((sourceLine) =>
+                        promoteCrfReading(
+                            {
+                                sentence: sourceLine,
+                                measure: 'one cup',
+                                names: ['milk'],
+                                size: null,
+                                preparation: null,
+                                comment: null,
+                            },
+                            sourceLine,
+                        ),
+                    );
+                },
+            },
+            llm: {
+                engine: 'llm',
+                engineVersion: LLM_VERSION,
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((sourceLine) =>
+                        promoteLlmParse(
+                            { statedMeasure: 'one pint', foods: [{ name: 'milk', prep: null }] },
+                            sourceLine,
+                        ),
+                    );
+                },
+            },
+        };
+
+        const [outcome] = await runParsePipeline(
+            [line],
+            { corrections: NO_CORRECTIONS, cache: NO_CACHE, engines, digest: sha256 },
+            { userId: undefined },
+            makeObservers(),
+        );
+
+        expect(outcome?.parsed).not.toBeNull();
+        expect(outcome?.parsed?.unit).toBe('cup');
+        expect(outcome?.parsed?.provenance.unit).toBe('crf');
+        expect(agreementOf(outcome as ParsePipelineOutcome)).toEqual({
+            kind: 'differ',
+            fields: ['statedMeasure', 'unit'],
+        });
     });
 });

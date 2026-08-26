@@ -156,6 +156,46 @@ describe('unitToGrams', () => {
  * ⚠️ The three-way classification is what the plan's "the wire can tell `cup` from `handful`" asks for, and
  * it is a DERIVATION rather than a wire field — see {@link classifyUnit}'s own docstring for that ruling.
  */
+/**
+ * U36 (owner ruling 2026-08-26) — A SIZE WORD IS A VALID UNIT, and this is the evidence for it.
+ *
+ * `parseComparator`'s rescue takes the LLM's unit whenever the CRF named none, and 7 of the 53 measured
+ * lines put a SIZE there (`four large` onions). Rejecting those as "fabricated units" was proposed and
+ * DISPROVED, and the disproof is this function: it resolves a unit against the catalog's own portion
+ * LABELS, which the food service ingests VERBATIM from USDA's `modifier` / `portion_description` — and for
+ * eggs those labels are literally `small`, `medium`, `large`, `extra large`. Canonicalising the size into
+ * the NAME instead yields `"large egg"`, which USDA does not publish (it is `Egg, whole, raw, fresh` WITH a
+ * `large` portion), so the nutrition is lost rather than approximated.
+ *
+ * ⛔ THE FAIL-SAFE HALF IS THE LOAD-BEARING ONE. `one large cinnamon cake` also yields the unit `large`, on
+ * a food that publishes no such portion. Nothing matches, `null` comes back, and no gram weight is
+ * invented — the SAME outcome an unconvertible unit has always had. That is why admitting size words
+ * cannot make a nutrition figure WRONG: the worst case is the one already reached today.
+ */
+describe('U36 — a size word is a unit this vocabulary can carry', () => {
+    it('a size word used as a unit is resolvable, and FAILS SAFE when it is not', () => {
+        // The catalog publishes the portion, so the very same unit resolves.
+        expect(unitToGrams(3, 'large', [{ unit: 'large', gramsPerUnit: 50 }])).toBe(150);
+        expect(unitToGrams(2, 'small', [{ unit: 'small', gramsPerUnit: 38 }])).toBe(76);
+
+        // ⛔ `one large cinnamon cake` — the food has portions, none of them a size. No weight is invented.
+        expect(unitToGrams(1, 'large', [{ unit: 'cup', gramsPerUnit: 125 }])).toBeNull();
+        // …and a food with no portions at all is the same answer, not a different failure.
+        expect(unitToGrams(1, 'large', [])).toBeNull();
+    });
+
+    it('carries a size word through normalisation unchanged, and calls it unknown rather than rejecting it', () => {
+        // ⛔ `normalizeUnit` neither maps nor strips it — `large` is not an alias and has no trailing `s`
+        // to de-pluralize — which is WHY the portion match above can succeed on an exact label.
+        expect(normalizeUnit('large')).toBe('large');
+        expect(normalizeUnit('Large')).toBe('large');
+        // ⚠️ `classifyUnit` answers `unknown`, and that is a VERDICT, not an error: the wire stores the
+        // cook's word unchanged and only a rendering surface reads this. A size word is exactly the case
+        // its docstring names — "a cook may write anything in the unit field".
+        expect(classifyUnit('large')).toBe('unknown');
+    });
+});
+
 describe('U25 — the unit vocabulary', () => {
     it('is non-empty and every member is its own canonical form (it IS the normalizer’s image)', () => {
         // Anti-vacuity: a derivation that silently stopped finding entries would otherwise pass by

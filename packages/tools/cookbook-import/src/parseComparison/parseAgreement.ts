@@ -21,8 +21,10 @@
  *  - `crfUnitInName` — the CRF has no vocabulary for a historical unit (`gill`, `saltspoon`), so it reads
  *    the unit as the first word of the food. Every one of these is a nutrition lookup against a food that
  *    does not exist.
- *  - `crfSizeField` — the CRF routes `large`/`small` to a `size` field our answer shape has no slot for.
- *    This is a shape mismatch between two designs, not an error by either.
+ *  - `crfSizeField` — the CRF routes `large`/`small` to a `size` field our answer shape has no slot for,
+ *    while the model reads the same word as the UNIT. ⚠️ Read as "a shape mismatch between two designs,
+ *    not an error by either" until 2026-08-26, when the owner ruled that a size word IS a valid unit and
+ *    this shape joined the two `llmWins` siblings below — see {@link DISPOSITIONS}.
  *  - `crfPrepInModelName` / `modelPrepInCrfName` — a state word (`cooked`, `toasted`, `grated`) sits in
  *    the food name on one side and in the preparation on the other. It changes which nutrition-table row
  *    the line resolves to, so it is the shape with the largest downstream consequence.
@@ -177,10 +179,27 @@ const DISPOSITIONS: Readonly<Record<AgreementKind, AgreementDisposition>> = {
     // `one and a half quarts of boiling water` (seed L00177, 9 corpus lines), where the CRF returns `1`
     // with no unit at all against a source that plainly states one and a half quarts.
     crfUnitAbsent: 'llmWins',
+    // ⛔ A SIZE WORD IS A UNIT — owner ruling 2026-08-26, and this row MOVED from `canonicalised`.
+    //
+    // It is the third and last verdict `judgeMeasure` can return from inside the `crf.unit === ''` branch,
+    // and it was the only one of the three that did not give the LLM the measure. That made the census
+    // describe the pipeline FALSELY once the merge was widened: `parseComparator.ts`'s
+    // `llmRescuedTheMeasure` takes the LLM's phrase and unit whenever the CRF named no unit, this row
+    // included, so `canonicalised` — "KTD-11b decides where the word goes on BOTH answers and the
+    // disagreement stops existing rather than being won" — names machinery that never ran. Placement moves
+    // words between `name` and `prep`; it cannot move one into the UNIT.
+    //
+    // ⛔ IT DOES NOT TOUCH U16. The CRF's `size` FIELD still canonicalises into that engine's own food
+    // NAME (`promoteCrfReading`), because `large` is an adjective and an adjective is identity. What this
+    // row answers is a different question about the same word: which engine's MEASURE is stored when the
+    // CRF named no unit and the LLM read the size AS one. The two never touch the same value.
+    //
+    // ⚠️ Both dispositions already meant "no human adjudicates", so the adjudication residue is unchanged
+    // and no rate in the report moves; what changes is what the census SAYS was done.
+    crfSizeField: 'llmWins',
     modelSplitsFoods: 'llmWins',
     modelPrepInCrfName: 'llmWins',
     // Placement, decided by KTD-11b on both answers rather than won by either.
-    crfSizeField: 'canonicalised',
     crfPrepInModelName: 'canonicalised',
     // The residue.
     differ: 'adjudicate',

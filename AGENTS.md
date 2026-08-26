@@ -248,14 +248,47 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   `single-engine` ≠ `differ` principle one FIELD down and follows KTD-11's own `crfUnitInName → llmWins`
   precedent. ⛔ It is deliberately NARROW: it fires only when the CRF's unit is EMPTY, never when the two
   engines merely name different units, and it sits LAST inside the `crf.unit === ''` branch so the more
-  specific `crfSizeField`/`crfUnitInName` keep their rows. ⚠️ Two things it does NOT reach, both recorded:
-  the split-amount spelling (`one and a half cups of sugar` → `[('1',''),('half','cup')]`) has a POPULATED
-  unit, so it is a genuine `quantityDiffers` and still resolves to half a cup; and the ruling landed in the
-  CENSUS, not the MERGE — `parseComparator.ts`'s `llmRescuedTheMeasure` still requires
-  `isHistoricalUnit(llm.unit)`, so a plain `quart` does not rescue and the merged line would carry no unit
-  the day the winner rule stops being observe-only. ⚠️ Still open: `sentence` means two different
-  things in the two CRF schemas (`crfParse.ts` "echoed back" vs `engine.schema.ts` "NORMALISED"), which is
-  why the promotion adapters take `raw` as a PARAMETER rather than trusting either.
+  specific `crfSizeField`/`crfUnitInName` keep their rows. ⚠️ One spelling it does NOT reach, recorded
+  rather than tidied away: `one and a half cups of sugar` → `[('1',''),('half','cup')]` has a POPULATED
+  unit, so it is a genuine `quantityDiffers` and still resolves to half a cup.
+
+    ⛔ **U36 (owner ruling 2026-08-26) — the ruling reached the MERGE, and A SIZE WORD IS A UNIT.**
+    `parseComparator.ts`'s `llmRescuedTheMeasure` required `isHistoricalUnit(llm.unit)`. Measured on a real
+    Nova Micro run over the 2,502-line corpus, **53** lines have a bare-number CRF measure — 29 mutually
+    silent, 13 a plain unit, 7 a SIZE used as the unit, 4 an alternation — and **only 4 of the 13** are
+    historical, so on nine lines the merged line carried NO UNIT AT ALL. The predicate now asks only whether
+    the LLM stated a unit and the CRF did not, through `statesAUnit` rather than `!== null`, because
+    `normalizeUnit` answers `''` for a unit of `.` and that is a second spelling of silence.
+
+    ⛔ **Do NOT "fix" this by rejecting `small`/`large` as fabricated units — PROPOSED and DISPROVED.** The
+    merged `foods` come from the LLM, which reads `onion` with `small` in the unit, so refusing the unit
+    DELETES the word from every field; and `unitToGrams` (`recipe-core/src/units.ts`) resolves a unit against
+    the catalog's own portion LABELS, which the food service ingests VERBATIM from USDA's
+    `modifier`/`portion_description` (`mapBulkPortions`) — literally `small`/`medium`/`large`/`extra large`
+    for eggs. `one large cinnamon cake` FAILS SAFE: no portion matches, `unitToGrams` returns `null`, the same
+    outcome an unconvertible unit has always had. Rejecting size words guarantees the loss; admitting them
+    cannot make a nutrition figure wrong.
+
+    ⛔ **It reaches ONLY the absent case.** `quantityDiffers`/`unitDiffers` → `crfWins` are untouched (two
+    engines that each STATE a unit and differ still go to the CRF), the rescue still never takes the QUANTITY,
+    the 29 mutually-silent lines do not move, and U16 is untouched — `promoteCrfReading` still canonicalises
+    the CRF's `size` FIELD into that engine's own NAME, because U16 places a word inside ONE engine's line
+    while the winner rule picks WHOSE measure is stored, and the two never touch the same value. The census
+    moved with the merge: `crfSizeField` disposes **`llmWins`**, not `canonicalised` (placement cannot move a
+    word into the unit), so all three verdicts in `judgeMeasure`'s `crf.unit === ''` branch agree with it.
+
+    ⚠️ **Two limits stay open.** Alternation (`one large onion or two small ones`, 4 lines) is two measures
+    against ONE measure field — a modelling gap, and a sensible single reading is taken. And the merge can
+    hold the LLM's measure PHRASE beside the CRF's NUMBER: `one and a half quarts` stores `1 quart`, which is
+    REPORTED as `differ: ['quantity']` rather than silent, but is not fixed. ⚠️ A vessel HEADING the measure
+    phrase (`a large mixing bowl of flour`, `a glass of milk`) is a UNIT while one after a preposition
+    (`butter in a frying-pan`) is instruction (owner ruling 2026-08-26) — that implementation lands in the
+    SEGMENTATION layer and never in the comparator; a PRONOUN food (`a small one` → `foods: ['one']`) is still
+    OPEN.
+
+    ⚠️ Still open: `sentence` means two different things in the two CRF schemas (`crfParse.ts` "echoed back"
+    vs `engine.schema.ts` "NORMALISED"), which is why the promotion adapters take `raw` as a PARAMETER rather
+    than trusting either.
 
 - **ADR-0027 — an ingredient PHRASE is NOT personal data, and the `user_id` beside it is a DISTINCT-USER
   COUNTER, not an erasure predicate (owner ruling 2026-08-25).** This REVERSES two recorded rulings:

@@ -316,8 +316,33 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
         expect(disposeAgreement('modelPrepInCrfName')).toBe('llmWins');
     });
 
-    it('canonicalises the size field rather than picking a side — `large` is an adjective (KTD-11b)', () => {
-        expect(disposeAgreement('crfSizeField')).toBe('canonicalised');
+    it('U36 — EVERY verdict reachable from an empty CRF unit disposes the same way', () => {
+        // ⛔ THE CENSUS AND THE MERGE ANSWER THE SAME QUESTION, and this is the assertion that keeps them
+        // answering it the same way. All three of these verdicts are returned from inside `judgeMeasure`'s
+        // `crf.unit === ''` branch, and `parseComparator.ts` gives the LLM the measure on all three. A
+        // future row added to that branch with a different disposition splits the two paths, silently —
+        // the census would report one thing while the stored line held another.
+        for (const verdict of ['crfSizeField', 'crfUnitInName', 'crfUnitAbsent'] as const) {
+            expect(disposeAgreement(verdict)).toBe('llmWins');
+        }
+    });
+
+    it('U36 — gives the LLM the size field too, because a SIZE WORD IS A UNIT', () => {
+        // ⛔ REWRITTEN, and it asserts the OPPOSITE of what it did. As "canonicalises the size field
+        // rather than picking a side" this expected `canonicalised`, on the reading that `large` is an
+        // adjective KTD-11b files into the name. U16's ruling about the CRF's `size` FIELD is untouched
+        // — `promoteCrfReading` still folds it into that engine's own name — but the owner ruling of
+        // 2026-08-26 settles the DIFFERENT question this row answers: when the CRF named no unit and the
+        // LLM read the size word AS the unit, the LLM's measure stands.
+        //
+        // ⛔ `canonicalised` is now FALSE about what the system does, which is why this could not be left
+        // alone. It means "KTD-11b decides where the word goes on BOTH answers and the disagreement stops
+        // existing rather than being won" — but `canonicaliseFood` moves words between `name` and `prep`
+        // and cannot move one into the UNIT, so placement never decided this row. The merge path
+        // (`parseComparator.ts`'s `llmRescuedTheMeasure`) takes the LLM's phrase and unit here, exactly as
+        // it does for the two `llmWins` siblings in the same `crf.unit === ''` branch. A census that said
+        // otherwise would describe the pipeline falsely.
+        expect(disposeAgreement('crfSizeField')).toBe('llmWins');
     });
 
     it('canonicalises placement in BOTH directions, so the mirror shape is not silently a human problem', () => {
@@ -444,7 +469,11 @@ describe('compareParses — an ABSENT CRF unit is absence, not dissent (owner ru
         );
 
         expect(agreement.measure).toBe('crfSizeField');
-        expect(disposeAgreement(agreement.measure)).toBe('canonicalised');
+        // ⚠️ `llmWins` since U36 (2026-08-26), where this row read `canonicalised`. The ORDERING claim the
+        // test is named for is untouched and is now stronger: every verdict reachable from the
+        // `crf.unit === ''` branch disposes the same way, so which one is returned changes what the census
+        // NAMES and never what is done about the line.
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
     });
 
     it('⛔ leaves the spellings the CRF reads CORRECTLY on `agree` — the rule is narrow, not a blanket', () => {

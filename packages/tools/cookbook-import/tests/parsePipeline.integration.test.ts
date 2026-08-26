@@ -18,6 +18,11 @@
  *  3. **The two legs compose into the comparator.** The unit tier promotes each engine separately; only this
  *     one takes a real CRF reading, an independently produced model reading, and the real adjudication.
  *
+ *  3. **U36's precondition is a fact about the ENGINE, not about a fixture** — that the real CRF names no
+ *     unit at all on `one and a half quarts`, `one small onion` and `four large onions`. If it ever starts
+ *     naming one, the rescue silently stops firing while every unit test still passes, so the CRF is asked
+ *     on its own here and its silence asserted before the merged unit is looked at.
+ *
  * ⚠️ Skipped (not failed) when `python3 -c "import ingredient_parser"` does not succeed, mirroring
  * `crfParse.integration.test.ts`. CI installs the pinned engine, so CI runs it.
  */
@@ -207,6 +212,60 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
         // ⛔ The CRF still owns the AMOUNT. Missing the unit does not stop it reading the leading number, and
         // a differing number would be a genuine disagreement that must be reported.
         expect(outcome?.parsed?.provenance.quantity).toBe('crf');
+    }, 180_000);
+
+    it('U36 — a MODERN unit and a SIZE word are rescued too, and mutual silence is not', async () => {
+        // ⛔ THE RULING'S PRECONDITION, MEASURED HERE RATHER THAN QUOTED. Every unit assertion below is
+        // worthless unless the real engine really does name no unit on these lines — and that is a claim
+        // about a third-party model we neither own nor pin beyond a version string. So the CRF is asked
+        // first, on its own, and its silence is asserted before the merge is looked at. Measured against
+        // `ingredient-parser-nlp==2.3.0` on 2026-08-26, and reproduced by this test:
+        //
+        //   one and a half quarts of boiling water -> ('1',  '') name `boiling water`
+        //   one small onion                        -> ('1',  '') name `small onion`   (size -> name, U16)
+        //   four large onions                      -> ('4',  '') name `large onions`
+        //   two eggs                               -> ('2',  '') name `eggs`
+        //
+        // ⚠️ Note the first line's NUMBER is wrong too (1, not 1.5). KTD-11's amount column is untouched by
+        // U36, so that stays the CRF's and is REPORTED as a quantity disagreement — see ADR-0026 §8.
+        const lines: readonly string[] = [
+            'one and a half quarts of boiling water',
+            'one small onion',
+            'four large onions',
+            'two eggs',
+        ];
+        const crf = await createCrfEngine();
+        const crfAlone = await crf.parse(lines);
+
+        expect(crfAlone.map((answer) => ('unavailable' in answer ? 'unavailable' : answer.unit))).toEqual([
+            null,
+            null,
+            null,
+            null,
+        ]);
+
+        const llm = stubbedModel(
+            new Map([
+                ['one and a half quarts of boiling water', { measure: 'one and a half quarts', name: 'boiling water' }],
+                ['one small onion', { measure: 'one small', name: 'onion' }],
+                ['four large onions', { measure: 'four large', name: 'onions' }],
+                // ⛔ Bucket 1 — the model is silent about the unit TOO, so there is nothing to rescue.
+                ['two eggs', { measure: 'two', name: 'eggs' }],
+            ]),
+        );
+        const outcomes = await runParsePipeline(
+            lines,
+            { corrections: NO_CORRECTIONS, cache: NO_CACHE, engines: { crf, llm }, digest: sha256 },
+            { userId: undefined },
+            makeObservers(),
+        );
+
+        // ⛔ ONE table, so a merge that dropped every unit cannot pass by never being looked at. `quart`
+        // and not `quarts`: `normalizeUnit` canonicalises, which a hand-written fixture would have hidden.
+        expect(outcomes.map((outcome) => outcome.parsed?.unit ?? null)).toEqual(['quart', 'small', 'large', null]);
+        expect(outcomes.map((outcome) => outcome.parsed?.provenance.unit)).toEqual(['llm', 'llm', 'llm', 'crf']);
+        // ⛔ KTD-11 is untouched on all four: the NUMBER is the CRF's whatever happened to the unit.
+        expect(outcomes.map((outcome) => outcome.parsed?.provenance.quantity)).toEqual(['crf', 'crf', 'crf', 'crf']);
     }, 180_000);
 
     it('one engine silent is `single-engine`, never `differ`', async () => {

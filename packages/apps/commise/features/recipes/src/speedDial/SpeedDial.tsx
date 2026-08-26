@@ -1,0 +1,183 @@
+'use client';
+
+/**
+ * @module @commise/features-recipes — the web SpeedDial FAB (U34, owner ruling 2026-08-25).
+ *
+ * The floating create control, as a MENU BUTTON: the same pinned FAB a cook already presses, which now
+ * discloses the creation destinations instead of running the only one. Exactly one destination is wired
+ * today; Scan / Import / AI belong to features 004 and 005 and are **not rendered at all** — not disabled,
+ * not "coming soon" — because promising a stopped feature is worse than omitting it.
+ *
+ * PATTERN — Menu Button (WAI-ARIA disclosure) implemented as an **Adapter** over `@radix-ui/react-dialog`,
+ * which is already a dependency of this package. The library owns everything a menu owes a keyboard user
+ * that is hard to get right, and each of these was read out of the installed source rather than assumed:
+ *
+ *   - **focus trap** — `Dialog.Content` passes `trapped: trapFocus` to `FocusScope`;
+ *   - **focus RESTORATION to the trigger** — the modal content's own `onCloseAutoFocus` calls
+ *     `event.preventDefault()` then `context.triggerRef.current?.focus()`, so Escape, an outside press and
+ *     an item activation all land the caret back on the FAB rather than on `<body>`;
+ *   - **Escape and outside-pointer dismissal** — `DismissableLayer`, with `disableOutsidePointerEvents`;
+ *   - **the rest of the page hidden from assistive tech** — `hideOthers(content)`.
+ *
+ * Only two things are supplied here, because the library supplies neither: the MENU semantics (Radix emits
+ * `role="dialog"` / `aria-haspopup="dialog"` BEFORE spreading consumer props, so both override cleanly, and
+ * it emits no `aria-modal` that would be invalid on a `role="menu"`), and arrow navigation between
+ * destinations, whose arithmetic lives in the pure `./model.js`.
+ *
+ * ⚠️ **Two DEVIATIONS from the WAI-ARIA Menu Button pattern, both inherited from the dialog primitive and
+ * both deliberate — do not read this as APG-compliant.**
+ *
+ *   1. **Tab does not close the dial; it is TRAPPED.** APG says Tab moves to the next element in the tab
+ *      sequence and dismisses the menu. The owner's requirement for this control was the opposite — focus
+ *      trapped while open and restored on close — because a dial that drops focus to `<body>` strands a
+ *      keyboard user, so the trap is the specified behaviour and is asserted as such.
+ *   2. **`hideOthers` hides the TRIGGER too**, since it lives outside the content. So the `aria-expanded`
+ *      the trigger publishes is not reachable by a screen reader in the state it describes. It is still the
+ *      correct attribute, and it is what a browser's accessibility inspector and this package's tests read.
+ *
+ * ⛔ The flip condition, recorded so it is not re-litigated: `@radix-ui/react-dropdown-menu` is the right
+ * component the day a SECOND destination is real — it supplies typeahead, true roving focus and APG's own
+ * Tab behaviour, and adopting it would DELETE the key model and the roving-tabindex bookkeeping below rather
+ * than add to them. It is not installed today. Reach for it then; do not grow the handler below instead.
+ *
+ * ⚠️ Anything outside `Dialog.Content` is `aria-hidden` while the dial is open, so on this platform there is
+ * no such thing as a labelled dismiss surface outside the content — which is why this leaf takes no
+ * `dismissLabel` while the native one does, and why it renders no scrim at all (see the note at the anchor).
+ */
+import { enterTransitionClassName } from '@commise/ui/motion';
+import * as Dialog from '@radix-ui/react-dialog';
+import { useRef, useState, type FC, type KeyboardEvent } from 'react';
+
+import { PlusIcon } from '../form/icons.js';
+import { nextMenuIndex, openIndexForTriggerKey, type SpeedDialProps } from './model.js';
+
+export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions }) => {
+    const [open, setOpen] = useState(false);
+    // Which destination owns the roving `tabIndex={0}` — and, on open, which one receives focus.
+    const [focusIndex, setFocusIndex] = useState(0);
+    // Refs on the item buttons are the sanctioned kind: focus is an imperative, non-declarative browser
+    // system with no props equivalent.
+    const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+    const focusItem = (index: number): void => {
+        setFocusIndex(index);
+        itemRefs.current[index]?.focus();
+    };
+
+    const onTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
+        const index = openIndexForTriggerKey(event.key, actions.length);
+
+        if (index === undefined) {
+            return;
+        }
+
+        // Enter and Space are absent from that decision on purpose — the trigger is a real `<button>` and
+        // already synthesises a click from both, which `Dialog.Trigger` turns into the open toggle.
+        event.preventDefault();
+        setFocusIndex(index);
+        setOpen(true);
+    };
+
+    const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+        const index = nextMenuIndex(event.key, focusIndex, actions.length);
+
+        if (index === undefined) {
+            return;
+        }
+
+        event.preventDefault();
+        focusItem(index);
+    };
+
+    return (
+        <Dialog.Root
+            open={open}
+            // Every OPEN that did not come from an arrow key lands on the first destination. Without the
+            // reset the dial reopens wherever the last arrow press left it — invisible on today's one-item
+            // dial, and wrong the moment a second destination exists, because a pointer user who opens the
+            // menu expects its top item, not a position they set two interactions ago.
+            onOpenChange={(next) => {
+                if (next) {
+                    setFocusIndex(0);
+                }
+
+                setOpen(next);
+            }}
+        >
+            {/* The offset is DERIVED, not hardcoded — inherited verbatim from the FAB this replaces. It
+                clears the narrow-breakpoint bottom nav plus the device safe-area inset, and drops to the base
+                offset once that nav becomes a desktop sidebar at the shared `lg` cutover. It lives on the
+                anchor (rather than on the button) so the menu can be positioned against the SAME expression
+                instead of a second copy of it. */}
+            <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 lg:bottom-8">
+                {/* ⛔ No `Dialog.Overlay` — deliberately, and NOT an omission to "fix". It could not be
+                    layered correctly from inside this anchor: the anchor is a `z-40` stacking context, so a
+                    scrim within it paints UNDER the narrow-breakpoint bottom tab bar, which is `z-50`
+                    (`HomeTabBar.tsx`). The result would be a dimmed page with one bright bar across the foot
+                    of it that answers no taps — worse than no dim at all. Raising the anchor above the app
+                    shell's chrome is a layering decision about the shell, not about this control, so it is
+                    left to be made deliberately rather than guessed at here.
+
+                    ⚠️ Note what the overlay is NOT: it is not merely decoration. In this version of the
+                    primitive the overlay is what wraps the tree in `RemoveScroll`, so omitting it also means
+                    the page still SCROLLS behind the open dial. That is acceptable for a corner menu that is
+                    pinned to the viewport and dismisses on the next outside press, and it is recorded here
+                    so nobody re-adds the scrim believing it costs nothing, or removes it believing it did.
+
+                    Native keeps its backdrop because an RN `Modal` is its own window (no z-index question)
+                    and because there the backdrop is the real dismiss TARGET, not decoration. */}
+                <Dialog.Trigger
+                    aria-label={triggerLabel}
+                    aria-haspopup="menu"
+                    onKeyDown={onTriggerKeyDown}
+                    className="flex h-14 w-14 items-center justify-center rounded-full bg-seafoam text-white shadow-lg transition hover:bg-ocean-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean-dark focus-visible:ring-offset-2"
+                >
+                    {/* An SVG, not the text "+": flex centres the LINE BOX but ink is placed by the BASELINE,
+                        so a "+" character paints ~1.7px low and no centring property can correct it. This
+                        glyph's extents are symmetric about the viewBox centre, matching the mockup. */}
+                    <PlusIcon className="size-6" />
+                </Dialog.Trigger>
+                <Dialog.Content
+                    role="menu"
+                    aria-label={menuLabel}
+                    onKeyDown={onMenuKeyDown}
+                    // Radix would otherwise focus the content itself; the dial opens ONTO a destination,
+                    // and which one depends on whether the caller arrowed up or down into it.
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault();
+                        itemRefs.current[focusIndex]?.focus();
+                    }}
+                    // The DS hairline (`border-border`), matching the sibling `MoreActionsMenu` panel.
+                    //
+                    // The design-system enter utility rides THIS element, not a wrapper around it. A
+                    // pure-CSS mount animation fires when the element carrying it is inserted, and this
+                    // is the only thing here that is inserted on open — an always-rendered wrapper would
+                    // have played its keyframe once, at list render, over an empty box. `motion-safe:` is
+                    // the gate, so a reduce-motion viewer gets no animation and no hidden from-state.
+                    className={`${enterTransitionClassName} absolute bottom-full right-0 mb-3 flex min-w-48 flex-col items-stretch gap-1 rounded-2xl border border-border bg-card p-2 shadow-lg`}
+                >
+                    {actions.map((action, index) => (
+                        <button
+                            key={action.id}
+                            ref={(node) => {
+                                itemRefs.current[index] = node;
+                            }}
+                            type="button"
+                            role="menuitem"
+                            // Roving tabindex: exactly one destination is tabbable, so the focus trap
+                            // cycles within the menu instead of walking a list the arrows already own.
+                            tabIndex={index === focusIndex ? 0 : -1}
+                            onClick={() => {
+                                setOpen(false);
+                                action.onSelect();
+                            }}
+                            className="min-h-11 whitespace-nowrap rounded-xl px-4 py-2 text-left text-body-sm font-medium text-charcoal transition hover:bg-pearl focus-visible:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
+                        >
+                            {action.label}
+                        </button>
+                    ))}
+                </Dialog.Content>
+            </div>
+        </Dialog.Root>
+    );
+};

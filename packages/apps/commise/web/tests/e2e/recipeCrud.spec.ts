@@ -42,6 +42,8 @@ test.describe('recipe CRUD (T079)', () => {
         await expect(page.getByRole('button', { name: 'Seed Recipe' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Create your first recipe' })).toHaveCount(0);
         await page.getByRole('button', { name: 'New recipe' }).click();
+        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
         // Step 1 (Basic) — the wizard opens here (Step 1 of 4).

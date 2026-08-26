@@ -34,6 +34,8 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
 
         await page.goto(route('/recipes'));
         await page.getByRole('button', { name: 'New recipe' }).click();
+        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
         // Step 1 (Details).
@@ -87,6 +89,8 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
 
         await page.goto(route('/recipes'));
         await page.getByRole('button', { name: 'New recipe' }).click();
+        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
 
         await page.getByLabel('Title').fill('E2E Flat Loaf');
         await page.getByLabel('Servings').fill('2');

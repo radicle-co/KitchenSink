@@ -4,6 +4,8 @@
  * interaction contracts, so the two platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
+import { Text } from 'react-native';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { placeholderContrast } from '@commise/test-utils';
@@ -74,13 +76,52 @@ describe('RecipeList (native) — chrome', () => {
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
 
-    it('reports create requests upward from the FAB', () => {
+    it('reports create requests upward from the dial’s ONE destination', () => {
+        // REWRITTEN for U34 (owner ruling 2026-08-25). This previously asserted that pressing the FAB called
+        // `onCreateRecipe` directly. The FAB is now a menu TRIGGER, so the create request comes from the
+        // dial's single destination instead — the accepted +1 tap. The old assertion would have passed
+        // against a dial that opened and wired its item to nothing.
         const onCreateRecipe = vi.fn();
         renderList({ status: 'ready', recipes: threeRecipes, onCreateRecipe });
 
         fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
 
+        expect(onCreateRecipe).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
+
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+
+    it('lands on the create surface when the dial’s destination is chosen', () => {
+        // Driven STATEFULLY rather than with a bare `vi.fn()`: a spy proves a handler ran, not that anything
+        // downstream happened. Here choosing the destination actually swaps the surface, which is what the
+        // Maestro flow asserts on a device.
+        function Harness() {
+            const [creating, setCreating] = useState(false);
+
+            return creating ? (
+                <Text>{'CREATE SURFACE'}</Text>
+            ) : (
+                <RecipeList
+                    status="ready"
+                    recipes={threeRecipes}
+                    searchValue=""
+                    onSearchChange={noop}
+                    onSelectRecipe={noop}
+                    onCreateRecipe={() => setCreating(true)}
+                    onRetry={noop}
+                />
+            );
+        }
+
+        render(<Harness />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
+
+        expect(screen.getByText('CREATE SURFACE')).toBeTruthy();
+        expect(screen.queryByRole('menu')).toBeNull();
     });
 });
 
@@ -138,6 +179,8 @@ describe('RecipeList (native) — create FAB (L1)', () => {
         renderList({ status: 'ready', recipes: [] });
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.queryByRole('menuitem')).toBeNull();
         expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
     });
 
@@ -175,7 +218,11 @@ describe('RecipeList (native) — source tabs (L5)', () => {
         renderList({ status: 'ready', recipes: [], tab: { active: 'community', href: HREF, onChange: noop } });
 
         expect(screen.getByText('No community recipes')).toBeTruthy();
+        // Both the dial's TRIGGER and its menu: a dial that rendered its panel while hiding the button would
+        // still be a create affordance on someone else's library.
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.queryByRole('menuitem')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
     });
 });

@@ -167,6 +167,42 @@ export const filterChipLabel = (facet: string, quickLabel: string): string =>
 export const isListNarrowed = (searchValue: string, activeFacets: readonly string[] = []): boolean =>
     searchValue.trim().length > 0 || activeFacets.length > 0;
 
+/** What {@link shouldShowCreateDial} needs to decide, as one shape rather than four positional booleans. */
+export interface CreateDialVisibility {
+    /** The list's load state. */
+    readonly status: RecipeListStatus;
+    /** How many rows the list is currently showing. */
+    readonly recipeCount: number;
+    /** Whether the viewer narrowed those rows themselves — see {@link isListNarrowed}. */
+    readonly narrowed: boolean;
+    /** Whether the Community source tab is the active one. */
+    readonly onCommunity: boolean;
+}
+
+/**
+ * Whether the pinned create dial (U34's SpeedDial FAB) is mounted.
+ *
+ * Two gates, and the ONE authoritative representation of both — they were previously spelled inline in each
+ * list leaf, agreeing by inspection rather than by construction:
+ *
+ *  - **Not on a TRUE empty library.** The first-run empty body renders its own "Create your first recipe"
+ *    CTA, and two competing create affordances on one screen is the defect. "True empty" means the SAME
+ *    thing here as in the body branch, because both read {@link isListNarrowed}: a chip- or search-narrowed
+ *    zero KEEPS the dial, since that body renders no CTA to replace it and suppressing would leave the
+ *    viewer with no way to create at all.
+ *  - **Never on the Community tab.** A cook does not create into another cook's list.
+ *
+ * Loading and error keep the dial for the same reason a narrowed zero does: neither renders a CTA. Pure.
+ *
+ * @param visibility - The list state the two gates are decided from.
+ * @returns `true` when the dial should be rendered.
+ */
+export const shouldShowCreateDial = ({ status, recipeCount, narrowed, onCommunity }: CreateDialVisibility): boolean => {
+    const trueEmpty = status === 'ready' && recipeCount === 0 && !narrowed;
+
+    return !trueEmpty && !onCommunity;
+};
+
 /** Props for a single recipe row in the list. */
 export interface RecipeListCardProps {
     readonly recipe: RecipeListItem;

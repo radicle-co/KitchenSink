@@ -48,8 +48,24 @@ export interface RecipeListMessages {
     readonly filterAll: string;
     /** Visible label of the "Quick (<30m)" time-bucket quick-filter chip (recipe-list wireframe). */
     readonly filterQuick: string;
-    /** Label of the create-recipe call to action (the pinned FAB). */
+    /** Label of the create-recipe call to action (the pinned FAB, which is the create dial's trigger). */
     readonly createCta: string;
+    /** Accessible name of the menu the create dial discloses (U34). */
+    readonly createMenuLabel: string;
+    /**
+     * Label of the dial's ONLY destination (U34).
+     *
+     * ⛔ Scan / Import / AI belong to features 004 and 005 and have no string here on purpose: they are not
+     * rendered at all, because promising a stopped feature is worse than omitting it.
+     */
+    readonly createFromScratch: string;
+    /**
+     * Accessible name of the native backdrop behind the open dial; a tap on it dismisses.
+     *
+     * Native-only in effect: on web everything outside the dialog content is `aria-hidden` while the dial is
+     * open, so that platform's scrim is decorative and dismissal is owned by the dismissable layer.
+     */
+    readonly createMenuDismiss: string;
     /** Label of the empty-state create call to action (the sole create control when the list is empty). */
     readonly emptyCreateCta: string;
     /** Message shown when the list fails to load. */
@@ -342,6 +358,9 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             noMatchTitle: 'No matching recipes',
             noMatchBody: 'No recipes match your search. Try a different term.',
             createCta: 'New recipe',
+            createMenuLabel: 'Create a recipe',
+            createFromScratch: 'Create from Scratch',
+            createMenuDismiss: 'Close the create menu',
             emptyCreateCta: 'Create your first recipe',
             tabMine: 'My Recipes',
             tabCommunity: 'Community',

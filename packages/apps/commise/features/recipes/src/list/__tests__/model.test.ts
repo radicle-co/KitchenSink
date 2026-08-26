@@ -17,6 +17,7 @@ import {
     isListNarrowed,
     isQuickRecipe,
     matchesListFacet,
+    shouldShowCreateDial,
     toRecipeListItem,
 } from '../model.js';
 
@@ -164,5 +165,37 @@ describe('isListNarrowed (the empty-vs-no-match discriminator)', () => {
 
     it('is true when both a term and a facet are active', () => {
         expect(isListNarrowed('lamb', ['Vegetarian'])).toBe(true);
+    });
+});
+
+describe('shouldShowCreateDial (U34)', () => {
+    // The create dial's two gates, as ONE authority. They used to be spelled inline in BOTH list leaves —
+    // agreeing by inspection rather than by construction, which is how a rule this quiet drifts apart.
+    const show = (over: Partial<Parameters<typeof shouldShowCreateDial>[0]> = {}) =>
+        shouldShowCreateDial({ status: 'ready', recipeCount: 3, narrowed: false, onCommunity: false, ...over });
+
+    it('shows the dial over a populated library', () => {
+        expect(show()).toBe(true);
+    });
+
+    it('keeps the dial through loading and error, where there is no empty-state CTA to replace it', () => {
+        expect(show({ status: 'loading', recipeCount: 0 })).toBe(true);
+        expect(show({ status: 'error', recipeCount: 0 })).toBe(true);
+    });
+
+    it('SUPPRESSES the dial on a TRUE empty library — the empty-state CTA is the sole create control there', () => {
+        expect(show({ recipeCount: 0 })).toBe(false);
+    });
+
+    it('KEEPS the dial on a narrowed zero, whose empty body renders no CTA to replace it', () => {
+        // The half that is easy to lose: a chip- or search-narrowed zero is a NO-MATCH, not a first run, so
+        // suppressing here would leave that viewer with no create affordance at all.
+        expect(show({ recipeCount: 0, narrowed: true })).toBe(true);
+    });
+
+    it('SUPPRESSES the dial on the Community tab, where a cook never creates into another cook’s list', () => {
+        expect(show({ onCommunity: true })).toBe(false);
+        expect(show({ onCommunity: true, recipeCount: 0, narrowed: true })).toBe(false);
+        expect(show({ onCommunity: true, status: 'loading' })).toBe(false);
     });
 });

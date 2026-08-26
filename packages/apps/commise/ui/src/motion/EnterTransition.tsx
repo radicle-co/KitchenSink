@@ -13,13 +13,10 @@
  */
 import type { FC } from 'react';
 
+import { enterTransitionClassName } from './enterMotion.js';
 import type { EnterTransitionProps } from './props.js';
 
-/**
- * The design-system section-enter utility: a short rise + fade, applied ONLY when motion is safe. Registered
- * as the `--animate-section-enter` theme token, so reduce-motion viewers get the settled section directly.
- */
-export const enterTransitionClassName = 'motion-safe:animate-section-enter';
+export { enterTransitionClassName };
 
 /** The Commise enter-transition wrapper — a section that rises + fades in when motion is safe. */
 export const EnterTransition: FC<EnterTransitionProps> = ({ children, delayMs = 0, className }) => (

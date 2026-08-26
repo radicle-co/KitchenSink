@@ -62,6 +62,8 @@ appId: io.commise.mobile
 
 # The pinned create FAB (present in the populated state the per-flow reseed hands this flow).
 - tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
 - extendedWaitUntil:
       visible: 'Step 1 of 4'
       timeout: 30000

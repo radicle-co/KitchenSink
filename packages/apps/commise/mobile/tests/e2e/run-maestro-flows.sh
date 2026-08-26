@@ -107,6 +107,12 @@ APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-relea
 #     and which every later flow composes. Ordering it before `delete` keeps the pair adjacent and keeps the
 #     "run me last" flow last.
 #   - `recipes/delete` last (its own "run me last" note).
+#   - `recipes/speed-dial` (U34) sits immediately BEFORE `create`, as the first of the CREATE-wizard block:
+#     it is the shortest flow that enters the wizard, it mutates nothing (it dismisses the dial once and
+#     leaves the wizard via back without saving), and putting it first means a broken create DIAL fails on a
+#     30-second flow rather than four minutes into `create`. It is a separate file from `create.yaml` because
+#     the behaviour it owns — opening the dial and DISMISSING it without creating — is unreachable from a
+#     flow whose next step is always the destination.
 #   - `recipes/empty-library` sits next to `list-detail` (its populated sibling). It is the ONE flow that
 #     runs against an EMPTY library — see EMPTY_LIBRARY_FLOWS below — and it mutates nothing, so the next
 #     iteration's normal reset restores the seed for everything after it.
@@ -143,6 +149,7 @@ collections:recipes/collections-pagination
 collections:recipes/collections-visibility
 collections:recipes/collections-clone
 collections:recipes/collections-pull
+recipes:recipes/speed-dial
 recipes:recipes/create
 recipes:recipes/quantity-range
 recipes:recipes/preparation-groups

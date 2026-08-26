@@ -109,6 +109,15 @@ export class ImportLedger {
      */
     private persist(): void {
         mkdirSync(dirname(this.path), { recursive: true });
-        writeFileSync(this.path, `${JSON.stringify(Object.fromEntries(this.entries), null, 4)}\n`, 'utf-8');
+        // ⚠️ `mode` is not decoration. CodeQL flagged this write `js/insecure-temporary-file` (2026-08-26)
+        // because the README showed operators a `--ledger /tmp/…` path, and a world-readable file in a
+        // shared temp dir names every recipe this operator imported. The ledger is a PERSISTENT resume
+        // record, not a temp file, so the usual cure (an exclusive create under a random name) would break
+        // the resumption it exists for — restricting the mode is the fix that fits what the file is. The
+        // README now suggests a project-local path for the same reason.
+        writeFileSync(this.path, `${JSON.stringify(Object.fromEntries(this.entries), null, 4)}\n`, {
+            encoding: 'utf-8',
+            mode: 0o600,
+        });
     }
 }

@@ -78,7 +78,7 @@ npm run import --workspace=@kitchensink/cookbook-import -- \
     --file /tmp/pg12350.txt \
     --recipe-url http://localhost:3000 \
     --token-file /tmp/linkage/linkage-credentials.json \
-    --ledger /tmp/cookbook-ledger.json \
+    --ledger .cookbook-import-ledger.json \
     --report /tmp/cookbook-report.json \
     --limit 200
 ```

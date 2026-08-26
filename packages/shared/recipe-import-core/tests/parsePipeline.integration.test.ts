@@ -582,7 +582,7 @@ describe('the correction tier, over the REAL match grain', () => {
  *
  * ⛔ WHAT THIS TIER PROVES THAT THE UNIT TIER STRUCTURALLY CANNOT. `parseComparator.test.ts` hands the
  * comparator a `ParsedLine` whose `unit` a test author WROTE. But no engine writes that field: both
- * promotion adapters DERIVE it from the measure phrase through {@link readStatedMeasure}, which reads the
+ * promotion adapters DERIVE it from the measure phrase through `readStatedMeasure`, which reads the
  * phrase with `parse-ingredient`'s own vocabulary. So the unit suite cannot answer the question the ruling
  * actually turns on — **does a size word ever reach `ParsedLine.unit` at all?** If `parse-ingredient` read
  * `one small` as unitless, every size-word assertion in the unit tier would be describing a value the real

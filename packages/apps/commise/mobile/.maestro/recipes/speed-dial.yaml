@@ -32,11 +32,21 @@ appId: io.commise.mobile
 - extendedWaitUntil:
       visible: 'Create from Scratch'
       timeout: 20000
-# The three destinations that must NOT exist yet. Each is a separate assertion so a failure names which one
-# leaked back in.
-- assertNotVisible: 'Scan'
-- assertNotVisible: 'Import'
-- assertNotVisible: 'Generate with AI'
+# The destinations that must NOT exist yet, each a separate assertion so a failure names which one leaked
+# back in. ANCHORED (`^…$`) on purpose: Maestro matches its selector as a regex against an element's whole
+# text, so the bare word `Import` would also match a seeded recipe title that merely contains it — an
+# assertion that fails for the wrong reason is worse than none. A menu row's text is exactly its label, so
+# the anchored form matches the thing under test and nothing else.
+- assertNotVisible:
+      text: '^Scan$'
+- assertNotVisible:
+      text: '^Import$'
+- assertNotVisible:
+      text: '^Generate with AI$'
+# The "coming soon" variant the ruling also rejected — the repo's convention for a not-yet-real destination
+# elsewhere, and deliberately NOT used here.
+- assertNotVisible:
+      text: '.*[Cc]oming soon.*'
 
 # --- 2. Dismissing gets out of the way, and creates NOTHING ---------------------------------------------
 # The backdrop is a real, labelled tap target on this platform (its web counterpart cannot be — everything

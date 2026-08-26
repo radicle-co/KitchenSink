@@ -15,6 +15,7 @@ function trial(overrides: Partial<ParseTrial> = {}): ParseTrial {
         origin: 'ingredient',
         shapeDetail: undefined,
         agreement: undefined,
+        nonFoods: [],
         ...overrides,
     };
 }
@@ -466,5 +467,86 @@ describe('pairDeterminism', () => {
         expect(paired.firstText).toBe(`  ${BARE}`);
         expect(paired.comparable).toBe(true);
         expect(paired.divergentFields).toEqual([]);
+    });
+});
+
+/**
+ * The prompt bake-off's headline census.
+ *
+ * ⛔ Its denominator is the reason it is here rather than counted in the runner: a prompt that produces
+ * FEWER readings would otherwise "improve" this rate by having less to be wrong in, which is precisely the
+ * artefact the experiment must not reward. Every case below would pass under a naive implementation that
+ * divided by `trials` — so each pins the denominator explicitly.
+ */
+describe('the non-food census', () => {
+    it('is denominated in COMPLIANT trials, not in every trial', () => {
+        const reports = summarizeParseComparison(
+            [
+                trial({ outcome: 'valid', nonFoods: ['vessel'] }),
+                trial({ outcome: 'valid', nonFoods: [] }),
+                // ⛔ Neither of these produced a reading, so neither may enter the denominator. Counting
+                // them would report 1/4 where the truth is 1/2.
+                trial({ outcome: 'malformedJson', nonFoods: [] }),
+                trial({ outcome: 'callFailed', nonFoods: [] }),
+            ],
+            ['amazon.nova-micro-v1:0'],
+        );
+
+        expect(reports[0]?.nonFoodInFoods.compliant).toBe(2);
+        expect(reports[0]?.nonFoodInFoods.lineRate).toBe(0.5);
+    });
+
+    it('counts LINES and ENTRIES apart, because they answer different questions', () => {
+        const reports = summarizeParseComparison(
+            [trial({ nonFoods: ['vessel', 'vessel'] }), trial({ nonFoods: [] })],
+            ['amazon.nova-micro-v1:0'],
+        );
+
+        // One line was affected; two entries have to be removed to fix it.
+        expect(reports[0]?.nonFoodInFoods.lines).toBe(1);
+        expect(reports[0]?.nonFoodInFoods.entries).toBe(2);
+        expect(reports[0]?.nonFoodInFoods.lineRate).toBe(0.5);
+    });
+
+    it('keeps the three kinds apart, so an arm’s result can be attributed to what it changed', () => {
+        const reports = summarizeParseComparison(
+            [trial({ nonFoods: ['vessel', 'pronoun'] }), trial({ nonFoods: ['nonSubstanceMeasure'] })],
+            ['amazon.nova-micro-v1:0'],
+        );
+
+        expect(reports[0]?.nonFoodInFoods.byKind).toEqual({ vessel: 1, nonSubstanceMeasure: 1, pronoun: 1 });
+    });
+
+    it('always reports all three kinds, so a census cannot silently omit one', () => {
+        const reports = summarizeParseComparison([trial({ nonFoods: [] })], ['amazon.nova-micro-v1:0']);
+
+        expect(Object.keys(reports[0]?.nonFoodInFoods.byKind ?? {}).sort()).toEqual([
+            'nonSubstanceMeasure',
+            'pronoun',
+            'vessel',
+        ]);
+    });
+
+    it('is reported per corpus half, because the dropped half is a different population', () => {
+        const reports = summarizeParseComparison(
+            [
+                trial({ origin: 'ingredient', nonFoods: [] }),
+                trial({ origin: 'dropped', nonFoods: ['vessel'] }),
+                trial({ origin: 'dropped', nonFoods: ['vessel'] }),
+            ],
+            ['amazon.nova-micro-v1:0'],
+        );
+
+        expect(reports[0]?.byOrigin.ingredient.nonFoodInFoods.lineRate).toBe(0);
+        expect(reports[0]?.byOrigin.dropped.nonFoodInFoods.lineRate).toBe(1);
+        // ⚠️ The blended figure is REPORTED too, and it is a rate about a population nobody asked about.
+        expect(reports[0]?.nonFoodInFoods.lineRate).toBeCloseTo(2 / 3, 10);
+    });
+
+    it('is zero over an empty denominator rather than NaN', () => {
+        const reports = summarizeParseComparison([], ['amazon.nova-micro-v1:0']);
+
+        expect(reports[0]?.nonFoodInFoods.lineRate).toBe(0);
+        expect(reports[0]?.nonFoodInFoods.compliant).toBe(0);
     });
 });

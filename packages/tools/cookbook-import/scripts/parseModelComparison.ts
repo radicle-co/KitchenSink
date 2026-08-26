@@ -29,8 +29,21 @@
  * ```
  * curl -fL -o /tmp/pg12350.txt https://www.gutenberg.org/cache/epub/12350/pg12350.txt   # by hand, once
  * AWS_REGION=us-east-1 npx tsx scripts/parseModelComparison.ts \
- *   --book /tmp/pg12350.txt --limit 20 --out /tmp/parseTrials.json
+ *   --book /tmp/pg12350.txt --limit 20 --variant v1 --out /tmp/parseTrials.json
  * ```
+ *
+ * ## The prompt arm
+ *
+ * `--variant v1|v2|v3` selects which wording is measured and defaults to `v1`, the SHIPPED prompt. The
+ * three are defined in `src/parseComparison/promptVariant.ts`, and each run measures exactly ONE — a
+ * bake-off is three invocations over the same corpus with the same model, never one invocation that
+ * interleaves them, because a shared run would have to keep three contract censuses apart inside one
+ * reducer for no gain.
+ *
+ * ⛔ v3 reports its UNIT directly instead of leaving it to be derived from the measure phrase, so its
+ * unit and measure figures are not produced the same way as v1's and v2's. The arm's `unitSource` is
+ * printed at launch and carried in the JSON precisely so that no table can present the three as one
+ * column without saying so.
  *
  * @sideEffect Reads a file, spawns Python, calls Amazon Bedrock (billed), may write a file, writes stdout.
  */
@@ -65,6 +78,7 @@ import {
 } from '../src/parseComparison/parseComparisonReport.js';
 import type { DeterminismPair, DeterminismPass } from '../src/parseComparison/parseComparisonReport.js';
 import { MAX_PARSE_PROMPT_CHARS, PARSE_MAX_OUTPUT_TOKENS } from '../src/parseComparison/parsePrompt.js';
+import { resolveParseVariant } from '../src/parseComparison/promptVariant.js';
 import { runParseTrial, type ParseTrialRecord } from '../src/parseComparison/runParseTrial.js';
 import { toCandidateRecipe, type RecipeCandidateOutcome } from '../src/proseRecipe.js';
 
@@ -110,6 +124,7 @@ async function main(): Promise<void> {
             'determinism-sample': { type: 'string' },
             region: { type: 'string' },
             out: { type: 'string' },
+            variant: { type: 'string' },
         },
     });
 
@@ -117,6 +132,9 @@ async function main(): Promise<void> {
         throw new Error('--book is required: nothing here fetches Project Gutenberg (ADR-0023, README step 1)');
     }
 
+    // ⛔ Resolved BEFORE anything is read or spent: an unknown arm must fail on the command line, not
+    // after a CRF pass and 2,500 billed calls have measured whatever a fallback happened to be.
+    const variant = resolveParseVariant(values.variant ?? 'v1');
     const models = resolveModels(values.models);
     const limit = readCount('--limit', values.limit, Number.POSITIVE_INFINITY);
     const askedConcurrency = readCount('--concurrency', values.concurrency, 6);
@@ -135,6 +153,7 @@ async function main(): Promise<void> {
             `${harvest.clauses.length} extracted clauses before de-duplication)\n`,
     );
 
+    process.stderr.write(`prompt arm: ${variant.id} — ${variant.summary} (unit is ${variant.unitSource})\n`);
     estimateWorstCase(models, corpus.length, sampleSize, askedConcurrency);
 
     process.stderr.write('parsing the corpus with the CRF model...\n');
@@ -158,7 +177,9 @@ async function main(): Promise<void> {
 
         process.stderr.write(`${modelId}: pass 1 over ${corpus.length} lines at concurrency ${concurrency}...\n`);
         const first = await Promise.all(
-            corpus.map((line) => gate(() => runParseTrial({ client, modelId, line, crf: crfByLine.get(line.id) }))),
+            corpus.map((line) =>
+                gate(() => runParseTrial({ client, modelId, line, crf: crfByLine.get(line.id), variant })),
+            ),
         );
 
         trials.push(...first);
@@ -166,7 +187,9 @@ async function main(): Promise<void> {
         process.stderr.write(`${modelId}: pass 2 over ${sample.length} sampled lines...\n`);
         const firstByLine = new Map(first.map((trial) => [trial.lineId, trial]));
         const second = await Promise.all(
-            sample.map((line) => gate(() => runParseTrial({ client, modelId, line, crf: crfByLine.get(line.id) }))),
+            sample.map((line) =>
+                gate(() => runParseTrial({ client, modelId, line, crf: crfByLine.get(line.id), variant })),
+            ),
         );
 
         for (const repeat of second) {
@@ -178,11 +201,20 @@ async function main(): Promise<void> {
                 continue;
             }
 
-            pairs.push(pairDeterminism(modelId, asPass(original), asPass(repeat)));
+            pairs.push(pairDeterminism(modelId, asPass(original), asPass(repeat), variant.readAnswer));
         }
     }
 
     const report = {
+        // ⛔ The arm is part of the RESULT, not of the invocation. A JSON report that did not name the
+        // prompt it measured is indistinguishable from one that measured a different prompt, and three
+        // arms of one bake-off are three files that would otherwise be told apart only by their names.
+        variant: {
+            id: variant.id,
+            summary: variant.summary,
+            unitSource: variant.unitSource,
+            systemPromptChars: [...variant.systemPrompt].length,
+        },
         corpus: {
             book: `${BOOK.title} (Project Gutenberg #${BOOK.ebookId})`,
             lines: corpus.length,

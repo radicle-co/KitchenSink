@@ -3,8 +3,18 @@
  *
  * DESIGN PATTERN: **Lexicon / lookup table behind pure total functions**, the sibling of
  * `modifierLexicon.ts` and filed apart from the policies that consume it for the reason §1 gives: a file
- * that is a policy AND a word list is two files wearing one name. Nothing here is on the package barrel
- * except {@link measuresNoSubstance}, which `cookbook-import`'s accept gate needs and cannot restate.
+ * that is a policy AND a word list is two files wearing one name. Only the three PREDICATES are on the
+ * package barrel — {@link measuresNoSubstance}, {@link namesEquipment} and {@link namesNoFood} — and each is
+ * there for one reason: `cookbook-import` asks this vocabulary a question and cannot restate it.
+ * `measuresNoSubstance` serves that package's accept gate; the other two serve its prompt bake-off, which
+ * counts how often a model files a vessel or a duration under `foods` and would otherwise need a second
+ * vessel list — the exact drift this module's own DRY note refuses.
+ *
+ * ⛔ The VOCABULARY itself stays private. `VESSELS` and `NOT_A_MEASURE` are not exported and must not be: a
+ * caller with the raw sets brings its own tokenizer and its own idea of which words to ask about, which is
+ * two copies of this module's contract living somewhere else. What crosses the barrel is a question with an
+ * answer, never a word list. {@link mentionsAVessel} and {@link lastWordOf} likewise stay off it — the first
+ * has a precondition only `clauseSegmentation.ts` can satisfy, and the second is a tokenizer.
  *
  * ## ⛔ TWO predicates, because there are two questions — and conflating them deleted data
  *

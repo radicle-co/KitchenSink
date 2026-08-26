@@ -175,6 +175,39 @@ export function normalizeMeasure(raw: string): NormalizedMeasure {
 }
 
 /**
+ * Replace a folded measure's unit with one the ANSWER stated, leaving the quantity and the residue alone.
+ *
+ * ⛔ FOR AN ARM THAT HAS A UNIT SLOT, AND FOR NOTHING ELSE. The bake-off's v3 prompt asks the model to name
+ * the unit directly instead of leaving it to be read out of a measure phrase, so on that arm the unit is the
+ * model's claim and this is where it is taken at face value. v1 and v2 never reach here: their unit is
+ * DERIVED by {@link normalizeMeasure}, which is the ONE derivation used on both sides of every CRF
+ * comparison. A report that presents the two as one column is wrong even when both numbers are right.
+ *
+ * ⚠️ The stated unit REPLACES the phrase's own first word rather than being appended to the residue. A model
+ * given both slots frequently fills them consistently — `measurements: "2 cups"`, `units: "cups"` — and
+ * appending would leave a residue of `cup`, which `judgeMeasure` reads as a SECOND amount and reports as
+ * `amountCountDiffers`: a disagreement about nothing, manufactured by the fold. What survives in the residue
+ * is what survived {@link normalizeMeasure} after the unit was taken, which is exactly the second amount, the
+ * range tail or the qualifier the residue field exists to carry.
+ *
+ * @param folded - The measure phrase, already folded.
+ * @param statedUnit - The unit the answer named. The empty string means it named none.
+ * @returns The same quantity and residue with the stated, canonicalised unit. Pure.
+ */
+export function withStatedUnit(folded: NormalizedMeasure, statedUnit: string): NormalizedMeasure {
+    const trimmed = statedUnit.trim();
+
+    return {
+        quantity: folded.quantity,
+        // ⚠️ Through `normalizeUnit` like every other unit in this module, so `teaspoonful` and `teaspoon`
+        // are one unit on both sides. A raw comparison answered NO for exactly the historical spellings this
+        // corpus is made of — see `unitComparableWords` above.
+        unit: trimmed === '' ? '' : normalizeUnit(trimmed),
+        residue: folded.residue,
+    };
+}
+
+/**
  * Fold what follows the leading quantity into canonical words.
  *
  * ⛔ NUMBER WORDS ARE REWRITTEN THROUGHOUT, not only at the head. `normalizeQuantity` reads a LEADING phrase

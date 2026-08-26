@@ -171,7 +171,7 @@ const INSTRUCTION_BOUNDARY = new RegExp(`\\s+(?:${[...PREPOSITIONS, ...CONNECTIV
  * The partitive that introduces the substance a measure phrase MEASURES — `a bowl OF flour`.
  *
  * ⚠️ Not a boundary and never cut at: it is the seam that ends a measure phrase, which is what makes the
- * word-anywhere scan in {@link measuresByVessel} safe. Everything before it is the measure; everything
+ * word-anywhere scan {@link measurePhraseOf} feeds safe. Everything before it is the measure; everything
  * after it is the food. `one pound of pot roast` therefore offers the scan `one pound` and never `pot`.
  */
 const PARTITIVE_OF = /\s+of\s+/;

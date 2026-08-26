@@ -26,7 +26,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
 import type { FC } from 'react';
 
-import { AUTO_SAVE_DEBOUNCE_MS, useRecipeAutoSave } from '../useRecipeAutoSave.js';
+import { AUTO_SAVE_INTERVAL_MS, useRecipeAutoSave } from '../useRecipeAutoSave.js';
 
 afterEach(cleanup);
 
@@ -51,7 +51,7 @@ const Harness: FC<HarnessProps> = ({ isDirty, enabled = true, saveDraft }) => {
 };
 
 /** Advance past the debounce window inside `act`, so React flushes the effects the timer schedules. */
-const settle = (ms = AUTO_SAVE_DEBOUNCE_MS): void => {
+const settle = (ms = AUTO_SAVE_INTERVAL_MS): void => {
     act(() => {
         vi.advanceTimersByTime(ms);
     });
@@ -62,7 +62,7 @@ describe('useRecipeAutoSave — it never fires on an untouched form', () => {
         const saveDraft = vi.fn();
 
         render(<Harness isDirty={false} saveDraft={saveDraft} />);
-        settle(AUTO_SAVE_DEBOUNCE_MS * 5);
+        settle(AUTO_SAVE_INTERVAL_MS * 5);
 
         expect(saveDraft).not.toHaveBeenCalled();
     });
@@ -85,7 +85,7 @@ describe('useRecipeAutoSave — it never fires on an untouched form', () => {
         expect(saveDraft).toHaveBeenCalledTimes(1);
 
         rerender(<Harness isDirty={false} saveDraft={saveDraft} />);
-        settle(AUTO_SAVE_DEBOUNCE_MS * 5);
+        settle(AUTO_SAVE_INTERVAL_MS * 5);
 
         expect(saveDraft).toHaveBeenCalledTimes(1);
     });
@@ -97,7 +97,7 @@ describe('useRecipeAutoSave — the debounce', () => {
 
         render(<Harness isDirty saveDraft={saveDraft} />);
 
-        settle(AUTO_SAVE_DEBOUNCE_MS - 1);
+        settle(AUTO_SAVE_INTERVAL_MS - 1);
         expect(saveDraft).not.toHaveBeenCalled();
 
         settle(1);
@@ -105,16 +105,37 @@ describe('useRecipeAutoSave — the debounce', () => {
     });
 
     it('writes ONCE for a burst of edits, not once per keystroke', () => {
-        // The point of the debounce: a cook typing a title must not issue a PATCH per character.
+        // A cook typing a title must not issue a PATCH per character.
         const saveDraft = vi.fn();
         const { rerender } = render(<Harness isDirty saveDraft={saveDraft} />);
 
         for (let i = 0; i < 5; i += 1) {
-            settle(AUTO_SAVE_DEBOUNCE_MS / 2);
+            settle(AUTO_SAVE_INTERVAL_MS / 2);
             rerender(<Harness isDirty saveDraft={saveDraft} />);
         }
 
         settle();
+
+        expect(saveDraft).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * ⛔ THE PROPERTY THAT MAKES FIVE MINUTES SAFE (owner ruling 2026-08-26).
+     *
+     * This is an INTERVAL from the first unsaved edit, not a debounce from the last one. A cook who keeps
+     * typing is still written at the original deadline — under a debounce of the same length they would
+     * never be written at all, which is exactly when unsaved work is most at risk.
+     *
+     * ⚠️ The neighbouring burst test does NOT prove this: it passes under either behaviour. This one
+     * distinguishes them, by editing part-way through the window and asserting the deadline did not move.
+     */
+    it('fires on its original deadline even though the cook kept editing', () => {
+        const saveDraft = vi.fn();
+        const { rerender } = render(<Harness isDirty saveDraft={saveDraft} />);
+
+        settle(AUTO_SAVE_INTERVAL_MS * 0.75);
+        rerender(<Harness isDirty saveDraft={saveDraft} />);
+        settle(AUTO_SAVE_INTERVAL_MS * 0.5);
 
         expect(saveDraft).toHaveBeenCalledTimes(1);
     });
@@ -125,7 +146,7 @@ describe('useRecipeAutoSave — the debounce', () => {
         const { unmount } = render(<Harness isDirty saveDraft={saveDraft} />);
 
         unmount();
-        settle(AUTO_SAVE_DEBOUNCE_MS * 5);
+        settle(AUTO_SAVE_INTERVAL_MS * 5);
 
         expect(saveDraft).not.toHaveBeenCalled();
     });
@@ -139,7 +160,7 @@ describe('useRecipeAutoSave — it is DISABLED whenever a write would land in an
         const saveDraft = vi.fn();
 
         render(<Harness isDirty enabled={false} saveDraft={saveDraft} />);
-        settle(AUTO_SAVE_DEBOUNCE_MS * 5);
+        settle(AUTO_SAVE_INTERVAL_MS * 5);
 
         expect(saveDraft).not.toHaveBeenCalled();
     });
@@ -148,7 +169,7 @@ describe('useRecipeAutoSave — it is DISABLED whenever a write would land in an
         const saveDraft = vi.fn();
         const { rerender } = render(<Harness isDirty enabled={false} saveDraft={saveDraft} />);
 
-        settle(AUTO_SAVE_DEBOUNCE_MS * 5);
+        settle(AUTO_SAVE_INTERVAL_MS * 5);
         expect(saveDraft).not.toHaveBeenCalled();
 
         rerender(<Harness isDirty enabled saveDraft={saveDraft} />);
@@ -163,12 +184,12 @@ describe('useRecipeAutoSave — it is DISABLED whenever a write would land in an
         const { rerender } = render(<Harness isDirty enabled={false} saveDraft={saveDraft} />);
 
         for (let i = 0; i < 5; i += 1) {
-            settle(AUTO_SAVE_DEBOUNCE_MS);
+            settle(AUTO_SAVE_INTERVAL_MS);
             rerender(<Harness isDirty enabled={false} saveDraft={saveDraft} />);
         }
 
         rerender(<Harness isDirty enabled saveDraft={saveDraft} />);
-        settle(AUTO_SAVE_DEBOUNCE_MS * 5);
+        settle(AUTO_SAVE_INTERVAL_MS * 5);
 
         expect(saveDraft).toHaveBeenCalledTimes(1);
     });

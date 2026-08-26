@@ -91,7 +91,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 }));
 
 import { useDiscardGuard } from '../../wizard/useDiscardGuard.js';
-import { AUTO_SAVE_DEBOUNCE_MS, useRecipeAutoSave } from '../useRecipeAutoSave.js';
+import { AUTO_SAVE_INTERVAL_MS, useRecipeAutoSave } from '../useRecipeAutoSave.js';
 import { useRecipeEditor } from '../useRecipeEditor.js';
 
 /** A `useRecipe` double. `refetch` defaults to resolving with the SAME `data` (a plain background refetch). */
@@ -1376,7 +1376,7 @@ describe('auto-save, wired to the real editor (U34)', () => {
             result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
         });
         act(() => {
-            vi.advanceTimersByTime(AUTO_SAVE_DEBOUNCE_MS);
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
         });
 
         expect(mutation.mutate).toHaveBeenCalledTimes(1);
@@ -1406,7 +1406,7 @@ describe('auto-save, wired to the real editor (U34)', () => {
             result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
         });
         act(() => {
-            vi.advanceTimersByTime(AUTO_SAVE_DEBOUNCE_MS);
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
         });
 
         expect(result.current.state.status).toBe('conflict');
@@ -1437,7 +1437,7 @@ describe('auto-save, wired to the real editor (U34)', () => {
             result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
         });
         act(() => {
-            vi.advanceTimersByTime(AUTO_SAVE_DEBOUNCE_MS);
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
         });
 
         const vars = mutation.mutate.mock.calls[0]?.[0] as { input: { status?: string } };
@@ -1469,7 +1469,7 @@ describe('auto-save, wired to the real editor (U34)', () => {
             result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
         });
         act(() => {
-            vi.advanceTimersByTime(AUTO_SAVE_DEBOUNCE_MS);
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
         });
 
         const vars = mutation.mutate.mock.calls[0]?.[0] as { input: { status?: string } };
@@ -1493,7 +1493,7 @@ describe('auto-save, wired to the real editor (U34)', () => {
             result.current.setValues({ ...result.current.values, title: 'Edited while unattended' });
         });
         act(() => {
-            vi.advanceTimersByTime(AUTO_SAVE_DEBOUNCE_MS);
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS);
         });
 
         expect(mutation.mutate).toHaveBeenCalledTimes(1);
@@ -1510,7 +1510,7 @@ describe('auto-save, wired to the real editor (U34)', () => {
 
         settleBaseline(rerender);
         act(() => {
-            vi.advanceTimersByTime(AUTO_SAVE_DEBOUNCE_MS * 10);
+            vi.advanceTimersByTime(AUTO_SAVE_INTERVAL_MS * 10);
         });
 
         expect(mutation.mutate).not.toHaveBeenCalled();

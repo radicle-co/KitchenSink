@@ -40,14 +40,26 @@
 import { useEffect } from 'react';
 
 /**
- * The quiet window before an unattended write, in milliseconds.
+ * How long a draft may hold unsaved edits before an unattended write, in milliseconds.
  *
- * Two seconds is chosen against the write's cost, not against a feel: every auto-save is a PATCH that mints
- * a version row, so the interval has to be long enough that ordinary typing produces one write per pause
- * rather than one per word. It is deliberately NOT `INGREDIENT_SEARCH_DEBOUNCE_MS` — a search is a cheap
- * idempotent read and wants to feel instant; this is a durable write and wants to be rare.
+ * ⛔ An INTERVAL from the first unsaved edit, NOT a debounce from the last one — and the distinction is the
+ * whole reason this is five minutes rather than five seconds. The timer is armed when the draft becomes
+ * dirty and fires at that deadline whatever the cook types in between, so a cook editing continuously IS
+ * protected. A debounce of the same length would protect only a cook who STOPS, which is the opposite of
+ * when unsaved work is at risk.
+ *
+ * ⚠️ It was `AUTO_SAVE_DEBOUNCE_MS = 2000`, and both halves of that name were wrong. The behaviour was
+ * already an interval — the effect re-runs only when a dependency changes, and `isDirty` is a boolean while
+ * `saveDraft` is `useCallback`-stable, so the "re-armed on every re-render" the old docstring claimed never
+ * happened (verified 2026-08-26 with an edit mid-window: the write still landed on the original deadline).
+ *
+ * Five minutes is chosen against the write's COST, not against a feel: every auto-save is a PATCH that mints
+ * a version row (FR-007b), only the last ten live in the database, and at two seconds an ordinary editing
+ * session pushed a cook's own deliberate versions out of that window in under a minute. Owner ruling
+ * 2026-08-26. It is deliberately NOT `INGREDIENT_SEARCH_DEBOUNCE_MS` — a search is a cheap idempotent read
+ * and wants to feel instant; this is a durable, history-bearing write and wants to be rare.
  */
-export const AUTO_SAVE_DEBOUNCE_MS = 2000;
+export const AUTO_SAVE_INTERVAL_MS = 300_000;
 
 /** Options for {@link useRecipeAutoSave}. */
 export interface UseRecipeAutoSaveOptions {
@@ -82,10 +94,11 @@ export function useRecipeAutoSave(options: UseRecipeAutoSaveOptions): void {
             return undefined;
         }
 
-        const timer = setTimeout(saveDraft, AUTO_SAVE_DEBOUNCE_MS);
+        const timer = setTimeout(saveDraft, AUTO_SAVE_INTERVAL_MS);
 
-        // Re-armed, not accumulated: every re-render while still dirty clears the previous window and starts
-        // a new one, so a burst of edits produces ONE write and a suppressed window produces none.
+        // Cleared on unmount and whenever `isDirty`/`enabled` flip, so a draft that goes clean or a window
+        // that gets suppressed issues no write. ⚠️ NOT re-armed by ordinary edits: the deps are two booleans
+        // and a stable callback, so the deadline armed at the first edit is the deadline that fires.
         return () => clearTimeout(timer);
     }, [isDirty, enabled, saveDraft]);
 }

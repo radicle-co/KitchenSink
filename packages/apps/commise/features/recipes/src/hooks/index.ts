@@ -25,7 +25,7 @@ export { useDebouncedValue } from './useDebouncedValue.js';
 export { toRecipeNutritionPages, useRecipeNutritionBatches } from './useRecipeNutritionBatches.js';
 export type { RecipeNutritionLookup } from './useRecipeNutritionBatches.js';
 export { usePollIngredientStatus } from './usePollIngredientStatus.js';
-export { AUTO_SAVE_DEBOUNCE_MS, useRecipeAutoSave } from './useRecipeAutoSave.js';
+export { AUTO_SAVE_INTERVAL_MS, useRecipeAutoSave } from './useRecipeAutoSave.js';
 export type { UseRecipeAutoSaveOptions } from './useRecipeAutoSave.js';
 export { useRecipeDraftPhotos } from './useRecipeDraftPhotos.js';
 export type {

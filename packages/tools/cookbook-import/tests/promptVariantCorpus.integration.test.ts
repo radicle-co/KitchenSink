@@ -6,15 +6,15 @@
  * | The headline metric has something to measure | "vessels really do reach the engines" |
  * | The owner's exemplar still exists | "the mixing-bowl line" |
  * | The detector does not fire on the corpus's own foods | "no accepted ingredient line is a vessel" |
- * | Every arm sends the same corpus line, byte for byte | "the three arms differ only in the system prompt" |
+ * | Every arm sends the same corpus line, byte for byte | "the arms differ only in the system prompt" |
  *
  * ## ⛔ WHAT THIS TIER PROVES THAT THE UNIT TIER STRUCTURALLY CANNOT
  *
  * The unit tier proves the classifier answers correctly for names I chose. It cannot prove the thing the
  * whole experiment rests on: **that the corpus the arms are run over still contains the failure they are
  * being compared on.** §13's vessel-position ruling changed what the extractor accepts, and if it had also
- * removed every vessel-bearing line, all three arms would score a flawless 0% on the headline and the run
- * would read as three ties. That would be a fact about the corpus reported as a fact about three prompts.
+ * removed every vessel-bearing line, every arm would score a flawless 0% on the headline and the run
+ * would read as a set of ties. That would be a fact about the corpus reported as a fact about the prompts.
  *
  * ⚠️ It also pins the ONE thing that would make the arms incomparable without failing anything else: the
  * user turn. `buildVariantPrompt` derives it from `buildParsePrompt`, so the delimiter has a single
@@ -71,7 +71,7 @@ const corpusOnce = (() => {
     return (): ReturnType<typeof buildParseCorpus> => (built ??= buildCorpus());
 })();
 
-describeIfRunnable('the corpus the three arms are compared on', () => {
+describeIfRunnable('the corpus the arms are compared on', () => {
     it('is not empty and not degenerate', () => {
         // ⛔ Anti-vacuity at the source. Every assertion below is about a subset of this.
         const corpus = corpusOnce();
@@ -84,7 +84,7 @@ describeIfRunnable('the corpus the three arms are compared on', () => {
     it('STILL CONTAINS the owner’s exemplar, so the failure being measured is reachable', () => {
         // ⚠️ §13's vessel-position ruling moved this line out of the accepted `ingredient` half — it is a
         // `dropped` clause now — but it is still SUBMITTED, because the runner sends both halves. Had the
-        // ruling removed it from the corpus entirely, all three arms would score 0 on the headline for a
+        // ruling removed it from the corpus entirely, every arm would score 0 on the headline for a
         // reason that has nothing to do with any prompt.
         const exemplar = corpusOnce().find((line) => line.text === 'In a large mixing bowl whip to a cream two eggs');
 
@@ -125,13 +125,19 @@ describeIfRunnable('every arm sends the same line', () => {
         expect(divergent).toEqual([]);
     });
 
-    it('accepts every real corpus line without tripping the input cap on the longest arm', () => {
-        // ⚠️ v3's system prompt is the longest, so it is the arm the 2,000-character cap binds first. A line
-        // that v1 accepts and v3 refuses would be a silent hole in one column of the comparison.
-        const v3 = resolveParseVariant('v3');
+    it('accepts every real corpus line without tripping the input cap on the LONGEST arm', () => {
+        // ⚠️ The 2,000-character cap binds first on whichever arm has the longest system prompt, and a line
+        // that v1 accepts and that arm refuses would be a silent hole in one column of the comparison.
+        //
+        // ⛔ The arm is DERIVED, never named. This test used to name `v3` because v3 was longest the day it
+        // was written; a longer arm added later would have left it re-testing a shorter one under a name
+        // that still read correctly. Folding for the max by code points makes the assertion follow the roster.
+        const longest = PARSE_VARIANT_IDS.map(resolveParseVariant).reduce((widest, arm) =>
+            [...arm.systemPrompt].length > [...widest.systemPrompt].length ? arm : widest,
+        );
         const refused = corpusOnce().filter((line) => {
             try {
-                buildVariantPrompt(v3, line.text);
+                buildVariantPrompt(longest, line.text);
 
                 return false;
             } catch {
@@ -140,5 +146,7 @@ describeIfRunnable('every arm sends the same line', () => {
         });
 
         expect(refused).toEqual([]);
+        // ⛔ Anti-vacuity: an empty corpus would also pass the line above.
+        expect(corpusOnce().length).toBeGreaterThan(1_000);
     });
 });

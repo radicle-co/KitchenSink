@@ -34,15 +34,20 @@
  *
  * ## The prompt arm
  *
- * `--variant v1|v2|v3` selects which wording is measured and defaults to `v1`, the SHIPPED prompt. The
- * three are defined in `src/parseComparison/promptVariant.ts`, and each run measures exactly ONE — a
- * bake-off is three invocations over the same corpus with the same model, never one invocation that
- * interleaves them, because a shared run would have to keep three contract censuses apart inside one
+ * `--variant v1|v2|v3|v4` selects which wording is measured and defaults to `v1`, the SHIPPED prompt. The
+ * four are defined in `src/parseComparison/promptVariant.ts`, and each run measures exactly ONE — a
+ * bake-off is four invocations over the same corpus with the same model, never one invocation that
+ * interleaves them, because a shared run would have to keep four contract censuses apart inside one
  * reducer for no gain.
  *
+ * ⚠️ **Arms are compared only WITHIN one sitting.** `temperature: 0` is not determinism — the three-arm run
+ * measured 72.5-95% byte-identical answers on a repeated pass — so a candidate compared against a figure
+ * frozen in an earlier report would charge run-to-run variance to the prompt. Re-measure every arm a table
+ * puts side by side, which is why §16's four-arm table re-ran v1, v2 and v3 rather than citing §15's.
+ *
  * ⛔ v3 reports its UNIT directly instead of leaving it to be derived from the measure phrase, so its
- * unit and measure figures are not produced the same way as v1's and v2's. The arm's `unitSource` is
- * printed at launch and carried in the JSON precisely so that no table can present the three as one
+ * unit and measure figures are not produced the same way as v1's, v2's and v4's. The arm's `unitSource` is
+ * printed at launch and carried in the JSON precisely so that no table can present the four as one
  * column without saying so.
  *
  * @sideEffect Reads a file, spawns Python, calls Amazon Bedrock (billed), may write a file, writes stdout.
@@ -207,8 +212,8 @@ async function main(): Promise<void> {
 
     const report = {
         // ⛔ The arm is part of the RESULT, not of the invocation. A JSON report that did not name the
-        // prompt it measured is indistinguishable from one that measured a different prompt, and three
-        // arms of one bake-off are three files that would otherwise be told apart only by their names.
+        // prompt it measured is indistinguishable from one that measured a different prompt, and four
+        // arms of one bake-off are four files that would otherwise be told apart only by their names.
         variant: {
             id: variant.id,
             summary: variant.summary,

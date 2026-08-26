@@ -13,7 +13,8 @@
  * A comparator that fused them would be subtly wrong in both directions. So:
  *
  *  1. **What is stored** is a field-level winner rule (KTD-11): amounts from the CRF, food identity and
- *     preparation from the LLM, and a historical measure from the LLM when the CRF was blind to it. The
+ *     preparation from the LLM, and the measure from the LLM whenever the CRF named no unit at all (U36 —
+ *     see {@link llmRescuedTheMeasure}, which was limited to the HISTORICAL units until 2026-08-26). The
  *     merged line's {@link ParsedLine.provenance} IS that rule, evaluated — the merge reads the winner out
  *     of the provenance it is about to record, so the two cannot disagree.
  *  2. **What the disagreement was** is a shape, computed over a NORMALIZED view of both parses. Removing a
@@ -75,7 +76,6 @@
  */
 import { normalizeUnit, type IngredientQuantity } from '@kitchensink/recipe-core';
 
-import { HISTORICAL_UNIT_DEFINITIONS } from '../historicalUnits.js';
 import type { IngredientReviewReason } from '../ingredientLine.js';
 import type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance } from '../parsedLine.js';
 import { splitMeasurement } from '../splitMeasurement.js';
@@ -164,20 +164,6 @@ const COMPARISON_STOPWORDS: ReadonlySet<string> = new Set([
 
 /** Everything that is not a letter, a digit or an internal hyphen. */
 const NON_WORD_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
-
-/**
- * Every spelling {@link HISTORICAL_UNIT_DEFINITIONS} declares, folded.
- *
- * ⛔ DERIVED from that table rather than restated: the historical measures are ONE piece of knowledge, and
- * a second copy here would drift the moment a book prints a spelling the parser learns about.
- */
-const HISTORICAL_UNIT_SPELLINGS: ReadonlySet<string> = new Set(
-    Object.entries(HISTORICAL_UNIT_DEFINITIONS).flatMap(([id, definition]) =>
-        [id, definition.short, definition.plural, ...definition.alternates].map((spelling) =>
-            spelling.trim().toLowerCase(),
-        ),
-    ),
-);
 
 /**
  * Split a phrase into words.
@@ -378,20 +364,21 @@ function unitView(unit: string | null): string | null {
 }
 
 /**
- * Whether one of the historical measures is what this unit names.
+ * Whether this engine stated a unit AT ALL.
+ *
+ * ⛔ TWO spellings of "it stated none", and both must answer `false`. {@link unitView} returns `null` for
+ * an empty field and `''` for a field holding only what `normalizeUnit` strips — a bare `.` trims to
+ * nothing — which is the same distinction `classifyUnit` guards when it calls that case `unknown`. A
+ * caller testing `unitView(unit) !== null` reads the second as an ANSWER, and {@link llmRescuedTheMeasure}
+ * would then publish punctuation as the measure of a line that stated none.
  *
  * @param unit - The unit an engine read, or `null`.
- * @returns `true` for a `gill`, `wineglass`, `saltspoon` or `dessertspoon` in any spelling the extension
- *   table declares. Pure.
+ * @returns `true` when the engine named a unit that survives canonicalisation. Pure.
  */
-function isHistoricalUnit(unit: string | null): boolean {
+function statesAUnit(unit: string | null): boolean {
     const view = unitView(unit);
 
-    if (view === null) {
-        return false;
-    }
-
-    return HISTORICAL_UNIT_SPELLINGS.has(view) || HISTORICAL_UNIT_SPELLINGS.has(unit?.trim().toLowerCase() ?? '');
+    return view !== null && view !== '';
 }
 
 /**
@@ -450,22 +437,41 @@ const DEFAULT_WINNERS: ParseProvenance = {
 };
 
 /**
- * Whether the CRF was blind to a historical unit the LLM read.
+ * Whether the CRF stated NO unit where the LLM stated one.
  *
- * The CRF is trained on modern text and has never heard of a gill, so it folds the word into the food name
- * and reads a bare number. That is a KNOWN blindness, not a disagreement — "absence is silence" — so the
+ * The CRF folds a unit it has no vocabulary for into the food name, or drops it outright, and reads a bare
+ * number. That is a KNOWN blindness, not a disagreement — §3's "absence is silence" one field down — so the
  * LLM takes the measure PHRASE and the UNIT, the two facts the blindness corrupts.
  *
- * ⛔ It does NOT take the quantity. Missing the unit does not stop the CRF reading the leading number, and
- * KTD-11's "amounts from the CRF" is measured; if the two engines really do read different numbers, that
- * is a genuine disagreement and must be reported.
+ * ## ⛔ IT IS NOT LIMITED TO THE HISTORICAL UNITS (U36, owner ruling 2026-08-26)
+ *
+ * This predicate required `isHistoricalUnit(llm.unit)` on the second conjunct, because a `gill` was the
+ * blindness that had been measured. Measured again over the 2,502-line 1919 corpus, the CRF's measure is a
+ * bare number on **53** lines, of which **13** are a plain unit the LLM read — and only **4** of those 13
+ * are historical. On the other nine `unit: 'crf'` won and the merged line carried **no unit at all**, which
+ * is not the better of two readings but the publication of silence. The historical rescue is now a strict
+ * SUBSET of this rule rather than the whole of it.
+ *
+ * ⛔ A SIZE WORD IS A VALID UNIT, and rejecting one as "fabricated" was proposed and DISPROVED. `four large`
+ * (onions) is 7 of the 53, and the merged foods come from the LLM, which reads `onions` with `large` in the
+ * unit — so refusing the unit does not merely blur the measure, it DELETES the word from both fields.
+ * `unitToGrams` resolves a unit against the catalog's own portion LABELS, and USDA publishes those verbatim
+ * from `modifier`/`portion_description`, which for eggs are literally `small`/`medium`/`large`. See ADR-0026
+ * §8 for the full chain and for the two limitations this rule pins rather than closes.
+ *
+ * ⛔ IT REACHES ONLY THE ABSENT CASE. Two engines that each STATE a unit and state different ones is
+ * `unitDiffers`, which KTD-11 sends to the CRF and this ruling explicitly leaves alone.
+ *
+ * ⛔ It does NOT take the quantity either. Missing the unit does not necessarily stop the CRF reading the
+ * leading number, and KTD-11's "amounts from the CRF" is measured; if the two engines really do read
+ * different numbers, that is a genuine disagreement and must be REPORTED rather than resolved here.
  *
  * @param crf - The CRF's parse.
  * @param llm - The LLM's parse.
- * @returns `true` when the LLM read a historical unit the CRF read no unit at all for. Pure.
+ * @returns `true` when the LLM named a unit the CRF named none at all for. Pure.
  */
 function llmRescuedTheMeasure(crf: ParsedLine, llm: ParsedLine): boolean {
-    return unitView(crf.unit) === null && isHistoricalUnit(llm.unit);
+    return !statesAUnit(crf.unit) && statesAUnit(llm.unit);
 }
 
 /**

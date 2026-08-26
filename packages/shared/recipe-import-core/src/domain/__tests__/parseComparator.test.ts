@@ -12,7 +12,11 @@
  * | KTD-11 — amounts from the CRF | "takes a differing amount from the CRF and reports it" |
  * | KTD-11 — identity and preparation from the LLM | "takes a differing food identity from the LLM and reports it" |
  * | KTD-11 — historical units from the LLM | "takes a historical unit the CRF was blind to, and calls it no disagreement" |
- * | KTD-11 — a unit the CRF simply disagrees about is NOT silenced | "does not silence an ordinary unit disagreement" |
+ * | U36 — an absent CRF unit is rescued whatever unit the LLM read | "U36 — rescues a MODERN unit too, because the CRF stating none is absence, not a reading" |
+ * | ⛔ U36 — and NOTHING more: two STATED units that differ still go to the CRF | "still gives the CRF the unit when BOTH engines named one and they disagree" |
+ * | U36 — mutual silence is not a rescue | "bucket 1 of 4 — mutual silence is NOT rescued, so the 29 genuine counts keep the CRF measure" |
+ * | U36 — a SIZE word is a valid unit | "bucket 3 of 4 — a SIZE word is a unit, and rescuing it is what keeps the word at all" |
+ * | U36 — alternation is a modelling gap, not a parse error | "bucket 4 of 4 — an ALTERNATION takes one sensible reading, which is a known limitation" |
  * | KTD-11 — the rescue does NOT reach the number | "still takes the number from the CRF when the LLM supplied the historical unit" |
  * | KTD-12 — an unavailable engine is never a disagreement | "reports a single engine, never a disagreement" |
  * | KTD-12 — as a PROPERTY, over every shape the survivor can take | "is single-engine even when the answering parse is the kind that WOULD have differed" |
@@ -40,6 +44,17 @@
  * historical rescue, the rescue's scope, KTD-12's branch, the placement canonicalisation, the adjective
  * rule, the stopword list, the restatement drop, and the food comparison — each fail **at least two**
  * tests in this file. No rule here is held up by a single assertion.
+ *
+ * ⚠️ Measured 2026-08-26, for U36: four further mutations of `llmRescuedTheMeasure`, each of which is a
+ * repair a later reader is likely to propose, and each caught here.
+ *
+ * | mutation | tests it fails |
+ * | -------- | -------------- |
+ * | restore the `isHistoricalUnit` conjunct | "rescues a MODERN unit too…", "the 13 plain rescues…", both size-word cases |
+ * | fire the rescue when BOTH measures are bare | "bucket 1 of 4 — mutual silence is NOT rescued…" |
+ * | reject size words as fabricated units | "bucket 3 of 4 — a SIZE word is a unit…", "bucket 4 of 4 — an ALTERNATION…" |
+ * | let the rescue reach the QUANTITY as well | "still takes the number from the CRF…", "bucket 2 of 4 — the number is still the CRF's…" |
+ * | drop `statesAUnit` back to a `!== null` test | "does not rescue a unit that normalises to nothing…" |
  */
 import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core';
 import { describe, it, expect } from 'vitest';
@@ -283,17 +298,44 @@ describe('compareParses — the measure', () => {
         expect(result.merged?.unit).toBe('gill');
     });
 
-    it('does not silence an ordinary unit disagreement', () => {
-        // ⚠️ The control for the rule above. `cup` is not a historical unit, so an absent CRF unit beside
-        // it is a real disagreement — 81 of them in the corpus — and the CRF still wins.
+    it('U36 — rescues a MODERN unit too, because the CRF stating none is absence, not a reading', () => {
+        // ⛔ REWRITTEN FOR U36, and it now asserts the OPPOSITE of what it did. As "does not silence an
+        // ordinary unit disagreement" this same input asserted `differ: ['unit']` with a `null` merged
+        // unit — correct only while the rescue required a HISTORICAL unit, which reached 4 of the 13
+        // plain rescues in the corpus. The owner ruling of 2026-08-26 overturns that reading: an engine
+        // that stated no unit offered no competing one, so there is nothing for a winner rule to pick
+        // between. The coverage this test used to hold — that an absent CRF unit is not a blanket
+        // licence for the LLM — did not go away; it moved to the test directly below, which is the case
+        // KTD-11 actually governs.
         const result = compareParses({
             crf: crfParse({ statedMeasure: 'one cup', quantity: exactly(1), unit: null }),
             llm: llmParse({ statedMeasure: 'one cup', quantity: exactly(1), unit: 'cup' }),
         });
 
-        expect(result.agreement).toEqual({ kind: 'differ', fields: ['unit'] });
-        expect(result.merged?.unit).toBeNull();
-        expect(result.merged?.provenance.unit).toBe('crf');
+        expect(result.merged).not.toBeNull();
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(result.merged?.unit).toBe('cup');
+        expect(result.merged?.provenance.unit).toBe('llm');
+        expect(result.merged?.provenance.statedMeasure).toBe('llm');
+    });
+
+    it('still gives the CRF the unit when BOTH engines named one and they disagree', () => {
+        // ⛔ THE ANTI-OVER-REACH ASSERTION, and the one that stops U36 becoming "the LLM's unit wins".
+        // KTD-11's amount column is untouched by the ruling: two engines that each STATE a unit and
+        // state different ones is `unitDiffers`, which goes to the CRF and is REPORTED. A rescue widened
+        // to "take the LLM's unit whenever the two differ" passes every other test in this file — the
+        // absent-unit cases included, because absence is a special case of differing — and fails only
+        // here.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'one cup', quantity: exactly(1), unit: 'cup' }),
+            llm: llmParse({ statedMeasure: 'one pint', quantity: exactly(1), unit: 'pint' }),
+        });
+
+        expect(result.merged).not.toBeNull();
+        expect(result.agreement).toEqual({ kind: 'differ', fields: ['statedMeasure', 'unit'] });
+        expect(result.merged?.unit).toBe('cup');
+        expect(result.merged?.statedMeasure).toBe('one cup');
+        expect(result.merged?.provenance).toEqual(BY_WINNER_RULE);
     });
 
     it('never compares a restatement', () => {
@@ -321,14 +363,216 @@ describe('compareParses — the measure', () => {
         expect(result.merged?.statedMeasure).toBe('one pound');
     });
 
-    it('treats an absent measure and a stated one as a disagreement, since absence here is a reading', () => {
+    it('treats an absent QUANTITY and a stated one as a disagreement, since absence there is a reading', () => {
+        // ⛔ REWRITTEN FOR U36, which changed two thirds of what this asserted. It previously expected
+        // `differ: ['statedMeasure', 'quantity', 'unit']`, which was the shape only while an absent CRF
+        // unit counted as dissent; the phrase and the unit are now rescued, because a CRF that named no
+        // unit offered no competing one and dropping the LLM's `tablespoon` would publish silence.
+        //
+        // ⛔ WHAT IT IS FOR IS UNCHANGED, and is the third field: `ABSENT_QUANTITY` is a READING — the
+        // CRF looked and found no amount, as in `salt to taste` — NOT a silence. So it competes with the
+        // LLM's `1`, the disagreement is reported, and KTD-11 keeps the number on the CRF.
+        //
+        // ⚠️ The accepted consequence is recorded in ADR-0026 §8: the merged line then holds the LLM's
+        // measure PHRASE beside the CRF's number, and on this input the two do not agree. The mismatch
+        // is REPORTED rather than reconciled — the same split `one and a half quarts` takes.
         const result = compareParses({
             crf: crfParse({ statedMeasure: null, quantity: ABSENT_QUANTITY, unit: null }),
             llm: llmParse({ statedMeasure: '1 tablespoon', quantity: exactly(1), unit: 'tablespoon' }),
         });
 
-        expect(result.agreement).toEqual({ kind: 'differ', fields: ['statedMeasure', 'quantity', 'unit'] });
+        expect(result.merged).not.toBeNull();
+        expect(result.agreement).toEqual({ kind: 'differ', fields: ['quantity'] });
         expect(result.merged?.quantity).toEqual(ABSENT_QUANTITY);
+        expect(result.merged?.provenance.quantity).toBe('crf');
+        expect(result.merged?.unit).toBe('tablespoon');
+    });
+});
+
+/**
+ * U36 — THE FOUR MEASURED BUCKETS (owner ruling 2026-08-26).
+ *
+ * A real Nova Micro run over the 2,502-line 1919 corpus found **53** ingredient lines on which the CRF's
+ * measure is a bare number with no unit at all. That population divides into exactly four shapes, and
+ * there is one test below per shape, spelled with the lines the run actually produced:
+ *
+ * | bucket | n | what the LLM gave |
+ * | ------ | --: | ----------------- |
+ * | the LLM is silent too | 29 | nothing — the CRF is right, these are genuine counts |
+ * | a plain unit | 13 | `one and a half quarts`, `two and a half pounds`, `one-half saltspoon`, `one wineglass`, `half a can` |
+ * | a SIZE used as the unit | 7 | `one small` (onion), `four large` (onions), `one large` (cauliflower) |
+ * | an alternation | 4 | `one large onion or two small ones` — genuinely two candidate measures |
+ *
+ * ⚠️ Only **4 of the 13** plain rescues are historical, which is the measurement that condemns the old
+ * `isHistoricalUnit` conjunct: it reached under a third of the cases it existed to serve.
+ *
+ * The full argument, the disproved "reject size words" proposal, and the two limitations these tests
+ * PIN rather than fix are in ADR-0026 §8 and `docs/reports/2026-08-23-002-…` §12.
+ */
+describe('compareParses — U36, an absent CRF unit is absence, not dissent', () => {
+    it('bucket 1 of 4 — mutual silence is NOT rescued, so the 29 genuine counts keep the CRF measure', () => {
+        // ⛔ THE 29, AND THE LARGEST BUCKET. Both engines read a bare number, so nothing was rescued and
+        // nothing is disputed — the line really does state a count. A rescue keyed on "the CRF has no
+        // unit" ALONE, without also requiring the LLM to have stated one, would re-attribute every one
+        // of these to the LLM and rewrite the provenance of over half the population for no reading
+        // gained.
+        const result = compareParses({
+            crf: crfParse({
+                statedMeasure: 'two',
+                quantity: exactly(2),
+                unit: null,
+                foods: [{ name: 'eggs', prep: null }],
+            }),
+            llm: llmParse({
+                statedMeasure: 'two',
+                quantity: exactly(2),
+                unit: null,
+                foods: [{ name: 'eggs', prep: null }],
+            }),
+        });
+
+        expect(result.merged).not.toBeNull();
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(result.merged?.unit).toBeNull();
+        expect(result.merged?.provenance).toEqual(BY_WINNER_RULE);
+    });
+
+    it('bucket 2 of 4 — the 13 plain rescues, of which only the last two were reachable before', () => {
+        // The units the LLM read where the CRF read none, taken from the measured lines: `one and a half
+        // QUARTS`, `two and a half POUNDS` and `half a CAN` are modern and were unreachable by the
+        // historical rule, while `one-half SALTSPOON` and `one WINEGLASS` are the historical shape that
+        // already rescued. ⛔ THE LAST TWO ARE THE ANTI-REGRESSION: the historical rescue is now a
+        // SUBSET of this rule, so removing the old conjunct must not cost a gill or a wineglass its
+        // rescue.
+        const units = ['quarts', 'pounds', 'can', 'saltspoon', 'wineglass', 'gill'] as const;
+
+        for (const unit of units) {
+            const result = compareParses({
+                crf: crfParse({ statedMeasure: 'one', quantity: exactly(1), unit: null }),
+                llm: llmParse({ statedMeasure: `one ${unit}`, quantity: exactly(1), unit }),
+            });
+
+            expect(result.merged).not.toBeNull();
+            expect(result.agreement).toEqual({ kind: 'agree' });
+            expect(result.merged?.unit).toBe(unit);
+            expect(result.merged?.statedMeasure).toBe(`one ${unit}`);
+            expect(result.merged?.provenance.unit).toBe('llm');
+            expect(result.merged?.provenance.statedMeasure).toBe('llm');
+        }
+    });
+
+    it("bucket 2 of 4 — the number is still the CRF's, and the disagreement about it is REPORTED", () => {
+        // `one and a half quarts of boiling water` — oracle seed L00177, 9 corpus lines. The CRF returns
+        // `('1', '')`, so on this shape its NUMBER is wrong too. ⛔ U36 does not reach it: KTD-11's
+        // amount column is explicitly untouched, the quantity stays the CRF's, and the disagreement is
+        // reported as `differ: ['quantity']` rather than silenced. The stored line therefore reads one
+        // quart against a source stating one and a half — a KNOWN residual, recorded in ADR-0026 §8 and
+        // NOT closed here, but visible in the agreement instead of vanishing with the unit.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'one', quantity: exactly(1), unit: null }),
+            llm: llmParse({ statedMeasure: 'one and a half quarts', quantity: exactly(1.5), unit: 'quarts' }),
+        });
+
+        expect(result.merged).not.toBeNull();
+        expect(result.agreement).toEqual({ kind: 'differ', fields: ['quantity'] });
+        expect(result.merged?.quantity).toEqual(exactly(1));
+        expect(result.merged?.unit).toBe('quarts');
+        expect(result.merged?.statedMeasure).toBe('one and a half quarts');
+        expect(result.merged?.provenance).toEqual({
+            statedMeasure: 'llm',
+            quantity: 'crf',
+            unit: 'llm',
+            foods: 'llm',
+        });
+    });
+
+    it('bucket 3 of 4 — a SIZE word is a unit, and rescuing it is what keeps the word at all', () => {
+        // ⛔ THE RULE THAT WAS PROPOSED AND DISPROVED. Rejecting `small`/`large` as "fabricated units"
+        // does not merely leave the measure imprecise — it DELETES the word. `DEFAULT_WINNERS` takes the
+        // foods from the LLM, and the LLM read `onion` with `small` in the unit, so refusing the unit
+        // stores neither. And the word is not fabricated: `unitToGrams` resolves a unit against the
+        // catalog's own portion LABELS, which USDA publishes verbatim as `small`/`medium`/`large` (see
+        // `units.test.ts`, "a size word used as a unit is resolvable, and FAILS SAFE when it is not").
+        const cases: readonly (readonly [string, string, string])[] = [
+            ['one', 'small', 'onion'],
+            ['four', 'large', 'onions'],
+            ['one', 'large', 'cauliflower'],
+        ];
+
+        for (const [amount, size, food] of cases) {
+            const result = compareParses({
+                crf: crfParse({
+                    statedMeasure: amount,
+                    quantity: exactly(amount === 'four' ? 4 : 1),
+                    unit: null,
+                    // U16: the CRF's own `size` FIELD was canonicalised into its name by the adapter.
+                    foods: [{ name: `${size} ${food}`, prep: null }],
+                }),
+                llm: llmParse({
+                    statedMeasure: `${amount} ${size}`,
+                    quantity: exactly(amount === 'four' ? 4 : 1),
+                    unit: size,
+                    foods: [{ name: food, prep: null }],
+                }),
+            });
+
+            expect(result.merged).not.toBeNull();
+            expect(result.merged?.unit).toBe(size);
+            expect(result.merged?.statedMeasure).toBe(`${amount} ${size}`);
+            expect(result.merged?.provenance.unit).toBe('llm');
+            expect(result.merged?.foods).toEqual([{ name: food, prep: null }]);
+            // ⚠️ The FOODS still differ and that is reported, not silenced: U16 put the word in the
+            // CRF's NAME and the LLM read it as the UNIT, so the two genuinely filed it in different
+            // places. Only the measure is rescued — silencing `foods` here would hide a real difference
+            // in what the two engines think the ingredient IS.
+            expect(result.agreement).toEqual({ kind: 'differ', fields: ['foods'] });
+        }
+    });
+
+    it('bucket 4 of 4 — an ALTERNATION takes one sensible reading, which is a known limitation', () => {
+        // `one large onion or two small ones` states TWO candidate measures, and `ParsedFacts` has ONE
+        // measure field. ⛔ That is a MODELLING GAP, not a parse error, and U36 deliberately does not
+        // close it: alternation support would be a contract change. Per the ruling an ambiguous-but-
+        // sensible single reading is acceptable, so the rescue takes the LLM's first measure and the
+        // second is lost with nothing in the shape recording that it existed. Recorded in ADR-0026 §8.
+        const result = compareParses({
+            crf: crfParse({
+                statedMeasure: 'one',
+                quantity: exactly(1),
+                unit: null,
+                foods: [{ name: 'large onion', prep: null }],
+            }),
+            llm: llmParse({
+                statedMeasure: 'one large',
+                quantity: exactly(1),
+                unit: 'large',
+                foods: [{ name: 'onion', prep: null }],
+            }),
+        });
+
+        expect(result.merged).not.toBeNull();
+        expect(result.merged?.unit).toBe('large');
+        expect(result.merged?.statedMeasure).toBe('one large');
+        // ⛔ PINS THE LOSS. The second measure appears nowhere, and no review reason marks its absence.
+        expect(result.merged?.statedMeasure).not.toContain('two');
+        expect(result.merged?.reviewReasons).toEqual([]);
+    });
+
+    it('does not rescue a unit that normalises to nothing, which is silence spelled differently', () => {
+        // ⛔ `unitView` has TWO spellings of "this engine stated no unit": `null` for an empty field, and
+        // `''` for a field holding only what `normalizeUnit` strips — a bare `.` trims to nothing, which
+        // is why `classifyUnit` guards the same case and calls it `unknown`. A rescue tested with
+        // `unitView(llm.unit) !== null` would read the second as an ANSWER and store a unit of `.`,
+        // publishing punctuation as a measure on a line that stated none.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'one', quantity: exactly(1), unit: null }),
+            llm: llmParse({ statedMeasure: 'one', quantity: exactly(1), unit: '.' }),
+        });
+
+        expect(result.merged).not.toBeNull();
+        expect(result.merged?.unit).toBeNull();
+        expect(result.merged?.provenance.unit).toBe('crf');
+        expect(result.merged?.provenance.statedMeasure).toBe('crf');
     });
 });
 

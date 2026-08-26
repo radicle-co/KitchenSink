@@ -205,7 +205,7 @@ export function segmentClause(span: string, precededBy: string): ClauseSegment {
     // `measurePhraseOf` ends at or before `boundary` and is therefore a PREFIX of the head. That is a
     // property of the code, not a claim in a comment.
     //
-    // ⚠️ The accepted cost, recorded in ADR-0026 §7: a governed vessel span that ALSO carries a second
+    // ⚠️ The accepted cost, recorded in ADR-0026 §7a: a governed vessel span that ALSO carries a second
     // food is dropped whole. On this corpus that is `two eggs` in PEACH PUDDING — which the extractor's
     // own unit gate could never have kept anyway — traded against a fabricated ingredient it WAS
     // publishing. Under U22's `parsePipeline` the LLM leg could in principle have recovered it, and this

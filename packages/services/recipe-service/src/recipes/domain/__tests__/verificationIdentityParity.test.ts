@@ -55,7 +55,6 @@ const GILL: StatedMeasure = { quantity: { kind: 'exact', value: 1 }, unit: 'gill
 function producerPreimage(line: StoredLine): string {
     const { requests } = buildVerificationRequests({
         recipeId: '00000000-0000-4000-8000-00000000e001',
-        ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P',
         lines: [{ ...line, foodId: FOOD_ID, candidateFoodName: 'Plain flour' }],
         alreadyRequested: [],
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,

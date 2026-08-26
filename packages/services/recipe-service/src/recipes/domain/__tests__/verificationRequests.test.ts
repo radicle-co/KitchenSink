@@ -68,16 +68,12 @@ const makeLine = (overrides: Partial<VerifiableLine> = {}): VerifiableLine => ({
     ...overrides,
 });
 
-/** The recipe's owner, carried onto every request so a remembered phrase stays erasable (0026). */
-const OWNER_ID = '01JQ8N2X4RBV6WK3ZT5Y7A9C0P';
-
 const plan = (
     lines: readonly VerifiableLine[],
     alreadyRequested: readonly VerifiableLine[] = [],
 ): ReturnType<typeof buildVerificationRequests> =>
     buildVerificationRequests({
         recipeId: RECIPE_ID,
-        ownerId: OWNER_ID,
         lines,
         alreadyRequested,
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
@@ -297,7 +293,13 @@ describe('buildVerificationRequests — a judgement already on record is not re-
  * already sitting in the queue, not for new ones.
  */
 describe('buildVerificationRequests — the owner travels with every request (0026)', () => {
-    it('stamps the owner on each request it builds', () => {
+    it('⛔ puts NO person on the wire — a request carries a recipe id and nothing that names a user', () => {
+        // ⚠️ REWRITTEN for the 2026-08-25 owner ruling (ADR-0027). This asserted `request.ownerId ===
+        // OWNER_ID`; that field existed solely so a phrase the worker remembered could later be erased, and
+        // migration 0033 removed both the memo's person column and the sweep, leaving it with no consumer.
+        // The INVERSE is now the property worth pinning, and it is the stronger one: this producer's messages
+        // sit in a DLQ carrying a cook's recipe text, so every field that names a person is one the DLQ then
+        // holds. Re-adding one must fail here rather than pass unnoticed.
         const { requests } = plan([
             makeLine(),
             makeLine({ sourceLine: '1 tsp salt', foodId: '01JFOOD000000000000000002' }),
@@ -306,7 +308,9 @@ describe('buildVerificationRequests — the owner travels with every request (00
         expect(requests.length).toBeGreaterThan(0);
 
         for (const request of requests) {
-            expect(request.ownerId).toBe(OWNER_ID);
+            expect(Object.keys(request)).not.toContain('ownerId');
+            expect(Object.keys(request)).not.toContain('userId');
+            expect(Object.keys(request)).not.toContain('authorId');
         }
     });
 });

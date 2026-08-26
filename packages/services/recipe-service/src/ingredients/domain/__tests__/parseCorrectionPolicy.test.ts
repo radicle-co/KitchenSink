@@ -90,7 +90,7 @@ describe('evaluateParseCorrectionWrite — an ungranted cook stays author-scoped
 
     it('earns a promotion citing the one other cook who already asserted this same parse', () => {
         const decision = evaluateParseCorrectionWrite(
-            input({ corroboratorsForSameAnswer: [{ id: 'row-them', authorId: 'cook-b' }] }),
+            input({ corroboratorsForSameAnswer: [{ id: 'row-them', userId: 'cook-b' }] }),
         );
 
         expect(decision.write === 'author' ? decision.promotion?.citesExisting : undefined).toBe('row-them');

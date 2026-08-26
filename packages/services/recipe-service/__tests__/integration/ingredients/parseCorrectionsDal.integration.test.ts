@@ -4,10 +4,10 @@
  * ⛔ WHY THIS TIER. Every rule this DAL enforces lives in a `WHERE` clause or an index, and neither is
  * observable from a mock. Four of them are load-bearing:
  *
- *  1. **`owner_id = :caller` inside the supersede `UPDATE`** is what makes "an author-scoped correction is
+ *  1. **`user_id = :caller` inside the supersede `UPDATE`** is what makes "an author-scoped correction is
  *     superseded only by the cook who made it" unforgeable. Zero rows IS the denial — no branch to bypass,
  *     and no id a caller can pass that reaches somebody else's row.
- *  2. **`(scope = 'global' OR (:caller IS NOT NULL AND owner_id = :caller))`** is what keeps one cook's
+ *  2. **`(scope = 'global' OR (:caller IS NOT NULL AND user_id = :caller))`** is what keeps one cook's
  *     personal correction OUT of every other cook's pipeline — and what lets an unattended import, which has
  *     no user at all, see global corrections and nobody's personal ones.
  *  3. **`ON CONFLICT DO NOTHING` on the promotion insert** is what makes the concurrent-promotion race have a
@@ -104,7 +104,7 @@ describe.skipIf(!hasDatabaseUrl)('ParseCorrectionsDal', () => {
      * Write one correction end to end: read the facts under the lock, decide, apply. The shape a caller uses.
      *
      * @param line - The raw ingredient line being corrected.
-     * @param ownerId - The cook making the correction.
+     * @param userId - The cook making the correction.
      * @param facts - The parse they assert.
      * @param grantedScopes - Their grants.
      * @returns What was written.
@@ -112,14 +112,14 @@ describe.skipIf(!hasDatabaseUrl)('ParseCorrectionsDal', () => {
      */
     async function correct(
         line: string,
-        ownerId: string,
+        userId: string,
         facts: CorrectedParse,
         grantedScopes: readonly string[] = [],
     ): ReturnType<ParseCorrectionsDal['applyWrite']> {
         const k = key(line);
 
         return dal.runInTransaction(async (tx) => {
-            const writeFacts = await dal.findWriteFacts(k, ownerId, facts, tx);
+            const writeFacts = await dal.findWriteFacts(k, userId, facts, tx);
             const decision = evaluateParseCorrectionWrite({
                 correctedAnswer: writeFacts.canonicalAnswer,
                 grantedScopes,
@@ -134,7 +134,7 @@ describe.skipIf(!hasDatabaseUrl)('ParseCorrectionsDal', () => {
                     normalizedKey: k,
                     sourceLine: `${PREFIX} ${line}`,
                     correctedFacts: facts,
-                    ownerId,
+                    userId,
                     surfacing: 'line_correction',
                 },
                 tx,
@@ -162,11 +162,11 @@ describe.skipIf(!hasDatabaseUrl)('ParseCorrectionsDal', () => {
         it('⛔ an author-scoped correction is invisible to an UNATTENDED caller (no user at all)', async () => {
             await correct('2 cups plain flour, sifted', COOK_A, FLOUR);
 
-            // ⚠️ Stated honestly: this pins the BEHAVIOUR, not the spelling. `owner_id = NULL` evaluates to
+            // ⚠️ Stated honestly: this pins the BEHAVIOUR, not the spelling. `user_id = NULL` evaluates to
             // NULL and excludes the row too, so the explicit `:caller IS NOT NULL` in the predicate is a
             // readability guard against a reviewer trap rather than something a test can distinguish. What
             // this WOULD catch is a predicate that let a null caller through — e.g. one rewritten to
-            // `coalesce(owner_id, '') = coalesce(:caller, '')`, which reads as harmless and hands every
+            // `coalesce(user_id, '') = coalesce(:caller, '')`, which reads as harmless and hands every
             // unattended import every cook's personal correction.
             expect(await dal.findInForce(key('2 cups plain flour, sifted'), undefined)).toBeUndefined();
         });
@@ -193,18 +193,28 @@ describe.skipIf(!hasDatabaseUrl)('ParseCorrectionsDal', () => {
             });
         });
 
-        it('⛔ a DE-IDENTIFIED row is in force for nobody — erasure does not orphan a personal correction', async () => {
+        it('⛔ an author-scoped row with NO user binds NOBODY — it never becomes everybody\u2019s', async () => {
+            // ⚠️ REWRITTEN for the 2026-08-25 owner ruling (ADR-0027). This asserted that the account-erasure
+            // sweep's de-identified row bound nobody. There is no such sweep any more — a phrase is not
+            // private data and nothing nulls these columns. What it proves NOW is the surviving half, and it
+            // is the stronger claim: the read predicate's `:caller IS NOT NULL` guard is what stops a
+            // user-less author-scoped row leaking to everyone, whatever produced it. `user_id = NULL` is
+            // still reachable (a `corroboration` binding carries no user), so this is a live row shape and
+            // not a hypothetical — and if the guard were dropped, `user_id = :caller` would evaluate to NULL
+            // for an unattended caller, which is the reviewer trap the DAL's header names.
             await correct('2 cups plain flour, sifted', COOK_A, FLOUR);
-            await pool.query(
-                `UPDATE ingredient_parse_corrections SET owner_id = NULL, source_line = NULL
-                 WHERE owner_id = $1`,
-                [COOK_A],
-            );
+            await pool.query('UPDATE ingredient_parse_corrections SET user_id = NULL WHERE user_id = $1', [COOK_A]);
 
-            // The erasure sweep leaves the row so the correction survives where it BOUND — globally. An
-            // author-scoped row whose owner is gone binds nobody, and must not silently become everybody's.
             expect(await dal.findInForce(key('2 cups plain flour, sifted'), COOK_A)).toBeUndefined();
             expect(await dal.findInForce(key('2 cups plain flour, sifted'), undefined)).toBeUndefined();
+            // …and the LINE is still there, untouched. Nothing sweeps it, which is the ruling.
+            const { rows } = await pool.query<{ source_line: string | null }>(
+                'SELECT source_line FROM ingredient_parse_corrections WHERE normalized_key = $1',
+                [key('2 cups plain flour, sifted')],
+            );
+
+            expect(rows).toHaveLength(1);
+            expect(rows[0]?.source_line).toBe(`${PREFIX} 2 cups plain flour, sifted`);
         });
     });
 

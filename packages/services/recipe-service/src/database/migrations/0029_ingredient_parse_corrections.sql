@@ -1,5 +1,21 @@
 -- 0029_ingredient_parse_corrections.sql (plan U21; KTD-14, KTD-15) — a cook's correction of a PARSE.
 --
+-- ⛔⛔ THREE OF THIS FILE'S DECISIONS WERE REVERSED ON 2026-08-25. Read
+-- `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md` BEFORE reasoning from the
+-- erasure argument below. The owner ruled that an ingredient phrase is NOT personal data, so migration 0033:
+--   * DROPPED `ingredient_parse_corrections_owner_line_pair` — the KTD-14 pair CHECK. ⚠️ A JUDGEMENT rather
+--     than a mechanical consequence, flagged so it can be cheaply overruled: the ruling did not name this
+--     constraint, but its ONLY recorded justification is the "aim the NEXT erasure at the wrong person"
+--     argument below, and there is no next erasure. Leaving it would have put this tier and its deliberate
+--     sibling `ingredient_resolution_mappings` under different constraints for no stated reason.
+--   * RENAMED `owner_id` to `user_id` (GR-004's canonical spelling). It is now a DISTINCT-USER COUNTER and
+--     an authorization predicate, and is deliberately NOT erasable.
+--   * RENAMED `idx_parse_corrections_live_owner` to `…_live_user`, and DROPPED `idx_parse_corrections_owner`
+--     (which existed only to make the sweep's predicate fast).
+-- What SURVIVES: the tier itself, its ordering above the cache and both engines, the scope/origin rule, the
+-- corroboration citation, and — for a reason unrelated to privacy — the fact that a corroboration binding
+-- copies no cook's line. See ADR-0027 §Decision-4.
+--
 -- The parse pipeline's TOP tier. A line is resolved by: this table, then the parse cache, then the two
 -- engines. ⛔ The order is the point and it is not a preference — a correction that lost to a cached machine
 -- parse would be a correction that does nothing, so the cook's answer is consulted BEFORE anything a machine

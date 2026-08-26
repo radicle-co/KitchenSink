@@ -6,9 +6,11 @@
 --     behind every global ruling.
 --   * ingredient_resolution_memos    — MACHINE-derived. Nobody asserted it, so it has no scope and no author;
 --     what it carries instead is the identifier of the model that AGREED with it (R21).
---     ⚠️ UPDATED BY 0026: it now ALSO carries `owner_id` — not an author, and not a claim that anybody
---     asserted the memo, but the predicate account erasure needs to reach `source_phrase`. The residual
---     recorded below is CLOSED; read 0026 before reasoning about it.
+--     ⚠️ UPDATED BY 0026, then REVERSED BY 0033. 0026 gave it an `owner_id` — the predicate account
+--     erasure needed to reach `source_phrase`. The 2026-08-25 owner ruling (ADR-0027) repealed that: an
+--     ingredient phrase is not personal data, so 0033 DROPPED the column and the sweep. This tier is once
+--     again what the sentence above says it is — no scope, no author, nobody. The residual recorded below
+--     is not "closed", it is REPEALED.
 -- Folding them together would produce rows where "who decided this, and on whose authority" is unanswerable,
 -- which is the exact question an audit of a global mapping exists to answer.
 --
@@ -38,6 +40,13 @@
 -- rewritten, so this is safe to apply BEFORE the code that reads it — the order the in-stack migration
 -- Trigger enforces. There is no down-migration in any runner in this repository; recovery is `DROP TABLE`,
 -- and both tables hold DERIVED knowledge rebuildable from user corrections and re-resolution.
+--
+-- ⛔⛔ EVERYTHING IN THE PARAGRAPH BELOW WAS REVERSED — owner ruling 2026-08-25, ADR-0027, migration 0033.
+-- An ingredient phrase is NOT personal data: there is no erasure sweep over this table, `author_id` is now
+-- `user_id` and is a DISTINCT-USER COUNTER plus an authorization predicate, and the partial index this
+-- header calls "the erasure sweep's index" was dropped. The paragraph is left standing as the record of what
+-- was believed, not as a description of the system. Read
+-- `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md` first.
 --
 -- ⛔ RIGHT-TO-ERASURE IS NOT WIRED, AND MUST BE BEFORE THE WRITE PATH BECOMES REACHABLE (handed off).
 -- `author_id` is an app-user ULID and `source_phrase` is text a user typed, so these rows are personal data.

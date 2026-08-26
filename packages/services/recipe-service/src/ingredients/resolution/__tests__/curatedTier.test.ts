@@ -6,7 +6,7 @@
  * QUERY it issues — which is why the adapter tests assert the arguments reaching the DAL rather than
  * re-testing the decision.
  *
- * The property that carries the requirement: **an unattended caller's `authorId` reaches the DAL as
+ * The property that carries the requirement: **an unattended caller's `userId` reaches the DAL as
  * `undefined`, unchanged** (R22). A mutant substituting a placeholder, or defaulting it to the last seen
  * user, would let one user's private correction silently rewrite every unattended import — and no assertion
  * on the RESULT would notice, because the result would look perfectly reasonable.
@@ -66,7 +66,7 @@ describe('createCuratedTier — the adapter', () => {
         const findInForce = vi.fn().mockResolvedValue(inForce());
         const tier = createCuratedTier({ findInForce } as unknown as ResolutionMappingsDal);
 
-        const outcome = await tier.resolve(QUERY, { authorId: AUTHOR });
+        const outcome = await tier.resolve(QUERY, { userId: AUTHOR });
 
         expect(findInForce).toHaveBeenCalledWith(KEY, AUTHOR);
         expect(outcome.kind === 'resolved' && outcome.foodId).toBe('FOOD-A');
@@ -76,7 +76,7 @@ describe('createCuratedTier — the adapter', () => {
         const findInForce = vi.fn().mockResolvedValue(undefined);
         const tier = createCuratedTier({ findInForce } as unknown as ResolutionMappingsDal);
 
-        await tier.resolve(QUERY, { authorId: undefined });
+        await tier.resolve(QUERY, { userId: undefined });
 
         // Asserted on the ARGUMENT, not the result: a mutant substituting a placeholder user would return a
         // perfectly reasonable-looking outcome while making one user's private correction rewrite every
@@ -91,6 +91,6 @@ describe('createCuratedTier — the adapter', () => {
         // Swallowing it here would report "no curated mapping exists" for a phrase that may well have one —
         // a miss and an outage reported identically. The cascade distinguishes them; the tier must not
         // pre-empt that by deciding for it.
-        await expect(tier.resolve(QUERY, { authorId: AUTHOR })).rejects.toThrow('connection reset');
+        await expect(tier.resolve(QUERY, { userId: AUTHOR })).rejects.toThrow('connection reset');
     });
 });

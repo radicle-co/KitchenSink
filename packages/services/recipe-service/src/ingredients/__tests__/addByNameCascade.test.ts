@@ -17,7 +17,7 @@
  *     foreign key and U12's reseed mints fresh food ULIDs, so a stale mapping is a certainty rather than a
  *     hazard. A cascade hit that turned into an error would take a whole class of ingredient adds down the
  *     day the catalog is reseeded, for a mapping the user never asked about.
- *  3. **An unattended caller's `authorId` reaches the cascade as `undefined`** (R22), so one user's private
+ *  3. **An unattended caller's `userId` reaches the cascade as `undefined`** (R22), so one user's private
  *     correction cannot silently rewrite an import.
  *  4. **An exhausted cascade leaves the shipped path byte-for-byte unchanged**, which is what makes this
  *     addition safe to land before U14 exposes any way to write a mapping.
@@ -44,11 +44,11 @@ const AUTHOR = '01JU10WIRE0000000000AUTHOR';
 const NAME = makeCanonicalName('plain flour');
 
 /** A tier that resolves every query to `foodId`, recording the context it was handed. */
-function hittingTier(foodId: string, seen: { authorId?: string | undefined }[]): ResolutionTier {
+function hittingTier(foodId: string, seen: { userId?: string | undefined }[]): ResolutionTier {
     return {
         id: 'curated',
         resolve: async (_query, context) => {
-            seen.push({ authorId: context.authorId });
+            seen.push({ userId: context.userId });
 
             return { kind: 'resolved', tier: 'curated', foodId, evidence: 'curated mapping (global, origin curator)' };
         },
@@ -88,7 +88,7 @@ function build(tiers: readonly ResolutionTier[], dalOverrides: Partial<Record<st
 
 describe('addByName — a curated mapping short-circuits the food-service round trip (AE6)', () => {
     it('admits the MAPPED food and never asks the food service to add by name', async () => {
-        const seen: { authorId?: string | undefined }[] = [];
+        const seen: { userId?: string | undefined }[] = [];
         const { service, client, mocks } = build([hittingTier(MAPPED_FOOD, seen)]);
 
         client.getStatus.mockResolvedValue(
@@ -111,7 +111,7 @@ describe('addByName — a curated mapping short-circuits the food-service round 
     });
 
     it('passes an UNATTENDED caller through to the cascade as `undefined` (R22)', async () => {
-        const seen: { authorId?: string | undefined }[] = [];
+        const seen: { userId?: string | undefined }[] = [];
         const { service, client } = build([hittingTier(MAPPED_FOOD, seen)]);
 
         client.getStatus.mockResolvedValue(
@@ -124,13 +124,13 @@ describe('addByName — a curated mapping short-circuits the food-service round 
 
         await service.addByName(CALLER, NAME, undefined);
 
-        expect(seen).toEqual([{ authorId: undefined }]);
+        expect(seen).toEqual([{ userId: undefined }]);
     });
 });
 
 describe('addByName — a STALE mapping falls through, and is never an error', () => {
     it('resumes the ordinary path when the mapped food is no longer admissible', async () => {
-        const seen: { authorId?: string | undefined }[] = [];
+        const seen: { userId?: string | undefined }[] = [];
         const { service, client, mocks } = build([hittingTier(MAPPED_FOOD, seen)]);
 
         // ⛔ U12's reseed mints fresh food ULIDs and `ingredients.food_id` has NO foreign key, so a mapping

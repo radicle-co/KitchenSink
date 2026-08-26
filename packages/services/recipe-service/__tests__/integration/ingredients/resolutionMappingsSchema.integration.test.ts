@@ -5,7 +5,7 @@
  * is a property of the DATABASE, and neither a mock nor a definition-only test can observe any of them:
  *
  *  1. **The partial unique indexes ARE the concurrency control.** "Independent corroboration" is a count of
- *     distinct authors, and it is only that because `(normalized_key, author_id) WHERE scope='author' AND
+ *     distinct users, and it is only that because `(normalized_key, user_id) WHERE scope='author' AND
  *     superseded_at IS NULL` makes a second live row from one author impossible. "At most one global mapping
  *     is in force per phrase" is likewise an index, not a code path. A unit test asserting the DAL "calls
  *     insert" proves neither, so both are proved here by DRIVING the collision.
@@ -32,21 +32,15 @@ const FOOD_A = '01JU10SCHEMA000000000FOODA';
 const FOOD_B = '01JU10SCHEMA000000000FOODB';
 const AUTHOR_A = '01JU10SCHEMA00000000AUTHA';
 const AUTHOR_B = '01JU10SCHEMA00000000AUTHB';
-/**
- * The cook a memo's phrase is attributed to.
- *
- * ⛔ Required since migration 0031: `…_phrase_needs_owner` refuses a memo carrying a phrase with no owner,
- * because no sweep predicate can reach one — which is the same defect the corroboration binding had.
- */
-const MEMO_OWNER = '01JU10SCHEMA0000000MEMOOWN';
 
 /**
  * Insert a mapping, returning its id. Written long-hand so each spec's SQL is readable where it is used.
  *
- * ⛔ `source_phrase` is bound to the key for an AUTHORED row and to NULL for a `corroboration` binding,
- * because migration 0031's `…_phrase_needs_owner` makes any other pairing a row PostgreSQL refuses. A
- * binding copies nobody's words: it has no `author_id`, so a phrase on it would be unreachable by the
- * erasure sweep's `WHERE author_id = $owner`.
+ * ⛔ `source_phrase` is bound to the key for an AUTHORED row and to NULL for a `corroboration` binding.
+ * 0031's `…_phrase_needs_owner` used to make any other pairing a row PostgreSQL refuses; ADR-0027 repealed
+ * that CHECK, but `promoteByCorroboration` still copies nobody's words for the reason that OUTLIVED the
+ * reversal — the binding CITES two rows that each carry their own phrase, so the copy bought nothing. This
+ * helper mirrors the writer rather than the (now absent) constraint.
  */
 async function insertMapping(
     pool: pg.Pool,
@@ -55,14 +49,14 @@ async function insertMapping(
         foodId: string;
         scope: 'author' | 'global';
         origin: 'author' | 'curator' | 'corroboration';
-        authorId: string | null;
+        userId: string | null;
         corroboratedA?: string;
         corroboratedB?: string;
     },
 ): Promise<string> {
     const { rows } = await pool.query<{ id: string }>(
         `INSERT INTO ingredient_resolution_mappings
-             (normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing,
+             (normalized_key, source_phrase, food_id, scope, origin, user_id, surfacing,
               corroborated_a, corroborated_b)
          VALUES ($1, $8, $2, $3, $4, $5, 'picker_correction', $6, $7)
          RETURNING id`,
@@ -71,10 +65,10 @@ async function insertMapping(
             row.foodId,
             row.scope,
             row.origin,
-            row.authorId,
+            row.userId,
             row.corroboratedA ?? null,
             row.corroboratedB ?? null,
-            row.authorId === null ? null : row.key,
+            row.userId === null ? null : row.key,
         ],
     );
 
@@ -112,7 +106,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                 created_at: Date;
             }>(
                 `INSERT INTO ingredient_resolution_mappings
-                     (normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing)
+                     (normalized_key, source_phrase, food_id, scope, origin, user_id, surfacing)
                  VALUES ($1, 'Plain Flour', $2, 'author', 'author', $3, 'picker_correction')
                  RETURNING id, scope, origin, superseded_at, created_at`,
                 [KEY, FOOD_A, AUTHOR_A],
@@ -135,7 +129,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
             await expect(
                 pool.query(
                     `INSERT INTO ingredient_resolution_mappings
-                         (normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing)
+                         (normalized_key, source_phrase, food_id, scope, origin, user_id, surfacing)
                      VALUES ($1, $1, $2, $3, $4, $5, 'picker_correction')`,
                     [KEY, FOOD_A, scope, origin, AUTHOR_A],
                 ),
@@ -146,7 +140,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
             await expect(
                 pool.query(
                     `INSERT INTO ingredient_resolution_mappings
-                         (normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing)
+                         (normalized_key, source_phrase, food_id, scope, origin, user_id, surfacing)
                      VALUES ($1, $1, $2, 'global', 'corroboration', NULL, 'corroboration')`,
                     [KEY, FOOD_A],
                 ),
@@ -159,7 +153,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                 foodId: FOOD_A,
                 scope: 'author',
                 origin: 'author',
-                authorId: AUTHOR_A,
+                userId: AUTHOR_A,
             });
 
             await expect(
@@ -168,7 +162,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                     foodId: FOOD_A,
                     scope: 'global',
                     origin: 'corroboration',
-                    authorId: null,
+                    userId: null,
                     corroboratedA: own,
                     corroboratedB: own,
                 }),
@@ -181,19 +175,24 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                 foodId: FOOD_A,
                 scope: 'author',
                 origin: 'author',
-                authorId: AUTHOR_A,
+                userId: AUTHOR_A,
             });
 
             await expect(
                 pool.query('UPDATE ingredient_resolution_mappings SET superseded_by = $1 WHERE id = $1', [id]),
             ).rejects.toThrow(/supersession_forward|supersession_coherent/);
 
-            // A retirement with NO successor is LEGAL and load-bearing: it is the shape the prescribed
-            // account-erasure sweep uses to stop a user's mappings applying without replacing them.
+            // ⚠️ A retirement with NO successor is LEGAL, and it stays asserted even though the erasure
+            // sweep that used to produce it is gone (ADR-0027). The asymmetry is still load-bearing: a
+            // curator's supersession and a concurrent-race loser both retire a row with nothing to point at,
+            // and a constraint written the obvious way (`superseded_at IS NULL = superseded_by IS NULL`)
+            // would refuse them. Nulling both identifying columns in the same statement is now merely a
+            // legal row shape rather than a prescribed one — which is itself worth pinning, since ADR-0027
+            // repealed the CHECK that used to forbid one half of it.
             await expect(
                 pool.query(
                     `UPDATE ingredient_resolution_mappings
-                     SET superseded_at = now(), author_id = NULL, source_phrase = NULL WHERE id = $1`,
+                     SET superseded_at = now(), user_id = NULL, source_phrase = NULL WHERE id = $1`,
                     [id],
                 ),
             ).resolves.toBeDefined();
@@ -205,7 +204,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                 foodId: FOOD_A,
                 scope: 'author',
                 origin: 'author',
-                authorId: AUTHOR_A,
+                userId: AUTHOR_A,
             });
 
             // The SAME author correcting the SAME phrase again without retiring their first row is the write
@@ -216,9 +215,9 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                     foodId: FOOD_B,
                     scope: 'author',
                     origin: 'author',
-                    authorId: AUTHOR_A,
+                    userId: AUTHOR_A,
                 }),
-            ).rejects.toThrow(/idx_resolution_mappings_live_author/);
+            ).rejects.toThrow(/idx_resolution_mappings_live_user/);
 
             // A DIFFERENT author is exactly what corroboration means, and is admitted.
             await expect(
@@ -227,7 +226,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                     foodId: FOOD_A,
                     scope: 'author',
                     origin: 'author',
-                    authorId: AUTHOR_B,
+                    userId: AUTHOR_B,
                 }),
             ).resolves.toBeDefined();
         });
@@ -238,14 +237,14 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                 foodId: FOOD_A,
                 scope: 'author',
                 origin: 'author',
-                authorId: AUTHOR_A,
+                userId: AUTHOR_A,
             });
             const unrelated = await insertMapping(pool, {
                 key: OTHER_KEY,
                 foodId: FOOD_B,
                 scope: 'author',
                 origin: 'author',
-                authorId: AUTHOR_A,
+                userId: AUTHOR_A,
             });
 
             await pool.query(
@@ -261,7 +260,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                     foodId: FOOD_B,
                     scope: 'author',
                     origin: 'author',
-                    authorId: AUTHOR_A,
+                    userId: AUTHOR_A,
                 }),
             ).resolves.toBeDefined();
 
@@ -277,7 +276,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                 foodId: FOOD_A,
                 scope: 'global',
                 origin: 'curator',
-                authorId: AUTHOR_A,
+                userId: AUTHOR_A,
             });
 
             // Two live global rows naming different foods is the state in which "which mapping wins?" has no
@@ -289,7 +288,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                     foodId: FOOD_B,
                     scope: 'global',
                     origin: 'curator',
-                    authorId: AUTHOR_B,
+                    userId: AUTHOR_B,
                 }),
             ).rejects.toThrow(/idx_resolution_mappings_live_global/);
 
@@ -301,7 +300,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                     foodId: FOOD_B,
                     scope: 'author',
                     origin: 'author',
-                    authorId: AUTHOR_B,
+                    userId: AUTHOR_B,
                 }),
             ).resolves.toBeDefined();
         });
@@ -312,14 +311,14 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                 foodId: FOOD_A,
                 scope: 'author',
                 origin: 'author',
-                authorId: AUTHOR_A,
+                userId: AUTHOR_A,
             });
             const b = await insertMapping(pool, {
                 key: KEY,
                 foodId: FOOD_A,
                 scope: 'author',
                 origin: 'author',
-                authorId: AUTHOR_B,
+                userId: AUTHOR_B,
             });
 
             await insertMapping(pool, {
@@ -327,7 +326,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                 foodId: FOOD_A,
                 scope: 'global',
                 origin: 'corroboration',
-                authorId: null,
+                userId: null,
                 corroboratedA: a,
                 corroboratedB: b,
             });
@@ -341,7 +340,7 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
                     foodId: FOOD_A,
                     scope: 'global',
                     origin: 'corroboration',
-                    authorId: null,
+                    userId: null,
                     corroboratedA: a,
                     corroboratedB: b,
                 }),
@@ -353,9 +352,9 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
         it('records the model that AGREED with the resolution (R21) and keys one memo per phrase', async () => {
             await pool.query(
                 `INSERT INTO ingredient_resolution_memos
-                     (normalized_key, food_id, source_phrase, verified_by, owner_id)
-                 VALUES ($1, $2, 'Plain Flour', 'model-v1', $3)`,
-                [KEY, FOOD_A, MEMO_OWNER],
+                     (normalized_key, food_id, source_phrase, verified_by)
+                 VALUES ($1, $2, 'Plain Flour', 'model-v1')`,
+                [KEY, FOOD_A],
             );
 
             // A re-verification under a newer model REPLACES the memo rather than accumulating beside it: a
@@ -363,12 +362,12 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
             await expect(
                 pool.query(
                     `INSERT INTO ingredient_resolution_memos
-                         (normalized_key, food_id, source_phrase, verified_by, owner_id)
-                     VALUES ($1, $2, 'Plain Flour', 'model-v2', $3)
+                         (normalized_key, food_id, source_phrase, verified_by)
+                     VALUES ($1, $2, 'Plain Flour', 'model-v2')
                      ON CONFLICT (normalized_key)
                      DO UPDATE SET food_id = EXCLUDED.food_id, verified_by = EXCLUDED.verified_by,
                                    verified_at = now()`,
-                    [KEY, FOOD_B, MEMO_OWNER],
+                    [KEY, FOOD_B],
                 ),
             ).resolves.toBeDefined();
 
@@ -398,9 +397,9 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
         it('answers a NEAR-TWIN phrase the knowledge base has never seen verbatim (R14 / AE8)', async () => {
             await pool.query(
                 `INSERT INTO ingredient_resolution_memos
-                     (normalized_key, food_id, source_phrase, verified_by, owner_id)
-                 VALUES ($1, $2, 'All-purpose flour', 'model-v1', $3)`,
-                ['u10 schema all-purpose flour', FOOD_A, MEMO_OWNER],
+                     (normalized_key, food_id, source_phrase, verified_by)
+                 VALUES ($1, $2, 'All-purpose flour', 'model-v1')`,
+                ['u10 schema all-purpose flour', FOOD_A],
             );
 
             const { rows } = await pool.query<{ food_id: string; sim: number }>(
@@ -420,177 +419,106 @@ describe.skipIf(!hasDatabaseUrl)('migration 0021 — the resolution knowledge ba
 });
 
 /**
- * ⛔ MIGRATION 0026 — THE MEMO TIER'S ERASABILITY, asserted against the real schema.
+ * ⛔ THE MEMO TIER IS IMPERSONAL BY CONSTRUCTION (owner ruling 2026-08-25, ADR-0027, migration 0033).
  *
- * 0021 shipped `ingredient_resolution_memos.source_phrase` as `NOT NULL` and with no author column beside it,
- * and its header recorded the consequence: account erasure had no predicate to sweep on, so a phrase a user
- * typed was unreachable. Owner ruling 2026-08-23 closed that by ADDING `owner_id` rather than by dropping the
- * phrase, and 0026 is that change.
+ * ## What this block replaces
  *
- * ⛔ THIS TIER, not a unit test, for the reason the file header already gives about the indexes: the
- * erasure sweep's correctness rests on properties only the database has. Specifically —
+ * Six cases stood here, under the heading "erasability (migration 0026)". They asserted that
+ * `ingredient_resolution_memos` carried an `owner_id`, that its `source_phrase` had lost the `NOT NULL`
+ * 0021 gave it so a sweep could clear it, that the sweep de-identified the row while keeping the machine's
+ * conclusion, that it was scoped to one owner, that the two columns moved as a PAIR on re-agreement, and
+ * that the sweep's predicate was indexed.
  *
- *  1. **`source_phrase` must have LOST its `NOT NULL`.** The sweep sets it to NULL. Against the 0021
- *     constraint that statement raises `23502` and fails the whole erasure job, and no mock can see it.
- *  2. **The de-identified row must SURVIVE, carrying the machine's conclusion.** A memo is keyed by
- *     `normalized_key` alone and is read by every user's cascade; the difference between "erased" and
- *     "deleted" here is the difference between de-identifying one row and un-resolving that phrase for the
- *     whole installation.
- *  3. **The sweep must be SCOPED.** Two owners can hold memos at once, and the predicate is the only thing
- *     that separates them.
+ * Every one of those was about apparatus that migration 0033 removed. The owner ruled that an ingredient
+ * phrase is not private data, so 0026's person link — which its own header called *"a person-to-row link it
+ * did not hold before"*, added solely to give erasure a predicate — became the single identifying field on
+ * an otherwise impersonal row, and went.
+ *
+ * ## ⛔ Their coverage INVERTS, and the inverse is the stronger claim
+ *
+ * The old cases could only fail if the erasure apparatus were removed. These fail if it comes BACK — which
+ * is the live risk after a reversal, because the two sibling correction tiers DO still carry a user id and
+ * re-adding one here looks like restoring a symmetry rather than reintroducing a person.
  */
-describe.skipIf(!hasDatabaseUrl)('ingredient_resolution_memos — erasability (migration 0026)', () => {
+describe.skipIf(!hasDatabaseUrl)('ingredient_resolution_memos — impersonal by construction (ADR-0027)', () => {
     const MEMO_KEY = 'u10 schema memo plain flour';
-    const OTHER_MEMO_KEY = 'u10 schema memo caster sugar';
-    const OWNER_A = '01JU10SCHEMA0000000OWNERA';
-    const OWNER_B = '01JU10SCHEMA0000000OWNERB';
-
     let pool: pg.Pool;
 
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
     });
 
+    afterEach(async () => {
+        await pool.query('DELETE FROM ingredient_resolution_memos WHERE normalized_key = $1', [MEMO_KEY]);
+    });
+
     afterAll(async () => {
         await pool.end();
     });
 
-    afterEach(async () => {
-        await pool.query('DELETE FROM ingredient_resolution_memos WHERE normalized_key LIKE $1', ['u10 schema memo%']);
+    it('⛔ carries NO column that identifies a person', async () => {
+        const { rows } = await pool.query<{ column_name: string }>(
+            `SELECT column_name FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'ingredient_resolution_memos'
+              ORDER BY column_name`,
+        );
+        const columns = rows.map((row) => row.column_name);
+
+        // ⚠️ Non-vacuity first: the table really is there and really does carry its own four columns, so an
+        // absent person column is a schema fact rather than an empty result set.
+        expect(columns).toEqual(['food_id', 'normalized_key', 'source_phrase', 'verified_at', 'verified_by']);
     });
 
-    /** Insert one memo exactly as `verdictStore.rememberAgreement` does. */
-    const insertMemo = async (key: string, ownerId: string | null): Promise<void> => {
-        await pool.query(
-            `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by, owner_id)
-             VALUES ($1, $2, $3, 'us.amazon.nova-micro-v1:0', $4)`,
-            [key, FOOD_A, `${key} as the cook typed it`, ownerId],
+    it('⛔ carries NO sweep-predicate index and NO phrase-needs-owner CHECK', async () => {
+        const indexes = await pool.query<{ indexname: string }>(
+            `SELECT indexname FROM pg_indexes WHERE tablename = 'ingredient_resolution_memos'`,
         );
-    };
+        const checks = await pool.query<{ conname: string }>(
+            `SELECT conname FROM pg_constraint
+              WHERE conrelid = 'ingredient_resolution_memos'::regclass AND contype = 'c'`,
+        );
 
-    it('accepts a NULL source_phrase — without which the erasure sweep raises 23502', async () => {
-        await insertMemo(MEMO_KEY, OWNER_A);
+        // The trigram index and the primary key remain — they are what the tier is FOR.
+        expect(indexes.rows.map((row) => row.indexname)).toContain('idx_resolution_memos_key_trgm');
+        expect(indexes.rows.map((row) => row.indexname)).not.toContain('idx_resolution_memos_owner');
+        // ⛔ 0031's `…_phrase_needs_owner` is gone. Migration 0033 drops it EXPLICITLY (its §1), so the
+        // reversal of 0031 is visible in ONE place rather than as an implied side effect — PostgreSQL would
+        // also have dropped it along with the column, but a reader should not have to know that to follow
+        // the migration. Asserted here rather than assumed by either route.
+        expect(checks.rows.map((row) => row.conname)).not.toContain('ingredient_resolution_memos_phrase_needs_owner');
+    });
 
-        // ⚠️ REWRITTEN for migration 0031. This used to null `source_phrase` ALONE, which is now a row
-        // PostgreSQL refuses — deliberately, since a half-run sweep is what leaves an owner's id beside
-        // somebody else's words. The claim it was making is unchanged and still asserted: the column has
-        // lost 0021's `NOT NULL`, so the sweep does not raise `23502` on a legal erasure request. It is now
-        // made with the statement the sweep actually issues, which moves both columns together.
+    it('⛔ ACCEPTS a phrase that belongs to nobody — the shape 0031 refused', async () => {
         await expect(
             pool.query(
-                'UPDATE ingredient_resolution_memos SET owner_id = NULL, source_phrase = NULL WHERE normalized_key = $1',
-                [MEMO_KEY],
+                `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
+                 VALUES ($1, $2, $3, 'us.anthropic.claude-haiku-4-5-20251001-v1:0')`,
+                [MEMO_KEY, FOOD_A, 'a cook’s wording, remembered'],
             ),
         ).resolves.toBeDefined();
+
+        const { rows } = await pool.query<{ source_phrase: string | null; verified_by: string }>(
+            'SELECT source_phrase, verified_by FROM ingredient_resolution_memos WHERE normalized_key = $1',
+            [MEMO_KEY],
+        );
+
+        expect(rows).toHaveLength(1);
+        // The phrase is kept because it is 0021's two-way door, not because anybody is being attributed.
+        expect(rows[0]?.source_phrase).toBe('a cook’s wording, remembered');
+        expect(rows[0]?.verified_by).toBe('us.anthropic.claude-haiku-4-5-20251001-v1:0');
     });
 
-    it('⛔ admits an OWNERLESS memo only WITHOUT a phrase — the shape a pre-0026 producer now yields', async () => {
-        // ⚠️ REWRITTEN, and this one REVERSES what it used to assert. 0026 admitted a phrase with no owner,
-        // reasoning that it was "exactly the position every memo was in before 0026 rather than a worse
-        // one". True, and still an unbounded retention window: no predicate can reach a phrase with nobody
-        // to attribute it to, so it outlives every erasure. Migration 0031 refuses that row.
-        //
-        // ⛔ No knowledge is lost, which was 0026's whole concern. The memo is still written and still
-        // answers every future cook's cascade — `food_id` and `verified_by` are the MACHINE's conclusion and
-        // nobody asked to have those erased. Only the raw phrase, which is write-only and personal, is not
-        // stored. `verdictStore.rememberAgreement` writes exactly this shape for an ownerless message.
-        await expect(insertMemo(MEMO_KEY, null)).rejects.toMatchObject({
-            code: '23514',
-            constraint: 'ingredient_resolution_memos_phrase_needs_owner',
-        });
-
+    it('⚠️ keeps `source_phrase` NULLABLE, which is not the same as keeping it erasable', async () => {
+        // 0026 relaxed the `NOT NULL` so a sweep could clear the column, and 0033 removed the sweep — but the
+        // relaxation STAYS, for two reasons that have nothing to do with privacy. 0031's backfill already
+        // nulled this column on every ownerless memo, so `SET NOT NULL` would fail on real data; and a memo
+        // whose phrase normalizes to nothing has none to store.
         await expect(
             pool.query(
-                `INSERT INTO ingredient_resolution_memos
-                     (normalized_key, food_id, source_phrase, verified_by, owner_id)
-                 VALUES ($1, $2, NULL, 'us.amazon.nova-micro-v1:0', NULL)`,
+                `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by)
+                 VALUES ($1, $2, NULL, 'us.anthropic.claude-haiku-4-5-20251001-v1:0')`,
                 [MEMO_KEY, FOOD_A],
             ),
         ).resolves.toBeDefined();
-    });
-
-    it('de-identifies the erased owner’s memo while keeping the machine’s conclusion', async () => {
-        await insertMemo(MEMO_KEY, OWNER_A);
-
-        // The sweep, verbatim from `accountErasureWorker.eraseRecipeRows`.
-        await pool.query(
-            'UPDATE ingredient_resolution_memos SET owner_id = NULL, source_phrase = NULL WHERE owner_id = $1',
-            [OWNER_A],
-        );
-
-        const { rows } = await pool.query<{
-            food_id: string;
-            verified_by: string;
-            source_phrase: string | null;
-            owner_id: string | null;
-        }>(
-            'SELECT food_id, verified_by, source_phrase, owner_id FROM ingredient_resolution_memos WHERE normalized_key = $1',
-            [MEMO_KEY],
-        );
-
-        // ⛔ The row SURVIVES. Deleting it would un-resolve this phrase for every other user.
-        expect(rows).toHaveLength(1);
-        expect(rows[0]?.source_phrase).toBeNull();
-        expect(rows[0]?.owner_id).toBeNull();
-        expect(rows[0]?.food_id).toBe(FOOD_A);
-        expect(rows[0]?.verified_by).toBe('us.amazon.nova-micro-v1:0');
-    });
-
-    it('sweeps ONLY the erased owner’s memos', async () => {
-        await insertMemo(MEMO_KEY, OWNER_A);
-        await insertMemo(OTHER_MEMO_KEY, OWNER_B);
-
-        await pool.query(
-            'UPDATE ingredient_resolution_memos SET owner_id = NULL, source_phrase = NULL WHERE owner_id = $1',
-            [OWNER_A],
-        );
-
-        const { rows } = await pool.query<{ source_phrase: string | null; owner_id: string | null }>(
-            'SELECT source_phrase, owner_id FROM ingredient_resolution_memos WHERE normalized_key = $1',
-            [OTHER_MEMO_KEY],
-        );
-
-        expect(rows[0]?.owner_id).toBe(OWNER_B);
-        expect(rows[0]?.source_phrase).not.toBeNull();
-    });
-
-    /**
-     * ⚠️ The pair rule, which is the subtle one. The table's primary key is the normalized phrase, so two
-     * users whose lines normalize alike share ONE row and the later write replaces both columns together. A
-     * writer that updated the phrase while leaving the previous owner's id beside it would point erasure at
-     * the wrong person: sweeping a phrase they never typed, and leaving the one they did.
-     */
-    it('moves owner_id and source_phrase as a pair on re-agreement', async () => {
-        await insertMemo(MEMO_KEY, OWNER_A);
-
-        await pool.query(
-            `INSERT INTO ingredient_resolution_memos (normalized_key, food_id, source_phrase, verified_by, owner_id)
-             VALUES ($1, $2, $3, 'us.anthropic.claude-haiku-4-5-20251001-v1:0', $4)
-             ON CONFLICT (normalized_key) DO UPDATE
-                SET food_id = EXCLUDED.food_id,
-                    source_phrase = EXCLUDED.source_phrase,
-                    verified_by = EXCLUDED.verified_by,
-                    owner_id = EXCLUDED.owner_id,
-                    verified_at = now()`,
-            [MEMO_KEY, FOOD_B, 'the second cook’s wording', OWNER_B],
-        );
-
-        const { rows } = await pool.query<{ source_phrase: string | null; owner_id: string | null }>(
-            'SELECT source_phrase, owner_id FROM ingredient_resolution_memos WHERE normalized_key = $1',
-            [MEMO_KEY],
-        );
-
-        expect(rows[0]?.owner_id).toBe(OWNER_B);
-        expect(rows[0]?.source_phrase).toBe('the second cook’s wording');
-    });
-
-    it('indexes owner_id partially, so the sweep is not a sequential scan', async () => {
-        const { rows } = await pool.query<{ indexdef: string }>(
-            `SELECT indexdef FROM pg_indexes
-              WHERE tablename = 'ingredient_resolution_memos' AND indexname = 'idx_resolution_memos_owner'`,
-        );
-
-        expect(rows).toHaveLength(1);
-        expect(rows[0]?.indexdef).toMatch(/WHERE \(owner_id IS NOT NULL\)/i);
     });
 });

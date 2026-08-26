@@ -9,7 +9,7 @@
  *
  * ## ⛔ Three `WHERE` clauses ARE the authorization, and none of them is a branch
  *
- * 1. **`owner_id = :caller` inside the supersede `UPDATE`.** "An author-scoped correction is superseded only
+ * 1. **`user_id = :caller` inside the supersede `UPDATE`.** "An author-scoped correction is superseded only
  *    by the cook who made it" is not enforced by a check the caller could be trusted to run first — it is
  *    enforced by the statement matching nothing. **Zero rows returned IS the denial**, atomically, with no id
  *    a caller can pass that reaches somebody else's row. (An index cannot do this: superseding a row RELIEVES
@@ -17,11 +17,14 @@
  * 2. **`ON CONFLICT … DO NOTHING` on the promotion insert.** The concurrent-promotion race then has a LOSER,
  *    not an ERROR: the loser reads zero rows as "somebody else already promoted this", emits no audit signal,
  *    and does not fail the cook's correction.
- * 3. **`(scope = 'global' OR (:caller IS NOT NULL AND owner_id = :caller))`.** An unattended import has no
+ * 3. **`(scope = 'global' OR (:caller IS NOT NULL AND user_id = :caller))`.** An unattended import has no
  *    user, and must see global corrections and NOBODY's personal ones. Written with the explicit
- *    `IS NOT NULL` rather than relying on `owner_id = NULL` evaluating to NULL, because the latter is correct
- *    and is a reviewer trap. It is also what keeps a DE-IDENTIFIED row (erased owner, `owner_id IS NULL`,
- *    still author-scoped) binding NOBODY rather than silently becoming everybody's.
+ *    `IS NOT NULL` rather than relying on `user_id = NULL` evaluating to NULL, because the latter is correct
+ *    and is a reviewer trap.
+ *
+ * ⚠️ DELIBERATE — `user_id` is a COUNTER and an AUTHORIZATION predicate, and it is deliberately NOT erasable.
+ * It was spelled `owner_id` until migration 0033; read
+ * `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md` before "cleaning it up".
  *
  * ## ⛔ THE ANSWER'S IDENTITY IS POSTGRES', NOT THIS PROCESS'S
  *
@@ -98,8 +101,8 @@ export interface ParseCorrectionWriteRequest {
     readonly sourceLine: string;
     /** The corrected parse. Never the raw line — see {@link CorrectedParse}. */
     readonly correctedFacts: CorrectedParse;
-    /** The cook making the correction. */
-    readonly ownerId: string;
+    /** The cook making the correction — the row's counting key, and the supersede predicate. */
+    readonly userId: string;
     /** Which affordance produced the correction. */
     readonly surfacing: string;
 }
@@ -148,7 +151,7 @@ interface RawCorrectionRow {
 interface RawCorroboratorRow {
     [column: string]: unknown;
     id: string;
-    owner_id: string;
+    user_id: string;
 }
 
 export class ParseCorrectionsDal {
@@ -181,22 +184,22 @@ export class ParseCorrectionsDal {
      * cached machine parse would be a correction that does nothing.
      *
      * @param normalizedKey - The line's match grain.
-     * @param ownerId - The requesting cook, or `undefined` for an unattended import — which sees global
+     * @param userId - The requesting cook, or `undefined` for an unattended import — which sees global
      *   corrections and nobody's personal ones.
      * @returns The correction in force, or `undefined` when nothing binds this line for this caller.
      * @sideEffect Reads `ingredient_parse_corrections`.
      */
     public async findInForce(
         normalizedKey: NormalizedIngredientKey,
-        ownerId: string | undefined,
+        userId: string | undefined,
     ): Promise<ParseCorrectionInForce | undefined> {
-        const caller = ownerId ?? null;
+        const caller = userId ?? null;
         const result = await this.db.execute<RawCorrectionRow>(sql`
             SELECT id, corrected_facts, corrected_facts::text AS answer, scope, origin
             FROM ingredient_parse_corrections
             WHERE normalized_key = ${normalizedKey}
               AND superseded_at IS NULL
-              AND (scope = 'global' OR (${caller}::text IS NOT NULL AND owner_id = ${caller}))
+              AND (scope = 'global' OR (${caller}::text IS NOT NULL AND user_id = ${caller}))
             ORDER BY (scope = 'author') DESC, created_at DESC, id DESC
             LIMIT 1
         `);
@@ -222,7 +225,7 @@ export class ParseCorrectionsDal {
      * carry `ON CONFLICT DO NOTHING`.
      *
      * @param normalizedKey - The line's match grain.
-     * @param ownerId - The correcting cook.
+     * @param userId - The correcting cook.
      * @param correctedFacts - The parse being corrected TO — corroboration is agreement on the ANSWER, not
      *   merely on the line being wrong, so the corroborator query filters on it.
      * @param writer - The open transaction. Required in practice: reading these facts outside the transaction
@@ -233,7 +236,7 @@ export class ParseCorrectionsDal {
      */
     public async findWriteFacts(
         normalizedKey: NormalizedIngredientKey,
-        ownerId: string,
+        userId: string,
         correctedFacts: CorrectedParse,
         writer: Writer = this.db,
     ): Promise<ParseCorrectionWriteFacts> {
@@ -259,17 +262,18 @@ export class ParseCorrectionsDal {
         const ownRows = await writer.execute<RawCorrectionRow>(sql`
             SELECT id, corrected_facts, corrected_facts::text AS answer, scope, origin
             FROM ingredient_parse_corrections
-            WHERE normalized_key = ${normalizedKey} AND scope = 'author' AND owner_id = ${ownerId}
+            WHERE normalized_key = ${normalizedKey} AND scope = 'author' AND user_id = ${userId}
               AND superseded_at IS NULL
             LIMIT 1
         `);
-        // ⛔ `owner_id <> ${ownerId}` is what makes "the same cook correcting twice does not promote" a
-        // property of the SET the policy receives rather than a rule the policy has to remember.
+        // ⛔ `user_id <> ${userId}` is what makes "the same cook correcting twice does not promote" a
+        // property of the SET the policy receives rather than a rule the policy has to remember. It is the
+        // DISTINCT half of the distinct-user count; the partial unique index is the other half.
         const corroboratorRows = await writer.execute<RawCorroboratorRow>(sql`
-            SELECT id, owner_id FROM ingredient_parse_corrections
+            SELECT id, user_id FROM ingredient_parse_corrections
             WHERE normalized_key = ${normalizedKey} AND scope = 'author'
               AND corrected_facts = ${proposal}::jsonb
-              AND superseded_at IS NULL AND owner_id IS NOT NULL AND owner_id <> ${ownerId}
+              AND superseded_at IS NULL AND user_id IS NOT NULL AND user_id <> ${userId}
             ORDER BY created_at, id
         `);
 
@@ -287,32 +291,32 @@ export class ParseCorrectionsDal {
                           origin: liveGlobal.origin as Exclude<CorrectionOrigin, 'author'>,
                       },
             liveOwn: liveOwn === undefined ? undefined : { id: liveOwn.id, answer: liveOwn.answer },
-            corroboratorsForSameAnswer: corroboratorRows.rows.map((row) => ({ id: row.id, authorId: row.owner_id })),
+            corroboratorsForSameAnswer: corroboratorRows.rows.map((row) => ({ id: row.id, userId: row.user_id })),
         };
     }
 
     /**
      * Retire a correction — **only if the caller made it**.
      *
-     * ⛔ THE AUTHORIZATION IS THE `owner_id` PREDICATE, not a check performed before calling this. A caller
+     * ⛔ THE AUTHORIZATION IS THE `user_id` PREDICATE, not a check performed before calling this. A caller
      * holding another cook's row id retires nothing: the statement matches no row, and zero rows IS the
      * denial. Exposed as its own method so that property is directly testable rather than only observable
      * through a successful write.
      *
      * @param correctionId - The row to retire.
-     * @param ownerId - The caller, which must be the row's own cook.
+     * @param userId - The caller, which must be the row's own cook.
      * @param writer - The open transaction, when enlisted in one.
      * @returns `true` when a row was retired, `false` when the caller had no standing to retire it.
      * @sideEffect Updates `ingredient_parse_corrections`.
      */
     public async supersedeOwnCorrection(
         correctionId: string,
-        ownerId: string,
+        userId: string,
         writer: Writer = this.db,
     ): Promise<boolean> {
         const result = await writer.execute<{ id: string }>(sql`
             UPDATE ingredient_parse_corrections SET superseded_at = now()
-            WHERE id = ${correctionId} AND scope = 'author' AND owner_id = ${ownerId} AND superseded_at IS NULL
+            WHERE id = ${correctionId} AND scope = 'author' AND user_id = ${userId} AND superseded_at IS NULL
             RETURNING id
         `);
 
@@ -327,9 +331,11 @@ export class ParseCorrectionsDal {
      * asserted it, carrying a `surfacing` that is not what caused the promotion, and it would silently
      * destroy that cook's own personal correction.
      *
-     * ⛔ The binding carries NEITHER `owner_id` NOR `source_line`. Copying the promoting cook's line onto a
-     * row with no owner would create personal data no erasure predicate can reach — the defect the pair CHECK
-     * in migration 0029 exists to make unrepresentable.
+     * ⛔ The binding carries NEITHER `user_id` NOR `source_line`, and that survived a reversal. The 2026-08-25
+     * owner ruling (ADR-0027) repealed 0029's pair CHECK and the privacy argument behind it, but the OTHER
+     * argument stands on its own: the copy buys nothing, because the binding CITES two rows that each carry
+     * their own line, so a key-derivation backfill runs through `corroborated_a` either way. The curated tier
+     * follows the identical rule.
      *
      * `ON CONFLICT DO NOTHING` on the corroboration-pair index makes the concurrent race safe: **the loser
      * gets zero rows and reads that as "somebody else already promoted this"** — no audit signal, no error,
@@ -362,7 +368,7 @@ export class ParseCorrectionsDal {
         const [first, second] = [input.citesExisting, input.citesNew].sort();
         const inserted = await writer.execute<{ id: string }>(sql`
             INSERT INTO ingredient_parse_corrections
-                (normalized_key, source_line, corrected_facts, scope, origin, owner_id, surfacing,
+                (normalized_key, source_line, corrected_facts, scope, origin, user_id, surfacing,
                  corroborated_a, corroborated_b)
             VALUES (${input.normalizedKey}, NULL, ${JSON.stringify(input.correctedFacts)}::jsonb, 'global',
                     'corroboration', NULL, 'corroboration', ${first}, ${second})
@@ -417,7 +423,7 @@ export class ParseCorrectionsDal {
             return { written: false, outcome: 'already_in_force', reason: decision.reason };
         }
 
-        const retired = await this.retirePredecessor(decision, request.ownerId, tx);
+        const retired = await this.retirePredecessor(decision, request.userId, tx);
         const correctionId = await this.insertCorrection(request, decision.scope, decision.origin, tx);
 
         if (correctionId === undefined) {
@@ -469,14 +475,14 @@ export class ParseCorrectionsDal {
      * Retire whatever this decision displaces, under the predicate that authorizes it.
      *
      * @param decision - The write decision naming what is displaced.
-     * @param ownerId - The caller, which the author-scoped predicate matches on.
+     * @param userId - The caller, which the author-scoped predicate matches on.
      * @param tx - The open transaction.
      * @returns The retired row's id, or `undefined` when nothing was retired.
      * @sideEffect Updates `ingredient_parse_corrections`.
      */
     private async retirePredecessor(
         decision: Exclude<CorrectionScopeDecision, { write: 'none' }>,
-        ownerId: string,
+        userId: string,
         tx: RecipeTx,
     ): Promise<string | undefined> {
         if (decision.supersedes === undefined) {
@@ -484,7 +490,7 @@ export class ParseCorrectionsDal {
         }
 
         if (decision.write === 'author') {
-            return (await this.supersedeOwnCorrection(decision.supersedes, ownerId, tx))
+            return (await this.supersedeOwnCorrection(decision.supersedes, userId, tx))
                 ? decision.supersedes
                 : undefined;
         }
@@ -521,15 +527,15 @@ export class ParseCorrectionsDal {
         origin: CorrectionOrigin,
         tx: RecipeTx,
     ): Promise<string | undefined> {
-        const columns = sql`(normalized_key, source_line, corrected_facts, scope, origin, owner_id, surfacing)`;
+        const columns = sql`(normalized_key, source_line, corrected_facts, scope, origin, user_id, surfacing)`;
         const values = sql`
             (${request.normalizedKey}, ${request.sourceLine}, ${JSON.stringify(request.correctedFacts)}::jsonb,
-             ${scope}, ${origin}, ${request.ownerId}, ${request.surfacing})
+             ${scope}, ${origin}, ${request.userId}, ${request.surfacing})
         `;
         const conflict =
             scope === 'global'
                 ? sql`(normalized_key) WHERE scope = 'global' AND superseded_at IS NULL`
-                : sql`(normalized_key, owner_id) WHERE scope = 'author' AND superseded_at IS NULL AND owner_id IS NOT NULL`;
+                : sql`(normalized_key, user_id) WHERE scope = 'author' AND superseded_at IS NULL AND user_id IS NOT NULL`;
 
         const result = await tx.execute<{ id: string }>(sql`
             INSERT INTO ingredient_parse_corrections ${columns}

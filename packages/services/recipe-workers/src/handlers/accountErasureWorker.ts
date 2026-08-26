@@ -388,55 +388,24 @@ export interface EraseRecipeRowsResult {
  *     ownerId` — user-keyed, no FK, nothing cascades it. Deleting it removes the cleartext read-model row
  *     entirely; kept recipes no longer need it because their author renders from the scrubbed denormalized
  *     column (verified: no read path joins `author_handles`).
- * 10. **Curated resolution mappings (plan U10 → U14), RETIRED rather than deleted.**
- *     `ingredient_resolution_mappings` carries the erased user's ULID (`author_id`) and the phrase they
- *     typed (`source_phrase`), and NO sweep reached it until U14 published the correction route that can
- *     create such a row. ⛔ A hard delete is the wrong repair: a `corroboration` binding cites the two author
- *     rows whose agreement produced it (`corroborated_a/b`, a self-FK), so deleting them would break those
- *     citations or — worse — silently un-resolve an ingredient for every OTHER user of the installation. The
- *     row is retired (`superseded_at = now()`) and stripped of both identifying columns instead, which is
- *     exactly the shape migration 0021 was written for. Scoped to LIVE rows, so a previously-swept row is
- *     left alone.
- *     ⛔ **The predicate reaches every row that CAN carry a phrase, and migration 0031 is what makes that
- *     true.** A `corroboration` binding has `author_id = NULL` by construction — nobody wrote it — so it is
- *     STRUCTURALLY unreachable by `WHERE author_id = $owner`, and it used to be inserted carrying a COPY of
- *     the promoting cook's typed words. Both cooks could then be erased and that third row would keep one of
- *     their phrases forever, with nothing to point erasure at and no way to tell whose words they were.
- *     Growing a second predicate here could not fix it (this very statement nulls the `author_id` the
- *     citation would have to join through), and retiring the binding would withdraw a `global` resolution
- *     from the whole installation over ONE person's personal right. So the phrase is never stored:
- *     `promoteByCorroboration` writes none, and 0031's `…_phrase_needs_owner` CHECK refuses a row that
- *     carries one. That CHECK also guards THIS statement in the other direction — clearing only one of the
- *     two columns is now a row PostgreSQL refuses, so a half-sweep cannot leave a previous author's id
- *     beside somebody else's wording and aim the next erasure at them.
+ * ⛔ **THREE STEPS STOOD HERE AND WERE REMOVED — owner ruling 2026-08-25, ADR-0027. Do not restore them.**
  *
- * 11. **Machine-derived resolution memos (plan U10, migration 0026), DE-IDENTIFIED rather than deleted.**
- *     `ingredient_resolution_memos` records that a model agreed a phrase means a food. It carries the
- *     phrase a user typed, and until 0026 it carried no author column at all, so there was no per-user
- *     predicate a sweep could key on — 0021's header recorded that as a stated residual. Owner ruling
- *     2026-08-23 closed it by ADDING `owner_id`, over the alternative of dropping `source_phrase` (which is
- *     write-only, so dropping it would have removed the question rather than answering it). ⛔ Deleting the
- *     row is wrong here for a DIFFERENT reason than in the mappings tier: a memo is keyed by
- *     `normalized_key` alone and is read by every user's cascade, so a delete un-resolves that phrase for
- *     the whole installation. The machine's conclusion survives; the phrase and the owner link do not.
- *     ⛔ Migration 0031 closes the same structural hole here that it closes above: a memo written with no
- *     `owner_id` carried a phrase this predicate could never match. `recordMemo` now REQUIRES an owner and
- *     `verdictStore.rememberAgreement` stores the conclusion without a phrase when the message carries no
- *     owner, and `…_phrase_needs_owner` refuses the ownerless-phrase row either would otherwise produce.
+ * They de-identified `ingredient_resolution_mappings` (step 10, plan U10 → U14), `ingredient_resolution_memos`
+ * (step 11, migration 0026) and `ingredient_parse_corrections` (step 12, plan U21), each nulling a person
+ * column and the ingredient phrase beside it. The owner ruled that **an ingredient phrase — the original a
+ * cook typed, or a corrected one — is NOT private data**: it does not need to be erasable, and no sweep here
+ * targets it.
  *
- * 12. **Parse corrections (plan U21, migration 0029), DE-IDENTIFIED rather than deleted.**
- *     `ingredient_parse_corrections` is the parse pipeline's TOP tier — a cook's correction of how a line
- *     reads, consulted ahead of the parse cache and both engines. It carries the line they typed
- *     (`source_line`) and their ULID (`owner_id`), so it is personal data from its first INSERT. ⛔ A delete
- *     is wrong for the memo tier's reason, amplified: the row is keyed by `normalized_key` and is consulted
- *     by EVERY user's pipeline, so removing it would silently un-correct that line installation-wide, and
- *     clearing `corrected_facts` would be that same delete wearing an UPDATE's clothes. ⛔ The two
- *     identifying columns move in ONE statement, never two: 0029's
- *     `ingredient_parse_corrections_owner_line_pair` CHECK makes a row carrying one without the other
- *     unrepresentable, because an owner id left beside somebody else's line aims the NEXT erasure at the
- *     wrong person. Unlike the tiers above, this table's sweep shipped in the SAME change as the table —
- *     mappings and memos were both retrofitted, and `erasureSweepCoverage.test.ts` (added with this step)
- *     is what stops the fourth one being retrofitted too.
+ * ⚠️ The person column SURVIVES on the two correction tiers, spelled `user_id` since migration 0033, and it
+ * is deliberately NOT swept. It is there to count how many DISTINCT people made the same correction — the
+ * corroboration signal that promotes a correction from personal to global — and it is also two of the three
+ * `WHERE` clauses that ARE the authorization on those tables. Sweeping it would silently un-authorize a cook
+ * from their own corrections and dissolve the count. The memo tier lost its column outright, because a memo
+ * is the MODEL's conclusion and there is no correction there to count.
+ *
+ * ⛔ The retention posture and its residual risk are argued in ADR-0027, not here. Do not re-add a sweep for
+ * these three tables on the strength of `erasureSweepCoverage.test.ts` going red — that gate now records them
+ * in `RETAINED_BY_RULING`, and an entry there is the decision, not an oversight.
  *
  * `recipe_versions.created_by` is not swept independently: mutations are owner-only and `created_by`
  * cannot diverge from its recipe's `owner_id`, so the cascade covers it, and a "defensive" delete would
@@ -522,79 +491,11 @@ export const eraseRecipeRows = async (
         // 9. author_handles read-model root (W8-a.10) — user-keyed, no cascade; delete removes the cleartext.
         await tx.execute(sql`DELETE FROM author_handles WHERE user_id = ${ownerId}`);
 
-        // 10. Curated resolution mappings (plan U10 → U14) — RETIRED and DE-IDENTIFIED, never deleted.
-        //     `author_id` is an app-user ULID and `source_phrase` is text this user typed, so these rows are
-        //     personal data that no sweep reached until U14 published the correction route. ⛔ A DELETE would
-        //     be wrong for a reason the schema makes structural: a `corroboration` binding CITES the two
-        //     author rows whose agreement produced it (`corroborated_a/b`, FK to this same table), so
-        //     removing them either violates those references or silently un-resolves an ingredient for every
-        //     OTHER user. Retiring the row keeps the binding and its citation intact while leaving nothing
-        //     identifying behind — which is why `author_id` is NULLABLE and why `superseded_by` may stay NULL
-        //     while `superseded_at` is set. Scoped to LIVE rows: an already-superseded row was swept the
-        //     first time this ran, and re-writing it would disturb the historical record a global ruling's
-        //     audit trail is made of.
-        //     ⛔ ONE statement, both columns — the same rule step 12 states, and since migration 0031 the
-        //     same kind of enforcement: `ingredient_resolution_mappings_phrase_needs_owner` asserts
-        //     `(author_id IS NULL) = (source_phrase IS NULL)`, so splitting this in two is REJECTED by the
-        //     database. That constraint is also what lets this predicate stand alone: the only rows with no
-        //     `author_id` are corroboration bindings and already-swept rows, and neither can carry a phrase.
-        await tx.execute(sql`
-            UPDATE ingredient_resolution_mappings
-            SET superseded_at = now(), author_id = NULL, source_phrase = NULL
-            WHERE author_id = ${ownerId} AND superseded_at IS NULL
-        `);
-
-        // 11. **The MEMO tier (plan U10, migration 0026), de-identified rather than deleted.**
-        //     `ingredient_resolution_memos` remembers that a MODEL agreed a phrase means a food. The phrase
-        //     is text a user typed, so the row is personal data — but until 0026 the table carried no author
-        //     column, so no predicate existed to sweep on and 0021's header recorded that as a stated
-        //     residual. Owner ruling 2026-08-23 closed it by ADDING the link rather than dropping the phrase.
-        //     ⛔ An UPDATE, and the reason differs from the mappings tier above. A memo is keyed by
-        //     `normalized_key` ALONE and is consulted by every user's resolution cascade, so deleting the
-        //     erased owner's memos would silently un-resolve those phrases for the whole installation.
-        //     `food_id` and `verified_by` are the MACHINE's conclusion, which nobody asked to have erased,
-        //     so they survive; the phrase and the owner link do not.
-        //     ⚠️ There is no `superseded_at` analogue to scope on, and none is wanted: the memo's primary key
-        //     is the phrase's normalized form, so a re-swept row is already NULL on both columns and the
-        //     statement is a no-op rather than a rewrite of history.
-        //     ⛔ Both columns in ONE statement here too, and since 0031 enforced the same way: a memo whose
-        //     owner is unknown records the machine's conclusion and NO phrase, so this predicate reaches
-        //     every phrase the table can hold rather than only the ones a writer remembered to attribute.
-        await tx.execute(sql`
-            UPDATE ingredient_resolution_memos
-            SET owner_id = NULL, source_phrase = NULL
-            WHERE owner_id = ${ownerId}
-        `);
-
-        // 12. **The PARSE-CORRECTION tier (plan U21, migration 0029), de-identified rather than deleted.**
-        //     `ingredient_parse_corrections` is the parse pipeline's TOP tier: a cook's correction of how a
-        //     line reads, consulted BEFORE the parse cache and before either engine. It carries the line the
-        //     cook typed and their ULID, so the row is personal data from its first INSERT — unlike the two
-        //     tiers above, whose coverage had to be retrofitted, this sweep ships in the same change as the
-        //     table it reaches.
-        //     ⛔ An UPDATE. The row is keyed by `normalized_key` and read by every user's pipeline, so
-        //     deleting the erased cook's corrections would silently un-correct those lines for the whole
-        //     installation — and clearing `corrected_facts` would be the same deletion by another name. What
-        //     is personal is the typed line and the owner link; the correction itself is not.
-        //     ⛔ ONE statement, both columns. 0029's `…_owner_line_pair` CHECK asserts
-        //     `(owner_id IS NULL) = (source_line IS NULL)`, so splitting this in two would be REJECTED by the
-        //     database rather than quietly leaving a previous owner's id beside somebody else's line — which
-        //     would sweep a line that owner never typed and leave the one they did.
-        //     ⛔ It does NOT retire the row, and that is the ONE place it diverges from the mappings sweep
-        //     above — deliberately. A `curator`-origin correction binds GLOBALLY, so stamping `superseded_at`
-        //     would un-correct that line for the whole installation the moment its author exercised a right,
-        //     which is the exact outcome this UPDATE exists to avoid. An `author`-scoped row needs no
-        //     retirement either: with `owner_id` NULL it is excluded from the read predicate, from the
-        //     corroborator query, and from the live-author unique index, so it binds nobody and blocks
-        //     nobody — including the same user returning and correcting that line again.
-        //     ⚠️ Consequently there is no `superseded_at` predicate on the WHERE either, and none is wanted:
-        //     a re-swept row already satisfies the CHECK on both columns, so an SQS redelivery is a no-op
-        //     rather than a rewrite of when the data was removed.
-        await tx.execute(sql`
-            UPDATE ingredient_parse_corrections
-            SET owner_id = NULL, source_line = NULL
-            WHERE owner_id = ${ownerId}
-        `);
+        // ⛔ STEPS 10-12 (curated mappings, resolution memos, parse corrections) STOOD HERE AND WERE
+        //    REMOVED — owner ruling 2026-08-25, ADR-0027. An ingredient phrase is not private data, so no
+        //    statement here targets one, and the `user_id` those two correction tiers still carry is a
+        //    DISTINCT-USER COUNTER and an authorization predicate rather than an erasure predicate. See the
+        //    function docstring above before adding a fourth sweep to this transaction.
 
         return { removedRecipeIds };
     });

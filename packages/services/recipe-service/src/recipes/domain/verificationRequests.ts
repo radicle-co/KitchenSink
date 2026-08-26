@@ -101,11 +101,9 @@ export interface VerifiableLine {
      * `0.5 cup`. Building the message from the stored pair alone showed the model a source line beside a
      * number that source never printed, and it correctly disagreed with a line we had parsed right.
      *
-     * ⛔ A REQUIRED KEY carrying `undefined`, like {@link sourceLine} beside it and unlike
-     * {@link VerificationRequestInput.ownerId} above. `ownerId` is required-and-always-present because this
-     * module is the only place that knows it; a stated measure genuinely does not exist for most lines, so
-     * the VALUE is optional while the KEY is not — which is what makes every projection site a compile error
-     * rather than a silent reversion to the old question.
+     * ⛔ A REQUIRED KEY carrying `undefined`, like {@link sourceLine} beside it. A stated measure genuinely
+     * does not exist for most lines, so the VALUE is optional while the KEY is not — which is what makes
+     * every projection site a compile error rather than a silent reversion to the old question.
      */
     readonly statedMeasure: StatedMeasure | undefined;
 }
@@ -154,14 +152,6 @@ export interface VerificationRequestPlan {
 export interface VerificationRequestInput {
     /** The recipe the lines belong to. Correlation only — a verdict is keyed on content, not on this. */
     readonly recipeId: string;
-    /**
-     * Who owns that recipe — carried so a phrase the worker REMEMBERS can later be erased (migration 0026).
-     *
-     * ⛔ Required here even though it is optional on the wire. This module is the only place that knows the
-     * owner, and an optional field on an internal input is an invitation to forget it at one of the two call
-     * sites; the wire's optionality exists for messages already in the queue, not for new ones.
-     */
-    readonly ownerId: string;
     /** The lines as they are now persisted, in the author's order. */
     readonly lines: readonly VerifiableLine[];
     /**
@@ -298,7 +288,6 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
         requests.push({
             recipeId: input.recipeId,
-            ownerId: input.ownerId,
             sourceLine,
             foodId,
             candidateFoodName: line.candidateFoodName,

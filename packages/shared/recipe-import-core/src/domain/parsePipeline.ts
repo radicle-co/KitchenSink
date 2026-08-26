@@ -144,14 +144,14 @@ export interface ParseCorrectionsPort {
      * The correction binding this line for this caller.
      *
      * @param normalizedKey - The line's match grain.
-     * @param ownerId - The requesting cook, or `undefined` for an unattended import — which must see global
+     * @param userId - The requesting cook, or `undefined` for an unattended import — which must see global
      *   corrections and NOBODY's personal ones.
      * @returns The correction in force, or `undefined` when nothing binds this line for this caller.
      * @sideEffect Reads the correction store.
      */
     findInForce(
         normalizedKey: NormalizedIngredientKey,
-        ownerId: string | undefined,
+        userId: string | undefined,
     ): Promise<CorrectionInForce | undefined>;
 }
 
@@ -285,7 +285,7 @@ export interface ParsePipelineContext {
      * ⛔ `undefined` is not "a user we did not bother to look up": it means NOBODY is present, and the
      * correction tier treats it as such — global corrections only, and nobody's personal ones (R22).
      */
-    readonly ownerId: string | undefined;
+    readonly userId: string | undefined;
 }
 
 /**
@@ -427,7 +427,7 @@ async function consultCorrections(
         keys.map(async (key) =>
             // A line with no visible content has no match grain, so there is nothing a correction could bind
             // TO. Asking anyway would key the store on a value the smart constructor refused to mint.
-            key === undefined ? undefined : deps.corrections.findInForce(key, context.ownerId),
+            key === undefined ? undefined : deps.corrections.findInForce(key, context.userId),
         ),
     );
 

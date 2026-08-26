@@ -244,6 +244,47 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
   things in the two CRF schemas (`crfParse.ts` "echoed back" vs `engine.schema.ts` "NORMALISED"), which is
   why the promotion adapters take `raw` as a PARAMETER rather than trusting either.
 
+- **ADR-0027 — an ingredient PHRASE is NOT personal data, and the `user_id` beside it is a DISTINCT-USER
+  COUNTER, not an erasure predicate (owner ruling 2026-08-25).** This REVERSES two recorded rulings:
+  migration `0026`'s _"The owner ruled to KEEP the phrase and make it erasable"_ (2026-08-23) and `0031`'s
+  premise that _a phrase and the person it belongs to exist together or not at all_. Migration `0033`
+  therefore removes the apparatus built on them — `eraseRecipeRows`' sweep **steps 10-12** (curated mappings,
+  resolution memos, parse corrections), `ingredient_resolution_memos.owner_id` ENTIRELY (with its partial
+  index and CHECK), 0031's two CHECKs, 0029's sibling `ingredient_parse_corrections_owner_line_pair`, the
+  three partial indexes created only for a sweep predicate, and `ownerId` from the verification queue's wire
+  contract (its one consumer was the memo writer). ⛔ Do NOT re-add a sweep for these three tables. The two
+  correction tiers still carry a user id, so that is the obvious "fix" for a reader who has not read the ADR,
+  and it would un-authorize a cook from their own corrections: `author_id`/`owner_id` are now **`user_id`**
+  (GR-004's canonical spelling), and two of `resolutionMappings.dal.ts`'s _"three `WHERE` clauses ARE the
+  authorization"_ are that column — the supersede predicate where _"zero rows returned IS the denial"_, and
+  the read predicate `(scope = 'global' OR (:caller IS NOT NULL AND user_id = :caller))`. The partial unique
+  index `(normalized_key, user_id) WHERE scope='author' AND superseded_at IS NULL AND user_id IS NOT NULL`
+  **IS** the distinct-user count that promotes a correction from personal to global, so it is RENAMED, never
+  dropped and recreated (a DROP+CREATE opens a window in which one cook's two concurrent corrections both
+  land live and manufacture a promotion nobody earned). ⚠️ `user_id` stays NULLABLE — a `corroboration`
+  binding has no user, because nobody wrote it — and `source_phrase`/`source_line` stay NULLABLE for TWO
+  reasons: a live writer inserts NULL there (`promoteByCorroboration` still copies no phrase, because 0031
+  removed that copy on TWO arguments and this ruling reverses only the privacy one — the copy bought nothing,
+  since the binding CITES two rows that each carry their own phrase and the two-way-door backfill runs
+  through `corroborated_a`), AND 0031's backfills already nulled the column, so `SET NOT NULL` would fail on
+  every `pr-{N}` database it has run against. This restores the RULE, not the DATA — those phrases are gone.
+  `scope`/`origin` keep their `'author'` VALUE, which names a REACH rather than a person. ⛔ A NEW migration,
+  never an amendment to 0031: the runner tracks applied migrations BY NAME ONLY (no checksum) and 0031 has
+  already run on pr-91, so an amended file would be skipped there while every fresh database got the new
+  text. ⛔ `erasureSweepCoverage.test.ts` gained a SECOND map — `RETAINED_BY_RULING`, whose claim is about
+  CONTENT ("the only user-derived thing here is an opaque id"), discharged by PINNING the table's ENTIRE
+  column set plus an ADR citation that must exist on disk — and its discovery became a FOLD over the ordered
+  migrations (honouring `DROP COLUMN`/`RENAME COLUMN`), bounded by a `fold ⊆ union` assertion and a floor
+  raised to the current count. Do not merge the two maps: an exemption claims a MECHANISM, a retention claims
+  CONTENT, and they are verified differently. `MINIMUM_DE_IDENTIFYING_STATEMENTS` was DELETED rather than set
+  to 0, because the sweep now issues none and a constant named MINIMUM that enforces nothing reads as
+  reviewed. ⚠️ RESIDUAL, and it is the thing a reviewer should challenge: a pseudonymous ULID survives a GDPR
+  erasure request by design, and the defence is NOT "the identity service deletes the mapping" —
+  `eraseIdentityRow` deliberately KEEPS the row and its `identityId` resolvable (R1 / the R10
+  anti-resurrection guard) while scrubbing every PII field and deleting the Clerk account first. Re-open the
+  ADR if identity ever retains PII past erasure, if a restored backup reintroduces a ULID→person mapping, or
+  if corroboration stops needing per-user distinctness.
+
 ## Contract & validation conformance for NEW code (GR-017 – GR-020, ruled 2026-08-12)
 
 These are inline because a review bot cannot follow a link, and because they bind code that **does not exist

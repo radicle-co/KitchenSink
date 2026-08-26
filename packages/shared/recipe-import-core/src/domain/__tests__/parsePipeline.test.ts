@@ -162,15 +162,15 @@ function makeCache(rows: readonly CachedParseRow[] = []): ParseCachePort & {
 
 /** A correction tier keyed the way the DAL is, recording what it was asked. */
 function makeCorrections(entries: ReadonlyMap<string, unknown> = new Map()): ParseCorrectionsPort & {
-    readonly asked: { key: string; ownerId: string | undefined }[];
+    readonly asked: { key: string; userId: string | undefined }[];
     failWith?: Error;
 } {
-    const asked: { key: string; ownerId: string | undefined }[] = [];
+    const asked: { key: string; userId: string | undefined }[] = [];
 
     return {
         asked,
-        async findInForce(key, ownerId): Promise<{ readonly facts: unknown } | undefined> {
-            asked.push({ key, ownerId });
+        async findInForce(key, userId): Promise<{ readonly facts: unknown } | undefined> {
+            asked.push({ key, userId });
 
             if (this.failWith !== undefined) {
                 throw this.failWith;
@@ -258,7 +258,7 @@ describe('the order: corrections, then the cache, then the engines', () => {
             makeRow(BUTTER, 'llm', storedFactsOf(makeParse('llm'))),
         ]);
         const outcome = only(
-            await runParsePipeline([BUTTER], makeDeps({ corrections, cache }), { ownerId: 'user_1' }, makeObservers()),
+            await runParsePipeline([BUTTER], makeDeps({ corrections, cache }), { userId: 'user_1' }, makeObservers()),
         );
 
         expect(outcome.tier).toBe('correction');
@@ -280,7 +280,7 @@ describe('the order: corrections, then the cache, then the engines', () => {
         await runParsePipeline(
             [BUTTER],
             makeDeps({ corrections, engines: makeEngines(crf, llm) }),
-            { ownerId: 'u' },
+            { userId: 'u' },
             makeObservers(),
         );
 
@@ -299,7 +299,7 @@ describe('the order: corrections, then the cache, then the engines', () => {
         const outcomes = await runParsePipeline(
             [BUTTER, SUGAR],
             makeDeps({ corrections, cache, engines: makeEngines(crf) }),
-            { ownerId: 'u' },
+            { userId: 'u' },
             makeObservers(),
         );
 
@@ -315,7 +315,7 @@ describe('the order: corrections, then the cache, then the engines', () => {
             new Map([[normalizedIngredientKey(BUTTER) as string, storedFactsOf(makeParse('crf'))]]),
         );
         const outcome = only(
-            await runParsePipeline([BUTTER], makeDeps({ corrections }), { ownerId: 'u' }, makeObservers()),
+            await runParsePipeline([BUTTER], makeDeps({ corrections }), { userId: 'u' }, makeObservers()),
         );
 
         expect(outcome.parsed?.provenance).toEqual({
@@ -331,26 +331,26 @@ describe('the order: corrections, then the cache, then the engines', () => {
     it('asks the correction tier under each line`s normalized key and the caller`s identity', async () => {
         const corrections = makeCorrections();
 
-        await runParsePipeline([BUTTER, SUGAR], makeDeps({ corrections }), { ownerId: 'user_1' }, makeObservers());
+        await runParsePipeline([BUTTER, SUGAR], makeDeps({ corrections }), { userId: 'user_1' }, makeObservers());
 
         expect(corrections.asked).toEqual([
-            { key: normalizedIngredientKey(BUTTER), ownerId: 'user_1' },
-            { key: normalizedIngredientKey(SUGAR), ownerId: 'user_1' },
+            { key: normalizedIngredientKey(BUTTER), userId: 'user_1' },
+            { key: normalizedIngredientKey(SUGAR), userId: 'user_1' },
         ]);
     });
 
     it('passes an unattended import`s ABSENT identity through, rather than inventing one', async () => {
         const corrections = makeCorrections();
 
-        await runParsePipeline([BUTTER], makeDeps({ corrections }), { ownerId: undefined }, makeObservers());
+        await runParsePipeline([BUTTER], makeDeps({ corrections }), { userId: undefined }, makeObservers());
 
-        expect(corrections.asked[0]?.ownerId).toBeUndefined();
+        expect(corrections.asked[0]?.userId).toBeUndefined();
     });
 
     it('skips the correction tier for a line with no normalizable key at all', async () => {
         const corrections = makeCorrections();
         const outcome = only(
-            await runParsePipeline(['   '], makeDeps({ corrections }), { ownerId: 'u' }, makeObservers()),
+            await runParsePipeline(['   '], makeDeps({ corrections }), { userId: 'u' }, makeObservers()),
         );
 
         expect(corrections.asked).toEqual([]);
@@ -366,7 +366,7 @@ describe('the order: corrections, then the cache, then the engines', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ corrections, engines: makeEngines(crf) }),
-                { ownerId: 'u' },
+                { userId: 'u' },
                 observers,
             ),
         );
@@ -388,7 +388,7 @@ describe('the order: corrections, then the cache, then the engines', () => {
             await runParsePipeline(
                 [],
                 makeDeps({ corrections, cache, engines: makeEngines(crf) }),
-                { ownerId: 'u' },
+                { userId: 'u' },
                 makeObservers(),
             ),
         ).toEqual([]);
@@ -411,7 +411,7 @@ describe('the cache tier', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ cache, engines: makeEngines(crf, llm) }),
-                { ownerId: undefined },
+                { userId: undefined },
                 makeObservers(),
             ),
         );
@@ -431,7 +431,7 @@ describe('the cache tier', () => {
             makeRow(BUTTER, 'llm', storedFactsOf(makeParse('llm', { unit: 'teaspoon' }))),
         ]);
         const outcome = only(
-            await runParsePipeline([BUTTER], makeDeps({ cache }), { ownerId: undefined }, makeObservers()),
+            await runParsePipeline([BUTTER], makeDeps({ cache }), { userId: undefined }, makeObservers()),
         );
 
         expect(agreementOf(outcome)).toEqual({ kind: 'differ', fields: ['unit'] });
@@ -440,7 +440,7 @@ describe('the cache tier', () => {
     it('reads the cache under the line DIGESTS, never under the lines', async () => {
         const cache = makeCache();
 
-        await runParsePipeline([BUTTER, SUGAR], makeDeps({ cache }), { ownerId: undefined }, makeObservers());
+        await runParsePipeline([BUTTER, SUGAR], makeDeps({ cache }), { userId: undefined }, makeObservers());
 
         expect(cache.reads).toEqual([[digestOf(BUTTER), digestOf(SUGAR)]]);
         expect(JSON.stringify(cache.reads)).not.toContain('butter');
@@ -459,7 +459,7 @@ describe('the cache tier', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ cache, engines: makeEngines(crf, llm) }),
-                { ownerId: undefined },
+                { userId: undefined },
                 makeObservers(),
             ),
         );
@@ -480,7 +480,7 @@ describe('the cache tier', () => {
         await runParsePipeline(
             [BUTTER],
             makeDeps({ cache, engines: makeEngines(crf) }),
-            { ownerId: undefined },
+            { userId: undefined },
             observers,
         );
 
@@ -504,7 +504,7 @@ describe('the cache tier', () => {
         const outcomes = await runParsePipeline(
             [BUTTER, SUGAR],
             makeDeps({ cache, engines: makeEngines(crf, llm) }),
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -530,7 +530,7 @@ describe('the cache tier', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ cache, engines: makeEngines(crf) }),
-                { ownerId: undefined },
+                { userId: undefined },
                 observers,
             ),
         );
@@ -571,7 +571,7 @@ describe('the engines run together, not one after the other', () => {
         const outcomes = await runParsePipeline(
             [BUTTER],
             makeDeps({ engines: makeEngines(crf, llm) }),
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -588,7 +588,7 @@ describe('the engines run together, not one after the other', () => {
         await runParsePipeline(
             [raw],
             makeDeps({ engines: makeEngines(crf, llm) }),
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -608,7 +608,7 @@ describe('the engines run together, not one after the other', () => {
         const outcomes = await runParsePipeline(
             [BUTTER, spaced, BUTTER],
             makeDeps({ cache, engines: makeEngines(crf, llm) }),
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -619,7 +619,7 @@ describe('the engines run together, not one after the other', () => {
     });
 
     it('raw is each position`s OWN line on the merged parse', async () => {
-        const outcomes = await runParsePipeline([BUTTER, SUGAR], makeDeps(), { ownerId: undefined }, makeObservers());
+        const outcomes = await runParsePipeline([BUTTER, SUGAR], makeDeps(), { userId: undefined }, makeObservers());
 
         expect(outcomes.map((outcome) => outcome.parsed?.raw)).toEqual([BUTTER, SUGAR]);
     });
@@ -634,7 +634,7 @@ describe('the engines run together, not one after the other', () => {
             runParsePipeline(
                 [BUTTER, SUGAR],
                 makeDeps({ engines: makeEngines(crf) }),
-                { ownerId: undefined },
+                { userId: undefined },
                 makeObservers(),
             ),
         ).rejects.toThrow(/mispaired/u);
@@ -648,7 +648,7 @@ describe('the engines run together, not one after the other', () => {
         const observers = makeObservers();
 
         await expect(
-            runParsePipeline([BUTTER], makeDeps({ engines: makeEngines(crf) }), { ownerId: undefined }, observers),
+            runParsePipeline([BUTTER], makeDeps({ engines: makeEngines(crf) }), { userId: undefined }, observers),
         ).rejects.toThrow(/mispaired/u);
         expect(observers.tierFailures).toEqual([]);
     });
@@ -668,7 +668,7 @@ describe('an engine that could not answer is ABSENCE, never dissent', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ engines: makeEngines(crf, llm) }),
-                { ownerId: undefined },
+                { userId: undefined },
                 observers,
             ),
         );
@@ -685,7 +685,7 @@ describe('an engine that could not answer is ABSENCE, never dissent', () => {
         const outcomes = await runParsePipeline(
             [BUTTER, SUGAR],
             makeDeps({ engines: makeEngines(crf) }),
-            { ownerId: undefined },
+            { userId: undefined },
             observers,
         );
 
@@ -701,7 +701,7 @@ describe('an engine that could not answer is ABSENCE, never dissent', () => {
         const outcomes = await runParsePipeline(
             [BUTTER, SUGAR],
             makeDeps({ engines: makeEngines(crf) }),
-            { ownerId: undefined },
+            { userId: undefined },
             makeObservers(),
         );
 
@@ -717,7 +717,7 @@ describe('an engine that could not answer is ABSENCE, never dissent', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ engines: makeEngines(crf, llm) }),
-                { ownerId: undefined },
+                { userId: undefined },
                 makeObservers(),
             ),
         );
@@ -733,7 +733,7 @@ describe('an engine that could not answer is ABSENCE, never dissent', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ engines: makeEngines(crf, llm) }),
-                { ownerId: undefined },
+                { userId: undefined },
                 observers,
             ),
         );
@@ -754,7 +754,7 @@ describe('what the run remembers', () => {
             makeEngine('llm', { answers: new Map([[BUTTER, llmParse]]) }),
         );
 
-        await runParsePipeline([BUTTER], makeDeps({ cache, engines }), { ownerId: undefined }, makeObservers());
+        await runParsePipeline([BUTTER], makeDeps({ cache, engines }), { userId: undefined }, makeObservers());
 
         const digest = digestOf(BUTTER);
 
@@ -779,7 +779,7 @@ describe('what the run remembers', () => {
     it('never writes the cook`s line into the row', async () => {
         const cache = makeCache();
 
-        await runParsePipeline([BUTTER], makeDeps({ cache }), { ownerId: undefined }, makeObservers());
+        await runParsePipeline([BUTTER], makeDeps({ cache }), { userId: undefined }, makeObservers());
 
         expect(cache.writes).not.toHaveLength(0);
 
@@ -793,7 +793,7 @@ describe('what the run remembers', () => {
         const cache = makeCache();
         const engines = makeEngines(makeEngine('crf', { rejectWith: new Error('down') }));
 
-        await runParsePipeline([BUTTER], makeDeps({ cache, engines }), { ownerId: undefined }, makeObservers());
+        await runParsePipeline([BUTTER], makeDeps({ cache, engines }), { userId: undefined }, makeObservers());
 
         expect(cache.writes.map((write) => write.engine)).toEqual(['llm']);
     });
@@ -801,7 +801,7 @@ describe('what the run remembers', () => {
     it('does not re-write a row it read out of the cache', async () => {
         const cache = makeCache([makeRow(BUTTER, 'llm', storedFactsOf(makeParse('llm')))]);
 
-        await runParsePipeline([BUTTER], makeDeps({ cache }), { ownerId: undefined }, makeObservers());
+        await runParsePipeline([BUTTER], makeDeps({ cache }), { userId: undefined }, makeObservers());
 
         expect(cache.writes.map((write) => write.engine)).toEqual(['crf']);
     });
@@ -812,7 +812,7 @@ describe('what the run remembers', () => {
             new Map([[normalizedIngredientKey(BUTTER) as string, storedFactsOf(makeParse('crf'))]]),
         );
 
-        await runParsePipeline([BUTTER], makeDeps({ cache, corrections }), { ownerId: 'u' }, makeObservers());
+        await runParsePipeline([BUTTER], makeDeps({ cache, corrections }), { userId: 'u' }, makeObservers());
 
         expect(cache.writes).toEqual([]);
     });
@@ -825,7 +825,7 @@ describe('what the run remembers', () => {
         cache.failWriteWith = new Error('unique violation');
 
         const observers = makeObservers();
-        const outcome = only(await runParsePipeline([BUTTER], makeDeps({ cache }), { ownerId: undefined }, observers));
+        const outcome = only(await runParsePipeline([BUTTER], makeDeps({ cache }), { userId: undefined }, observers));
 
         expect(agreementOf(outcome)).toEqual({ kind: 'agree' });
         expect(observers.tierFailures.map((failure) => failure.tier)).toEqual(['cache', 'cache']);
@@ -839,7 +839,7 @@ describe('nothing takes a line down', () => {
         corrections.failWith = new Error('connection reset');
 
         const observers = makeObservers();
-        const outcome = only(await runParsePipeline([BUTTER], makeDeps({ corrections }), { ownerId: 'u' }, observers));
+        const outcome = only(await runParsePipeline([BUTTER], makeDeps({ corrections }), { userId: 'u' }, observers));
 
         expect(outcome.tier).toBe('parse');
         expect(observers.tierFailures).toEqual([{ tier: 'corrections', error: corrections.failWith }]);
@@ -851,7 +851,7 @@ describe('nothing takes a line down', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ engines }),
-                { ownerId: undefined },
+                { userId: undefined },
                 {
                     onTierFailure: () => {
                         throw new Error('the logger is broken');
@@ -874,7 +874,7 @@ describe('the Null Objects', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ corrections: NO_CORRECTIONS, engines: makeEngines(crf) }),
-                { ownerId: 'u' },
+                { userId: 'u' },
                 makeObservers(),
             ),
         );
@@ -889,7 +889,7 @@ describe('the Null Objects', () => {
             await runParsePipeline(
                 [BUTTER],
                 makeDeps({ cache: NO_CACHE, engines: makeEngines(crf) }),
-                { ownerId: undefined },
+                { userId: undefined },
                 makeObservers(),
             ),
         );

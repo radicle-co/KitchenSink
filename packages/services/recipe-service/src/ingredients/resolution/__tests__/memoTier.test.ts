@@ -61,7 +61,7 @@ describe('createMemoTier — the adapter', () => {
         const findMemo = vi.fn().mockResolvedValue({ foodId: 'FOOD-A', match: 'exact', similarity: 1 });
         const tier = createMemoTier({ findMemo } as unknown as ResolutionMappingsDal);
 
-        await tier.resolve(QUERY, { authorId: '01JU10MEMO000000000AUTHOR' });
+        await tier.resolve(QUERY, { userId: '01JU10MEMO000000000AUTHOR' });
 
         // A memo is machine-derived and belongs to nobody, so the lookup takes the key alone. Passing an
         // author here would imply a per-user memo table that does not exist.
@@ -72,6 +72,6 @@ describe('createMemoTier — the adapter', () => {
         const findMemo = vi.fn().mockRejectedValue(new Error('connection reset'));
         const tier = createMemoTier({ findMemo } as unknown as ResolutionMappingsDal);
 
-        await expect(tier.resolve(QUERY, { authorId: undefined })).rejects.toThrow('connection reset');
+        await expect(tier.resolve(QUERY, { userId: undefined })).rejects.toThrow('connection reset');
     });
 });

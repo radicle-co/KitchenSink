@@ -417,6 +417,13 @@ Two tables, two erasure treatments, and the split is deliberate.
   **de-identifying `UPDATE`, never a `DELETE`** — the row is consulted by every user's pipeline, so
   deleting it would silently un-correct that line installation-wide. `owner_id` and the text move as a
   pair or not at all.
+- ⛔ **REVERSED 2026-08-25 — ADR-0027.** The bullet above describes the erasure treatment as it was
+  designed. The owner has since ruled that an ingredient phrase is **not personal data**: migration `0033`
+  removed the sweep, renamed `owner_id`/`author_id` to `user_id` (a DISTINCT-USER COUNTER and an
+  authorization predicate, never an erasure predicate), dropped the pair CHECKs, and dropped
+  `ingredient_resolution_memos.owner_id` entirely. Read
+  `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md` before implementing anything
+  from this section.
 
 ### KTD-15 — The correction tier reuses `mappingScopePolicy`, applied to a different subject
 
@@ -1535,6 +1542,11 @@ text **together**, never one without the other · erasure never deletes the row 
 against a row whose text column is already NULL (idempotent) · the new gate fails when a table with an
 `owner_id` is absent from the sweep.
 
+⛔ **REVERSED 2026-08-25 — ADR-0027.** The three erasure scenarios above no longer apply: no sweep reaches
+this table, so there is nothing to NULL, nothing to be idempotent about, and the coverage gate now records
+the table in `RETAINED_BY_RULING` instead of demanding a sweep. What replaced them: the sweep must issue no
+statement against these tables, and the rows must survive a real erasure untouched.
+
 **Verification.** Integration tier green; erasure suite green.
 
 ---
@@ -2239,6 +2251,11 @@ dependency is why the suite is fragile in working hours too), or do not run the 
   table now holds a person-to-row link it did not hold before, which is what makes erasure possible and what
   erasure must never miss. The alternative — dropping the phrase, which is write-only today — would have
   removed the question instead of answering it, at the cost of the two-way door the mappings tier keeps.
+- ⛔ **REVERSED 2026-08-25 — ADR-0027.** The ruling above was overturned the following week. An ingredient
+  phrase is not personal data, so migration `0033` DROPPED `ingredient_resolution_memos.owner_id` — the
+  "person-to-row link it did not hold before" — along with its index and the sweep it existed for. A memo is
+  the model's conclusion; there is no correction there to count, which is why this tier lost the column
+  outright where the two correction tiers renamed theirs.
 - **U10's corroboration rule stands unchanged.** Two independent authors still promote to global. The
   sock-puppet path is real but bounded and reversible: every promotion emits an audit signal carrying both
   author ids, and supersession is scope-gated so a grant holder can demote. Detect-and-reverse is the right

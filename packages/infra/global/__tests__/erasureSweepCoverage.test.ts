@@ -38,22 +38,63 @@
  * aim the NEXT erasure at the wrong person. `ingredient_parse_corrections_owner_line_pair` (0029) shipped
  * that reasoning first; migration 0031 brought the other two tables to it.
  *
+ * ## ⛔ THE 2026-08-25 OWNER RULING, and what it changed here (ADR-0027)
+ *
+ * The owner ruled that **an ingredient phrase — the original a cook typed, or a corrected one — is NOT
+ * private data.** It is not erasable, no sweep targets it, and migration 0033 removed the three statements
+ * this gate was extended to cover, dropped the memo tier's person column, and repealed the two CHECKs the
+ * pairing rule above was written around. Two correction tables still carry a `user_id`, deliberately: it is
+ * how the installation counts how many DISTINCT people made the same correction, and it is two of the three
+ * `WHERE` clauses that authorize those tables.
+ *
+ * That creates a THIRD verdict this gate did not have — "carries a user column and is deliberately not
+ * swept" — and it must not be folded into {@link EXEMPT_FROM_SWEEP}. The two claims are checked differently:
+ *
+ *  * an EXEMPTION claims a MECHANISM — "erasure still reaches this data by some other means" — and is
+ *    verified against that mechanism (`recipe_versions` is covered by the cascade from `recipes`);
+ *  * a RETENTION claims CONTENT — "the only user-derived thing left here is an opaque identifier, kept for a
+ *    stated purpose" — which no mechanism can discharge, so it is verified by PINNING the table's whole
+ *    current column set. That pin is the only mechanical check on what a retention entry actually asserts:
+ *    it is what stops a genuinely personal column (a handle, an address, a free-text note) accreting on a
+ *    retained table and never being noticed, which is the failure this whole file exists for.
+ *
+ * ⛔ One map with two meanings would be one map with two unenforceable meanings. That is why there are two.
+ *
  * ## What is asserted, and why it is bidirectional
  *
- * The owner-bearing tables are DISCOVERED from the migration files — never enumerated here — and the swept
+ * The user-bearing tables are DISCOVERED from the migration files — never enumerated here — and the swept
  * tables are DISCOVERED from the statements `eraseRecipeRows` actually issues. Then:
  *
- *  * every discovered owner-bearing table is swept, or named in {@link EXEMPT_FROM_SWEEP} with its reason;
- *  * every exemption names a table that still EXISTS and still carries an owner column, so an exemption
- *    cannot outlive the thing it excused;
- *  * no exemption is also swept, so an exemption that has quietly been closed is reported rather than left
- *    standing as a lie about the sweep;
+ *  * every discovered user-bearing table is swept, exempted with its reason, or retained with its ruling —
+ *    never none of the three;
+ *  * every exemption and every retention names a table that still EXISTS and still carries a user column, so
+ *    neither can outlive the thing it excused;
+ *  * neither an exemption nor a retention names a table the sweep already reaches, so a claim that has
+ *    quietly been closed is reported rather than left standing as a lie about the sweep;
+ *  * a retention pins the table's ENTIRE column set, so a new column on a retained table is a decision
+ *    somebody has to make rather than a silent addition;
+ *  * a retention's reason cites an ADR file that EXISTS on disk — a stricter bar than an exemption's, because
+ *    a retention converts "RED unless swept" into "green forever";
  *  * every column a de-identifying statement NULLs is pair-checked against the owner column that statement
  *    keys on, so no row shape can exist that carries the data and not the predicate.
  *
  * A non-vacuity floor guards the discovery itself: if the parser stops finding tables — a syntax change, a
  * moved directory, a renamed function — the gate must go RED rather than pass by finding nothing, which is
  * the failure mode `natEgressConsumers.test.ts` was written against and this file mirrors deliberately.
+ *
+ * ## ⚠️ THE DISCOVERY IS A FOLD OVER THE ORDERED MIGRATIONS, not a union over them
+ *
+ * It used to union every table any migration ever gave a user column. That was silently wrong in one
+ * direction nobody had hit: a DROPPED column would leave this gate demanding a sweep for something that does
+ * not exist, escapable only by hand-writing an exemption asserting a fact the schema already states. 0033 is
+ * the first drop, so the parser now REDUCES — honouring `ALTER TABLE … DROP COLUMN` and
+ * `ALTER TABLE … RENAME COLUMN` — and the derived set is the CURRENT schema.
+ *
+ * ⛔ A fold can fail in a direction a union structurally cannot: it can REMOVE a real user column and turn a
+ * genuinely unswept personal table green. Two things bound that, and both are asserted below. The fold's
+ * result must be a SUBSET of the union (a fold may only ever remove), which catches any parser bug in the
+ * add direction for free; and the non-vacuity floor is set against the CURRENT count rather than a historical
+ * one, so a fold that spuriously drops a table goes red instead of quietly having room to.
  *
  * ## ⚠️ WHY THE PARSER AND NOT grep, on BOTH sides
  *
@@ -71,11 +112,12 @@
  * a sweep adds an entry to {@link SWEPT_DATABASES}; the pure predicates below are subject-neutral so that
  * costs one line and no new logic.
  *
- * DESIGN PATTERN: Specification module over four pure parsers — {@link ownerBearingTablesIn},
- * {@link sweptTablesIn}, {@link deIdentifyingStatementsIn} and {@link checkExpressionsFor} are pure verdicts
- * over a source, fired at deliberately-violating fakes below as well as at the working tree.
+ * DESIGN PATTERN: Specification module over six pure verdicts — {@link userColumnEffectsIn} (folded by
+ * {@link userBearingTablesAfter}), {@link currentColumnsOf}, {@link sweptTablesIn},
+ * {@link deIdentifyingStatementsIn} and {@link checkExpressionsFor} are pure functions over a source, fired
+ * at deliberately-violating fakes below as well as at the working tree.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import ts from 'typescript';
@@ -130,22 +172,83 @@ const EXEMPT_FROM_SWEEP: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * The fewest owner-bearing tables a working discovery must find.
+ * Tables that carry a user column which is deliberately NOT swept, because the column is not erasable
+ * personal data — a claim about CONTENT, unlike {@link EXEMPT_FROM_SWEEP}'s claim about a mechanism.
+ *
+ * ⛔ An entry is a RULING, and it is the strongest thing this file accepts on a human's word, so it carries
+ * the strictest checks: the reason must cite an ADR file that exists, and `columns` pins the table's ENTIRE
+ * current column set. That pin is the point. Without it an entry would silently excuse every FUTURE column
+ * on the table too, and both of these tables are under active development — a handle, an address or a
+ * free-text note landing beside the id would be exactly the "right exercised, reported complete, and not
+ * honoured" failure this file was written about, wearing a green check.
+ *
+ * ⚠️ Adding a column to a retained table therefore costs one line here. That is deliberate friction, not an
+ * oversight: it is the only moment anybody is forced to ask whether the new column is personal data.
+ */
+const RETAINED_BY_RULING: ReadonlyMap<string, { readonly why: string; readonly columns: readonly string[] }> = new Map([
+    [
+        'ingredient_resolution_mappings',
+        {
+            why:
+                '`user_id` is the DISTINCT-USER corroboration counter and two of the three WHERE clauses ' +
+                'that authorize this table; the phrase beside it is not private data — owner ruling ' +
+                '2026-08-25, docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md',
+            columns: [
+                'id',
+                'normalized_key',
+                'source_phrase',
+                'food_id',
+                'scope',
+                'origin',
+                'user_id',
+                'surfacing',
+                'corroborated_a',
+                'corroborated_b',
+                'superseded_at',
+                'superseded_by',
+                'created_at',
+            ],
+        },
+    ],
+    [
+        'ingredient_parse_corrections',
+        {
+            why:
+                '`user_id` plays the identical role one tier down — the distinct-cook count and the ' +
+                'supersede predicate; the corrected line is not private data — owner ruling 2026-08-25, ' +
+                'docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md',
+            columns: [
+                'id',
+                'normalized_key',
+                'source_line',
+                'corrected_facts',
+                'scope',
+                'origin',
+                'user_id',
+                'surfacing',
+                'corroborated_a',
+                'corroborated_b',
+                'superseded_at',
+                'superseded_by',
+                'created_at',
+            ],
+        },
+    ],
+]);
+
+/**
+ * The fewest user-bearing tables a working discovery must find.
  *
  * A floor, never the list — the point of discovery is that the list is not written down. It exists so a
  * parser that silently stops matching goes RED instead of green, which is the failure a gate over a derived
  * set is most exposed to.
- */
-const MINIMUM_OWNER_BEARING_TABLES = 6;
-
-/**
- * The fewest de-identifying statements a working parse must find.
  *
- * Same role as {@link MINIMUM_OWNER_BEARING_TABLES}: the pairing assertion iterates a DERIVED set, so a
- * parser that silently stops matching would satisfy it vacuously. Three today — the curated mapping tier,
- * the memo tier and the parse-correction tier.
+ * ⚠️ Raised from 6 to 8 when the discovery became a FOLD (see the module docstring). The current schema has
+ * exactly eight, so the slack a fold could use to spuriously drop a table is ZERO — one spurious drop goes
+ * red. That is deliberate, and it is the cost: this constant must be raised in the same change as any
+ * migration adding a user-bearing table, or the gate goes red on the addition rather than on a defect.
  */
-const MINIMUM_DE_IDENTIFYING_STATEMENTS = 3;
+const MINIMUM_OWNER_BEARING_TABLES = 8;
 
 /**
  * Strip SQL comments so prose about a column is never read as a column.
@@ -155,6 +258,40 @@ const MINIMUM_DE_IDENTIFYING_STATEMENTS = 3;
  */
 function stripSqlComments(sql: string): string {
     return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
+}
+
+/**
+ * The clause text of every `ALTER TABLE <table>` statement in one source, up to its `;`.
+ *
+ * ⛔ THIS EXISTS BECAUSE `ALTER TABLE` TAKES A COMMA-SEPARATED CLAUSE LIST, and this repository already
+ * writes one — `0016_collection_source_provenance.sql` adds three columns under a single
+ * `ALTER TABLE collections`. Every parser here used to anchor its clause pattern directly to
+ * `ALTER TABLE <t>`, which sees the FIRST clause and no other. MEASURED while fixing this: a probe adding
+ * `user_id` in clause position 2 to an unswept table left the whole gate GREEN — a user-bearing table
+ * invisible to the check that exists to find exactly that.
+ *
+ * ⚠️ Splitting on `;` is sound HERE and would not be in general: comments are stripped before this runs,
+ * and no migration in this tree puts a semicolon inside a string literal or a dollar-quoted body within an
+ * `ALTER TABLE`. If one ever does, this is the line that needs a real tokenizer.
+ *
+ * @param sql - Comment-stripped migration text.
+ * @param table - The table whose statements are wanted, or `undefined` for every table.
+ * @returns One entry per matching statement: the table it alters, and its clause text. Pure.
+ */
+function alterClausesIn(sql: string, table?: string): readonly { table: string; clauses: string }[] {
+    const name = table === undefined ? '([a-z_][a-z0-9_]*)' : `(${table})`;
+    const found: { table: string; clauses: string }[] = [];
+
+    for (const match of sql.matchAll(new RegExp(`ALTER\\s+TABLE\\s+(?:ONLY\\s+)?"?${name}"?\\s`, 'gi'))) {
+        const start = (match.index ?? 0) + match[0].length;
+        const end = sql.indexOf(';', start);
+
+        if (match[1] !== undefined) {
+            found.push({ table: match[1], clauses: sql.slice(start, end === -1 ? sql.length : end) });
+        }
+    }
+
+    return found;
 }
 
 /**
@@ -183,40 +320,136 @@ function balancedBody(text: string, start: number): string {
 }
 
 /**
- * The tables one migration file declares (or extends) with an owner-identifying column.
+ * What one migration file does to the schema's user columns: which tables it gives one, and which it takes
+ * one away from.
  *
- * Reads both spellings that occur in this repository: a `CREATE TABLE` whose body declares the column, and
- * an `ALTER TABLE … ADD COLUMN` that adds one later (migration 0026's shape). Quoting is optional on both,
- * because both styles are present in the tree.
+ * Reads the four spellings that occur in this repository — a `CREATE TABLE` whose body declares the column,
+ * an `ALTER TABLE … ADD COLUMN` that adds one later (0026's shape), an `ALTER TABLE … DROP COLUMN` that
+ * removes one (0033's), and an `ALTER TABLE … RENAME COLUMN` that changes which spelling a table carries
+ * (0033's again). Quoting is optional on all four, because every style is present in the tree.
+ *
+ * ⚠️ Comments are stripped FIRST, and that is load-bearing for the two new forms in a way it was not for the
+ * two old ones: this repository's migration headers quote their own `ALTER` statements in prose — 0031's
+ * prints its backfills, 0033's prints what it drops — so an unstripped read would let a DESCRIPTION of a drop
+ * remove a real column from the derived schema. Asserted directly by a fake below.
  *
  * @param source - One migration file.
- * @returns The table names it makes owner-bearing. Pure.
+ * @returns The `[table, column]` pairs it introduces and retires. PAIRS, not tables — see
+ *   `userBearingTablesAfter` for why a table leaves the set only when its last one goes. Pure.
  */
-function ownerBearingTablesIn(source: SourceFile): readonly string[] {
+function userColumnEffectsIn(source: SourceFile): {
+    readonly gained: readonly (readonly [string, string])[];
+    readonly lost: readonly (readonly [string, string])[];
+} {
     const sql = stripSqlComments(source.contents);
-    const owned = new Set<string>();
-    const ownerColumn = new RegExp(`"?\\b(?:${OWNER_COLUMNS.join('|')})\\b"?`);
+    const gained: [string, string][] = [];
+    const lost: [string, string][] = [];
+    const isUserColumn = (column: string): boolean => (OWNER_COLUMNS as readonly string[]).includes(column);
 
     for (const match of sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?\s*\(/gi)) {
         const body = balancedBody(sql, sql.indexOf('(', (match.index ?? 0) + match[0].length - 1));
 
-        if (ownerColumn.test(body) && match[1] !== undefined) {
-            owned.add(match[1]);
+        for (const column of OWNER_COLUMNS) {
+            if (match[1] !== undefined && new RegExp(`"?\\b${column}\\b"?`).test(body)) {
+                gained.push([match[1], column]);
+            }
         }
     }
 
-    for (const match of sql.matchAll(
-        new RegExp(
-            `ALTER\\s+TABLE\\s+"?([a-z_][a-z0-9_]*)"?\\s+ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"?(?:${OWNER_COLUMNS.join('|')})\\b`,
-            'gi',
-        ),
-    )) {
-        if (match[1] !== undefined) {
-            owned.add(match[1]);
+    // ⛔ Every `ALTER` form below reads the statement's WHOLE clause list — see `alterClausesIn`. A pattern
+    // anchored to `ALTER TABLE <t> ADD COLUMN <user>` sees only the first clause, which is how a user column
+    // in position 2+ became invisible to this gate.
+    for (const { table, clauses } of alterClausesIn(sql)) {
+        for (const add of clauses.matchAll(/\bADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/gi)) {
+            if (add[1] !== undefined && isUserColumn(add[1])) {
+                gained.push([table, add[1]]);
+            }
+        }
+
+        for (const drop of clauses.matchAll(/\bDROP\s+COLUMN\s+(?:IF\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/gi)) {
+            if (drop[1] !== undefined && isUserColumn(drop[1])) {
+                lost.push([table, drop[1]]);
+            }
+        }
+
+        // A RENAME is BOTH — it retires one spelling and may introduce another. Tracked per COLUMN rather
+        // than per table, so a table carrying two user columns that loses one stays user-bearing.
+        for (const rename of clauses.matchAll(
+            /\bRENAME\s+COLUMN\s+"?([a-z_][a-z0-9_]*)"?\s+TO\s+"?([a-z_][a-z0-9_]*)"?/gi,
+        )) {
+            const [, from, to] = rename;
+
+            if (from === undefined || to === undefined) {
+                continue;
+            }
+
+            if (isUserColumn(from)) {
+                lost.push([table, from]);
+            }
+
+            if (isUserColumn(to)) {
+                gained.push([table, to]);
+            }
         }
     }
 
-    return [...owned];
+    return { gained, lost };
+}
+
+/**
+ * The tables that carry a user column AFTER the whole ordered migration set has been applied.
+ *
+ * ⛔ A FOLD, not a union, and the order therefore matters — see the module docstring for why it changed. The
+ * caller is responsible for supplying the sources in APPLY order; {@link migrationsOf} sorts them.
+ *
+ * @param migrations - The migration files, in apply order.
+ * @returns The user-bearing table names, sorted. Pure.
+ */
+function userBearingTablesAfter(migrations: readonly SourceFile[]): readonly string[] {
+    // ⛔ A table's USER COLUMNS, not a bare table set. A table leaves this gate's scope only when its LAST
+    // user column goes — subtracting the table on any drop would take a two-user-column table out of the
+    // derived set on losing one of them, which is the fold's one genuinely dangerous direction.
+    const carried = new Map<string, Set<string>>();
+
+    for (const source of migrations) {
+        const { gained, lost } = userColumnEffectsIn(source);
+
+        for (const [table, column] of lost) {
+            const columns = carried.get(table);
+
+            if (columns !== undefined) {
+                columns.delete(column);
+
+                if (columns.size === 0) {
+                    carried.delete(table);
+                }
+            }
+        }
+
+        for (const [table, column] of gained) {
+            const columns = carried.get(table) ?? new Set<string>();
+
+            columns.add(column);
+            carried.set(table, columns);
+        }
+    }
+
+    return [...carried.keys()].sort();
+}
+
+/**
+ * The tables any migration EVER gave a user column — the pre-fold union.
+ *
+ * Kept only so the fold can be checked against it: a fold may remove and must never add, and comparing the
+ * two is what catches a parser bug in the add direction without anyone enumerating a table.
+ *
+ * @param migrations - The migration files.
+ * @returns The union's table names, sorted. Pure.
+ */
+function userBearingTablesEver(migrations: readonly SourceFile[]): readonly string[] {
+    return [
+        ...new Set(migrations.flatMap((source) => userColumnEffectsIn(source).gained.map(([table]) => table))),
+    ].sort();
 }
 
 /**
@@ -339,42 +572,148 @@ function deIdentifyingStatementsIn(source: SourceFile, functionName: string): re
 }
 
 /**
- * Every `CHECK (…)` expression declared for one table across a set of migrations.
+ * Every `CHECK (…)` expression IN FORCE on one table after the whole ordered migration set has been applied.
  *
- * Both spellings this repository uses are read: a `CONSTRAINT … CHECK (…)` inside the `CREATE TABLE` body,
- * and a later `ALTER TABLE … ADD CONSTRAINT … CHECK (…)`. Comments are stripped first, for the header's
- * reason — 0021's own header prints the prescribed sweep, `author_id` and all.
+ * Three spellings this repository uses are read: a `CONSTRAINT <name> CHECK (…)` inside the `CREATE TABLE`
+ * body, a later `ALTER TABLE … ADD CONSTRAINT <name> CHECK (…)`, and an `ALTER TABLE … DROP CONSTRAINT
+ * <name>` that retires one. Comments are stripped first, for the header's reason — 0021's own header prints
+ * the prescribed sweep, `author_id` and all.
  *
- * @param sources - The migration files.
+ * ⛔ A FOLD, not a union, for the reason the module docstring gives about table discovery — and here the
+ * union failed in the MORE dangerous direction. It reported a DROPPED CHECK as still present, so a table
+ * whose pairing constraint had been repealed would satisfy `pairChecked` on the strength of DDL that no
+ * longer runs, and the pairing assertion — this file's stated defence against the corroboration-binding
+ * class of defect — would pass vacuously. Migration 0033 drops three CHECKs, which is what made a latent
+ * defect a live one.
+ *
+ * ⚠️ Keyed on CONSTRAINT NAME, because that is what `DROP CONSTRAINT` names. An unnamed inline `CHECK` in a
+ * `CREATE TABLE` body cannot be dropped by name and is retained unconditionally; every constraint in this
+ * tree is named, which is itself why the convention is worth keeping.
+ *
+ * @param sources - The migration files, in apply order.
  * @param table - The table whose constraints are wanted.
- * @returns The text inside each `CHECK`. Pure.
+ * @returns The text inside each `CHECK` still in force. Pure.
  */
 function checkExpressionsFor(sources: readonly SourceFile[], table: string): readonly string[] {
-    const expressions: string[] = [];
+    const named = new Map<string, string>();
+    const anonymous: string[] = [];
+
+    const checksIn = (body: string): readonly string[] => {
+        const found: string[] = [];
+
+        for (const check of body.matchAll(/\bCHECK\s*\(/gi)) {
+            found.push(balancedBody(body, body.indexOf('(', (check.index ?? 0) + check[0].length - 1)));
+        }
+
+        return found;
+    };
 
     for (const source of sources) {
         const sql = stripSqlComments(source.contents);
         const create = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"?${table}"?\\s*\\(`, 'i').exec(sql);
-        const bodies: string[] = [];
 
         if (create !== null) {
-            bodies.push(balancedBody(sql, sql.indexOf('(', create.index + create[0].length - 1)));
+            const body = balancedBody(sql, sql.indexOf('(', create.index + create[0].length - 1));
+
+            for (const clause of body.split(/,\s*(?=CONSTRAINT\b)/i)) {
+                const name = /^\s*CONSTRAINT\s+"?([a-z_][a-z0-9_]*)"?/i.exec(clause);
+
+                for (const expression of checksIn(clause)) {
+                    if (name?.[1] !== undefined) {
+                        named.set(name[1], expression);
+                    } else {
+                        anonymous.push(expression);
+                    }
+                }
+            }
         }
 
-        for (const alter of sql.matchAll(
-            new RegExp(`ALTER\\s+TABLE\\s+"?${table}"?\\s+ADD\\s+CONSTRAINT[\\s\\S]*?CHECK\\s*\\(`, 'gi'),
-        )) {
-            bodies.push(`CHECK (${balancedBody(sql, sql.indexOf('(', alter.index + alter[0].length - 1))})`);
-        }
+        for (const { clauses } of alterClausesIn(sql, table)) {
+            for (const add of clauses.matchAll(
+                /\bADD\s+CONSTRAINT\s+"?([a-z_][a-z0-9_]*)"?([\s\S]*?)(?=,\s*(?:ADD|DROP|RENAME|ALTER)\b|$)/gi,
+            )) {
+                const [, name, definition] = add;
+                const [expression] = definition === undefined ? [] : checksIn(definition);
 
-        for (const body of bodies) {
-            for (const check of body.matchAll(/\bCHECK\s*\(/gi)) {
-                expressions.push(balancedBody(body, body.indexOf('(', (check.index ?? 0) + check[0].length - 1)));
+                if (name !== undefined && expression !== undefined) {
+                    named.set(name, expression);
+                }
+            }
+
+            for (const drop of clauses.matchAll(/\bDROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/gi)) {
+                if (drop[1] !== undefined) {
+                    named.delete(drop[1]);
+                }
             }
         }
     }
 
-    return expressions;
+    return [...anonymous, ...named.values()];
+}
+
+/**
+ * Every column one table carries AFTER the whole ordered migration set has been applied.
+ *
+ * The same fold `userBearingTablesAfter` performs, over ALL columns rather than only the user-identifying
+ * ones: `CREATE TABLE` seeds the set, `ADD COLUMN` grows it, `DROP COLUMN` shrinks it, `RENAME COLUMN`
+ * substitutes. It exists to discharge the one claim a {@link RETAINED_BY_RULING} entry makes that no
+ * mechanism can — that nothing personal has accreted beside the retained id.
+ *
+ * ⚠️ Constraint clauses inside the `CREATE TABLE` body are skipped by requiring a column definition to START
+ * a line and to be followed by a TYPE word; `CONSTRAINT`, `CHECK`, `PRIMARY`, `UNIQUE` and `FOREIGN` are
+ * excluded by name. Comments are stripped first, for the header's reason.
+ *
+ * @param migrations - The migration files, in apply order.
+ * @param table - The table whose columns are wanted.
+ * @returns The column names, sorted. Pure.
+ */
+function currentColumnsOf(migrations: readonly SourceFile[], table: string): readonly string[] {
+    const columns = new Set<string>();
+    const notAColumn = new Set(['constraint', 'check', 'primary', 'unique', 'foreign', 'exclude', 'like']);
+
+    for (const source of migrations) {
+        const sql = stripSqlComments(source.contents);
+        const create = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"?${table}"?\\s*\\(`, 'i').exec(sql);
+
+        if (create !== null) {
+            const body = balancedBody(sql, sql.indexOf('(', create.index + create[0].length - 1));
+
+            for (const line of body.split('\n')) {
+                const definition = /^\s*"?([a-z_][a-z0-9_]*)"?\s+[a-z]/i.exec(line);
+
+                if (definition?.[1] !== undefined && !notAColumn.has(definition[1].toLowerCase())) {
+                    columns.add(definition[1]);
+                }
+            }
+        }
+
+        // ⛔ The WHOLE clause list of each statement — see `alterClausesIn`. Reading only the first clause
+        // is what let a personal column ride into a RETAINED table beside an innocuous one.
+        for (const { clauses } of alterClausesIn(sql, table)) {
+            for (const add of clauses.matchAll(/\bADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/gi)) {
+                if (add[1] !== undefined) {
+                    columns.add(add[1]);
+                }
+            }
+
+            for (const drop of clauses.matchAll(/\bDROP\s+COLUMN\s+(?:IF\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/gi)) {
+                if (drop[1] !== undefined) {
+                    columns.delete(drop[1]);
+                }
+            }
+
+            for (const rename of clauses.matchAll(
+                /\bRENAME\s+COLUMN\s+"?([a-z_][a-z0-9_]*)"?\s+TO\s+"?([a-z_][a-z0-9_]*)"?/gi,
+            )) {
+                if (rename[1] !== undefined && rename[2] !== undefined) {
+                    columns.delete(rename[1]);
+                    columns.add(rename[2]);
+                }
+            }
+        }
+    }
+
+    return [...columns].sort();
 }
 
 /**
@@ -422,7 +761,7 @@ function readSource(file: string): SourceFile {
  * @sideEffect Shells out to git and reads the working tree.
  */
 function ownerBearingTables(database: SweptDatabase): readonly string[] {
-    return [...new Set(migrationsOf(database).flatMap((source) => ownerBearingTablesIn(source)))].sort();
+    return userBearingTablesAfter(migrationsOf(database));
 }
 
 /**
@@ -444,39 +783,101 @@ function migrationsOf(database: SweptDatabase): readonly SourceFile[] {
         `no migrations found under ${database.migrations} — the gate has stopped discovering`,
     ).toBeGreaterThan(0);
 
-    return files.map((file) => readSource(file));
+    // ⛔ SORTED HERE, explicitly. `presentFiles` de-duplicates through a `Set`, and a set union is
+    // order-independent — a FOLD is not. The numeric filename prefix IS the apply order, exactly as
+    // `recipe-service/src/lambdas/migrate/handler.ts`'s `discoverMigrations` derives it ("sorted by filename
+    // so the numeric prefix drives a deterministic order"). Relying on git's listing order instead would make
+    // this gate's correctness depend on an undocumented implementation detail of `git ls-files`.
+    return [...files].sort().map((file) => readSource(file));
 }
 
 describe('account-erasure sweep coverage', () => {
     for (const database of SWEPT_DATABASES) {
         describe(database.sweepFunction, () => {
-            it('reaches every owner-bearing table, or exempts it for a written reason', () => {
+            it('reaches every user-bearing table, or exempts / retains it for a written reason', () => {
                 const owned = ownerBearingTables(database);
                 const swept = new Set(sweptTablesIn(readSource(database.sweepFile), database.sweepFunction));
 
                 expect(
                     owned.length,
-                    'fewer owner-bearing tables than this database is known to have — discovery has broken',
+                    'fewer user-bearing tables than this database is known to have — discovery has broken',
                 ).toBeGreaterThanOrEqual(MINIMUM_OWNER_BEARING_TABLES);
                 expect(
                     swept.size,
                     `${database.sweepFunction} addresses no tables — the parser has broken`,
                 ).toBeGreaterThan(0);
 
-                // ⛔ A table here is personal data with no route to erasure. Add a statement to the sweep, or
-                // add an exemption above SAYING how erasure reaches it — never neither.
-                expect(owned.filter((table) => !swept.has(table) && !EXEMPT_FROM_SWEEP.has(table))).toEqual([]);
+                // ⛔ A table here is user data with no route to erasure and no decision about it. Add a
+                // statement to the sweep, an exemption SAYING how erasure reaches it, or a retention citing
+                // the ADR that ruled it need not be erased — never none of the three.
+                expect(
+                    owned.filter(
+                        (table) => !swept.has(table) && !EXEMPT_FROM_SWEEP.has(table) && !RETAINED_BY_RULING.has(table),
+                    ),
+                ).toEqual([]);
+            });
+
+            it('⛔ never REMOVES a table the union found — a fold may only ever subtract', () => {
+                const migrations = migrationsOf(database);
+                const ever = new Set(userBearingTablesEver(migrations));
+                const now = userBearingTablesAfter(migrations);
+
+                expect(ever.size, 'the union found nothing — the parser has broken').toBeGreaterThanOrEqual(
+                    MINIMUM_OWNER_BEARING_TABLES,
+                );
+
+                // ⛔ The one direction a fold can fail that a union cannot: inventing a table, or mis-parsing a
+                // rename into a table nobody declared, would put something in the CURRENT set that no
+                // migration ever created — and it would be checked against a sweep for a table that does not
+                // exist, or worse, silently satisfy a retention entry.
+                expect(now.filter((table) => !ever.has(table))).toEqual([]);
+            });
+
+            it('⛔ pins every RETAINED table’s whole column set, so a new column is a decision', () => {
+                const migrations = migrationsOf(database);
+                const owned = new Set(ownerBearingTables(database));
+
+                for (const [table, entry] of RETAINED_BY_RULING) {
+                    if (!owned.has(table)) {
+                        continue;
+                    }
+
+                    // ⛔ THE ONLY MECHANICAL CHECK ON WHAT A RETENTION ACTUALLY CLAIMS. The ruling is that the
+                    // one user-derived thing left on this table is an opaque id; that claim is false the
+                    // moment a handle, an address or a free-text note lands beside it, and nothing else here
+                    // would notice.
+                    expect(currentColumnsOf(migrations, table), `${table}: a column changed under a retention`).toEqual(
+                        [...entry.columns].sort(),
+                    );
+                }
             });
 
             it('⛔ pairs every column its de-identifying statements NULL with the owner they key on', () => {
                 const statements = deIdentifyingStatementsIn(readSource(database.sweepFile), database.sweepFunction);
                 const migrations = migrationsOf(database);
 
-                expect(
-                    statements.length,
-                    `${database.sweepFunction} de-identifies nothing — the parser has broken`,
-                ).toBeGreaterThanOrEqual(MINIMUM_DE_IDENTIFYING_STATEMENTS);
-
+                // ⚠️ THERE IS NO `MINIMUM_DE_IDENTIFYING_STATEMENTS` ANY MORE. After ADR-0027 the sweep
+                // issues ZERO de-identifying statements (the pseudonym write is not one; the clone-detach is
+                // not keyed on a person), so any positive floor would be false.
+                //
+                // ⛔ The substantive reason it is DELETED rather than set to `0` — the vacuity it guarded is
+                // still closed, somewhere else. That constant existed so a WIRING failure (a renamed
+                // `sweepFunction`, a moved file, a changed AST shape) could not make this assertion pass by
+                // finding nothing. That failure is now caught by the sibling assertion in this same describe
+                // block: `expect(swept.size, '… the parser has broken').toBeGreaterThan(0)` reads the SAME
+                // `statementTextsIn` over the SAME declaration in the SAME file, so any wiring break that
+                // would empty this list empties that one too, and goes red there. A floor of `0` would add
+                // nothing on top of that — a constant named MINIMUM that enforces nothing reads as reviewed
+                // and is not.
+                //
+                // What guards the PARSER itself (as opposed to the wiring) is the three fake-driven cases
+                // below, which drive `deIdentifyingStatementsIn` at fixed inputs and assert its EXACT output
+                // structure rather than a count — strictly stronger than a floor on that axis. The assertion
+                // here is now a STANDING RULE that fires the day a de-identifying statement returns, and the
+                // fakes prove it can fire.
+                //
+                // ⚠️ Stated honestly: on the one axis where nothing replaces it — a parser that silently
+                // stops matching while the wiring still resolves — this file is weaker than it was.
                 const unpaired = statements.flatMap((statement) =>
                     statement.nulledColumns
                         .filter((column) => column !== statement.ownerColumn)
@@ -492,30 +893,57 @@ describe('account-erasure sweep coverage', () => {
                 expect(unpaired).toEqual([]);
             });
 
-            it('carries no exemption for a table that no longer bears an owner column', () => {
+            it('carries no exemption or retention for a table that no longer bears a user column', () => {
                 const owned = new Set(ownerBearingTables(database));
 
-                // An exemption outliving its table is a claim about nothing, and it would silently excuse a
-                // FUTURE table that happened to reuse the name.
+                // A claim outliving its table is a claim about nothing, and it would silently excuse a FUTURE
+                // table that happened to reuse the name. ⚠️ This is also the assertion that would have caught
+                // a lazier version of ADR-0027 — leaving `ingredient_resolution_memos` in a map after 0033
+                // dropped its person column.
                 expect([...EXEMPT_FROM_SWEEP.keys()].filter((table) => !owned.has(table))).toEqual([]);
+                expect([...RETAINED_BY_RULING.keys()].filter((table) => !owned.has(table))).toEqual([]);
             });
 
-            it('carries no exemption for a table the sweep already reaches', () => {
+            it('carries no exemption or retention for a table the sweep already reaches', () => {
                 const swept = new Set(sweptTablesIn(readSource(database.sweepFile), database.sweepFunction));
 
                 // A closed gap left standing as an exemption reads as "erasure does not touch this", which is
-                // the opposite of the truth and the sort of note a later reader reasons correctly from.
+                // the opposite of the truth and the sort of note a later reader reasons correctly from. For a
+                // RETENTION it is worse: a sweep against a retained table means somebody added an erasable
+                // column there, and that has to be re-adjudicated rather than silently coexist with a ruling
+                // that says the table holds nothing erasable.
                 expect([...EXEMPT_FROM_SWEEP.keys()].filter((table) => swept.has(table))).toEqual([]);
+                expect([...RETAINED_BY_RULING.keys()].filter((table) => swept.has(table))).toEqual([]);
             });
         });
     }
 
     it('states a real reason for every exemption', () => {
-        // An exemption is the one place this gate accepts a human's word. A blank or throwaway entry would
+        // An exemption is one of two places this gate accepts a human's word. A blank or throwaway entry would
         // turn "no route to erasure" into "somebody typed something", which is worse than no gate at all
         // because it reads as reviewed.
         for (const [table, why] of EXEMPT_FROM_SWEEP) {
             expect(why.trim().length, `the exemption for ${table} must say how erasure reaches it`).toBeGreaterThan(20);
+        }
+    });
+
+    it('⛔ requires every RETENTION to cite an ADR that actually exists on disk', () => {
+        // ⛔ A STRICTER BAR THAN AN EXEMPTION'S, deliberately. An exemption says erasure still happens by
+        // another route — a claim the sweep itself can be read against. A retention says erasure need not
+        // happen at all, converting "RED unless swept" into "green forever", and the only thing standing
+        // behind that is a decision somebody made. So the entry must name where that decision is written, and
+        // the file must be there — a citation to a document nobody wrote is the same as no reason at all.
+        expect(RETAINED_BY_RULING.size, 'no retentions to check — the map has been emptied').toBeGreaterThan(0);
+
+        for (const [table, entry] of RETAINED_BY_RULING) {
+            const cited = /docs\/architecture\/decisions\/\d{4}-[a-z0-9-]+\.md/.exec(entry.why);
+
+            expect(cited, `the retention for ${table} must cite an ADR path`).not.toBeNull();
+            expect(
+                cited !== null && existsSync(path.join(repoRoot, cited[0])),
+                `the retention for ${table} cites ${cited?.[0] ?? '(nothing)'}, which does not exist`,
+            ).toBe(true);
+            expect(entry.columns.length, `the retention for ${table} must pin its columns`).toBeGreaterThan(0);
         }
     });
 
@@ -541,13 +969,18 @@ describe('account-erasure sweep coverage', () => {
             `,
         };
 
-        const owned = ownerBearingTablesIn(migration);
+        const owned = userBearingTablesAfter([migration]);
         const swept = new Set(sweptTablesIn(sweep, 'eraseRows'));
 
         expect(owned).toEqual(['widgets']);
         // Named in the docstring, named in a SQL comment, and swept by neither — which is precisely how
-        // `ingredient_resolution_mappings` and `ingredient_resolution_memos` both shipped.
-        expect(owned.filter((table) => !swept.has(table))).toEqual(['widgets']);
+        // `ingredient_resolution_mappings` and `ingredient_resolution_memos` both shipped. ⚠️ And it is not
+        // rescued by either escape hatch: neither map names `widgets`, so this is the RED the gate exists for.
+        expect(
+            owned.filter(
+                (table: string) => !swept.has(table) && !EXEMPT_FROM_SWEEP.has(table) && !RETAINED_BY_RULING.has(table),
+            ),
+        ).toEqual(['widgets']);
     });
 
     it('⛔ FAILS the exact shape that shipped: a phrase nulled under an owner the row need not have', () => {
@@ -652,24 +1085,182 @@ describe('account-erasure sweep coverage', () => {
 
     it('reads a column from SQL but not from the prose describing it', () => {
         expect(
-            ownerBearingTablesIn({
-                file: 'fake/0100_prose.sql',
-                contents: `
+            userBearingTablesAfter([
+                {
+                    file: 'fake/0100_prose.sql',
+                    contents: `
                     -- This table deliberately carries NO owner_id; the prescribed sweep would have been
                     --   UPDATE "notes" SET author_id = NULL WHERE author_id = $1;
                     CREATE TABLE "notes" ("id" uuid PRIMARY KEY, "body" text NOT NULL);
                 `,
-            }),
+                },
+            ]),
         ).toEqual([]);
     });
 
     it('reads a column added by a later ALTER, not only one declared at CREATE', () => {
         expect(
-            ownerBearingTablesIn({
-                file: 'fake/0101_alter.sql',
-                contents: `ALTER TABLE "memos" ADD COLUMN IF NOT EXISTS "owner_id" text;`,
-            }),
+            userBearingTablesAfter([
+                {
+                    file: 'fake/0101_alter.sql',
+                    contents: `ALTER TABLE "memos" ADD COLUMN IF NOT EXISTS "owner_id" text;`,
+                },
+            ]),
         ).toEqual(['memos']);
+    });
+
+    it('⛔ HONOURS a later DROP COLUMN, so a gate cannot demand a sweep for a column that is gone', () => {
+        // ⛔ The fold's whole reason for existing (ADR-0027 / migration 0033). Under the old union this
+        // returned `['memos']`, and the only way to go green was to hand-write an exemption asserting a fact
+        // the schema already stated.
+        const create = {
+            file: 'fake/0026_add.sql',
+            contents: `ALTER TABLE "memos" ADD COLUMN "owner_id" text;`,
+        };
+        const drop = {
+            file: 'fake/0033_drop.sql',
+            contents: `ALTER TABLE "memos" DROP COLUMN IF EXISTS "owner_id";`,
+        };
+
+        expect(userBearingTablesAfter([create])).toEqual(['memos']);
+        expect(userBearingTablesAfter([create, drop])).toEqual([]);
+        // …and the union still remembers it, which is what the subset assertion is checked against.
+        expect(userBearingTablesEver([create, drop])).toEqual(['memos']);
+    });
+
+    it('⛔ HONOURS a RENAME between two user spellings, and one AWAY from a user column', () => {
+        const created = {
+            file: 'fake/0021_create.sql',
+            contents: `CREATE TABLE "mappings" ("id" uuid PRIMARY KEY, "author_id" varchar(255));`,
+        };
+
+        expect(
+            userBearingTablesAfter([
+                created,
+                {
+                    file: 'fake/0033_rename.sql',
+                    contents: `ALTER TABLE "mappings" RENAME COLUMN "author_id" TO "user_id";`,
+                },
+            ]),
+        ).toEqual(['mappings']);
+
+        // Renamed to something that is NOT a user column: the table stops being user-bearing.
+        expect(
+            userBearingTablesAfter([
+                created,
+                {
+                    file: 'fake/0034_rename.sql',
+                    contents: `ALTER TABLE "mappings" RENAME COLUMN "author_id" TO "curator_note";`,
+                },
+            ]),
+        ).toEqual([]);
+    });
+
+    it('⛔ IGNORES a DROP COLUMN that only appears in a comment — this repo’s headers quote their own SQL', () => {
+        // ⚠️ THE FOLD'S MOST DANGEROUS FAILURE MODE, and the mirror of the CHECK-in-prose case above.
+        // `0031`'s header prints its backfills and `0033`'s prints what it drops; a parser reading prose would
+        // remove a live column from the derived schema and turn a genuinely unswept table GREEN.
+        const create = {
+            file: 'fake/0026_add.sql',
+            contents: `ALTER TABLE "memos" ADD COLUMN "owner_id" text;`,
+        };
+        const prose = {
+            file: 'fake/0099_prose.sql',
+            contents: `
+                -- The repair considered and REJECTED was
+                --   ALTER TABLE "memos" DROP COLUMN "owner_id";
+                -- …which would have removed the question rather than answering it.
+                /* ALTER TABLE "memos" RENAME COLUMN "owner_id" TO "curator_note"; */
+                ALTER TABLE "memos" ADD COLUMN IF NOT EXISTS "verified_by" text;
+            `,
+        };
+
+        expect(userBearingTablesAfter([create, prose])).toEqual(['memos']);
+    });
+
+    it('⛔ reads EVERY clause of a multi-clause ALTER — the form 0016 already writes', () => {
+        // ⛔ THE HOLE A REVIEW FOUND, demonstrated against a form already in this tree:
+        // `0016_collection_source_provenance.sql` adds three columns under ONE `ALTER TABLE collections`.
+        // Every parser here used to anchor on `ALTER TABLE <t> ADD COLUMN <x>`, so it saw the FIRST clause
+        // and no other. MEASURED before the fix: a probe adding `user_id` in clause position 2 to an unswept
+        // table left the whole gate GREEN — a user-bearing table invisible to the check that exists to find
+        // exactly that.
+        const multi = {
+            file: 'fake/0016_multi.sql',
+            contents: `
+                ALTER TABLE "notes"
+                    ADD COLUMN "last_pulled_at" timestamptz,
+                    ADD COLUMN "body" text,
+                    ADD COLUMN "user_id" varchar(255);
+            `,
+        };
+
+        expect(userBearingTablesAfter([multi])).toEqual(['notes']);
+        expect(currentColumnsOf([multi], 'notes')).toEqual(['body', 'last_pulled_at', 'user_id']);
+    });
+
+    it('⛔ subtracts a COLUMN, not a table — a second user column keeps the table in scope', () => {
+        // A table with two user columns that loses one must STAY user-bearing. Subtracting the table on any
+        // drop is the fold's one genuinely dangerous direction, and neither stated bound catches it: the
+        // `fold ⊆ union` check permits any removal, and the floor is a COUNT, so one spurious drop paired
+        // with one genuine addition would pass silently.
+        const created = {
+            file: 'fake/0001_create.sql',
+            contents: `CREATE TABLE "notes" ("id" uuid PRIMARY KEY, "owner_id" text, "created_by" text);`,
+        };
+        const dropped = { file: 'fake/0002_drop.sql', contents: `ALTER TABLE "notes" DROP COLUMN "owner_id";` };
+        const both = { file: 'fake/0003_drop.sql', contents: `ALTER TABLE "notes" DROP COLUMN "created_by";` };
+
+        expect(userBearingTablesAfter([created])).toEqual(['notes']);
+        expect(userBearingTablesAfter([created, dropped])).toEqual(['notes']);
+        expect(userBearingTablesAfter([created, dropped, both])).toEqual([]);
+    });
+
+    it('⛔ FORGETS a CHECK that a later migration DROPPED — a repealed constraint is not a pairing', () => {
+        // ⛔ The union's failure in the MORE dangerous direction, and the reason `checkExpressionsFor` became
+        // a fold like its two siblings. A dropped CHECK reported as present lets `pairChecked` return true on
+        // the strength of DDL that no longer runs — so the pairing assertion, this file's stated defence
+        // against the corroboration-binding class of defect, would pass vacuously. 0033 drops three CHECKs,
+        // which is what turned this from latent into live.
+        const added = {
+            file: 'fake/0031_add.sql',
+            contents: `ALTER TABLE "notes" ADD CONSTRAINT "notes_pair" CHECK (("user_id" IS NULL) = ("body" IS NULL));`,
+        };
+        const dropped = {
+            file: 'fake/0033_drop.sql',
+            contents: `ALTER TABLE "notes" DROP CONSTRAINT IF EXISTS "notes_pair";`,
+        };
+
+        expect(pairChecked([added], 'notes', 'user_id', 'body')).toBe(true);
+        expect(pairChecked([added, dropped], 'notes', 'user_id', 'body')).toBe(false);
+    });
+
+    it('⛔ reads a RETAINED table’s columns from the SQL, honouring every later ALTER', () => {
+        // The pin that discharges a retention's actual claim. It must track ADD, DROP and RENAME, or an
+        // entry would silently excuse a column nobody listed.
+        const migrations = [
+            {
+                file: 'fake/0021_create.sql',
+                contents: `
+                    CREATE TABLE "mappings" (
+                        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                        "author_id" varchar(255),
+                        "source_phrase" text,
+                        CONSTRAINT "mappings_pair" CHECK ("author_id" IS NOT NULL)
+                    );
+                `,
+            },
+            {
+                file: 'fake/0033_rename.sql',
+                contents: `ALTER TABLE "mappings" RENAME COLUMN "author_id" TO "user_id";`,
+            },
+            { file: 'fake/0034_add.sql', contents: `ALTER TABLE "mappings" ADD COLUMN "surfacing" text;` },
+            { file: 'fake/0035_drop.sql', contents: `ALTER TABLE "mappings" DROP COLUMN "source_phrase";` },
+        ];
+
+        // ⚠️ `CONSTRAINT …` is not a column, and a fold that counted it would make every retention entry in
+        // this file wrong in a way that reads as a typo.
+        expect(currentColumnsOf(migrations, 'mappings')).toEqual(['id', 'surfacing', 'user_id']);
     });
 
     it('reads the sweep’s MUTATIONS, not its docstring and not the tables it merely reads', () => {

@@ -6,14 +6,17 @@
  * mock-only and asserts call counts; it passes with the `WHERE` clause arbitrarily broken." The clauses here
  * are not conveniences — three of them ARE the authorization:
  *
- *  1. **`author_id = :caller` inside the supersede `UPDATE`** is what makes "an author-scoped mapping is
- *     superseded only by its own author" unforgeable. Zero rows returned IS the denial; there is no branch to
- *     bypass, and no id a caller can pass that reaches somebody else's row.
+ *  1. **`user_id = :caller` inside the supersede `UPDATE`** is what makes "an author-scoped mapping is
+ *     superseded only by the user who wrote it" unforgeable. Zero rows returned IS the denial; there is no
+ *     branch to bypass, and no id a caller can pass that reaches somebody else's row.
  *  2. **`ON CONFLICT DO NOTHING` on the promotion insert** is what makes the concurrent-promotion race have a
  *     LOSER rather than an ERROR. The loser reads zero rows as "somebody else already promoted", does not
  *     emit an audit signal, and does not fail the user's correction.
- *  3. **`(scope = 'global' OR author_id = :caller)` with `$2::text IS NOT NULL`** is what makes an unattended
+ *  3. **`(scope = 'global' OR user_id = :caller)` with `$2::text IS NOT NULL`** is what makes an unattended
  *     import (R22 — no user at all) see global mappings and nobody's personal ones.
+ *
+ * ⚠️ The column is `user_id` since migration 0033 (owner ruling 2026-08-25, ADR-0027) and is deliberately NOT
+ * erasable: it is the distinct-user corroboration counter as well as two of the three clauses above.
  *
  * And the near-twin lookup can only be proved against a database that actually has `pg_trgm` and the GiST
  * index; in Node it would be a mock returning whatever the test told it to.
@@ -37,15 +40,6 @@ const FOOD_A = '01JU10DAL00000000000000FOODA';
 const FOOD_B = '01JU10DAL00000000000000FOODB';
 const AUTHOR_A = '01JU10DAL0000000000000AUTHA';
 const AUTHOR_B = '01JU10DAL0000000000000AUTHB';
-/**
- * The cook a memo's phrase is attributed to.
- *
- * ⛔ `VerifiedMemo.ownerId` is REQUIRED since migration 0031: `recordMemo` used to omit `owner_id` from its
- * statement entirely, so every memo it wrote carried a phrase the erasure sweep's `WHERE owner_id = $owner`
- * could never match. The database now refuses that row, and the required field makes it a compile error.
- */
-const MEMO_OWNER = '01JU10DAL000000000MEMOOWNR';
-
 /** Every key this suite writes shares this prefix, so cleanup is exact and collides with no other spec. */
 const PREFIX = 'u10 dal';
 
@@ -88,12 +82,12 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
     /** Write one correction end to end: read the facts, decide, apply. The shape the service uses. */
     async function correct(
         phrase: string,
-        authorId: string,
+        userId: string,
         foodId: string,
         grantedScopes: readonly string[] = [],
     ): ReturnType<ResolutionMappingsDal['applyWrite']> {
         const k = key(phrase);
-        const facts = await dal.findWriteFacts(k, authorId, foodId);
+        const facts = await dal.findWriteFacts(k, userId, foodId);
         const decision = evaluateMappingWrite({ correctedFoodId: foodId, grantedScopes, ...facts });
 
         return dal.applyWrite({
@@ -101,7 +95,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
             normalizedKey: k,
             sourcePhrase: `${PREFIX} ${phrase}`,
             foodId,
-            authorId,
+            userId,
             surfacing: 'picker_correction',
         });
     }
@@ -181,7 +175,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
             );
 
             // Hand the DAL author A's row id while acting as author B — the forged-supersession attempt. The
-            // statement's `author_id = :caller` predicate matches nothing, so it retires nothing.
+            // statement's `user_id = :caller` predicate matches nothing, so it retires nothing.
             const retired = await dal.supersedeOwnMapping(rows[0]!.id, AUTHOR_B);
 
             expect(retired).toBe(false);
@@ -231,11 +225,11 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 id: string;
                 scope: string;
                 origin: string;
-                author_id: string | null;
+                user_id: string | null;
                 corroborated_a: string | null;
                 corroborated_b: string | null;
             }>(
-                `SELECT id, scope, origin, author_id, corroborated_a, corroborated_b
+                `SELECT id, scope, origin, user_id, corroborated_a, corroborated_b
                  FROM ingredient_resolution_mappings WHERE normalized_key = $1 ORDER BY created_at, id`,
                 [key('corn flour')],
             );
@@ -249,7 +243,7 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
             expect(binding).toBeDefined();
             expect(binding!.scope).toBe('global');
             // Nobody wrote it — two people's agreement produced it — so it is attributed to no author.
-            expect(binding!.author_id).toBeNull();
+            expect(binding!.user_id).toBeNull();
             expect(binding!.corroborated_a).not.toBeNull();
             expect(binding!.corroborated_b).not.toBeNull();
             expect(binding!.corroborated_a).not.toBe(binding!.corroborated_b);
@@ -317,7 +311,6 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_A,
                 sourcePhrase: 'Vanilla extract',
                 verifiedBy: 'test-model-v1',
-                ownerId: MEMO_OWNER,
             });
 
             const hit = await dal.findMemo(key('vanilla extract'));
@@ -331,7 +324,6 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_A,
                 sourcePhrase: 'All-purpose flour',
                 verifiedBy: 'test-model-v1',
-                ownerId: MEMO_OWNER,
             });
 
             // ⚠️ MEASURED, not assumed: `pg_trgm` splits on non-alphanumerics, so `all-purpose` and
@@ -352,7 +344,6 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_B,
                 sourcePhrase: 'Unbleached bread flour',
                 verifiedBy: 'test-model-v1',
-                ownerId: MEMO_OWNER,
             });
 
             const hit = await dal.findMemo(key('unbleached bread flours'));
@@ -371,7 +362,6 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_A,
                 sourcePhrase: 'Smoked paprika',
                 verifiedBy: 'test-model-v1',
-                ownerId: MEMO_OWNER,
             });
 
             // A k-NN search ALWAYS returns something when the table is non-empty — that is what makes an
@@ -386,14 +376,12 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionMappingsDal', () => {
                 foodId: FOOD_A,
                 sourcePhrase: 'Golden syrup',
                 verifiedBy: 'test-model-v1',
-                ownerId: MEMO_OWNER,
             });
             await dal.recordMemo({
                 normalizedKey: key('golden syrup'),
                 foodId: FOOD_B,
                 sourcePhrase: 'Golden syrup',
                 verifiedBy: 'test-model-v2',
-                ownerId: MEMO_OWNER,
             });
 
             expect((await dal.findMemo(key('golden syrup')))?.foodId).toBe(FOOD_B);

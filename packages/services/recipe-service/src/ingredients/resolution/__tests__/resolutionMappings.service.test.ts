@@ -127,7 +127,7 @@ describe('ResolutionMappingsService — the phrase is PARSED at the boundary', (
 describe('ResolutionMappingsService — the audit fires exactly on a real promotion (R20)', () => {
     it('emits the signal, naming the binding and BOTH corroborating authors', async () => {
         const { service, recordPromotion } = build({
-            facts: { ...NO_HISTORY, corroboratorsForSameFood: [{ id: 'row-them', authorId: CORROBORATOR }] },
+            facts: { ...NO_HISTORY, corroboratorsForSameFood: [{ id: 'row-them', userId: CORROBORATOR }] },
             result: {
                 written: true,
                 mappingId: 'row-new',
@@ -168,7 +168,7 @@ describe('ResolutionMappingsService — the audit fires exactly on a real promot
         // nothing. Emitting here would double-count one promotion and point a reviewer at a binding this
         // request did not create.
         const { service, recordPromotion } = build({
-            facts: { ...NO_HISTORY, corroboratorsForSameFood: [{ id: 'row-them', authorId: CORROBORATOR }] },
+            facts: { ...NO_HISTORY, corroboratorsForSameFood: [{ id: 'row-them', userId: CORROBORATOR }] },
             result: { written: true, mappingId: 'row-new', promotion: undefined },
         });
 

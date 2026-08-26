@@ -7,20 +7,26 @@
  *
  * ## ⛔ Three `WHERE` clauses ARE the authorization, and none of them is a branch
  *
- * 1. **`author_id = :caller` inside the supersede `UPDATE`.** "An author-scoped mapping is superseded only by
- *    its own author" is not enforced by a check the caller could be trusted to run first — it is enforced by
- *    the statement matching nothing. **Zero rows returned IS the denial**, atomically, with no id a caller
- *    can pass that reaches somebody else's row. (An index cannot do this: an index constrains uniqueness, and
- *    superseding a row RELIEVES uniqueness rather than violating it — so a design that enforced supersession
- *    with indexes alone would leave the edit path wide open, which is the escalation the plan's ⛔ names.)
+ * 1. **`user_id = :caller` inside the supersede `UPDATE`.** "An author-scoped mapping is superseded only by
+ *    the user who wrote it" is not enforced by a check the caller could be trusted to run first — it is
+ *    enforced by the statement matching nothing. **Zero rows returned IS the denial**, atomically, with no id
+ *    a caller can pass that reaches somebody else's row. (An index cannot do this: an index constrains
+ *    uniqueness, and superseding a row RELIEVES uniqueness rather than violating it — so a design that
+ *    enforced supersession with indexes alone would leave the edit path wide open, which is the escalation
+ *    the plan's ⛔ names.)
  * 2. **`ON CONFLICT … DO NOTHING` on the promotion insert.** The concurrent-promotion race then has a LOSER,
  *    not an ERROR: the loser reads zero rows as "somebody else already promoted this", emits no audit signal,
  *    and does not fail the user's correction. An `UPDATE` that flipped an existing row into the global slot
  *    could not do this — it would raise `23505` and abort the whole transaction.
- * 3. **`(scope = 'global' OR (:caller IS NOT NULL AND author_id = :caller))`.** An unattended import (R22)
+ * 3. **`(scope = 'global' OR (:caller IS NOT NULL AND user_id = :caller))`.** An unattended import (R22)
  *    has no user, and must see global mappings and NOBODY's personal ones. Written with the explicit
- *    `IS NOT NULL` rather than relying on `author_id = NULL` evaluating to NULL, because the latter is
+ *    `IS NOT NULL` rather than relying on `user_id = NULL` evaluating to NULL, because the latter is
  *    correct and is a reviewer trap.
+ *
+ * ⚠️ DELIBERATE — `user_id` is a COUNTER and an AUTHORIZATION predicate, and it is deliberately NOT erasable.
+ * It was spelled `author_id` until migration 0033; read
+ * `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md` before "cleaning it up", and
+ * note that clauses 1 and 3 above are two of the three reasons the column exists at all.
  *
  * ## The Unit of Work is the CALLER's
  *
@@ -84,7 +90,8 @@ export interface MappingWriteRequest {
     /** The raw phrase, persisted so a key-derivation change is a backfill rather than data loss. */
     readonly sourcePhrase: string;
     readonly foodId: string;
-    readonly authorId: string;
+    /** The correcting user — the row's counting key, and the predicate that authorizes its supersession. */
+    readonly userId: string;
     /** Which affordance produced the correction (R20). */
     readonly surfacing: string;
 }
@@ -143,17 +150,6 @@ export interface VerifiedMemo {
      * and cannot construct this value.
      */
     readonly verifiedBy: string;
-    /**
-     * Who owns the recipe whose line produced this memo — SOLELY so account erasure has a predicate to
-     * sweep on (migration 0026).
-     *
-     * ⛔ REQUIRED, for the reason `verifiedBy` is: the statement below used to omit `owner_id` entirely, so
-     * every memo it wrote carried a cook's typed phrase that the sweep's `WHERE owner_id = $owner` could
-     * never match. A caller with a phrase to remember and nobody to attribute it to is not a caller this
-     * method can serve, and 0031's CHECK now refuses the row it would produce — so the field is required
-     * here to make that a COMPILE error rather than a runtime one.
-     */
-    readonly ownerId: string;
 }
 
 /** The raw shape of a mapping row as projected by this DAL's reads. */
@@ -169,7 +165,7 @@ interface RawMappingRow {
 interface RawCorroboratorRow {
     [column: string]: unknown;
     id: string;
-    author_id: string;
+    user_id: string;
 }
 
 /** The raw shape of a memo projection. */
@@ -207,22 +203,22 @@ export class ResolutionMappingsDal {
      * `created_at` cannot: two rows written inside one `timestamptz` tick would otherwise order arbitrarily.
      *
      * @param normalizedKey - The phrase's match grain.
-     * @param authorId - The requesting user, or `undefined` for an unattended import (R22) — which sees
+     * @param userId - The requesting user, or `undefined` for an unattended import (R22) — which sees
      *   global mappings and nobody's personal ones.
      * @returns The mapping in force, or `undefined` when nothing binds this phrase for this caller.
      * @sideEffect Reads `ingredient_resolution_mappings`.
      */
     public async findInForce(
         normalizedKey: NormalizedIngredientKey,
-        authorId: string | undefined,
+        userId: string | undefined,
     ): Promise<MappingInForce | undefined> {
-        const caller = authorId ?? null;
+        const caller = userId ?? null;
         const result = await this.db.execute<RawMappingRow>(sql`
             SELECT id, food_id, scope, origin
             FROM ingredient_resolution_mappings
             WHERE normalized_key = ${normalizedKey}
               AND superseded_at IS NULL
-              AND (scope = 'global' OR (${caller}::text IS NOT NULL AND author_id = ${caller}))
+              AND (scope = 'global' OR (${caller}::text IS NOT NULL AND user_id = ${caller}))
             ORDER BY (scope = 'author') DESC, created_at DESC, id DESC
             LIMIT 1
         `);
@@ -248,7 +244,7 @@ export class ResolutionMappingsDal {
      * still carry `ON CONFLICT DO NOTHING`.
      *
      * @param normalizedKey - The phrase's match grain.
-     * @param authorId - The correcting user.
+     * @param userId - The correcting user.
      * @param foodId - The food being corrected TO — corroboration is agreement on the ANSWER, not merely on
      *   the phrase being wrong, so the corroborator query filters on it.
      * @param writer - The open transaction. Required in practice: reading these facts outside the transaction
@@ -258,7 +254,7 @@ export class ResolutionMappingsDal {
      */
     public async findWriteFacts(
         normalizedKey: NormalizedIngredientKey,
-        authorId: string,
+        userId: string,
         foodId: string,
         writer: Writer = this.db,
     ): Promise<MappingWriteFacts> {
@@ -275,16 +271,17 @@ export class ResolutionMappingsDal {
         `);
         const ownRows = await writer.execute<RawMappingRow>(sql`
             SELECT id, food_id, scope, origin FROM ingredient_resolution_mappings
-            WHERE normalized_key = ${normalizedKey} AND scope = 'author' AND author_id = ${authorId}
+            WHERE normalized_key = ${normalizedKey} AND scope = 'author' AND user_id = ${userId}
               AND superseded_at IS NULL
             LIMIT 1
         `);
-        // ⛔ `author_id <> ${authorId}` is what makes "the same author correcting twice does not promote" a
-        // property of the SET the policy receives rather than a rule the policy has to remember.
+        // ⛔ `user_id <> ${userId}` is what makes "the same user correcting twice does not promote" a
+        // property of the SET the policy receives rather than a rule the policy has to remember. It is the
+        // DISTINCT half of the distinct-user count; the partial unique index is the other half.
         const corroboratorRows = await writer.execute<RawCorroboratorRow>(sql`
-            SELECT id, author_id FROM ingredient_resolution_mappings
+            SELECT id, user_id FROM ingredient_resolution_mappings
             WHERE normalized_key = ${normalizedKey} AND scope = 'author' AND food_id = ${foodId}
-              AND superseded_at IS NULL AND author_id IS NOT NULL AND author_id <> ${authorId}
+              AND superseded_at IS NULL AND user_id IS NOT NULL AND user_id <> ${userId}
             ORDER BY created_at, id
         `);
 
@@ -301,28 +298,28 @@ export class ResolutionMappingsDal {
                           origin: liveGlobal.origin as Exclude<MappingOrigin, 'author'>,
                       },
             liveOwn: liveOwn === undefined ? undefined : { id: liveOwn.id, foodId: liveOwn.food_id },
-            corroboratorsForSameFood: corroboratorRows.rows.map((row) => ({ id: row.id, authorId: row.author_id })),
+            corroboratorsForSameFood: corroboratorRows.rows.map((row) => ({ id: row.id, userId: row.user_id })),
         };
     }
 
     /**
      * Retire a mapping — **only if the caller wrote it**.
      *
-     * ⛔ THE AUTHORIZATION IS THE `author_id` PREDICATE, not a check performed before calling this. A caller
-     * holding another author's row id retires nothing: the statement matches no row, and zero rows IS the
+     * ⛔ THE AUTHORIZATION IS THE `user_id` PREDICATE, not a check performed before calling this. A caller
+     * holding another user's row id retires nothing: the statement matches no row, and zero rows IS the
      * denial. Exposed as its own method so that property is directly testable rather than only observable
      * through a successful write.
      *
      * @param mappingId - The row to retire.
-     * @param authorId - The caller, which must be the row's own author.
+     * @param userId - The caller, which must be the user who wrote the row.
      * @param writer - The open transaction, when enlisted in one.
      * @returns `true` when a row was retired, `false` when the caller had no standing to retire it.
      * @sideEffect Updates `ingredient_resolution_mappings`.
      */
-    public async supersedeOwnMapping(mappingId: string, authorId: string, writer: Writer = this.db): Promise<boolean> {
+    public async supersedeOwnMapping(mappingId: string, userId: string, writer: Writer = this.db): Promise<boolean> {
         const result = await writer.execute<{ id: string }>(sql`
             UPDATE ingredient_resolution_mappings SET superseded_at = now()
-            WHERE id = ${mappingId} AND scope = 'author' AND author_id = ${authorId} AND superseded_at IS NULL
+            WHERE id = ${mappingId} AND scope = 'author' AND user_id = ${userId} AND superseded_at IS NULL
             RETURNING id
         `);
 
@@ -341,17 +338,14 @@ export class ResolutionMappingsDal {
      * gets zero rows and reads that as "somebody else already promoted this"** — no audit signal, no error,
      * and no failure of the user's own correction, which stands on its own regardless.
      *
-     * ⛔ AND IT COPIES NOBODY'S WORDS. `source_phrase` is left NULL, and the input type has no member for
-     * one, so a caller cannot supply it. This binding carries `author_id = NULL` — nobody wrote it — and the
-     * erasure sweep reaches this table by `WHERE author_id = $owner`, so a phrase stored here would be
-     * STRUCTURALLY unreachable: both contributing cooks could exercise their right to erasure and this third
-     * row would keep one of their phrases forever, with nothing to point erasure at. Migration 0031 makes
-     * that row unrepresentable; the missing member is what stops it being written in the first place.
-     *
-     * ⚠️ Nothing is lost. 0021 keeps the phrase to make the key derivation a two-way door
-     * (`SET normalized_key = f(source_phrase)`), and this binding CITES two rows that each carry their own —
-     * so a backfill for it runs through `corroborated_a`, and when both citations have been erased their
-     * phrases are NULL anyway. 0029 already ships this rule for the sibling parse-correction tier.
+     * ⛔ AND IT STILL COPIES NOBODY'S WORDS — that survived a reversal, so read why before restoring the copy.
+     * Migration 0031 removed it on TWO arguments and the 2026-08-25 owner ruling (ADR-0027) reverses only one
+     * of them: a phrase is not personal data, so there is no retention window to close. The OTHER argument
+     * stands entirely on its own and has nothing to do with privacy — the copy bought NOTHING. 0021 keeps a
+     * phrase to make the key derivation a two-way door (`SET normalized_key = f(source_phrase)`), and this
+     * binding CITES two rows that each carry their own, so a backfill for the binding runs through
+     * `corroborated_a` either way. `source_phrase` is left NULL and the input type has no member for one, so
+     * a caller cannot supply it. The sibling parse-correction tier follows the identical rule.
      *
      * @param input - The agreed food, its key, and the two mappings the binding cites.
      * @param writer - The open transaction, when enlisted in one.
@@ -380,7 +374,7 @@ export class ResolutionMappingsDal {
         const [first, second] = [input.citesExisting, input.citesNew].sort();
         const inserted = await writer.execute<{ id: string }>(sql`
             INSERT INTO ingredient_resolution_mappings
-                (normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing,
+                (normalized_key, source_phrase, food_id, scope, origin, user_id, surfacing,
                  corroborated_a, corroborated_b)
             VALUES (${input.normalizedKey}, NULL, ${input.foodId}, 'global', 'corroboration',
                     NULL, 'corroboration', ${first}, ${second})
@@ -398,11 +392,11 @@ export class ResolutionMappingsDal {
      * beside it, because a memo is a food id rather than a vector — a newer judge's answer supersedes an
      * older one rather than being incomparable to it.
      *
-     * ⛔ `owner_id` MOVES WITH `source_phrase`, in the insert AND in the update — the rule
-     * `verdictStore.rememberAgreement` states for the same table. Two cooks whose lines normalize alike
-     * share ONE row, so replacing the phrase while leaving the previous owner's id beside it would aim the
-     * NEXT erasure at the wrong person: it would sweep a phrase that cook never typed and leave the one they
-     * did. Migration 0031 refuses the split row rather than trusting these two statements to stay paired.
+     * ⛔ THERE IS NO PERSON ON THIS ROW, and that is the tier's defining asymmetry with the two correction
+     * tiers rather than an omission. A memo is the MODEL's conclusion — nobody asserted it — so there is no
+     * correction here and nothing to count, which is the only reason the sibling tables keep a `user_id` at
+     * all. Migration 0026 had added an `owner_id` purely so an erasure sweep had a predicate; the 2026-08-25
+     * owner ruling (ADR-0027) removed both the sweep and the column.
      *
      * ⚠️ Nothing in U10 calls this. It exists so the tier's write bar — "only a resolution the gate agreed
      * with, and record which model agreed" — is expressed as a REQUIRED field on the input type rather than a
@@ -414,14 +408,12 @@ export class ResolutionMappingsDal {
     public async recordMemo(memo: VerifiedMemo, writer: Writer = this.db): Promise<void> {
         await writer.execute(sql`
             INSERT INTO ingredient_resolution_memos
-                (normalized_key, food_id, source_phrase, verified_by, owner_id)
-            VALUES (${memo.normalizedKey}, ${memo.foodId}, ${memo.sourcePhrase}, ${memo.verifiedBy},
-                    ${memo.ownerId})
+                (normalized_key, food_id, source_phrase, verified_by)
+            VALUES (${memo.normalizedKey}, ${memo.foodId}, ${memo.sourcePhrase}, ${memo.verifiedBy})
             ON CONFLICT (normalized_key) DO UPDATE
                 SET food_id = EXCLUDED.food_id,
                     source_phrase = EXCLUDED.source_phrase,
                     verified_by = EXCLUDED.verified_by,
-                    owner_id = EXCLUDED.owner_id,
                     verified_at = now()
         `);
     }
@@ -512,7 +504,7 @@ export class ResolutionMappingsDal {
             return { written: false, outcome: 'already_in_force', reason: decision.reason };
         }
 
-        const retired = await this.retirePredecessor(decision, request.authorId, tx);
+        const retired = await this.retirePredecessor(decision, request.userId, tx);
         const mappingId = await this.insertMapping(request, decision.scope, decision.origin, tx);
 
         if (mappingId === undefined) {
@@ -564,14 +556,14 @@ export class ResolutionMappingsDal {
      * Retire whatever this decision displaces, under the predicate that authorizes it.
      *
      * @param decision - The write decision naming what is displaced.
-     * @param authorId - The caller, which the author-scoped predicate matches on.
+     * @param userId - The caller, which the author-scoped predicate matches on.
      * @param tx - The open transaction.
      * @returns The retired row's id, or `undefined` when nothing was retired.
      * @sideEffect Updates `ingredient_resolution_mappings`.
      */
     private async retirePredecessor(
         decision: Exclude<MappingWriteDecision, { write: 'none' }>,
-        authorId: string,
+        userId: string,
         tx: RecipeTx,
     ): Promise<string | undefined> {
         if (decision.supersedes === undefined) {
@@ -579,13 +571,11 @@ export class ResolutionMappingsDal {
         }
 
         if (decision.write === 'author') {
-            return (await this.supersedeOwnMapping(decision.supersedes, authorId, tx))
-                ? decision.supersedes
-                : undefined;
+            return (await this.supersedeOwnMapping(decision.supersedes, userId, tx)) ? decision.supersedes : undefined;
         }
 
-        // A curator retiring the global mapping in force. The predicate is `scope = 'global'` rather than an
-        // author match: a grant holder outranks both a previous curator and a corroboration binding, and the
+        // A curator retiring the global mapping in force. The predicate is `scope = 'global'` rather than a
+        // user match: a grant holder outranks both a previous curator and a corroboration binding, and the
         // grant itself was checked by the policy that produced this decision.
         const result = await tx.execute<{ id: string }>(sql`
             UPDATE ingredient_resolution_mappings SET superseded_at = now()
@@ -618,13 +608,13 @@ export class ResolutionMappingsDal {
     ): Promise<string | undefined> {
         const values = sql`
             (${request.normalizedKey}, ${request.sourcePhrase}, ${request.foodId}, ${scope}, ${origin},
-             ${request.authorId}, ${request.surfacing})
+             ${request.userId}, ${request.surfacing})
         `;
-        const columns = sql`(normalized_key, source_phrase, food_id, scope, origin, author_id, surfacing)`;
+        const columns = sql`(normalized_key, source_phrase, food_id, scope, origin, user_id, surfacing)`;
         const conflict =
             scope === 'global'
                 ? sql`(normalized_key) WHERE scope = 'global' AND superseded_at IS NULL`
-                : sql`(normalized_key, author_id) WHERE scope = 'author' AND superseded_at IS NULL AND author_id IS NOT NULL`;
+                : sql`(normalized_key, user_id) WHERE scope = 'author' AND superseded_at IS NULL AND user_id IS NOT NULL`;
 
         const result = await tx.execute<{ id: string }>(sql`
             INSERT INTO ingredient_resolution_mappings ${columns}

@@ -11,11 +11,11 @@
  * `ingredients/domain/correctionScopePolicy.ts` and only their SUBJECT differs.
  *
  * ⚠️ The hand-authored SQL in `src/database/migrations/0029_ingredient_parse_corrections.sql` is the SOURCE
- * OF TRUTH (repo convention — the in-VPC runner applies those files in filename order). These definitions
- * drive the query layer and document the same final shape. Read that file for the reasoning behind every
- * constraint and index; the partial unique indexes in particular are load-bearing CONCURRENCY CONTROLS, not
- * optimisations, and the CHECKs are what make a half-erased row and an unjustified global correction
- * unrepresentable.
+ * OF TRUTH (repo convention — the in-VPC runner applies those files in filename order), as amended by
+ * `0033_ingredient_phrase_is_not_personal.sql`. These definitions drive the query layer and document the
+ * same final shape. Read those files for the reasoning behind every constraint and index; the partial unique
+ * indexes in particular are load-bearing CONCURRENCY CONTROLS, not optimisations, and the CHECKs are what
+ * make an unjustified global correction unrepresentable.
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import { check, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
@@ -45,8 +45,8 @@ export type JsonValue = string | number | boolean | null | readonly JsonValue[] 
  *
  * ⛔ Its shape is `ParsedFacts` (`@kitchensink/recipe-import-core`) — `statedMeasure`, `quantity`, `unit`,
  * `foods[]` — and deliberately NOT the wider `ParsedLine`, whose `raw` member is the input byte-identical.
- * Storing `raw` here would put a SECOND copy of the erasable text in a column no sweep touches, which is the
- * "moved the data rather than removing it" failure the mappings suite already tests against.
+ * `sourceLine` already holds that text; a second copy of it inside the payload would be one fact with two
+ * representations, free to disagree after a backfill of the column beside it.
  *
  * ⚠️ It is typed as an opaque JSON object rather than imported from `recipe-import-core`, because this
  * service does not otherwise depend on that package and NOTHING in this tier inspects the payload: it is
@@ -71,28 +71,31 @@ export const ingredientParseCorrections = pgTable(
         normalizedKey: text('normalized_key').notNull(),
         /**
          * The raw line the key was derived FROM — what makes the key derivation a two-way door, since a
-         * change to that function is then a backfill rather than data loss. NULL after erasure, and it moves
-         * as a PAIR with {@link ingredientParseCorrections.ownerId}.
+         * change to that function is then a backfill rather than data loss.
+         *
+         * ⚠️ **NOT personal data** (owner ruling 2026-08-25, ADR-0027). No sweep targets it, and migration
+         * 0033 repealed 0029's CHECK tying it to a person. NULLABLE because a `corroboration` binding copies
+         * nobody's line — not because anything clears it.
          */
         sourceLine: text('source_line'),
-        /** The corrected parse. Survives erasure — it is the correction itself. */
+        /** The corrected parse — the assertion this row exists to carry. */
         correctedFacts: jsonb('corrected_facts').$type<CorrectedParse>().notNull(),
         /** How far this correction reaches: `author` binds only its cook, `global` binds every user. */
         scope: text('scope').$type<CorrectionScope>().notNull(),
         /** On whose authority it holds: its writer alone, a grant holder, or two cooks agreeing. */
         origin: text('origin').$type<CorrectionOrigin>().notNull(),
         /**
-         * The app-user ULID that typed the line — present so a correction is attributable AND erasable.
+         * The app-user ULID whose correction this is.
          *
-         * ⛔ It moves as a PAIR with `sourceLine`, in every writer and in the erasure sweep alike, and
-         * migration 0029 enforces that with a CHECK rather than trusting it. An owner id left beside another
-         * cook's line would aim the NEXT erasure at the wrong person: it would sweep a line that owner never
-         * typed and leave the one they did.
+         * ⛔ **A COUNTER AND AN AUTHORIZATION PREDICATE, never an erasure predicate** (owner ruling
+         * 2026-08-25, ADR-0027) — the exact role its sibling plays on the curated tier. Spelled `user_id`
+         * since migration 0033, which is both the owner's ruling and GR-004's canonical name for a user
+         * reference.
          *
-         * ⚠️ NULL means one of two things and neither is an error: the row is a corroboration binding (nobody
-         * wrote it — two cooks' agreement produced it), or the owner has been erased.
+         * ⚠️ NULL means exactly one thing: the row is a corroboration binding — nobody wrote it, two cooks'
+         * agreement produced it.
          */
-        ownerId: varchar('owner_id', { length: 255 }),
+        userId: varchar('user_id', { length: 255 }),
         /** Which affordance produced the correction. Free text: a new surface must never fail a write. */
         surfacing: text('surfacing').notNull(),
         /** First of the two author corrections whose agreement produced a corroboration binding. */
@@ -134,18 +137,17 @@ export const ingredientParseCorrections = pgTable(
             'ingredient_parse_corrections_supersession_forward',
             sql`${table.supersededBy} IS DISTINCT FROM ${table.id}`,
         ),
-        // ⛔ THE PAIR INVARIANT (KTD-14) — the owner link and the text it identifies exist together or not at
-        // all, so a half-erased row is a state the database refuses rather than a bug review has to catch.
-        check(
-            'ingredient_parse_corrections_owner_line_pair',
-            sql`(${table.ownerId} IS NULL) = (${table.sourceLine} IS NULL)`,
-        ),
-        // ⛔ THE CORROBORATION COUNTER. A count of live author-scoped rows for a line equals a count of
-        // DISTINCT COOKS only because this index makes a second live row from one cook impossible. Its
-        // `owner_id IS NOT NULL` half is also what RELEASES an erased cook's slot.
-        uniqueIndex('idx_parse_corrections_live_owner')
-            .on(table.normalizedKey, table.ownerId)
-            .where(sql`${table.scope} = 'author' AND ${table.supersededAt} IS NULL AND ${table.ownerId} IS NOT NULL`),
+        // ⛔ THE CORROBORATION COUNTER, and ⚠️ DELIBERATE — see
+        // `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md`. A count of live
+        // author-scoped rows for a line equals a count of DISTINCT COOKS only because this index makes a
+        // second live row from one cook impossible. It is the reason `userId` is retained at all.
+        //
+        // ⛔ 0029's `…_owner_line_pair` CHECK stood here and was REPEALED by 0033: its only recorded reason
+        // was that a stale owner id would aim a later erasure at the wrong person, and there is no later
+        // erasure. Do not restore it.
+        uniqueIndex('idx_parse_corrections_live_user')
+            .on(table.normalizedKey, table.userId)
+            .where(sql`${table.scope} = 'author' AND ${table.supersededAt} IS NULL AND ${table.userId} IS NOT NULL`),
         // ⛔ The top tier must be deterministic. Enforcing this here is what makes supersession the ONLY way a
         // global correction can be replaced — and therefore what makes the scope policy's gate unbypassable.
         uniqueIndex('idx_parse_corrections_live_global')
@@ -161,9 +163,8 @@ export const ingredientParseCorrections = pgTable(
         index('idx_parse_corrections_live_lookup')
             .on(table.normalizedKey)
             .where(sql`${table.supersededAt} IS NULL`),
-        index('idx_parse_corrections_owner')
-            .on(table.ownerId)
-            .where(sql`${table.ownerId} IS NOT NULL`),
+        // ⚠️ `idx_parse_corrections_owner` stood here and was dropped by migration 0033. It existed ONLY to
+        // make the erasure sweep's predicate fast; no read path filters on the person column alone.
     ],
 );
 

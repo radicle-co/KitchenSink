@@ -45,55 +45,46 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
     });
 
     /**
-     * ⛔ `ownerId` EXISTS SO THAT A MEMO CAN BE ERASED (owner ruling 2026-08-23, migration 0026).
+     * ⛔ `ownerId` WAS REMOVED FROM THIS CONTRACT — owner ruling 2026-08-25, ADR-0027.
      *
-     * The worker remembers an agreed phrase in `ingredient_resolution_memos`, and that phrase is text a user
-     * typed. Until 0026 the table carried no author column, so account erasure had no predicate to sweep on.
-     * The owner ruled to add the link rather than drop the phrase — which means this field is the ONLY thing
-     * that carries it from the producer, which knows the owner, to the worker, which does not.
+     * Five cases stood here. Every one of them was about a field whose ONLY documented purpose was to carry
+     * the recipe owner from the producer to the worker so that a phrase the worker REMEMBERS in
+     * `ingredient_resolution_memos` could later be erased (migration 0026). The owner ruled that an
+     * ingredient phrase is not private data; migration 0033 dropped the memo's person column and the erasure
+     * sweep, which left `verifyLine.ts` — the field's only reader — with nothing to do with it.
      *
-     * ⚠️ OPTIONAL, and it must stay optional through at least one release. The queue holds in-flight messages
-     * enqueued by the producer that predates this field; making it required would turn every one of them into
-     * DLQ poison at exactly the moment the new worker deploys. A memo written from such a message simply
-     * carries no owner — the same position the table was in before this change, not a worse one.
+     * ⛔ Their coverage does not vanish, it INVERTS. The two cases below assert what removing the field
+     * actually has to be safe against, which no assertion covered before:
+     *
+     *   1. A message from the PREVIOUS producer still carrying `ownerId` must parse, with the key stripped.
+     *      That is what makes the removal safe in the older-producer direction, and it depends on this being
+     *      a `z.object` rather than a strict one. If it ever became strict, every in-flight message would
+     *      become DLQ poison at the moment the new worker deploys — the same whole-recipe silent drop the
+     *      `z.ulid()` defect caused, arriving by a different route.
+     *   2. Nothing that names a person survives on the parsed message. This message sits in a DLQ carrying a
+     *      cook's recipe text, and the schema's docstring asks that every field be weighed against that; a
+     *      re-added identifier must fail here rather than pass unnoticed.
+     *
+     * The BOUND and EMPTY-STRING cases are not re-homed because there is no longer a field to bound. The
+     * remaining string fields carry their own bounds, asserted elsewhere in this suite.
      */
-    it('accepts an ownerId, and accepts a message without one', () => {
-        expect(() =>
-            verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P' })),
-        ).not.toThrow();
-        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine())).not.toThrow();
-    });
-
-    /**
-     * ⛔ REWRITTEN, and it now asserts the OPPOSITE of what it asserted before. This case demanded that a
-     * non-ULID `ownerId` be REFUSED. That was wrong, and it was not a theoretical wrongness: `z.object`
-     * refuses the whole message, the SQS adapter logs-and-drops a refused message by design, and the gate
-     * therefore stopped enqueuing anything for a recipe whose owner id merely failed a format check.
-     *
-     * The correction is recorded in the schema's own docstring. What the contract owes here is a BOUND — an
-     * unbounded string reaches the DLQ — not a format. So this asserts the bound, and asserts that an
-     * unrecognised id degrades the erasure correlation rather than the verification.
-     */
-    it('accepts an unrecognised ownerId rather than refusing the whole message', () => {
-        const parsed = verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: 'not-a-ulid' }));
-
-        expect(parsed.ownerId).toBe('not-a-ulid');
-        expect(parsed.sourceLine).toBe('2 cups all-purpose flour');
-    });
-
-    // The bound is what survives, and it is what keeps a hostile value out of the DLQ.
-    it('refuses an ownerId longer than the column and the DLQ should carry', () => {
-        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: 'x'.repeat(65) }))).toThrow();
-    });
-
-    it('refuses an empty ownerId — absent and blank are different claims', () => {
-        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: '' }))).toThrow();
-    });
-
-    it('carries the ownerId through to the parsed message', () => {
+    it('⛔ strips a REMOVED ownerId from an older producer’s message rather than refusing it', () => {
         const parsed = verifyIngredientLineMessageSchema.parse(verifyLine({ ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P' }));
 
-        expect(parsed.ownerId).toBe('01JQ8N2X4RBV6WK3ZT5Y7A9C0P');
+        expect(parsed.sourceLine).toBe('2 cups all-purpose flour');
+        expect(Object.keys(parsed)).not.toContain('ownerId');
+    });
+
+    it('⛔ carries NOTHING that names a person — the DLQ holds one less identifier for it', () => {
+        const parsed = verifyIngredientLineMessageSchema.parse(verifyLine());
+        const keys = Object.keys(parsed);
+
+        // ⚠️ Asserted against a POPULATED parse, never an empty one: `expect(keys).not.toContain(...)` over an
+        // empty array passes vacuously and would report a broken schema as green.
+        expect(keys).toContain('recipeId');
+        expect(keys).not.toContain('ownerId');
+        expect(keys).not.toContain('userId');
+        expect(keys).not.toContain('authorId');
     });
 
     it('carries NO aspects and NO skip decision — inputs only', () => {

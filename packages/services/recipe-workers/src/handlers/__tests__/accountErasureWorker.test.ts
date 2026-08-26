@@ -491,199 +491,68 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
     });
 
     /**
-     * ⛔ THE KNOWLEDGE BASE, WHICH NO SWEEP REACHED UNTIL U14 (plan U10 → U14; migration 0021's header).
+     * ⛔ NINE ASSERTIONS STOOD HERE AND WERE REPLACED BY THE TWO BELOW — owner ruling 2026-08-25, ADR-0027.
      *
-     * `ingredient_resolution_mappings` carries `author_id` (an app-user ULID) and `source_phrase` (text a
-     * user typed), so its rows are personal data. U10 shipped the table and the write path but NO route, so
-     * no production row could exist and the gap was tolerable; U14 publishes the correction route, which
-     * ends that grace in the same release.
+     * They pinned the SQL of sweep steps 10, 11 and 12: that `ingredient_resolution_mappings` was retired and
+     * stripped of `author_id`/`source_phrase`, that `ingredient_resolution_memos` and
+     * `ingredient_parse_corrections` were de-identified rather than deleted, that each moved its two columns
+     * in ONE statement, that each keyed on the owner as a bound parameter, and that each ran inside the one
+     * erasure transaction. Migration 0033 removed all three statements, so every one of those assertions was
+     * about SQL that no longer exists.
      *
-     * ⛔ A HARD DELETE IS THE WRONG ANSWER, and the schema is shaped so that it does not have to be one. A
-     * `corroboration` binding CITES the two author rows whose agreement produced it (`corroborated_a/b`, FK
-     * to this same table), so deleting them either violates those references or — if the FKs were relaxed —
-     * silently un-resolves an ingredient for EVERY OTHER USER of the installation. The erased author's
-     * contribution is retired and stripped of its identifiers instead: the binding they helped produce
-     * survives with its citation intact, and nothing about them survives with it.
+     * ⛔ Their coverage INVERTS rather than disappearing, and the inverse is the assertion that matters now.
+     * The old suite could only fail if a sweep were removed; this one fails if a sweep is ADDED. That is the
+     * live risk after a reversal — the tables still carry a `user_id`, `erasureSweepCoverage.test.ts` used to
+     * demand a sweep for exactly that reason, and the obvious "fix" for a reader who has not read the ADR is
+     * to put the statements back. A comment saying "do not restore this" is a convention; a red test is a
+     * fact.
+     *
+     * ⚠️ What is genuinely NOT re-homed: the owner-parameterization claims those tests carried for these
+     * three statements. They were properties OF statements that are gone. The same property is asserted for
+     * every surviving statement by its own case above, and repo-wide by `rawSqlParameterization.test.ts`.
      */
-    it('retires and de-identifies the erased author’s curated mappings, WITHOUT deleting them', async () => {
+    it('⛔ issues NO statement against the ingredient knowledge base — no sweep targets a phrase', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
 
         await eraseRecipeRows(control.db, OWNER, []);
 
         const statements = control.statements();
-        const sweep = statements.find((s) => /ingredient_resolution_mappings/i.test(s.text));
 
-        expect(sweep).toBeDefined();
-        // An UPDATE, never a DELETE — see the docstring above for what a delete would break.
-        expect(sweep?.text).toMatch(/update\s+ingredient_resolution_mappings/i);
-        expect(statements.some((s) => /delete\s+from\s+ingredient_resolution_mappings/i.test(s.text))).toBe(false);
-        // All three of the prescribed assignments: retired, and both identifying columns nulled. A sweep
-        // that only set `superseded_at` would leave the ULID and the typed phrase in place — still personal
-        // data, now merely inactive.
-        expect(sweep?.text).toMatch(/superseded_at\s*=\s*now\(\)/i);
-        expect(sweep?.text).toMatch(/author_id\s*=\s*null/i);
-        expect(sweep?.text).toMatch(/source_phrase\s*=\s*null/i);
+        // ⚠️ Non-vacuity FIRST. `every` over an empty list is `true`, so a `createFakeDb` that recorded
+        // nothing would report this suite green while proving nothing at all.
+        expect(statements.length).toBeGreaterThan(5);
+
+        for (const table of [
+            'ingredient_resolution_mappings',
+            'ingredient_resolution_memos',
+            'ingredient_parse_corrections',
+        ]) {
+            expect(
+                statements.filter((s) => new RegExp(table, 'i').test(s.text)),
+                `${table} is retained by owner ruling 2026-08-25 (ADR-0027) — its user_id is a distinct-user ` +
+                    'counter and an authorization predicate, not an erasure predicate',
+            ).toEqual([]);
+        }
     });
 
-    /**
-     * ⛔ THE MEMO TIER — the half the mappings sweep above deliberately did NOT reach, closed by owner ruling
-     * (2026-08-23).
-     *
-     * `ingredient_resolution_memos` carries `source_phrase`: text a user typed, remembered because the
-     * verification gate agreed with the resolution it produced. Until this ruling the table had NO author
-     * column at all, so no per-user predicate existed for a sweep to key on, and migration 0021's header
-     * recorded that as a stated residual rather than an omission.
-     *
-     * ⚠️ The ruling was taken over the alternative of DROPPING `source_phrase` — which is write-only today,
-     * so dropping it would have removed the question rather than answering it. The owner chose to keep the
-     * phrase and make it erasable. That choice has a consequence worth stating where the sweep lives: the
-     * memo table now holds a person-to-row link it did not hold before, which is precisely what makes the
-     * sweep possible and precisely what the sweep must therefore never miss.
-     *
-     * ⛔ AN UPDATE, NOT A DELETE, for the same reason as the mappings tier — but reached differently. A memo
-     * is keyed by `normalized_key` alone and is consulted by EVERY user's resolution cascade; deleting the
-     * erased user's memos would silently un-resolve those phrases for the whole installation. What is
-     * personal here is the phrase and the owner link, not the machine's conclusion, so the conclusion
-     * (`food_id`, `verified_by`) survives de-identified.
-     */
-    it('de-identifies the erased owner’s memos, keeping the machine’s conclusion', async () => {
+    it('⛔ leaves the phrase columns alone — nothing NULLs source_phrase or source_line', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
 
         await eraseRecipeRows(control.db, OWNER, []);
 
         const statements = control.statements();
-        const sweep = statements.find((s) => /ingredient_resolution_memos/i.test(s.text));
 
-        expect(sweep).toBeDefined();
-        expect(sweep?.text).toMatch(/update\s+ingredient_resolution_memos/i);
-        expect(statements.some((s) => /delete\s+from\s+ingredient_resolution_memos/i.test(s.text))).toBe(false);
-        expect(sweep?.text).toMatch(/owner_id\s*=\s*null/i);
-        expect(sweep?.text).toMatch(/source_phrase\s*=\s*null/i);
-        // ⛔ The conclusion is NOT touched. A sweep that also cleared these would erase knowledge nobody
-        // asked to have erased, for every other user of the installation.
-        expect(sweep?.text).not.toMatch(/food_id\s*=\s*null/i);
-        expect(sweep?.text).not.toMatch(/verified_by\s*=\s*null/i);
-    });
+        expect(statements.length).toBeGreaterThan(5);
 
-    /**
-     * ⛔ THE PARSE-CORRECTION TIER (plan U21, migration 0029) — the THIRD owner-bearing ingredient table,
-     * and the third to be written at the same time as the sweep that reaches it rather than after it.
-     *
-     * `ingredient_parse_corrections` holds what a cook typed (`source_line`) and who typed it
-     * (`owner_id`), so the row is personal data from its first INSERT. Both `ingredient_resolution_mappings`
-     * and `ingredient_resolution_memos` shipped WITHOUT sweep coverage and were retrofitted; this table is
-     * the first of the family whose coverage lands in the same change as the table.
-     *
-     * ⛔ AN UPDATE, NOT A DELETE, and the reason is the memo tier's: a correction is keyed by
-     * `normalized_key` and is consulted by EVERY user's parse pipeline BEFORE the cache, so deleting the
-     * erased owner's corrections would silently un-correct those lines for the whole installation — the
-     * exact outcome the tier exists to prevent.
-     *
-     * ⛔ THE TWO COLUMNS MOVE AS A PAIR. Nulling the typed line while leaving a previous owner's id beside
-     * it would point a LATER erasure at the wrong person: it would sweep a line that owner never typed and
-     * leave the one they did. Migration 0029 makes the pairing structural with a CHECK, and this suite
-     * pins that the sweep issues them in ONE statement so the constraint is never transiently violated.
-     */
-    it('de-identifies the erased owner’s parse corrections, keeping the correction itself', async () => {
-        const control = createFakeDb();
-        seedRemoved(control, REMOVED_A);
-
-        await eraseRecipeRows(control.db, OWNER, []);
-
-        const statements = control.statements();
-        const sweep = statements.find((s) => /ingredient_parse_corrections/i.test(s.text));
-
-        expect(sweep).toBeDefined();
-        expect(sweep?.text).toMatch(/update\s+ingredient_parse_corrections/i);
-        expect(statements.some((s) => /delete\s+from\s+ingredient_parse_corrections/i.test(s.text))).toBe(false);
-        expect(sweep?.text).toMatch(/owner_id\s*=\s*null/i);
-        expect(sweep?.text).toMatch(/source_line\s*=\s*null/i);
-        // ⛔ The CORRECTION is not touched. Clearing it would leave a row that corrects nothing, which is
-        // a DELETE wearing an UPDATE's clothes — and it would un-correct the line for every other user.
-        expect(sweep?.text).not.toMatch(/corrected_facts\s*=\s*null/i);
-    });
-
-    it('⛔ moves owner_id and the typed line in ONE statement — never one without the other', async () => {
-        const control = createFakeDb();
-        seedRemoved(control, REMOVED_A);
-
-        await eraseRecipeRows(control.db, OWNER, []);
-
-        // Two statements — one per column — would leave a window in which the row carries an owner link
-        // with no text, or text with no owner link. The first is harmless; the second is the defect this
-        // pins, because a row whose text belongs to A and whose owner_id still reads B is swept for the
-        // wrong person forever after.
-        const touching = control.statements().filter((s) => /ingredient_parse_corrections/i.test(s.text));
-
-        expect(touching).toHaveLength(1);
-        expect(touching[0]?.text).toMatch(/owner_id\s*=\s*null/i);
-        expect(touching[0]?.text).toMatch(/source_line\s*=\s*null/i);
-    });
-
-    it('sweeps ONLY the erased owner’s parse corrections, and binds the owner as a parameter', async () => {
-        const control = createFakeDb();
-        seedRemoved(control, REMOVED_A);
-
-        await eraseRecipeRows(control.db, OWNER, []);
-
-        const sweep = control.statements().find((s) => /ingredient_parse_corrections/i.test(s.text));
-
-        expect(sweep?.text).toMatch(/where\s+owner_id\s*=\s*\$\d/i);
-        expect(sweep?.params).toEqual([OWNER]);
-    });
-
-    it('runs the parse-correction sweep INSIDE the one erasure transaction', async () => {
-        const control = createFakeDb();
-        seedRemoved(control, REMOVED_A);
-
-        await eraseRecipeRows(control.db, OWNER, []);
-
-        // Outside the unit of work, a crash between the recipe delete and the sweep would report the
-        // account erased while the lines the user typed survived — the false success this worker exists
-        // to make impossible.
-        expect(control.txStatements().some((s) => /ingredient_parse_corrections/i.test(s.text))).toBe(true);
-    });
-
-    it('sweeps ONLY the erased owner’s memos, and binds the owner as a parameter', async () => {
-        const control = createFakeDb();
-        seedRemoved(control, REMOVED_A);
-
-        await eraseRecipeRows(control.db, OWNER, []);
-
-        const sweep = control.statements().find((s) => /ingredient_resolution_memos/i.test(s.text));
-
-        expect(sweep?.text).toMatch(/where\s+owner_id\s*=\s*\$\d/i);
-        expect(sweep?.params).toContain(OWNER);
-    });
-
-    it('sweeps ONLY the erased author’s LIVE mappings — never another author’s, never a superseded one', async () => {
-        const control = createFakeDb();
-        seedRemoved(control, REMOVED_A);
-
-        await eraseRecipeRows(control.db, OWNER, []);
-
-        const sweep = control.statements().find((s) => /ingredient_resolution_mappings/i.test(s.text));
-
-        // Parameterized on the owner, and scoped to rows still in force. Re-writing an ALREADY-superseded
-        // row would touch the historical record a global ruling's audit trail is made of, for no gain: the
-        // identifiers on a retired row are swept by the same statement the first time it runs.
-        expect(sweep?.text).toMatch(/where\s+author_id\s*=\s*\$\d/i);
-        expect(sweep?.text).toMatch(/superseded_at\s+is\s+null/i);
-        expect(sweep?.params).toEqual([OWNER]);
-    });
-
-    it('runs the mapping sweep INSIDE the one erasure transaction', async () => {
-        const control = createFakeDb();
-        seedRemoved(control, REMOVED_A);
-
-        await eraseRecipeRows(control.db, OWNER, []);
-
-        // Not a separate statement outside the unit of work: a crash between the recipe delete and an
-        // out-of-transaction sweep would report the account erased while the phrases the user typed
-        // survived, which is the false-success this whole worker is designed against.
-        expect(control.txStatements().some((s) => /ingredient_resolution_mappings/i.test(s.text))).toBe(true);
+        // ⛔ Column-level, not table-level, because that is the shape a re-introduction would take: a new
+        // sweep would more likely arrive as a phrase-nulling `SET` inside an existing statement than as a
+        // whole new `UPDATE` against a table this suite already forbids.
+        for (const statement of statements) {
+            expect(statement.text).not.toMatch(/source_phrase\s*=\s*NULL/i);
+            expect(statement.text).not.toMatch(/source_line\s*=\s*NULL/i);
+        }
     });
 
     it('never deletes from the shared global ingredients table', async () => {

@@ -50,10 +50,11 @@ export const ingredientResolutionMappings = pgTable(
          * The raw phrase the key was derived FROM — what makes the key derivation a two-way door, since a
          * change to that function is then a backfill rather than data loss.
          *
-         * ⛔ It moves as a PAIR with {@link ingredientResolutionMappings.authorId}, and migration 0031 makes
-         * that a CONSTRAINT rather than a convention. NULL for an erased author AND for a `corroboration`
-         * binding, which copies nobody's words: a phrase on a row with no author is unreachable by the
-         * erasure sweep's `WHERE author_id = $owner`, so it would outlive the erasure it should have honoured.
+         * ⚠️ **NOT personal data** (owner ruling 2026-08-25, ADR-0027). It is not erasable, no sweep targets
+         * it, and migration 0033 repealed the CHECK that tied it to a person. NULLABLE because a
+         * `corroboration` binding copies nobody's words — not because anything clears it. That copy stays
+         * un-written on the surviving half of 0031's argument: the binding CITES two rows that each carry
+         * their own phrase, so the two-way-door backfill runs through `corroboratedA` either way.
          */
         sourcePhrase: text('source_phrase'),
         /** Opaque food-service golden-record id. May dangle after a reseed; readers fall through. */
@@ -63,11 +64,21 @@ export const ingredientResolutionMappings = pgTable(
         /** On whose authority it holds: its writer alone, a grant holder, or two authors agreeing. */
         origin: text('origin').notNull(),
         /**
-         * The app-user ULID that wrote it (R20). NULL for a corroboration binding — nobody wrote it, two
-         * people's agreement produced it — and for an erased author. Either way, migration 0031 requires
-         * {@link ingredientResolutionMappings.sourcePhrase} to be NULL with it.
+         * The app-user ULID whose correction this is (R20).
+         *
+         * ⛔ **A COUNTER AND AN AUTHORIZATION PREDICATE, never an erasure predicate** (owner ruling
+         * 2026-08-25, ADR-0027). It is how the installation counts how many DISTINCT people made the same
+         * correction — the corroboration signal that promotes one from personal to global — and it is two of
+         * the three `WHERE` clauses that ARE the authorization in `resolutionMappings.dal.ts`.
+         *
+         * Spelled `user_id` since migration 0033: `author_id`/`owner_id` were two names for one concept, and
+         * GR-004 fixes the canonical spelling. `scope`/`origin` keep their `'author'` value, which names a
+         * REACH rather than a person.
+         *
+         * ⚠️ NULLABLE, and it must stay so: a `corroboration` binding has no user, because nobody wrote it —
+         * two people's agreement produced it.
          */
-        authorId: varchar('author_id', { length: 255 }),
+        userId: varchar('user_id', { length: 255 }),
         /** Which affordance produced the correction (R20). Free text: a new surface must never fail a write. */
         surfacing: text('surfacing').notNull(),
         /** First of the two author mappings whose agreement produced a corroboration binding. */
@@ -76,7 +87,7 @@ export const ingredientResolutionMappings = pgTable(
         corroboratedB: uuid('corroborated_b'),
         /** When this mapping stopped being in force. NULL means LIVE — the predicate every index uses. */
         supersededAt: timestamp('superseded_at', { withTimezone: true }),
-        /** The mapping that replaced it, or NULL when it was retired with no replacement (erasure). */
+        /** The mapping that replaced it, or NULL when it was retired with no replacement. */
         supersededBy: uuid('superseded_by'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
@@ -109,19 +120,17 @@ export const ingredientResolutionMappings = pgTable(
             'ingredient_resolution_mappings_supersession_forward',
             sql`${table.supersededBy} IS DISTINCT FROM ${table.id}`,
         ),
-        // ⛔ THE PAIR INVARIANT (migration 0031). A typed phrase and the person it belongs to exist together
-        // or not at all. It makes two states unrepresentable rather than merely discouraged: a phrase on a
-        // row nothing can point erasure at (which is how a corroboration binding kept a cook's words
-        // forever), and a half-run sweep leaving a previous author's id beside somebody else's wording.
-        check(
-            'ingredient_resolution_mappings_phrase_needs_owner',
-            sql`(${table.authorId} IS NULL) = (${table.sourcePhrase} IS NULL)`,
-        ),
-        // ⛔ THE CORROBORATION COUNTER. A count of live author-scoped rows for a phrase equals a count of
-        // DISTINCT AUTHORS only because this index makes a second live row from one author impossible.
-        uniqueIndex('idx_resolution_mappings_live_author')
-            .on(table.normalizedKey, table.authorId)
-            .where(sql`${table.scope} = 'author' AND ${table.supersededAt} IS NULL AND ${table.authorId} IS NOT NULL`),
+        // ⛔ THE CORROBORATION COUNTER, and ⚠️ DELIBERATE — see
+        // `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md`. A count of live
+        // author-scoped rows for a phrase equals a count of DISTINCT USERS only because this index makes a
+        // second live row from one user impossible. It is the reason `userId` is retained at all, so it is
+        // the last thing to "clean up" alongside an erasure change.
+        //
+        // ⛔ Migration 0031's `…_phrase_needs_owner` CHECK stood here and was REPEALED by 0033: a phrase is
+        // not personal data, so it needs nobody beside it for a sweep to key on. Do not restore it.
+        uniqueIndex('idx_resolution_mappings_live_user')
+            .on(table.normalizedKey, table.userId)
+            .where(sql`${table.scope} = 'author' AND ${table.supersededAt} IS NULL AND ${table.userId} IS NOT NULL`),
         // ⛔ Tier 1 must be deterministic. Enforcing this here is what makes supersession the ONLY way a global
         // mapping can be replaced — and therefore what makes the scope policy's supersession gate unbypassable.
         uniqueIndex('idx_resolution_mappings_live_global')
@@ -135,9 +144,10 @@ export const ingredientResolutionMappings = pgTable(
         index('idx_resolution_mappings_live_lookup')
             .on(table.normalizedKey, table.foodId)
             .where(sql`${table.supersededAt} IS NULL`),
-        index('idx_resolution_mappings_author')
-            .on(table.authorId)
-            .where(sql`${table.authorId} IS NOT NULL`),
+        // ⚠️ `idx_resolution_mappings_author` stood here and was dropped by migration 0033. It existed ONLY
+        // to make the erasure sweep's `WHERE author_id = $owner` fast; with no sweep it was write
+        // amplification on every correction for a query nobody issues. No read path filters on the person
+        // column alone — the write path's own-row lookup uses the composite unique index above.
     ],
 );
 
@@ -153,12 +163,15 @@ export const ingredientResolutionMemos = pgTable(
         normalizedKey: text('normalized_key').primaryKey(),
         foodId: text('food_id').notNull(),
         /**
-         * The phrase the key was derived from. ⚠️ NULLABLE since migration 0026: account erasure nulls it,
-         * along with {@link ingredientResolutionMemos.ownerId}, for the user who typed it.
+         * The phrase the key was derived from.
          *
-         * ⛔ Since migration 0031 the pairing is a CONSTRAINT: a memo whose owner is unknown records the
-         * machine's conclusion and NO phrase, because a phrase nothing can point erasure at outlives the
-         * erasure it should have honoured.
+         * ⚠️ **NOT personal data** (owner ruling 2026-08-25, ADR-0027), and nothing on this row identifies
+         * anybody: migration 0033 removed `owner_id`, which 0026 had added solely so an erasure sweep had a
+         * predicate to key on. What survives is the machine's conclusion plus the words it judged.
+         *
+         * ⚠️ Still NULLABLE, and it stays that way. 0026 dropped its `NOT NULL` for the sweep, and restoring
+         * it now would fail on every database 0031 already ran against — that migration backfilled this
+         * column to NULL on every ownerless memo, and said outright the phrases were not recoverable.
          */
         sourcePhrase: text('source_phrase'),
         /**
@@ -167,38 +180,16 @@ export const ingredientResolutionMemos = pgTable(
          * with no model identifier to record is a writer with no agreement to record.
          */
         verifiedBy: text('verified_by').notNull(),
-        /**
-         * Who owns the recipe whose line most recently produced this memo (migration 0026, owner ruling
-         * 2026-08-23) — present SOLELY so account erasure has a predicate to sweep on.
-         *
-         * ⛔ It moves as a PAIR with `sourcePhrase`, in the writer's upsert and in the erasure sweep alike.
-         * The table is keyed on the normalized phrase, so two users whose lines normalize alike share one
-         * row; a write that replaced the phrase but not the owner would point erasure at the wrong person.
-         *
-         * ⚠️ NULL means one of two things and neither is an error: the memo came from a producer that
-         * predates the field, or the owner has been erased. Both leave the machine's conclusion — `foodId`
-         * and `verifiedBy` — intact and readable, which is the point.
-         */
-        ownerId: text('owner_id'),
         verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
         // ⛔ THE NEAREST-NEIGHBOUR SEARCH (R14 forbids equality-only matching). GiST — not GIN — because only
         // the GiST trigram operator class supports the `<->` distance operator a k-NN scan orders by.
         index('idx_resolution_memos_key_trgm').using('gist', sql`${table.normalizedKey} gist_trgm_ops`),
-        // Partial, mirroring the mappings tier's author index: the sweep's predicate is `owner_id = $1`, and
-        // a de-identified row is NULL forever after, so indexing the NULLs would index the table's eventual
-        // majority for a query that can never match them.
-        index('idx_resolution_memos_owner')
-            .on(table.ownerId)
-            .where(sql`${table.ownerId} IS NOT NULL`),
-        // ⛔ THE PAIR INVARIANT (migration 0031), the mappings tier's constraint one tier down. The table is
-        // keyed on the phrase alone, so two cooks share ONE row and the upsert must move the phrase and the
-        // owner link together — this is what makes "together" a fact the database enforces.
-        check(
-            'ingredient_resolution_memos_phrase_needs_owner',
-            sql`(${table.ownerId} IS NULL) = (${table.sourcePhrase} IS NULL)`,
-        ),
+        // ⚠️ `owner_id`, its partial index and 0031's pair CHECK all stood here and were removed by migration
+        // 0033. ⛔ A memo is the MODEL's conclusion, not anybody's correction — there is no distinct-user
+        // count to keep here, which is why this tier loses the column outright where the two correction
+        // tiers rename theirs. See `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md`.
     ],
 );
 

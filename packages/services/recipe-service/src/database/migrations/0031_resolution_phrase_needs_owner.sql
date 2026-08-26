@@ -1,5 +1,16 @@
 -- 0031_resolution_phrase_needs_owner.sql (plan U10 → U14) — a typed phrase never sits without an owner.
 --
+-- ⛔⛔ THIS MIGRATION'S PREMISE WAS REVERSED ON 2026-08-25, THE DAY AFTER IT LANDED. Read
+-- `docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md` BEFORE reasoning from
+-- anything below. The owner ruled that an ingredient phrase is NOT private data, so migration 0033 DROPPED
+-- both CHECKs this file adds. ⚠️ Its BACKFILLS are not undone and cannot be: the phrases they nulled are
+-- gone, exactly as the note at the foot of this header says.
+--
+-- ⚠️ ONE conclusion here SURVIVES the reversal, and 0033 relies on it: `promoteByCorroboration` still stores
+-- no phrase on a corroboration binding. This file removed that copy on TWO arguments and the reversal
+-- overturns only the privacy one — the copy also bought NOTHING, because the binding CITES two rows that
+-- each carry their own phrase.
+--
 -- ## The defect
 --
 -- `ResolutionMappingsDal.promoteByCorroboration` inserted the `corroboration` binding with

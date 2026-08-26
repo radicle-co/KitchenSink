@@ -41,8 +41,10 @@
  * `T` is a tablespoon and `t` is a teaspoon — the standard American recipe convention, ruled by the owner.
  * Every other unit here is case-INSENSITIVE and stays that way. The distinction lives in
  * {@link CASE_SENSITIVE_UNIT_ALIASES}, read by {@link normalizeUnit} BEFORE the lower-casing fold, and the
- * accepted risk it takes is written down beside it. Do not "simplify" the two-step
- * {@link trimUnit} / {@link cleanUnit} composition back into one lower-casing step: that step IS the defect.
+ * accepted risk it takes is written down beside it. There is now exactly ONE fold in this module, inside
+ * {@link normalizeUnit} and after that read; {@link classifyUnit} delegates rather than cleaning. Do not
+ * hoist the fold back above the case-sensitive read, and do not give either function a pre-clean of its
+ * own — that step IS the defect.
  */
 import type { IngredientPortion } from './recipe.types.js';
 
@@ -317,10 +319,12 @@ export type UnitClass = 'canonical' | 'subjective' | 'unknown';
 /**
  * Trim and drop a trailing `.` — the punctuation-and-whitespace half of "cleaned", with CASE UNTOUCHED.
  *
- * ⛔ SPLIT OUT OF {@link cleanUnit} RATHER THAN ADDED BESIDE IT (owner ruling, 2026-08-25). Bolting a
- * second normalization path onto {@link normalizeUnit} is the "two folds" failure `cookbook-import`'s
- * `parseNormalization.ts` exists to prevent; this is ONE fold expressed as two composed steps, so
- * `T.` and ` T ` are still the same word as `T` without anyone restating what "trailing punctuation" means.
+ * ⛔ THE PARSE BOUNDARY, AND THE ONLY ONE (owner ruling, 2026-08-25). It replaced a single helper that
+ * trimmed AND lower-cased in one step, which is what made `T` and `t` the same word. Splitting it — rather
+ * than bolting a second normalization path onto {@link normalizeUnit} — is what keeps this ONE fold
+ * expressed as two ordered steps: `T.` and ` T ` are still the same word as `T`, and nobody has to restate
+ * what "trailing punctuation" means. Adding a second cleaner anywhere is the "two folds" failure
+ * `cookbook-import`'s `parseNormalization.ts` exists to prevent.
  *
  * @param raw - The unit as written.
  * @returns The trimmed form, case preserved. Pure.

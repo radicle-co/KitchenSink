@@ -270,17 +270,49 @@ whichever first`, and **nothing refreshes the clock** — not a duplicate publis
     cannot make a nutrition figure wrong.
 
     ⛔ **It reaches ONLY the absent case.** `quantityDiffers`/`unitDiffers` → `crfWins` are untouched (two
-    engines that each STATE a unit and differ still go to the CRF), the rescue still never takes the QUANTITY,
+    engines that each STATE a unit and differ still go to the CRF),
     the 29 mutually-silent lines do not move, and U16 is untouched — `promoteCrfReading` still canonicalises
     the CRF's `size` FIELD into that engine's own NAME, because U16 places a word inside ONE engine's line
     while the winner rule picks WHOSE measure is stored, and the two never touch the same value. The census
     moved with the merge: `crfSizeField` disposes **`llmWins`**, not `canonicalised` (placement cannot move a
     word into the unit), so all three verdicts in `judgeMeasure`'s `crf.unit === ''` branch agree with it.
 
-    ⚠️ **Two limits stay open.** Alternation (`one large onion or two small ones`, 4 lines) is two measures
-    against ONE measure field — a modelling gap, and a sensible single reading is taken. And the merge can
-    hold the LLM's measure PHRASE beside the CRF's NUMBER: `one and a half quarts` stores `1 quart`, which is
-    REPORTED as `differ: ['quantity']` rather than silent, but is not fixed. ⚠️ A vessel HEADING the measure
+    ⛔ **U36a (owner ruling 2026-08-26, ADR-0026 §8a) — AND THE RESCUE CARRIES THE AMOUNT.** U36 left the
+    number on the CRF, so `one and a half quarts of boiling water` merged as **`1 quart`** — which fails U36's
+    OWN acceptance bar, "blatantly incorrectly parsing measurement values". The licence is the rescue's own,
+    one field over: a CRF that named NO unit mis-segmented the measure phrase, so the number it read out of
+    that same phrase is RESIDUE, not independent evidence. `rescuedWinners` now takes `quantity` with
+    `statedMeasure` and `unit`.
+
+    ⚠️ **Re-derived through the REAL adapters, the population is 115 lines — NOT U36's 53.** U36's table
+    counts bare-number CRF measures; this counts every line the rescue FIRES on, which also includes lines
+    where the CRF produced no measure text at all. Of the 115 (86 `ingredient`, 29 `dropped`): 42 amounts
+    already agree, **57 the CRF read no amount at all** (the LARGEST class — the merge published a unit with
+    `ABSENT_QUANTITY`, e.g. `a tablespoon of flour`; invisible to a leading-digit comparison and unknown when
+    this change was scoped), **4 dropped fractions**, **8 ranges collapsed to their low end**, 4 neither.
+    **71 lines change what is stored.**
+
+    ⛔ **EXCEPT where the LLM's phrase states a unit but NO amount — absence is silence, one field over
+    AGAIN.** On `a large mixing bowl whip to a cream two eggs` the LLM reads the whole measure as `large`,
+    which `readStatedMeasure` resolves to `{ ABSENT_QUANTITY, 'large' }`; taking it DELETES the CRF's `2`,
+    the very failure the ruling exists to stop. So the amount moves only when the LLM's phrase states one —
+    ADR-0026 §3 applied to the amount exactly as U36 applied it to the unit. Holds on 29 of 115 (27
+    both-absent, 2 that save a stated number).
+
+    ⚠️ **ONLY WHAT IS STORED MOVED.** A number the CRF DID state and read differently is DISSENT, not the
+    silence `statedMeasure`/`unit` are silenced for, so `differ: ['quantity']` is still reported on every
+    changed line — do NOT "tidy" that by adding `quantity` to the silenced set. It is what keeps
+    `a cup the whites of three eggs` (garbled prose, neither reading clearly right) visible to a human.
+
+    ⚠️ **Census vs merge — 8 lines diverge, PRE-EXISTINGLY, and it is a census defect.** `MeasureVerdict` is
+    whole-measure so `llmWins` implies the LLM's number; the census says `llmWins` on 107 of 115 and the merge
+    agrees on all but the 2 guard lines. The other 8 diverge because the two paths use different readers:
+    `normalizeMeasure('2 3 tablespoons')` takes the second NUMBER as the unit (`{'2','3','tablespoon'}`), so
+    `crf.unit !== ''` and the empty-unit branch never fires. Recorded and test-pinned, NOT repaired — the fix
+    belongs in `normalizeMeasure` and would move every count in the frozen 2026-08-23 report.
+
+    ⚠️ **One limit stays open.** Alternation (`one large onion or two small ones`, 4 lines) is two measures
+    against ONE measure field — a modelling gap, and a sensible single reading is taken. ⚠️ A vessel HEADING the measure
     phrase (`a large mixing bowl of flour`, `a glass of milk`) is a UNIT while one after a preposition
     (`butter in a frying-pan`) is instruction (owner ruling 2026-08-26) — that implementation lands in the
     SEGMENTATION layer and never in the comparator; a PRONOUN food (`a small one` → `foods: ['one']`) is still

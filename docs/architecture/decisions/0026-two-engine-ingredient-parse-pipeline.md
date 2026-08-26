@@ -480,8 +480,11 @@ is one copy.
   engine's measure is stored** when both answered. On `one small onion` the CRF's promoted name is
   `small onion` and the LLM's unit is `small`; the merge takes `foods` from the LLM (`onion`) and the unit
   from the LLM (`small`), so the word is stored exactly once, as the unit.
-- **The rescue still does NOT reach the quantity.** Missing the unit does not necessarily stop the CRF
-  reading the leading number, and KTD-11's "amounts from the CRF" is measured.
+- ~~**The rescue still does NOT reach the quantity.** Missing the unit does not necessarily stop the CRF
+  reading the leading number, and KTD-11's "amounts from the CRF" is measured.~~ ⛔ **AMENDED THE SAME DAY
+  BY §8a** — it does reach the quantity now. The clause above is kept struck through rather than deleted
+  because it is the reading a later reader will arrive at from KTD-11 alone, and §8a is the argument
+  against it.
 
 #### The census and the merge now agree — and one census row MOVED to make that true
 
@@ -504,19 +507,137 @@ cannot split the two paths silently.
   `ParsedFacts` has one measure field (4 corpus lines). Per the ruling a sensible single reading is
   acceptable, so the rescue takes the LLM's and the second measure is lost with **nothing in the shape
   recording that it existed**. Alternation support would be a contract change and is not attempted.
-- ⚠️ **The merged line can hold the LLM's measure PHRASE beside the CRF's NUMBER, and they can disagree.**
+- ✅ ~~**The merged line can hold the LLM's measure PHRASE beside the CRF's NUMBER, and they can disagree.**
   On `one and a half quarts of boiling water` the real engine returns `('1', '')` — the fraction is gone
   **as well as** the unit — so the merge stores `statedMeasure: 'one and a half quarts'`, `unit: 'quart'`
   and `quantity: 1`. That is `1 quart` against a source printing one and a half, which is exactly the
   "blatantly incorrect measurement value" the acceptance bar rules out. **It is not silent** — it is
   reported as `differ: ['quantity']`, where before this change the unit vanished as well — but it is **not
   fixed**, because fixing it means handing the LLM the quantity too on this shape, which is KTD-11's amount
-  column and wants its own ruling. ⛔ The census's whole-measure `llmWins` and the merge's field-level split
-  differ here by GRANULARITY: the census's `MeasureVerdict` cannot express "unit from one leg, number from
-  the other", and the merge can. They agree on the unit, which is the axis both can state.
+  column and wants its own ruling.~~ **CLOSED by §8a the same day** — that ruling was given, and the merge
+  now takes the amount with the rest of the measure. ⛔ The granularity note the bullet ended on still
+  stands and is now the residual in the other direction: the census's `MeasureVerdict` cannot express "unit
+  from one leg, number from the other", so it cannot describe §8a's one narrow exception either.
 - ⚠️ **The 53 are one model's answers over one book.** Nova Micro, the 1919 corpus, the U22a extractor. The
   LLM half of every case in the suites is a stated reading rather than a billed call; the CRF half is
   measured against the real `ingredient-parser-nlp==2.3.0`.
+
+### 8a. AND THE RESCUE CARRIES THE AMOUNT — the whole measure, not two thirds of it (U36a)
+
+§8's last pinned limitation is **closed here**, the same day it was written, and for the reason it named: it
+was a violation of the acceptance bar §8 had just adopted.
+
+#### The ruling (owner, 2026-08-26)
+
+**When the rescue fires, take the whole measure from the LLM — `quantity` as well as `statedMeasure` and
+`unit`.** U36 rescued the unit and left the number, so `one and a half quarts of boiling water` merged as
+**`1 quart`**: the unit recovered, the amount still a third short. Against the bar §8 quotes —
+
+> _"as long as we aren't saving words that don't make sense or **blatantly incorrectly parsing measurement
+> values**"_
+
+— `1 quart` for a source printing one and a half is precisely the disqualifying case, and §8 says so in its
+own words while declining to fix it.
+
+**The argument is the rescue's own, one field over.** §8's licence is that a CRF which named **no unit at
+all** mis-segmented the measure phrase; the number it read out of that same phrase is therefore the
+**residue of one failure**, not independent evidence. Splitting the phrase from the number stores half of
+each engine's reading of one indivisible fact.
+
+#### The re-derived measurement — and it is four times larger than the case that prompted it
+
+Re-derived on 2026-08-26 from the same Nova Micro trial file, but through the **real promotion adapters and
+the real `readStatedMeasure`** rather than by comparing leading digits. ⚠️ Read the scope carefully: §8's
+table counts **53 ingredient lines whose CRF measure is a bare number**; this one counts **every line the
+rescue actually fires on**, which is a different and larger population — it includes lines where the CRF
+produced no measure text at all, and lines of `dropped` origin as well as `ingredient`.
+
+**The rescue fires on 115 lines** (86 `ingredient`-origin, 29 `dropped`). Comparing the two engines' amounts
+on exactly those lines:
+
+| the CRF's amount beside the LLM's        |   n | consequence of taking the LLM's                                       |
+| ---------------------------------------- | --: | --------------------------------------------------------------------- |
+| the same amount                          |  42 | none — 15 both stated, 27 both absent                                 |
+| **the CRF read NO amount at all**        |  57 | **FIXED** — the merge stored a unit with `ABSENT_QUANTITY`            |
+| **the CRF dropped a fraction**           |   4 | **FIXED** — `one and a half quarts` stored `1 quart`                  |
+| **the CRF collapsed a range to its low** |   8 | **FIXED** — `two or three tablespoons` stored a bare `2`              |
+| neither reading contains the other       |   4 | 2 are the guard below; 2 are garbled prose, either reading defensible |
+
+⚠️ **The 57 were not known when this change was scoped, and they are the worse defect.** A merged line
+carrying `tablespoon` with no amount states a unit for a number nobody wrote down — `a tablespoon of flour`
+(L00129) is the shape, and it is 57 of 115 against the 4 fraction lines that prompted the ruling. They were
+invisible to a leading-digit comparison because neither side has a leading digit.
+
+**71 lines change what is stored** (57 + 4 + 8 + the 2 genuine ones the LLM stated). The four measured
+fraction lines, verbatim:
+
+| line                                                  | CRF | LLM                        |
+| ----------------------------------------------------- | --- | -------------------------- |
+| `one and a half quarts of boiling water` (L00177)     | `1` | `one and a half quarts`    |
+| `one and a half teaspoons of salt` (L00181)           | `1` | `one and a half teaspoons` |
+| `Two and a half pounds of brisket shoulder…` (L00518) | `2` | `two and a half pounds`    |
+| `one and two-third cups of flour sifted…` (L01973)    | `1` | `one and two-third cups`   |
+
+#### ⛔ THE ONE NARROWING — an ABSENT LLM amount is silence, not a reading
+
+Applied literally the ruling **regresses two measured lines**, and in the direction it exists to prevent. On
+`a large mixing bowl whip to a cream two eggs` (L01984) the LLM reads the whole measure as `large`, which
+`readStatedMeasure` resolves to `{ ABSENT_QUANTITY, 'large' }` — a unit and no amount. An unconditional
+rescue replaces the CRF's `2` with **nothing**, deleting an amount the source plainly states. `a small one`
+(L00657) is the same shape.
+
+So `rescuedWinners` takes the amount **only when the LLM's phrase states one**. That is not a special case
+bolted onto the rule — it is **§3's "ABSENCE IS SILENCE, never dissent"**, the principle the entire rescue
+rests on, applied to the amount exactly as §8 applied it to the unit. An `absent` amount is no more a
+competing reading of the number than an absent unit was of the unit.
+
+Measured: the guard holds on **29 of the 115** rescues, of which **27 are both-absent** (identical value
+either way; only the attribution differs) and **2 preserve a number the CRF stated** — the two lines above.
+
+#### What did NOT change
+
+- **KTD-11's amount column stands.** `DEFAULT_WINNERS` still reads `quantity: 'crf'`, so
+  `quantityDiffers → crfWins` governs every line on which both engines named a unit. U36a reaches only the
+  rescued branch. The anti-over-reach assertion is in the unit tier and is killed by the "give the LLM the
+  quantity unconditionally" mutant.
+- ⚠️ **What is REPORTED does not move — at all.** The comparator answers two questions independently and
+  this ruling touches only the first. `statedMeasure` and `unit` are silenced on a rescue because the CRF
+  stated _nothing_ to disagree with; a number the CRF DID state and read differently is **dissent**, so
+  `differ: ['quantity']` is still reported on every line whose amount moves. That is what keeps
+  `a cup the whites of three eggs` (L00241, CRF `3` vs LLM `a cup` — garbled prose, neither reading clearly
+  right) visible to a human instead of resolved silently. A mutant that also silences `quantity` is killed
+  by three tests.
+- **U16, segmentation, and the two open items in §8 are untouched.** The vessel-position rule and the
+  pronoun food (`a small one` → `foods: ['one']`) remain where §8 left them, in the segmentation layer.
+
+#### ⚠️ The census and the merge — where they agree, and the 8 lines where they do not
+
+The alignment §8 established still holds on the axis it was about, and now on the number as well: a
+`MeasureVerdict` is **whole-measure**, so `llmWins` implies the LLM's amount, and the merge now stores it.
+Measured over the 115 rescues, the census returns an `llmWins` verdict on **107** — 50 `crfUnitAbsent`, 31
+`crfUnitInName`, 26 `crfSizeField` — and the merge agrees with all but the 2 guard lines, which the census's
+granularity cannot express (the same limitation §8 recorded, now pointing the other way).
+
+⛔ **The remaining 8 diverge, the divergence PREDATES U36a, and it is a census defect rather than a merge
+one.** The two paths read the CRF's measure text with **different readers**:
+`normalizeMeasure('2 3 tablespoons')` — `cookbook-import/src/parseComparison/parseNormalization.ts` — takes
+the **second number** as the unit and answers `{ quantity: '2', unit: '3', residue: 'tablespoon' }`. `3` is
+not a unit, but it is not `''` either, so `judgeMeasure`'s empty-unit branch never fires and the line is
+disposed `crfWins`. `readStatedMeasure` reads the same text as an exact `2` with **no** unit (plus
+`measurement_in_name`), so the merge rescues it — and now stores the range `2–3` the source states. All 8
+are a CRF row whose measure text joins several amounts (7 `unitDiffers`, 1 `amountCountDiffers`).
+
+**Not repaired here, deliberately.** The repair belongs in `normalizeMeasure`, it would move counts
+throughout the frozen 2026-08-23 report, and this ruling is about what the pipeline STORES. It is pinned by
+a test in `parseAgreement.test.ts` so it cannot rot into a silent assumption.
+
+#### ⚠️ Residual
+
+- **The 2 genuinely-ambiguous lines are now resolved to the LLM without adjudication.** `a cup the whites of
+three eggs` stores `1 cup`; `a quart of spinach about fifteen minutes` stores `1 quart` where the CRF read
+  `15`. Both are reported as `differ: ['quantity']`, so both remain visible — but nothing forces a human to
+  look, and the merge has taken a side on prose neither engine parsed well.
+- **The 115 are still one model's answers over one book**, with the same scope caveat §8 carries.
 
 ## Consequences
 

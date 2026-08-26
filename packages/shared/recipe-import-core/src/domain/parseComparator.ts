@@ -13,10 +13,11 @@
  * A comparator that fused them would be subtly wrong in both directions. So:
  *
  *  1. **What is stored** is a field-level winner rule (KTD-11): amounts from the CRF, food identity and
- *     preparation from the LLM, and the measure from the LLM whenever the CRF named no unit at all (U36 —
- *     see {@link llmRescuedTheMeasure}, which was limited to the HISTORICAL units until 2026-08-26). The
- *     merged line's {@link ParsedLine.provenance} IS that rule, evaluated — the merge reads the winner out
- *     of the provenance it is about to record, so the two cannot disagree.
+ *     preparation from the LLM, and the WHOLE measure — phrase, unit and amount — from the LLM whenever the
+ *     CRF named no unit at all (U36/U36a — see {@link llmRescuedTheMeasure}, limited to the HISTORICAL units
+ *     until 2026-08-26, and {@link rescuedWinners}, which took the amount later the same day). The merged
+ *     line's {@link ParsedLine.provenance} IS that rule, evaluated — the merge reads the winner out of the
+ *     provenance it is about to record, so the two cannot disagree.
  *  2. **What the disagreement was** is a shape, computed over a NORMALIZED view of both parses. Removing a
  *     disagreement never changes which engine's words are stored, and changing a winner never silently
  *     changes the reported shape.
@@ -462,16 +463,57 @@ const DEFAULT_WINNERS: ParseProvenance = {
  * ⛔ IT REACHES ONLY THE ABSENT CASE. Two engines that each STATE a unit and state different ones is
  * `unitDiffers`, which KTD-11 sends to the CRF and this ruling explicitly leaves alone.
  *
- * ⛔ It does NOT take the quantity either. Missing the unit does not necessarily stop the CRF reading the
- * leading number, and KTD-11's "amounts from the CRF" is measured; if the two engines really do read
- * different numbers, that is a genuine disagreement and must be REPORTED rather than resolved here.
- *
  * @param crf - The CRF's parse.
  * @param llm - The LLM's parse.
  * @returns `true` when the LLM named a unit the CRF named none at all for. Pure.
  */
 function llmRescuedTheMeasure(crf: ParsedLine, llm: ParsedLine): boolean {
     return !statesAUnit(crf.unit) && statesAUnit(llm.unit);
+}
+
+/**
+ * The winners when {@link llmRescuedTheMeasure} fired — the WHOLE measure, amount included.
+ *
+ * ## ⛔ THE RESCUE CARRIES THE NUMBER (U36a, owner ruling 2026-08-26)
+ *
+ * U36 rescued the phrase and the unit and left the amount on the CRF, so `one and a half quarts of boiling
+ * water` stored **`1 quart`** — the unit recovered and the amount still a third short. The owner's bar is
+ * that we must not be _"blatantly incorrectly parsing measurement values"_, and that is one. The rescue's
+ * own licence settles it: a CRF that named NO unit mis-segmented the whole measure phrase, so the number it
+ * read out of that same phrase is the RESIDUE of one failure rather than independent evidence.
+ *
+ * Re-derived over the 2,502-line 1919 corpus (Nova Micro, 2026-08-26, through the real adapters) the rescue
+ * fires on **115** lines, and taking the LLM's amount on them moves **69**: **57** where the CRF read no
+ * amount at all and the merged line carried a unit with `ABSENT_QUANTITY`, **4** where it dropped a
+ * fraction, and **8** where it collapsed a range to its low end. On 42 the two amounts already agree.
+ *
+ * ## ⛔ EXCEPT WHERE THE LLM'S PHRASE STATES NO AMOUNT — absence is silence, one field over
+ *
+ * Taken as "the whole measure, unconditionally" the ruling REGRESSES two measured lines: on `a large mixing
+ * bowl whip to a cream two eggs` the LLM reads `large` as the entire measure and names no amount, so the
+ * CRF's `2` would be replaced by nothing — DELETING an amount the source plainly states, which is the same
+ * failure the ruling exists to stop. So this narrows it, and not by special case: §3's "ABSENCE IS SILENCE,
+ * never dissent" is the rule the whole rescue rests on, and an `absent` amount is no more a competing
+ * reading of the number than an absent unit was of the unit.
+ *
+ * ⛔ IT STILL REACHES ONLY THE RESCUED BRANCH. {@link DEFAULT_WINNERS} keeps `quantity: 'crf'`, so KTD-11's
+ * `quantityDiffers → crfWins` governs every line on which both engines named a unit — untouched.
+ *
+ * ⚠️ It changes only what is STORED. A number the CRF DID state and read differently is dissent, not the
+ * silence `statedMeasure` and `unit` are silenced for, so `differ: ['quantity']` is still reported on every
+ * one of those 69 lines — including `a cup the whites of three eggs`, the one garbled line where neither
+ * reading is clearly right and a human is the only adjudicator.
+ *
+ * @param llm - The LLM's parse, the only engine whose reading decides anything here.
+ * @returns The winner of each fact on a rescued line. Pure.
+ */
+function rescuedWinners(llm: ParsedLine): ParseProvenance {
+    return {
+        ...DEFAULT_WINNERS,
+        statedMeasure: 'llm',
+        unit: 'llm',
+        quantity: llm.quantity.kind === 'absent' ? 'crf' : 'llm',
+    };
 }
 
 /**
@@ -545,9 +587,7 @@ export function compareParses(answers: EngineAnswers): ParseComparison {
     }
 
     const rescued = llmRescuedTheMeasure(crf, llm);
-    const provenance: ParseProvenance = rescued
-        ? { ...DEFAULT_WINNERS, statedMeasure: 'llm', unit: 'llm' }
-        : DEFAULT_WINNERS;
+    const provenance: ParseProvenance = rescued ? rescuedWinners(llm) : DEFAULT_WINNERS;
 
     // The merge reads its winner out of the provenance it is about to record, so a value and its
     // attribution cannot disagree.

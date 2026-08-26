@@ -209,9 +209,13 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
 
         expect(outcome?.parsed?.unit).toBe('gill');
         expect(outcome?.parsed?.provenance.unit).toBe('llm');
-        // ⛔ The CRF still owns the AMOUNT. Missing the unit does not stop it reading the leading number, and
-        // a differing number would be a genuine disagreement that must be reported.
-        expect(outcome?.parsed?.provenance.quantity).toBe('crf');
+        // ⛔ REWRITTEN FOR U36a (2026-08-26). It asserted `provenance.quantity === 'crf'` — U36's half
+        // rescue. The rescue now carries the whole measure, on the argument it already rested on: a CRF
+        // that named no unit mis-segmented the phrase, so its number is residue rather than evidence.
+        // ⚠️ Both engines read `one` here, so the VALUE is unchanged and only the attribution moves — which
+        // is why the value is asserted too, rather than trusting the provenance to describe it.
+        expect(outcome?.parsed?.provenance.quantity).toBe('llm');
+        expect(outcome?.parsed?.quantity).toEqual({ kind: 'exact', value: 1 });
     }, 180_000);
 
     it('U36 — a MODERN unit and a SIZE word are rescued too, and mutual silence is not', async () => {
@@ -226,8 +230,11 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
         //   four large onions                      -> ('4',  '') name `large onions`
         //   two eggs                               -> ('2',  '') name `eggs`
         //
-        // ⚠️ Note the first line's NUMBER is wrong too (1, not 1.5). KTD-11's amount column is untouched by
-        // U36, so that stays the CRF's and is REPORTED as a quantity disagreement — see ADR-0026 §8.
+        // ⛔ AND THE FIRST LINE'S NUMBER IS WRONG TOO — `1`, not `1.5`. Under U36 that stayed the CRF's and
+        // the merged line stored ONE QUART against a source stating one and a half. The owner ruled that
+        // out on 2026-08-26 ("blatantly incorrectly parsing measurement values"), so U36a takes the amount
+        // with the rest of the measure. ⚠️ This test is where the CRF's `1` is PRODUCED rather than
+        // assumed — the whole repair is invisible to any tier that writes that number into a fixture.
         const lines: readonly string[] = [
             'one and a half quarts of boiling water',
             'one small onion',
@@ -242,6 +249,13 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
             null,
             null,
             null,
+        ]);
+        // ⛔ THE DEFECT AT ITS SOURCE: the real engine reads one and a half quarts as a bare `1`.
+        expect(crfAlone.map((answer) => ('unavailable' in answer ? 'unavailable' : answer.quantity))).toEqual([
+            { kind: 'exact', value: 1 },
+            { kind: 'exact', value: 1 },
+            { kind: 'exact', value: 4 },
+            { kind: 'exact', value: 2 },
         ]);
 
         const llm = stubbedModel(
@@ -264,8 +278,20 @@ describeIfInstalled('the parse pipeline over the real CRF engine', () => {
         // and not `quarts`: `normalizeUnit` canonicalises, which a hand-written fixture would have hidden.
         expect(outcomes.map((outcome) => outcome.parsed?.unit ?? null)).toEqual(['quart', 'small', 'large', null]);
         expect(outcomes.map((outcome) => outcome.parsed?.provenance.unit)).toEqual(['llm', 'llm', 'llm', 'crf']);
-        // ⛔ KTD-11 is untouched on all four: the NUMBER is the CRF's whatever happened to the unit.
-        expect(outcomes.map((outcome) => outcome.parsed?.provenance.quantity)).toEqual(['crf', 'crf', 'crf', 'crf']);
+        // ⛔ U36a — the amount travels WITH the rescued measure on the three rescued lines, and stays with
+        // the CRF on the fourth, which was never rescued at all.
+        expect(outcomes.map((outcome) => outcome.parsed?.provenance.quantity)).toEqual(['llm', 'llm', 'llm', 'crf']);
+        // ⛔ THE REPAIR ITSELF, end to end over the REAL engine: `1.5`, not the CRF's `1`. Asserting the
+        // provenance alone would pass on a merge that credited the LLM and stored the CRF's number.
+        expect(outcomes.map((outcome) => outcome.parsed?.quantity)).toEqual([
+            { kind: 'exact', value: 1.5 },
+            { kind: 'exact', value: 1 },
+            { kind: 'exact', value: 4 },
+            { kind: 'exact', value: 2 },
+        ]);
+        // ⚠️ And the disagreement is still REPORTED on the line whose number moved — U36a changed what is
+        // stored, never what is said about it.
+        expect(agreementOf(outcomes[0])).toEqual({ kind: 'differ', fields: ['quantity'] });
     }, 180_000);
 
     it('one engine silent is `single-engine`, never `differ`', async () => {

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { CrfParse } from '../crfParse.js';
 import { compareParses, disposeAgreement, divergentFields, divergentResponses } from '../parseAgreement.js';
 import type { AgreementKind } from '../parseAgreement.js';
+import { normalizeMeasure } from '../parseNormalization.js';
 import type { ModelParse } from '../parseResponse.js';
 
 function crf(overrides: Partial<CrfParse> = {}): CrfParse {
@@ -325,6 +326,61 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
         for (const verdict of ['crfSizeField', 'crfUnitInName', 'crfUnitAbsent'] as const) {
             expect(disposeAgreement(verdict)).toBe('llmWins');
         }
+    });
+
+    it('U36a — and `llmWins` reaches the NUMBER, because a measure verdict is WHOLE-MEASURE', () => {
+        // ⛔ THE OTHER HALF OF THE ALIGNMENT, added when the merge began taking the amount as well
+        // (2026-08-26). `disposeAgreement` says the LLM's READING stands; whether that reading includes
+        // the number is a property of `judgeMeasure`, not of the table — and the two must agree, or the
+        // census would report `llmWins` on a line whose stored amount came from the CRF.
+        //
+        // The property: once `crf.unit === ''`, the branch RETURNS, so the quantity comparison two lines
+        // up is unreachable and `quantityDiffers` can never be the verdict. That is what makes the
+        // disposition whole-measure. Asserted over amounts that differ in every way they can — a dropped
+        // fraction (L00177), a size word the model read as the whole measure against a number the CRF
+        // read (L01984), and a measure the CRF did not read at all (L00129, the 57-line class).
+        const cases: readonly (readonly [string, string])[] = [
+            ['one and a half quarts', '1'],
+            ['a large', '2'],
+            ['a tablespoon', ''],
+        ];
+
+        for (const [modelMeasure, crfMeasure] of cases) {
+            const agreement = compareParses(
+                { measure: modelMeasure, foods: [{ name: 'water', prep: null }] },
+                crf({ sentence: modelMeasure, measure: crfMeasure, names: ['water'], size: null }),
+            );
+
+            expect(agreement.measure, modelMeasure).not.toBe('quantityDiffers');
+            expect(disposeAgreement(agreement.measure), modelMeasure).toBe('llmWins');
+        }
+    });
+
+    it('⚠️ U36a — PINS the 8-line divergence: a joined CRF amount reads its second NUMBER as the unit', () => {
+        // ⚠️ RECORDED, NOT FIXED — the residual the U36a alignment check found, and it predates U36a.
+        //
+        // The census and the merge read the CRF's measure text with DIFFERENT readers. `normalizeMeasure`
+        // takes the second token of `2 3 tablespoons` as the unit and answers `{ '2', '3', 'tablespoon' }`
+        // — `3` is not a unit — so `crf.unit !== ''`, the empty-unit branch never fires, and the line is
+        // disposed `crfWins`. `readStatedMeasure` (via `parse-ingredient`) reads the same text as an exact
+        // `2` with NO unit and a `measurement_in_name` reason, so the merge RESCUES it and now stores the
+        // range `2–3` the source states.
+        //
+        // Measured over the 2,502-line corpus: this is **8 of the 115** rescued lines (7 `unitDiffers`,
+        // 1 `amountCountDiffers`), all of them a CRF row whose measure text joins several amounts.
+        //
+        // ⛔ Not repaired here on purpose. The repair belongs in `normalizeMeasure`, it would move counts
+        // throughout the frozen 2026-08-23 report, and this ruling is about what the PIPELINE stores.
+        // Recorded in ADR-0026 §8 and in the report's 2026-08-26 subsection.
+        expect(normalizeMeasure('2 3 tablespoons')).toEqual({ quantity: '2', unit: '3', residue: 'tablespoon' });
+
+        const agreement = compareParses(
+            { measure: 'two or three tablespoons', foods: [{ name: 'rum', prep: null }] },
+            crf({ sentence: 'two or three tablespoons of rum', measure: '2 3 tablespoons', names: ['rum'] }),
+        );
+
+        expect(agreement.measure).toBe('unitDiffers');
+        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
     });
 
     it('U36 — gives the LLM the size field too, because a SIZE WORD IS A UNIT', () => {

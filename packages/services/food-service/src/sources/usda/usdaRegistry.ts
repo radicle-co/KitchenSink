@@ -23,18 +23,26 @@
 import { UsdaApiClient } from '@kitchensink/usda-client';
 
 import { settingFromEnv } from '../../config/env.schema.js';
+import { FoodMetrics } from '../../observability/emfMetrics.js';
 import { SourceAdapterRegistry } from '../SourceAdapterRegistry.js';
 import { UsdaSourceAdapter } from './usda.adapter.js';
 
 /**
  * Build the source-adapter registry with the USDA adapter wired from the validated environment.
  *
+ * The rate-limit observer is wired HERE, for the same reason the key and base URL are: this is the one
+ * composition all three roots share, so the quota USDA reports is published from every process that calls
+ * it rather than from whichever one remembered (U38). The reading is evidence, not enforcement —
+ * `RollingWindowLimiter` still owns admission and its two lanes, because it is the only number that
+ * exists BEFORE a call is made.
+ *
+ * @param metrics - The EMF recorder the reported rate limit is published through; injected in tests.
  * @returns A registry holding the `usda` adapter.
  * @throws {Error} naming the variable when `USDA_API_KEY` is absent or `USDA_API_BASE_URL` is malformed —
  *   a food service that cannot reach a source must fail at composition, not on its first fan-out.
  * @sideEffect Reads `process.env`.
  */
-export function createUsdaSourceRegistry(): SourceAdapterRegistry {
+export function createUsdaSourceRegistry(metrics: FoodMetrics = new FoodMetrics()): SourceAdapterRegistry {
     const registry = new SourceAdapterRegistry();
 
     registry.register(
@@ -42,6 +50,9 @@ export function createUsdaSourceRegistry(): SourceAdapterRegistry {
             new UsdaApiClient({
                 apiKey: settingFromEnv('USDA_API_KEY'),
                 baseUrl: settingFromEnv('USDA_API_BASE_URL'),
+                onRateLimit: (snapshot) => {
+                    metrics.recordSourceRateLimit('usda', snapshot);
+                },
             }),
         ),
     );

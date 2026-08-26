@@ -22,6 +22,7 @@ import pg from 'pg';
 
 import { FOOD_DB_USERNAME, foodPoolConfig } from '../../database/poolConfig.js';
 import * as schema from '../../db/schema/index.js';
+import { FoodDatabaseCloneError, type FoodDatabaseCloneFailure } from './migrate.errors.js';
 
 const { Pool } = pg;
 
@@ -194,18 +195,31 @@ export interface EnsureDatabaseOptions {
 }
 
 /** The outcome of an {@link ensureDatabaseExists} call. */
-export type EnsureDatabaseResult = 'skipped-base' | 'exists' | 'created';
+export type EnsureDatabaseResult = 'skipped-base' | 'exists' | 'cloned';
 
 /**
- * Ensure a per-PR food logical database exists, creating it if absent (ADR-0006). The base database
- * (`kitchensink_food`) is provisioned by the platform DataStack bootstrap SQL, so this is a no-op for
- * it. For a per-PR name it validates the identifier, checks `pg_database`, and `CREATE DATABASE`s it if
- * missing. Idempotent and re-invoke-safe: an already-present database returns `'exists'`, and a
- * concurrent creator that wins the `CREATE DATABASE` race (SQLSTATE 42P04) is also treated as `'exists'`.
+ * Ensure a per-PR food logical database exists, CLONING it from the seeded base if absent (ADR-0006,
+ * U38). The base database (`kitchensink_food`) is provisioned by the platform DataStack bootstrap and
+ * seeded once from the USDA bulk download, so this is a no-op for it. For a per-PR name it validates the
+ * identifier, checks `pg_database`, and issues `CREATE DATABASE … TEMPLATE` if missing. Idempotent and
+ * re-invoke-safe: an already-present database returns `'exists'` and is left untouched, and a concurrent
+ * creator that wins the race (SQLSTATE 42P04) is also treated as `'exists'`.
+ *
+ * **Why a clone rather than an empty database.** The per-PR database used to come up migrated but EMPTY,
+ * which degraded every ingredient search in that preview to `catalogAvailability: 'unavailable'` behind
+ * green checks. The clone hands the preview the base's catalog — and its `schema_migrations` history, so
+ * the migration run that follows applies only what the base has not yet seen.
+ *
+ * ⛔ **The clone can be REFUSED, and a refusal is fatal.** PostgreSQL will not copy a database any
+ * session is connected to; the base is expected to have none (there is no persistent non-prod food
+ * service), but that is a premise to GUARD, not assume. A refusal raises `FoodDatabaseCloneError` and
+ * fails the deploy — it is never softened into creating the database empty, which is exactly the silent
+ * failure ADR-0010 exists to prevent.
  *
  * @param options - The maintenance pool + the target database name.
- * @returns `'skipped-base'` for the base DB, `'exists'` if already present, `'created'` if created.
+ * @returns `'skipped-base'` for the base DB, `'exists'` if already present, `'cloned'` if created.
  * @throws {Error} when the database name is not a valid food logical-database name.
+ * @throws {FoodDatabaseCloneError} when the base could not be cloned (held, absent, or not permitted).
  * @sideEffect Connects to the maintenance database and may execute `CREATE DATABASE`.
  */
 export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Promise<EnsureDatabaseResult> {
@@ -225,41 +239,64 @@ export async function ensureDatabaseExists(options: EnsureDatabaseOptions): Prom
         return 'exists';
     }
 
-    // CREATE DATABASE cannot run inside a transaction and cannot be parameterized. The name is
-    // validated above against FOOD_DATABASE_NAME_PATTERN (no quotes/backslashes possible), so quoting
-    // it as an identifier is safe.
+    // CREATE DATABASE cannot run inside a transaction and cannot be parameterized. Both identifiers are
+    // fixed or validated against FOOD_DATABASE_NAME_PATTERN (no quotes/backslashes possible), so quoting
+    // them is injection-safe.
     try {
-        await maintenancePool.query(`CREATE DATABASE "${databaseName}"`);
+        await maintenancePool.query(`CREATE DATABASE "${databaseName}" TEMPLATE "${BASE_FOOD_DATABASE_NAME}"`);
     } catch (err) {
         // The pg_database check above is a TOCTOU window: a concurrent invocation can create the
         // database between our SELECT and this CREATE, making CREATE DATABASE throw `duplicate_database`
         // (SQLSTATE 42P04). The database now exists — the desired end state — so treat that one code as
         // success rather than failing the whole migration run.
-        if (isDuplicateDatabaseError(err)) {
+        if (sqlStateOf(err) === DUPLICATE_DATABASE_SQLSTATE) {
             return 'exists';
         }
 
-        throw err;
+        const reason = CLONE_FAILURE_BY_SQLSTATE[sqlStateOf(err) ?? ''];
+
+        // ⛔ Classified or not, this THROWS. There is deliberately no branch here that creates the
+        // database without the template: a per-PR catalog that is present and empty passes every check
+        // this repo runs and is discovered only by a person whose ingredient search returns nothing.
+        if (reason === undefined) {
+            throw err;
+        }
+
+        throw new FoodDatabaseCloneError(databaseName, BASE_FOOD_DATABASE_NAME, reason, err);
     }
 
-    return 'created';
+    return 'cloned';
 }
 
 /** Postgres SQLSTATE for `duplicate_database`, raised when `CREATE DATABASE` names an existing DB. */
 const DUPLICATE_DATABASE_SQLSTATE = '42P04';
 
 /**
- * Type guard for the Postgres `duplicate_database` error (SQLSTATE {@link DUPLICATE_DATABASE_SQLSTATE}) —
- * raised when `CREATE DATABASE` loses a race to a concurrent creator. `pg` surfaces the SQLSTATE on the
- * error's `code` property.
+ * The SQLSTATEs a refused `CREATE DATABASE … TEMPLATE` arrives as, mapped to the operator-facing reason.
+ * `55006` is `object_in_use` ("source database … is being accessed by other users"), `3D000` is
+ * `invalid_catalog_name` (no such template), `42501` is `insufficient_privilege` (copying a
+ * non-template database requires ownership of the source).
  */
-function isDuplicateDatabaseError(err: unknown): boolean {
-    return (
-        typeof err === 'object' &&
-        err !== null &&
-        'code' in err &&
-        (err as { code?: unknown }).code === DUPLICATE_DATABASE_SQLSTATE
-    );
+const CLONE_FAILURE_BY_SQLSTATE: Readonly<Record<string, FoodDatabaseCloneFailure | undefined>> = {
+    '55006': 'template-in-use',
+    '3D000': 'template-missing',
+    '42501': 'insufficient-privilege',
+};
+
+/**
+ * The SQLSTATE `pg` surfaces on an error's `code` property, when there is one.
+ *
+ * @param err - The caught value.
+ * @returns The SQLSTATE, or `undefined` for anything that is not a Postgres error.
+ */
+function sqlStateOf(err: unknown): string | undefined {
+    if (typeof err !== 'object' || err === null || !('code' in err)) {
+        return undefined;
+    }
+
+    const code = (err as { code?: unknown }).code;
+
+    return typeof code === 'string' ? code : undefined;
 }
 
 /** The outcome of a {@link dropDatabase} call. */
@@ -369,7 +406,8 @@ export const handler = async (event: MigrateEvent = {}): Promise<MigrateResult |
     }
 
     // Per-PR isolation (ADR-0006): a per-PR stage targets `kitchensink_food_pr_{N}`, which the platform
-    // bootstrap does NOT create. CREATE it (via the maintenance DB) if absent BEFORE migrating into it.
+    // bootstrap does NOT create. CLONE it from the seeded base (via the maintenance DB) if absent BEFORE
+    // migrating into it, so the preview starts with a populated catalog rather than an empty one (U38).
     // The base `kitchensink_food` short-circuits (skipped-base), so the prod/sandbox path is unchanged.
     if (databaseName !== BASE_FOOD_DATABASE_NAME) {
         await withMaintenancePool((pool) => ensureDatabaseExists({ maintenancePool: pool, databaseName }));

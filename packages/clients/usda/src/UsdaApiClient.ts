@@ -28,6 +28,7 @@ import {
     type RawUsdaFoodAttribute,
     type RawUsdaNutrient,
 } from './schemas.js';
+import { readRateLimitHeaders, type HeaderBag, type UsdaRateLimitSnapshot } from './rateLimit.js';
 import type { UsdaDataType, UsdaFoodDetail, UsdaNutrient, UsdaSearchHit, UsdaSearchResult } from './types.js';
 
 /**
@@ -122,6 +123,15 @@ export interface UsdaApiClientOptions {
     readonly fetchFn?: typeof fetch;
     /** Per-request timeout in milliseconds; defaults to {@link DEFAULT_TIMEOUT_MS}. */
     readonly timeoutMs?: number;
+    /**
+     * Observer for the `X-RateLimit-*` reading USDA returns on every response (U38). Invoked once per
+     * response — including a `429`, where the reading is most informative — and NOT invoked when USDA
+     * sent nothing readable.
+     *
+     * ⚠️ This package has no logger and no metrics sink by design (it is a third-party API client, not a
+     * service), so publishing the reading is the caller's job. `@kitchensink/food-service` wires it to EMF.
+     */
+    readonly onRateLimit?: (snapshot: UsdaRateLimitSnapshot) => void;
 }
 
 /** Typed client for the USDA FoodData Central REST API. */
@@ -130,15 +140,17 @@ export class UsdaApiClient {
     private readonly baseUrl: string;
     private readonly fetchFn: typeof fetch;
     private readonly timeoutMs: number;
+    private readonly onRateLimit: ((snapshot: UsdaRateLimitSnapshot) => void) | undefined;
 
     /**
-     * @param options - API key, optional base URL, injectable `fetch`, and timeout.
+     * @param options - API key, optional base URL, injectable `fetch`, timeout, and rate-limit observer.
      */
     public constructor(options: UsdaApiClientOptions) {
         this.apiKey = options.apiKey;
         this.baseUrl = withoutTrailingSlashes(options.baseUrl ?? DEFAULT_BASE_URL);
         this.fetchFn = options.fetchFn ?? fetch;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+        this.onRateLimit = options.onRateLimit;
     }
 
     /**
@@ -226,6 +238,10 @@ export class UsdaApiClient {
         try {
             const response = await this.fetchFn(url, { ...init, signal: controller.signal });
 
+            // Read BEFORE the status is classified, so a 429 — the response whose reading matters most —
+            // is observed rather than thrown past.
+            this.observeRateLimit(response);
+
             if (!response.ok) {
                 if (response.status === 404) {
                     throw new UsdaNotFoundError(fdcId ?? 0);
@@ -258,6 +274,38 @@ export class UsdaApiClient {
             throw new UsdaTimeoutError('USDA request failed or timed out', error);
         } finally {
             clearTimeout(timeout);
+        }
+    }
+
+    /**
+     * Hand the response's `X-RateLimit-*` reading to the configured observer, when there is one and USDA
+     * reported something readable (U38).
+     *
+     * ⛔ The observer's own failure is swallowed on purpose. It is an observability sink — a metrics
+     * writer, a log line — and letting it throw would convert a USDA response we successfully received
+     * into a `UsdaTimeoutError`, i.e. make the act of measuring the quota a way to lose the call it was
+     * measuring. `request`'s catch-all sits directly above this, so an unguarded throw would be
+     * mis-classified rather than merely propagated.
+     *
+     * @param response - The response just received.
+     * @sideEffect Invokes the caller-supplied observer.
+     */
+    private observeRateLimit(response: Response): void {
+        if (this.onRateLimit === undefined) {
+            return;
+        }
+
+        // `fetch` is injectable, so `headers` is only as present as the caller's implementation makes it.
+        const snapshot = readRateLimitHeaders((response as { headers?: HeaderBag }).headers);
+
+        if (snapshot === undefined) {
+            return;
+        }
+
+        try {
+            this.onRateLimit(snapshot);
+        } catch {
+            // Deliberately ignored — see the docstring above.
         }
     }
 

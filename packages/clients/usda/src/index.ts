@@ -6,6 +6,8 @@
  */
 export { UsdaApiClient, additionalDescriptionsOf } from './UsdaApiClient.js';
 export type { UsdaApiClientOptions } from './UsdaApiClient.js';
+export { readRateLimitHeaders } from './rateLimit.js';
+export type { HeaderBag, UsdaRateLimitSnapshot } from './rateLimit.js';
 export type { UsdaDataType, UsdaFoodDetail, UsdaNutrient, UsdaSearchHit, UsdaSearchResult } from './types.js';
 export {
     ADDITIONAL_DESCRIPTION_ATTRIBUTE,

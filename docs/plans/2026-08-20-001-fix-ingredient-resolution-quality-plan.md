@@ -2187,6 +2187,15 @@ the header is not an error.
 
 **Verification.** Integration tier green against a real Postgres; one live sandbox clone observed warm.
 
+**Status (2026-08-26) — BUILT, with one verification OWED.** The clone, its `FoodDatabaseCloneError` guard
+and the `X-RateLimit-*` reading are implemented and green: food-service unit + integration (local Docker
+PostgreSQL 18) and `@kitchensink/usda-client` unit. ⛔ **"One live sandbox clone observed warm" is NOT
+done** — sandbox RDS was stopped, and no deploy was made. The two things only a live run can settle are
+whether `food_app` may copy `kitchensink_food` on RDS (ownership / `datistemplate`) and whether anything
+holds a session on the sandbox base in practice. Details and the exact verification queries:
+`specs/003-usda-food-data/tasks.md` ("Implemented (U38, 2026-08-26) — and what is still OWED") and
+`packages/services/food-service/src/foods/seed/README.md` §5.
+
 ### U39. The tablet navigation gap (768–1023px)
 
 The hamburger is `md:hidden` (`HomeTopBar.tsx:93`) and the drawer likewise, but the sidebar only appears at

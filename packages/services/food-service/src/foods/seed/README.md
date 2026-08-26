@@ -155,6 +155,59 @@ SELECT count(*) FROM food_sources fs JOIN food f ON f.id = fs.food_id
 
 ---
 
+## 5. Which databases to seed — and how a per-PR preview gets a WARM catalog (U38)
+
+⛔ **Seed a BASE database, never a preview.** There are exactly three targets and they are not seeded the
+same way:
+
+| target                              | what it is                                                              | how it gets seeded                                                           |
+| ----------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **prod** `kitchensink_food`         | the live catalog, already partly filled on demand                       | run this importer once; it merges in place and never duplicates              |
+| **sandbox base** `kitchensink_food` | created by the DataStack bootstrap; **nothing ever connects to it**     | run this importer once — it exists purely to be cloned                       |
+| each **`pr-{N}`**                   | `kitchensink_food_pr_{N}`, created and destroyed with the PR (ADR-0006) | **not seeded at all** — cloned from the sandbox base by the migration runner |
+
+The clone is `CREATE DATABASE "kitchensink_food_pr_{N}" TEMPLATE "kitchensink_food"`, issued by
+`ensureDatabaseExists` in `src/lambdas/migrate/handler.ts` during the in-stack migration Trigger
+(ADR-0022). PostgreSQL copies the base at the filesystem level, so the preview starts with the base's rows
+**and** its `schema_migrations` history — the migration run that immediately follows then applies only what
+is newer than the base. No seed run, no cold-cache USDA spend, and no per-PR share of the 1,000/hr quota.
+
+### Two preconditions, both of which fail the deploy LOUDLY rather than degrading
+
+1. **Nothing may be connected to the base.** PostgreSQL refuses to copy a database with any open session
+   (`SQLSTATE 55006`). This holds today because no food service runs at a base stage — every food deploy is
+   prod or `pr-{N}` — but it is a property to check, not a coincidence to rely on. A refusal raises
+   `FoodDatabaseCloneError` with `reason: 'template-in-use'` and the deploy fails. Find the holder:
+
+    ```sql
+    SELECT pid, usename, application_name, client_addr
+      FROM pg_stat_activity WHERE datname = 'kitchensink_food';
+    ```
+
+2. **The cloning role must be permitted to copy the base.** Copying a database that is not marked
+   `datistemplate` requires ownership of the source. If a clone fails with `reason:
+'insufficient-privilege'`, either give `food_app` ownership of `kitchensink_food` or mark it a template
+   (`ALTER DATABASE kitchensink_food IS_TEMPLATE true`; note that a template database also cannot be
+   dropped until the flag is cleared).
+
+⛔ **A clone failure is NEVER softened into creating the database empty.** That is the whole point of the
+guard: an empty per-PR catalog passes every check this repo runs — the deploy is green, the service is
+healthy, the smoke test's `401` is the expected pass — and is discovered only by a person whose ingredient
+search returns nothing, with `catalogAvailability: 'unavailable'`. That is the failure ADR-0010 exists to
+prevent.
+
+### Verifying a preview came up warm
+
+```sql
+-- Against kitchensink_food_pr_{N}: a warm clone mirrors the base's counts.
+SELECT origin, status, count(*) FROM food GROUP BY 1, 2 ORDER BY 1, 2;
+
+-- And the migration run that followed the clone should have applied nothing new.
+SELECT count(*) FROM schema_migrations;
+```
+
+---
+
 ## Clearing the catalog before a reseed (U12a) — ⛔ TWO SERVICES, ONE ORDER
 
 A reseed mints FRESH ULIDs, so it invalidates every `ingredients.food_id` the recipe service holds. That

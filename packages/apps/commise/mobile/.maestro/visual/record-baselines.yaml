@@ -98,6 +98,8 @@ appId: io.commise.mobile
       visible: 'Recipes'
       timeout: 40000
 - tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
 - extendedWaitUntil:
       visible: 'Step 1 of 4'
       timeout: 30000

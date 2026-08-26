@@ -19,6 +19,8 @@ appId: io.commise.mobile
 # Recipe list surface, then into the create wizard.
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
 
 # Step 1 of 4 (Basic). The wizard opens here — no page heading of its own (that copy belonged to the retired
 # flat `RecipeForm`), so the step-progress label is the entry checkpoint instead.

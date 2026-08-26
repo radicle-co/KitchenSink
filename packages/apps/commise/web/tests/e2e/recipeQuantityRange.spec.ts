@@ -31,6 +31,8 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
 
         await page.goto(route('/recipes'));
         await page.getByRole('button', { name: 'New recipe' }).click();
+        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
         // Step 1 (Details).
@@ -85,6 +87,8 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
 
         await page.goto(route('/recipes'));
         await page.getByRole('button', { name: 'New recipe' }).click();
+        // U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+        await page.getByRole('menuitem', { name: 'Create from Scratch' }).click();
 
         await expect(page.getByText('Step 1 of 4')).toBeVisible();
         await page.getByLabel('Title').fill('E2E Grandmother Butter');

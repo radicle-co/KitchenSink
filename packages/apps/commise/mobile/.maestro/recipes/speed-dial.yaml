@@ -1,0 +1,65 @@
+appId: io.commise.mobile
+---
+# The create SpeedDial (U34, owner ruling 2026-08-25) on a real device.
+#
+# WHAT THIS FLOW IS FOR. The pinned FAB no longer creates — it DISCLOSES the creation destinations, of which
+# exactly one is wired today. That makes the primary create path two taps, which is the cost the owner
+# accepted, and it makes the dial a control with a lifecycle the other flows never exercise: it can be opened
+# WITHOUT choosing anything, and it must then get out of the way. `create.yaml` walks the happy path (open →
+# Create from Scratch → wizard) as part of a much longer publish; this flow owns the parts that path cannot
+# see — the DISMISSAL, and the fact that dismissing does not create anything.
+#
+# ⛔ Exactly ONE destination. Scan / Import / AI belong to features 004 and 005 and are not rendered at all:
+# promising a stopped feature is worse than omitting it. `assertNotVisible` on all three is the falsifiable
+# form of that ruling — a "coming soon" row would fail here, which is the point.
+#
+# Read-only: it opens the dial, dismisses it, opens it again and enters the wizard, then leaves via the
+# wizard's own back affordance without saving. Nothing is published, so it is order-independent and needs no
+# reseed.
+- runFlow: ../auth/signin.yaml
+
+# The recipe list, populated (the FAB is suppressed on a TRUE empty library — `empty-library.yaml` owns that
+# half, and asserts the FAB's ABSENCE there).
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000
+- assertVisible: 'New recipe'
+# Collapsed: the destination is not on screen until the dial is opened.
+- assertNotVisible: 'Create from Scratch'
+
+# --- 1. Open, and assert the dial's CONTENTS ------------------------------------------------------------
+- tapOn: 'New recipe'
+- extendedWaitUntil:
+      visible: 'Create from Scratch'
+      timeout: 20000
+# The three destinations that must NOT exist yet. Each is a separate assertion so a failure names which one
+# leaked back in.
+- assertNotVisible: 'Scan'
+- assertNotVisible: 'Import'
+- assertNotVisible: 'Generate with AI'
+
+# --- 2. Dismissing gets out of the way, and creates NOTHING ---------------------------------------------
+# The backdrop is a real, labelled tap target on this platform (its web counterpart cannot be — everything
+# outside the dialog content is aria-hidden there). Tapping it must close the dial and leave the cook exactly
+# where they were, on the list, with no wizard behind it.
+- tapOn: 'Close the create menu'
+- assertNotVisible: 'Create from Scratch'
+- assertNotVisible: 'Step 1 of 4'
+- assertVisible: 'Recipes'
+- assertVisible: 'New recipe'
+
+# --- 3. Re-open and take the destination ----------------------------------------------------------------
+# The second press is the one that creates — the accepted +1 tap, asserted rather than assumed.
+- tapOn: 'New recipe'
+- tapOn: 'Create from Scratch'
+- extendedWaitUntil:
+      visible: 'Step 1 of 4'
+      timeout: 30000
+- assertVisible: 'Title'
+
+# Leave without saving: the header back arrow is the wizard's cancel (U32 — there is no overflow menu), so
+# this flow ends on the list it started from and mutates nothing.
+- back
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 30000

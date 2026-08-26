@@ -1858,16 +1858,43 @@ is currently scheduled last. Either move auto-save earlier or accept a first-sav
   (`RecipeList.tsx:68`). Scan / Import / AI belong to 004 and 005; do not render them at all rather than
   rendering them dead — the repo's convention for a not-yet-real destination is an `aria-disabled`
   "coming soon" nav item, and promising a stopped feature is worse than omitting it.
-    - ⛔ **DECIDED NOT TO BUILD (U32–U34 implementation, 2026-08-25). Do not "finish" it as missing work.**
-      Taking this prescription together with its own "do not render Scan / Import / AI at all" rule leaves a
-      dial with exactly ONE item — and a one-item dial is strictly worse than what already ships. It is
-      either two taps to reach a single destination, or, if it opens straight through, it IS today's FAB
-      wearing a new name. That FAB is not the inline button this bullet cites: a real floating action button
-      already ships at `features/recipes/src/list/RecipeList.tsx:169` (the `showFab` branch), positioned to
-      clear the narrow-breakpoint bottom nav and the safe-area inset, and it already routes to Create from
-      Scratch on both platforms. The dial becomes worth building the moment a SECOND destination is real —
-      i.e. when 004 (import) or 005 (AI) ships a live target — and not before. Nothing in U34's other two
-      rulings (meal type, auto-save) depends on it, and both shipped.
+    - ⛔ **BUILT — owner ruling 2026-08-25, which OVERRULES the "do not build" decision recorded here the
+      same day.** The prior reasoning is kept immediately below rather than deleted, because it is what the
+      owner weighed, and it is the reason the accepted cost is stated rather than discovered later.
+        - **The reasoning that was overruled** (recorded by the U32–U34 implementation, 2026-08-25): taking
+          this prescription together with its own "do not render Scan / Import / AI at all" rule leaves a
+          dial with exactly ONE item — and a one-item dial is strictly worse than what already ships. It is
+          either two taps to reach a single destination, or, if it opens straight through, it IS today's FAB
+          wearing a new name. That FAB is not the inline button this bullet cites: a real floating action
+          button already ships at `features/recipes/src/list/RecipeList.tsx:169` (the `showFab` branch),
+          positioned to clear the narrow-breakpoint bottom nav and the safe-area inset, and it already routes
+          to Create from Scratch on both platforms. On that reading the dial becomes worth building only once
+          a SECOND destination is real.
+        - **The ruling as made.** Build it now anyway, **so that the SHAPE exists**: with the dial in place,
+          adding Scan / Import / AI when 004 or 005 ships is a change to a `SpeedDialAction[]` — a DATA
+          change at the one call site in each list leaf — rather than a component change made under the
+          pressure of the feature that needs it. That is why `actions` is a list and not a single callback:
+          the second destination is a known requirement, not a presumed one.
+        - **The accepted cost, in full.** The primary create path is **two presses instead of one** until a
+          second destination is real. It is not free elsewhere either: the trigger keeps its `New recipe`
+          accessible name, but every flow that CREATED through it needed a step — 5 Playwright call sites
+          across 3 specs and 9 Maestro taps across 9 flows. Those are updated, not tolerated.
+        - **What did NOT change, and must not.** The dial replaces what the FAB does on press, not where it
+          sits or when it shows: the derived `bottom-[calc(5rem+env(safe-area-inset-bottom))] … lg:bottom-8`
+          offset (now on the dial's anchor, so the disclosed menu is positioned against the SAME expression
+          instead of a second copy), the SVG/`Feather` glyph rather than a text `+`, the `bg-seafoam` /
+          `hover:bg-ocean-dark` surface, and BOTH visibility gates. Those gates stopped being spelled inline
+          in each leaf and became the one `shouldShowCreateDial` policy in `list/model.ts` — including the
+          half that is easy to lose, that a **chip-narrowed zero KEEPS the dial** because its empty body
+          renders no CTA to replace it.
+        - **Where it lives.** `features/recipes/src/speedDial/` — a shared `model.ts` (the prop contract plus
+          the pure arrow-key arithmetic) with a web leaf over `@radix-ui/react-dialog` (already a dependency;
+          it supplies the focus trap, focus restoration to the trigger, Escape and outside-press dismissal,
+          with `role="menu"` overriding the primitive's own `role`) and a native leaf over the RN `Modal`
+          (whose window IS the platform's focus containment). ⛔ The flip condition:
+          `@radix-ui/react-dropdown-menu` is the right component the day a SECOND destination lands, because
+          typeahead and true roving focus become owed then. Reach for it at that point rather than growing
+          the hand-rolled key handler.
 - **Auto-save, built for real.** ⛔ Not a label. Nothing ships today (`grep autosav` → nothing), and the
   mockup's "Auto-saved 2 minutes ago" is a hardcoded literal. A debounced draft write has to interact with
   `useRecipeEditor`'s `expectedVersion` and its 409/conflict statechart, so a lost-update path is the risk
@@ -1875,7 +1902,7 @@ is currently scheduled last. Either move auto-save earlier or accept a first-sav
 
 **Files.** Modify `recipe-core/src/recipeRequestBounds.ts`, `recipes.schema.ts`, `packages/schemas/recipe/**`, a migration, `form/RecipeBasicsFields.tsx` + `.native.tsx`, `web/src/components/recipes/RecipeList.tsx`, `mobile/src/screens/RecipesScreen.tsx`.
 
-**Test scenarios.** Meal type round-trips as a closed vocabulary while tags stay free text · free-text tags remain filterable · the FAB exposes ONLY Create from Scratch (satisfied by the shipped `showFab` button — see the SpeedDial ruling above) · auto-save writes a DRAFT and never publishes · a concurrent edit surfaces `useRecipeEditor`'s 409 rather than silently losing the later write · auto-save never fires on an untouched form.
+**Test scenarios.** Meal type round-trips as a closed vocabulary while tags stay free text · free-text tags remain filterable · the dial exposes ONLY Create from Scratch, asserted as a menu-item COUNT so a dead second row fails · the dial opens, arrow-navigates, activates on Enter/Space, closes on Escape and on an outside press, and RETURNS FOCUS to the trigger every time · focus is trapped while it is open · it stays hidden on Community and on a true-empty library, and stays SHOWN on a chip-narrowed zero · auto-save writes a DRAFT and never publishes · a concurrent edit surfaces `useRecipeEditor`'s 409 rather than silently losing the later write · auto-save never fires on an untouched form.
 
 **Verification.** Both platforms green; a lost-update attempt observed to conflict rather than overwrite.
 

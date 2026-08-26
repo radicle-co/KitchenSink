@@ -10,7 +10,6 @@
  * (`nativeTokens`) with 44pt touch targets on the source tabs.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { Feather } from '@expo/vector-icons';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { GradientSurface } from '@commise/ui/surface';
@@ -19,9 +18,16 @@ import type { FC, ReactElement } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
+import { SpeedDial } from '../speedDial/SpeedDial.native.js';
 import { RecipeListCard } from './RecipeListCard.native.js';
 import { RecipeSourceTabs } from './RecipeSourceTabs.native.js';
-import { filterChipLabel, formatRecipeCount, isListNarrowed, type RecipeListViewProps } from './model.js';
+import {
+    filterChipLabel,
+    formatRecipeCount,
+    isListNarrowed,
+    shouldShowCreateDial,
+    type RecipeListViewProps,
+} from './model.js';
 
 /** The inter-card gap, hoisted so the FlashList separator and the header spacer share one value. */
 const CARD_GAP = nativeTokens.spacing[3];
@@ -126,12 +132,15 @@ export const RecipeList: FC<RecipeListViewProps> = ({
         );
     }
 
-    // FAB is the persistent create control (L1), pinned OUTSIDE the header, present across loading / error /
-    // populated; suppressed in the true empty state (the empty CTA is the create control) AND on Community (L5).
-    // "True empty" reads the ONE `narrowed` predicate the body branch uses, so a chip-narrowed zero — whose
-    // empty body renders no CTA — keeps the FAB rather than losing every create affordance.
-    const isEmpty = status === 'ready' && recipes.length === 0 && !narrowed;
-    const showFab = !isEmpty && !onCommunity;
+    // Whether the pinned create dial (L1) is mounted. Both gates — never over a TRUE empty library, never on
+    // the Community tab — live in the ONE `shouldShowCreateDial` policy, shared with the web leaf, so the two
+    // platforms cannot drift on a rule neither of them spells any more.
+    const showDial = shouldShowCreateDial({
+        status,
+        recipeCount: recipes.length,
+        narrowed,
+        onCommunity,
+    });
 
     return (
         <View accessibilityLabel={list.heading} style={styles.container}>
@@ -207,18 +216,17 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
             {body}
 
-            {showFab && (
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={list.createCta}
-                    onPress={onCreateRecipe}
-                    style={styles.fab}
-                >
-                    {/* An icon, not a "+" character: flex centres the line box but ink is placed by the baseline, so the
-                        glyph painted low — and `fabLabel` compounded it with an off-token `lineHeight: 32` under a 28px
-                        font, which iOS applies as extra leading and Android pairs with `includeFontPadding`. */}
-                    <Feather name="plus" size={24} color={palette.white} />
-                </Pressable>
+            {showDial && (
+                // U34: the pinned FAB now DISCLOSES the creation destinations rather than running the only
+                // one. Adding Scan / Import / AI when 004 and 005 ship is a change to THIS LIST — which is
+                // the whole reason the owner chose the dial over the button it replaces, knowing that until a
+                // second destination is real it costs one extra tap on the primary path.
+                <SpeedDial
+                    triggerLabel={list.createCta}
+                    menuLabel={list.createMenuLabel}
+                    dismissLabel={list.createMenuDismiss}
+                    actions={[{ id: 'scratch', label: list.createFromScratch, onSelect: onCreateRecipe }]}
+                />
             )}
         </View>
     );
@@ -268,22 +276,6 @@ const styles = StyleSheet.create({
     chipActive: { backgroundColor: palette.seafoam },
     chipLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
     chipLabelActive: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.white },
-    fab: {
-        position: 'absolute',
-        right: nativeTokens.spacing[4],
-        bottom: nativeTokens.spacing[5],
-        width: 56,
-        height: 56,
-        borderRadius: nativeTokens.radius.full,
-        backgroundColor: palette.seafoam,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: palette.charcoal,
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 4,
-    },
     search: {
         backgroundColor: palette.white,
         borderRadius: nativeTokens.radius.full,

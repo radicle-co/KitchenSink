@@ -21,6 +21,8 @@ appId: io.commise.mobile
 
 - assertVisible: 'Recipes'
 - tapOn: 'New recipe'
+# U34: the FAB is a menu TRIGGER now — its ONE destination is what opens the wizard.
+- tapOn: 'Create from Scratch'
 
 # Step 1 of 4 (Basic). servings/prep/cook keep their valid defaults, as in `create.yaml`.
 - assertVisible: 'Step 1 of 4'

@@ -130,7 +130,10 @@ describe('RecipeListContainer', () => {
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });
 
-    it('navigates to the create route from the pinned FAB when the list is populated', async () => {
+    it('navigates to the create route from the pinned dial when the list is populated', async () => {
+        // REWRITTEN for U34 (owner ruling 2026-08-25): the pinned FAB is now a menu TRIGGER, so the route is
+        // reached from the dial's single "Create from Scratch" destination. Asserting that opening the dial
+        // alone navigates NOWHERE is the half that would otherwise silently pass on a broken wiring.
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipes').mockResolvedValue(
@@ -140,6 +143,10 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         await user.click(await screen.findByRole('button', { name: 'New recipe' }));
+
+        expect(pushMock).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('menuitem', { name: 'Create from Scratch' }));
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes/new');
     });

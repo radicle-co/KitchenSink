@@ -145,6 +145,113 @@ describe('normalizeMeasure', () => {
         });
     });
 
+    /**
+     * U37 — the joined-amount defect §14.6 of the 2026-08-23 report pinned rather than repaired.
+     *
+     * ⛔ A NUMBER IS NEVER A UNIT, and the fold used to say one was. The CRF returns several amounts for one
+     * line and `crfProcess.ts` JOINS them into a single string, so `[('2',''),('3','tablespoons')]` arrives
+     * as `2 3 tablespoons` — which means "the engine read MORE THAN ONE amount", not "the unit is 3". Read
+     * positionally, the second token became the unit and the fold answered `{ '2', '3', 'tablespoon' }`.
+     *
+     * The consequence was not local. `'3'` is not `''`, so `judgeMeasure`'s `crf.unit === ''` branch never
+     * fired, the line disposed `crfWins`, and the MERGE — which reads the same text through
+     * `readStatedMeasure` and finds no unit — rescued it. Two paths answering the same question differently,
+     * from a defect neither knew it had.
+     */
+    describe('U37 — a NUMBER in the unit position is a second amount, never a unit', () => {
+        it('reports NO unit when the first amount stated none, and leaves the second amount in the residue', () => {
+            expect(normalizeMeasure('2 3 tablespoons')).toEqual({
+                quantity: '2',
+                unit: '',
+                residue: '3 tablespoon',
+            });
+        });
+
+        it('reads the SAME shape the same way whatever the numbers are', () => {
+            expect(normalizeMeasure('1 2 cups')).toEqual({ quantity: '1', unit: '', residue: '2 cup' });
+            expect(normalizeMeasure('6 8 tablespoons')).toEqual({
+                quantity: '6',
+                unit: '',
+                residue: '8 tablespoon',
+            });
+        });
+
+        it('rejects a FRACTIONAL second amount too, which a digit-shaped check would let through', () => {
+            // ⛔ The mutation this row exists to kill. `1 1 1/2 boxes` (corpus L01547/L01548) folds its
+            // second amount to the rational `3/2`, so a unit guard written as `/^\d+$/` would still call
+            // `3/2` a unit and the defect would survive its own repair on half the corpus rows that carry
+            // it. The fold KNOWS which words it produced from a quantity read; it does not re-derive it
+            // from the spelling.
+            expect(normalizeMeasure('1 1 1/2 boxes')).toEqual({
+                quantity: '1',
+                unit: '',
+                residue: '3/2 boxe',
+            });
+        });
+
+        it('keeps a trailing bare number in the residue rather than promoting it to the unit', () => {
+            // Corpus L00290 — `three or four large spoonfuls)` reaches the CRF as the measure text `3 4`,
+            // with nothing after the second amount to fall back on.
+            expect(normalizeMeasure('3 4')).toEqual({ quantity: '3', unit: '', residue: '4' });
+        });
+
+        it('⛔ does NOT skip to the next non-numeric word — the unit belongs to the amount that stated it', () => {
+            // ⛔ THE REJECTED ALTERNATIVE, asserted so nobody "improves" the fix into it. Reading the next
+            // non-numeric token would answer `unit: 'tablespoon'` here, which asserts that the FIRST amount
+            // (`2`) is two tablespoons. The engine's own tuples say otherwise — `[('2',''),('3','tablespoons')]`
+            // attaches the unit to the SECOND amount — so that reading manufactures a unit for an amount
+            // that stated none, and (fatally) leaves `crf.unit !== ''`, which is exactly what kept the
+            // empty-unit branch shut and the census diverging from the merge.
+            expect(normalizeMeasure('2 3 tablespoons').unit).not.toBe('tablespoon');
+        });
+
+        describe('⛔ the shapes that were ALREADY RIGHT, which this must not flatten', () => {
+            it('still reads a plain amount — the victim of the over-reach mutant', () => {
+                expect(normalizeMeasure('2 tablespoons')).toEqual({
+                    quantity: '2',
+                    unit: 'tablespoon',
+                    residue: '',
+                });
+            });
+
+            it('still reads a compound number word with its unit', () => {
+                expect(normalizeMeasure('one and a half quarts')).toEqual({
+                    quantity: '3/2',
+                    unit: 'quart',
+                    residue: '',
+                });
+            });
+
+            it('still takes the unit of the FIRST amount on a genuine composite', () => {
+                expect(normalizeMeasure('2 cups 3 tablespoons')).toEqual({
+                    quantity: '2',
+                    unit: 'cup',
+                    residue: '3 tablespoon',
+                });
+            });
+
+            it('leaves a genuine range exactly as it was — the connective is not a number', () => {
+                // ⚠️ RECORDED, NOT REPAIRED, and deliberately so. `or` sits in the unit position here and is
+                // no more a unit than `3` was; it is the same positional weakness one word over. It is left
+                // alone because narrowing the guard to NUMBERS is what closes the census/merge divergence:
+                // dropping the connective as well would fold BOTH sides of `two or three tablespoons` vs
+                // `2 3 tablespoons` to an identical empty-unit reading, the census would answer `agree`
+                // (disposition `agreed`) while the merge still rescues — re-opening the divergence in a new
+                // place. Measured, not assumed. See U37 in the 2026-08-26 report subsection.
+                expect(normalizeMeasure('two or three tablespoons')).toEqual({
+                    quantity: '2',
+                    unit: 'or',
+                    residue: '3 tablespoon',
+                });
+                expect(normalizeMeasure('2 to 3 cups')).toEqual({
+                    quantity: '2',
+                    unit: 'to',
+                    residue: '3 cup',
+                });
+            });
+        });
+    });
+
     it('keeps a unit the CRF does not know, so its loss is measurable rather than invisible', () => {
         expect(normalizeMeasure('one gill').unit).toBe('gill');
     });

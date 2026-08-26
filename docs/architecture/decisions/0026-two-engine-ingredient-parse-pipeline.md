@@ -765,6 +765,9 @@ are a CRF row whose measure text joins several amounts (7 `unitDiffers`, 1 `amou
 throughout the frozen 2026-08-23 report, and this ruling is about what the pipeline STORES. It is pinned by
 a test in `parseAgreement.test.ts` so it cannot rot into a silent assumption.
 
+> ⛔ **SUPERSEDED by §8b (2026-08-26) — 7 of the 8 are repaired, and the stated reason for deferring was
+> measured FALSE.** The repair moves **no agreement rate at all**. Read §8b before citing this paragraph.
+
 #### ⚠️ Residual
 
 - **The 2 genuinely-ambiguous lines are now resolved to the LLM without adjudication.** `a cup the whites of
@@ -772,6 +775,40 @@ three eggs` stores `1 cup`; `a quart of spinach about fifteen minutes` stores `1
   `15`. Both are reported as `differ: ['quantity']`, so both remain visible — but nothing forces a human to
   look, and the merge has taken a side on prose neither engine parsed well.
 - **The 115 are still one model's answers over one book**, with the same scope caveat §8 carries.
+
+### 8b. Update (2026-08-26) — the divergence is REPAIRED in the census, and a number is never a unit (U37)
+
+`normalizeMeasure` read the unit **positionally**. It now rejects a token the quantity reader produced: a
+number in the unit position means the measure states **several amounts** and the FIRST of them stated no
+unit, so the unit is `''` and the number falls to the residue — which is where `NormalizedMeasure.residue`
+already documents a joined amount belongs.
+
+⛔ **The alternative — "skip forward to the next non-numeric word" — is rejected and asserted against.** It
+answers `unit: 'tablespoon'` for `2 3 tablespoons` while the engine's own tuples attach that unit to the
+`3`; it manufactures a unit for an amount that stated none, and it leaves `crf.unit !== ''`, so the
+empty-unit branch STILL never fires. It fixes the symptom and preserves the divergence.
+
+⚠️ **Narrow to a NUMBER on purpose, and measured.** The connective in `two or three tablespoons` folds to
+`unit: 'or'` and is no more a unit — but dropping it too would fold both sides of the pair to the SAME
+empty-unit reading, the census would answer `agree` while the merge still rescues, and the divergence would
+re-open one verdict over. Pinned, not fixed.
+
+⛔ **Nothing in the shipped leg moved.** `readStatedMeasure`, `promoteCrfReading` and `parseComparator.ts`
+are untouched; the rescues stay at 115 and `DEFAULT_WINNERS` is unchanged. This is the comparison harness,
+which ADR-0024 §4b makes an operator path.
+
+**Measured over the same 1,975 replayed Nova Micro answers** (no engine call, no spend): every agreement
+figure is UNCHANGED — all-three-agree 739, `measure` 1,108, `names` 975, `prep` 1,163, `differ` 356. Only 26
+lines change verdict, all of them leaving `unitDiffers` (14 → `crfUnitAbsent`, 11 → `amountCountDiffers`, 1 →
+`crfUnitInName`), and only 15 change disposition, all `crfWins` → `llmWins`. **The paragraph above deferred
+the repair because it "would move every count in this report"; it moves no rate in it.** Full before/after,
+with populations, in §16 of the 2026-08-23 report.
+
+⛔ **7 of 8, not 8.** L00777 (`a quart of spinach about fifteen minutes` → measure text `quart 15`) is a
+**real** unit joined to a stray amount, so the units MATCH and the verdict is `amountCountDiffers`; the merge
+rescues it because `readStatedMeasure` finds no unit there. Closing it means ruling on whether a unit with no
+adjacent number is **stated**, which lives in the PRODUCTION reader and is not U37's to take. Still open,
+still pinned.
 
 ## Consequences
 

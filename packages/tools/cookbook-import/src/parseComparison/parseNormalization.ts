@@ -156,21 +156,49 @@ export interface NormalizedMeasure {
  * already rewritten into numerals. Running the CRF's own output through the number-word reader is a no-op
  * for it and is what keeps the two sides symmetric.
  *
+ * ## ⛔ A NUMBER IS NEVER A UNIT — U37, and it repairs the divergence §14.6 of the report PINNED
+ *
+ * The unit used to be read PURELY POSITIONALLY: whatever word came first after the leading quantity. That
+ * is right for `2 cups 3 tablespoons` and wrong for `2 3 tablespoons`, which the fold answered as
+ * `{ '2', '3', 'tablespoon' }` — a unit of `3`.
+ *
+ * The input is not a typo. `crfProcess.ts` JOINS the amount tuples the engine returns, so
+ * `[('2', ''), ('3', 'tablespoons')]` arrives as one string: the shape means **the CRF read more than one
+ * amount**, and the FIRST of them — the one {@link NormalizedMeasure.quantity} reports — stated no unit at
+ * all. So the unit is the empty string, and the second amount goes where {@link NormalizedMeasure.residue}
+ * already says a joined amount goes.
+ *
+ * ⛔ THE OTHER READING WAS CONSIDERED AND IS WRONG: "skip forward to the next non-numeric word" would
+ * answer `unit: 'tablespoon'`, asserting that `2` is two tablespoons when the engine's own tuples attach
+ * that unit to the `3`. It manufactures a unit for an amount that stated none — the category error
+ * `unitComparableWords` documents one function up — and, fatally, it leaves `crf.unit !== ''`, so
+ * `judgeMeasure`'s empty-unit branch still never fires and the census still disposes `crfWins` where the
+ * merge rescues. It would fix the symptom and preserve the bug.
+ *
+ * ⚠️ It is NARROW, to a numeric token, and that narrowness is measured rather than timid. The connective in
+ * `two or three tablespoons` sits in the same position and is no more a unit than `3` was — but dropping it
+ * would fold that phrase and `2 3 tablespoons` to the SAME empty-unit reading, the census would answer
+ * `agree` where the merge rescues, and the divergence would re-open one verdict over. Left alone, and
+ * pinned by a test that says so.
+ *
  * @param raw - A measure phrase from either parser.
  * @returns Its quantity and unit. Pure.
  */
 export function normalizeMeasure(raw: string): NormalizedMeasure {
     const { quantity, rest } = normalizeQuantity(stripHedges(raw));
 
-    // The FIRST remaining word is the unit; anything after it is a second amount, a range tail or a
-    // qualifier. Canonicalising the joined string instead would de-pluralise only its last word, which made
-    // the fold depend on how many words happened to follow.
-    const [unit, ...residue] = foldMeasureWords(rest);
+    // The FIRST remaining word is the unit UNLESS it is itself an amount; anything after it is a second
+    // amount, a range tail or a qualifier. Canonicalising the joined string instead would de-pluralise only
+    // its last word, which made the fold depend on how many words happened to follow.
+    const words = foldMeasureWords(rest);
+    const [first] = words;
+    const unitWord = first !== undefined && !first.isAmount ? first : null;
 
     return {
         quantity: quantity === null ? null : quantity.toFraction(),
-        unit: unit === undefined ? '' : normalizeUnit(unit),
-        residue: residue.join(' '),
+        unit: unitWord === null ? '' : normalizeUnit(unitWord.text),
+        // An amount in the unit position is not consumed as the unit, so it stays in the residue.
+        residue: (unitWord === null ? words : words.slice(1)).map((word) => word.text).join(' '),
     };
 }
 
@@ -208,6 +236,23 @@ export function withStatedUnit(folded: NormalizedMeasure, statedUnit: string): N
 }
 
 /**
+ * One folded word of a measure remainder, and whether it is an AMOUNT or anything else.
+ *
+ * ⛔ THE FLAG IS CARRIED, NEVER RE-DERIVED FROM THE SPELLING (U37). {@link foldMeasureWords} is the only
+ * code that knows which branch produced a word, and it used to throw that away — leaving the caller to
+ * decide "is this a unit?" from a string. The obvious reconstruction, a digit-shaped regex, is already
+ * wrong on this corpus: an amount folds through `toFraction()`, so `1 1 1/2 boxes` (L01547/L01548) offers
+ * `3/2` in the unit position and a `/^\d+$/` test would call it a unit. Making the fact travel with the
+ * word makes that class of mistake unrepresentable rather than merely tested for.
+ */
+interface FoldedMeasureWord {
+    /** The canonical word — a rendered rational for an amount, a canonicalised unit token otherwise. */
+    readonly text: string;
+    /** Whether the quantity reader produced this word. */
+    readonly isAmount: boolean;
+}
+
+/**
  * Fold what follows the leading quantity into canonical words.
  *
  * ⛔ NUMBER WORDS ARE REWRITTEN THROUGHOUT, not only at the head. `normalizeQuantity` reads a LEADING phrase
@@ -215,8 +260,8 @@ export function withStatedUnit(folded: NormalizedMeasure, statedUnit: string): N
  * notations the two parsers actually use, scored as a disagreement about nothing. Walking the remainder with
  * the same reader is what makes the two sides symmetric, which is the whole premise of this module.
  */
-function foldMeasureWords(rest: string): readonly string[] {
-    const words: string[] = [];
+function foldMeasureWords(rest: string): readonly FoldedMeasureWord[] {
+    const words: FoldedMeasureWord[] = [];
     let remaining = rest;
 
     while (remaining.trim().length > 0) {
@@ -236,7 +281,7 @@ function foldMeasureWords(rest: string): readonly string[] {
         const read = normalizeQuantity(trimmed);
 
         if (read.quantity !== null && read.phrase.length > 0) {
-            words.push(read.quantity.toFraction());
+            words.push({ text: read.quantity.toFraction(), isAmount: true });
             remaining = read.rest;
             continue;
         }
@@ -252,7 +297,7 @@ function foldMeasureWords(rest: string): readonly string[] {
         // `normalizeUnit`'s fallback returns the FOLDED form and never the raw one.
         for (const part of word.split(MEASURE_WORD_SEPARATOR)) {
             if (part.length > 0) {
-                words.push(normalizeUnit(part));
+                words.push({ text: normalizeUnit(part), isAmount: false });
             }
         }
     }

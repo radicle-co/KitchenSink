@@ -376,18 +376,61 @@ export interface EraseRecipeRowsResult {
  *     `recipe_photos`, `recipe_versions`, `recipe_collections`, `recipe_version_pending_archives`, and the
  *     ratings on the removed recipes — the schema owns that graph; re-deleting by hand would be dead SQL
  *     that rots when a cascade changes. `ingredients` (shared, owner-less) is deliberately untouched.
- *  7. **Collections (U3c).** `DELETE FROM collections WHERE owner_id = ownerId` — ALL of them, public and
+ *  7. **Clone-provenance handle (owner ruling 2026-08-25), BEFORE the collection delete.** See the
+ *     "ONE RULE FOR HANDLES" note below — this is the one statement in the transaction that de-identifies a
+ *     row belonging to SOMEBODY ELSE, and its ordering is load-bearing.
+ *  8. **Collections (U3c).** `DELETE FROM collections WHERE owner_id = ownerId` — ALL of them, public and
  *     private, cascading to their memberships. Other users' cloned collections have `source_collection_id`
  *     SET NULL by the FK (clones survive; the "pull from source" path degrades to `COLLECTION_NOT_CLONED`).
- *  8. **Author-handle residue (U3b), AFTER the delete.** By now only KEPT rows remain for the owner, and
+ *  9. **Author-handle residue (U3b), AFTER the delete.** By now only KEPT rows remain for the owner, and
  *     each still carries a denormalized cleartext `recipes.author_handle`. Scrub every non-null one to the
  *     ULID-derived {@link pseudonymizedAuthorHandle}, so a kept recipe renders a consistent PSEUDONYMOUS
  *     author and no cleartext handle survives. (A row that had no handle keeps none — we do not fabricate
  *     authorship.)
- *  9. **`author_handles` read-model root (W8-a.2 / .10).** `DELETE FROM author_handles WHERE user_id =
+ * 10. **Editor-handle residue (owner ruling 2026-08-25).** `recipe_versions.editor_handle` is the same
+ *     denormalized display name one table over. A KEPT recipe's version rows are NOT reached by the cascade
+ *     in step 6, so they survived carrying the cleartext. Scrubbed to the same pseudonym, keyed on
+ *     `created_by` — the predicate `handleSyncWorker` itself uses to write this column.
+ * 11. **`author_handles` read-model root (W8-a.2 / .10).** `DELETE FROM author_handles WHERE user_id =
  *     ownerId` — user-keyed, no FK, nothing cascades it. Deleting it removes the cleartext read-model row
  *     entirely; kept recipes no longer need it because their author renders from the scrubbed denormalized
  *     column (verified: no read path joins `author_handles`).
+ *
+ * ## ONE RULE FOR HANDLES — steps 7 and 10, and what step 7 deliberately costs
+ *
+ * A user's DISPLAY HANDLE is denormalized into three columns, and until this ruling only one of them was
+ * pseudonymized. `collections.source_owner_handle` (migration 0016) is the clone-provenance freeze, and it is
+ * the awkward one: **it lives on somebody else's row.** When B clones A's collection, B's row records A's
+ * handle, so step 8's owner-keyed `DELETE` could never reach it — the same datum was destroyed in `recipes`
+ * and left standing in `collections`, behind a green suite. Step 7 closes that, and step 10 closes the same
+ * hole in `recipe_versions`. All three write the SAME {@link pseudonymizedAuthorHandle}, so a kept recipe and
+ * a clone of that person's collection name the same stranger rather than two.
+ *
+ * ⚠️ **Accepted cost (owner, 2026-08-25): clone provenance degrades to "cloned from a deleted account".** B's
+ * clone keeps its `source_collection_name` and renders a pseudonymous source owner. That is exactly what
+ * `recipes.author_handle` already accepted for a kept public recipe, and it is the correct trade: the WHO is
+ * identity and goes, the WHAT is authored content and stays.
+ *
+ * ⛔ **`source_collection_name` is NOT swept, deliberately.** A collection name is authored CONTENT, of the
+ * same kind as the title of a truly-public recipe this erasure keeps by design — sweeping it would destroy
+ * the clone's record of what it was cloned from while erasing nothing that identifies a person. The counter-
+ * argument is real and stated rather than hidden: a name can embed a person ("Alice's Favourites"), exactly
+ * as a recipe title can, and the system already accepts that for every kept public recipe. Consistency with
+ * that standing decision wins; revisiting it is a ruling about recipe titles too, not about this column.
+ *
+ * ⛔ **Keyed on `source_collection_id`, NEVER on the handle STRING.** `author_handles.display_name` is
+ * identity's `profiles.displayName` — no uniqueness constraint anywhere — so `WHERE source_owner_handle =
+ * <the erased user's name>` would rewrite a bystander's provenance for an unrelated owner who happens to
+ * share a display name, asserting a clone came from someone it did not. A repair that manufactures a false
+ * record is worse than the residue it removes.
+ *
+ * ⚠️ **Stated residual: an ALREADY-ORPHANED clone is unreachable.** `source_collection_id` is `ON DELETE SET
+ * NULL`, so a clone whose source collection was deleted through the ORDINARY delete path — before its owner
+ * ever requested erasure — carries the frozen handle with no pointer left to key on, and nothing here can
+ * find it without falling back to the unsound value match above. Closing it structurally means denormalizing
+ * the source owner's ULID beside the handle (a `collections.source_owner_id`, mirroring how `recipes` carries
+ * `owner_id` beside `author_handle`), which is a persisted-schema decision for the owner to take, not one to
+ * take silently inside a sweep.
  * ⛔ **THREE STEPS STOOD HERE AND WERE REMOVED — owner ruling 2026-08-25, ADR-0027. Do not restore them.**
  *
  * They de-identified `ingredient_resolution_mappings` (step 10, plan U10 → U14), `ingredient_resolution_memos`
@@ -407,9 +450,12 @@ export interface EraseRecipeRowsResult {
  * these three tables on the strength of `erasureSweepCoverage.test.ts` going red — that gate now records them
  * in `RETAINED_BY_RULING`, and an entry there is the decision, not an oversight.
  *
- * `recipe_versions.created_by` is not swept independently: mutations are owner-only and `created_by`
- * cannot diverge from its recipe's `owner_id`, so the cascade covers it, and a "defensive" delete would
- * destroy version history of a user who never asked to be erased if that invariant ever broke.
+ * `recipe_versions.created_by` is not swept independently — only the `editor_handle` beside it is (step 10).
+ * The id is the pseudonymous ULID that `recipes.owner_id` legitimately survives as, and it is what step 10
+ * KEYS ON; clearing it would leave the handle unreachable on the next run. For a REMOVED recipe the cascade
+ * takes the whole row anyway: mutations are owner-only and `created_by` cannot diverge from its recipe's
+ * `owner_id`. A "defensive" delete on top of that would destroy the version history of a user who never
+ * asked to be erased, if that invariant ever broke.
  *
  * @param db - The recipe database handle.
  * @param ownerId - The owner being erased.
@@ -477,10 +523,21 @@ export const eraseRecipeRows = async (
         //    donated survive. No `deleted_at` filter: a tombstoned owner-only recipe is erased too.
         await tx.execute(sql`DELETE FROM recipes WHERE ${ownerOnly}`);
 
-        // 7. Collections (U3c) — all of the owner's, cascading to memberships. Clones survive (SET NULL FK).
+        // 7. Clone-provenance handle residue (owner ruling 2026-08-25) — BEFORE the collection delete, which
+        //    is what nulls the pointer this keys on. Keyed on `source_collection_id`, NEVER on the handle
+        //    STRING: a display name is not unique, so a value match would rewrite a bystander's provenance
+        //    for an unrelated owner who happens to share one.
+        await tx.execute(sql`
+            UPDATE collections
+            SET source_owner_handle = ${pseudonym}, updated_at = now()
+            WHERE source_owner_handle IS NOT NULL
+              AND source_collection_id IN (SELECT id FROM collections WHERE owner_id = ${ownerId})
+        `);
+
+        // 8. Collections (U3c) — all of the owner's, cascading to memberships. Clones survive (SET NULL FK).
         await tx.execute(sql`DELETE FROM collections WHERE owner_id = ${ownerId}`);
 
-        // 8. Author-handle residue (U3b) — scrub the cleartext handle on KEPT rows to the pseudonym. Only
+        // 9. Author-handle residue (U3b) — scrub the cleartext handle on KEPT rows to the pseudonym. Only
         //    kept rows remain now, so this scopes by owner_id + a non-null handle.
         await tx.execute(sql`
             UPDATE recipes
@@ -488,7 +545,16 @@ export const eraseRecipeRows = async (
             WHERE owner_id = ${ownerId} AND author_handle IS NOT NULL
         `);
 
-        // 9. author_handles read-model root (W8-a.10) — user-keyed, no cascade; delete removes the cleartext.
+        // 10. Editor-handle residue (owner ruling 2026-08-25) — the SAME datum one table over, on the KEPT
+        //     recipes' surviving version rows. Keyed on `created_by`, exactly as `handleSyncWorker` keys the
+        //     rename fan-out that writes this column.
+        await tx.execute(sql`
+            UPDATE recipe_versions
+            SET editor_handle = ${pseudonym}
+            WHERE created_by = ${ownerId} AND editor_handle IS NOT NULL
+        `);
+
+        // 11. author_handles read-model root (W8-a.10) — user-keyed, no cascade; delete removes the cleartext.
         await tx.execute(sql`DELETE FROM author_handles WHERE user_id = ${ownerId}`);
 
         // ⛔ STEPS 10-12 (curated mappings, resolution memos, parse corrections) STOOD HERE AND WERE

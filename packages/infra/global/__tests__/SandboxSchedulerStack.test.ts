@@ -149,3 +149,45 @@ describe('GlobalStack scheduler guard (ADR-0007 / no prod diff)', () => {
         expect(makeGlobal('dev').sandboxScheduler).toBeUndefined();
     });
 });
+
+// ── ADR-0028: the button and the reconciler must be able to FIND this function ────────────────────
+/**
+ * ADDED 2026-08-27, after a real defect.
+ *
+ * `runStop` records each service's prior desired count in SSM and only then scales it to zero; `runStart`
+ * reads that value back and — deliberately — **refuses to guess** when it is missing, skipping the service
+ * with a logged error. That contract is the whole reason the sandbox tier can be stopped safely.
+ *
+ * The first draft of `sandbox-reconcile.yml` bypassed it: it scaled services to 0 with a raw
+ * `aws ecs update-service`, writing no SSM parameter. The shared sandbox IDENTITY service — which every
+ * preview signs in against — would then have been stranded at zero, because `runStart` correctly declines
+ * to invent a count. Previews would deploy and sign-in would be dead, with only a log line to say why.
+ *
+ * The fix is to stop reimplementing stop/start and invoke THIS function, which means both workflows have to
+ * discover it. A CloudFormation export is how everything else in this repo crosses that boundary
+ * (`cfn-export.sh`), so the name is exported rather than guessed from a pattern.
+ */
+describe('the scheduler function is discoverable by the workflows (ADR-0028)', () => {
+    it('exports its function name under a STACK-qualified export', () => {
+        // Qualified by stack name, not a literal: the app names this stack
+        // `kitchensink-sandbox-scheduler-{stage}` while this harness constructs it directly, so pinning the
+        // production string here would assert the harness rather than the invariant. What must hold is that
+        // the export is unique per stack and ends in the agreed suffix, which is what `cfn-export.sh` looks
+        // up.
+        const outputs = Object.values(schedulerTemplate().findOutputs('*')) as { Export?: { Name?: string } }[];
+        const names = outputs.flatMap((o) => (o.Export?.Name === undefined ? [] : [o.Export.Name]));
+
+        expect(names.filter((name) => name.endsWith(':SchedulerFunctionName'))).toHaveLength(1);
+    });
+
+    it('the export actually names the function, not a literal', () => {
+        const outputs = Object.values(schedulerTemplate().findOutputs('*')) as {
+            Export?: { Name?: string };
+            Value?: unknown;
+        }[];
+        const exported = outputs.find((o) => o.Export?.Name?.endsWith(':SchedulerFunctionName'));
+
+        expect(exported).toBeDefined();
+        expect(JSON.stringify(exported?.Value)).toContain('SandboxSchedulerFunction');
+    });
+});

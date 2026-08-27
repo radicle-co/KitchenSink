@@ -185,44 +185,31 @@ jobs:
                       echo 'busy=false' >>"$GITHUB_OUTPUT"
                   fi
 
+            # ⛔ INVOKES THE SCHEDULER LAMBDA — it does NOT scale services itself, and the first draft of
+            # this step, which did, was a real defect.
+            #
+            # `runStop` records each service's prior desired count in SSM and only then scales it to zero;
+            # `runStart` reads it back and DELIBERATELY REFUSES TO GUESS when it is missing, skipping the
+            # service with a logged error. A raw `aws ecs update-service --desired-count 0` writes no such
+            # parameter, so it strands whatever it scaled down — including the shared sandbox IDENTITY
+            # service every preview signs in against. Previews would come back up and sign-in would be dead,
+            # with one log line to explain it.
+            #
+            # So the stop/start bookkeeping lives in exactly one place, the same way teardown does.
             - name: Ensure the shared sandbox tier is stopped when nothing needs it
               if: ${{ !cancelled() && steps.find.outputs.live == '' && steps.inuse.outputs.busy == 'false' }}
               run: |
-                  set -uo pipefail
-                  echo 'No live sandbox and no in-flight consumer — converging the shared sandbox tier to stopped.'
-
-                  db=$(aws rds describe-db-instances \
-                    --query "DBInstances[?contains(DBInstanceIdentifier,'sandbox')].[DBInstanceIdentifier,DBInstanceStatus]" --output text)
-                  while read -r id status; do
-                      [ -z "${id:-}" ] && continue
-                      if [ "$status" = 'available' ]; then
-                          echo "stopping RDS ${id} (was ${status})"
-                          aws rds stop-db-instance --db-instance-identifier "$id" >/dev/null \
-                            || echo "::warning::could not stop ${id}"
-                      else
-                          echo "RDS ${id} already ${status}"
-                      fi
-                  done <<<"$db"
-
-                  nat=$(aws ec2 describe-instances \
-                    --filters 'Name=tag:Name,Values=*sandbox*' 'Name=instance-state-name,Values=running' \
-                    --query 'Reservations[].Instances[].InstanceId' --output text)
-                  if [ -n "${nat// /}" ]; then
-                      echo "stopping sandbox NAT: ${nat}"
-                      # shellcheck disable=SC2086
-                      aws ec2 stop-instances --instance-ids $nat >/dev/null || echo '::warning::could not stop the sandbox NAT'
+                  set -euo pipefail
+                  FN=$(bash .github/scripts/cfn-export.sh 'kitchensink-sandbox-scheduler-sandbox:SchedulerFunctionName')
+                  if [ -z "$FN" ] || [ "$FN" = 'None' ]; then
+                      echo '::error::sandbox scheduler function not found — deploy packages/infra/global at stage sandbox. NOT falling back to raw ecs calls: that is what strands the identity service.' >&2
+                      exit 1
                   fi
-
-                  while read -r cluster; do
-                      [ -z "$cluster" ] && continue
-                      while read -r svc; do
-                          [ -z "$svc" ] && continue
-                          desired=$(aws ecs describe-services --cluster "$cluster" --services "$svc" \
-                            --query 'services[0].desiredCount' --output text)
-                          if [ "${desired:-0}" != '0' ]; then
-                              echo "scaling $(basename "$svc") to 0 (was ${desired})"
-                              aws ecs update-service --cluster "$cluster" --service "$svc" --desired-count 0 >/dev/null \
-                                || echo "::warning::could not scale $(basename "$svc")"
-                          fi
-                      done < <(aws ecs list-services --cluster "$cluster" --query 'serviceArns[]' --output text | tr '\t' '\n')
-                  done < <(aws ecs list-clusters --query "clusterArns[?contains(@,'sandbox')]" --output text | tr '\t' '\n')
+                  echo "No live sandbox and no in-flight consumer — invoking ${FN} {action:stop}"
+                  aws lambda invoke --function-name "$FN" \
+                    --payload '{"action":"stop"}' --cli-binary-format raw-in-base64-out \
+                    /tmp/sandbox-stop.json >/dev/null
+                  echo "result: $(cat /tmp/sandbox-stop.json)"
+                  if grep -q '"errors":\[[^]]' /tmp/sandbox-stop.json; then
+                      echo '::warning::the scheduler reported per-resource errors — see the payload above'
+                  fi

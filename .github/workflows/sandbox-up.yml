@@ -35,8 +35,17 @@ jobs:
         env:
             GH_TOKEN: ${{ github.token }}
             PR: ${{ inputs.pr }}
+            AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
             - uses: actions/checkout@v4
+            # Needed since this workflow started waking the shared tier: resolving the scheduler function's
+            # CloudFormation export and invoking it are both AWS calls.
+            - uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
 
             # Refuse a PR number that is not an open PR BEFORE anything is tagged or labelled. A sandbox for
             # a closed PR is infrastructure nobody will ever reap by the on-close path.
@@ -66,6 +75,39 @@ jobs:
                   set -euo pipefail
                   gh pr edit "$PR" --add-label sandbox-up
                   echo "PR #${PR} labelled sandbox-up; sandbox expires ${{ steps.expiry.outputs.expiresAtIso }}"
+
+            # ⛔ WAKE THE SHARED TIER FIRST — a preview is not self-contained.
+            #
+            # `sandbox-deploy.yml` runs `sandbox-wake.sh`, which brings back the sandbox RDS and NAT, so the
+            # deploy itself is covered. What it does NOT cover is the shared sandbox IDENTITY service:
+            # `identity.sandbox.commise.app` is the ONE identity service every preview signs in against
+            # (ADR-0001), it is deployed by a different workflow, and the reconciler scales it to zero when
+            # the last sandbox expires. Without this step the preview comes up and sign-in is dead — the
+            # services answer, the smoke test passes, and nobody can log in.
+            #
+            # The scheduler Lambda is the only thing that may restore it: `runStop` recorded each service's
+            # prior desired count in SSM and `runStart` reads it back, refusing to invent one. Scaling by
+            # hand here would work once and then strand the service the next time round.
+            - name: Wake the shared sandbox tier (RDS, NAT, and the identity service previews sign in to)
+              run: |
+                  set -euo pipefail
+                  FN=$(bash .github/scripts/cfn-export.sh 'kitchensink-sandbox-scheduler-sandbox:SchedulerFunctionName')
+                  if [ -z "$FN" ] || [ "$FN" = 'None' ]; then
+                      echo '::error::sandbox scheduler function not found — deploy packages/infra/global at stage sandbox first. Without it the shared identity service stays at zero and this preview could not be signed into.' >&2
+                      exit 1
+                  fi
+                  echo "invoking ${FN} {action:start}"
+                  aws lambda invoke --function-name "$FN" \
+                    --payload '{"action":"start"}' --cli-binary-format raw-in-base64-out \
+                    /tmp/sandbox-start.json >/dev/null
+                  echo "result: $(cat /tmp/sandbox-start.json)"
+                  # A service the scheduler could not restore is reported, not swallowed: `runStart` skips a
+                  # service with no stored prior count rather than guessing, and that skip is exactly the
+                  # state in which sign-in silently fails.
+                  if grep -q 'no stored prior desired count' /tmp/sandbox-start.json; then
+                      echo '::error::the scheduler could not restore a sandbox service (no stored prior desired count) — sign-in for this preview will fail until it is scaled by hand' >&2
+                      exit 1
+                  fi
 
             # `deploy-gate.sh` sees `forced=true` for a dispatch, so these deploy unconditionally — the press
             # IS the intent. SANDBOX_EXPIRES_AT rides through to the CDK app, which tags every stack with it.

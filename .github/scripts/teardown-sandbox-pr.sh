@@ -174,14 +174,28 @@ if [ -n "$FN" ] && [ "$FN" != "None" ]; then
     echo "[food-db] invoking $FN with {action:drop} to drop kitchensink_food_${PR//-/_}"
     if aws lambda invoke --region "$REGION" --function-name "$FN" \
         --payload '{"action":"drop"}' --cli-binary-format raw-in-base64-out \
-        /tmp/food-drop-result.json >/tmp/food-drop-invoke.json 2>/dev/null; then
+        /tmp/food-drop-result.json >/tmp/food-drop-invoke.json 2>/tmp/food-drop-invoke.err; then
         if grep -q '"FunctionError"' /tmp/food-drop-invoke.json; then
             echo "::warning::food DB drop for $PR returned a FunctionError — inspect $FN logs"
         else
             echo "[food-db] drop result: $(cat /tmp/food-drop-result.json)"
         fi
     else
-        echo "::warning::could not invoke $FN to drop the per-PR food DB — drop it manually"
+        # ⚠️ PRINT THE REASON. This branch used to send stderr to /dev/null and say only "drop it
+        # manually", which cost a real diagnosis on 2026-08-27: the invoke was failing with
+        # `Unknown options: --cli-binary-format` because the operator's shell resolved AWS CLI **v1**,
+        # where that flag does not exist. The message named the database and the function but not the one
+        # fact that identified the cause in seconds. The per-PR database leaked, silently, and the reason
+        # was three characters of redirection away.
+        #
+        # This is the LAST chance to drop it: the migration runner is torn down with the food stack a few
+        # sections below, and it is the only thing that can reach the PRIVATE_ISOLATED RDS. Once it is gone
+        # the database can only be removed by deploying a food service at that stage again.
+        echo "::warning::could not invoke $FN to drop the per-PR food DB — kitchensink_food_${PR//-/_} will be left behind"
+        sed 's/^/  [food-db] /' /tmp/food-drop-invoke.err >&2 || true
+        if grep -q 'cli-binary-format' /tmp/food-drop-invoke.err 2>/dev/null; then
+            echo "::error::this shell's \`aws\` is CLI v1 (\`--cli-binary-format\` is v2-only). Re-run with AWS CLI v2 — the drop is not retried after the stack is deleted." >&2
+        fi
     fi
 else
     echo "No food migration function for $PR (stack $STACK absent) — nothing to drop."

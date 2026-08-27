@@ -1,12 +1,13 @@
 import {
+    CfnOutput,
     Duration,
     Stack,
-    type StackProps,
     TimeZone,
     aws_iam as iam,
     aws_lambda as lambda,
     aws_scheduler as scheduler,
     aws_scheduler_targets as schedulerTargets,
+    type StackProps,
 } from 'aws-cdk-lib';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -82,6 +83,19 @@ export class SandboxSchedulerStack extends Stack {
             description: `Sandbox nightly stop/start controller (${props.stage})`,
         });
         this.schedulerFunctionName = schedulerFn.functionName;
+
+        // ADR-0028 — the on-demand button (`sandbox-up.yml`) and the hourly reconciler
+        // (`sandbox-reconcile.yml`) both drive this function, so they have to find it by name.
+        //
+        // ⚠️ Exported rather than pattern-matched on purpose. Those two workflows must NOT reimplement
+        // stop/start with raw `aws ecs update-service` calls — `runStop` records each service's prior
+        // desired count in SSM and `runStart` refuses to guess when it is missing, so a caller that skips
+        // the bookkeeping strands the shared sandbox identity service at zero and kills sign-in for every
+        // preview. Making the function easy to invoke is what makes doing it correctly the easy path.
+        new CfnOutput(this, 'SchedulerFunctionName', {
+            value: schedulerFn.functionName,
+            exportName: `${this.stackName}:SchedulerFunctionName`,
+        });
 
         // ── Least-privilege IAM ─────────────────────────────────────────────────────────────────
         // Read-only discovery actions do not support resource-level scoping, so they use `*`; every

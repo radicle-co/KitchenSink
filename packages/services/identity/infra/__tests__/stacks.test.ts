@@ -333,7 +333,12 @@ describe('Per-stage Fargate Spot (ADR-0008)', () => {
     });
 });
 
-describe('Per-stage Container Insights (ADR-0007)', () => {
+/**
+ * REWRITTEN 2026-08-27 — the prod case asserted `enhanced` and now asserts `enabled`. See the note on the
+ * matching block in FoodServiceStack.test.ts: ADR-0007 exempted prod from the ENHANCED→STANDARD drop, and
+ * that exemption became 81% of a $155/mo CloudWatch bill via the unbounded `TaskId` dimension.
+ */
+describe('Per-stage Container Insights (ADR-0007, amended 2026-08-27)', () => {
     const insightsValue = (template: Template): string => {
         const clusters = Object.values(template.findResources('AWS::ECS::Cluster'));
         const setting = (clusters[0] as any).Properties.ClusterSettings.find(
@@ -343,11 +348,11 @@ describe('Per-stage Container Insights (ADR-0007)', () => {
         return setting.Value;
     };
 
-    it('drops the non-prod (test) identity cluster to STANDARD', () => {
+    it('keeps the non-prod (test) identity cluster on STANDARD', () => {
         expect(insightsValue(serviceTemplate)).toBe('enabled');
     });
 
-    it('keeps ENHANCED Container Insights for prod', () => {
+    it('runs prod on the STANDARD tier, never ENHANCED', () => {
         const app = new App({
             context: {
                 'vpc-provider:account=123456789012:filter.vpc-id=vpc-12345678:region=us-east-1:returnAsymmetricSubnets=true':
@@ -394,7 +399,7 @@ describe('Per-stage Container Insights (ADR-0007)', () => {
             vpcId: 'vpc-12345678',
         });
 
-        expect(insightsValue(Template.fromStack(prodService))).toBe('enhanced');
+        expect(insightsValue(Template.fromStack(prodService))).toBe('enabled');
     });
 });
 

@@ -875,3 +875,34 @@ describe('the in-deploy schema-migration gate (ECS must not serve before the sch
         expect(trigger?.Properties?.['ExecuteOnHandlerChange']).toBe(true);
     });
 });
+
+// ── ADR-0007: per-stage Container Insights ───────────────────────────────────────────────────────
+/**
+ * ADDED 2026-08-27. This stack had NO Container Insights coverage while its sibling stacks (food, identity)
+ * both did — and it silently carried the same `stage === 'prod' ? ENHANCED : ENABLED` ternary, so its prod
+ * cluster contributed 118 of the 2,048 enhanced-only `ECS/ContainerInsights` series that made CloudWatch 32%
+ * of the August 2026 bill.
+ *
+ * That gap is the point: the tier decision was triplicated across three stacks and asserted in two, so a
+ * copy could drift without any test noticing. The decision now lives once in `containerInsightsForStage`
+ * (@kitchensink/infra-security); these assertions prove the resolved tier reaches THIS stack's cluster.
+ */
+describe('Per-stage Container Insights (ADR-0007, amended 2026-08-27)', () => {
+    const insightsOf = (template: Template, value: string): void => {
+        template.hasResourceProperties('AWS::ECS::Cluster', {
+            ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: value })]),
+        });
+    };
+
+    it('runs the prod cluster on the STANDARD tier, never ENHANCED', () => {
+        insightsOf(synthTemplate('prod', 'prod'), 'enabled');
+    });
+
+    it('disables Container Insights entirely for an ephemeral pr-{N} cluster', () => {
+        insightsOf(synthTemplate('pr-7', 'sandbox'), 'disabled');
+    });
+
+    it('keeps the STANDARD tier for a named non-prod stage', () => {
+        insightsOf(synthTemplate('sandbox', 'sandbox'), 'enabled');
+    });
+});

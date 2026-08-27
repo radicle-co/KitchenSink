@@ -39,6 +39,7 @@ import {
     AcceptedNagFindings,
     NODE_LAMBDA_RUNTIME,
     acceptNagFindings,
+    containerInsightsForStage,
     subscribeAlarmEmail,
 } from '@kitchensink/infra-security';
 
@@ -165,10 +166,11 @@ export class IdentityServiceStack extends Stack {
 
         const cluster = new ecs.Cluster(this, 'IdentityServiceCluster', {
             vpc,
-            // Per-stage observability depth (ADR-0007). Prod keeps ENHANCED (unchanged → no prod diff);
-            // non-prod stages drop to the STANDARD tier — `ENABLED` (CFN `enabled`) is base Container
-            // Insights, priced well below the ENHANCED tier.
-            containerInsightsV2: stage === 'prod' ? ecs.ContainerInsights.ENHANCED : ecs.ContainerInsights.ENABLED,
+            // Per-stage observability depth (ADR-0007, amended 2026-08-27). ONE resolver shared by all three
+            // service stacks — prod and named non-prod run the STANDARD tier, `pr-{N}` runs none, and NO stage
+            // resolves to ENHANCED any more. ENHANCED's unbounded `TaskId` dimension was 81% of a $155/mo
+            // CloudWatch bill; see containerInsights.ts for the measurement.
+            containerInsightsV2: containerInsightsForStage(stage),
             // ADR-0008: advertise the FARGATE_SPOT capacity provider for non-prod only. `false` (prod)
             // creates no ClusterCapacityProviderAssociations resource, so the prod template is unchanged.
             enableFargateCapacityProviders: useSpot,

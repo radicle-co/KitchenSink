@@ -105,3 +105,88 @@ it), and the identity migration runner — which had returned `TimeoutError` min
 **Residual risk.** The CI credentials must carry `ec2:DescribeInstances` and `ec2:StartInstances`; they
 deploy the VPC that owns the NAT, so they do today, but a future least-privilege pass on those keys must
 keep them. The failure mode is loud (an `::error::` naming the instance), not silent.
+
+---
+
+## Update (2026-08-27) — the prod exemption became the cost, and is withdrawn
+
+**This ADR's Decision §1 said Container Insights is `prod → ENHANCED` (unchanged), non-prod → STANDARD.
+The prod half is now withdrawn: NO stage runs ENHANCED.**
+
+The exemption was written for a good reason — keep the prod synthesized template diff-free (ADR-0002
+discipline). But it exempted the half where the cost actually lived, and this ADR's own Context already
+names the tier as "priced well above the STANDARD tier" while leaving prod on it. Fourteen months of
+service growth later, that is the single largest line on the bill.
+
+**Measured 2026-08-27** (Cost Explorer + `cloudwatch list-metrics`, us-east-1):
+
+|               | June 2026 | July 2026 | Aug 1–27    |
+| ------------- | --------- | --------- | ----------- |
+| CloudWatch    | $11.33    | $41.26    | **$155.30** |
+| account total | $26.79    | $243.52   | $483.61     |
+
+**94% of the August CloudWatch spend ($146.50) is custom-metric storage, not logs.** Log ingestion sits
+inside the free tier; deleting log groups saves approximately nothing. The two billed operations are
+`MetricStorage:AWS/Logs-EMF` ($116.61) and `MetricStorage:CI-ECS` ($29.89) — both Container Insights,
+which on ECS Fargate publishes through EMF into `/aws/ecs/containerinsights/<cluster>/performance`.
+
+**Why ENHANCED specifically.** It adds `TaskId` and `ContainerName` dimensions. `TaskId` is **unbounded
+cardinality**: each task launch mints ~23 brand-new billable custom metrics that never merge with the ones
+the previous task created. Of 2,526 live `ECS/ContainerInsights` series, **2,048 (81%) existed only because
+the three prod clusters were ENHANCED**:
+
+| cluster                       | tier     | survives as STANDARD | added by ENHANCED |
+| ----------------------------- | -------- | -------------------- | ----------------- |
+| `food-service-prod`           | ENHANCED | 102                  | **1,812**         |
+| `identity-service-prod`       | ENHANCED | 58                   | 118               |
+| `recipe-service-prod`         | ENHANCED | 58                   | 118               |
+| `pr-91`, `pr-92` (4 clusters) | STANDARD | 222                  | 0                 |
+
+`food-service-prod` alone is 88% of the waste, and the mechanism is this ADR's blind spot rather than
+traffic: **`FoodChangeRefresh` runs on `rate(6 hours)`, so 56 of the 70 task IDs observed in a two-week
+window came from one scheduled batch job** whose per-task metrics nobody reads. A tier priced per metric
+series meets a workload that mints a new series four times a day.
+
+### Decision
+
+1. **Container Insights is `pr-{N}` → DISABLED, every named stage (prod included) → STANDARD.** ENHANCED
+   is no longer reachable from any stage.
+2. **The tier decision lives in ONE place** — `containerInsightsForStage`
+   (`packages/infra/security/src/containerInsights.ts`) — not a ternary repeated in three stacks.
+
+**Why `pr-{N}` drops to nothing rather than STANDARD.** A preview is observed by its CI smoke test and by a
+human reading the PR; neither queries ECS cluster metrics. STANDARD still costs ~111 series per open PR
+(food + recipe). On 2026-08-02 seven PRs (77–83) spun up fourteen clusters within nine hours and took daily
+CloudWatch spend from $1.75 to $13.07 until they were torn down on Aug 11 — visible as a discrete step in
+the daily series, and the reason the $155 August figure overstates the steady state.
+
+**Why one resolver.** "Which observability tier does stage X get" is one piece of knowledge with one reason
+to change, and it was spelled out identically in three CDK stacks — the third occurrence with a proven
+shared reason to change, which is the bar CLAUDE.md sets for extracting. It was also already drifting in the
+way ADR-0003's priority tables drifted: `recipe-service` carried the same ternary with **no test asserting
+it at all**, while food and identity both had one. A copy of a rule cannot detect that the rule moved.
+
+**Why ENHANCED is unreachable rather than flag-guarded.** A knob no caller sets is a presumptive feature
+(YAGNI). Re-enabling the tier for a debugging session is a one-line edit; leaving a ~$100/mo default one
+typo away is not cheap.
+
+### Consequences
+
+- Expected saving **~$101/mo** (81% of the $124/mo current run-rate), taking CloudWatch to roughly $23/mo.
+  This is a **series-proportional estimate**: custom metrics are prorated hourly, so short-lived `TaskId`
+  metrics cost less per series than continuously-running ones and the realised figure will land somewhat
+  lower. Direction and magnitude are solid; the exact number is not asserted.
+- **The prod template now DIFFS** — deliberately, reversing this ADR's original no-prod-diff stance for this
+  one property. `ClusterSettings` is an in-place update on `AWS::ECS::Cluster`; no cluster is replaced and no
+  task is restarted by the change itself.
+- **Per-task and per-container metrics are lost on prod.** Cluster- and service-level metrics remain. This is
+  the accepted trade: nothing in this repo alarms or dashboards on `TaskId`, verified before the change.
+- **Existing `TaskId` series cannot be deleted** — CloudWatch exposes no delete-metric API; they stop
+  receiving data, stop billing (prorated), and age out after 15 months. The saving appears as the emitters
+  stop, not as a cleanup.
+- **PR previews lose ECS cluster metrics entirely.** A preview debugged via cluster CPU/memory now needs the
+  service logs instead, or a one-line temporary flip.
+
+**Residual risk.** Nothing here addresses the other two growth lines — ECS ($21 → $40 → $119) and VPC
+($16 → $41 → $74) — which together still exceed the `kitchensink-monthly-cost` $300 budget (August actual
+$483.61, forecast $560.84). This change recovers ~$101/mo of a ~$260/mo overage.

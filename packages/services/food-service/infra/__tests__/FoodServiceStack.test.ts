@@ -761,21 +761,37 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
 });
 
 // ── ADR-0007: per-stage Container Insights ───────────────────────────────────────────────────────
-describe('Per-stage Container Insights (ADR-0007)', () => {
-    it('runs the prod cluster with ENHANCED Container Insights', () => {
-        const template = synthFoodTemplate('prod', 'prod');
-
+/**
+ * REWRITTEN 2026-08-27. The prod case previously asserted `enhanced`; it now asserts `enabled`, and a
+ * `disabled` case was added for `pr-{N}`.
+ *
+ * This is a behaviour change, not a weakened assertion. ADR-0007 left prod on the ENHANCED tier to keep the
+ * prod template diff-free, and the cost it was chasing moved into that exemption: by 2026-08 the three prod
+ * clusters accounted for 2,048 of 2,526 `ECS/ContainerInsights` series (81%), because ENHANCED adds the
+ * unbounded-cardinality `TaskId` dimension. 1,812 of those were `food-service-prod` alone, where
+ * `FoodChangeRefresh` mints a fresh task — and therefore ~23 fresh billable custom metrics — every 6 hours.
+ *
+ * The tier decision now lives in ONE place, `containerInsightsForStage` (@kitchensink/infra-security), whose
+ * own suite proves the mapping. What these assertions add is that the resolved tier actually REACHES
+ * `ClusterSettings` on this stack's cluster — a synth-level fact the resolver's unit test cannot observe.
+ */
+describe('Per-stage Container Insights (ADR-0007, amended 2026-08-27)', () => {
+    const insightsOf = (template: Template, value: string): void => {
         template.hasResourceProperties('AWS::ECS::Cluster', {
-            ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: 'enhanced' })]),
+            ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: value })]),
         });
+    };
+
+    it('runs the prod cluster on the STANDARD tier, never ENHANCED', () => {
+        insightsOf(synthFoodTemplate('prod', 'prod'), 'enabled');
     });
 
-    it('drops non-prod clusters to STANDARD Container Insights', () => {
-        const template = synthFoodTemplate('pr-7', 'sandbox');
+    it('disables Container Insights entirely for an ephemeral pr-{N} cluster', () => {
+        insightsOf(synthFoodTemplate('pr-7', 'sandbox'), 'disabled');
+    });
 
-        template.hasResourceProperties('AWS::ECS::Cluster', {
-            ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: 'enabled' })]),
-        });
+    it('keeps the STANDARD tier for a named non-prod stage', () => {
+        insightsOf(synthFoodTemplate('sandbox', 'sandbox'), 'enabled');
     });
 });
 

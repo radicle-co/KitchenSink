@@ -29,11 +29,26 @@ import path from 'path';
  */
 export const CDK_SYNTH_TEST_TIMEOUT_MS = 30_000;
 
+/**
+ * Absolute path to the temp-root `globalSetup`, for configs that do not merge {@link baseConfig}.
+ *
+ * ⛔ A RESOLVED PATH, not the bare specifier `@kitchensink/vitest/testTempRoot.js`. Vitest treats
+ * `globalSetup` entries as FILE PATHS relative to the project root, not as module specifiers, so the bare
+ * form resolves to `<package>/@kitchensink/vitest/testTempRoot.js` and fails at run time with `ERR_LOAD_URL`.
+ * Exporting the resolved path also makes a missing wire a COMPILE error at the import rather than a runtime
+ * one in a suite nobody reads the stderr of.
+ */
+export const testTempRootSetup = path.resolve(import.meta.dirname, 'testTempRoot.js');
+
 export const baseConfig = {
     test: {
         globals: true,
         include: ['**/__tests__/**/*.test.{ts,tsx}'],
         exclude: ['node_modules', 'dist'],
+        // ⛔ Confines every temp directory this run creates to one removable root — see `testTempRoot.js`.
+        // Without it, CDK's own `cdk.out*` synth dirs and our `mkdtempSync(tmpdir())` fixtures accumulate in
+        // the OS temp directory forever: measured at 95,827 leaked directories and 110 GB on 2026-08-27.
+        globalSetup: [path.resolve(import.meta.dirname, 'testTempRoot.js')],
         pool: {
             forks: {
                 execArgv: ['--enable-source-maps'],

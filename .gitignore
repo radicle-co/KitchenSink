@@ -153,3 +153,6 @@ tmp/
 # Python bytecode — the handler is imported by its integration tier and by the packaging guard.
 __pycache__/
 *.py[cod]
+
+# Test-created temp directories, confined here by @kitchensink/vitest so they can be removed.
+.tmp-test/

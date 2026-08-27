@@ -1,3 +1,4 @@
+import { testTempRootSetup } from '@kitchensink/vitest';
 /**
  * Vitest config for @commise/web's INTEGRATION tier.
  *
@@ -20,6 +21,9 @@ const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 export default defineConfig({
     plugins: [react()],
     test: {
+        // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+        // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+        globalSetup: [testTempRootSetup],
         include: ['tests/__integration__/**/*.integration.test.ts', 'tests/__integration__/**/*.integration.test.tsx'],
         exclude: ['node_modules', 'dist'],
         environment: 'jsdom',

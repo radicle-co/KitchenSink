@@ -19,3 +19,5 @@ export declare const baseConfig: {
     };
 };
 export default baseConfig;
+/** Absolute path to the temp-root `globalSetup`. */
+export declare const testTempRootSetup: string;

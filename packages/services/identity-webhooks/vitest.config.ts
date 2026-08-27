@@ -1,5 +1,5 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
-import { baseConfig } from '@kitchensink/vitest';
+import { baseConfig, testTempRootSetup } from '@kitchensink/vitest';
 
 /**
  * Unit-test config. The shared `baseConfig` include (`**​/__tests__/**​/*.test.{ts,tsx}`) already cannot
@@ -14,6 +14,9 @@ export default mergeConfig(
     baseConfig,
     defineConfig({
         test: {
+            // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+            // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+            globalSetup: [testTempRootSetup],
             exclude: ['tests/**'],
             passWithNoTests: true,
         },

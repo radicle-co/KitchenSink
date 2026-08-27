@@ -83,10 +83,15 @@ describe('createLlmEngine', () => {
     });
 
     it('returns one answer per line, in the order the lines were given', async () => {
+        // ⛔ DISCRIMINATE ON THE USER TURN, never on the serialized whole request. This fake keyed on
+        // `JSON.stringify(input).includes('sugar')`, which was unambiguous only while the system prompt was
+        // 511 bytes. The shipped prompt is now 19,777 characters carrying 35 worked examples — and one of
+        // them says "sugar" — so every call matched and both lines came back as sugar. The engine was fine;
+        // the fixture was reading a keyword out of OUR OWN instructions.
         const { engine } = makeEngine((input) => {
-            const message = JSON.stringify(input);
+            const userTurn = JSON.stringify((input as { messages?: unknown }).messages ?? '');
 
-            return answer(document(message.includes('sugar') ? 'sugar' : 'butter'));
+            return answer(document(userTurn.includes('sugar') ? 'sugar' : 'butter'));
         });
         const answers = await engine.parse(['1 tablespoon butter', '2 cups sugar']);
 

@@ -810,6 +810,65 @@ rescues it because `readStatedMeasure` finds no unit there. Closing it means rul
 adjacent number is **stated**, which lives in the PRODUCTION reader and is not U37's to take. Still open,
 still pinned.
 
+### 9. Update (2026-08-27) — the shipped prompt and model BOTH changed, so every rate below is historical
+
+⛔ **EVERY MEASURED FIGURE IN THIS ADR WAS TAKEN AGAINST A PROMPT AND A MODEL THAT NO LONGER SHIP.** The 115
+rescue lines, the `crfUnitAbsent` population, the agreement census, the 53 bare-number lines of §8, the 1,975
+replayed answers of §8b — all of them were measured with the **511-byte** prompt (SHA-256
+`4ea63a78…`) against **Nova Micro**. On 2026-08-27 the shipped leg became the **19,777-character** v5-static
+prompt against **Nova 2 Lite** on the `flex` tier. The RULINGS below stand; the RATES do not describe the
+running system and must be re-measured before any of them is quoted as current.
+
+⚠️ The bake-off's `v1` arm was `PARSE_SYSTEM_PROMPT` **by reference**, on the stated grounds that _"a copy
+would drift and the baseline column would silently stop being the baseline."_ That reasoning **inverted** the
+moment the shipped prompt moved: by-reference is now what makes the baseline drift. `v1` is therefore frozen
+as a literal, recovered from git and verified by digest, and arms v1–v5 keep their own `<ingredient_line>`
+delimiter — the shipped turn is now `<input>`, and showing a historical arm a delimiter its own instructions
+never mention would make every recorded figure un-reproducible.
+
+#### What replaced the leg
+
+The answer document is now a **root ARRAY of relational records** — `{food_items, measurement{quantity, unit,
+unit_type}, preparations, equipment}` — rather than the flat `{measure, foods[{name, prep}]}`. `LlmParse`'s
+shape did not change, so `promoteLlmParse`, the comparator and every downstream consumer needed no edit.
+
+Selection was made on an **external, human-adjudicated gold set** (144 ingredient + 210 instruction lines),
+which is the oracle §3's residual risk records as missing: Nova 2 Lite scores **84% / 53%** exact against
+Nova Micro's **64% / 30%** on the same prompt. Model choice moved accuracy ~20 points where eight rounds of
+prompt revision moved three.
+
+⚠️ **That gold set does NOT settle CRF-versus-LLM.** Its ingredient half is built from `training.sqlite3` —
+the corpus `ingredient-parser-nlp` itself trains on — so scoring our CRF against it would flatter the engine
+with its own training data. Only the **525 instruction lines** are clean. And it is modern recipe text: it
+tests nothing about `saltspoon`, `one and a half quarts`, or any historical unit this ADR rules on.
+
+### 9a. THE MODEL'S OWN QUANTITY AND UNIT ARE KEPT SEPARATE — rejoining them lost the unit on 32.7% of lines
+
+⛔ **Owner ruling 2026-08-27: "handfuls is fine as a unit."** The first implementation rejoined the model's
+`quantity` and `unit` into one phrase and re-read it with the SHARED `readStatedMeasure`, on the sound-looking
+grounds that both adapters must be _"shaped identically… same measure reader."_ Measured over the gold set,
+that **dropped the unit on 67 of 205 records — 32.7%**: `16 slices`, `2 handfuls`, `1 heaped tbsp`, `2 firmly
+packed tablespoons` all stored `unit: null`. The model had already split them correctly; `parseIngredientLine`
+is built for RAW lines and discards what it cannot read as a leading quantity, so putting a correct split back
+through it can only destroy information.
+
+⛔ **The shared-vocabulary property is preserved where it actually lives — the NORMALISATION, not the phrase
+parsing.** The CRF hands over a phrase and must have it parsed; the model hands over a split. Both units still
+land in one vocabulary via `normalizeUnit`, which is TOTAL: an unrecognised word is de-pluralised and KEPT,
+never rejected. `classifyUnit` already recorded the ruling — a cook _"may write anything in the unit field…
+and the wire stores it unchanged"_ — and an unconvertible unit still fails SAFE to null grams, exactly as
+`small`/`large` do under §8.
+
+⛔ **`undefined` and `null` are DIFFERENT ANSWERS on `statedQuantity`/`statedUnit`, and collapsing them is the
+bug this note exists to prevent.** `undefined` means _"this producer has no such slot — derive from the
+phrase"_, which is every pre-v5 caller and every bake-off arm. `null` means _"it HAS the slot and read nothing
+there"_, which is a reading taken at face value. Collapsing them re-derives on exactly the lines where the
+model disagreed with our derivation — the same distinction `VariantParse.statedUnit` already documents.
+
+⛔ **The two halves are INDEPENDENT.** A producer may state a unit and no amount — a bake-off arm with a unit
+slot but no quantity slot does exactly that. A single `splitSupplied` flag governing both was written first
+and published `ABSENT_QUANTITY` for numbers the phrase plainly stated.
+
 ## Consequences
 
 **Accepted:**

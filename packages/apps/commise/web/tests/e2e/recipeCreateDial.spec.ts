@@ -43,17 +43,22 @@ test.describe('create SpeedDial (U34)', () => {
 
         await trigger.click();
 
-        // ⚠️ REWRITTEN (this run). The old assertion here was `expect(trigger).toHaveAttribute(
-        // 'aria-expanded', 'true')`, which cannot hold in a real browser and never could: `SpeedDial.tsx`
-        // adapts `@radix-ui/react-dialog`, whose modal content calls `hideOthers(content)` — and the trigger
-        // lives OUTSIDE the content, so while the dial is open the trigger is `aria-hidden` and no role query
-        // can reach it. That is DEVIATION 2 recorded in that module's own docstring, an accepted consequence
-        // of the adapter (and harmless in practice: while the dial is open, focus is trapped inside it).
+        // ⛔ THE FLIP CONDITION FIRED, and this is the assertion it was waiting for (2026-08-27).
         //
-        // So the deviation is asserted instead of asserting against it — a checked property rather than a
-        // comment. The day the flip condition fires and this becomes `@radix-ui/react-dropdown-menu`, whose
-        // trigger stays exposed, THIS assertion fails and points at the docstring that predicted it.
-        await expect(trigger).toHaveCount(0);
+        // This read `await expect(trigger).toHaveCount(0)` and carried a note that it was asserting a
+        // DEVIATION rather than a property: `SpeedDial.tsx` adapted `@radix-ui/react-dialog`, whose modal
+        // content calls `hideOthers(content)`, and the trigger lives OUTSIDE that content — so while the
+        // dial was open the trigger was `aria-hidden` and `aria-expanded` was correct in the DOM and
+        // unreachable to a screen reader. That note predicted its own replacement: "the day the flip
+        // condition fires and this becomes `@radix-ui/react-dropdown-menu`, whose trigger stays exposed,
+        // THIS assertion fails and points at the docstring that predicted it." It did, and it is.
+        //
+        // ⚠️ `modal={false}` is what earns the property — not the swap alone. `MenuRootContentModal` calls
+        // the SAME `hideOthers`, and `DropdownMenu.Root`'s `modal` defaults to TRUE, so a naive swap would
+        // have kept the deviation while looking like a fix. Verified in a real browser here, which is the
+        // only place `aria-hidden` reachability can be checked at all.
+        await expect(trigger).toBeVisible();
+        await expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
         const menu = page.getByRole('menu', { name: 'Create a recipe' });
         await expect(menu).toBeVisible();

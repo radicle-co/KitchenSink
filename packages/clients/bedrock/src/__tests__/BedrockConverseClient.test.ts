@@ -380,3 +380,51 @@ describe('createBedrockTransport', () => {
         expect(createBedrockTransport({ region: 'us-east-1' }).client.config.serviceId).toBe('Bedrock Runtime');
     });
 });
+
+describe('cachePoint and serviceTier — the two levers the shipped parse call needs', () => {
+    /**
+     * ⛔ THE 19,777-CHARACTER SYSTEM PROMPT IS 99% OF THE BILL. Measured on Nova 2 Lite: 5,025 prompt tokens
+     * against 13 tokens of line and 37 of answer. Without a cache checkpoint every call pays all 5,025 as
+     * fresh input; with one they are cache READS at 25% of that rate, and Nova bills cache WRITES at zero.
+     */
+    it('places the cachePoint AFTER the system text, so the whole prompt is the cached prefix', async () => {
+        const transport = transportReturning(NOVA_TEXT_RESPONSE);
+
+        await createBedrockConverseClient(transport.send).converse({ ...REQUEST, cachePrompt: true });
+
+        expect(transport.calls[0]?.system).toEqual([
+            { text: REQUEST.systemPrompt },
+            { cachePoint: { type: 'default' } },
+        ]);
+    });
+
+    it('omits the cachePoint entirely when it was not asked for', async () => {
+        const transport = transportReturning(NOVA_TEXT_RESPONSE);
+
+        await createBedrockConverseClient(transport.send).converse(REQUEST);
+
+        expect(transport.calls[0]?.system).toEqual([{ text: REQUEST.systemPrompt }]);
+    });
+
+    /**
+     * ⛔ `flex` IS HALF PRICE AND KEEPS THE CACHE — the distinction that rules batch out. AWS documents prompt
+     * caching as supported "only for on-demand inference endpoints… not with the batch inference API", so the
+     * batch tier's 50% would be bought by surrendering the 75% cache discount and would cost MORE per line.
+     * Verified live 2026-08-27: flex is accepted, echoed back, and reports the same `cacheReadInputTokens`.
+     */
+    it('passes the service tier through when one is named', async () => {
+        const transport = transportReturning(NOVA_TEXT_RESPONSE);
+
+        await createBedrockConverseClient(transport.send).converse({ ...REQUEST, serviceTier: 'flex' });
+
+        expect(transport.calls[0]?.serviceTier).toEqual({ type: 'flex' });
+    });
+
+    it('omits the tier entirely when none is named, leaving the account default', async () => {
+        const transport = transportReturning(NOVA_TEXT_RESPONSE);
+
+        await createBedrockConverseClient(transport.send).converse(REQUEST);
+
+        expect(transport.calls[0]).not.toHaveProperty('serviceTier');
+    });
+});

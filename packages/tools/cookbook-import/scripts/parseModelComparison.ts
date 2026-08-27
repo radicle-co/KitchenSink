@@ -84,6 +84,7 @@ import {
 import type { DeterminismPair, DeterminismPass } from '../src/parseComparison/parseComparisonReport.js';
 import { MAX_PARSE_PROMPT_CHARS, PARSE_MAX_OUTPUT_TOKENS } from '../src/parseComparison/parsePrompt.js';
 import { resolveParseVariant } from '../src/parseComparison/promptVariant.js';
+import type { ParseVariant } from '../src/parseComparison/promptVariant.js';
 import { runParseTrial, type ParseTrialRecord } from '../src/parseComparison/runParseTrial.js';
 import { toCandidateRecipe, type RecipeCandidateOutcome } from '../src/proseRecipe.js';
 
@@ -159,7 +160,7 @@ async function main(): Promise<void> {
     );
 
     process.stderr.write(`prompt arm: ${variant.id} — ${variant.summary} (unit is ${variant.unitSource})\n`);
-    estimateWorstCase(models, corpus.length, sampleSize, askedConcurrency);
+    estimateWorstCase(models, corpus.length, sampleSize, askedConcurrency, variant);
 
     process.stderr.write('parsing the corpus with the CRF model...\n');
     const crfByLine = await crfIndex(corpus);
@@ -232,8 +233,8 @@ async function main(): Promise<void> {
             skipReasons: harvest.skipReasons,
             extractedClauses: harvest.clauses.length,
         },
-        promptChars: MAX_PARSE_PROMPT_CHARS,
-        maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
+        promptChars: variant.promptCharCap ?? MAX_PARSE_PROMPT_CHARS,
+        maxOutputTokens: variant.maxOutputTokens ?? PARSE_MAX_OUTPUT_TOKENS,
         models: summarizeParseComparison(trials, models),
         determinism: summarizeDeterminism(pairs, models),
         firstPassCostMicros: trials.reduce((sum, trial) => sum + trial.costMicros, 0),
@@ -337,7 +338,13 @@ function hasParse(entry: readonly [string, CrfParse | undefined]): entry is read
  *
  * @sideEffect Writes to stderr.
  */
-function estimateWorstCase(models: readonly string[], lines: number, sampleSize: number, concurrency: number): void {
+function estimateWorstCase(
+    models: readonly string[],
+    lines: number,
+    sampleSize: number,
+    concurrency: number,
+    variant: ParseVariant,
+): void {
     const calls = plannedCalls(lines, sampleSize);
     let total = 0;
 
@@ -348,7 +355,15 @@ function estimateWorstCase(models: readonly string[], lines: number, sampleSize:
             throw new Error(`parseComparison: ${modelId} is not priced in BEDROCK_MODEL_REGISTRY`);
         }
 
-        total += calls * worstCaseMicros(rate, MAX_PARSE_PROMPT_CHARS, PARSE_MAX_OUTPUT_TOKENS);
+        // ⛔ The ARM's ceilings, so the printed bound actually bounds THIS run. v6's prompt is 1.8x the
+        // shipped cap and its output budget 3x, and a stale figure here would under-state the spend.
+        total +=
+            calls *
+            worstCaseMicros(
+                rate,
+                variant.promptCharCap ?? MAX_PARSE_PROMPT_CHARS,
+                variant.maxOutputTokens ?? PARSE_MAX_OUTPUT_TOKENS,
+            );
     }
 
     process.stderr.write(

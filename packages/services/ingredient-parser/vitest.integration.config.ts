@@ -1,7 +1,11 @@
+import { testTempRootSetup } from '@kitchensink/vitest';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
+        // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+        // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+        globalSetup: [testTempRootSetup],
         include: ['tests/**/*.integration.test.ts'],
         // ⚠️ Serial. Both suites shell out to `python3`, and the packaging tier REWRITES `build/asset` in its
         // `beforeAll` — a parallel run would have one file reading the tree another is deleting.

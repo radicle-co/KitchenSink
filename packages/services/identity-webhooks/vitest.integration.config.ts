@@ -1,3 +1,4 @@
+import { testTempRootSetup } from '@kitchensink/vitest';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -26,7 +27,10 @@ export default defineConfig({
     test: {
         include: ['tests/**/*.integration.test.ts'],
         exclude: ['node_modules', 'dist'],
-        globalSetup: ['./tests/globalSetup.ts'],
+        // ⛔ testTempRootSetup FIRST, and MERGED into this array rather than declared as a second
+        // `globalSetup` key — a duplicate key is not two hooks, it is one silently overwriting the other,
+        // and the one that lost would have been this suite's own database provisioning.
+        globalSetup: [testTempRootSetup, './tests/globalSetup.ts'],
         typecheck: { enabled: false },
         // One shared database + a per-file schema reset: keep the specs serial and unhurried.
         fileParallelism: false,

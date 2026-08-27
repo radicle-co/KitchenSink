@@ -73,6 +73,24 @@ export interface ConverseRequest {
     readonly maxOutputTokens: number;
     /** `inferenceConfig.temperature`. Omitted leaves the model's own default. */
     readonly temperature?: number | undefined;
+    /**
+     * Place a cache checkpoint after the system prompt, making the whole prompt the cached prefix.
+     *
+     * ⛔ NOT a default. Caching is only a saving when the system prompt is large and REPEATED verbatim; on a
+     * short or varying prompt a checkpoint buys nothing and, on models that bill writes, costs. The shipped
+     * parse leg sets it because its prompt is 19,777 characters — 5,025 tokens against 13 of line — where the
+     * cached read is 25% of the fresh rate and Nova bills the write at zero.
+     */
+    readonly cachePrompt?: boolean | undefined;
+    /**
+     * The service tier to bill and schedule this call under. Omitted leaves the account default.
+     *
+     * ⛔ `flex` is HALF PRICE AND KEEPS THE CACHE, which is what rules BATCH out: AWS documents prompt caching
+     * as supported "only for on-demand inference endpoints… not with the batch inference API". Buying batch's
+     * 50% by surrendering the 75% cache discount costs MORE per line on a prompt this size, so the cheap path
+     * is flex, not batch. Verified live 2026-08-27 against Nova 2 Lite.
+     */
+    readonly serviceTier?: 'flex' | 'priority' | 'default' | undefined;
 }
 
 /**
@@ -187,12 +205,21 @@ export function createBedrockConverseClient(send: ConverseTransport): BedrockCon
                 // not the model's id. Translating one vocabulary into the other is this adapter's job — the
                 // alternative, re-exporting the SDK's name, would make the whole distinction a convention.
                 modelId: request.invocationId,
-                system: [{ text: request.systemPrompt }],
+                // ⛔ The checkpoint goes AFTER the text, so the cached prefix is the WHOLE system prompt.
+                // Bedrock processes checkpoints `tools -> system -> messages` and an earlier section's change
+                // invalidates the later ones, so stable content must precede the point.
+                system:
+                    request.cachePrompt === true
+                        ? [{ text: request.systemPrompt }, { cachePoint: { type: 'default' } }]
+                        : [{ text: request.systemPrompt }],
                 messages: [{ role: 'user', content: [{ text: request.userMessage }] }],
                 inferenceConfig: {
                     maxTokens: request.maxOutputTokens,
                     ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
                 },
+                // Omitted rather than sent as 'default', so an account-level tier stays in force unless a
+                // caller deliberately overrides it.
+                ...(request.serviceTier === undefined ? {} : { serviceTier: { type: request.serviceTier } }),
             };
 
             let body: unknown;

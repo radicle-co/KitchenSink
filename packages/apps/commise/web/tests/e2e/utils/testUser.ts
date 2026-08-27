@@ -1,4 +1,5 @@
 import { createClerkClient } from '@clerk/backend';
+import { ulid } from 'ulidx';
 import { decodeJwt } from '@clerk/backend/jwt';
 
 import {
@@ -239,4 +240,50 @@ export async function deleteRunScopedE2EUsers({
     }
 
     return deleted;
+}
+
+/**
+ * Stand in for the sandbox `user.created` webhook, so browser tests need NO cloud infrastructure.
+ *
+ * ## ⛔ WHY THIS EXISTS
+ *
+ * {@link waitForTestUserExternalId} blocks until Clerk's user carries an `external_id` — the app-user ULID
+ * that owner-gated specs read out of the session token. Deployed, that claim is written by a chain of AWS
+ * resources: Clerk fires `user.created`, API Gateway invokes a VPC-attached Lambda, the Lambda reads the
+ * identity database and calls back into Clerk with the ULID it minted.
+ *
+ * ⚠️ The sandbox RDS and NAT that chain needs are ON-DEMAND by design — a deliberate cost measure, so
+ * `stopped` is their correct resting state and not an outage. Waking them to run a browser test that
+ * asserts FOCUS and ROUTING is paying for cloud infrastructure to supply one string.
+ *
+ * ## ⛔ WHAT IT DOES NOT PROVE
+ *
+ * It writes the same claim through the same Backend API, with the secret key this harness already holds.
+ * It does NOT exercise the webhook, the Lambda, or the identity database — so a local run proves nothing
+ * about identity SYNC and must never be read as though it had. That is CI's to prove against real
+ * infrastructure, which is why this is opt-in and never the default.
+ *
+ * ⚠️ The ULID is MINTED HERE and corresponds to no real app user. Every spec that relies on it mocks the
+ * recipe API (`utils/recipeApi`), so nothing downstream resolves it; the moment a spec talks to a real
+ * service this is the wrong tool and the sandbox is the right one.
+ *
+ * @param userId - The Clerk user to backfill.
+ * @returns The ULID now on the user.
+ * @sideEffect Writes `externalId` on a Clerk user via the Backend API.
+ */
+export async function backfillExternalIdLocally(userId: string): Promise<string> {
+    const clerk = client();
+    const existing = await clerk.users.getUser(userId);
+
+    // Idempotent: a re-run against a surviving fixture keeps the id the previous run minted, so a spec that
+    // cached it is never silently handed a different viewer.
+    if (typeof existing.externalId === 'string' && existing.externalId.length > 0) {
+        return existing.externalId;
+    }
+
+    const externalId = ulid();
+
+    await clerk.users.updateUser(userId, { externalId });
+
+    return externalId;
 }

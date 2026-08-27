@@ -25,6 +25,7 @@
  * placement decision, it is a FIELD the canonical shape refuses to have (U16), so the adapter has to put it
  * somewhere and identity is where the ruling puts it. The model has no `size` field at all.
  */
+import { normalizeUnit } from '@kitchensink/recipe-core';
 import type { LlmParse } from '@kitchensink/recipe-core/parsing/parse-answer';
 
 import type { ParsedFood, ParsedLine, ParseProvenance } from '../parsedLine.js';
@@ -63,16 +64,60 @@ function stated(value: string | null): string | null {
  */
 export function promoteLlmParse(parse: LlmParse, sourceLine: string): ParsedLine {
     const statedMeasure = stated(parse.statedMeasure);
-    const measure = readStatedMeasure(statedMeasure);
+    // ⛔ THE MODEL'S OWN SPLIT, not a re-derivation from the phrase (owner ruling 2026-08-27). Feeding the
+    // rejoined phrase back through `readStatedMeasure` — which parses it with `parseIngredientLine`, built
+    // for RAW lines — DROPPED the unit on 67 of 205 measured gold records (32.7%): `16 slices`, `2 handfuls`,
+    // `1 heaped tbsp`. The model had already split them correctly.
+    //
+    // ⚠️ THE SHARED VOCABULARY IS PRESERVED WHERE IT MATTERS. `promoteCrfReading` and this adapter must turn
+    // a fact into a value the same way — but the CRF hands over a PHRASE and must have it parsed, while the
+    // model hands over a SPLIT. The common step is the NORMALISATION (`normalizeUnit`, and the same amount
+    // reader), not the phrase parsing, so both engines' units still land in one vocabulary.
+    // ⛔ THE TWO HALVES ARE INDEPENDENT. A producer may state a unit and no amount — a bake-off arm with a
+    // unit slot but no quantity slot does exactly that — so one `splitSupplied` flag governing both would
+    // read the amount out of a field that producer never fills, and publish `absent` for a stated number.
+    //
+    // ⛔ `undefined` means "not stated by this producer — derive from the phrase", which is every pre-v5
+    // caller. `null` means "the producer HAS this slot and read nothing in it", which is a reading and is
+    // taken at face value. Collapsing them would silently re-derive on exactly the lines where the model
+    // disagreed with our derivation — the same distinction `VariantParse.statedUnit` already documents.
+    const measure =
+        parse.statedQuantity === undefined
+            ? readStatedMeasure(statedMeasure)
+            : readStatedMeasure(stated(parse.statedQuantity));
     const foods: readonly ParsedFood[] = parse.foods.map((food) => ({ name: food.name, prep: food.prep }));
 
     return {
         raw: sourceLine,
         statedMeasure,
         quantity: measure.quantity,
-        unit: measure.unit,
+        // ⚠️ `normalizeUnit` is TOTAL — an unrecognised word is de-pluralised and KEPT, never rejected, which
+        // is the ruling this line implements. An unconvertible unit still fails SAFE to null grams downstream.
+        unit: readUnit(parse.statedUnit, measure.unit),
         foods,
         reviewReasons: measure.reviewReasons,
         provenance: LLM_THROUGHOUT,
     };
+}
+
+/**
+ * The unit a producer STATED, or our derivation when it states none of its own.
+ *
+ * ⚠️ `normalizeUnit` is TOTAL — an unrecognised word is de-pluralised and KEPT, never rejected. That is the
+ * owner's 2026-08-27 ruling ("handfuls is fine as a unit") and the vocabulary already agreed with it:
+ * `classifyUnit` records that a cook "may write anything in the unit field… and the wire stores it
+ * unchanged". An unconvertible unit still fails SAFE to null grams downstream, as `small`/`large` do.
+ *
+ * @param stated - What the producer said, `null` if it read none, `undefined` if it has no unit slot.
+ * @param derived - The unit read out of the phrase, used only when the producer has no slot.
+ * @returns The canonical unit, or `null`. Pure.
+ */
+function readUnit(stated: string | null | undefined, derived: string | null): string | null {
+    if (stated === undefined) {
+        return derived;
+    }
+
+    const trimmed = stated?.trim() ?? '';
+
+    return trimmed === '' ? null : normalizeUnit(trimmed);
 }

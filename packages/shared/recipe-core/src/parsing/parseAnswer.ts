@@ -54,10 +54,31 @@ import { z } from 'zod';
  * WORDS, and a numeric measure is a reading of them — the reading is `quantity`'s job, downstream, where
  * `absent` is representable and a fabricated `1` is not (R40).
  */
-export const modelParseAnswerSchema = z.strictObject({
-    measure: z.string().nullable(),
-    foods: z.array(z.strictObject({ name: z.string(), prep: z.string().nullable() })),
+const modelParseRecordSchema = z.strictObject({
+    food_items: z.array(z.string()).nullable(),
+    measurement: z
+        .strictObject({
+            quantity: z.string().nullable(),
+            unit: z.string().nullable(),
+            // ⚠️ ANY string, not the prompt's six-value enum, and that is a DECISION. The projection DISCARDS
+            // this field, so enum-validating it would turn a usable parse into a contract failure over a value
+            // nothing reads. `strictObject` exists to refuse an EXTRA key — an injected instruction's echo
+            // riding in a field nothing reads — not to narrow a discarded one.
+            unit_type: z.string().nullable(),
+        })
+        .nullable(),
+    preparations: z.array(z.string()).nullable(),
+    equipment: z.array(z.string()).nullable(),
 });
+
+/**
+ * The answer shape, as the model is permitted to send it: a ROOT ARRAY of relational records.
+ *
+ * ⛔ An ARRAY, not an object. v5's declared document groups foods that share a measurement and a preparation
+ * into one record and SPLITS those that do not, so one line can legitimately produce several records. The
+ * empty array is a first-class answer — the prompt names it ("No culinary content → []").
+ */
+export const modelParseAnswerSchema = z.array(modelParseRecordSchema);
 
 /** What the model said, validated but not yet normalized. Internal to this boundary. */
 export type ModelParseAnswer = z.infer<typeof modelParseAnswerSchema>;
@@ -81,6 +102,32 @@ export interface LlmParsedFood {
 export interface LlmParse {
     /** The measure phrase exactly as the line stated it, trimmed, or `null` when it stated none. Never `''`. */
     readonly statedMeasure: string | null;
+    /**
+     * The amount in the model's OWN words, trimmed, or `null` when it stated none. Never `''`.
+     *
+     * ⛔ `undefined` AND `null` ARE DIFFERENT ANSWERS, exactly as they are for the bake-off's
+     * `VariantParse.statedUnit`. `undefined` means "this producer states no split — derive from the phrase",
+     * which is what every pre-v5 caller and every phrase-only fixture means. `null` means "the producer HAS
+     * a split and answered that the line states none", which is a reading and is taken at face value.
+     * Collapsing them would silently re-derive on exactly the lines where the model disagreed with us.
+     *
+     * ⛔ KEPT SEPARATE FROM {@link LlmParse.statedUnit} rather than re-derived from the phrase (owner ruling
+     * 2026-08-27). Rejoining the two and re-parsing with `parseIngredientLine` DROPPED the unit on 67 of 205
+     * measured records — 32.7% — on the held-out gold set: `16 slices`, `2 handfuls`, `1 heaped tbsp`. The
+     * model has already done the split correctly; the phrase parser is built for raw lines and loses what it
+     * cannot read as a leading quantity, so putting the split back through it can only destroy information.
+     */
+    readonly statedQuantity?: string | null | undefined;
+    /**
+     * The unit in the model's OWN words, trimmed, or `null` when it stated none. Never `''`.
+     *
+     * ⚠️ INFORMAL UNITS ARE UNITS (owner ruling 2026-08-27). `handfuls`, `slices` and `heaped tbsp` are kept.
+     * `normalizeUnit` already agrees — it is TOTAL and de-pluralises an unrecognised word rather than
+     * rejecting it, and `classifyUnit` records that a cook "may write anything in the unit field… and the
+     * wire stores it unchanged". An unconvertible unit still fails SAFE to null grams downstream, the same
+     * outcome `small`/`large` already have under ADR-0026 §8.
+     */
+    readonly statedUnit?: string | null | undefined;
     /** Every food the model named, in order. May be empty — a line that named no food is a fact, not a fault. */
     readonly foods: readonly LlmParsedFood[];
 }
@@ -109,12 +156,42 @@ function stated(value: string | null): string | null {
  * @returns The normalized reading. Pure.
  */
 export function normalizeParseAnswer(answer: ModelParseAnswer): LlmParse {
-    return {
-        statedMeasure: stated(answer.measure),
-        foods: answer.foods.flatMap((food) => {
-            const name = food.name.trim();
+    // ⛔ The FIRST record that states a measurement, not a join across records. The canonical shape holds ONE
+    // measure and this document may state several; taking the first mirrors the narrowing v3's single
+    // `measurements` string already carried, and a second stated measurement is invisible here by the same
+    // rule rather than by a new one.
+    const measured = answer.find((record) => record.measurement !== null)?.measurement ?? null;
 
-            return name === '' ? [] : [{ name, prep: stated(food.prep) }];
+    // ⛔ REJOINED into a phrase so the SHARED `readStatedMeasure` does the reading. `promoteCrfReading` and
+    // `promoteLlmParse` are deliberately "shaped identically… same measure reader", so that a fact read by
+    // one engine and a fact read by the other differ only in WHAT was read, never in HOW it was turned into
+    // a value. Threading quantity and unit through as two fields would give the LLM its own reader.
+    //
+    // ⚠️ Safe to join because v5 does NOT restate the unit inside the amount: measured 0 of 146 records on
+    // the held-out gold set. gen0 DID (`quantity: "two tablespoons", unit: "tablespoons"`), and joining that
+    // would have produced `two tablespoons tablespoons` — a phrase nothing wrote.
+    const statedMeasure = stated(
+        [measured?.quantity ?? '', measured?.unit ?? '']
+            .map((part) => part.trim())
+            .filter((part) => part !== '')
+            .join(' '),
+    );
+
+    return {
+        statedMeasure,
+        statedQuantity: stated(measured?.quantity ?? null),
+        statedUnit: stated(measured?.unit ?? null),
+        // ⛔ EACH record's OWN preparations, never the first record's. Rule 4 exists to SPLIT foods whose
+        // preparation differs; replicating one record's prep across all of them would erase the distinction
+        // the document was shaped to draw.
+        foods: answer.flatMap((record) => {
+            const prep = stated((record.preparations ?? []).join(', '));
+
+            return (record.food_items ?? []).flatMap((item) => {
+                const name = item.trim();
+
+                return name === '' ? [] : [{ name, prep }];
+            });
         }),
     };
 }

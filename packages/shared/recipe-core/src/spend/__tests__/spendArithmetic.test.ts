@@ -18,6 +18,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     BEDROCK_MODEL_REGISTRY,
+    NOVA_2_LITE_MODEL_ID,
     CLAUDE_HAIKU_4_5_MODEL_ID,
     DEFAULT_MONTHLY_CEILING_MICROS,
     MICROS_PER_DOLLAR,
@@ -556,5 +557,71 @@ describe('residencyClearance', () => {
 
             expect(approval, `${modelId} ships residency-approved — was that deliberate?`).toBeUndefined();
         }
+    });
+});
+
+describe('Nova 2 Lite — the shipped parse model', () => {
+    /**
+     * ⛔ Every figure here was READ FROM THE AWS PRICING API on 2026-08-27 (`USE1-Nova2.0Lite-*`, us-east-1),
+     * not derived from the family pattern. The registry's own docstring records that the Nova family's cache
+     * rates differ from the derived ones in BOTH directions, so assuming them would be the exact mistake it
+     * warns about.
+     */
+    it('carries the rates read from the Pricing API, in micro-dollars per million tokens', () => {
+        const { rate } = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+
+        expect(rate.inputMicrosPerMillionTokens).toBe(330_000); // $0.00033/1K
+        expect(rate.outputMicrosPerMillionTokens).toBe(2_750_000); // $0.00275/1K
+        expect(rate.cacheReadMicrosPerMillionTokens).toBe(82_500); // $0.0000825/1K — exactly 0.25x input
+        // ⛔ ZERO IS THE PUBLISHED RATE, as for every other Nova: `USE1-Nova2.0Lite-cache-write-input-token-count`
+        // = $0.0000000000/1K. Verified, not inherited from the Lite v1 entry.
+        expect(rate.cacheWriteMicrosPerMillionTokens).toBe(0);
+        expect(rate.priceVerified).toBe(true);
+    });
+
+    it('is INFERENCE_PROFILE-only, so the bare model id is not the invocation id', () => {
+        // `aws bedrock get-foundation-model` reports inferenceTypesSupported = ["INFERENCE_PROFILE"], so the
+        // bare id is refused at call time exactly as Haiku's is.
+        const { invocation } = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+
+        expect(invocation.invocationId).toBe('us.amazon.nova-2-lite-v1:0');
+        expect(invocation.invocationId).not.toBe(NOVA_2_LITE_MODEL_ID);
+    });
+
+    /**
+     * ⛔ THE ACCURACY WINNER IS NOT CALLABLE, and this test is the record of why. Every inference profile
+     * that exists for this model leaves us-east-1 (`us.` = three regions, `global.` = wider; no
+     * single-region profile, no application profile — `list-inference-profiles`, 2026-08-27). So selecting
+     * it on gold-set accuracy does NOT make it shippable: `residencyClearance` answers `unapproved`, and the
+     * runtime gate and the CDK IAM grant both honour that. Closing it is 016's decision, not a config edit.
+     */
+    it('is REFUSED by the residency gate — the profile leaves the deploy region and 016 has not cleared it', () => {
+        const entry = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+
+        expect(entry.invocation.reach.kind).toBe('regions');
+        expect(residencyClearance(entry, 'us-east-1')).toBe('unapproved');
+    });
+
+    it('leaves Nova Lite v1 as the best residency-CLEAR option, which is why it stays rostered', () => {
+        // Lite v1 is addressed by its bare id and stays in the deploy region, so it needs no warrant. On the
+        // same external gold set it scores 73/41 static and 82/52 with retrieval, against Nova 2 Lite's
+        // 84/53 — the gap the residency question is currently costing us.
+        expect(residencyClearance(BEDROCK_MODEL_REGISTRY[NOVA_LITE_MODEL_ID]!, 'us-east-1')).toBe('in-deploy-region');
+    });
+
+    it('prices a cached parse call at HALF on the flex tier, which keeps the cache', () => {
+        // Measured live 2026-08-27: serviceTier flex is accepted, echoed back, and reports the SAME
+        // cacheReadInputTokens as default. Batch cannot do this — AWS documents caching as on-demand only.
+        const { rate } = BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]!;
+        const cachedRead = 5_025;
+        const fresh = 13;
+        const out = 37;
+        const perMillion = (tokens: number, micros: number): number => (tokens * micros) / 1_000_000;
+        const onDemand =
+            perMillion(cachedRead, rate.cacheReadMicrosPerMillionTokens) +
+            perMillion(fresh, rate.inputMicrosPerMillionTokens) +
+            perMillion(out, rate.outputMicrosPerMillionTokens);
+
+        expect(Math.round(onDemand)).toBe(521); // micro-dollars/line, matching the measured $0.000521
     });
 });

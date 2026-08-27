@@ -1,3 +1,4 @@
+import { testTempRootSetup } from '@kitchensink/vitest';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from 'vitest/config';
@@ -16,6 +17,9 @@ export default defineConfig({
         },
     },
     test: {
+        // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+        // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+        globalSetup: [testTempRootSetup],
         include: ['__tests__/**/*.test.ts'],
         // `tests/**` is the INTEGRATION tier (`vitest.integration.config.ts`) — excluded by path AND
         // by suffix so a `*.integration.test.ts` left in `__tests__/` cannot rejoin the unit run,

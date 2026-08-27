@@ -291,6 +291,16 @@ export async function parseLineWithLlm(deps: LlmParseDeps, line: string): Promis
             maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
             // ⛔ Part of the measured configuration, not a call-site default. See `parsePrompt.ts`.
             temperature: PARSE_TEMPERATURE,
+            // ⛔ THE SYSTEM PROMPT IS 99% OF THE BILL — 5,025 tokens against 13 of line and 37 of answer.
+            // Uncached, every call pays all 5,025 as fresh input; cached they are reads at 25% of that rate
+            // and Nova bills the write at zero. Measured: $0.000521/line cached against $0.001764 without.
+            cachePrompt: true,
+            // ⛔ HALF PRICE, AND IT KEEPS THE CACHE. Batch is also 50% off but AWS documents prompt caching as
+            // on-demand-only and "not supported with the batch inference API", so batch would surrender the
+            // 75% cache discount to buy a 50% one and cost MORE on a prompt this size. flex does neither.
+            // ⚠️ flex is a relaxed-scheduling tier: this leg is an SQS consumer with maxReceiveCount + DLQ,
+            // so it already tolerates latency and retry. A latency-sensitive caller must NOT copy this.
+            serviceTier: 'flex',
         });
     } catch (error) {
         if (gated && isBedrockClientError(error) && error.settlement === 'refund-full') {

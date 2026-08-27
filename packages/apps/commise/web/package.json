@@ -17,7 +17,8 @@
         "infra:synth": "npm run router:bundle && cdk synth --app 'npx tsx infra/bin/app.ts'",
         "infra:deploy": "npm run router:bundle && cdk deploy --app 'npx tsx infra/bin/app.ts' --require-approval never",
         "format": "prettier --write .",
-        "format:check": "prettier --check ."
+        "format:check": "prettier --check .",
+        "test:e2e:local": "scripts/e2e-local.sh"
     },
     "dependencies": {
         "@aws-sdk/client-cloudfront-keyvaluestore": "^3.723.0",

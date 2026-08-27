@@ -14,7 +14,6 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 
 import { SpeedDial } from '../SpeedDial.js';
@@ -149,15 +148,19 @@ describe('SpeedDial (web) — open', () => {
         const user = userEvent.setup();
         const { trigger } = renderDial();
 
+        // ⚠️ REWRITTEN with the 2026-08-27 swap to `@radix-ui/react-dropdown-menu` + `modal={false}`, and
+        // the OLD COMMENT is why. It read: "a press on the FAB while open is an OUTSIDE press: the trigger
+        // sits outside the dismissable layer, so the page (the FAB included) is inert to the pointer…
+        // `user.click` refuses to click through `pointer-events: none`." All of that was true of the MODAL
+        // Dialog, which set `disableOutsidePointerEvents`. Non-modal does not, so the FAB is a real button
+        // again and a real user simply presses it. `user.click` is now the honest model of the interaction,
+        // and `fireEvent.pointerDown` would be reaching around a barrier that no longer exists.
         await user.click(trigger);
-        // A press on the FAB while open is an OUTSIDE press: the trigger sits outside the dismissable
-        // layer, so the page (the FAB included) is inert to the pointer and the layer's own document
-        // listener is what answers. `fireEvent` models that; `user.click` refuses to click through
-        // `pointer-events: none`, which is the very behaviour under test.
-        fireEvent.pointerDown(trigger);
+        await user.click(trigger);
 
         expect(screen.queryByRole('menu')).toBeNull();
         expect(trigger.getAttribute('aria-expanded')).toBe('false');
+        // Focus lands on the FAB because the FAB is what was pressed — not because anything restored it.
         await waitFor(() => expect(document.activeElement).toBe(trigger));
     });
 });
@@ -303,21 +306,37 @@ describe('SpeedDial (web) — keyboard', () => {
 });
 
 describe('SpeedDial (web) — outside dismissal', () => {
-    it('closes on an outside pointer press and returns focus to the trigger', async () => {
+    it('closes on an outside pointer press and does NOT steal focus back from what was pressed', async () => {
+        // ⛔ REWRITTEN — AND THE ASSERTION IS INVERTED, deliberately (2026-08-27 swap to
+        // `@radix-ui/react-dropdown-menu` + `modal={false}`).
+        //
+        // The old test asserted that focus RETURNS TO THE TRIGGER after an outside press, and used
+        // `fireEvent.pointerDown(document.body)` because "the dismissable layer sets `pointer-events: none`
+        // on the body, which is exactly the modal behaviour under test". Both halves belonged to the modal
+        // Dialog. Non-modal sets `disableOutsidePointerEvents: false`, so nothing is inert and a real press
+        // lands on whatever was pressed.
+        //
+        // ⛔ Restoring focus to the trigger here would now be a DEFECT, not a feature: the cook pressed
+        // something else, and yanking the caret back to the FAB would steal focus from the control they
+        // just chose. Escape and item activation still restore — those are dismissals with nowhere else
+        // for focus to go, and they keep their own tests. This one proves the opposite guarantee.
         const user = userEvent.setup();
         const { onSelect, trigger } = renderDial();
+        const elsewhere = document.createElement('button');
+
+        elsewhere.textContent = 'Elsewhere';
+        document.body.appendChild(elsewhere);
 
         await user.click(trigger);
-        // `fireEvent`, not `user.click`: while the dial is open the dismissable layer sets
-        // `pointer-events: none` on the body, which is exactly the modal behaviour under test — userEvent
-        // refuses to click through it, while the real dismissal listener is on the document either way.
-        fireEvent.pointerDown(document.body);
+        await user.click(elsewhere);
 
         expect(screen.queryByRole('menu')).toBeNull();
+        expect(trigger.getAttribute('aria-expanded')).toBe('false');
         expect(onSelect).not.toHaveBeenCalled();
-        // Restoration is deferred by a task (the focus scope dispatches its unmount-autofocus event from a
-        // `setTimeout`), so this waits rather than asserting on the same tick — the guarantee is that focus
-        // LANDS on the trigger, not that it never passes through anywhere.
-        await waitFor(() => expect(document.activeElement).toBe(trigger));
+        // The pressed control keeps focus. Asserted as an identity, not as "not the trigger", so a future
+        // change that sent focus to `<body>` — losing it entirely — fails here too.
+        await waitFor(() => expect(document.activeElement).toBe(elsewhere));
+
+        elsewhere.remove();
     });
 });

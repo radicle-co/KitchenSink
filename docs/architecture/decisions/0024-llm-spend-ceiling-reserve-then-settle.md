@@ -494,6 +494,46 @@ threshold and the cost model needs revisiting. Do **not** write a test that clai
 against a real cache hit; it cannot be produced at this prompt size, and a test that fabricates the response
 proves only that the arithmetic compiles.
 
+### 5a. Update (2026-08-27) — §5's premise is FALSIFIED: caching now engages on every call, and the reservation is 37x the actual
+
+The shipped parse prompt was replaced on 2026-08-27 (511 bytes → **19,777 characters**, flat document →
+relational, Nova Micro → **Nova 2 Lite** on the `flex` service tier). Three things §5 states as facts stopped
+being true, and one of them is a guard that will now fire correctly and read as an incident.
+
+⛔ **"At ~660 input tokens, prompt caching cannot engage" no longer holds.** The prompt is **5,025 tokens**.
+Measured live on 2026-08-27 over 92 calls: `cacheReadInputTokens: 5025` on every warm call, `cacheWrite` on
+exactly **two** — both cold starts. Six concurrent threads cost no more writes than sequential calls did.
+
+⛔ **So §5's "assertion/metric that fires if either is ever non-zero" MUST BE REWRITTEN, not left to fire.**
+Its stated meaning — _"the prompt grew past the cache threshold and the cost model needs revisiting"_ — has
+already happened and has already been actioned here. Left as written it reports designed behaviour as an
+anomaly on the first call of every deploy. What replaces it is the inverse: alert when a warm call reports
+`cacheReadInputTokens: 0`, which means the cache is NOT engaging and the bill is 3.4x what this ADR assumes.
+
+⚠️ **Nova cache WRITES are free, and that was not obvious.** `USE1-Nova2.0Lite-cache-write-input-token-count`
+= `$0.0000000000`, read from the AWS Pricing API. Cache reads are `$0.0000825/1K` — exactly 0.25x input. So a
+cold burst is _cheaper_ than a warm one, not dearer, and "keep the cache warm or pay a write premium" —
+which is true of Claude — is **wrong for Nova** and must not be carried over.
+
+⛔ **`flex`, NOT batch, is the 50% path.** AWS documents prompt caching as supported _"only for on-demand
+inference endpoints… not with the batch inference API."_ Batch's 50% would be bought by surrendering the 75%
+cache discount, costing **$0.000882/line against $0.000521** — batch is 1.69x DEARER here. The `flex` service
+tier is 50% off (`-flex` usage types, half of every rate) **and keeps the cache**: verified live, accepted,
+echoed back in the response, same `cacheReadInputTokens`. Measured shipped cost is **$0.000260/line**.
+
+⚠️ **THE OPEN ITEM: the reservation is now ~37x the actual, and this ADR has not decided what to do.**
+Layer 1's caps rose with the prompt — `MAX_PARSE_PROMPT_CHARS` 2,000 → 22,000, `PARSE_MAX_OUTPUT_TOKENS`
+200 → 900 — so the worst case charged before each call went **116 → 9,735 micro-dollars**, against a measured
+actual of **260**. The reservation is refunded at settle, so monthly totals stay accurate; what degrades is
+PRECISION. The cap is now almost entirely OUR OWN CACHED PROMPT priced as fresh input, so every in-flight
+call holds headroom it cannot spend and the ceiling begins refusing calls while real budget remains — about
+**10,272 calls** of reserved headroom against a $100 pool that would really buy ~385,000.
+
+⛔ The fix is to reserve the FIXED prompt at its **cached** rate plus the VARIABLE line at the fresh rate,
+rather than treating the whole cap as fresh input. That changes what "worst case" means and therefore what
+the ceiling enforces, so it is a decision this ADR owes and **not** a refactor to be done in passing. Until
+it is taken, the ceiling is conservative in the safe direction — it denies early, it never under-counts.
+
 ## Consequences
 
 **Accepted:**

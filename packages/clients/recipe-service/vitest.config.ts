@@ -1,4 +1,4 @@
-import { baseConfig } from '@kitchensink/vitest';
+import { baseConfig, testTempRootSetup } from '@kitchensink/vitest';
 
 /**
  * Default (unit) Vitest config for `@kitchensink/recipe-service-client`. The shared `baseConfig` includes
@@ -9,6 +9,9 @@ import { baseConfig } from '@kitchensink/vitest';
 export default {
     ...baseConfig,
     test: {
+        // ⛔ Confines this run's temp directories to one removable root — CDK's own `cdk.out*`
+        // synth dirs and every `mkdtempSync(tmpdir())` fixture. Asserted by `vitestTempRoot.test.ts`.
+        globalSetup: [testTempRootSetup],
         ...baseConfig.test,
     },
 };

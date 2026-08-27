@@ -78,6 +78,16 @@ export const NOVA_LITE_MODEL_ID = 'amazon.nova-lite-v1:0';
 export const NOVA_PRO_MODEL_ID = 'amazon.nova-pro-v1:0';
 
 /**
+ * Amazon Nova 2 Lite — the model the SHIPPED parse leg calls.
+ *
+ * ⛔ Unlike the three above, this one IS a shipping decision. It was selected on an external held-out gold
+ * set (144 ingredient + 210 instruction lines, human-adjudicated): 84% / 53% exact against Nova Micro's
+ * 64% / 30% on the same prompt. Model choice moved accuracy roughly twenty points where eight rounds of
+ * prompt revision moved it three.
+ */
+export const NOVA_2_LITE_MODEL_ID = 'amazon.nova-2-lite-v1:0';
+
+/**
  * The ceiling the CDK seeds the SSM parameter with — R23's owner-set $100 per calendar month.
  *
  * ⛔ Like {@link NOVA_MICRO_MODEL_ID}, this is a SEED and not the live value. R23 requires the ceiling be
@@ -316,6 +326,47 @@ export const BEDROCK_MODEL_REGISTRY: Readonly<Record<string, ModelRegistryEntry>
     // ⚠️ Every price on this entry — cache rates INCLUDED — is read, not derived. `aws.amazon.com/bedrock/
     // pricing/` renders its tables client-side and cannot be fetched, which is why the Price List API is the
     // source of record here as it was for Nova Micro.
+    // ⛔ READ FROM THE AWS PRICING API on 2026-08-27, us-east-1 (`USE1-Nova2.0Lite-*`), not derived from the
+    // Nova family pattern — this registry's own docstring records that the family's cache rates differ from
+    // the derived ones in BOTH directions, so inheriting them is the mistake it warns about.
+    //
+    // ⚠️ The `flex` service tier prices every one of these at exactly HALF (`-flex` usage types) and, unlike
+    // BATCH, keeps prompt caching: measured live 2026-08-27, `serviceTier: {type:'flex'}` is accepted, echoed
+    // back, and reports the same `cacheReadInputTokens`. AWS documents caching as on-demand-only and NOT
+    // supported with the batch inference API, so flex is the only 50% path that keeps the cache.
+    [NOVA_2_LITE_MODEL_ID]: Object.freeze({
+        rate: Object.freeze({
+            inputMicrosPerMillionTokens: 330_000,
+            outputMicrosPerMillionTokens: 2_750_000,
+            cacheReadMicrosPerMillionTokens: 82_500,
+            // ⛔ Published ZERO, like every other Nova — `cache-write-input-token-count` = $0.0000000000/1K.
+            // Verified for THIS model rather than inherited.
+            cacheWriteMicrosPerMillionTokens: 0,
+            effectiveDate: '2026-08-27',
+            priceVerified: true,
+        }),
+        // ⛔ INFERENCE_PROFILE-only: `aws bedrock get-foundation-model` reports
+        // inferenceTypesSupported = ["INFERENCE_PROFILE"], so the bare id is refused at call time.
+        //
+        // ⛔ AND EVERY PROFILE THAT EXISTS LEAVES THE DEPLOY REGION. `aws bedrock list-inference-profiles`
+        // (us-east-1, 2026-08-27) returns exactly two for this model — `us.` over three US regions, and
+        // `global.` which reaches wider still. There is no single-region profile and no application profile,
+        // so this model CANNOT be called without routing recipe text out of us-east-1.
+        //
+        // ⚠️ NO `residencyApproval`, exactly as for Claude Haiku 4.5 and for the same reason: AWS stores
+        // prompts and outputs in destination Regions for abuse detection, so routing user recipe text there
+        // is an open question owned by 016 — not a config detail, and not mine to close by editing a marker.
+        // `residencyClearance` therefore answers `unapproved`, which the runtime gate and the CDK IAM grant
+        // both honour. Selecting this model on accuracy does not make it callable.
+        invocation: Object.freeze({
+            invocationId: 'us.amazon.nova-2-lite-v1:0',
+            reach: Object.freeze({
+                kind: 'regions',
+                regions: Object.freeze(['us-east-1', 'us-east-2', 'us-west-2']),
+                readOn: '2026-08-27',
+            } as const),
+        }),
+    }),
     [NOVA_LITE_MODEL_ID]: Object.freeze({
         rate: Object.freeze({
             inputMicrosPerMillionTokens: 60_000,

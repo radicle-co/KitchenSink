@@ -111,7 +111,11 @@ export async function runParseTrial(request: ParseTrialRequest): Promise<ParseTr
             invocationId: entry.invocation.invocationId,
             systemPrompt: prompt.systemPrompt,
             userMessage: prompt.userMessage,
-            maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
+            // ⛔ The ARM's budget, when it declares one. A candidate whose document is more verbose than
+            // the shipped one would otherwise be truncated and scored as a contract failure — an artefact
+            // of OUR ceiling reported as a fact about ITS prompt. The truncation count is still reported,
+            // so a reader can see whether the extra room was actually used.
+            maxOutputTokens: variant.maxOutputTokens ?? PARSE_MAX_OUTPUT_TOKENS,
             temperature: 0,
         });
     } catch (error) {

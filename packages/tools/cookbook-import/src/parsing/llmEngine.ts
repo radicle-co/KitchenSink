@@ -37,7 +37,6 @@
  * different facts and the second is a legitimate answer about a heading.
  */
 import { isBedrockClientError, type BedrockConverseClient } from '@kitchensink/bedrock-client';
-import { normalizeParseAnswer } from '@kitchensink/recipe-core/parsing/parse-answer';
 import {
     actualCostMicros,
     rateFor,
@@ -158,7 +157,28 @@ export function createLlmEngine(options: LlmEngineOptions): LlmEnginePort {
         // from prose is ever … put back into a prompt" — is honoured: nothing here reaches a prompt.
         const answer = reading.kind === 'valid' ? reading.parse : recoverableParse(outcome.text);
 
-        return answer === undefined ? UNAVAILABLE : promoteLlmParse(normalizeParseAnswer(answer), line);
+        // ⛔ PROJECTED HERE, not through `normalizeParseAnswer`. That function reads the WIRE document the
+        // shipped prompt declares, which became a relational array on 2026-08-27. This harness's readers have
+        // already done their own arm-specific reading and hand back a `VariantParse` — feeding that to the
+        // wire normaliser would ask it to parse a value that never came off the wire. `VariantParse` is
+        // already `LlmParse`'s two facts under different names, so the projection is a rename.
+        return answer === undefined
+            ? UNAVAILABLE
+            : promoteLlmParse(
+                  {
+                      statedMeasure: answer.measure.trim() === '' ? null : answer.measure.trim(),
+                      // ⛔ `statedQuantity` is OMITTED, not null. No arm here has a quantity slot — they state
+                      // a measure PHRASE — and `undefined` is what means "derive from the phrase". `null`
+                      // would claim the arm read the line and found no amount, publishing `absent` for a
+                      // number the phrase plainly states.
+                      //
+                      // ⛔ `statedUnit` is PRESERVED, never `?? null`, for the same reason one field over: an
+                      // arm with no unit slot leaves it `undefined` and must stay on the derived path.
+                      statedUnit: answer.statedUnit,
+                      foods: answer.foods,
+                  },
+                  line,
+              );
     }
 
     return {

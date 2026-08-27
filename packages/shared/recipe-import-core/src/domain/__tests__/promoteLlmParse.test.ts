@@ -16,12 +16,16 @@
 import type { LlmParse } from '@kitchensink/recipe-core/parsing/parse-answer';
 import { describe, it, expect } from 'vitest';
 
+import { ABSENT_QUANTITY } from '@kitchensink/recipe-core';
+
 import { compareParses } from '../parseComparator.js';
 import { promoteCrfReading } from '../promoteCrfReading.js';
 import { promoteLlmParse } from '../promoteLlmParse.js';
 
 /** One model reading — a clean, single-food, fully-read line unless overridden. */
 function makeLlmParse(overrides: Partial<LlmParse> = {}): LlmParse {
+    // ⚠️ PHRASE-ONLY on purpose: no split, so `promoteLlmParse` derives from the phrase. That is what every
+    // pre-v5 caller does and what these tests exercise. The split-supplied path has its own describe block.
     return { statedMeasure: '1 tablespoon', foods: [{ name: 'butter', prep: null }], ...overrides };
 }
 
@@ -166,5 +170,48 @@ describe('promoteLlmParse', () => {
 
             expect(parse).toEqual(before);
         });
+    });
+});
+
+describe('the model own split reaches the canonical facts — owner ruling 2026-08-27', () => {
+    const parse = (statedQuantity: string | null, statedUnit: string | null) =>
+        promoteLlmParse(
+            {
+                statedMeasure: [statedQuantity ?? '', statedUnit ?? ''].filter((x) => x !== '').join(' ') || null,
+                statedQuantity,
+                statedUnit,
+                foods: [{ name: 'flour', prep: null }],
+            },
+            'some line',
+        );
+
+    /**
+     * ⛔ THE 32.7% THIS EXISTS TO STOP. Re-deriving from the rejoined phrase dropped the unit on 67 of 205
+     * measured gold records. These four are verbatim from that measurement.
+     */
+    it('KEEPS an informal unit the phrase parser would have dropped', () => {
+        expect(parse('16', 'slices').unit).toBe('slice');
+        expect(parse('2', 'handfuls').unit).toBe('handful');
+        expect(parse('1', 'heaped tbsp').unit).toBe('heaped tbsp');
+        expect(parse('2', 'firmly packed tablespoons').unit).toBe('firmly packed tablespoon');
+    });
+
+    it('still canonicalises a unit the vocabulary DOES know', () => {
+        expect(parse('2', 'cups').unit).toBe('cup');
+        expect(parse('1 2/3', 'cups').unit).toBe('cup');
+    });
+
+    it('reads the amount from the model own words, not from the phrase', () => {
+        expect(parse('1 2/3', 'cups').quantity).toEqual({ kind: 'exact', value: 1.667 });
+    });
+
+    it('records no unit when the model stated none, and no amount when it stated none', () => {
+        expect(parse('7', null).unit).toBeNull();
+        expect(parse(null, 'pinch').quantity).toEqual(ABSENT_QUANTITY);
+        expect(parse(null, 'pinch').unit).toBe('pinch');
+    });
+
+    it('keeps the STATED phrase intact, because that is what the comparator compares', () => {
+        expect(parse('1 2/3', 'cups').statedMeasure).toBe('1 2/3 cups');
     });
 });

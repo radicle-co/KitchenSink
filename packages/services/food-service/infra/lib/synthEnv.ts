@@ -41,8 +41,13 @@ const TaskCountSchema = z.preprocess(
 
 /** The synth-time settings, each with exactly one definition of its default and its rule. */
 const SynthEnvSchema = z.object({
-    // Desired count of Fargate API tasks. Prod keeps the two-task default; a per-PR preview passes 1.
-    FOOD_DESIRED_COUNT: TaskCountSchema.default(2),
+    // Desired count of Fargate API tasks.
+    //
+    // ONE since 2026-08-27 (was 2). The second task was AZ redundancy and rolling-deploy headroom for a
+    // service with no users — ~$22/mo (0.5 vCPU + 1 GB + one public IPv4) insuring against a failure whose
+    // pre-launch cost is re-running a demo. ⚠️ It is paired with `minHealthyPercent: 100` on the API
+    // service: at one task, 50% floors to zero and ECS may stop the only task before its replacement.
+    FOOD_DESIRED_COUNT: TaskCountSchema.default(1),
     // Desired count of Fargate fan-out worker tasks (the single-drainer invariant holds regardless; FR-022).
     FOOD_WORKER_DESIRED_COUNT: TaskCountSchema.default(1),
     // Optional override stamped into the change-refresh task's environment; unset → the app's own default

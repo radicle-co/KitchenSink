@@ -646,7 +646,7 @@ jobs:
             # first deploy so the image push + ECS pull have somewhere to go.
             - name: Ensure ECR repository exists
               if: steps.gate.outputs.deploy == 'true'
-              run: aws ecr describe-repositories --repository-names kitchensink-food || aws ecr create-repository --repository-name kitchensink-food
+              run: bash .github/scripts/ecr-ensure-repo.sh kitchensink-food
             - name: Build, tag, and push food Docker image
               if: steps.gate.outputs.deploy == 'true'
               env:
@@ -930,7 +930,7 @@ jobs:
             # on first deploy — the image push and the ECS pull both need it to exist.
             - name: Ensure ECR repository exists
               if: steps.gate.outputs.deploy == 'true'
-              run: aws ecr describe-repositories --repository-names kitchensink-recipes || aws ecr create-repository --repository-name kitchensink-recipes
+              run: bash .github/scripts/ecr-ensure-repo.sh kitchensink-recipes
             # The tag carries the commit SHA and is therefore IMMUTABLE per deploy. That is what makes the
             # currency assertion in the smoke step meaningful: a mutable `pr-{N}` tag would let ECS keep
             # serving a cached older layer while the tag "matched".

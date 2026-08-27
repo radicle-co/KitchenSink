@@ -558,6 +558,121 @@ jobs:
     # Needs NO LocalStack and NO Clerk secrets — verified by running it with DATABASE_URL as the only env
     # var. Its own database, deliberately separate from identity's: both tiers DROP the `public` schema in
     # global-setup, so sharing one would have them racing each other's resets.
+    # ⛔ THE ONLY PLACE IDENTITY IS PROVED TO BOOT. Added 2026-08-27 with ADR-0028, which stopped per-PR
+    # previews from deploying on every push — so "did the service start?" is no longer answered downstream by
+    # a sandbox deploy that may never happen. food and recipe were already covered by
+    # `e2e-cross-service-linkage`, which boots both; identity was covered by NOTHING, and its unit and
+    # integration suites cannot see this class of failure because they never construct the Nest application.
+    #
+    # What this catches that a green integration suite does not: a module that fails to resolve at
+    # bootstrap, a missing provider, a config schema that rejects a real environment, a decorator-metadata
+    # regression, a port that never binds. Every one of those passes `test` and `test:integration` and then
+    # crash-loops in ECS.
+    #
+    # ## Why `npx tsx dist/src/main.js` and not `node dist/src/main.js`
+    #
+    # ⚠️ NOT a shortcut — the same reasoning as `e2e-cross-service-linkage`, and do not "fix" it to plain
+    # `node`. The service is COMPILED first, because that is what emits the `design:paramtypes` metadata
+    # Nest's constructor injection needs; running the TypeScript sources directly boots an app whose
+    # controllers silently have no dependencies. But the compiled output still imports workspace packages
+    # that export `./src/*.ts`, and plain `node`'s type stripping resolves a `.js` specifier inside a `.ts`
+    # file literally (ADR-0013). tsx supplies the resolver; the code executed is the compiled artifact.
+    #
+    # Residual gap, stated rather than hidden: this boots the compiled service, NOT the Docker image.
+    e2e-identity-boot:
+        name: E2E (identity — boots and serves)
+        timeout-minutes: 20
+        runs-on: ubuntu-latest
+        needs: [install]
+        services:
+            postgres:
+                image: postgres:18 # zizmor: ignore[unpinned-images] — see the note in this file’s header
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: identity_boot
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            - name: Build identity-service and everything it imports
+              run: npx turbo run build --filter='@kitchensink/identity-service...'
+            # No AWS and no Clerk instance. `DELETION_QUEUE_URL` and `CLERK_AUTHORIZED_PARTIES` are REQUIRED by
+            # the config schema and are satisfied with syntactically valid placeholders: this asserts the app
+            # stands up and serves, not that it can reach SQS. `/health` is the one route `AuthMiddleware`
+            # does not protect, which is exactly why it is the probe.
+            - name: Boot identity-service and prove it serves
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/identity_boot
+                  DELETION_QUEUE_URL: https://sqs.us-east-1.amazonaws.com/000000000000/identity-boot-unused
+                  CLERK_AUTHORIZED_PARTIES: http://localhost:3001
+                  NODE_ENV: development
+                  STAGE: dev
+                  PORT: 3001
+              run: |
+                  set -euo pipefail
+                  cd packages/services/identity
+                  setsid nohup npx tsx dist/src/main.js > "${RUNNER_TEMP}/identity-service.log" 2>&1 < /dev/null &
+                  cd - > /dev/null
+                  ready=0
+                  for _attempt in $(seq 1 60); do
+                      if curl -sf http://localhost:3001/health > /dev/null; then ready=1; break; fi
+                      sleep 2
+                  done
+                  if [ "$ready" != '1' ]; then
+                      echo '::error::identity-service never answered http://localhost:3001/health'
+                      cat "${RUNNER_TEMP}/identity-service.log"
+                      exit 1
+                  fi
+                  echo 'identity-service is serving.'
+            # A 200 on /health proves the process is up; it does not prove the app wired itself correctly,
+            # because a half-built Nest app can still answer a route with no dependencies. A protected route
+            # must answer 401 — reached the router, reached AuthMiddleware, rejected an unauthenticated
+            # caller — and NOT 404 (route never registered) or 500 (provider missing).
+            - name: A protected route must reject, not 404 or 500
+              run: |
+                  set -euo pipefail
+                  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://localhost:3001/api/v1/users/me)
+                  echo "GET /api/v1/users/me -> ${code}"
+                  case "$code" in
+                      401 | 403) echo 'Auth middleware is wired.' ;;
+                      *)
+                          echo "::error::expected 401/403 from an unauthenticated protected route, got ${code}"
+                          cat "${RUNNER_TEMP}/identity-service.log"
+                          exit 1
+                          ;;
+                  esac
+            - name: Identity boot log
+              if: ${{ !cancelled() }}
+              run: cat "${RUNNER_TEMP}/identity-service.log" || true
+
     integration-identity-webhooks:
         name: Integration (identity-webhooks — Postgres)
         timeout-minutes: 25

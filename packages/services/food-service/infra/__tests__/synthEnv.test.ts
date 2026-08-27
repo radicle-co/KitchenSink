@@ -27,11 +27,20 @@ describe('synthEnv — Fargate task counts', () => {
         vi.unstubAllEnvs();
     });
 
-    it('defaults to two API tasks and one worker task when neither variable is set', () => {
+    /**
+     * CHANGED 2026-08-27 from two API tasks to one. The second task bought AZ redundancy and rolling-deploy
+     * headroom for a service with no users — ~$22/month (0.5 vCPU + 1 GB + one public IPv4) of insurance
+     * against a failure whose cost, pre-launch, is re-running a demo.
+     *
+     * ⚠️ It does NOT stand alone: at `desiredCount: 1` a `minimumHealthyPercent` of 50 lets ECS compute
+     * `floor(1 x 0.5) = 0` and stop the only task before starting its replacement, so deploys begin taking
+     * downtime. `FoodServiceStack.test.ts` asserts the 100 that closes that.
+     */
+    it('defaults to ONE API task and one worker task when neither variable is set', () => {
         vi.stubEnv('FOOD_DESIRED_COUNT', undefined);
         vi.stubEnv('FOOD_WORKER_DESIRED_COUNT', undefined);
 
-        expect(synthEnv()).toMatchObject({ desiredCount: 2, workerDesiredCount: 1 });
+        expect(synthEnv()).toMatchObject({ desiredCount: 1, workerDesiredCount: 1 });
     });
 
     it('honours the configured counts (env vars arrive as strings)', () => {

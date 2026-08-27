@@ -505,7 +505,12 @@ export class FoodServiceStack extends Stack {
             assignPublicIp: true,
             vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
             securityGroups: [serviceSecurityGroup],
-            minHealthyPercent: 50,
+            // 100, NOT 50, and it is load-bearing at `desiredCount: 1`. ECS keeps
+            // `floor(desiredCount * minimumHealthyPercent / 100)` tasks running through a rolling deploy: at
+            // two tasks 50% kept one serving, but at ONE task it floors to ZERO — permitting ECS to stop the
+            // only task before its replacement is up, so the task-count saving would have quietly bought
+            // deploy downtime. With `maximumPercent: 200` this is start-new-then-stop-old.
+            minHealthyPercent: 100,
             maxHealthyPercent: 200,
             healthCheckGracePeriod: Duration.seconds(120),
             circuitBreaker: { rollback: true },

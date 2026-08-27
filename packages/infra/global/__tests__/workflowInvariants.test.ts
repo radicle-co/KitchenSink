@@ -592,6 +592,10 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'suppressed-exit _ci-heavy.yml::e2e-mobile-maestro::Recipe-service logs on failure ×1',
     'suppressed-exit _ci-heavy.yml::load-test::Recipe-service logs on failure ×1',
     'suppressed-exit _ci-heavy.yml::load-test-food::Food-service logs on failure ×1',
+    // Same failure-path diagnostic, for the identity boot check (ADR-0028). The log is dumped so a boot
+    // failure is readable in the job that found it; if the BUILD step failed the file was never created,
+    // and a missing diagnostic must not add a second red X on top of the real one.
+    'suppressed-exit _ci.yml::e2e-identity-boot::Identity boot log ×1',
     // One cache entry failing to DELETE must not abort the sweep: entries legitimately vanish between the
     // list and the delete (a concurrent run, or GitHub's own LRU eviction — the very pressure this job
     // relieves), and aborting there would leave the prune half-done with the largest entries untouched. The

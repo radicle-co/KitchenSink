@@ -234,7 +234,11 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     // two service containers every other tier here uses (`postgres:18` for the two logical databases,
     // `localstack/localstack:4.4.0` for the buckets and queue recipe boots against), so it inherits the
     // same two tag-tracked images and the same deferral. No new image, no new reason — two more sites.
-    '_ci.yml:unpinned-images': 14,
+    //
+    // The 15th is `e2e-identity-boot` (ADR-0028), the job that proves identity actually stands up now that a
+    // per-PR preview no longer deploys on every push. It needs one `postgres:18` service container, the same
+    // tag-tracked image every other tier here already uses — again no new image and no new reason.
+    '_ci.yml:unpinned-images': 15,
     '_ci-heavy.yml:unpinned-images': 5,
 };
 

@@ -1528,3 +1528,35 @@ describe('the in-deploy schema-migration gate (ECS must not serve before the sch
         expect(trigger?.Properties?.['ExecuteOnHandlerChange']).toBe(true);
     });
 });
+
+// ── Rolling-deploy safety at desiredCount 1 ──────────────────────────────────────────────────────
+/**
+ * ADDED 2026-08-27 alongside the API task count dropping from 2 to 1.
+ *
+ * ECS derives the number of tasks it must keep running during a rolling deploy as
+ * `floor(desiredCount * minimumHealthyPercent / 100)`. At two tasks and 50% that is 1 — one task always
+ * serves. At ONE task and 50% it is **zero**, which permits ECS to stop the only task before its
+ * replacement is running: the cost saving would have silently bought deploy downtime.
+ *
+ * 100 with `maximumPercent: 200` is start-new-then-stop-old, which is what the two-task service effectively
+ * had. The worker is deliberately left at 0 — it is a queue drainer with no inbound traffic and FR-022's
+ * single-drainer invariant actively wants the old task gone before the new one starts.
+ */
+describe('API rolling deploys keep a task serving (desiredCount 1)', () => {
+    it('requires 100% healthy during a deploy, so ECS cannot stop the only task first', () => {
+        const services = Object.values(synthFoodTemplate('prod', 'prod').findResources('AWS::ECS::Service'));
+        const api = services.find((service: any) => JSON.stringify(service).includes('FoodApiTaskDefinition')) as any;
+
+        expect(api.Properties.DeploymentConfiguration.MinimumHealthyPercent).toBe(100);
+        expect(api.Properties.DeploymentConfiguration.MaximumPercent).toBe(200);
+    });
+
+    it('is not vacuous — the drainer worker deliberately keeps 0 (FR-022 single-drainer)', () => {
+        const services = Object.values(synthFoodTemplate('prod', 'prod').findResources('AWS::ECS::Service'));
+        const worker = services.find((service: any) =>
+            JSON.stringify(service).includes('FoodWorkerTaskDefinition'),
+        ) as any;
+
+        expect(worker.Properties.DeploymentConfiguration.MinimumHealthyPercent).toBe(0);
+    });
+});

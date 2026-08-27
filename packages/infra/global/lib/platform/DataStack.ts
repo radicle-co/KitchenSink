@@ -212,7 +212,20 @@ export class DataStack extends Stack {
             // the next major hop is not a two-deploy dance during a maintenance window.
             allowMajorVersionUpgrade: true,
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, dbInstanceSize),
-            allocatedStorage: 100,
+            // Stage-derived, like `dbInstanceSize` directly above — it was a hardcoded 100 here, which is how
+            // two EMPTY databases came to carry 100 GB apiece (~$23/mo of storage for ~0 bytes; measured
+            // 2026-08-27, ~101.9 GB free of 100 GB allocated on BOTH). Prod keeps 100 by owner ruling, which
+            // also means prod is never rebuilt to reach a new number.
+            //
+            // Sized against the full intended scope — all of USDA FoodData Central including Branded (~1.9M
+            // foods, ~30M food_nutrients rows) plus 10,000 recipes — the database models to ~10-11 GB at the
+            // bloaty end of the published pg_trgm index ratios. 50 GB is generous; the RDS minimum is 20.
+            allocatedStorage: stageTag === 'prod' ? 100 : 50,
+            // ⚠️ The number above is a MODEL — nothing has ingested Branded yet, and `usdaBulk.parser.ts`
+            // does not seed it today. This is what makes being wrong survivable: autoscaling costs nothing
+            // until used and turns "out of disk at 3am" into "grew". It was OFF on both instances, which is
+            // the real defect the oversized literal was hiding.
+            maxAllocatedStorage: 200,
             storageType: dbStorageType,
             storageEncrypted: true,
             backupRetention: Duration.days(7),

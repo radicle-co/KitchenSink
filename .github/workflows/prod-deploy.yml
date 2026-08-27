@@ -327,7 +327,7 @@ jobs:
 
             - name: Ensure ECR repository exists
               if: steps.flags.outputs.deploy_service == 'true'
-              run: aws ecr describe-repositories --repository-names kitchensink-identity || aws ecr create-repository --repository-name kitchensink-identity
+              run: bash .github/scripts/ecr-ensure-repo.sh kitchensink-identity
 
             - name: Build, tag, and push identity service Docker image
               if: steps.flags.outputs.deploy_service == 'true'
@@ -490,7 +490,7 @@ jobs:
 
             - name: Ensure food ECR repository exists
               if: steps.flags.outputs.deploy_food == 'true'
-              run: aws ecr describe-repositories --repository-names kitchensink-food || aws ecr create-repository --repository-name kitchensink-food
+              run: bash .github/scripts/ecr-ensure-repo.sh kitchensink-food
 
             - name: Build, tag, and push food service Docker image
               if: steps.flags.outputs.deploy_food == 'true'
@@ -581,7 +581,7 @@ jobs:
 
             - name: Ensure recipe ECR repository exists
               if: steps.flags.outputs.deploy_recipe == 'true'
-              run: aws ecr describe-repositories --repository-names kitchensink-recipes || aws ecr create-repository --repository-name kitchensink-recipes
+              run: bash .github/scripts/ecr-ensure-repo.sh kitchensink-recipes
 
             - name: Build, tag, and push recipe service Docker image
               if: steps.flags.outputs.deploy_recipe == 'true'

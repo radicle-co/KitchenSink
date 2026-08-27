@@ -115,11 +115,81 @@ jobs:
             # The convergence half, and the reason this is not just a reaper. With no sandbox live, nothing
             # in the shared sandbox tier should be running — including an RDS instance AWS restarted by
             # itself after 7 days stopped.
-            - name: Ensure the shared sandbox tier is stopped when nothing needs it
+            # ⛔ "No live sandbox" is NOT the same as "nothing needs the sandbox". The shared tier has a
+            # second consumer that owns no stack at all: the `e2e-web` Playwright suite wakes the sandbox
+            # RDS + NAT on every run, because its Clerk fixture blocks on the sandbox `user.created` webhook
+            # backfilling `external_id` (ADR-0007's note on that suite). Stopping the database underneath a
+            # running shard would reproduce the 2026-08-25 incident — eight shards dead in a minute with a
+            # message that sends the reader hunting a webhook outage.
+            #
+            # The consumer list is DERIVED, not maintained: a workflow needs the tier awake exactly when it
+            # invokes `sandbox-wake.sh`, so the set is a grep over the workflow directory plus the button
+            # itself. A workflow that starts waking the sandbox tomorrow is covered without editing this.
+            # Being wrong is cheap in one direction only — we skip an hour and try again — so the guard is
+            # deliberately conservative.
+            # ⛔ "No live sandbox" is NOT "nothing needs the sandbox". The shared tier has a consumer that
+            # owns no stack at all: the `e2e-web` Playwright suite wakes the RDS + NAT on every run, because
+            # its Clerk fixture blocks on the sandbox `user.created` webhook backfilling `external_id`.
+            # Stopping the database underneath a running shard reproduces the 2026-08-25 incident — eight
+            # shards dead in a minute, with a message that sends the reader hunting a webhook outage.
+            #
+            # The consumer set is DERIVED, not maintained: a workflow needs the tier awake exactly when it
+            # invokes the wake script. Two corrections that a naive grep gets wrong, and both were live bugs
+            # in the first draft of this step:
+            #
+            #   1. THIS FILE matches its own grep (the script is named in the comment above). Left in, the
+            #      reconciler would see its own in-progress run every hour and never stop anything at all.
+            #   2. `_ci.yml` is a REUSABLE workflow. Its runs are reported under the CALLER's name, so
+            #      `gh run list --workflow _ci.yml` is always empty and the busiest consumer in the repo
+            #      would look idle. Underscore-prefixed hits are expanded to whatever `uses:` them.
+            #
+            # Being wrong is cheap in one direction only — skip an hour, retry — so this stays conservative.
+            - name: Check whether anything is using the shared tier right now
+              id: inuse
               if: ${{ !cancelled() && steps.find.outputs.live == '' }}
               run: |
                   set -uo pipefail
-                  echo 'No live sandbox — converging the shared sandbox tier to stopped.'
+                  self='sandbox-reconcile.yml'
+                  consumers=''
+                  for f in $(grep -l 'sandbox-wake\.sh' .github/workflows/*.yml 2>/dev/null); do
+                      base=$(basename "$f")
+                      [ "$base" = "$self" ] && continue
+                      case "$base" in
+                          _*)
+                              # Reusable: charge its runs to every workflow that calls it.
+                              for caller in $(grep -rl "uses:.*${base}" .github/workflows/*.yml 2>/dev/null); do
+                                  cb=$(basename "$caller")
+                                  [ "$cb" = "$base" ] && continue
+                                  consumers="${consumers}${cb}"$'\n'
+                              done
+                              ;;
+                          *) consumers="${consumers}${base}"$'\n' ;;
+                      esac
+                  done
+                  consumers=$(printf '%s\nsandbox-up.yml\n' "$consumers" | sed '/^$/d' | sort -u)
+                  echo 'workflows that wake the shared tier:'; sed 's/^/  /' <<<"$consumers"
+
+                  busy=''
+                  while read -r wf; do
+                      [ -z "$wf" ] && continue
+                      for state in in_progress queued; do
+                          n=$(gh run list --workflow "$wf" --status "$state" --limit 1 --json databaseId --jq 'length' 2>/dev/null || echo 0)
+                          [ "${n:-0}" != '0' ] && busy="${busy} ${wf}(${state})"
+                      done
+                  done <<<"$consumers"
+
+                  if [ -n "${busy// /}" ]; then
+                      echo 'busy=true' >>"$GITHUB_OUTPUT"
+                      echo "::notice::Still needed by:${busy} — leaving the shared tier up; the next hourly pass retries."
+                  else
+                      echo 'busy=false' >>"$GITHUB_OUTPUT"
+                  fi
+
+            - name: Ensure the shared sandbox tier is stopped when nothing needs it
+              if: ${{ !cancelled() && steps.find.outputs.live == '' && steps.inuse.outputs.busy == 'false' }}
+              run: |
+                  set -uo pipefail
+                  echo 'No live sandbox and no in-flight consumer — converging the shared sandbox tier to stopped.'
 
                   db=$(aws rds describe-db-instances \
                     --query "DBInstances[?contains(DBInstanceIdentifier,'sandbox')].[DBInstanceIdentifier,DBInstanceStatus]" --output text)

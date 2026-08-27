@@ -225,7 +225,7 @@ jobs:
 
             - name: Ensure ECR repository exists
               if: steps.flags.outputs.deploy_service == 'true'
-              run: aws ecr describe-repositories --repository-names kitchensink-identity || aws ecr create-repository --repository-name kitchensink-identity
+              run: bash .github/scripts/ecr-ensure-repo.sh kitchensink-identity
 
             - name: Build, tag, and push identity service Docker image
               if: steps.flags.outputs.deploy_service == 'true'

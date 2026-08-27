@@ -65,9 +65,26 @@ const nextConfig: NextConfig = {
         '@kitchensink/recipe-service-client',
         '@kitchensink/recipe-core',
     ],
+    // ⛔ THE SAME RULE, TWICE, BECAUSE NEXT 16 CHANGED BUNDLERS UNDER IT.
+    //
     // Those TS-source packages use NodeNext-style `.js` extensions on relative imports (e.g.
-    // `export * from './profileClient.js'`), so webpack must resolve a `.js` specifier to its `.ts`/`.tsx`
-    // source. Without this, `next build` fails with "Can't resolve './profileClient.js'".
+    // `export * from './profileClient.js'`), which `docs/CODING_STANDARDS.md` mandates and which is a
+    // TypeScript requirement under `moduleResolution: nodenext` — not a style choice we can drop. A bundler
+    // must therefore resolve a `.js` specifier to its `.ts`/`.tsx` source.
+    //
+    // ⛔ NEXT 16 BUILDS WITH TURBOPACK BY DEFAULT, AND TURBOPACK HAS NO `extensionAlias`. THIS IS WHY THE
+    // BUILD SCRIPT PASSES `--webpack`.
+    //
+    // The 15 -> 16 bump failed with 89 "Can't resolve './Button.js'" errors — every barrel in every shared
+    // package at once, which reads like a broken workspace and is one missing bundler feature.
+    //
+    // ⚠️ `turbopack.resolveExtensions` is NOT the equivalent and was MEASURED not to fix it: adding
+    // `['.tsx', '.ts', '.jsx', '.js', …]` moved the failure count 89 -> 86. `resolveExtensions` decides which
+    // extensions to try for an EXTENSIONLESS specifier; `extensionAlias` rewrites an explicit `.js` to
+    // `.ts`/`.tsx`, and Turbopack exposes no counterpart. Do not re-add it believing it helps.
+    //
+    // ⛔ The `.js` specifiers are NOT ours to drop: `moduleResolution: nodenext` requires them and
+    // `docs/CODING_STANDARDS.md` mandates them. So the bundler moves, not the source.
     webpack: (config) => {
         config.resolve.extensionAlias = {
             ...(config.resolve.extensionAlias as Record<string, string[]> | undefined),

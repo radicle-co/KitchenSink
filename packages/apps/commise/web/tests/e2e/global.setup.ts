@@ -19,6 +19,7 @@ export default async function globalSetup() {
     // run-scoped on purpose: a fixed, shared fixture let two concurrent CI runs delete each other's user
     // (see runFixtureIdentity.ts).
     const userId = await ensureSignInTestUser();
+
     // Block until the async user.created webhook has backfilled `external_id` onto this fresh user, so every
     // owner-gated spec sees a token that carries the app-user ULID (fixes the first-token sync race that made
     // the suite flaky as more owner-scoped specs landed). Fails loud here if the backfill never arrives.

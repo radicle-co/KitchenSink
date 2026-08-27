@@ -13,6 +13,6 @@
     // configs alias to (expo-blur, expo-image, FlashList, …); they were in no project, so a stub that had
     // drifted from the module it doubles would have compiled. `rootDir` lives in `tsconfig.build.json` because
     // a root-level `test-utils/` cannot sit in a project rooted at `src` (TS6059).
-    "include": ["src/**/*.ts", "src/**/*.tsx", "test-utils/**/*.ts", "test-utils/**/*.tsx"],
+    "include": ["src/**/*.ts", "src/**/*.tsx", "test-utils/**/*.ts", "test-utils/**/*.tsx", "vitest.setup.ts"],
     "exclude": ["node_modules", "dist"]
 }

@@ -4,7 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "next dev",
+        "dev": "next dev --webpack",
         "build": "tsx scripts/buildWithEndpoints.ts",
         "start": "next start",
         "lint": "eslint .",
@@ -47,7 +47,7 @@
         "class-validator": "^0.15.1",
         "constructs": "*",
         "ditox": "^3.3.0",
-        "next": "^15.0.0",
+        "next": "^16.3.3",
         "react": "^19.0.0",
         "react-dom": "^19.2.7",
         "react-error-boundary": "^6.1.2",

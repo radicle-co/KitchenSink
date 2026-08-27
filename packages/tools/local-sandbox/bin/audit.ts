@@ -54,9 +54,11 @@ function main(): void {
 
     if (requirements.unsupported.length > 0) {
         process.stdout.write('CANNOT be emulated locally — a local run does not cover these:\n');
+
         for (const entry of requirements.unsupported) {
             process.stdout.write(`  ${entry.type}\n      ${entry.why}\n`);
         }
+
         process.stdout.write('\n');
     }
 
@@ -65,9 +67,11 @@ function main(): void {
         // locally — the drift this whole package exists to make visible. Exiting green would defer it
         // forever.
         process.stdout.write('UNDECIDED — new infrastructure with no local-support decision:\n');
+
         for (const type of requirements.undecided) {
             process.stdout.write(`  ${type}\n`);
         }
+
         process.stdout.write('\nAdd each to LOCAL_SUPPORT in src/localSupport.ts, with a reason.\n');
         process.exitCode = 1;
     }

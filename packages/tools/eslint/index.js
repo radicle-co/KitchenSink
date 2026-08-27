@@ -356,6 +356,15 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                 '**/.expo/**',
                 '**/build/**',
                 '**/out/**',
+                // ⛔ Test-created temp directories. `@kitchensink/vitest`'s globalSetup points TMPDIR at a
+                // gitignored `.tmp-test/` INSIDE the repo, so CDK synth output and fixture scratch land
+                // somewhere findable and removable instead of accumulating invisibly in /tmp (95,827
+                // directories and 110 GB, measured 2026-08-27). Being inside the repo is the POINT — a leak
+                // is one `du` away rather than a full disk — but it also means every path-walking tool now
+                // sees it, and ESLint tried to parse a synthesised Lambda asset's `.d.ts`.
+                //
+                // ⚠️ ESLint flat config does NOT read .gitignore, so being gitignored is not enough here.
+                '**/.tmp-test/**',
                 // Tool caches and reports.
                 '**/cdk.out/**',
                 '**/.turbo/**',

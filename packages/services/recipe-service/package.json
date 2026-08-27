@@ -46,7 +46,7 @@
         "aws-cdk-lib": "^2.0.0",
         "constructs": "^10.0.0",
         "drizzle-orm": "^0.45.2",
-        "file-type": "^19.6.0",
+        "file-type": "^22.0.2",
         "jose": "^6.2.3",
         "lru-cache": "^11.5.2",
         "nestjs-zod": "^5.5.0",

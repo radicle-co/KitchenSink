@@ -46,8 +46,12 @@
  */
 import { createHash } from 'node:crypto';
 
-import { unsafeUniformIntDistribution, xoroshiro128plus } from 'pure-rand';
-import type { RandomGenerator } from 'pure-rand';
+// ⛔ SUBPATH IMPORTS, because pure-rand 8 REMOVED its root export entirely — `from 'pure-rand'` no longer
+// resolves at all. `unsafeUniformIntDistribution` went with it; `uniformInt` is the replacement, with the
+// same semantics (returns a number, advances the generator in place) and the generator argument moved FIRST.
+import { uniformInt } from 'pure-rand/distribution/uniformInt';
+import { xoroshiro128plus } from 'pure-rand/generator/xoroshiro128plus';
+import type { RandomGenerator } from 'pure-rand/types/RandomGenerator';
 
 import { cookNounPhrase, isInvertibleUsdaName, usdaSegments } from './cookPhrasing.js';
 import { CORPUS_CONTRAST_CLASSES, type CorpusContrastClass, type CorpusLine } from './corpus.js';
@@ -229,7 +233,7 @@ const ALLOCATION_ORDER: readonly CorpusContrastClass[] = [
 function pick<T>(items: readonly T[], rng: RandomGenerator): T {
     // `items` is never empty at any call site — every caller has already checked, because an empty pool is a
     // condition the allocator handles by recording a shortfall rather than by drawing from nothing.
-    return items[unsafeUniformIntDistribution(0, items.length - 1, rng)] as T;
+    return items[uniformInt(rng, 0, items.length - 1)] as T;
 }
 
 /** A Fisher-Yates shuffle over a copy. Advances `rng`. */
@@ -237,7 +241,7 @@ function shuffled<T>(items: readonly T[], rng: RandomGenerator): T[] {
     const copy = [...items];
 
     for (let index = copy.length - 1; index > 0; index -= 1) {
-        const swap = unsafeUniformIntDistribution(0, index, rng);
+        const swap = uniformInt(rng, 0, index);
         const held = copy[index] as T;
 
         copy[index] = copy[swap] as T;
@@ -289,9 +293,9 @@ interface Quantity {
  */
 function drawQuantity(rng: RandomGenerator, allowRange: boolean): Quantity {
     const choice = pick(UNIT_CHOICES, rng);
-    const index = unsafeUniformIntDistribution(0, choice.amounts.length - 1, rng);
+    const index = uniformInt(rng, 0, choice.amounts.length - 1);
     const low = choice.amounts[index] as number;
-    const wantsRange = allowRange && unsafeUniformIntDistribution(1, RANGE_ODDS, rng) === 1;
+    const wantsRange = allowRange && uniformInt(rng, 1, RANGE_ODDS) === 1;
     const high = wantsRange ? (choice.amounts[index + 1] ?? null) : null;
     const shown = high ?? low;
     // ⚠️ `<= 1`, not `=== 1`. A cook writes "1/2 teaspoon", never "1/2 teaspoons", and a line that reads
@@ -315,7 +319,7 @@ function drawQuantity(rng: RandomGenerator, allowRange: boolean): Quantity {
 function corruptQuantity(quantity: Quantity, rng: RandomGenerator): Pick<Quantity, 'quantityLow' | 'unit'> {
     const canSwapUnit = quantity.unit !== null;
 
-    if (canSwapUnit && unsafeUniformIntDistribution(0, 1, rng) === 0) {
+    if (canSwapUnit && uniformInt(rng, 0, 1) === 0) {
         const others = UNIT_CHOICES.filter((choice) => choice.unit !== null && choice.unit !== quantity.unit);
 
         return { quantityLow: quantity.quantityLow, unit: pick(others, rng).unit };
@@ -335,7 +339,7 @@ function corruptQuantity(quantity: Quantity, rng: RandomGenerator): Pick<Quantit
  * @returns The source line. Deterministic given `rng`'s state.
  */
 function sourceLineFor(row: CatalogRow, quantity: Quantity, rng: RandomGenerator): string {
-    const wantsPreparation = unsafeUniformIntDistribution(1, PREPARATION_ODDS, rng) === 1;
+    const wantsPreparation = uniformInt(rng, 1, PREPARATION_ODDS) === 1;
     const preparation = wantsPreparation ? `, ${pick(PREPARATIONS, rng)}` : '';
 
     return `${quantity.text} ${cookNounPhrase(row.name)}${preparation}`;

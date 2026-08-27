@@ -50,7 +50,7 @@
         "@nestjs/platform-express": "^11.1.28",
         "aws-cdk-lib": "*",
         "constructs": "*",
-        "csv-parse": "^6.2.1",
+        "csv-parse": "^7.0.2",
         "drizzle-orm": "^0.45.2",
         "jose": "^6.1.0",
         "nestjs-zod": "^5.5.0",
@@ -84,7 +84,7 @@
         "tsx": "^4.23.12",
         "vite-node": "^6.0.0",
         "typescript": "^5.9.3",
-        "undici": "^6.27.0",
+        "undici": "^8.10.0",
         "vitest": "^4.0.0",
         "yaml": "^2.8.1"
     },

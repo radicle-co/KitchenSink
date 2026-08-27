@@ -285,6 +285,30 @@ function safeJson(text: string): unknown {
  *
  * @sideEffect Reads (consumes) the response body stream.
  */
+/**
+ * Fold ky 2's pre-parsed `HTTPError.data` into the body shape {@link RawResponse} carries.
+ *
+ * ⚠️ A STRING IS STILL PARSED, exactly as `safeJson(text)` did before. ky sets `data` to plain text
+ * whenever the content-type is not JSON — including a JSON body served without the header, which is what a
+ * fetch mock produces and what cost 12 tests their domain error code when this discarded strings outright.
+ * An ALB's 502 HTML page reaches the same `undefined` it always did, by failing to parse rather than by
+ * being a string.
+ *
+ * @param data - What ky parsed out of the error response.
+ * @returns The parsed body, or `undefined` when there was none to parse. Pure.
+ */
+function readErrorData(data: unknown): unknown {
+    if (data === undefined || data === null) {
+        return undefined;
+    }
+
+    if (typeof data !== 'string') {
+        return data;
+    }
+
+    return safeJson(data);
+}
+
 async function normalizeResponse(response: Response): Promise<RawResponse> {
     const text = await response.text();
 
@@ -337,7 +361,8 @@ export class RecipeServiceClient {
         // `./contractSkew.ts` for where the check fires instead, and why.
         this.http = ky.create({
             // ky appends the single joining slash; input paths are passed without a leading slash.
-            prefixUrl: this.baseUrl,
+            // ⚠️ `prefix`, not `prefixUrl` — renamed in ky 2.
+            prefix: this.baseUrl,
             // The injected `fetch` (a test double) is used as-is; otherwise the platform global, bound to
             // `globalThis`. A BARE `fetch` reference handed to ky is invoked detached, which throws
             // `TypeError: Illegal invocation` in the browser (window.fetch must be called with `window` as
@@ -356,7 +381,9 @@ export class RecipeServiceClient {
             headers: { accept: 'application/json' },
             hooks: {
                 beforeRequest: [
-                    async (request, hookOptions) => {
+                    // ⚠️ ONE STATE ARGUMENT, not `(request, options)` — ky 2 changed the hook signature to
+                    // `(state: BeforeRequestState)`. The fields are the same, they arrive together now.
+                    async ({ request, options: hookOptions }) => {
                         const forceRefresh = hookOptions.context['forceRefresh'] === true;
                         const token = await this.resolveToken(forceRefresh);
 
@@ -1272,7 +1299,16 @@ export class RecipeServiceClient {
             return await normalizeResponse(await this.http(stripLeadingSlash(path), options));
         } catch (error) {
             if (error instanceof HTTPError) {
-                return normalizeResponse(error.response);
+                // ⛔ `error.data`, NOT `error.response` — ky 2 CONSUMES the body to populate `data`, and its
+                // own docs say so: "The response body is automatically consumed when populating
+                // `error.data`, so `error.response.json()` and other body methods will not work." Re-reading
+                // it throws `TypeError: Body is unusable`, which surfaced as 23 tests mapping auth and
+                // 5xx responses to a raw TypeError instead of a typed client error.
+                //
+                // ⚠️ `data` is ALREADY PARSED: JSON when the content-type says so, plain text otherwise,
+                // and `undefined` when the body is empty or unparseable — which is exactly the three-way
+                // distinction `normalizeResponse` was making by hand, so nothing is lost by not re-reading.
+                return { status: error.response.status, body: readErrorData(error.data) };
             }
 
             // A timeout is NOT a response — there is no status to map — so it cannot be folded into a

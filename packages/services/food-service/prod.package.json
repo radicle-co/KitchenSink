@@ -23,7 +23,7 @@
         "@nestjs/platform-express": "^11.1.28",
         "aws-cdk-lib": "*",
         "constructs": "*",
-        "csv-parse": "^6.2.1",
+        "csv-parse": "^7.0.2",
         "drizzle-orm": "^0.45.2",
         "jose": "^6.1.0",
         "nestjs-zod": "^5.5.0",

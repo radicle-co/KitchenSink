@@ -1,0 +1,158 @@
+name: Sandbox Reconcile
+
+# The hourly convergence loop for on-demand sandboxes (ADR-0028).
+#
+# ⚠️  It RECONCILES, it does not merely delete. For every `pr-{N}` preview it asks "should this be up?" and
+# makes reality match — which also catches a teardown that died halfway, a stack created out of band, and
+# the RDS instance AWS silently auto-restarts after 7 days of being stopped. A one-shot deleter fixes none
+# of those, and each of them bills until a human notices.
+#
+# ⚠️  HOURLY, not once at midnight. GitHub's scheduled workflows are best-effort: delayed under load,
+# skipped entirely, and auto-disabled after 60 days of repository inactivity. A single nightly run that
+# silently does not happen is indistinguishable from one that found nothing to do. Asking "is anything past
+# due?" every hour is self-healing — a missed run costs an hour, not a month.
+#
+# It never computes an expiry. That number was decided once, by `sandbox-up.yml`, and is carried on the
+# stacks as the `SandboxExpiresAt` tag.
+
+on:
+    schedule:
+        - cron: '17 * * * *' # hourly, off the hour — the top of the hour is GitHub's most contended slot
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    pull-requests: write # remove the `sandbox-up` label from a reaped PR
+
+concurrency:
+    group: sandbox-reconcile
+    cancel-in-progress: false
+
+jobs:
+    reconcile:
+        name: Converge sandboxes to their intent
+        runs-on: ubuntu-latest
+        env:
+            GH_TOKEN: ${{ github.token }}
+            AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+
+            # Discover from AWS, not from the PR list: a sandbox that outlived its PR is exactly the case
+            # that costs money, and it has no PR to enumerate.
+            # ⚠️  `set -e` is deliberately ABSENT. This step runs before the teardown, and a step that
+            # aborts is a step that silently cancels reclamation for every sandbox — the 2026-07-28
+            # incident, where a DNS lookup unrelated to teardown took the whole sweep down for 11 runs.
+            # Each stack is probed defensively and a failure downgrades that one stack, not the sweep.
+            - name: Find live per-PR sandboxes
+              id: find
+              run: |
+                  set -uo pipefail
+                  source .github/scripts/pr-scope.sh
+                  now=$(date +%s)
+                  chmod +x .github/scripts/sandbox-lifetime.sh
+
+                  expired=()
+                  live=()
+                  while read -r stack; do
+                      [ -z "$stack" ] && continue
+                      token=$(sed -E 's/^kitchensink-[a-z-]+-(pr-[0-9]+)$/\1/' <<<"$stack")
+                      [[ $token =~ ^pr-[0-9]+$ ]] || continue
+
+                      expires=$(aws cloudformation describe-stacks --stack-name "$stack" \
+                        --query "Stacks[0].Tags[?Key=='SandboxExpiresAt'].Value | [0]" --output text 2>/dev/null || echo None)
+
+                      # ⚠️  FAIL TOWARD OFF. An untagged sandbox is treated as EXPIRED, not as immortal: the
+                      # tag is missing when a deploy died before it stamped one, and the cheap mistake is
+                      # reaping something reproducible with one button press. The expensive mistake is a
+                      # preview nothing will ever collect.
+                      if [ "$expires" = 'None' ] || [ -z "$expires" ] || ! [[ $expires =~ ^[0-9]+$ ]]; then
+                          echo "  ${token}: no SandboxExpiresAt tag on ${stack} — treating as expired"
+                          expired+=("$token"); continue
+                      fi
+                      if [ "$(.github/scripts/sandbox-lifetime.sh is-expired "$expires" "$now" | sed -n 's/^expired=//p')" = 'true' ]; then
+                          echo "  ${token}: expired at $(date -u -d "@${expires}" +%FT%TZ)"
+                          expired+=("$token")
+                      else
+                          echo "  ${token}: live until $(date -u -d "@${expires}" +%FT%TZ)"
+                          live+=("$token")
+                      fi
+                  done < <(aws cloudformation list-stacks \
+                      --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE ROLLBACK_COMPLETE CREATE_FAILED DELETE_FAILED \
+                      --query 'StackSummaries[].StackName' --output text | tr '\t' '\n' | sort -u)
+
+                  printf 'expired=%s\n' "$(printf '%s\n' "${expired[@]:-}" | sort -u | tr '\n' ' ')" >>"$GITHUB_OUTPUT"
+                  printf 'live=%s\n' "$(printf '%s\n' "${live[@]:-}" | sort -u | tr '\n' ' ')" >>"$GITHUB_OUTPUT"
+
+            # ONE teardown implementation, the same one the on-close cleanup and the abandoned-preview reaper
+            # already use. A second copy of "what belongs to pr-{N}" is how a sweep eventually deletes
+            # something shared.
+            # `!cancelled()` is REQUIRED, not stylistic: GitHub skips every remaining step once one fails,
+            # so without it a failure in discovery silently skips reclamation. Asserted by
+            # `sandboxReclamationReachability.test.ts` analyzer 3.
+            - name: Tear down expired sandboxes
+              if: ${{ !cancelled() && steps.find.outputs.expired != '' }}
+              run: |
+                  set -uo pipefail
+                  chmod +x .github/scripts/teardown-sandbox-pr.sh
+                  failed=0
+                  for token in ${{ steps.find.outputs.expired }}; do
+                      echo "::group::teardown ${token}"
+                      .github/scripts/teardown-sandbox-pr.sh "$token" || { echo "::error::teardown failed for ${token}"; failed=1; }
+                      pr="${token#pr-}"
+                      gh pr edit "$pr" --remove-label sandbox-up 2>/dev/null \
+                        || echo "note: could not clear the sandbox-up label on #${pr} (already gone, or the PR is closed)"
+                      echo "::endgroup::"
+                  done
+                  exit "$failed"
+
+            # The convergence half, and the reason this is not just a reaper. With no sandbox live, nothing
+            # in the shared sandbox tier should be running — including an RDS instance AWS restarted by
+            # itself after 7 days stopped.
+            - name: Ensure the shared sandbox tier is stopped when nothing needs it
+              if: ${{ !cancelled() && steps.find.outputs.live == '' }}
+              run: |
+                  set -uo pipefail
+                  echo 'No live sandbox — converging the shared sandbox tier to stopped.'
+
+                  db=$(aws rds describe-db-instances \
+                    --query "DBInstances[?contains(DBInstanceIdentifier,'sandbox')].[DBInstanceIdentifier,DBInstanceStatus]" --output text)
+                  while read -r id status; do
+                      [ -z "${id:-}" ] && continue
+                      if [ "$status" = 'available' ]; then
+                          echo "stopping RDS ${id} (was ${status})"
+                          aws rds stop-db-instance --db-instance-identifier "$id" >/dev/null \
+                            || echo "::warning::could not stop ${id}"
+                      else
+                          echo "RDS ${id} already ${status}"
+                      fi
+                  done <<<"$db"
+
+                  nat=$(aws ec2 describe-instances \
+                    --filters 'Name=tag:Name,Values=*sandbox*' 'Name=instance-state-name,Values=running' \
+                    --query 'Reservations[].Instances[].InstanceId' --output text)
+                  if [ -n "${nat// /}" ]; then
+                      echo "stopping sandbox NAT: ${nat}"
+                      # shellcheck disable=SC2086
+                      aws ec2 stop-instances --instance-ids $nat >/dev/null || echo '::warning::could not stop the sandbox NAT'
+                  fi
+
+                  while read -r cluster; do
+                      [ -z "$cluster" ] && continue
+                      while read -r svc; do
+                          [ -z "$svc" ] && continue
+                          desired=$(aws ecs describe-services --cluster "$cluster" --services "$svc" \
+                            --query 'services[0].desiredCount' --output text)
+                          if [ "${desired:-0}" != '0' ]; then
+                              echo "scaling $(basename "$svc") to 0 (was ${desired})"
+                              aws ecs update-service --cluster "$cluster" --service "$svc" --desired-count 0 >/dev/null \
+                                || echo "::warning::could not scale $(basename "$svc")"
+                          fi
+                      done < <(aws ecs list-services --cluster "$cluster" --query 'serviceArns[]' --output text | tr '\t' '\n')
+                  done < <(aws ecs list-clusters --query "clusterArns[?contains(@,'sandbox')]" --output text | tr '\t' '\n')

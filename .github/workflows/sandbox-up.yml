@@ -1,0 +1,90 @@
+name: Sandbox Up
+
+# THE BUTTON. Actions → Sandbox Up → Run workflow.
+#
+# ⚠️  DELIBERATE — a preview is no longer created by pushing. It is created here, on purpose, and it dies at
+# midnight America/New_York the same day (ADR-0028). Pushing to a PR that has no live sandbox deploys
+# nothing: `deploy-gate.sh` refuses without the `sandbox-up` label this workflow applies, which is what
+# stops the reaper's work being undone by the next commit.
+#
+# Pressing it again on an already-live sandbox re-stamps the expiry and redeploys — that is also how you
+# EXTEND one you are still working in.
+
+on:
+    workflow_dispatch:
+        inputs:
+            pr:
+                description: 'PR number to bring a sandbox up for (e.g. 91)'
+                required: true
+                type: string
+
+permissions:
+    contents: read
+    pull-requests: write # apply the `sandbox-up` label that carries intent
+    actions: write # dispatch the deploy
+
+concurrency:
+    # One start at a time per PR. Two concurrent presses would race on the expiry stamp.
+    group: sandbox-up-${{ inputs.pr }}
+    cancel-in-progress: false
+
+jobs:
+    start:
+        name: Start sandbox for PR #${{ inputs.pr }}
+        runs-on: ubuntu-latest
+        env:
+            GH_TOKEN: ${{ github.token }}
+            PR: ${{ inputs.pr }}
+        steps:
+            - uses: actions/checkout@v4
+
+            # Refuse a PR number that is not an open PR BEFORE anything is tagged or labelled. A sandbox for
+            # a closed PR is infrastructure nobody will ever reap by the on-close path.
+            - name: Check the PR is open
+              run: |
+                  set -euo pipefail
+                  if ! [[ $PR =~ ^[1-9][0-9]*$ ]]; then
+                      echo "::error::'${PR}' is not a PR number" >&2; exit 1
+                  fi
+                  state=$(gh pr view "$PR" --json state --jq .state 2>/dev/null || echo MISSING)
+                  if [ "$state" != 'OPEN' ]; then
+                      echo "::error::PR #${PR} is ${state}, not OPEN — refusing to stand up a sandbox that the on-close cleanup will never see." >&2
+                      exit 1
+                  fi
+
+            # The expiry is computed ONCE, here, and carried from now on as an absolute epoch. The reconciler
+            # never repeats this arithmetic, so it cannot disagree about when this sandbox dies.
+            - name: Stamp the expiry
+              id: expiry
+              run: |
+                  set -euo pipefail
+                  chmod +x .github/scripts/sandbox-lifetime.sh
+                  .github/scripts/sandbox-lifetime.sh expires-at "$(date +%s)" >>"$GITHUB_OUTPUT"
+
+            - name: Declare intent
+              run: |
+                  set -euo pipefail
+                  gh pr edit "$PR" --add-label sandbox-up
+                  echo "PR #${PR} labelled sandbox-up; sandbox expires ${{ steps.expiry.outputs.expiresAtIso }}"
+
+            # `deploy-gate.sh` sees `forced=true` for a dispatch, so these deploy unconditionally — the press
+            # IS the intent. SANDBOX_EXPIRES_AT rides through to the CDK app, which tags every stack with it.
+            - name: Deploy the preview services
+              env:
+                  SANDBOX_EXPIRES_AT: ${{ steps.expiry.outputs.expiresAt }}
+              run: |
+                  set -euo pipefail
+                  for service in food recipe; do
+                      gh workflow run sandbox-deploy.yml \
+                        -f service="$service" \
+                        -f stage="pr-${PR}"
+                  done
+
+            - name: Summary
+              run: |
+                  {
+                      echo "### Sandbox starting for PR #${PR}"
+                      echo
+                      echo "- Expires **${{ steps.expiry.outputs.expiresAtIso }}** (midnight America/New_York)"
+                      echo "- Press this button again to extend it or to bring it back after it is reaped."
+                  } >>"$GITHUB_STEP_SUMMARY"

@@ -135,7 +135,17 @@ export class SandboxSchedulerStack extends Stack {
             }),
         );
 
-        // ── EventBridge Scheduler pair (stop 00:00 ET / start 09:00 ET, DST-correct) ─────────────
+        // ── Nightly STOP at 00:00 ET, DST-correct ────────────────────────────────────────────────
+        //
+        // ⚠️  ADR-0028 REMOVED the 09:00 start this pair used to carry. Under the on-demand sandbox the tier
+        // is not a permanent thing that sleeps — it comes up when someone presses the button in GitHub and
+        // dies at midnight. A daily 09:00 start would resurrect the whole tier every weekday morning
+        // regardless of whether anyone wanted it, silently undoing the reaper and restoring the bill.
+        //
+        // The STOP stays, and it is NOT merely a backstop: AWS auto-restarts a stopped RDS instance after
+        // SEVEN DAYS. With the sandbox idle for a week the database comes back on its own and bills until a
+        // human notices. This catches that within a day, every time — including in the weeks when GitHub's
+        // best-effort scheduled workflows do not run at all.
         // Supply `day` (day-of-month) only — the CDK helper rejects setting both day and weekDay, and
         // fills the unset weekDay field with `?`, yielding the intended `cron(0 0 * * ? *)`.
         const stopExpression = scheduler.ScheduleExpression.cron({
@@ -147,29 +157,12 @@ export class SandboxSchedulerStack extends Stack {
             timeZone: TimeZone.AMERICA_NEW_YORK,
         });
 
-        const startExpression = scheduler.ScheduleExpression.cron({
-            minute: '0',
-            hour: '9',
-            day: '*',
-            month: '*',
-            year: '*',
-            timeZone: TimeZone.AMERICA_NEW_YORK,
-        });
-
         new scheduler.Schedule(this, 'SandboxStopSchedule', {
             schedule: stopExpression,
             target: new schedulerTargets.LambdaInvoke(schedulerFn, {
                 input: scheduler.ScheduleTargetInput.fromObject({ action: 'stop' }),
             }),
-            description: 'Stop the sandbox tier nightly at 00:00 America/New_York (ADR-0007)',
-        });
-
-        new scheduler.Schedule(this, 'SandboxStartSchedule', {
-            schedule: startExpression,
-            target: new schedulerTargets.LambdaInvoke(schedulerFn, {
-                input: scheduler.ScheduleTargetInput.fromObject({ action: 'start' }),
-            }),
-            description: 'Start the sandbox tier every morning at 09:00 America/New_York (ADR-0007)',
+            description: 'Stop the sandbox tier nightly at 00:00 America/New_York (ADR-0007, ADR-0028)',
         });
     }
 }

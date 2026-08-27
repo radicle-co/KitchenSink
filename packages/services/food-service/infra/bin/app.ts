@@ -42,6 +42,21 @@ if (stage !== 'prod' && stage === baseStage) {
 // Environment=pr-{N} so the PR-close cleanup deletes it (by tag OR pr-{N} name prefix). A persistent
 // (non-PR) food deploy tags 'global'. See ADR-0005.
 Tags.of(app).add('Environment', stage.startsWith('pr-') ? stage : 'global');
+
+// ADR-0028 — an on-demand sandbox carries its own expiry. `sandbox-up.yml` computes it ONCE at the press of
+// the button and passes it here; the hourly reconciler only ever compares that number to now, so the two
+// can never disagree about when this preview dies.
+//
+// ⚠️  A `pr-{N}` deploy that arrives WITHOUT the variable is left deliberately untagged, and the reconciler
+// treats untagged as EXPIRED. That is the fail-safe direction: a preview stood up outside the button is one
+// nobody has taken responsibility for, and reaping something reproducible by one button press is the cheap
+// mistake. The expensive one is infrastructure no process will ever collect.
+const sandboxExpiresAt = process.env['SANDBOX_EXPIRES_AT'];
+
+if (stage.startsWith('pr-') && sandboxExpiresAt) {
+    Tags.of(app).add('SandboxExpiresAt', sandboxExpiresAt);
+}
+
 // U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
 // annotation-only so the synthesized template is unchanged. See @kitchensink/infra-security.
 attachSecurityChecks(app);

@@ -90,11 +90,11 @@ describe('GlobalStack child export contract (what services import)', () => {
 });
 
 describe('GlobalStack sandbox-scheduler guard (ADR-0007 / no prod diff)', () => {
-    it('creates the SandboxSchedulerStack (2 schedules) ONLY for the sandbox stage', () => {
+    it('creates the SandboxSchedulerStack (1 stop schedule, ADR-0028) ONLY for the sandbox stage', () => {
         const sandbox = makeGlobal('sandbox');
 
         expect(sandbox.sandboxScheduler).toBeInstanceOf(SandboxSchedulerStack);
-        Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 2);
+        Template.fromStack(sandbox.sandboxScheduler!).resourceCountIs('AWS::Scheduler::Schedule', 1);
     });
 
     it('creates no scheduler for prod or an unspecified stage (guard leaves it undefined)', () => {

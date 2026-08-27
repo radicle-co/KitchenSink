@@ -587,6 +587,12 @@ jobs:
             - name: Ensure this PR has a food service (ensure-exists gate)
               id: gate
               env:
+                  # ⚠️  ADR-0010 amendment — the on-demand sandbox. An ABSENT stack used to mean "broken,
+                  # deploy it". Once previews are reaped at midnight it means "deliberately torn down", and
+                  # ensure-exists would rebuild every environment on the first push after the reaper ran,
+                  # silently, behind a green check. The `sandbox-up` label is the intent the button applies
+                  # and the reconciler removes; without it, nothing here deploys.
+                  INTENT: ${{ contains(github.event.pull_request.labels.*.name, 'sandbox-up') }}
                   CHANGED: ${{ steps.changes.outputs.food || 'false' }}
                   FORCED: ${{ github.event_name == 'workflow_dispatch' }}
                   # The probe URL comes from a previous step's OUTPUT, so it reaches the gate as an
@@ -595,7 +601,7 @@ jobs:
               run: |
                   set -euo pipefail
                   chmod +x .github/scripts/deploy-gate.sh
-                  .github/scripts/deploy-gate.sh evaluate food "$CHANGED" "$FORCED" \
+                  .github/scripts/deploy-gate.sh evaluate "$INTENT" food "$CHANGED" "$FORCED" \
                     "$HEALTH_URL" \
                     "${DEFAULT_AWS_REGION}" \
                     "kitchensink-food-service-${STAGE}"
@@ -792,12 +798,18 @@ jobs:
             - name: Ensure this PR has a recipe tier (ensure-exists gate)
               id: gate
               env:
+                  # ⚠️  ADR-0010 amendment — the on-demand sandbox. An ABSENT stack used to mean "broken,
+                  # deploy it". Once previews are reaped at midnight it means "deliberately torn down", and
+                  # ensure-exists would rebuild every environment on the first push after the reaper ran,
+                  # silently, behind a green check. The `sandbox-up` label is the intent the button applies
+                  # and the reconciler removes; without it, nothing here deploys.
+                  INTENT: ${{ contains(github.event.pull_request.labels.*.name, 'sandbox-up') }}
                   CHANGED: ${{ steps.changes.outputs.recipe || 'false' }}
                   FORCED: ${{ github.event_name == 'workflow_dispatch' }}
               run: |
                   set -euo pipefail
                   chmod +x .github/scripts/deploy-gate.sh
-                  .github/scripts/deploy-gate.sh evaluate recipe "$CHANGED" "$FORCED" \
+                  .github/scripts/deploy-gate.sh evaluate "$INTENT" recipe "$CHANGED" "$FORCED" \
                     "${RECIPE_ORIGIN}/health" \
                     "${DEFAULT_AWS_REGION}" \
                     "kitchensink-recipe-workers-${STAGE}" \

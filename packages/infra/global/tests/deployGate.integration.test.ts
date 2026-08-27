@@ -101,6 +101,7 @@ afterAll(async () => {
  */
 const evaluate = async (options: {
     readonly awsStatus: string;
+    readonly intent?: string;
     readonly changed?: string;
     readonly forced?: string;
     readonly url: string;
@@ -114,6 +115,7 @@ const evaluate = async (options: {
         [
             SCRIPT,
             'evaluate',
+            options.intent ?? 'true',
             'food',
             options.changed ?? 'false',
             options.forced ?? 'false',
@@ -239,7 +241,7 @@ describe('deploy-gate.sh evaluate — the gate is wired to the real CloudFormati
     it('exits 2 and writes NO verdict when invoked with too few arguments', () => {
         const outputFile = join(workdir, 'misuse.txt');
         writeFileSync(outputFile, '');
-        const result = spawnSync('bash', [SCRIPT, 'evaluate', 'food', 'false'], {
+        const result = spawnSync('bash', [SCRIPT, 'evaluate', 'true', 'food', 'false'], {
             encoding: 'utf8',
             env: { ...process.env, GITHUB_OUTPUT: outputFile },
         });

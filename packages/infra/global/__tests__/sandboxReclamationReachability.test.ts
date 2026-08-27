@@ -285,7 +285,15 @@ describe('per-PR reclamation is reachable', () => {
         );
 
         // Both reclamation paths must exist; without this the two analyzers below could pass vacuously.
-        expect(invoking.sort()).toEqual(['sandbox-deploy.yml#cleanup', 'sandbox-deploy.yml#reap-abandoned']);
+        // ADR-0028 adds a THIRD invoker: the hourly reconciler that reaps a sandbox once its
+        // `SandboxExpiresAt` has passed. It is admitted here rather than the assertion being loosened,
+        // because the set is the point — this list is what stops a fourth copy of "what belongs to
+        // pr-{N}" being written somewhere nobody is guarding.
+        expect(invoking.sort()).toEqual([
+            'sandbox-deploy.yml#cleanup',
+            'sandbox-deploy.yml#reap-abandoned',
+            'sandbox-reconcile.yml#reconcile',
+        ]);
     });
 
     it('lets no step deliberately abort before the teardown script runs', () => {

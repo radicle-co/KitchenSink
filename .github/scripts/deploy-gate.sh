@@ -29,8 +29,8 @@
 # re-implementing it) by packages/infra/global/__tests__/deployGate{,.integration}.test.ts.
 #
 # Usage — as a CLI:
-#     deploy-gate.sh decide   <changed> <forced> <healthCode> <name=STATUS> [<name=STATUS> …]
-#     deploy-gate.sh evaluate <service> <changed> <forced> <healthUrl> <region> <stack> [<stack> …]
+#     deploy-gate.sh decide   <intent> <changed> <forced> <healthCode> <name=STATUS> [<name=STATUS> …]
+#     deploy-gate.sh evaluate <intent> <service> <changed> <forced> <healthUrl> <region> <stack> [<stack> …]
 #
 # `evaluate` writes `deploy=` and `reason=` to stdout and, when set, appends them to $GITHUB_OUTPUT.
 # Exit status: 0 = a decision was made (read `deploy=`), 2 = misuse (never treat as "skip").
@@ -58,7 +58,20 @@ deploy_gate_stack_is_usable() {
     esac
 }
 
-# deploy_gate_decide <changed> <forced> <healthCode> <name=STATUS> [<name=STATUS> …]
+# deploy_gate_decide <intent> <changed> <forced> <healthCode> <name=STATUS> [<name=STATUS> …]
+#
+# ⚠️  <intent> is the ON-DEMAND SANDBOX amendment, and it inverts what an absent stack means.
+#
+# ADR-0010 made ABSENT a reason to DEPLOY, because a preview missing one of its services is broken. Once
+# sandboxes are torn down at midnight, absent stops meaning "broken" and starts meaning "deliberately
+# reaped" — and ensure-exists, left alone, rebuilds every environment on the first push after the reaper
+# ran. Silently. Behind a green check. That is ADR-0010's own failure mode running backwards, and it would
+# quietly restore the entire bill.
+#
+# So absence alone no longer deploys. It deploys when the sandbox is SUPPOSED to be up — `intent`, carried
+# by the `sandbox-up` PR label the button applies and the hourly reconciler removes — and then only under
+# the original ensure-exists rules. A manual dispatch still deploys unconditionally, because pressing the
+# button IS the expression of intent.
 #
 # The gate's whole decision, as a pure function. Prints exactly two lines — `deploy=true|false` and
 # `reason=<one line>` — and nothing else on stdout. Misuse exits 2 WITHOUT printing a verdict: a gate that
@@ -67,12 +80,17 @@ deploy_gate_stack_is_usable() {
 # <healthCode> is an HTTP status, or `000` for curl's "no response at all" (DNS failure, refused
 # connection, TLS failure, timeout).
 deploy_gate_decide() {
-    local changed="${1-}" forced="${2-}" health="${3-}"
-    shift 3 2>/dev/null || {
-        echo "usage: deploy-gate.sh decide <changed> <forced> <healthCode> <name=STATUS>…" >&2
+    local intent="${1-}" changed="${2-}" forced="${3-}" health="${4-}"
+    shift 4 2>/dev/null || {
+        echo "usage: deploy-gate.sh decide <intent> <changed> <forced> <healthCode> <name=STATUS>…" >&2
         return 2
     }
 
+    case "$intent" in true | false) ;; *)
+        echo "deploy-gate: <intent> must be 'true' or 'false', got '${intent}'" >&2
+        return 2
+        ;;
+    esac
     case "$changed" in true | false) ;; *)
         echo "deploy-gate: <changed> must be 'true' or 'false', got '${changed}'" >&2
         return 2
@@ -106,6 +124,16 @@ deploy_gate_decide() {
     # of deploying.
     if [ "$forced" = 'true' ]; then
         deploy_gate_emit true 'manual workflow_dispatch — deploying unconditionally'
+
+        return 0
+    fi
+
+    # The on-demand gate. Checked AFTER `forced` (the button is how intent is declared) and BEFORE every
+    # reason to deploy, because each of those reasons — changed, absent, unhealthy — is equally true of an
+    # environment that was deliberately torn down last midnight.
+    if [ "$intent" = 'false' ]; then
+        deploy_gate_emit false \
+            'no live sandbox for this PR (it was torn down, or never started) — press Run workflow to start one'
 
         return 0
     fi
@@ -190,7 +218,7 @@ deploy_gate_probe() {
     echo "$code"
 }
 
-# deploy_gate_evaluate <service> <changed> <forced> <healthUrl> <region> <stack> [<stack> …]
+# deploy_gate_evaluate <intent> <service> <changed> <forced> <healthUrl> <region> <stack> [<stack> …]
 #
 # Resolve the live state, decide, and publish the verdict to $GITHUB_OUTPUT. The probes run
 # UNCONDITIONALLY — even when the answer is already "deploy" — so the log always records the state the
@@ -199,12 +227,12 @@ deploy_gate_probe() {
 #
 # @sideEffect Calls CloudFormation, performs HTTP requests, writes stdout and $GITHUB_OUTPUT.
 deploy_gate_evaluate() {
-    local service="${1-}" changed="${2-}" forced="${3-}" health_url="${4-}" region="${5-}"
-    if [ "$#" -lt 6 ] || [ -z "$service" ] || [ -z "$health_url" ] || [ -z "$region" ]; then
-        echo "usage: deploy-gate.sh evaluate <service> <changed> <forced> <healthUrl> <region> <stack>…" >&2
+    local intent="${1-}" service="${2-}" changed="${3-}" forced="${4-}" health_url="${5-}" region="${6-}"
+    if [ "$#" -lt 7 ] || [ -z "$service" ] || [ -z "$health_url" ] || [ -z "$region" ]; then
+        echo "usage: deploy-gate.sh evaluate <intent> <service> <changed> <forced> <healthUrl> <region> <stack>…" >&2
         return 2
     fi
-    shift 5
+    shift 6
 
     local pairs=() stack status
     for stack in "$@"; do
@@ -218,7 +246,7 @@ deploy_gate_evaluate() {
     echo "[deploy-gate/${service}] GET ${health_url} → ${health}"
 
     local verdict
-    verdict=$(deploy_gate_decide "$changed" "$forced" "$health" "${pairs[@]}") || return 2
+    verdict=$(deploy_gate_decide "$intent" "$changed" "$forced" "$health" "${pairs[@]}") || return 2
 
     echo "$verdict"
     if [ -n "${GITHUB_OUTPUT:-}" ]; then

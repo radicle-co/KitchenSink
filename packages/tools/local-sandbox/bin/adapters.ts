@@ -4,7 +4,7 @@
  * The pure decisions live in `src/`; everything that touches the filesystem or spawns a process is here,
  * the same split `.github/scripts/deploy-gate.sh` uses (pure `decide`, impure `evaluate`).
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -120,4 +120,76 @@ export async function runCdkSynth(request: SynthRequest): Promise<SynthResult> {
         : [];
 
     return { exitCode: code, templates, stderr };
+}
+
+/**
+ * The port a service listens on locally, taken from its OWN env schema default.
+ *
+ * ⛔ Read, not allocated. Every container binds 3000 in the deployed world and is separated by host-based
+ * ALB routing, so the template cannot answer this. The repo already does: identity defaults to 3001, food
+ * to 3002, recipe to 3000 — and `.env.development`'s cross-service URLs already agree with those numbers.
+ * An allocation invented here would be a second, competing convention that the committed env files would
+ * immediately contradict.
+ *
+ * @param packageDir - Repo-relative package directory.
+ * @returns The default port, or `undefined` when the package does not state one.
+ * @sideEffect Reads the package's source.
+ */
+export function localPortFor(packageDir: string): number | undefined {
+    const sources = globSync('src/**/*.ts', {
+        cwd: path.join(REPO_ROOT, packageDir),
+        ignore: ['**/node_modules/**', '**/__tests__/**'],
+    });
+
+    for (const file of sources) {
+        let text = '';
+
+        try {
+            text = readFileSync(path.join(REPO_ROOT, packageDir, file), 'utf8');
+        } catch {
+            continue;
+        }
+
+        const matched = /\bPORT:[^\n]*?\.default\((\d{2,5})\)/u.exec(text);
+
+        if (matched?.[1] !== undefined) {
+            return Number(matched[1]);
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Build one service image exactly as CI does.
+ *
+ * ⛔ `docker:prepare` FIRST, and the REPO ROOT as context. The Dockerfiles COPY `dist`, `node_modules` and
+ * `prod.package.json` — they are not self-contained multi-stage builds — and `docker:prepare` is what writes
+ * that manifest. The context must be the root because they COPY `packages/shared/…/dist` paths that exist
+ * only from there; using the service directory fails with "not found" against a path that plainly exists.
+ *
+ * @param build - What to build.
+ * @returns Whether it succeeded, and the output when it did not.
+ * @sideEffect Spawns npm and docker.
+ */
+export function buildServiceImage(build: {
+    readonly packageName: string;
+    readonly dockerfile: string;
+    readonly localImage: string;
+}): { readonly ok: boolean; readonly output: string } {
+    const steps: readonly (readonly [string, readonly string[]])[] = [
+        ['npm', ['run', 'build', `--workspace=${build.packageName}`]],
+        ['npm', ['run', 'docker:prepare', `--workspace=${build.packageName}`]],
+        ['docker', ['build', '-f', build.dockerfile, '-t', build.localImage, '.']],
+    ];
+
+    for (const [command, args] of steps) {
+        const result = spawnSync(command, [...args], { cwd: REPO_ROOT, encoding: 'utf8' });
+
+        if (result.status !== 0) {
+            return { ok: false, output: `${command} ${args.join(' ')}\n${result.stderr ?? ''}${result.stdout ?? ''}` };
+        }
+    }
+
+    return { ok: true, output: '' };
 }

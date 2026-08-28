@@ -21,8 +21,10 @@ import { discoverApps } from '../src/discoverApps.js';
 import { discoverResources, summarizeRequirements, type DiscoveredResource } from '../src/discoverResources.js';
 import { planCompose } from '../src/composePlan.js';
 import { discoverDatabases, discoverMigrations, discoverServiceTasks, resolveExports } from '../src/runPlan.js';
+import { discoverImageBuilds, localContainerEnv, portConflicts } from '../src/localImages.js';
+import type { ServiceContainer } from '../src/composePlan.js';
 import { synthesizeAll } from '../src/synthesize.js';
-import { REPO_ROOT, readManifests, runCdkSynth } from './adapters.js';
+import { REPO_ROOT, buildServiceImage, localPortFor, readManifests, runCdkSynth } from './adapters.js';
 
 const GENERATED_DIR = path.join(REPO_ROOT, '.local-sandbox');
 
@@ -54,6 +56,16 @@ function toYaml(plan: ReturnType<typeof planCompose>): string {
             `            timeout: ${String((service.healthcheck as { timeout: string }).timeout)}`,
             `            retries: ${String((service.healthcheck as { retries: number }).retries)}`,
         );
+
+        if (service.dependsOn !== undefined) {
+            lines.push(
+                '        depends_on:',
+                ...service.dependsOn.flatMap((dep) => [
+                    `            ${dep}:`,
+                    '                condition: service_healthy',
+                ]),
+            );
+        }
 
         if (service.volumes !== undefined) {
             lines.push('        volumes:', ...service.volumes.map((volume) => `            - ${volume}`));
@@ -129,7 +141,99 @@ async function main(): Promise<void> {
     const parsedTemplates = templates.map((file) => JSON.parse(readFileSync(file, 'utf8')) as unknown);
     const exportMap = resolveExports(parsedTemplates);
     const databases = discoverDatabases(parsedTemplates, exportMap);
-    const plan = planCompose(requirements, { databases });
+    // Env NAMES each stack's containers declare, so a locally-run image gets the same variables set.
+    const tasksByStack = new Map<string, string[]>();
+
+    for (const file of templates) {
+        const stack = path.basename(file).replace(/\.template\.json$/u, '');
+        const keys = discoverServiceTasks(stack, JSON.parse(readFileSync(file, 'utf8'))).flatMap((task) => [
+            ...task.envKeys,
+        ]);
+
+        if (keys.length > 0) {
+            tasksByStack.set(stack, [...new Set(keys)].sort());
+        }
+    }
+
+    // ── Build OUR images, then point the local stack at them ────────────────────────────────────────
+    //
+    // ⛔ The CDK names the repository (`ContainerImage.fromEcrRepository`) but cannot say how to build it —
+    // every asset manifest carries `dockerImages: []`. The rest is read from the repo: the package that
+    // synthesised the stack owns the Dockerfile, and its own `docker:prepare` is what CI runs first.
+    const imageBuilds = outcomes.flatMap((outcome) =>
+        outcome.templates.flatMap((file) => [
+            ...discoverImageBuilds(
+                path.basename(file).replace(/\.template\.json$/u, ''),
+                JSON.parse(readFileSync(file, 'utf8')),
+                outcome.app,
+            ),
+        ]),
+    );
+    const uniqueBuilds = [...new Map(imageBuilds.map((build) => [build.localImage, build])).values()];
+    const serviceContainers: ServiceContainer[] = [];
+    const siblings: Record<string, number> = {};
+
+    for (const build of uniqueBuilds) {
+        const name = build.repository.replace(/^kitchensink-/u, '');
+        const hostPort = localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, ''));
+
+        if (hostPort !== undefined) {
+            siblings[name] = hostPort;
+        }
+    }
+
+    if (process.env['LOCAL_SANDBOX_SKIP_BUILD'] === '1') {
+        process.stdout.write('\n  images           : SKIPPED (LOCAL_SANDBOX_SKIP_BUILD=1)\n');
+    } else {
+        process.stdout.write(
+            `\nBuilding ${String(uniqueBuilds.length)} service image(s) — compile, docker:prepare, docker build…\n`,
+        );
+    }
+
+    for (const build of uniqueBuilds) {
+        const name = build.repository.replace(/^kitchensink-/u, '');
+        const hostPort = localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, '')) ?? build.containerPort ?? 3000;
+        // The stack's own database — the same resolution the migrations use.
+        const stackTemplate = templates.find((file) => path.basename(file).startsWith(build.stack));
+        const stackDbs =
+            stackTemplate === undefined
+                ? []
+                : discoverDatabases([JSON.parse(readFileSync(stackTemplate, 'utf8'))], exportMap);
+        const envKeys = tasksByStack.get(build.stack) ?? [];
+
+        if (process.env['LOCAL_SANDBOX_SKIP_BUILD'] !== '1') {
+            const built = buildServiceImage(build);
+
+            if (!built.ok) {
+                process.stderr.write(
+                    `\n  image build FAILED for ${build.packageName}\n${built.output
+                        .split('\n')
+                        .slice(-12)
+                        .map((l) => `      ${l}`)
+                        .join('\n')}\n`,
+                );
+                process.exitCode = 1;
+
+                return;
+            }
+
+            process.stdout.write(`  built ${build.localImage}\n`);
+        }
+
+        serviceContainers.push({
+            name,
+            image: build.localImage,
+            hostPort,
+            containerPort: build.containerPort ?? 3000,
+            environment: localContainerEnv(envKeys, {
+                database: stackDbs[0] ?? 'postgres',
+                port: build.containerPort ?? 3000,
+                siblings,
+            }),
+        });
+    }
+
+    const plan = planCompose(requirements, { databases, serviceContainers });
 
     mkdirSync(GENERATED_DIR, { recursive: true });
     writeFileSync(path.join(GENERATED_DIR, 'docker-compose.yml'), toYaml(plan));
@@ -140,6 +244,30 @@ async function main(): Promise<void> {
     process.stdout.write(`  databases        : ${databases.join(', ') || '(none declared)'}\n`);
     process.stdout.write(`  migrations owed  : ${requirements.migrations.length} (ADR-0022 — before services start)\n`);
     process.stdout.write(`  generated        : .local-sandbox/docker-compose.yml\n\n`);
+
+    // Pre-flight, before docker gets a chance to fail obscurely several minutes into the run.
+    const listening = spawnSync('ss', ['-lntH'], { encoding: 'utf8' });
+    const inUse = [...(listening.stdout ?? '').matchAll(/:(\d+)\s/gu)].flatMap((m) =>
+        m[1] === undefined ? [] : [Number(m[1])],
+    );
+    const clashes = portConflicts(serviceContainers, inUse);
+
+    if (clashes.length > 0) {
+        process.stderr.write('\nRefusing to start: host port(s) already in use.\n');
+
+        for (const clash of clashes) {
+            process.stderr.write(
+                `  ${clash.name} wants :${String(clash.hostPort)} — free it, or stop whatever is listening.\n`,
+            );
+        }
+
+        process.stderr.write(
+            "  (the port comes from that service's own PORT default; recipe-service defaults to 3000, which Next.js also uses)\n",
+        );
+        process.exitCode = 1;
+
+        return;
+    }
 
     process.stdout.write('Starting containers…\n');
     const composeArgs = ['compose', '-f', path.join(GENERATED_DIR, 'docker-compose.yml'), '-p', 'local-sandbox'];

@@ -10,7 +10,8 @@
         "audit": "tsx bin/audit.ts",
         "test": "vitest run",
         "lint": "eslint .",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "up": "tsx bin/up.ts"
     },
     "devDependencies": {
         "vitest": "^4.0.0",

@@ -53,8 +53,18 @@ export function discoverResources(stack: string, template: SynthesizedTemplate):
 export interface SandboxRequirements {
     /** LocalStack `SERVICES` entries, sorted and de-duplicated. */
     readonly localstackServices: readonly string[];
-    /** Container images that must be running. */
+    /** Stock container images that must be running (real, pullable references). */
     readonly containers: readonly string[];
+    /**
+     * OUR services, as resources rather than types.
+     *
+     * ⛔ Resources, not a `Set<string>` of types. Which image, which port and which environment a service
+     * needs are per-RESOURCE facts carried in the template's `Properties`; folding them to a type would
+     * throw away exactly the data a runner needs and leave the caller with the word "service".
+     */
+    readonly services: readonly DiscoveredResource[];
+    /** Resources that represent ordered SQL which must be applied before anything starts (ADR-0022). */
+    readonly migrations: readonly DiscoveredResource[];
     /** Types that cannot be emulated, with the reason, so a local run never claims to cover them. */
     readonly unsupported: readonly { readonly type: string; readonly why: string }[];
     /**
@@ -76,6 +86,8 @@ export interface SandboxRequirements {
 export function summarizeRequirements(resources: readonly DiscoveredResource[]): SandboxRequirements {
     const localstack = new Set<string>();
     const containers = new Set<string>();
+    const services: DiscoveredResource[] = [];
+    const migrations: DiscoveredResource[] = [];
     const unsupported = new Map<string, string>();
     const undecided = new Set<string>();
 
@@ -92,6 +104,12 @@ export function summarizeRequirements(resources: readonly DiscoveredResource[]):
             case 'container':
                 containers.add(resource.support.image);
                 break;
+            case 'service':
+                services.push(resource);
+                break;
+            case 'migration':
+                migrations.push(resource);
+                break;
             case 'unsupported':
                 unsupported.set(resource.type, resource.support.why);
                 break;
@@ -103,6 +121,8 @@ export function summarizeRequirements(resources: readonly DiscoveredResource[]):
     return {
         localstackServices: [...localstack].sort(),
         containers: [...containers].sort(),
+        services,
+        migrations,
         // ⚠️ `unsupported.entries()`, NOT `[...unsupported].entries()`. The second spreads the Map into an
         // array of pairs and then indexes THAT, yielding `[0, ['type', 'why']]` — a shape that satisfies a
         // length assertion and carries nothing readable.

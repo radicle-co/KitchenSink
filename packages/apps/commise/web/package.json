@@ -24,7 +24,7 @@
         "@aws-sdk/client-cloudfront-keyvaluestore": "^3.723.0",
         "@aws-sdk/client-route-53": "^3.1096.0",
         "@aws-sdk/signature-v4a": "^3.723.0",
-        "@clerk/nextjs": "^6.39.4",
+        "@clerk/nextjs": "^7.8.2",
         "@clerk/testing": "^2.0.35",
         "@commise/features-account": "*",
         "@commise/features-core": "*",

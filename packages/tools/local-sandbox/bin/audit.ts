@@ -22,9 +22,11 @@ async function main(): Promise<void> {
     const apps = discoverApps(readManifests());
 
     process.stdout.write(`CDK apps discovered : ${apps.length}\n`);
+
     for (const app of apps) {
         process.stdout.write(`  ${app.packageName}\n`);
     }
+
     process.stdout.write('\nsynthesising (this runs cdk once per app)…\n');
 
     const outcomes = await synthesizeAll(apps, runCdkSynth, {
@@ -44,6 +46,7 @@ async function main(): Promise<void> {
     const requirements = summarizeRequirements(resources);
 
     process.stdout.write('\n');
+
     for (const outcome of outcomes) {
         const state = outcome.usable ? (outcome.clean ? 'ok' : 'ok (with synth warnings)') : 'FAILED';
         process.stdout.write(
@@ -53,13 +56,19 @@ async function main(): Promise<void> {
 
     process.stdout.write(`\nresources          : ${resources.length}\n`);
     process.stdout.write(`LocalStack SERVICES=${requirements.localstackServices.join(',')}\n`);
-    process.stdout.write(`containers         : ${requirements.containers.join(', ')}\n\n`);
+    process.stdout.write(`stock containers   : ${requirements.containers.join(', ')}\n`);
+    process.stdout.write(`our services       : ${requirements.services.length} task definition(s)/service(s)\n`);
+    process.stdout.write(
+        `migration triggers : ${requirements.migrations.length} (ADR-0022 — must run BEFORE services start)\n\n`,
+    );
 
     if (requirements.unsupported.length > 0) {
         process.stdout.write('CANNOT be emulated locally — a local run does not cover these:\n');
+
         for (const entry of requirements.unsupported) {
             process.stdout.write(`  ${entry.type}\n      ${entry.why}\n`);
         }
+
         process.stdout.write('\n');
     }
 
@@ -70,20 +79,24 @@ async function main(): Promise<void> {
 
     if (broken.length > 0) {
         process.stdout.write('APPS THAT COULD NOT BE SYNTHESISED — the inventory below is INCOMPLETE:\n');
+
         for (const outcome of broken) {
             process.stdout.write(
                 `  ${outcome.app.packageName}\n      ${outcome.stderr.trim().split('\n').slice(-3).join('\n      ')}\n`,
             );
         }
+
         process.stdout.write('\n');
         process.exitCode = 1;
     }
 
     if (requirements.undecided.length > 0) {
         process.stdout.write('UNDECIDED — new infrastructure with no local-support decision:\n');
+
         for (const type of requirements.undecided) {
             process.stdout.write(`  ${type}\n`);
         }
+
         process.stdout.write('\nAdd each to LOCAL_SUPPORT in src/localSupport.ts, with a reason.\n');
         process.exitCode = 1;
     }

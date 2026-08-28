@@ -38,7 +38,7 @@
         "@aws-sdk/client-sns": "^3.723.0",
         "@aws-sdk/client-sqs": "^3.723.0",
         "@aws-sdk/s3-request-presigner": "^3.723.0",
-        "@clerk/backend": "^1.27.0",
+        "@clerk/backend": "^3.16.12",
         "@kitchensink/clerk-verify": "*",
         "@kitchensink/identity-core": "*",
         "@kitchensink/identity-db": "*",

@@ -82,7 +82,14 @@ describe('summarizeRequirements', () => {
     it('asks for NOTHING for a resource with no local runtime behaviour', () => {
         const summary = summarizeRequirements(discoverResources('s', template({ R: { Type: 'AWS::IAM::Role' } })));
 
-        expect(summary).toEqual({ localstackServices: [], containers: [], unsupported: [], undecided: [] });
+        expect(summary).toEqual({
+            localstackServices: [],
+            containers: [],
+            services: [],
+            migrations: [],
+            unsupported: [],
+            undecided: [],
+        });
     });
 });
 
@@ -102,5 +109,43 @@ describe('the support table itself', () => {
         });
 
         expect(unreasoned.map(([type]) => type)).toEqual([]);
+    });
+});
+
+describe('the kinds that carry per-resource detail', () => {
+    /**
+     * ⛔ Guards the fix for a field that lied. `AWS::ECS::TaskDefinition` used to map to
+     * `{ kind: 'container', image: 'built-from-the-service-Dockerfile' }` — prose in a field typed as an
+     * image, which the audit then printed under `containers:` as if it were a docker reference. Anything
+     * that trusted the type would have tried to pull it.
+     */
+    it('collects OUR services as resources, not as an image string', () => {
+        const summary = summarizeRequirements(
+            discoverResources('recipe', template({ T: { Type: 'AWS::ECS::TaskDefinition' } })),
+        );
+
+        expect(summary.containers).toEqual([]);
+        expect(summary.services).toEqual([
+            { stack: 'recipe', logicalId: 'T', type: 'AWS::ECS::TaskDefinition', support: { kind: 'service' } },
+        ]);
+    });
+
+    it('collects the ADR-0022 migration trigger separately, because it must run BEFORE services start', () => {
+        const summary = summarizeRequirements(
+            discoverResources('recipe', template({ M: { Type: 'Custom::Trigger' } })),
+        );
+
+        expect(summary.containers).toEqual([]);
+        expect(summary.migrations.map((m) => m.logicalId)).toEqual(['M']);
+    });
+
+    it('every container image is a real, pullable reference — no prose', () => {
+        // A pullable reference is `name[:tag]`, never a sentence. This is what makes the field trustworthy.
+        for (const entry of Object.values(LOCAL_SUPPORT)) {
+            if (entry.kind === 'container') {
+                expect(entry.image).toMatch(/^[a-z0-9][a-z0-9._/-]*(:[\w.-]+)?$/u);
+                expect(entry.image).not.toMatch(/\s/u);
+            }
+        }
     });
 });

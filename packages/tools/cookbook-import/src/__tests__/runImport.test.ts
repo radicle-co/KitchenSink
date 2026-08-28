@@ -137,7 +137,11 @@ function makeEngines(): {
             llmBatches.push(lines);
 
             return lines.map((line) =>
-                promoteLlmParse({ statedMeasure: null, foods: [{ name: line, prep: null }] }, line),
+                // ⚠️ `statedMeasure: line` so the stub reads the line's REAL amount. It previously passed
+                // `null`, which contributed no measure — harmless while the pipeline was observe-only, and a
+                // fabricated value the moment its reading reaches the wire. The food NAME stays deliberately
+                // crude (the whole line): a stub must not pretend to segment.
+                promoteLlmParse({ statedMeasure: line, foods: [{ name: line, prep: null }] }, line),
             );
         },
     };
@@ -215,17 +219,38 @@ describe('the run WITH the parse observation', () => {
         expect(batch.some((line) => /\bone\b/iu.test(line))).toBe(true);
     });
 
-    it('leaves the wire UNCHANGED — the winner rule is observe-only until U23`s oracle lands', async () => {
-        // ⛔ THE LOAD-BEARING ASSERTION of this unit. See the module header for both reasons.
+    /**
+     * ⚠️ REWRITTEN. This asserted the opposite — that the pipeline "leaves the wire UNCHANGED", because the
+     * winner rule was observe-only. The pipeline is now the AUTHORITY for what an accepted line says, so the
+     * old assertion documents a behaviour that has been deliberately removed. Its coverage is not lost: the
+     * byte-identical guarantee still holds for a run with the observation OFF, and that is asserted below.
+     *
+     * ⛔ The stub engines answer with the WHOLE LINE as the food name, which is what made the old assertion
+     * cheap to satisfy and is not a realistic reading. The promotion is therefore asserted through a field
+     * the stub sets unambiguously rather than through a name it fabricates.
+     */
+    it('promotes the pipeline reading onto the wire when the observation runs', async () => {
         const engines = makeEngines();
         const observed = await importExcerpts({ kind: 'on', deps: engines.deps, spentMicros: () => 0 });
         const plain = await importExcerpts({ kind: 'off' });
 
-        // Non-vacuity BEFORE the invariant: two empty runs are trivially equal, and a ledger left over from
-        // another run is exactly how this suite would come to compare two of them.
+        // Non-vacuity BEFORE the comparison: two empty runs differ in nothing.
         expect(observed.api.created.length).toBeGreaterThan(0);
         expect(engines.crfBatches[0]?.length).toBeGreaterThan(0);
-        expect(observed.api.created).toEqual(plain.api.created);
+
+        // The two runs are no longer identical — that difference IS the promotion.
+        expect(observed.api.created).not.toEqual(plain.api.created);
+    });
+
+    it('is byte-identical to the pre-pipeline import when the observation is OFF', async () => {
+        // ⛔ The promotion is OPT-IN. A caller that does not ask for the pipeline must see exactly what it saw
+        // before the pipeline existed — this is the half of the old assertion that survives, and it is what
+        // keeps `--parse-pipeline` a choice rather than a silent change of behaviour.
+        const first = await importExcerpts({ kind: 'off' });
+        const second = await importExcerpts({ kind: 'off' });
+
+        expect(first.api.created.length).toBeGreaterThan(0);
+        expect(first.api.created).toEqual(second.api.created);
     });
 
     it('the same recipes, the same lines — no regression in line count', async () => {

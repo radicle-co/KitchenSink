@@ -38,7 +38,7 @@ import {
     type ParsedIngredientLine,
 } from '@kitchensink/recipe-import-core';
 
-import type { MeasureSystem } from '@kitchensink/recipe-import-core';
+import type { MeasureSystem, ParsedFacts } from '@kitchensink/recipe-import-core';
 
 import type { Cookbook } from './cookbooks.js';
 import type { CookbookBlock } from './gutenbergBook.adapter.js';
@@ -191,6 +191,13 @@ export type RecipeSkipReason = 'no_body' | 'too_few_ingredients' | 'too_few_step
  * way; `raw` is NOT (see its note below).
  */
 export interface CandidateIngredient extends ParsedIngredientLine {
+    /**
+     * What is done TO the food, when the two-engine pipeline read one — `chopped`, `sifted`, `melted`.
+     *
+     * ⛔ Absent on the library path, which cannot produce it: KTD-11b's prep/identity split is one of the
+     * pipeline's reasons to exist, and `preparation` was populated on 0 of 1,961 lines before it.
+     */
+    readonly preparation?: string;
     /**
      * The clause EXACTLY as the book printed it, before this module's own normalization.
      *
@@ -664,6 +671,43 @@ function trimName(name: string): string {
 }
 
 /**
+ * Substitute the two-engine pipeline's reading for the library parse of one accepted line.
+ *
+ * ⛔ ONLY when the reading names EXACTLY ONE food. Zero foods or several is a SEGMENTATION disagreement —
+ * the pipeline and the suffix scan drew the ingredient's boundary differently — and the field-level winner
+ * rule that would adjudicate it is observe-only until U23's oracle runs (ADR-0026). Declining keeps the
+ * reading that shipped rather than inventing a merge rule no evidence supports.
+ *
+ * ⚠️ `needsReview` / `reviewReasons` are carried through UNCHANGED from the library parse. They are the
+ * segmentation judgement (R39), not a statement about the values, and `ParsedFacts` has no equivalent — so
+ * replacing the values must not silently clear a review flag the scan raised about the span.
+ *
+ * @param parsed - The library's reading of this line, with the book's own words attached.
+ * @param reading - The pipeline's reading, or `undefined` when none was supplied for this line.
+ * @returns The line to restate and store. Pure.
+ */
+function applyPipelineReading<T extends ParsedIngredientLine & { readonly sourceText: string }>(
+    parsed: T,
+    reading: ParsedFacts | undefined,
+): T {
+    const food = reading?.foods.length === 1 ? reading.foods[0] : undefined;
+
+    if (reading === undefined || food === undefined) {
+        return parsed;
+    }
+
+    return {
+        ...parsed,
+        quantity: reading.quantity,
+        unit: reading.unit,
+        name: food.name,
+        // ⚠️ Spread only when stated. An explicit `undefined` would serialise as a present-but-empty key on
+        // the create request, and the schema's field is `.optional()` — absent and empty are different facts.
+        ...(food.prep === null ? {} : { preparation: food.prep }),
+    };
+}
+
+/**
  * Map one titled prose block to a candidate recipe, or explain why it is not one.
  *
  * ⚠️ Takes the whole registry ENTRY rather than the attribution string it used to take, because two
@@ -676,9 +720,26 @@ function trimName(name: string): string {
  * @param book - The registry entry the block came from. Omitted only by tests that are not exercising
  *   provenance: with no book there is no measure system, so no historical unit is restated and every line
  *   keeps the unit the source printed.
+ * @param readings - The two-engine pipeline's reading for an accepted line, keyed by the source text the
+ *   pipeline was given. Omitted, every line keeps the library parse and the result is byte-identical to
+ *   before this parameter existed.
+ *
+ *   ⛔ SUPPLIED AS AN INPUT, never applied to the result. `restateHistoricalUnit` rewrites a line's
+ *   `quantity`/`unit` inside this function and `buildDescription` states that conversion in the persisted
+ *   description, so ADR-0026 warns that a naive substitution "would publish an un-restated `1 gill` under a
+ *   description claiming the measures were converted" — on precisely the historical measures the LLM leg
+ *   exists to rescue. Taking the reading here rebuilds both FROM it.
+ *
+ *   ⚠️ The library parse still does the SEGMENTATION. It probes successively shorter suffixes, and R39
+ *   refuses a clause whose own reading misstates a value; `ParsedFacts` carries no `reviewReasons`, so it
+ *   cannot make that judgement. The pipeline decides what an ACCEPTED line says, never which span is a line.
  * @returns The candidate plus anything dropped, or a skip carrying a machine-readable reason. Pure.
  */
-export function toCandidateRecipe(block: CookbookBlock, book?: Cookbook): RecipeCandidateOutcome {
+export function toCandidateRecipe(
+    block: CookbookBlock,
+    book?: Cookbook,
+    readings?: ReadonlyMap<string, ParsedFacts>,
+): RecipeCandidateOutcome {
     const title = toDisplayTitle(block.title);
     const body = block.paragraphs.join(' ').trim();
 
@@ -720,7 +781,10 @@ export function toCandidateRecipe(block: CookbookBlock, book?: Cookbook): Recipe
 
         // The book's own words ride WITH the parse from here on — `restateHistoricalUnit` spreads the line,
         // so attaching it at the source keeps it through the conversion without a second threading.
-        const parsed = { ...reading.line, sourceText: reading.sourceText };
+        const parsed = applyPipelineReading(
+            { ...reading.line, sourceText: reading.sourceText },
+            readings?.get(reading.sourceText),
+        );
         const name = trimName(parsed.name);
         const key = name.toLowerCase();
 

@@ -58,6 +58,14 @@ export interface ParsedClause {
     /** The parsed unit, or `null` when the clause stated none. */
     readonly unit: string | null;
     /**
+     * What is done TO the food, when the two-engine pipeline read one — `chopped`, `sifted`, `melted`.
+     *
+     * ⛔ ABSENT on the library path, which cannot produce it. KTD-11b's prep/identity split is one of the
+     * pipeline's reasons to exist, and the field is `.optional()` on the create schema, so an absent
+     * preparation and an empty one are different facts — hence the conditional spread below.
+     */
+    readonly preparation?: string | undefined;
+    /**
      * The historical-unit restatement this line went through, when it went through one (R35).
      *
      * ⛔ THE WHOLE CONVERSION, not a pre-extracted `statedMeasure`. `restateHistoricalUnit` already attaches
@@ -98,6 +106,7 @@ export function toImportedIngredientLine(parsed: ParsedClause, ingredient: Resol
         // Omitted, never `null` or `''`: on this wire "the clause stated no unit" has exactly one
         // representation, and it is the absent key.
         ...(parsed.unit === null ? {} : { unit: parsed.unit }),
+        ...(parsed.preparation === undefined ? {} : { preparation: parsed.preparation }),
         // The source's own words, kept verbatim beside the structured values, for a reader.
         notes: parsed.raw,
         // ⛔ The field the GATE reads, and it must be the SOURCE's words. `raw` is only byte-identical to

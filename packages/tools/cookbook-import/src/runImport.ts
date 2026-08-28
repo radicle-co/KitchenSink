@@ -45,7 +45,12 @@
  */
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { runParsePipeline, type ParsePipelineDeps, type ParsePipelineOutcome } from '@kitchensink/recipe-import-core';
+import {
+    runParsePipeline,
+    type ParsedFacts,
+    type ParsePipelineDeps,
+    type ParsePipelineOutcome,
+} from '@kitchensink/recipe-import-core';
 
 import { assertPublicDomain, type Cookbook } from './cookbooks.js';
 import { segmentCookbook, type CookbookBlock } from './gutenbergBook.adapter.js';
@@ -191,14 +196,16 @@ function linesToObserve(
  * @param observation - The caller's decision, and the ports if it said yes.
  * @param lines - The accepted lines' source clauses.
  * @param log - Where progress is written.
- * @returns What the pipeline concluded, or `undefined` when this run did not observe.
+ * @returns What the pipeline concluded and its per-line readings, or `undefined` when this run did not
+ *   observe. The readings are keyed by the source line the pipeline was given, which is the key
+ *   `toCandidateRecipe` looks them up by.
  * @sideEffect Calls both engines; may be billed.
  */
 async function observeParses(
     observation: ParseObservation,
     lines: readonly string[],
     log: (message: string) => void,
-): Promise<ParseObservationData | undefined> {
+): Promise<{ readonly data: ParseObservationData; readonly readings: ReadonlyMap<string, ParsedFacts> } | undefined> {
     if (observation.kind === 'off') {
         return undefined;
     }
@@ -227,7 +234,19 @@ async function observeParses(
     recordObservations(data, lines, outcomes);
     data.spentMicros = observation.spentMicros();
 
-    return data;
+    // ⛔ Keyed by the LINE the pipeline was given, because that is the key `toCandidateRecipe` looks up. A
+    // `parsed: null` outcome (both engines silent) contributes nothing, so the line keeps the library parse.
+    const readings = new Map<string, ParsedFacts>();
+
+    for (const [index, outcome] of outcomes.entries()) {
+        const line = lines[index];
+
+        if (line !== undefined && outcome.parsed !== null) {
+            readings.set(line, outcome.parsed);
+        }
+    }
+
+    return { data, readings };
 }
 
 /**
@@ -293,16 +312,30 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
         outcome: toCandidateRecipe(block, book),
     }));
 
-    report.parseObservation = await observeParses(
+    const observed = await observeParses(
         options.parseObservation,
         linesToObserve(candidates, ledger, book, limit),
         log,
     );
 
+    report.parseObservation = observed?.data;
+
+    // ⛔ THE THIRD PASS IS THE PROMOTION. `toCandidateRecipe` is re-run with the pipeline's readings so the
+    // restatement and the persisted description are rebuilt FROM them — ADR-0026's condition for promoting
+    // the pipeline, and the reason the readings are an INPUT rather than a patch applied to the result.
+    //
+    // ⚠️ Re-running is free of I/O (the function is pure) and the SEGMENTATION is unchanged, so a line the
+    // scan refused stays refused. Without an observation this is the same array, so a run with the pipeline
+    // off is byte-identical to before it existed.
+    const finalCandidates: readonly Candidate[] =
+        observed === undefined || observed.readings.size === 0
+            ? candidates
+            : blocks.map((block) => ({ block, outcome: toCandidateRecipe(block, book, observed.readings) }));
+
     /** Food-backed ingredient rows to re-read once the creates are done. */
     const pending = new Map<string, Ingredient>();
 
-    for (const { block, outcome } of candidates) {
+    for (const { block, outcome } of finalCandidates) {
         if (report.imported >= limit) {
             break;
         }

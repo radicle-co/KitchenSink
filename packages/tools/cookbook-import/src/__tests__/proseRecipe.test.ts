@@ -22,9 +22,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core';
+
 import { COOKBOOKS, type Cookbook } from '../cookbooks.js';
 import { segmentCookbook, type CookbookBlock } from '../gutenbergBook.adapter.js';
 import { toCandidateRecipe, type CandidateIngredient, type RecipeCandidateOutcome } from '../proseRecipe.js';
+import type { ParsedFacts } from '@kitchensink/recipe-import-core';
 
 const FIXTURE = readFileSync(join(import.meta.dirname, '../../fixtures/cookbookExcerpts.txt'), 'utf-8');
 const BLOCKS = segmentCookbook(FIXTURE);
@@ -835,5 +838,178 @@ describe('toCandidateRecipe — the instruction that rode in on the clause (U22a
 
         expect(sugar?.quantity).toEqual({ kind: 'exact', value: 1.5 });
         expect(sugar?.sourceText).toContain('One and one-half cups');
+    });
+});
+
+/**
+ * The two-engine pipeline's reading, substituted for the library parse.
+ *
+ * ⛔ WHY THIS IS A PARAMETER AND NOT A SECOND PASS OVER THE RESULT. `restateHistoricalUnit` rewrites a
+ * line's `quantity`/`unit` INSIDE this function — `one gill of milk` becomes `0.5 cup` — and
+ * `buildDescription` states that conversion in the recipe's persisted description. ADR-0026 records exactly
+ * this trap: a naive substitution "would publish an un-restated `1 gill` under a description claiming the
+ * measures were converted", and it fires on precisely the historical measures the LLM leg exists to rescue.
+ *
+ * Supplying the reading as an INPUT means the restatement and the description are rebuilt FROM it rather
+ * than beside it, which is the condition ADR-0026 sets for promoting the pipeline.
+ *
+ * ⚠️ The library parse still does the SEGMENTATION. It probes successively shorter suffixes and R39 refuses
+ * a clause whose own reading misstates a value; `ParsedFacts` carries no `reviewReasons`, so it cannot make
+ * that judgement. The pipeline decides what an ACCEPTED line says, never which span is a line.
+ */
+describe('pipeline readings substituted for the library parse', () => {
+    const BUTTER_BLOCK: CookbookBlock = {
+        title: 'PIPELINE PROBE',
+        paragraphs: [
+            'Cut the bread in slices one-quarter inch thick and two inches square, then take one pound of' +
+                ' butter, one teaspoon of chopped onion and one cup of milk; let cook slowly two hours.' +
+                ' Serve at once on a hot dish with the sauce poured over the top.',
+        ],
+    };
+
+    /** A non-null quantity — `statedQuantity` is nullable and `ParsedFacts.quantity` is not. */
+    const amount = (value: number): IngredientQuantity => {
+        const quantity = statedQuantity(value);
+
+        if (quantity === null) {
+            throw new Error(`test fixture: ${String(value)} is not an amount`);
+        }
+
+        return quantity;
+    };
+
+    it('takes the pipeline quantity, unit and name when it reads exactly one food', () => {
+        const readings = new Map<string, ParsedFacts>([
+            [
+                'one pound of butter',
+                {
+                    statedMeasure: '1 pound',
+                    quantity: amount(2),
+                    unit: 'cup',
+                    foods: [{ name: 'sweet butter', prep: null }],
+                },
+            ],
+        ]);
+
+        const outcome = toCandidateRecipe(BUTTER_BLOCK, undefined, readings);
+
+        expect(outcome.kind).toBe('candidate');
+
+        if (outcome.kind !== 'candidate') {
+            return;
+        }
+
+        const butter = outcome.recipe.ingredients.find((line) => line.name.includes('butter'));
+
+        expect(butter?.name).toBe('sweet butter');
+        expect(butter?.unit).toBe('cup');
+    });
+
+    /**
+     * ⛔ A reading that names NO food, or MORE THAN ONE, is a segmentation disagreement — the pipeline and
+     * the suffix scan drew the ingredient's boundary differently. The field-level winner rule that would
+     * adjudicate that is observe-only until U23's oracle runs (ADR-0026), so the substitution declines
+     * rather than inventing a merge. Declining keeps the library's reading, which is what shipped.
+     */
+    it('declines a reading that names no food', () => {
+        const readings = new Map<string, ParsedFacts>([
+            ['one pound of butter', { statedMeasure: null, quantity: amount(9), unit: 'quart', foods: [] }],
+        ]);
+
+        const outcome = toCandidateRecipe(BUTTER_BLOCK, undefined, readings);
+
+        expect(outcome.kind).toBe('candidate');
+
+        if (outcome.kind !== 'candidate') {
+            return;
+        }
+
+        expect(outcome.recipe.ingredients.some((line) => line.unit === 'quart')).toBe(false);
+    });
+
+    it('declines a reading that names more than one food', () => {
+        const readings = new Map<string, ParsedFacts>([
+            [
+                'one pound of butter',
+                {
+                    statedMeasure: null,
+                    quantity: amount(9),
+                    unit: 'quart',
+                    foods: [
+                        { name: 'butter', prep: null },
+                        { name: 'flour', prep: null },
+                    ],
+                },
+            ],
+        ]);
+
+        const outcome = toCandidateRecipe(BUTTER_BLOCK, undefined, readings);
+
+        expect(outcome.kind).toBe('candidate');
+
+        if (outcome.kind !== 'candidate') {
+            return;
+        }
+
+        expect(outcome.recipe.ingredients.some((line) => line.unit === 'quart')).toBe(false);
+    });
+
+    /**
+     * ⛔ The prep/identity split is one of the pipeline's REASONS TO EXIST. KTD-11b: a past participle is
+     * preparation (`chopped`, `sifted`, `beaten`), an adjective is identity (`sweet`, `red`) and belongs in
+     * the name. The library parse produces no such split — `preparation` was populated on 0 of 1,961 stored
+     * lines — so discarding `ParsedFood.prep` would take the pipeline's reading and throw away the half the
+     * old parser could not do at all.
+     */
+    it('carries the pipeline preparation, which the library parse cannot produce', () => {
+        const readings = new Map<string, ParsedFacts>([
+            [
+                'one pound of butter',
+                {
+                    statedMeasure: '1 pound',
+                    quantity: amount(1),
+                    unit: 'lb',
+                    foods: [{ name: 'butter', prep: 'melted' }],
+                },
+            ],
+        ]);
+
+        const outcome = toCandidateRecipe(BUTTER_BLOCK, undefined, readings);
+
+        expect(outcome.kind).toBe('candidate');
+
+        if (outcome.kind !== 'candidate') {
+            return;
+        }
+
+        const butter = outcome.recipe.ingredients.find((line) => line.name === 'butter');
+
+        expect(butter?.preparation).toBe('melted');
+    });
+
+    it('leaves preparation absent when the reading states none', () => {
+        const readings = new Map<string, ParsedFacts>([
+            [
+                'one pound of butter',
+                { statedMeasure: '1 pound', quantity: amount(1), unit: 'lb', foods: [{ name: 'butter', prep: null }] },
+            ],
+        ]);
+
+        const outcome = toCandidateRecipe(BUTTER_BLOCK, undefined, readings);
+
+        expect(outcome.kind).toBe('candidate');
+
+        if (outcome.kind !== 'candidate') {
+            return;
+        }
+
+        expect(outcome.recipe.ingredients.find((line) => line.name === 'butter')?.preparation).toBeUndefined();
+    });
+
+    it('is byte-identical to today when no reading is supplied', () => {
+        // ⛔ The promotion must be OPT-IN at the call site. `runImport.test.ts` already asserts the create
+        // requests are identical with the observation on and off; this keeps that true for every caller that
+        // has not been migrated.
+        expect(toCandidateRecipe(BUTTER_BLOCK, undefined, new Map())).toStrictEqual(toCandidateRecipe(BUTTER_BLOCK));
     });
 });

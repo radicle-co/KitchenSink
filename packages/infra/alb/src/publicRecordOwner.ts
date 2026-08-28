@@ -67,7 +67,11 @@ export function publicRecordOwnerFor(request: PublicRecordOwnerRequest): PublicR
  * @throws When a listed name is not a known service.
  */
 export function cutOverServicesFromEnv(
-    env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+    // ⚠️ `Record<string, string | undefined>` ALONE. The union used to lead with `NodeJS.ProcessEnv`, which
+    // is structurally the same type and reaches for a GLOBAL namespace this package does not declare
+    // `@types/node` for — it resolved only by hoisting, and stopped under @types/node 26. `process.env`
+    // still satisfies this, and the signature no longer depends on an ambient global to compile.
+    env: Record<string, string | undefined>,
 ): readonly SharedListenerService[] {
     const raw = env[EDGE_CUTOVER_SERVICES_ENV]?.trim() ?? '';
 

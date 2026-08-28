@@ -14,7 +14,8 @@
         "up": "tsx bin/up.ts"
     },
     "devDependencies": {
-        "vitest": "^4.0.0",
-        "@kitchensink/eslint": "*"
+        "@kitchensink/eslint": "*",
+        "@types/node": "^26.4.0",
+        "vitest": "^4.0.0"
     }
 }

@@ -20,7 +20,7 @@
     },
     "devDependencies": {
         "@kitchensink/typescript": "*",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "engines": {
         "node": "24.x"

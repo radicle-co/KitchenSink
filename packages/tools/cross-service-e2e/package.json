@@ -21,7 +21,7 @@
         "eslint": "^10.0.3",
         "jose": "^6.2.3",
         "prettier": "^3.0.0",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0",
         "zod": "^4.4.3"
     },

@@ -15,7 +15,7 @@
     "kitchensink": {
         "wireContract": {
             "thirdParty": true,
-            "reason": "Amazon Bedrock is a third-party API we do not serve, so there is no service of ours whose zod could own these shapes and nothing to generate a schema package from (CODING_STANDARDS §15.3 / ADR-0014 / GR-015 §15-d, which names LLM providers explicitly). src/schemas.ts validates the RAW `Converse` response at the boundary with this package's own zod and deliberately differs from the normalized outcome the client returns — and no OpenAPI document is written for an API we do not serve. This marker is per-package and is NOT inherited by name or location."
+            "reason": "Amazon Bedrock is a third-party API we do not serve, so there is no service of ours whose zod could own these shapes and nothing to generate a schema package from (CODING_STANDARDS \u00a715.3 / ADR-0014 / GR-015 \u00a715-d, which names LLM providers explicitly). src/schemas.ts validates the RAW `Converse` response at the boundary with this package's own zod and deliberately differs from the normalized outcome the client returns \u2014 and no OpenAPI document is written for an API we do not serve. This marker is per-package and is NOT inherited by name or location."
         }
     },
     "scripts": {
@@ -33,7 +33,7 @@
         "@kitchensink/vitest": "*",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },
     "engines": {

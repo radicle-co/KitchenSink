@@ -278,3 +278,120 @@ export function fetchSsmParameter(parameterPath: string): string | undefined {
 
     return raw === '' ? undefined : raw;
 }
+
+/**
+ * Create one declared resource inside LocalStack.
+ *
+ * ⛔ The AWS CLI rather than an SDK, for the same reason `fetchSecret` uses it: no new dependency in a tools
+ * package, and the call is the one a person would make by hand when checking the emulator.
+ *
+ * ⚠️ Creation is IDEMPOTENT for every type here — `create-bucket` on an existing bucket, `create-queue` with
+ * the same name, `put-parameter --overwrite` and `create-table` on an existing table all either succeed or
+ * fail in a way that leaves the resource present. `local:up` is meant to be re-runnable, so a second run
+ * must not turn an existing resource into an error.
+ *
+ * @param resource - The type, name and properties to create.
+ * @param endpoint - The LocalStack endpoint.
+ * @returns Whether the resource exists afterwards, and the CLI output when it does not.
+ * @sideEffect Spawns the AWS CLI against LocalStack.
+ */
+export function createLocalResource(
+    resource: { readonly type: string; readonly name: string; readonly properties: Readonly<Record<string, unknown>> },
+    endpoint: string,
+): { readonly ok: boolean; readonly output: string } {
+    const base = ['--endpoint-url', endpoint, '--region', 'us-east-1'];
+    const env = {
+        ...process.env,
+        AWS_ACCESS_KEY_ID: 'test',
+        AWS_SECRET_ACCESS_KEY: 'test',
+        AWS_DEFAULT_REGION: 'us-east-1',
+    };
+
+    const argsFor = (): readonly string[] | undefined => {
+        // ⚠️ Handled ahead of the switch rather than as two empty `case` labels: an empty fallthrough puts
+        // `padding-line-between-statements` and `no-fallthrough` in direct conflict, and satisfying either
+        // one breaks the other.
+        if (resource.type === 'AWS::DynamoDB::Table' || resource.type === 'AWS::DynamoDB::GlobalTable') {
+            // ⛔ The key schema comes from the TEMPLATE, not from a guess. A table created with the wrong key
+            // silently rejects every write the service makes.
+            const keySchema = resource.properties['KeySchema'];
+            const attributes = resource.properties['AttributeDefinitions'];
+
+            if (!Array.isArray(keySchema) || !Array.isArray(attributes)) {
+                return undefined;
+            }
+
+            return [
+                ...base,
+                'dynamodb',
+                'create-table',
+                '--table-name',
+                resource.name,
+                '--key-schema',
+                JSON.stringify(keySchema),
+                '--attribute-definitions',
+                JSON.stringify(attributes),
+                '--billing-mode',
+                'PAY_PER_REQUEST',
+            ];
+        }
+
+        switch (resource.type) {
+            case 'AWS::S3::Bucket':
+                return [...base, 's3api', 'create-bucket', '--bucket', resource.name];
+            case 'AWS::SQS::Queue':
+                return [...base, 'sqs', 'create-queue', '--queue-name', resource.name];
+            case 'AWS::SNS::Topic':
+                return [...base, 'sns', 'create-topic', '--name', resource.name];
+            case 'AWS::Events::EventBus':
+                return [...base, 'events', 'create-event-bus', '--name', resource.name];
+            case 'AWS::SSM::Parameter':
+                return [
+                    ...base,
+                    'ssm',
+                    'put-parameter',
+                    '--name',
+                    resource.name,
+                    '--type',
+                    'String',
+                    '--overwrite',
+                    '--value',
+                    typeof resource.properties['Value'] === 'string'
+                        ? resource.properties['Value']
+                        : 'local-placeholder',
+                ];
+            case 'AWS::SecretsManager::Secret':
+                return [...base, 'secretsmanager', 'create-secret', '--name', resource.name, '--secret-string', '{}'];
+
+            default:
+                return undefined;
+        }
+    };
+
+    const args = argsFor();
+
+    if (args === undefined) {
+        return { ok: false, output: `no local creation rule for ${resource.type}` };
+    }
+
+    const result = spawnSync('aws', [...args], { encoding: 'utf8', env });
+
+    if (result.status === 0) {
+        return { ok: true, output: '' };
+    }
+
+    // "already exists" is success: this command is re-runnable by design.
+    const output = `${result.stderr ?? ''}${result.stdout ?? ''}`;
+
+    // ⚠️ Each service spells "it is already there" differently — `BucketAlreadyOwnedByYou` (S3),
+    // `ResourceInUseException` (DynamoDB), `QueueAlreadyExists` (SQS), `ResourceExistsException`
+    // (Secrets Manager). The last one was missing and turned a clean second `local:up` into two reported
+    // failures; the plain-English phrase is the backstop for whichever service is next.
+    if (
+        /AlreadyExists|AlreadyOwnedByYou|ResourceInUseException|ResourceExistsException|already exists/iu.test(output)
+    ) {
+        return { ok: true, output: '' };
+    }
+
+    return { ok: false, output: output.trim() };
+}

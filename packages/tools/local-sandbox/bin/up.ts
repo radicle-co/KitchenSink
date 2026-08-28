@@ -24,6 +24,15 @@ import { discoverDatabases, discoverMigrations, discoverServiceTasks, resolveExp
 import { discoverImageBuilds, localContainerEnv, portConflicts } from '../src/localImages.js';
 import { secretRefsOf, ssmRefsOf } from '../src/secretRefs.js';
 import { MIGRATION_TABLE, pendingMigrations } from '../src/pendingMigrations.js';
+import {
+    creatableResources,
+    importRefsOf,
+    localExportMap,
+    ownRefsOf,
+    resolveImport,
+    resolveParameterValues,
+    type CreatableResource,
+} from '../src/awsResources.js';
 import type { ServiceContainer } from '../src/composePlan.js';
 import { synthesizeAll } from '../src/synthesize.js';
 import {
@@ -31,6 +40,7 @@ import {
     buildServiceImage,
     fetchSecret,
     fetchSsmParameter,
+    createLocalResource,
     localPortFor,
     readManifests,
     runCdkSynth,
@@ -165,6 +175,57 @@ async function main(): Promise<void> {
         }
     }
 
+    // ⛔ THE DECLARED AWS RESOURCES, AND THE NAMES THE CONTAINERS EXPECT THEM UNDER. LocalStack was being
+    // started and never populated: every declared bucket, queue, table and topic was absent, so services ran
+    // with `S3_BUCKET_PHOTOS=local-placeholder` and `ACCOUNT_ERASURE_QUEUE_URL=http://localhost:1`. Nothing
+    // failed at startup — the endpoint and credentials were fine — so the first symptom would have been a
+    // photo upload 500ing at run time.
+    //
+    // ⚠️ Resolved PURELY here, before anything is created: the names are derived from the templates and are
+    // stable, so the compose file can be written with them and the resources created afterwards.
+    const localStackTarget = { endpoint: 'http://localstack:4566', region: 'us-east-1', account: '000000000000' };
+    const namedTemplates = templates.map((file) => ({
+        stack: path.basename(file).replace(/\.template\.json$/u, ''),
+        template: JSON.parse(readFileSync(file, 'utf8')) as unknown,
+    }));
+    const exportsLocally = localExportMap(namedTemplates, localStackTarget);
+    const toCreate: readonly CreatableResource[] = resolveParameterValues(
+        namedTemplates.flatMap((entry) => [...creatableResources(entry.stack, entry.template)]),
+        localStackTarget,
+    );
+    // An SSM parameter this run creates is also the answer for any env var that reads it — and it is the
+    // ONLY answer when the deployed stage does not exist in real AWS, which is the case for every
+    // `/kitchensink/dev/` path here.
+    const ssmLocally: Record<string, string> = {};
+
+    for (const resource of toCreate) {
+        const value = resource.properties['Value'];
+
+        if (resource.type === 'AWS::SSM::Parameter' && typeof value === 'string' && value !== 'local-placeholder') {
+            ssmLocally[resource.name] = value;
+        }
+    }
+
+    const importsByStack = new Map<string, Record<string, string>>();
+
+    for (const entry of namedTemplates) {
+        // A stack that OWNS the resource references it directly; only another stack's resource goes through
+        // an export. Both routes end at the same place.
+        const own = ownRefsOf(entry.stack, entry.template, localStackTarget);
+
+        if (Object.keys(own).length > 0) {
+            importsByStack.set(entry.stack, { ...importsByStack.get(entry.stack), ...own });
+        }
+
+        for (const ref of importRefsOf(entry.template)) {
+            const value = resolveImport(ref.exportName, exportsLocally);
+
+            if (value !== undefined) {
+                importsByStack.set(entry.stack, { ...importsByStack.get(entry.stack), [ref.name]: value });
+            }
+        }
+    }
+
     // ⛔ SECRETS ARE PART OF THE ENVIRONMENT, and they are not in `Environment`. ECS injects them from
     // Secrets Manager at task start, so the template carries only a reference — which meant a container came
     // up missing exactly the variables its service is most likely to REQUIRE. `food-service` crash-looped on
@@ -216,8 +277,15 @@ async function main(): Promise<void> {
 
             const value = secretCache.get(cacheKey);
 
-            if (value === undefined) {
+            const local = ssmLocally[ref.parameterPath];
+
+            if (value === undefined && local === undefined) {
                 unresolved.push(`${ref.name} (${ref.parameterPath})`);
+                continue;
+            }
+
+            if (value === undefined) {
+                secretsByStack.set(stack, { ...secretsByStack.get(stack), [ref.name]: local as string });
                 continue;
             }
 
@@ -304,7 +372,7 @@ async function main(): Promise<void> {
                 database: stackDbs[0] ?? 'postgres',
                 port: build.containerPort ?? 3000,
                 siblings,
-                resolved: secretsByStack.get(build.stack) ?? {},
+                resolved: { ...importsByStack.get(build.stack), ...secretsByStack.get(build.stack) },
             }),
         });
     }
@@ -366,6 +434,38 @@ async function main(): Promise<void> {
         process.exitCode = up.status ?? 1;
 
         return;
+    }
+
+    // ── Populate LocalStack ─────────────────────────────────────────────────────────────────────────
+    //
+    // ⚠️ The endpoint here is the HOST one; the containers reach the same emulator as `localstack:4566`
+    // over the compose network, which is what the resolved env already carries.
+    const createdCounts = new Map<string, number>();
+    const createFailures: string[] = [];
+
+    for (const resource of toCreate) {
+        const created = createLocalResource(resource, 'http://localhost:4566');
+
+        if (created.ok) {
+            createdCounts.set(resource.type, (createdCounts.get(resource.type) ?? 0) + 1);
+            continue;
+        }
+
+        createFailures.push(`${resource.type} ${resource.name}: ${created.output.split('\n')[0] ?? ''}`);
+    }
+
+    const createdSummary = [...createdCounts.entries()]
+        .map(([type, count]) => `${type.replace('AWS::', '')}×${String(count)}`)
+        .sort()
+        .join(' ');
+
+    process.stdout.write(`\n  localstack       : ${createdSummary || '(nothing to create)'}\n`);
+
+    // ⛔ Reported, never swallowed. A resource that failed to create is the difference between a stack that
+    // works and one that 500s on the first upload, and the whole reason this step exists is that the absence
+    // was previously INVISIBLE.
+    for (const failure of createFailures) {
+        process.stdout.write(`  · not created    : ${failure}\n`);
     }
 
     // ── ADR-0022's obligation, discharged ───────────────────────────────────────────────────────────

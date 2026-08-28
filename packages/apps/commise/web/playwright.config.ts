@@ -2,6 +2,7 @@ import nextEnv from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
 
 import { AUTH_STATE_PATH, SESSION_OWNING_SPEC_GLOBS } from './tests/e2e/utils/authState';
+import { resolveServiceUrls, serviceUrlEnv } from './tests/e2e/utils/serviceUrls';
 import { resolveWebServerMode, webServerCommand } from './tests/e2e/utils/webServerMode';
 
 // @next/env is CommonJS — destructure off the default import (named ESM imports fail).
@@ -20,6 +21,19 @@ const BASE_PATH = process.env.E2E_BASE_PATH ?? '';
 const LOCALE = process.env.E2E_LOCALE ?? 'en';
 const PORT = Number(process.env.PORT ?? 3000);
 const ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
+
+// WHICH BACKENDS the app under test calls — every one overridable, each defaulting to the port that
+// service binds locally, and no localhost string written down anywhere but the one module below. This
+// config used to pass the web server nothing but `PORT`, so the origins came from whatever `.env.local`
+// happened to hold on the machine running the suite: a run could not be pointed at another stack without
+// editing an untracked file, and a stale value there failed as an assertion timeout rather than as a
+// configuration error. Malformed values throw HERE, not 120 seconds later inside the spawned server.
+//
+// ⚠️ `loadEnvConfig` above has already merged `.env.local` / `.env.development` into `process.env`, so a
+// value set in either of those files counts as configured and wins over the default. That is the intended
+// precedence (explicit beats default); it also means a STALE endpoint in `.env.local` still wins, and
+// unsetting it — not editing this file — is how you get back to the local default.
+const SERVICE_URLS = resolveServiceUrls(process.env);
 
 // `dev` locally, `start` (a real production build) under CI. The whole rationale — including the measured
 // per-test cost of on-demand route compilation that made this a reliability problem rather than a speed one —
@@ -120,9 +134,20 @@ export default defineConfig({
               // workflow sets E2E_BASE_PATH or PREVIEW_BASE_PATH), so nothing is lost today. If the legacy
               // prefixed preview shape is ever wired into CI it needs its OWN build, made with
               // PREVIEW_BASE_PATH set — it cannot share the bare artifact. See ADR-0001.
-              env: BASE_PATH ? { PREVIEW_BASE_PATH: BASE_PATH, PORT: String(PORT) } : { PORT: String(PORT) },
+              //
+              // The service origins are passed EXPLICITLY rather than left to the dotenv files the server
+              // would otherwise read: Playwright merges this over `process.env`, so whatever the caller
+              // configured is what the app compiles against. Spread from the resolver's own record, so a
+              // backend added there reaches the server without a second edit here.
+              env: {
+                  PORT: String(PORT),
+                  ...serviceUrlEnv(SERVICE_URLS),
+                  ...(BASE_PATH ? { PREVIEW_BASE_PATH: BASE_PATH } : {}),
+              },
               // Readiness probe: the localized sign-in page returns 200 (`/sign-in` 307s to `/{locale}`).
-              url: `http://localhost:${PORT}${BASE_PATH}/${LOCALE}/sign-in`,
+              // Derived from ORIGIN — the one place this run's own address is decided — rather than
+              // rebuilt from `localhost` and PORT, which drifted from `baseURL` the moment either moved.
+              url: new URL(`${BASE_PATH}/${LOCALE}/sign-in`, ORIGIN).toString(),
               reuseExistingServer: !process.env.CI,
               timeout: 120_000,
           },

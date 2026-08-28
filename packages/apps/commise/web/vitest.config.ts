@@ -3,6 +3,12 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 
+// ⚠️ `.js`, not extensionless — deliberately AGAINST this package's usual convention. That convention
+// follows `moduleResolution: bundler`, and this file is not under it: `tsconfig.json` does not include the
+// vitest configs, and Vite's config loader resolves them itself. Extensionless makes Vite warn that the
+// import is unsupported by `configLoader: 'native'`, on every single test run. Do not "fix" it back.
+import { SERVICE_URL_DEFAULTS } from './tests/e2e/utils/serviceUrls.js';
+
 const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 
 export default defineConfig({
@@ -51,9 +57,14 @@ export default defineConfig({
         // matters is only that configuration is PRESENT, so a suite failing means the code is wrong rather
         // than the environment being unset. `src/config/__tests__/env.test.ts` overrides these per-case to
         // prove the missing/blank/relative paths still fail loudly.
+        // ⛔ The localhost origins come from `tests/e2e/utils/serviceUrls.ts`, the ONE place this package
+        // writes a local service default down. They used to be literals here, and the identity one had gone
+        // stale (`:4000`, a port nothing binds — the identity service's own schema defaults PORT to 3001).
+        // It was harmless because the values are irrelevant to the assertions, which is exactly why nobody
+        // noticed; taking them from the resolver means there is no second copy left to rot.
         env: {
-            NEXT_PUBLIC_RECIPE_API_URL: 'http://localhost:3000',
-            NEXT_PUBLIC_IDENTITY_API_URL: 'http://localhost:4000',
+            NEXT_PUBLIC_RECIPE_API_URL: SERVICE_URL_DEFAULTS.recipe,
+            NEXT_PUBLIC_IDENTITY_API_URL: SERVICE_URL_DEFAULTS.identity,
             // A Clerk DEVELOPMENT key, coherent with the localhost endpoints above: src/config/env.ts asserts
             // the instance and endpoints belong to the same stage, so a pk_live here would (correctly) fail.
             // Decodes to `localhost$`.

@@ -389,3 +389,53 @@ describe('portConflicts — the stack own containers are not a conflict', () => 
         expect(clashes).toStrictEqual([{ name: 'food', hostPort: 3002 }]);
     });
 });
+
+describe('localContainerEnv — the azp ORIGIN policy is local, never the deployed one', () => {
+    /**
+     * ⛔ RESOLVING THIS ONE FROM AWS BREAKS AUTH LOCALLY. Pulling `CLERK_JWT_KEY` from SSM is right — it is
+     * verification MATERIAL and the same key everywhere. `CLERK_AZP_PATTERN` is different: it is stage
+     * ORIGIN policy, it arrives as `sandbox.commise.app`, and the patterns built from it are anchored to
+     * `https://` (`buildTransitionAzpPattern` → `^https://(?:pr-\d+\.)?…$`). A local origin is
+     * `http://localhost:<port>`, so it can NEVER match — pattern mode is structurally unusable locally.
+     *
+     * Measured: a real, correctly-signed Clerk token carrying a valid `external_id` was rejected 401 by all
+     * three services, because `assertAzpMatchesPattern` refuses an ABSENT `azp` (which is what a
+     * backend-minted token has) unless the token is a native client.
+     *
+     * The services require EXACTLY ONE of `CLERK_AUTHORIZED_PARTIES` or `CLERK_AZP_PATTERN` — their own
+     * validation says so — so supplying the list means the pattern must be suppressed, not merely
+     * overridden. `local-sandbox` cannot "unset" a resolved value, so the suppression is explicit.
+     */
+    it('supplies the local origin as an authorized party', () => {
+        const env = localContainerEnv([], { database: 'db', port: 3000 });
+
+        expect(env['CLERK_AUTHORIZED_PARTIES']).toContain('http://localhost:');
+    });
+
+    it('takes the origin from the environment when one is given', () => {
+        const env = localContainerEnv([], { database: 'db', port: 3000, webOrigin: 'http://localhost:4321' });
+
+        expect(env['CLERK_AUTHORIZED_PARTIES']).toBe('http://localhost:4321');
+    });
+
+    it('SUPPRESSES a CLERK_AZP_PATTERN resolved from AWS, because the two are mutually exclusive', () => {
+        const env = localContainerEnv(['CLERK_AZP_PATTERN'], {
+            database: 'db',
+            port: 3000,
+            resolved: { CLERK_AZP_PATTERN: 'sandbox.commise.app', CLERK_AZP_PREVIEW_MODE: 'transition' },
+        });
+
+        expect(env['CLERK_AZP_PATTERN']).toBeUndefined();
+        expect(env['CLERK_AZP_PREVIEW_MODE']).toBeUndefined();
+    });
+
+    it('still takes CLERK_JWT_KEY from AWS — material, not origin policy', () => {
+        const env = localContainerEnv(['CLERK_JWT_KEY'], {
+            database: 'db',
+            port: 3000,
+            resolved: { CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----' },
+        });
+
+        expect(env['CLERK_JWT_KEY']).toBe('-----BEGIN PUBLIC KEY-----');
+    });
+});

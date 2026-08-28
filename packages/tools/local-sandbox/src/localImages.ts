@@ -116,6 +116,11 @@ export interface LocalEnvContext {
      * public key from SSM beats `local-placeholder`; a production database password never beats `postgres`.
      */
     readonly resolved?: Readonly<Record<string, string>>;
+    /**
+     * The origin the local web app is served from, which is the only `azp` a local token can carry.
+     * Defaults to `http://localhost:3000`; override for a dev server on another port.
+     */
+    readonly webOrigin?: string;
 }
 
 /** Fixed local infrastructure addresses. Compose SERVICE NAMES, never localhost — see below. */
@@ -153,6 +158,19 @@ const LOCAL_INFRA: Readonly<Record<string, string>> = Object.freeze({
  * ⚠️ This is deliberately narrow. The default for an unrecognised variable stays "a shaped placeholder",
  * because a MISSING variable that the code required would fail just as silently in the other direction.
  */
+/**
+ * Values that must NEVER be taken from AWS, however resolvable they are.
+ *
+ * ⛔ NOT THE SAME AS "cannot be resolved". `CLERK_JWT_KEY` is verification MATERIAL — the same key
+ * everywhere — and reading it from SSM is right. These are stage ORIGIN POLICY: `CLERK_AZP_PATTERN` arrives
+ * as `sandbox.commise.app`, and the patterns built from it are anchored to `https://`
+ * (`^https://(?:pr-\d+\.)?…$`). A local origin is `http://localhost:<port>` and can never match, so pattern
+ * mode is structurally unusable locally — a real, correctly-signed token was rejected 401 by all three
+ * services with it in place. The services require EXACTLY ONE of the list or the pattern, so supplying the
+ * list means the pattern must be SUPPRESSED, not merely overridden.
+ */
+const NEVER_FROM_AWS: readonly RegExp[] = [/^CLERK_AZP_PATTERN$|^CLERK_AZP_PREVIEW_MODE$/u];
+
 const OMITTED: readonly RegExp[] = [
     /_DSN$/u, // Sentry — a DSN has a specific form and is `.url().optional()` in every service here.
     /_API_KEY$|_SECRET$|_SIGNING_SECRET$/u, // Nothing local can hold a valid third-party credential.
@@ -182,6 +200,9 @@ export function localContainerEnv(keys: readonly string[], context: LocalEnvCont
         // `503 NOT_READY: Database not reachable` while the other two were already ready. Postgres names the
         // cause exactly: `server does not support SSL, but SSL was required`.
         DATABASE_URL: `postgresql://postgres:postgres@postgres:5432/${context.database}`,
+        // List mode, not pattern mode — see NEVER_FROM_AWS. An EMPTY list would skip the azp check
+        // entirely, so a real origin is named rather than left blank.
+        CLERK_AUTHORIZED_PARTIES: context.webOrigin ?? 'http://localhost:3000',
     };
 
     // ⛔ The union, not `keys`. A SECRET never appears in a task definition's `Environment`, so iterating the
@@ -212,6 +233,10 @@ export function localContainerEnv(keys: readonly string[], context: LocalEnvCont
         // ⛔ BEFORE the omission list and before the placeholder. `CLERK_JWT_KEY` is OMITTED because nothing
         // local can invent a verification key — but a real one read from SSM is not an invention, and
         // omitting it is what made recipe-service refuse to boot.
+        if (NEVER_FROM_AWS.some((pattern) => pattern.test(key))) {
+            continue;
+        }
+
         const resolved = context.resolved?.[key];
 
         if (resolved !== undefined && resolved !== '') {

@@ -24,6 +24,7 @@ import { discoverDatabases, discoverMigrations, discoverServiceTasks, resolveExp
 import { discoverImageBuilds, localContainerEnv, portConflicts } from '../src/localImages.js';
 import { secretRefsOf, ssmRefsOf } from '../src/secretRefs.js';
 import { MIGRATION_TABLE, pendingMigrations } from '../src/pendingMigrations.js';
+import { composeValue } from '../src/composeValue.js';
 import {
     creatableResources,
     importRefsOf,
@@ -69,7 +70,7 @@ function toYaml(plan: ReturnType<typeof planCompose>): string {
             '        ports:',
             ...service.ports.map((port) => `            - '${port}'`),
             '        environment:',
-            ...Object.entries(service.environment).map(([key, value]) => `            ${key}: '${value}'`),
+            ...Object.entries(service.environment).map(([key, value]) => `            ${key}: ${composeValue(value)}`),
             '        healthcheck:',
             `            test: ${JSON.stringify((service.healthcheck as { test: string[] }).test)}`,
             `            interval: ${String((service.healthcheck as { interval: string }).interval)}`,

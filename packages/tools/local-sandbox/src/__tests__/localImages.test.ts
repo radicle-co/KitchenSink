@@ -208,3 +208,184 @@ describe('portConflicts', () => {
         ).toHaveLength(2);
     });
 });
+
+describe('localContainerEnv — values resolved from AWS', () => {
+    /**
+     * ⛔ PRECEDENCE, AND WHY IT IS NOT "AWS WINS" OR "LOCAL WINS". Three kinds of value meet here and the
+     * order between them is the whole point:
+     *
+     *   - LOCAL INFRASTRUCTURE (`DB_HOST`, `DB_USERNAME`, `AWS_ENDPOINT_URL`, `PORT`) must beat AWS. These
+     *     name the compose containers; the deployed values point at RDS and the real AWS endpoints, and a
+     *     container handed a production DB password simply fails to connect.
+     *   - A value RESOLVED FROM AWS must beat a placeholder. `local-placeholder` is a last resort for
+     *     something nothing can supply — when the real value is a public key sitting in SSM, using the
+     *     placeholder instead is a choice to be wrong.
+     *   - A resolved value must also beat OMISSION, which is how `CLERK_JWT_KEY` came to be missing entirely
+     *     and recipe-service refused to boot.
+     */
+    it('prefers local infrastructure over anything resolved from AWS', () => {
+        const env = localContainerEnv(['DB_HOST'], {
+            database: 'db',
+            port: 3000,
+            resolved: { DB_HOST: 'prod.rds.amazonaws.com', DB_PASSWORD: 'hunter2' },
+        });
+
+        expect(env['DB_HOST']).toBe('postgres');
+        expect(env['DB_PASSWORD']).toBe('postgres');
+    });
+
+    it('prefers a resolved value over a placeholder', () => {
+        const env = localContainerEnv(['SOME_SETTING'], {
+            database: 'db',
+            port: 3000,
+            resolved: { SOME_SETTING: 'real-value' },
+        });
+
+        expect(env['SOME_SETTING']).toBe('real-value');
+    });
+
+    it('supplies a resolved value for a key that is OMITTED when unresolvable', () => {
+        // CLERK_JWT_KEY is in OMITTED because nothing local can invent one. A real one from SSM is not an
+        // invention.
+        const env = localContainerEnv(['CLERK_JWT_KEY'], {
+            database: 'db',
+            port: 3000,
+            resolved: { CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----' },
+        });
+
+        expect(env['CLERK_JWT_KEY']).toBe('-----BEGIN PUBLIC KEY-----');
+    });
+
+    it('still omits an OMITTED key that nothing resolved', () => {
+        const env = localContainerEnv(['CLERK_JWT_KEY', 'SENTRY_DSN'], { database: 'db', port: 3000, resolved: {} });
+
+        expect(env['CLERK_JWT_KEY']).toBeUndefined();
+        expect(env['SENTRY_DSN']).toBeUndefined();
+    });
+
+    it('includes a resolved variable the task definition never declared as env', () => {
+        // ⛔ A SECRET IS NOT IN `Environment`. `USDA_API_KEY` reaches the container only through `Secrets`, so
+        // it is absent from `keys` — iterating `keys` alone would drop the very value this exists to supply.
+        const env = localContainerEnv([], { database: 'db', port: 3000, resolved: { USDA_API_KEY: 'abc123' } });
+
+        expect(env['USDA_API_KEY']).toBe('abc123');
+    });
+});
+
+describe('localContainerEnv — STAGE selects the database auth mode', () => {
+    /**
+     * ⛔ `STAGE` IS NOT COSMETIC HERE; it is the switch between two incompatible ways of connecting to
+     * Postgres, and getting it wrong produces a stack that looks healthy and serves nothing.
+     *
+     * Every service gates on the literal `'local'`:
+     *
+     *     if (process.env['STAGE'] === 'local') { return { ...base, ssl: false, password }; }
+     *     // otherwise: RDS IAM auth — a signed token, over TLS
+     *
+     * (`recipe-service/src/database/poolConfig.ts`, `food-service/src/database/poolConfig.ts`,
+     * `identity-webhooks/src/common/db.ts`, `identity/src/lambdas/migrate/handler.ts`.)
+     *
+     * With `STAGE: 'dev'` all three containers tried to IAM-sign a TLS connection to a plain postgres
+     * container that speaks neither. Measured: `/health` answered `200 {"status":"ok"}` — liveness does not
+     * touch the database — while `/health/ready` answered `503 NOT_READY: Database not reachable` on every
+     * service. The credentials were correct the whole time; a `pg` client built by hand inside the same
+     * container ran `select 1` successfully.
+     *
+     * That is the failure this asserts against: the liveness probe, the container healthcheck and
+     * `docker ps` all reported healthy, so nothing in the startup output suggested the database was
+     * unreachable.
+     */
+    it('sets STAGE=local, because every service reads that literal to disable SSL and IAM', () => {
+        const env = localContainerEnv([], { database: 'db', port: 3000 });
+
+        expect(env['STAGE']).toBe('local');
+    });
+
+    it('keeps STAGE local even when the task definition declares its own', () => {
+        // The deployed task definitions declare STAGE, so it arrives in `keys` and must not be
+        // placeholdered or overwritten back to a deployed stage name.
+        const env = localContainerEnv(['STAGE'], { database: 'db', port: 3000, resolved: { STAGE: 'sandbox' } });
+
+        expect(env['STAGE']).toBe('local');
+    });
+});
+
+describe('localContainerEnv — DATABASE_URL', () => {
+    /**
+     * ⛔ THE LOCAL POSTGRES SPEAKS NO TLS, and two services reach that conclusion by different routes.
+     *
+     * `recipe-service` and `food-service` branch on `STAGE === 'local'` to turn SSL off. `identity` does NOT:
+     * `database.module.ts` appends `?sslmode=no-verify` unconditionally, with a comment explaining that RDS
+     * needs it. Against the postgres container that is fatal, and postgres says so exactly:
+     *
+     *     server does not support SSL, but SSL was required
+     *
+     * Measured: with `STAGE=local` alone, food and recipe answered `/health/ready` 200 and identity still
+     * answered `503 NOT_READY: Database not reachable`.
+     *
+     * All three read `DATABASE_URL` FIRST when it is present (`recipePoolConfigFromEnv`,
+     * `foodPoolConfigFromEnv`, `buildConnectionString`), and each names it in its own error text as the
+     * supported alternative to the discrete `DB_*` set. So one computed URL fixes every service through the
+     * escape hatch they already document, instead of three per-service special cases.
+     *
+     * ⚠️ It carries the SERVICE'S OWN database, not a fixed name — the whole point of `context.database`.
+     */
+    it('supplies a plain, SSL-free DATABASE_URL naming this service database', () => {
+        const env = localContainerEnv([], { database: 'kitchensink_identity', port: 3000 });
+
+        expect(env['DATABASE_URL']).toBe('postgresql://postgres:postgres@postgres:5432/kitchensink_identity');
+    });
+
+    it('names each service own database rather than a shared one', () => {
+        const food = localContainerEnv([], { database: 'kitchensink_food_dev', port: 3000 });
+        const recipes = localContainerEnv([], { database: 'kitchensink_recipes_dev', port: 3000 });
+
+        expect(food['DATABASE_URL']).toContain('/kitchensink_food_dev');
+        expect(recipes['DATABASE_URL']).toContain('/kitchensink_recipes_dev');
+    });
+
+    it('carries no sslmode, because requesting TLS is the failure being avoided', () => {
+        const env = localContainerEnv([], { database: 'db', port: 3000 });
+
+        expect(env['DATABASE_URL']).not.toContain('sslmode');
+    });
+});
+
+describe('portConflicts — the stack own containers are not a conflict', () => {
+    /**
+     * ⛔ `local:up` MUST BE RE-RUNNABLE WHILE THE STACK IS UP, which is the normal case: you change a
+     * service, run it again, and expect the stack to be reconciled. The first version compared the wanted
+     * ports against every listening socket — including the ones this project publishes — so the second run
+     * refused with:
+     *
+     *     Refusing to start: host port(s) already in use.
+     *       recipes wants :3000 — free it, or stop whatever is listening.
+     *
+     * naming its OWN container as the squatter. `docker compose up` reconciles a running stack perfectly
+     * well; the guard exists for a FOREIGN listener (a `next dev` on 3000), and it has to tell the two apart.
+     */
+    it('ignores a port this project already publishes', () => {
+        const clashes = portConflicts([{ name: 'recipes', hostPort: 3000 }], [3000], [3000]);
+
+        expect(clashes).toStrictEqual([]);
+    });
+
+    it('still reports a foreign listener on a port we do not own', () => {
+        const clashes = portConflicts([{ name: 'recipes', hostPort: 3000 }], [3000], []);
+
+        expect(clashes).toStrictEqual([{ name: 'recipes', hostPort: 3000 }]);
+    });
+
+    it('separates the two in one call', () => {
+        const clashes = portConflicts(
+            [
+                { name: 'recipes', hostPort: 3000 },
+                { name: 'food', hostPort: 3002 },
+            ],
+            [3000, 3002],
+            [3000],
+        );
+
+        expect(clashes).toStrictEqual([{ name: 'food', hostPort: 3002 }]);
+    });
+});

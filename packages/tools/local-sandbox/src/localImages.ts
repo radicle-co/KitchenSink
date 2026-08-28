@@ -108,6 +108,14 @@ export interface LocalEnvContext {
      * calls food and nothing else.
      */
     readonly siblings?: Readonly<Record<string, number>>;
+    /**
+     * Values already resolved from AWS — Secrets Manager secrets and SSM parameters the CDK injects at
+     * deploy (see `secretRefs.ts`).
+     *
+     * ⚠️ These rank BELOW local infrastructure and ABOVE both the placeholder and the omission list. A real
+     * public key from SSM beats `local-placeholder`; a production database password never beats `postgres`.
+     */
+    readonly resolved?: Readonly<Record<string, string>>;
 }
 
 /** Fixed local infrastructure addresses. Compose SERVICE NAMES, never localhost — see below. */
@@ -123,7 +131,14 @@ const LOCAL_INFRA: Readonly<Record<string, string>> = Object.freeze({
     AWS_ACCESS_KEY_ID: 'test',
     AWS_SECRET_ACCESS_KEY: 'test',
     NODE_ENV: 'development',
-    STAGE: 'dev',
+    // ⛔ THE LITERAL 'local', AND NOT A STAGE NAME. Every service branches on exactly this string to choose
+    // its database auth mode — `ssl: false` with a static password, versus RDS IAM auth over TLS
+    // (`recipe-service`/`food-service` `poolConfig.ts`, `identity-webhooks/src/common/db.ts`,
+    // `identity/src/lambdas/migrate/handler.ts`). With 'dev' here all three containers tried to IAM-sign a
+    // TLS connection to a plain postgres container, and `/health/ready` answered
+    // `503 NOT_READY: Database not reachable` on every one of them — while `/health`, the container
+    // healthcheck and `docker ps` all still reported healthy, because liveness never touches the database.
+    STAGE: 'local',
 });
 
 /**
@@ -157,9 +172,21 @@ const OMITTED: readonly RegExp[] = [
  * @returns Name → value, with no empty values. Pure.
  */
 export function localContainerEnv(keys: readonly string[], context: LocalEnvContext): Readonly<Record<string, string>> {
-    const env: Record<string, string> = { ...LOCAL_INFRA, PORT: String(context.port) };
+    const env: Record<string, string> = {
+        ...LOCAL_INFRA,
+        PORT: String(context.port),
+        // ⛔ NO `sslmode`, ON PURPOSE. The postgres container speaks no TLS, and every service prefers this
+        // variable over the discrete `DB_*` set. `recipe-service` and `food-service` also branch on
+        // `STAGE === 'local'` to disable SSL, but `identity` does NOT — `database.module.ts` appends
+        // `?sslmode=no-verify` unconditionally (correctly, for RDS), so `STAGE` alone left identity answering
+        // `503 NOT_READY: Database not reachable` while the other two were already ready. Postgres names the
+        // cause exactly: `server does not support SSL, but SSL was required`.
+        DATABASE_URL: `postgresql://postgres:postgres@postgres:5432/${context.database}`,
+    };
 
-    for (const key of keys) {
+    // ⛔ The union, not `keys`. A SECRET never appears in a task definition's `Environment`, so iterating the
+    // declared names alone would drop `USDA_API_KEY` — the value this whole path exists to supply.
+    for (const key of [...new Set([...keys, ...Object.keys(context.resolved ?? {})])]) {
         // ⚠️ `env` here, not `LOCAL_INFRA`. PORT is computed rather than constant, and task definitions DO
         // declare it — so checking only the constant let the loop overwrite the real port with
         // `local-placeholder`, and the container then bound a port nothing published. Caught by running it.
@@ -179,6 +206,16 @@ export function localContainerEnv(keys: readonly string[], context: LocalEnvCont
 
         if (wanted !== undefined && siblingPort !== undefined) {
             env[key] = `http://${wanted}:${String(siblingPort)}`;
+            continue;
+        }
+
+        // ⛔ BEFORE the omission list and before the placeholder. `CLERK_JWT_KEY` is OMITTED because nothing
+        // local can invent a verification key — but a real one read from SSM is not an invention, and
+        // omitting it is what made recipe-service refuse to boot.
+        const resolved = context.resolved?.[key];
+
+        if (resolved !== undefined && resolved !== '') {
+            env[key] = resolved;
             continue;
         }
 
@@ -204,15 +241,23 @@ export function localContainerEnv(keys: readonly string[], context: LocalEnvCont
  * Not hypothetical: `recipe-service` defaults to 3000, the Next.js convention, and therefore the most
  * contended port on a web developer's machine.
  *
+ * ⚠️ A port THIS STACK already publishes is not a conflict. `local:up` is meant to be re-runnable while the
+ * stack is up — `docker compose up` reconciles a running stack — and comparing against every listening socket
+ * made the second run refuse by naming its own container as the squatter. The guard is for a FOREIGN listener
+ * (a `next dev` on 3000), so it has to tell the two apart.
+ *
  * @param wanted - The services and the host ports they need.
  * @param inUse - Ports already listening.
+ * @param ours - Ports published by this project's own running containers.
  * @returns The clashing services. Pure.
  */
 export function portConflicts(
     wanted: readonly { readonly name: string; readonly hostPort: number }[],
     inUse: readonly number[],
+    ours: readonly number[] = [],
 ): readonly { readonly name: string; readonly hostPort: number }[] {
     const taken = new Set(inUse);
+    const mine = new Set(ours);
 
-    return wanted.filter((service) => taken.has(service.hostPort));
+    return wanted.filter((service) => taken.has(service.hostPort) && !mine.has(service.hostPort));
 }

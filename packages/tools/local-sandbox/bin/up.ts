@@ -22,9 +22,19 @@ import { discoverResources, summarizeRequirements, type DiscoveredResource } fro
 import { planCompose } from '../src/composePlan.js';
 import { discoverDatabases, discoverMigrations, discoverServiceTasks, resolveExports } from '../src/runPlan.js';
 import { discoverImageBuilds, localContainerEnv, portConflicts } from '../src/localImages.js';
+import { secretRefsOf, ssmRefsOf } from '../src/secretRefs.js';
+import { MIGRATION_TABLE, pendingMigrations } from '../src/pendingMigrations.js';
 import type { ServiceContainer } from '../src/composePlan.js';
 import { synthesizeAll } from '../src/synthesize.js';
-import { REPO_ROOT, buildServiceImage, localPortFor, readManifests, runCdkSynth } from './adapters.js';
+import {
+    REPO_ROOT,
+    buildServiceImage,
+    fetchSecret,
+    fetchSsmParameter,
+    localPortFor,
+    readManifests,
+    runCdkSynth,
+} from './adapters.js';
 
 const GENERATED_DIR = path.join(REPO_ROOT, '.local-sandbox');
 
@@ -155,6 +165,66 @@ async function main(): Promise<void> {
         }
     }
 
+    // ⛔ SECRETS ARE PART OF THE ENVIRONMENT, and they are not in `Environment`. ECS injects them from
+    // Secrets Manager at task start, so the template carries only a reference — which meant a container came
+    // up missing exactly the variables its service is most likely to REQUIRE. `food-service` crash-looped on
+    // its own zod schema for want of `USDA_API_KEY`, while the other two came up healthy: a local stack that
+    // is two-thirds real reads as a working one.
+    //
+    // Resolved from AWS the way `.github/actions/load-secrets/action.yml` resolves the Clerk keys, so a local
+    // run gets the value the pipeline gets. Each distinct secret is fetched ONCE — food declares
+    // `USDA_API_KEY` on all three of its task definitions.
+    const secretsByStack = new Map<string, Record<string, string>>();
+    const secretCache = new Map<string, string | undefined>();
+    const unresolved: string[] = [];
+
+    for (const file of templates) {
+        const stack = path.basename(file).replace(/\.template\.json$/u, '');
+        const refs = secretRefsOf(JSON.parse(readFileSync(file, 'utf8')));
+
+        for (const ref of refs) {
+            const cacheKey = `${ref.secretId}#${ref.jsonKey ?? ''}`;
+
+            if (!secretCache.has(cacheKey)) {
+                secretCache.set(cacheKey, fetchSecret(ref.secretId, ref.jsonKey));
+            }
+
+            const value = secretCache.get(cacheKey);
+
+            if (value === undefined) {
+                unresolved.push(`${ref.name} (${ref.secretId})`);
+                continue;
+            }
+
+            secretsByStack.set(stack, { ...secretsByStack.get(stack), [ref.name]: value });
+        }
+
+        // ⛔ THE SAME PROBLEM ONE INTRINSIC OVER. `valueForStringParameter` puts the NAME in `Environment`
+        // but the value only at deploy, and `localImages.ts` handled that by OMITTING `CLERK_JWT_KEY` on the
+        // stated grounds that "the schemas make these optional off deployed stages". recipe-service REQUIRES
+        // it and refused to boot. These are PUBLIC verification keys and routing config that exist in SSM, so
+        // they are read rather than omitted.
+        //
+        // ⚠️ A missing parameter is EXPECTED, not an error: the queue URLs resolve under `/kitchensink/dev/`,
+        // a stage nobody deploys. Those fall through to the local placeholder as before.
+        for (const ref of ssmRefsOf(JSON.parse(readFileSync(file, 'utf8')))) {
+            const cacheKey = `ssm:${ref.parameterPath}`;
+
+            if (!secretCache.has(cacheKey)) {
+                secretCache.set(cacheKey, fetchSsmParameter(ref.parameterPath));
+            }
+
+            const value = secretCache.get(cacheKey);
+
+            if (value === undefined) {
+                unresolved.push(`${ref.name} (${ref.parameterPath})`);
+                continue;
+            }
+
+            secretsByStack.set(stack, { ...secretsByStack.get(stack), [ref.name]: value });
+        }
+    }
+
     // ── Build OUR images, then point the local stack at them ────────────────────────────────────────
     //
     // ⛔ The CDK names the repository (`ContainerImage.fromEcrRepository`) but cannot say how to build it —
@@ -225,10 +295,16 @@ async function main(): Promise<void> {
             image: build.localImage,
             hostPort,
             containerPort: build.containerPort ?? 3000,
+            // ⚠️ Handed to `localContainerEnv` rather than spread around it, because the precedence is not a
+            // simple "one side wins": local infrastructure must beat a resolved value (`DB_PASSWORD` names
+            // the deployed RDS credential, and the local database is the postgres container), while a
+            // resolved value must beat both the placeholder and the omission list. That ordering lives in one
+            // place, with the rest of the env rules.
             environment: localContainerEnv(envKeys, {
                 database: stackDbs[0] ?? 'postgres',
                 port: build.containerPort ?? 3000,
                 siblings,
+                resolved: secretsByStack.get(build.stack) ?? {},
             }),
         });
     }
@@ -243,6 +319,10 @@ async function main(): Promise<void> {
     process.stdout.write(`  LocalStack       : ${requirements.localstackServices.join(',')}\n`);
     process.stdout.write(`  databases        : ${databases.join(', ') || '(none declared)'}\n`);
     process.stdout.write(`  migrations owed  : ${requirements.migrations.length} (ADR-0022 — before services start)\n`);
+    process.stdout.write(
+        `  secrets resolved : ${String([...secretCache.values()].filter((v) => v !== undefined).length)} from Secrets Manager` +
+            `${unresolved.length > 0 ? ` — UNRESOLVED: ${[...new Set(unresolved)].join(', ')}` : ''}\n`,
+    );
     process.stdout.write(`  generated        : .local-sandbox/docker-compose.yml\n\n`);
 
     // Pre-flight, before docker gets a chance to fail obscurely several minutes into the run.
@@ -250,7 +330,15 @@ async function main(): Promise<void> {
     const inUse = [...(listening.stdout ?? '').matchAll(/:(\d+)\s/gu)].flatMap((m) =>
         m[1] === undefined ? [] : [Number(m[1])],
     );
-    const clashes = portConflicts(serviceContainers, inUse);
+    // Ports this project's own containers already publish — see `portConflicts`.
+    const ownPublished = [
+        ...(
+            spawnSync('docker', ['ps', '--filter', 'name=local-sandbox-', '--format', '{{.Ports}}'], {
+                encoding: 'utf8',
+            }).stdout ?? ''
+        ).matchAll(/:(\d+)->/gu),
+    ].flatMap((match) => (match[1] === undefined ? [] : [Number(match[1])]));
+    const clashes = portConflicts(serviceContainers, inUse, ownPublished);
 
     if (clashes.length > 0) {
         process.stderr.write('\nRefusing to start: host port(s) already in use.\n');
@@ -332,11 +420,46 @@ async function main(): Promise<void> {
                     continue;
                 }
 
+                // ⛔ RECORD WHAT IS APPLIED, the way ADR-0022's deployed runner does. `local:down` keeps the
+                // postgres volume, so without this the second `local:up` re-applies file 0000 to a database
+                // that already has the schema and dies on `type "food_status" already exists`.
+                const psql = (
+                    sqlText: string | undefined,
+                    args: readonly string[],
+                ): { status: number | null; stdout: string; stderr: string } => {
+                    const result = spawnSync(
+                        'docker',
+                        ['exec', '-i', 'local-sandbox-postgres', 'psql', '-U', 'postgres', '-d', database, ...args],
+                        sqlText === undefined
+                            ? { encoding: 'utf8' as const }
+                            : { input: sqlText, encoding: 'utf8' as const },
+                    );
+
+                    return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+                };
+
+                psql(undefined, [
+                    '-v',
+                    'ON_ERROR_STOP=1',
+                    '-c',
+                    `CREATE TABLE IF NOT EXISTS ${MIGRATION_TABLE} (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`,
+                ]);
+
+                const recorded = psql(undefined, ['-tAc', `SELECT name FROM ${MIGRATION_TABLE}`])
+                    .stdout.split('\n')
+                    .map((line: string) => line.trim())
+                    .filter((line: string) => line !== '');
+
                 // Filename order IS the migration order (`0000_`, `0001_`, …) — the same rule the deployed
                 // runner uses, and the reason there is no hardcoded list of files.
-                for (const sql of readdirSync(sqlDir)
-                    .filter((f) => f.endsWith('.sql'))
-                    .sort()) {
+                const owed = pendingMigrations(
+                    readdirSync(sqlDir)
+                        .filter((f) => f.endsWith('.sql'))
+                        .sort(),
+                    recorded,
+                );
+
+                for (const sql of owed) {
                     const run = spawnSync(
                         'docker',
                         [
@@ -356,6 +479,24 @@ async function main(): Promise<void> {
 
                     if (run.status !== 0) {
                         process.stderr.write(`  migration FAILED ${database} ${sql}\n${run.stderr ?? ''}\n`);
+                        process.exitCode = 1;
+
+                        return;
+                    }
+
+                    // ⚠️ Recorded only AFTER the file succeeded — a failed migration must stay pending, or
+                    // the next run would skip it and leave the schema permanently half-applied.
+                    const record = psql(undefined, [
+                        '-v',
+                        'ON_ERROR_STOP=1',
+                        '-c',
+                        `INSERT INTO ${MIGRATION_TABLE} (name) VALUES ('${sql}') ON CONFLICT DO NOTHING`,
+                    ]);
+
+                    if (record.status !== 0) {
+                        process.stderr.write(
+                            `  could not record migration ${database} ${sql}\n${record.stderr ?? ''}\n`,
+                        );
                         process.exitCode = 1;
 
                         return;

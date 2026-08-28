@@ -193,3 +193,88 @@ export function buildServiceImage(build: {
 
     return { ok: true, output: '' };
 }
+
+/**
+ * Read one secret out of AWS Secrets Manager.
+ *
+ * ⛔ THE SAME MOVE CI MAKES. `.github/actions/load-secrets/action.yml` runs
+ * `aws secretsmanager get-secret-value --secret-id … --query SecretString`, and so does this — deliberately
+ * the CLI rather than an SDK client, so a local run resolves a secret exactly as the pipeline does, with the
+ * caller's ambient credentials and no new dependency in a tools package.
+ *
+ * ⚠️ A JSON secret is a JSON DOCUMENT whose keys ECS selects with the ARN's `:key::` suffix. Reading a key
+ * out of a secret that is a plain string would silently yield `undefined`, so the shape is checked rather
+ * than assumed.
+ *
+ * @param secretId - The secret's name.
+ * @param jsonKey - A key inside a JSON secret, or `undefined` for the whole string.
+ * @returns The value, or `undefined` if the secret or key cannot be read.
+ * @sideEffect Spawns the AWS CLI; requires credentials.
+ */
+export function fetchSecret(secretId: string, jsonKey: string | undefined): string | undefined {
+    const result = spawnSync(
+        'aws',
+        ['secretsmanager', 'get-secret-value', '--secret-id', secretId, '--query', 'SecretString', '--output', 'text'],
+        { encoding: 'utf8' },
+    );
+
+    if (result.status !== 0) {
+        return undefined;
+    }
+
+    const raw = (result.stdout ?? '').trim();
+
+    if (raw === '') {
+        return undefined;
+    }
+
+    if (jsonKey === undefined) {
+        return raw;
+    }
+
+    try {
+        const parsed: unknown = JSON.parse(raw);
+        const value = (parsed as Record<string, unknown>)[jsonKey];
+
+        return typeof value === 'string' ? value : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Read one SSM parameter.
+ *
+ * ⚠️ `--with-decryption` is always passed: a `SecureString` answers with ciphertext without it, and handing a
+ * container an encrypted blob is worse than handing it nothing, because the value is PRESENT and wrong. It
+ * is a no-op for a plain `String`.
+ *
+ * @param parameterPath - The full parameter path.
+ * @returns The value, or `undefined` when the parameter does not exist (a stage that was never deployed).
+ * @sideEffect Spawns the AWS CLI; requires credentials.
+ */
+export function fetchSsmParameter(parameterPath: string): string | undefined {
+    const result = spawnSync(
+        'aws',
+        [
+            'ssm',
+            'get-parameter',
+            '--name',
+            parameterPath,
+            '--with-decryption',
+            '--query',
+            'Parameter.Value',
+            '--output',
+            'text',
+        ],
+        { encoding: 'utf8' },
+    );
+
+    if (result.status !== 0) {
+        return undefined;
+    }
+
+    const raw = (result.stdout ?? '').trim();
+
+    return raw === '' ? undefined : raw;
+}

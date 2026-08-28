@@ -2,3 +2,6 @@
 # package's `format:check` with CWD = the package — so the ROOT .prettierignore does not apply here.
 # Without this file, `npm run lint` fails on emitted dist/ the moment a build has run.
 dist
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test

@@ -29,3 +29,6 @@ packages/schemas/*/openapi.yaml
 # and reformatting a dependency's own README changes nothing anyone reads while making `format:check` walk
 # 91 MB. See ADR-0025.
 packages/services/ingredient-parser/build
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test

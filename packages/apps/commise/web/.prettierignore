@@ -8,3 +8,9 @@ coverage
 cdk.out
 cdk.context.json
 router/dist
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test
+
+# Playwright storage state, one file per local e2e run (tests/e2e/auth.setup.ts). Gitignored scratch.
+.auth

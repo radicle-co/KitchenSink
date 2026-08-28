@@ -5,3 +5,6 @@ cdk.context.json
 *.tsbuildinfo
 dist-edge
 dist-lambda
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test

@@ -51,6 +51,7 @@ const manifests = (): readonly Manifest[] =>
                 dependencies?: Record<string, string>;
                 engines?: Record<string, string>;
             };
+
             return {
                 file,
                 typesRange: manifest.devDependencies?.['@types/node'] ?? manifest.dependencies?.['@types/node'],
@@ -61,9 +62,11 @@ const manifests = (): readonly Manifest[] =>
 /** The leading integer of a range such as `^26.4.0` or `24.x`. */
 const majorOf = (range: string): string => {
     const match = /(\d+)/.exec(range);
+
     if (match === null) {
         throw new Error(`unparseable version range: ${range}`);
     }
+
     return match[1] as string;
 };
 

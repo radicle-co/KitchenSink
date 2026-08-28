@@ -1,3 +1,6 @@
 # Build output is not source. Prettier resolves .prettierignore from its CWD, and turbo runs each
 # package's `format:check` with CWD = the package — so the ROOT .prettierignore does not apply here.
 dist
+
+# Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
+.tmp-test

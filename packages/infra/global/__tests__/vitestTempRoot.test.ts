@@ -75,4 +75,55 @@ describe('vitest temp-root confinement', () => {
         expect(() => readFileSync(hook, 'utf8')).not.toThrow();
         expect(readFileSync(hook, 'utf8')).toContain('TMPDIR');
     });
+
+    /**
+     * ⛔ ADDED AFTER THE TEMP ROOT BROKE `format:check`. Confining temp files into `.tmp-test/` fixed the
+     * disk leak but moved the artefacts INSIDE the workspace, where each package's `format:check` runs
+     * `prettier --check .` and walks them. A CDK-synthesising suite leaves a `cdk.out<rand>` directory under `.tmp-test/run-<rand>`
+     * full of generated JSON and the run goes red on files nobody authored.
+     *
+     * The existing `cdk.out` ignore entry does NOT cover it: `mkdtemp` appends random characters, so the
+     * directory is `cdk.out3cvLNA` and a literal pattern misses. The ignore must name `.tmp-test` itself.
+     *
+     * ⛔ IT ENUMERATES NOTHING. The obligation is DERIVED — a package that runs vitest gets the temp root,
+     * so a package with a vitest config AND a `format:check` script must ignore it. Both sides are globbed,
+     * so a package added tomorrow is covered the day it lands.
+     */
+    it('ignores the temp root wherever a vitest package also format-checks itself', () => {
+        const owed = globSync('packages/**/package.json', {
+            cwd: REPO_ROOT,
+            ignore: ['**/node_modules/**', '**/dist/**', '**/.next/**'],
+        })
+            .filter((manifest) => {
+                const parsed: unknown = JSON.parse(readFileSync(path.join(REPO_ROOT, manifest), 'utf8'));
+                const scripts = (parsed as { scripts?: Record<string, string> }).scripts ?? {};
+
+                if (scripts['format:check'] === undefined) {
+                    return false;
+                }
+
+                const dir = path.dirname(manifest);
+
+                return globSync('vitest*.config.ts', { cwd: path.join(REPO_ROOT, dir) }).length > 0;
+            })
+            .map((manifest) => path.dirname(manifest));
+
+        // Anti-vacuity: a filter that matched nothing would satisfy the assertion below in silence.
+        expect(owed.length).toBeGreaterThan(10);
+
+        const unignored = owed.filter((dir) => {
+            const ignoreFile = path.join(REPO_ROOT, dir, '.prettierignore');
+
+            try {
+                return !readFileSync(ignoreFile, 'utf8').includes('.tmp-test');
+            } catch {
+                return true;
+            }
+        });
+
+        expect(
+            unignored,
+            `these packages run vitest and format-check themselves, but do not ignore the temp root:\n${unignored.join('\n')}`,
+        ).toEqual([]);
+    });
 });

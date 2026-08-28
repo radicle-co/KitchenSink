@@ -1,6 +1,29 @@
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
+/**
+ * The repository root — the nearest ancestor holding the lockfile.
+ *
+ * @returns An absolute path; falls back to the cwd if no lockfile is found. @sideEffect Reads the filesystem.
+ */
+function repoRoot() {
+    let dir = process.cwd();
+
+    for (;;) {
+        if (existsSync(path.join(dir, 'package-lock.json'))) {
+            return dir;
+        }
+
+        const parent = path.dirname(dir);
+
+        if (parent === dir) {
+            return process.cwd();
+        }
+
+        dir = parent;
+    }
+}
 
 /**
  * Vitest `globalSetup` that confines every test-created temp directory to ONE removable root.
@@ -32,18 +55,34 @@ import path from 'node:path';
  * reaches it. That visibility is the point — this hook removes the root on a clean exit, but a killed run
  * (Ctrl+C, an OOM, a crashed worker) still leaves it behind, and it should be findable when it does.
  *
+ * ## ⛔ WHY THE REPO ROOT AND NOT `process.cwd()`
+ *
+ * A Unix domain socket path is limited to ~104 bytes (`sun_path`), and `tsx` opens one for IPC at
+ * `$TMPDIR/tsx-<uid>/<pid>.pipe`. Anchored at the package cwd — which is what `process.cwd()` is under turbo
+ * — that path reached 113 characters for `recipe-service`:
+ *
+ *     .../packages/services/recipe-service/.tmp-test/run-L5KlWf/tsx-1000/2503393.pipe
+ *
+ * and every test that spawns `tsx` died with `Error: listen EINVAL: invalid argument` — five integration
+ * tests failing on a limit nothing in the error names. The repo root is short, identical for every package,
+ * and still inside the repo, so the visibility argument above is unaffected. The run directory is `r-` rather
+ * than `run-` for the same reason: every character here is budget.
+ *
  * @returns The teardown that removes the root. Vitest awaits it after the last suite.
  * @sideEffect Creates a directory, mutates `process.env.TMPDIR`, and removes the directory on teardown.
  */
 export default function setup() {
     // Workers inherit the environment from this process, so setting it here reaches every suite.
-    const root = path.resolve(process.cwd(), '.tmp-test');
+    //
+    // ⚠️ Anchored at the REPO ROOT, found by walking up to the lockfile — NOT `process.cwd()`, which under
+    // turbo is the package directory and produced socket paths over the ~104-byte limit. See the note above.
+    const root = path.resolve(repoRoot(), '.tmp-test');
 
     mkdirSync(root, { recursive: true });
 
     // A per-run subdirectory: two packages' suites can run concurrently under turbo, and a shared teardown
     // that removed the whole root would delete a sibling run's directories mid-test.
-    const runRoot = mkdtempSync(path.join(root, 'run-'));
+    const runRoot = mkdtempSync(path.join(root, 'r-'));
 
     process.env['TMPDIR'] = runRoot;
 

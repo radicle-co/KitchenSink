@@ -126,4 +126,32 @@ describe('vitest temp-root confinement', () => {
             `these packages run vitest and format-check themselves, but do not ignore the temp root:\n${unignored.join('\n')}`,
         ).toEqual([]);
     });
+
+    /**
+     * ⛔ ADDED AFTER THE TEMP ROOT BROKE `tsx`. A Unix domain socket path is limited to ~104 bytes
+     * (`sun_path`), and `tsx` opens one for IPC at `$TMPDIR/tsx-<uid>/<pid>.pipe`. Anchoring the root at the
+     * PACKAGE cwd made that path 113 characters for `recipe-service`:
+     *
+     *     .../packages/services/recipe-service/.tmp-test/run-L5KlWf/tsx-1000/2503393.pipe
+     *
+     * and every test that spawns `tsx` died with `Error: listen EINVAL: invalid argument`. Five integration
+     * tests failed on a limit nothing in the error names.
+     *
+     * The root stays inside the repo — that visibility is the point — but anchored at the REPO ROOT, which
+     * is short and the same for every package. The headroom check is the assertion: a package nested one
+     * level deeper must not be able to reintroduce this.
+     */
+    it('leaves room for a Unix socket path under the temp root', () => {
+        const hook = readFileSync(path.join(REPO_ROOT, 'packages/tools/vitest/testTempRoot.js'), 'utf8');
+
+        // Anchored at the repo root, not the package directory. `process.cwd()` still appears as the
+        // last-resort fallback inside `repoRoot()`, so what is asserted is the ANCHORING, not the string.
+        expect(hook).not.toContain("path.resolve(process.cwd(), '.tmp-test')");
+        expect(hook).toContain("path.resolve(repoRoot(), '.tmp-test')");
+
+        // The longest path the hook can produce, plus the longest suffix a tool appends to it.
+        const worstCase = `${REPO_ROOT}/.tmp-test/r-XXXXXX/tsx-000000/0000000.pipe`;
+
+        expect(worstCase.length).toBeLessThan(104);
+    });
 });

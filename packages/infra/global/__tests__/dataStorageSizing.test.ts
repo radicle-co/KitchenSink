@@ -46,18 +46,25 @@ const dbProps = (stage: string): Record<string, unknown> => {
 };
 
 describe('RDS storage sizing', () => {
-    it('keeps prod at 100 GB — owner ruling, and prod is never rebuilt to reach a new number', () => {
-        expect(dbProps('prod')['AllocatedStorage']).toBe('100');
-    });
-
-    it('provisions non-prod at 50 GB rather than copying prod', () => {
-        for (const stage of ['sandbox', 'dev']) {
-            expect(dbProps(stage)['AllocatedStorage']).toBe('50');
+    /**
+     * ⛔ REVERSED 2026-08-27, hours after being introduced, and the reversal is the lesson.
+     *
+     * This asserted `prod → 100, non-prod → 50`. The sizing was sound: both databases were EMPTY, and the
+     * full intended scope models to ~10-11 GB. The change was still wrong, because **RDS cannot shrink
+     * allocated storage**. `AllocatedStorage` is a mutable property, so CloudFormation attempted an in-place
+     * modify and RDS rejected it — `Invalid storage size for engine name postgres and storage type gp3: 50`
+     * — twice, and the second attempt left `kitchensink-data-sandbox` in UPDATE_ROLLBACK_FAILED, wedged.
+     *
+     * Reaching a smaller number needs the instance REPLACED, which two importing stacks turn into ADR-0002's
+     * export-in-use deadlock across the whole sandbox platform. For $5.75/month, no.
+     *
+     * The test now asserts the constant, so the next person who does the same arithmetic meets this note
+     * before they meet the wedged stack.
+     */
+    it('provisions 100 GB on EVERY stage — RDS cannot shrink, so a smaller number wedges the stack', () => {
+        for (const stage of ['prod', 'sandbox', 'dev']) {
+            expect(dbProps(stage)['AllocatedStorage']).toBe('100');
         }
-    });
-
-    it('is derived from the stage, not a shared literal', () => {
-        expect(dbProps('prod')['AllocatedStorage']).not.toBe(dbProps('sandbox')['AllocatedStorage']);
     });
 
     it('enables storage autoscaling on every stage, so a wrong estimate grows instead of failing', () => {
@@ -70,8 +77,6 @@ describe('RDS storage sizing', () => {
     });
 
     it('leaves enough headroom above the modelled full-scope size (~11 GB) to be uninteresting', () => {
-        // Not a tautology: it fails if anyone "optimises" non-prod down toward the 20 GB RDS minimum, where
-        // a Branded ingest's index-build high-water mark would sit uncomfortably close.
         expect(Number(dbProps('sandbox')['AllocatedStorage'])).toBeGreaterThanOrEqual(50);
     });
 });

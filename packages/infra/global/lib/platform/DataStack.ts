@@ -212,15 +212,29 @@ export class DataStack extends Stack {
             // the next major hop is not a two-deploy dance during a maintenance window.
             allowMajorVersionUpgrade: true,
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, dbInstanceSize),
-            // Stage-derived, like `dbInstanceSize` directly above — it was a hardcoded 100 here, which is how
-            // two EMPTY databases came to carry 100 GB apiece (~$23/mo of storage for ~0 bytes; measured
-            // 2026-08-27, ~101.9 GB free of 100 GB allocated on BOTH). Prod keeps 100 by owner ruling, which
-            // also means prod is never rebuilt to reach a new number.
+            // ⛔ 100 EVERYWHERE, AND DO NOT "OPTIMISE" IT DOWN. **RDS cannot shrink allocated storage.**
             //
-            // Sized against the full intended scope — all of USDA FoodData Central including Branded (~1.9M
-            // foods, ~30M food_nutrients rows) plus 10,000 recipes — the database models to ~10-11 GB at the
-            // bloaty end of the published pg_trgm index ratios. 50 GB is generous; the RDS minimum is 20.
-            allocatedStorage: stageTag === 'prod' ? 100 : 50,
+            // This was briefly `stageTag === 'prod' ? 100 : 50`, on the reasoning that two EMPTY databases
+            // carrying 100 GB apiece is ~$23/mo of storage for ~0 bytes (measured 2026-08-27: ~101.9 GB free
+            // of 100 GB allocated on BOTH), and that the full intended scope — all of USDA FoodData Central
+            // including Branded, ~1.9M foods and ~30M food_nutrients rows, plus 10,000 recipes — models to
+            // only ~10-11 GB.
+            //
+            // The sizing was right and the change was still wrong. `AllocatedStorage` is a MUTABLE property,
+            // so CloudFormation attempts an in-place modify rather than a replacement, and RDS rejects it:
+            //
+            //     Invalid storage size for engine name postgres and storage type gp3: 50
+            //
+            // It failed twice (2026-08-27 21:12 and 23:49) and the second attempt left
+            // `kitchensink-data-sandbox` in **UPDATE_ROLLBACK_FAILED** — a wedged stack blocking every
+            // sandbox deploy until `continue-update-rollback` recovered it.
+            //
+            // ⛔ Reaching a smaller number requires REPLACING the instance, and that is not a local edit: two
+            // stacks (`identity-service-sandbox`, `identity-webhooks-sandbox`) import this stack's exports,
+            // so the delete hits ADR-0002's export-in-use deadlock and the whole sandbox platform has to come
+            // down in order. That is a large, risky operation to reclaim **$5.75/month**, and the answer is
+            // no. If a future rebuild happens for some OTHER reason, size it then.
+            allocatedStorage: 100,
             // ⚠️ The number above is a MODEL — nothing has ingested Branded yet, and `usdaBulk.parser.ts`
             // does not seed it today. This is what makes being wrong survivable: autoscaling costs nothing
             // until used and turns "out of disk at 3am" into "grew". It was OFF on both instances, which is

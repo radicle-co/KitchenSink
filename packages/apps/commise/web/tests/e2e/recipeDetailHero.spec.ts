@@ -28,7 +28,7 @@ import { signInWithTicket } from './utils/auth';
 
 /** A real 1x1 PNG as a `data:` URI — the cover must genuinely decode, and nothing may hit the network. */
 const COVER_DATA_URI =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
 /** The localized copy the no-cover fallback carries — the SAME dictionary string the card placeholder uses. */
 const NO_PHOTO_LABEL = 'No photo yet';

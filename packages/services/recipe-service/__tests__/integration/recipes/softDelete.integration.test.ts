@@ -76,7 +76,7 @@ const CREATE_PAYLOAD = {
 /** A REAL, decodable 1×1 PNG (base64) — see `photos/upload.integration.test.ts` for why a genuine image is used. */
 const REAL_PNG_BYTES = new Uint8Array(
     Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         'base64',
     ),
 );

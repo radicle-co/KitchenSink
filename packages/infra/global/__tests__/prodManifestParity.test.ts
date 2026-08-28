@@ -34,6 +34,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { globSync } from 'glob';
 import { describe, expect, it } from 'vitest';
 
 // .../packages/infra/global/__tests__ → repo root is four levels up.
@@ -169,5 +170,50 @@ describe('prod.package.json agrees with the manifest it is derived from', () => 
         expect(prod.name).toBe(dev.name);
         expect(prod.type).toBe(dev.type);
         expect(prod.engines).toStrictEqual(dev.engines);
+    });
+
+    /**
+     * ⛔ ADDED AFTER THIS GUARD MISSED THE SAME BUG IT WAS WRITTEN FOR. The docstring above records
+     * `food-service` once declaring `zod ^3.24.0` while the service ran `^4.4.3`. On 2026-08-27 that exact
+     * drift was found again — this time in `packages/clients/usda`, whose manifest said `^3.24.0` while its
+     * own `package.json`, every sibling manifest in the same image, and the `dist` it was compiled against
+     * all said `^4.4.3`.
+     *
+     * The scope above is why it was invisible: it reads `packages/services` only. But a service's Dockerfile
+     * COPYs the production manifest of every shared package it ships — `food-service/Dockerfile` line 18 is
+     * literally `COPY packages/clients/usda/prod.package.json` — so a client or shared package's manifest is
+     * every bit as much a description of the image, and drifts under exactly the same silence.
+     *
+     * ⛔ SO THIS ONE ENUMERATES NOTHING. It finds every `prod.package.json` in the workspace rather than
+     * naming a directory, which is the difference between a guard that covers what exists and a guard that
+     * covers what someone remembered.
+     */
+    it('holds EVERY production manifest to the same parity, not just the deployable services', () => {
+        const manifests = globSync('packages/**/prod.package.json', {
+            cwd: repoRoot,
+            ignore: ['**/node_modules/**', '**/dist/**'],
+        }).sort();
+
+        // Anti-vacuity: a glob that matched nothing would satisfy the assertion below in silence, and the
+        // widened scope must strictly exceed the three deployables the tests above already cover.
+        expect(manifests.length).toBeGreaterThan(deployable.length);
+
+        const problems = manifests.flatMap((prodPath) => {
+            const devPath = path.join(path.dirname(prodPath), 'package.json');
+            const prod = JSON.parse(readFileSync(path.join(repoRoot, prodPath), 'utf8')) as Manifest;
+            const dev = JSON.parse(readFileSync(path.join(repoRoot, devPath), 'utf8')) as Manifest;
+            const devDependencies = dev.dependencies ?? {};
+            const prodDependencies = prod.dependencies ?? {};
+
+            return Object.entries(prodDependencies)
+                .filter(([name, range]) => devDependencies[name] !== undefined && devDependencies[name] !== range)
+                .map(
+                    ([name, range]) =>
+                        `${prodPath}: ${name} is '${range}' here but '${String(devDependencies[name])}' in ` +
+                        'package.json — the image ships the workspace-resolved version, so the manifest lies',
+                );
+        });
+
+        expect(problems, problems.join('\n')).toStrictEqual([]);
     });
 });

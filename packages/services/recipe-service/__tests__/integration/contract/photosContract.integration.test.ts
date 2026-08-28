@@ -28,7 +28,7 @@ const OWNER = '01JPHOTOCONTRACT000000000A';
 /** A REAL minimal 1×1 PNG (base64) — `file-type` parses the IHDR chunk, so a full image is the honest fixture. */
 const PNG_BYTES = new Uint8Array(
     Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         'base64',
     ),
 );

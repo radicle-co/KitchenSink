@@ -1,4 +1,4 @@
-import { testTempRootSetup } from '@kitchensink/vitest';
+import { testTempRootSetup, jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
@@ -25,7 +25,7 @@ export default defineConfig({
         // Without this exclude the `tests/**/*.test.ts(x)` globs above swallow them back into the unit run.
         exclude: ['node_modules', 'dist', 'tests/__integration__/**'],
         environment: 'jsdom',
-        setupFiles: ['./tests/setup.ts'],
+        setupFiles: [jsdomPolyfillsSetup, './tests/setup.ts'],
         globals: true,
 
         // `infra/__tests__` SYNTHESIZES the sandbox router CDK stack, which is CPU-heavy: fast locally (~1s)

@@ -1,4 +1,4 @@
-import { testTempRootSetup } from '@kitchensink/vitest';
+import { testTempRootSetup, jsdomPolyfillsSetup } from '@kitchensink/vitest';
 /**
  * Vitest config for @commise/web's INTEGRATION tier.
  *
@@ -27,7 +27,7 @@ export default defineConfig({
         include: ['tests/__integration__/**/*.integration.test.ts', 'tests/__integration__/**/*.integration.test.tsx'],
         exclude: ['node_modules', 'dist'],
         environment: 'jsdom',
-        setupFiles: ['./tests/setup.ts'],
+        setupFiles: [jsdomPolyfillsSetup, './tests/setup.ts'],
         globals: true,
 
         // Compiling the real stylesheet is slower than a unit test; the default 5s timeout is too tight.

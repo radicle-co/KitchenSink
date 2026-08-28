@@ -1,4 +1,4 @@
-import { testTempRootSetup } from '@kitchensink/vitest';
+import { testTempRootSetup, jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -62,7 +62,7 @@ export default defineConfig({
         globalSetup: [testTempRootSetup],
         globals: true,
         environment: 'jsdom',
-        setupFiles: ['./tests/setup.native.ts'],
+        setupFiles: [jsdomPolyfillsSetup, './tests/setup.native.ts'],
         include: ['tests/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
 

@@ -40,6 +40,14 @@ export const CDK_SYNTH_TEST_TIMEOUT_MS = 30_000;
  */
 export const testTempRootSetup = path.resolve(import.meta.dirname, 'testTempRoot.js');
 
+/**
+ * Absolute path to the jsdom polyfill `setupFiles` entry — see `jsdomPolyfills.js`.
+ *
+ * ⚠️ A `setupFiles` entry, NOT a `globalSetup` one: these install globals into the WORKER that runs the
+ * tests, and `globalSetup` runs in the main process where nothing would see them.
+ */
+export const jsdomPolyfillsSetup = path.resolve(import.meta.dirname, 'jsdomPolyfills.js');
+
 export const baseConfig = {
     test: {
         globals: true,

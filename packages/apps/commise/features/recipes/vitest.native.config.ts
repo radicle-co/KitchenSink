@@ -1,4 +1,4 @@
-import { testTempRootSetup } from '@kitchensink/vitest';
+import { testTempRootSetup, jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -50,6 +50,8 @@ export default defineConfig({
         globalSetup: [testTempRootSetup],
         globals: true,
         environment: 'jsdom',
+        // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
+        setupFiles: [jsdomPolyfillsSetup],
         include: ['**/__tests__/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
     },

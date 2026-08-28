@@ -330,7 +330,10 @@ export function renderReport(report: ImportReportData): string {
         // ⚠️ Headed OBSERVATION, not a result. Nothing here decided what was sent — the field-level winner
         // rule is observe-only until U23's oracle lands — and a section labelled otherwise would read as a
         // claim about the recipes above it.
-        lines.push('\nTWO-ENGINE PARSE  (OBSERVATION — nothing here decided what was sent)');
+        // ⚠️ The label said "OBSERVATION — nothing here decided what was sent" while that was true. The
+        // pipeline is now the AUTHORITY for what an accepted line says, so a report calling it an observation
+        // would be telling an operator the opposite of what the run did.
+        lines.push('\nTWO-ENGINE PARSE  (the reading these figures describe is what was SENT)');
         lines.push(`  lines read                          ${parse.lines}`);
 
         for (const [kind, count] of Object.entries(parse.agreement)) {

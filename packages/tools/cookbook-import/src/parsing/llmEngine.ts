@@ -43,11 +43,35 @@ import {
     registryEntryFor,
     worstCaseMicros,
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import { modelParseAnswerSchema, normalizeParseAnswer } from '@kitchensink/recipe-core/parsing/parse-answer';
 import { promoteLlmParse, type EngineAnswer, type ParseEnginePort } from '@kitchensink/recipe-import-core';
 import pLimit from 'p-limit';
 
 import { PARSE_MAX_OUTPUT_TOKENS, PARSE_PROMPT_VERSION, buildParsePrompt } from '../parseComparison/parsePrompt.js';
-import { classifyParseResponse, recoverableParse } from '../parseComparison/parseResponse.js';
+
+/** A fenced JSON block, which some models wrap their answer in however the prompt asks. */
+const CODE_FENCE = /```(?:json)?\s*([\s\S]*?)```/u;
+
+/**
+ * The JSON document in a model response, bare or fenced.
+ *
+ * ⚠️ Fences are tolerated because a model that wraps its answer has still ANSWERED — refusing one would
+ * discard a correct parse over presentation. Anything that is not JSON at all answers `undefined`, which the
+ * caller reads as unavailable.
+ *
+ * @param text - The assistant text block.
+ * @returns The parsed document, or `undefined` when the response carries no JSON. Pure.
+ */
+function readParseJson(text: string): unknown {
+    const trimmed = text.trim();
+    const candidate = CODE_FENCE.exec(trimmed)?.[1]?.trim() ?? trimmed;
+
+    try {
+        return JSON.parse(candidate);
+    } catch {
+        return undefined;
+    }
+}
 
 /** The marker the pipeline reads as "this engine produced no answer at all". */
 const UNAVAILABLE: EngineAnswer = { unavailable: true };
@@ -150,35 +174,23 @@ export function createLlmEngine(options: LlmEngineOptions): LlmEnginePort {
 
         spent += actualCostMicros(priced, outcome.usage);
 
-        const reading = classifyParseResponse(outcome.text, outcome.stopReason);
-        // ⚠️ Recovery is consulted for a NON-compliant response only, and it is the right call HERE where the
-        // bake-off deliberately kept the two apart: that harness measures how often the shipped reader would
-        // have to change, while this one is the reader. `recoverableParse`'s own warning — "nothing extracted
-        // from prose is ever … put back into a prompt" — is honoured: nothing here reaches a prompt.
-        const answer = reading.kind === 'valid' ? reading.parse : recoverableParse(outcome.text);
+        // ⛔ READ WITH THE SHIPPED READER, not the bake-off's. `parseResponse.ts`'s `modelParseSchema` is
+        // v1's `{ measure, foods }`; the shipped prompt became v5-static — a root ARRAY of
+        // `{ food_items, measurement, preparations, equipment }` — on 2026-08-27, and reading the new
+        // document with the old schema made EVERY real response unreadable. The call was made, the model
+        // answered correctly, the money was spent, and the answer was discarded as `unavailable`; a 129-line
+        // import reported `single-engine 100%` with the LLM leg contributing nothing. This engine IS the
+        // shipped path now, so it reads the shipped document.
+        //
+        // ⚠️ A truncated response stays a REFUSAL rather than a partial read: a JSON array cut short can
+        // still parse cleanly up to the cut, which would publish a line missing whatever followed it.
+        if (outcome.stopReason === 'max_tokens') {
+            return UNAVAILABLE;
+        }
 
-        // ⛔ PROJECTED HERE, not through `normalizeParseAnswer`. That function reads the WIRE document the
-        // shipped prompt declares, which became a relational array on 2026-08-27. This harness's readers have
-        // already done their own arm-specific reading and hand back a `VariantParse` — feeding that to the
-        // wire normaliser would ask it to parse a value that never came off the wire. `VariantParse` is
-        // already `LlmParse`'s two facts under different names, so the projection is a rename.
-        return answer === undefined
-            ? UNAVAILABLE
-            : promoteLlmParse(
-                  {
-                      statedMeasure: answer.measure.trim() === '' ? null : answer.measure.trim(),
-                      // ⛔ `statedQuantity` is OMITTED, not null. No arm here has a quantity slot — they state
-                      // a measure PHRASE — and `undefined` is what means "derive from the phrase". `null`
-                      // would claim the arm read the line and found no amount, publishing `absent` for a
-                      // number the phrase plainly states.
-                      //
-                      // ⛔ `statedUnit` is PRESERVED, never `?? null`, for the same reason one field over: an
-                      // arm with no unit slot leaves it `undefined` and must stay on the derived path.
-                      statedUnit: answer.statedUnit,
-                      foods: answer.foods,
-                  },
-                  line,
-              );
+        const parsed = modelParseAnswerSchema.safeParse(readParseJson(outcome.text));
+
+        return parsed.success ? promoteLlmParse(normalizeParseAnswer(parsed.data), line) : UNAVAILABLE;
     }
 
     return {

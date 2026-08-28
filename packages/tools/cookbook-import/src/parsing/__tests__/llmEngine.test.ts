@@ -26,9 +26,29 @@ function answer(text: string, stopReason = 'end_turn'): Record<string, unknown> 
     };
 }
 
-/** A compliant parse document. */
+/**
+ * A compliant parse document, in the shape the SHIPPED PROMPT DECLARES.
+ *
+ * ⛔ REWRITTEN. This emitted v1's `{ measure, foods: [...] }`, and kept emitting it after the shipped prompt
+ * became v5-static — a root ARRAY of `{ food_items, measurement, preparations, equipment }`. The engine
+ * therefore passed every test while returning `{ unavailable: true }` for every real response: the call was
+ * made, the model answered correctly, the money was spent, and the answer was discarded as unreadable. A
+ * fixture that states a shape the prompt no longer asks for cannot fail when the reader is wrong.
+ */
 function document(name: string, measure: string | null = '1 tablespoon'): string {
-    return JSON.stringify({ measure, foods: [{ name, prep: null }] });
+    const [quantity, ...rest] = (measure ?? '').split(' ');
+
+    return JSON.stringify([
+        {
+            food_items: [name],
+            measurement:
+                measure === null
+                    ? null
+                    : { quantity: quantity ?? null, unit: rest.join(' ') || null, unit_type: 'VOLUME' },
+            preparations: null,
+            equipment: null,
+        },
+    ]);
 }
 
 /**

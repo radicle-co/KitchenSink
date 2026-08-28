@@ -17,6 +17,8 @@
  * candidate. That is the thing the gate does, and it is not the same thing as "how often is the cascade right
  * in the wild".
  */
+import { createHash } from 'node:crypto';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeCatalogRows } from '../__fixtures__/catalog.js';
@@ -38,6 +40,28 @@ describe('synthesizeBakeOffCorpus — determinism', () => {
 
         expect(JSON.stringify(second.lines)).toBe(JSON.stringify(first.lines));
         expect(JSON.stringify(second.manifest)).toBe(JSON.stringify(first.manifest));
+    });
+
+    /**
+     * ⛔ PINS THE SEQUENCE ITSELF, not merely that two runs agree.
+     *
+     * The two assertions around this compare a corpus against ANOTHER RUN IN THE SAME PROCESS, so they hold
+     * for any generator that is internally consistent — including one whose random stream has completely
+     * changed. That is not hypothetical: the `pure-rand` 7 -> 8 upgrade replaced
+     * `unsafeUniformIntDistribution` with `uniformInt`, and had the stream shifted, every one of those
+     * assertions would still have passed while every previously-generated corpus silently stopped being
+     * reproducible under the same seed and the same `CORPUS_GENERATOR_VERSION`.
+     *
+     * ⚠️ A DIGEST, not the corpus text. The point is to fail loudly when the stream moves; carrying 24
+     * synthesised lines inline would make an intentional generator change a large unreadable diff, and the
+     * failure message already names the cause. When this fails deliberately, bump
+     * `CORPUS_GENERATOR_VERSION` in the same commit — a changed stream under an unchanged version is what
+     * makes two corpora incomparable.
+     */
+    it('pins the RNG stream, so a generator or dependency change cannot move it silently', () => {
+        const digest = createHash('sha256').update(JSON.stringify(synthesize().lines)).digest('hex');
+
+        expect(digest).toBe('361fa544ba3be4730f3436e8bc0085446828fb74b24ce15ef885182d7475a6e4');
     });
 
     it('produces DIFFERENT output for a different seed, so the seed is really the source of choice', () => {

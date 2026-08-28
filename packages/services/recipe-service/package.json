@@ -73,7 +73,7 @@
         "@stryker-mutator/core": "^10.0.0",
         "@stryker-mutator/vitest-runner": "^10.0.0",
         "@types/express": "^5.0.0",
-        "@types/node": "^24.0.0",
+        "@types/node": "^26.4.0",
         "@types/pg": "^8.15.6",
         "aws-cdk": "^2.1134.0",
         "eslint": "^10.0.3",

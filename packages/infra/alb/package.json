@@ -41,7 +41,7 @@
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
-        "@types/node": "^24.0.0",
+        "@types/node": "^26.4.0",
         "aws-cdk-lib": "*",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",

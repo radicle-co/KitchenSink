@@ -43,7 +43,10 @@
         "localstack:down": "docker compose -f infra/localstack/docker-compose.yml down -v",
         "format": "turbo run format",
         "format:check": "turbo run format:check",
-        "prepare": "husky || true"
+        "prepare": "husky || true",
+        "local:up": "npm run up --workspace=@kitchensink/local-sandbox",
+        "local:down": "docker compose -f .local-sandbox/docker-compose.yml -p local-sandbox down",
+        "local:audit": "npm run audit --workspace=@kitchensink/local-sandbox"
     },
     "overrides": {
         "@types/react": "^19.2.0",

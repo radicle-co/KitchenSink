@@ -130,9 +130,17 @@ describe('localContainerEnv', () => {
      * into containers.
      */
     it('rewrites a sibling URL to the compose service name, matched by the variable name', () => {
-        const env = localContainerEnv(['FOOD_SERVICE_URL'], { ...base, siblings: { food: 3002, identity: 3001 } });
+        const env = localContainerEnv(['FOOD_SERVICE_URL'], {
+            ...base,
+            siblings: {
+                food: { hostPort: 3002, containerPort: 3000 },
+                identity: { hostPort: 3001, containerPort: 3000 },
+            },
+        });
 
-        expect(env['FOOD_SERVICE_URL']).toBe('http://food:3002');
+        // ⚠️ REWRITTEN: this asserted `:3002`, the published HOST port. Inside the compose network food
+        // listens on 3000, so that address hit nothing — see the container-port describe below.
+        expect(env['FOOD_SERVICE_URL']).toBe('http://food:3000');
     });
 
     it('picks the RIGHT sibling when there is more than one', () => {
@@ -140,11 +148,18 @@ describe('localContainerEnv', () => {
         // -sibling test above and would have wired recipe at identity.
         const env = localContainerEnv(['IDENTITY_SERVICE_URL', 'FOOD_SERVICE_URL'], {
             ...base,
-            siblings: { food: 3002, identity: 3001 },
+            siblings: {
+                food: { hostPort: 3002, containerPort: 3000 },
+                identity: { hostPort: 3001, containerPort: 3000 },
+            },
         });
 
-        expect(env['IDENTITY_SERVICE_URL']).toBe('http://identity:3001');
-        expect(env['FOOD_SERVICE_URL']).toBe('http://food:3002');
+        // ⚠️ REWRITTEN alongside FOOD_SERVICE_URL: 3001 is identity's published HOST port; inside the
+        // network it listens on 3000 like every other service.
+        expect(env['IDENTITY_SERVICE_URL']).toBe('http://identity:3000');
+        // ⚠️ REWRITTEN: this asserted `:3002`, the published HOST port. Inside the compose network food
+        // listens on 3000, so that address hit nothing — see the container-port describe below.
+        expect(env['FOOD_SERVICE_URL']).toBe('http://food:3000');
     });
 
     it('leaves a service URL with no matching sibling as a placeholder, not a wrong address', () => {
@@ -437,5 +452,42 @@ describe('localContainerEnv — the azp ORIGIN policy is local, never the deploy
         });
 
         expect(env['CLERK_JWT_KEY']).toBe('-----BEGIN PUBLIC KEY-----');
+    });
+});
+
+describe('localContainerEnv — a sibling URL uses the CONTAINER port', () => {
+    /**
+     * ⛔ THE HOST PORT IS NOT THE CONTAINER PORT, and using it makes every cross-service call fail in a way
+     * that is REPORTED AS SOMETHING ELSE. Compose publishes food as `3002:3000` — 3002 on the host, 3000
+     * inside the network. Recipe-service reached it by compose service NAME, which is right, but on the HOST
+     * port, so `http://food:3002` hit a port nothing listens on.
+     *
+     * Measured over a 348-recipe import: all 1832 ingredient lookups were counted as
+     * "lookups during a catalog outage", 0 lines carried a real `food_id`, and the import still reported
+     * success — because the recipe service degrades to `catalogAvailability: 'unavailable'` by design rather
+     * than failing the write. A connection refused on the wrong port is indistinguishable, downstream, from
+     * a food service that is genuinely down.
+     */
+    it('addresses a sibling on its container port, not the published host port', () => {
+        const env = localContainerEnv(['FOOD_SERVICE_URL'], {
+            database: 'db',
+            port: 3000,
+            siblings: { food: { hostPort: 3002, containerPort: 3000 } },
+        });
+
+        expect(env['FOOD_SERVICE_URL']).toBe('http://food:3000');
+    });
+
+    it('still matches the sibling by its OWN name', () => {
+        const env = localContainerEnv(['FOOD_SERVICE_URL'], {
+            database: 'db',
+            port: 3000,
+            siblings: {
+                food: { hostPort: 3002, containerPort: 3000 },
+                identity: { hostPort: 3001, containerPort: 3000 },
+            },
+        });
+
+        expect(env['FOOD_SERVICE_URL']).toBe('http://food:3000');
     });
 });

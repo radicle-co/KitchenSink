@@ -310,14 +310,14 @@ async function main(): Promise<void> {
     );
     const uniqueBuilds = [...new Map(imageBuilds.map((build) => [build.localImage, build])).values()];
     const serviceContainers: ServiceContainer[] = [];
-    const siblings: Record<string, number> = {};
+    const siblings: Record<string, { hostPort: number; containerPort: number }> = {};
 
     for (const build of uniqueBuilds) {
         const name = build.repository.replace(/^kitchensink-/u, '');
         const hostPort = localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, ''));
 
         if (hostPort !== undefined) {
-            siblings[name] = hostPort;
+            siblings[name] = { hostPort, containerPort: build.containerPort ?? 3000 };
         }
     }
 

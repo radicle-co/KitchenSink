@@ -107,7 +107,7 @@ export interface LocalEnvContext {
      * one-sibling test and picks arbitrarily the moment there are two — which is this repo, where recipe
      * calls food and nothing else.
      */
-    readonly siblings?: Readonly<Record<string, number>>;
+    readonly siblings?: Readonly<Record<string, { readonly hostPort: number; readonly containerPort: number }>>;
     /**
      * Values already resolved from AWS — Secrets Manager secrets and SSM parameters the CDK injects at
      * deploy (see `secretRefs.ts`).
@@ -222,8 +222,16 @@ export function localContainerEnv(keys: readonly string[], context: LocalEnvCont
 
         // A sibling service URL — matched by the variable's OWN name, so `FOOD_SERVICE_URL` finds the
         // `food` service and cannot silently resolve to whichever sibling happens to be first.
+        // A sibling service URL — matched by the variable's OWN name, so `FOOD_SERVICE_URL` finds the
+        // `food` service and cannot silently resolve to whichever sibling happens to be first.
+        //
+        // ⛔ The CONTAINER port, never the published host port. Compose publishes food as `3002:3000`, and
+        // addressing `http://food:3002` from inside the network hits a port nothing listens on — which the
+        // recipe service reports as `catalogAvailability: 'unavailable'` rather than as an error, so a
+        // 348-recipe import completed "successfully" with all 1832 lookups counted as a catalog outage and
+        // zero ingredients carrying a real `food_id`.
         const wanted = /^([A-Z0-9]+)_SERVICE_URL$/u.exec(key)?.[1]?.toLowerCase();
-        const siblingPort = wanted === undefined ? undefined : context.siblings?.[wanted];
+        const siblingPort = wanted === undefined ? undefined : context.siblings?.[wanted]?.containerPort;
 
         if (wanted !== undefined && siblingPort !== undefined) {
             env[key] = `http://${wanted}:${String(siblingPort)}`;

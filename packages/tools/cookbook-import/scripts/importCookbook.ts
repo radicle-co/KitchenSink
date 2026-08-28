@@ -40,7 +40,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import { createBedrockConverseClient, createBedrockTransport } from '@kitchensink/bedrock-client';
-import { NOVA_MICRO_MODEL_ID } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import { NOVA_2_LITE_MODEL_ID } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { NO_CACHE, NO_CORRECTIONS } from '@kitchensink/recipe-import-core';
 
 import { COOKBOOKS } from '../src/cookbooks.js';
@@ -116,7 +116,10 @@ async function resolveParseObservation(requested: boolean, region: string): Prom
     const crf = await createCrfEngine();
     const llm = createLlmEngine({
         client: createBedrockConverseClient(createBedrockTransport({ region }).send),
-        modelId: NOVA_MICRO_MODEL_ID,
+        // ⛔ Nova 2 Lite, the model ADR-0026 records as shipping with the v5-static prompt. The registry
+        // addresses it by an INFERENCE PROFILE (`us.amazon.nova-2-lite-v1:0`) because the bare id is refused
+        // at call time — `inferenceTypesSupported = ["INFERENCE_PROFILE"]`.
+        modelId: NOVA_2_LITE_MODEL_ID,
     });
 
     return {

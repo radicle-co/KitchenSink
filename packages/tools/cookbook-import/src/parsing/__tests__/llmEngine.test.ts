@@ -12,7 +12,11 @@
  * Every outcome here is driven from a fake `ConverseTransport`: no network, no spend.
  */
 import { createBedrockConverseClient } from '@kitchensink/bedrock-client';
-import { NOVA_MICRO_MODEL_ID } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import {
+    BEDROCK_MODEL_REGISTRY,
+    NOVA_2_LITE_MODEL_ID,
+    NOVA_MICRO_MODEL_ID,
+} from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { describe, it, expect } from 'vitest';
 
 import { createLlmEngine } from '../llmEngine.js';
@@ -225,5 +229,44 @@ describe('createLlmEngine', () => {
             await engine.parse(['1 tablespoon butter']);
             expect(engine.spentMicros()).toBeGreaterThan(0);
         });
+    });
+});
+
+describe('the call it makes', () => {
+    /**
+     * ⛔ FLEX, and it is a COST decision with a correctness constraint attached. ADR-0026 records the shipped
+     * leg as "the 19,777-character v5-static prompt against Nova 2 Lite on the `flex` tier"; the client's own
+     * note records why flex and not batch — "is flex, not batch. Verified live 2026-08-27 against Nova 2
+     * Lite" — because batch loses prompt caching, and a 19,777-character system prompt re-billed as fresh
+     * input on every line is the whole cost of this leg.
+     *
+     * `recipe-workers/src/parsing/llmParse.ts` already sends it. Two consumers of one decision that disagree
+     * would bill differently for the same prompt with nothing pointing at why.
+     */
+    it('asks for the flex service tier', async () => {
+        const seen: { serviceTier?: string }[] = [];
+
+        const engine = createLlmEngine({
+            client: {
+                converse: async (request) => {
+                    seen.push(request);
+
+                    return { kind: 'unusable', reason: 'x', stopReason: undefined, usage: undefined };
+                },
+            },
+            modelId: NOVA_2_LITE_MODEL_ID,
+        });
+
+        await engine.parse(['one pound of butter']);
+
+        expect(seen[0]?.serviceTier).toBe('flex');
+    });
+
+    it('addresses the model by its INVOCATION id, which for Nova 2 Lite is a profile', () => {
+        // ⛔ `us.amazon.nova-2-lite-v1:0`, not the bare model id: the registry records
+        // `inferenceTypesSupported = ["INFERENCE_PROFILE"]`, so the bare id is refused at call time.
+        expect(BEDROCK_MODEL_REGISTRY[NOVA_2_LITE_MODEL_ID]?.invocation.invocationId).toBe(
+            'us.amazon.nova-2-lite-v1:0',
+        );
     });
 });

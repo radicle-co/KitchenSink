@@ -147,6 +147,12 @@ export function createLlmEngine(options: LlmEngineOptions): LlmEnginePort {
                 userMessage: prompt.userMessage,
                 maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
                 temperature: 0,
+                // ⛔ FLEX — a cost decision with a correctness constraint attached. ADR-0026 records the
+                // shipped leg as v5-static "against Nova 2 Lite on the `flex` tier", and the client's own
+                // note records why not batch: batch loses PROMPT CACHING, and a 19,777-character system
+                // prompt re-billed as fresh input on every line is the whole cost of this leg.
+                // `recipe-workers/src/parsing/llmParse.ts` sends the same thing.
+                serviceTier: 'flex',
             });
         } catch (error) {
             // ⛔ The cost of a call that never arrived is a DECISION, and it is the client's: `refund-full`

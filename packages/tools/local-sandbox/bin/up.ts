@@ -13,66 +13,18 @@
  * @sideEffect Spawns CDK and docker, writes generated files under `.local-sandbox/`, and starts containers.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { discoverApps } from '../src/discoverApps.js';
 import { discoverResources, summarizeRequirements, type DiscoveredResource } from '../src/discoverResources.js';
 import { planCompose } from '../src/composePlan.js';
+import { discoverDatabases, discoverMigrations, discoverServiceTasks, resolveExports } from '../src/runPlan.js';
 import { synthesizeAll } from '../src/synthesize.js';
 import { REPO_ROOT, readManifests, runCdkSynth } from './adapters.js';
 
 const GENERATED_DIR = path.join(REPO_ROOT, '.local-sandbox');
-
-/**
- * Every logical database the synthesised CDK names.
- *
- * ⛔ DERIVED, not listed. Read from the RDS resource's own `DBName` and from any container environment
- * entry whose key names a database — which is where per-service and per-PR database names actually live
- * (ADR-0006). A hardcoded list here would be the same rot one layer down: `docker-compose.yml` created
- * exactly one database called `commise`, and the E2E harness created exactly one called `food_e2e`, so
- * neither could run the other's service.
- */
-function discoverDatabases(templates: readonly string[]): readonly string[] {
-    const names = new Set<string>();
-    const looksLikeDatabaseKey = /(^|_)(DB_NAME|DATABASE_NAME|POSTGRES_DB)$/u;
-
-    for (const file of templates) {
-        const walk = (node: unknown): void => {
-            if (Array.isArray(node)) {
-                node.forEach(walk);
-
-                return;
-            }
-
-            if (node === null || typeof node !== 'object') {
-                return;
-            }
-
-            for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-                if (key === 'DBName' && typeof value === 'string' && value.length > 0) {
-                    names.add(value);
-                }
-
-                // A task definition's `Environment: [{ Name, Value }]`.
-                if (key === 'Name' && typeof value === 'string' && looksLikeDatabaseKey.test(value)) {
-                    const sibling = (node as { Value?: unknown }).Value;
-
-                    if (typeof sibling === 'string' && /^[a-z_][a-z0-9_]*$/iu.test(sibling)) {
-                        names.add(sibling);
-                    }
-                }
-
-                walk(value);
-            }
-        };
-
-        walk(JSON.parse(readFileSync(file, 'utf8')));
-    }
-
-    return [...names].sort();
-}
 
 /** Serialise the plan as compose YAML. Hand-rolled because the shape is small, fixed and fully ours. */
 function toYaml(plan: ReturnType<typeof planCompose>): string {
@@ -171,7 +123,12 @@ async function main(): Promise<void> {
         return;
     }
 
-    const databases = discoverDatabases(templates);
+    // ⛔ Built across ALL templates before anything is resolved: `IdentityService` names its database as an
+    // import of `kitchensink-data-{stage}:DatabaseName`, and only the GLOBAL Data stack declares the
+    // literal. A per-stack view cannot see it, which is how identity's migrations were silently skipped.
+    const parsedTemplates = templates.map((file) => JSON.parse(readFileSync(file, 'utf8')) as unknown);
+    const exportMap = resolveExports(parsedTemplates);
+    const databases = discoverDatabases(parsedTemplates, exportMap);
     const plan = planCompose(requirements, { databases });
 
     mkdirSync(GENERATED_DIR, { recursive: true });
@@ -195,16 +152,137 @@ async function main(): Promise<void> {
         return;
     }
 
+    // ── ADR-0022's obligation, discharged ───────────────────────────────────────────────────────────
+    //
+    // ⛔ BEFORE any service starts, and that ordering is the whole point. `cdk deploy` returns only once ECS
+    // has stabilised, so "deploy then migrate" served the new image against the OLD schema for the entire
+    // stabilisation window — which is why the Trigger exists and why every service in the stack takes a
+    // DependsOn against it. Locally there is no deploy to order against; applying the SQL here, before the
+    // dev processes are told to start, is the same guarantee.
+    //
+    // The SQL is not named anywhere in this package: `Code.S3Key` gives the asset hash and CDK unpacked the
+    // bundle beside its own template.
+    let applied = 0;
+    const skipped: string[] = [];
+
+    for (const outcome of outcomes) {
+        for (const file of outcome.templates) {
+            const stack = path.basename(file).replace(/\.template\.json$/u, '');
+            const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+            const sets = discoverMigrations(stack, parsed);
+
+            if (sets.length === 0) {
+                continue;
+            }
+
+            // Which database? The stack's own templates name it concretely at STAGE=dev. Ambiguity is
+            // reported rather than guessed — applying one service's schema to another's database is a worse
+            // outcome than an unmigrated database, because it looks like it worked.
+            const stackDatabases = discoverDatabases([parsed], exportMap);
+
+            if (stackDatabases.length !== 1) {
+                // ⚠️ Reported, but not alarming by default. Three shapes land here and only one is a gap:
+                //   - a stack that owns NO database (ingredient-parser, ADR-0025 §3 — deliberate);
+                //   - a stack that SHARES one its owning service already migrated (identity-webhooks,
+                //     recipe-workers — ADR-0022 gives every DB-touching stack a runner, so the same ordered
+                //     SQL is applied once by the owner and nothing is lost);
+                //   - a name this tool genuinely could not resolve, which IS a gap.
+                // They are not distinguished automatically because doing so would need a rule about which
+                // stacks share whose database — a list, and the wrong kind of knowledge to put here.
+                skipped.push(
+                    `${stack} — names ${String(stackDatabases.length)} resolvable database(s); nothing applied. Fine if it owns none or shares one already migrated above.`,
+                );
+                continue;
+            }
+
+            const database = stackDatabases[0] as string;
+
+            for (const set of sets) {
+                const sqlDir = path.join(outcome.outDir, `asset.${set.assetHash}`, 'migrations');
+
+                if (!existsSync(sqlDir)) {
+                    continue;
+                }
+
+                // Filename order IS the migration order (`0000_`, `0001_`, …) — the same rule the deployed
+                // runner uses, and the reason there is no hardcoded list of files.
+                for (const sql of readdirSync(sqlDir)
+                    .filter((f) => f.endsWith('.sql'))
+                    .sort()) {
+                    const run = spawnSync(
+                        'docker',
+                        [
+                            'exec',
+                            '-i',
+                            'local-sandbox-postgres',
+                            'psql',
+                            '-v',
+                            'ON_ERROR_STOP=1',
+                            '-U',
+                            'postgres',
+                            '-d',
+                            database,
+                        ],
+                        { input: readFileSync(path.join(sqlDir, sql), 'utf8'), encoding: 'utf8' },
+                    );
+
+                    if (run.status !== 0) {
+                        process.stderr.write(`  migration FAILED ${database} ${sql}\n${run.stderr ?? ''}\n`);
+                        process.exitCode = 1;
+
+                        return;
+                    }
+
+                    applied += 1;
+                }
+
+                process.stdout.write(`  migrated ${database} (${set.stack})\n`);
+            }
+        }
+    }
+
+    process.stdout.write(`\n  migrations applied : ${applied} file(s)\n`);
+
+    for (const note of skipped) {
+        process.stdout.write(`  · not migrated     : ${note}\n`);
+    }
+
+    // ── Our own services ────────────────────────────────────────────────────────────────────────────
+    const tasks = outcomes.flatMap((outcome) =>
+        outcome.templates.flatMap((file) => [
+            ...discoverServiceTasks(
+                path.basename(file).replace(/\.template\.json$/u, ''),
+                JSON.parse(readFileSync(file, 'utf8')),
+            ),
+        ]),
+    );
+
+    process.stdout.write(`\n  services declared  : ${tasks.length}\n`);
+
+    for (const task of tasks) {
+        process.stdout.write(
+            `      ${task.stack}/${task.logicalId}${task.containerPort === undefined ? ' (worker — no inbound port)' : ` :${String(task.containerPort)}`}\n`,
+        );
+    }
+
     process.stdout.write('\nUp. What is NOT covered:\n');
 
     for (const entry of requirements.unsupported) {
         process.stdout.write(`  ${entry.type} — ${entry.why}\n`);
     }
 
+    // ⚠️ `turbo run dev` rather than something invented here: the repo ALREADY starts every service that
+    // way (`dev:local`), each package's own `dev` script binds the port its own env schema defaults to
+    // (identity 3001, food 3002, recipe 3000), and `.env.development` already wires the cross-service URLs
+    // to those numbers. A port map invented in this package would be a second, competing convention.
+    //
+    // ⛔ NOT started from inside this command. `turbo run dev` is a watch process that never returns, and an
+    // `up` that never returns cannot be composed or scripted. `npm run local:dev` chains the two.
     process.stdout.write(
-        `\n  ${requirements.services.length} of our own services are declared in the CDK; start them with their own dev scripts\n` +
-            '  (they are processes, not images, in local development — see docs/CODING_STANDARDS and each package).\n' +
-            `\n  Stop with: docker compose -f .local-sandbox/docker-compose.yml -p local-sandbox down\n`,
+        '\n  Services run as PROCESSES locally, not images — the CDK references prebuilt ECR tags\n' +
+            '  (`ContainerImage.fromEcrRepository`), so it does not describe how to build them; CI does.\n' +
+            '\n  Start them:  npm run dev:local        (or `npm run local:dev` to do both in one step)\n' +
+            '  Stop this:   npm run local:down\n',
     );
 }
 

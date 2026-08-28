@@ -142,7 +142,7 @@ export function localPortFor(packageDir: string): number | undefined {
     });
 
     for (const file of sources) {
-        let text = '';
+        let text: string;
 
         try {
             text = readFileSync(path.join(REPO_ROOT, packageDir, file), 'utf8');

@@ -101,20 +101,7 @@
 
 /** A clause of the written rubric. The ids are stable; a ruling cites one. */
 export type RubricClause =
-    | 'R1'
-    | 'R2'
-    | 'R3'
-    | 'R4'
-    | 'R5'
-    | 'R6'
-    | 'R7'
-    | 'R8'
-    | 'R9'
-    | 'R10'
-    | 'R11'
-    | 'R12'
-    | 'R13'
-    | 'R14';
+    'R1' | 'R2' | 'R3' | 'R4' | 'R5' | 'R6' | 'R7' | 'R8' | 'R9' | 'R10' | 'R11' | 'R12' | 'R13' | 'R14';
 
 /** Every clause, in the order the rubric states them. */
 export const RUBRIC_CLAUSES: readonly RubricClause[] = Object.freeze([
@@ -251,13 +238,7 @@ export const PARSE_RUBRIC: Readonly<Record<RubricClause, RubricClauseRecord>> = 
  * fail silently by generating uninteresting data."
  */
 export type OracleRegime =
-    | 'singleAmount'
-    | 'composite'
-    | 'range'
-    | 'multiFood'
-    | 'historicalUnit'
-    | 'prep'
-    | 'subjectiveMeasure';
+    'singleAmount' | 'composite' | 'range' | 'multiFood' | 'historicalUnit' | 'prep' | 'subjectiveMeasure';
 
 /** Every regime, in the order the plan lists them. */
 export const ORACLE_REGIMES: readonly OracleRegime[] = Object.freeze([

@@ -159,8 +159,7 @@ describe('admin :userId path-parameter validation', () => {
     // fails here, whether or not anyone remembers to add an HTTP case for it.
     it.each(userIdRoutes)('$method binds the validated param DTO, not a bare string', (route) => {
         const paramTypes = Reflect.getMetadata('design:paramtypes', AdminController.prototype, route.method) as
-            | unknown[]
-            | undefined;
+            unknown[] | undefined;
 
         expect(paramTypes).toContain(AdminUserIdParamDto);
         expect(paramTypes).not.toContain(String);

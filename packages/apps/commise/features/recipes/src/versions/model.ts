@@ -190,9 +190,10 @@ export const findPriorVersion = (
 
     return versions
         .filter((version) => version.versionNumber < versionNumber)
-        .reduce<
-            RecipeVersion | undefined
-        >((latest, candidate) => (laterThanLatest(latest, candidate) ? candidate : latest), undefined);
+        .reduce<RecipeVersion | undefined>(
+            (latest, candidate) => (laterThanLatest(latest, candidate) ? candidate : latest),
+            undefined,
+        );
 };
 
 /** One version row's changed-fields summary relative to its immediately-prior version. */
@@ -611,44 +612,40 @@ export const draftToSnapshot = (values: RecipeFormValues, version: number): Reci
     servings: values.servings,
     prepTimeMinutes: values.prepTimeMinutes,
     cookTimeMinutes: values.cookTimeMinutes,
-    steps: values.steps.map(
-        (step, index): RecipeStep => ({
-            id: `draft-step-${index}`,
-            recipeId: '',
-            stepNumber: index + 1,
-            instruction: step.instruction,
-            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
-        }),
-    ),
+    steps: values.steps.map((step, index): RecipeStep => ({
+        id: `draft-step-${index}`,
+        recipeId: '',
+        stepNumber: index + 1,
+        instruction: step.instruction,
+        ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+    })),
     ingredients: values.ingredients
         .filter((line): line is RecipeFormIngredient & { ingredientId: string } => line.ingredientId !== null)
-        .map(
-            (line, index): RecipeIngredient => ({
-                id: `draft-ingredient-${index}`,
-                recipeId: '',
-                ingredientId: line.ingredientId,
-                quantity: draftQuantity(line),
-                unit: line.unit ?? '',
-                ...(line.notes === undefined || line.notes === '' ? {} : { displayText: line.notes }),
-                // U26/U27 — the DRAFT side of the conflict comparison. `computeConflictDiff` compares this
-                // projection against the server's snapshot through `ingredientContentChanged`, so a field
-                // missing here is a field the merge believes the local edit never touched: the cook's
-                // preparation would be silently discarded in favour of the server's, with no conflict shown.
-                ...(line.preparation === undefined || line.preparation.trim() === ''
-                    ? {}
-                    : { preparation: line.preparation.trim() }),
-                ...(line.groupLabel === undefined || line.groupLabel.trim() === ''
-                    ? {}
-                    : { groupLabel: line.groupLabel.trim() }),
-                sortOrder: index,
-                ingredientName: line.name,
-                isUserEntered: false,
-                ...(line.userCalories === undefined ? {} : { userCalories: line.userCalories }),
-                ...(line.userProteinG === undefined ? {} : { userProteinG: line.userProteinG }),
-                ...(line.userCarbsG === undefined ? {} : { userCarbsG: line.userCarbsG }),
-                ...(line.userFatG === undefined ? {} : { userFatG: line.userFatG }),
-            }),
-        ),
+        .map((line, index): RecipeIngredient => ({
+            id: `draft-ingredient-${index}`,
+            recipeId: '',
+            ingredientId: line.ingredientId,
+            quantity: draftQuantity(line),
+            unit: line.unit ?? '',
+            ...(line.notes === undefined || line.notes === '' ? {} : { displayText: line.notes }),
+            // U26/U27 — the DRAFT side of the conflict comparison. `computeConflictDiff` compares this
+            // projection against the server's snapshot through `ingredientContentChanged`, so a field
+            // missing here is a field the merge believes the local edit never touched: the cook's
+            // preparation would be silently discarded in favour of the server's, with no conflict shown.
+            ...(line.preparation === undefined || line.preparation.trim() === ''
+                ? {}
+                : { preparation: line.preparation.trim() }),
+            ...(line.groupLabel === undefined || line.groupLabel.trim() === ''
+                ? {}
+                : { groupLabel: line.groupLabel.trim() }),
+            sortOrder: index,
+            ingredientName: line.name,
+            isUserEntered: false,
+            ...(line.userCalories === undefined ? {} : { userCalories: line.userCalories }),
+            ...(line.userProteinG === undefined ? {} : { userProteinG: line.userProteinG }),
+            ...(line.userCarbsG === undefined ? {} : { userCarbsG: line.userCarbsG }),
+            ...(line.userFatG === undefined ? {} : { userFatG: line.userFatG }),
+        })),
 });
 
 /**
@@ -674,30 +671,26 @@ export const applyServerSnapshotToRecipeDetail = (base: RecipeDetail, side: Vers
         prepTimeMinutes: snapshot.prepTimeMinutes,
         cookTimeMinutes: snapshot.cookTimeMinutes,
         totalTimeMinutes: computeTotalTime(snapshot.prepTimeMinutes, snapshot.cookTimeMinutes),
-        ingredients: snapshot.ingredients.map(
-            (ingredient): RecipeIngredientView => ({
-                ingredientId: ingredient.ingredientId,
-                name: ingredient.ingredientName,
-                quantity: ingredient.quantity,
-                ...(ingredient.unit === '' ? {} : { unit: ingredient.unit }),
-                ...(ingredient.displayText === undefined || ingredient.displayText === ''
-                    ? {}
-                    : { notes: ingredient.displayText }),
-                // U26/U27 — carried onto the conflict shell too, so the three-way merge's "server" and
-                // "base" sides can differ on them at all. A side that cannot REPRESENT a field can never
-                // report a conflict about it.
-                ...(ingredient.preparation === undefined ? {} : { preparation: ingredient.preparation }),
-                ...(ingredient.groupLabel === undefined ? {} : { groupLabel: ingredient.groupLabel }),
-                isUserEntered: ingredient.isUserEntered,
-            }),
-        ),
-        steps: snapshot.steps.map(
-            (step): RecipeStepView => ({
-                stepNumber: step.stepNumber,
-                instruction: step.instruction,
-                ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
-            }),
-        ),
+        ingredients: snapshot.ingredients.map((ingredient): RecipeIngredientView => ({
+            ingredientId: ingredient.ingredientId,
+            name: ingredient.ingredientName,
+            quantity: ingredient.quantity,
+            ...(ingredient.unit === '' ? {} : { unit: ingredient.unit }),
+            ...(ingredient.displayText === undefined || ingredient.displayText === ''
+                ? {}
+                : { notes: ingredient.displayText }),
+            // U26/U27 — carried onto the conflict shell too, so the three-way merge's "server" and
+            // "base" sides can differ on them at all. A side that cannot REPRESENT a field can never
+            // report a conflict about it.
+            ...(ingredient.preparation === undefined ? {} : { preparation: ingredient.preparation }),
+            ...(ingredient.groupLabel === undefined ? {} : { groupLabel: ingredient.groupLabel }),
+            isUserEntered: ingredient.isUserEntered,
+        })),
+        steps: snapshot.steps.map((step): RecipeStepView => ({
+            stepNumber: step.stepNumber,
+            instruction: step.instruction,
+            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+        })),
     };
 };
 

@@ -94,12 +94,7 @@ export function siblingModuleName(specifier: string): string | undefined {
  * specifier has to become a literal before anything can check it.
  */
 export type ModuleReferenceKind =
-    | 'import'
-    | 'export'
-    | 'dynamic-import'
-    | 'require'
-    | 'type-reference'
-    | 'path-reference';
+    'import' | 'export' | 'dynamic-import' | 'require' | 'type-reference' | 'path-reference';
 
 /** One module reference found in a source file, whether or not it is permitted. */
 export interface ModuleReference {

@@ -115,10 +115,7 @@ export interface ClearCliOptions {
 
 /** Why the destructive-operation guard declined. */
 export type ClearRefusalReason =
-    | 'confirmation-missing'
-    | 'confirmation-mismatch'
-    | 'production-requires-flag'
-    | 'production-flag-off-production';
+    'confirmation-missing' | 'confirmation-mismatch' | 'production-requires-flag' | 'production-flag-off-production';
 
 /** What the guard decided: refuse outright, report only, or clear. */
 export type ClearDecision =

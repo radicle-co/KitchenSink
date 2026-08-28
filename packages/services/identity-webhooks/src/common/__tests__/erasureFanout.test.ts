@@ -73,11 +73,10 @@ describe('runErasureFanout', () => {
     });
 
     it('surfaces an already-erased recipe account as ok with jobStatus=completed (idempotent no-op)', async () => {
-        const fetchImpl = vi.fn(
-            async (url: string | URL | Request): Promise<Response> =>
-                String(url).includes('recipe')
-                    ? jsonResponse(200, { status: 'completed', triggerSource: 'service' })
-                    : jsonResponse(200, { requesterId: TARGET.userId, deletedRequesterRows: 0 }),
+        const fetchImpl = vi.fn(async (url: string | URL | Request): Promise<Response> =>
+            String(url).includes('recipe')
+                ? jsonResponse(200, { status: 'completed', triggerSource: 'service' })
+                : jsonResponse(200, { requesterId: TARGET.userId, deletedRequesterRows: 0 }),
         );
 
         const result = await runErasureFanout(TARGET, config(), { fetchImpl });
@@ -87,11 +86,10 @@ describe('runErasureFanout', () => {
     });
 
     it('reports a recipe HTTP error as ok=false WITHOUT throwing, and still attempts the food leg', async () => {
-        const fetchImpl = vi.fn(
-            async (url: string | URL | Request): Promise<Response> =>
-                String(url).includes('recipe')
-                    ? jsonResponse(500, { error: 'boom' })
-                    : jsonResponse(200, { requesterId: TARGET.userId, deletedRequesterRows: 1 }),
+        const fetchImpl = vi.fn(async (url: string | URL | Request): Promise<Response> =>
+            String(url).includes('recipe')
+                ? jsonResponse(500, { error: 'boom' })
+                : jsonResponse(200, { requesterId: TARGET.userId, deletedRequesterRows: 1 }),
         );
 
         const result = await runErasureFanout(TARGET, config(), { fetchImpl });

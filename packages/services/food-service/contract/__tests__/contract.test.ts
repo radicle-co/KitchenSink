@@ -336,8 +336,7 @@ describe('openapi coverage', () => {
             foodOpenApiDocument.document['components'] as { schemas: Record<string, Record<string, unknown>> }
         ).schemas;
         const properties = schemas['AddFoodRequest']?.['properties'] as
-            | Record<string, Record<string, unknown>>
-            | undefined;
+            Record<string, Record<string, unknown>> | undefined;
         const pattern = properties?.['name']?.['pattern'];
 
         expect(typeof pattern).toBe('string');

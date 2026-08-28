@@ -366,8 +366,7 @@ function databaseBoundFunctions(template: Template): ReadonlyMap<string, string>
 
     for (const [logicalId, fn] of Object.entries(template.findResources('AWS::Lambda::Function'))) {
         const variables = (fn as SynthesizedResource).Properties?.['Environment'] as
-            | { Variables?: Record<string, unknown> }
-            | undefined;
+            { Variables?: Record<string, unknown> } | undefined;
         const name = variables?.Variables?.['RECIPE_DB_NAME'] ?? variables?.Variables?.['DB_NAME'];
 
         if (typeof name === 'string') {

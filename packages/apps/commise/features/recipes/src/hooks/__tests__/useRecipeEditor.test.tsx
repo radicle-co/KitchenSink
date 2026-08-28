@@ -113,8 +113,7 @@ type MutateOptions = { onSuccess?: (recipe: unknown) => void; onError?: (err: un
 
 /** One scripted outcome the mocked update mutation replays, in order, per `mutate` call. */
 type Outcome =
-    | { readonly type: 'success'; readonly recipe: unknown }
-    | { readonly type: 'conflict'; readonly error: unknown };
+    { readonly type: 'success'; readonly recipe: unknown } | { readonly type: 'conflict'; readonly error: unknown };
 
 /** Build a `useUpdateRecipe` double whose `mutate` replays `outcomes` in order via the caller's callbacks. */
 function updateMutation(outcomes: readonly Outcome[] = []): {

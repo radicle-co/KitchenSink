@@ -456,12 +456,10 @@ function toCollectionWithRecipes(
         recipes: record.recipeIds
             .map((id) => recipes.get(id))
             .filter((recipe): recipe is RecipeDetail => recipe !== undefined && recipe.deletedAt === undefined)
-            .map(
-                (recipe): CollectionMemberRecipe => ({
-                    ...toRecipeMetadata(recipe),
-                    addedVia: record.memberAddedVia?.[recipe.id] ?? 'manual',
-                }),
-            ),
+            .map((recipe): CollectionMemberRecipe => ({
+                ...toRecipeMetadata(recipe),
+                addedVia: record.memberAddedVia?.[recipe.id] ?? 'manual',
+            })),
     };
 }
 

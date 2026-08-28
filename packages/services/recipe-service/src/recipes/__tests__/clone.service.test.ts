@@ -75,23 +75,25 @@ function sourceAggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]>
 
 function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create: ReturnType<typeof vi.fn> } {
     // The DAL echoes back a created aggregate built from the create input so the response maps cleanly.
-    const create = vi.fn().mockImplementation(
-        async (input: {
-            ownerId: string;
-            visibility: string;
-            clonedFromId?: string | null;
-        }): Promise<RecipeAggregate> => ({
-            recipe: makeRecipeRow({
-                id: 'clone-1',
-                ownerId: input.ownerId,
-                visibility: input.visibility,
-                clonedFromId: input.clonedFromId ?? null,
-                hasSubstantiveEdit: false,
+    const create = vi
+        .fn()
+        .mockImplementation(
+            async (input: {
+                ownerId: string;
+                visibility: string;
+                clonedFromId?: string | null;
+            }): Promise<RecipeAggregate> => ({
+                recipe: makeRecipeRow({
+                    id: 'clone-1',
+                    ownerId: input.ownerId,
+                    visibility: input.visibility,
+                    clonedFromId: input.clonedFromId ?? null,
+                    hasSubstantiveEdit: false,
+                }),
+                steps: [],
+                ingredients: [],
             }),
-            steps: [],
-            ingredients: [],
-        }),
-    );
+        );
     const dal = {
         create,
         findById: vi.fn().mockResolvedValue(source),
@@ -299,8 +301,7 @@ describe('RecipesService.clone — the preparation and the section survive (U26/
         await service(dal).clone(CLONER_PRINCIPAL, 'src-1');
 
         const input = create.mock.calls[0]?.[0] as
-            | { ingredients: { preparation?: string; groupLabel?: string; ingredientName?: string }[] }
-            | undefined;
+            { ingredients: { preparation?: string; groupLabel?: string; ingredientName?: string }[] } | undefined;
 
         expect(input?.ingredients[0]?.preparation).toBe('finely chopped');
         expect(input?.ingredients[0]?.groupLabel).toBe('For the marinade');

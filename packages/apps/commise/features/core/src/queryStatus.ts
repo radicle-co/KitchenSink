@@ -53,9 +53,7 @@ export interface DetailQueryFacts<TData> {
  * narrow to the loaded datum without re-deriving (and possibly re-deciding) absence a second time.
  */
 export type DetailQueryView<TData> =
-    | { readonly status: 'loading' }
-    | { readonly status: 'error' }
-    | { readonly status: 'ready'; readonly data: TData };
+    { readonly status: 'loading' } | { readonly status: 'error' } | { readonly status: 'ready'; readonly data: TData };
 
 /**
  * Resolve a DETAIL surface's view, applying the SETTLED-BUT-ABSENT rule (B21): a query that has stopped

@@ -49,10 +49,7 @@ export interface OperatorIntent {
 
 /** Why a task refused before writing anything. */
 export type IntentRefusal =
-    | 'production-flag-off-production'
-    | 'confirmation-missing'
-    | 'confirmation-mismatch'
-    | 'production-requires-flag';
+    'production-flag-off-production' | 'confirmation-missing' | 'confirmation-mismatch' | 'production-requires-flag';
 
 /**
  * Refuse a production flag passed anywhere but production.

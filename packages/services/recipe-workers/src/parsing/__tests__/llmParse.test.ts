@@ -155,12 +155,10 @@ describe('the happy path', () => {
             parseLineWithLlm(
                 deps({
                     bedrock: {
-                        converse: vi
-                            .fn()
-                            .mockResolvedValue({
-                                ...ANSWERED,
-                                text: `[{"food_items":null,"measurement":${measure},"preparations":null,"equipment":null}]`,
-                            }),
+                        converse: vi.fn().mockResolvedValue({
+                            ...ANSWERED,
+                            text: `[{"food_items":null,"measurement":${measure},"preparations":null,"equipment":null}]`,
+                        }),
                     },
                 }),
                 LINE,

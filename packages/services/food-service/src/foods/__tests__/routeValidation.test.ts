@@ -90,8 +90,7 @@ function inputsOf(controller: new (...args: never[]) => object): RouteInput[] {
 
     return methods.flatMap((method) => {
         const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, method) as
-            | Record<string, { index: number; data?: unknown }>
-            | undefined;
+            Record<string, { index: number; data?: unknown }> | undefined;
 
         if (args === undefined) {
             return [];

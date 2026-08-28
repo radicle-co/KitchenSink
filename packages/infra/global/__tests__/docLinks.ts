@@ -318,7 +318,7 @@ function countCommentOpeners(source: ts.SourceFile): readonly number[] {
 
             scanned.add(range.pos);
 
-            for (let at = source.text.indexOf(LINK_OPENER, range.pos); at !== -1 && at < range.end; ) {
+            for (let at = source.text.indexOf(LINK_OPENER, range.pos); at !== -1 && at < range.end;) {
                 positions.push(at);
                 at = source.text.indexOf(LINK_OPENER, at + LINK_OPENER.length);
             }

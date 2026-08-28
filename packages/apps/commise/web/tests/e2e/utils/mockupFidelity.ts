@@ -289,19 +289,15 @@ export function buildFidelityReport(input: FidelityReportInput): FidelityReport 
 
     const pairs = [...input.pairs]
         .sort((left, right) => left.slug.localeCompare(right.slug))
-        .map(
-            (pair): FidelityPair => ({
-                slug: pair.slug,
-                mockupFile: pair.mockupFile,
-                route: pair.route,
-                requirementIds: [...pair.requirementIds],
-                images: { mockup: pair.images.mockup, implementation: pair.images.implementation },
-                caveats: [...pair.caveats],
-                anchors: pair.anchors.map((anchor) =>
-                    compareAnchor(anchor.anchor, anchor.mockup, anchor.implementation),
-                ),
-            }),
-        );
+        .map((pair): FidelityPair => ({
+            slug: pair.slug,
+            mockupFile: pair.mockupFile,
+            route: pair.route,
+            requirementIds: [...pair.requirementIds],
+            images: { mockup: pair.images.mockup, implementation: pair.images.implementation },
+            caveats: [...pair.caveats],
+            anchors: pair.anchors.map((anchor) => compareAnchor(anchor.anchor, anchor.mockup, anchor.implementation)),
+        }));
 
     const unpaired = [...input.unpaired].sort((left, right) => left.mockupFile.localeCompare(right.mockupFile));
     const anchors = pairs.flatMap((pair) => pair.anchors);

@@ -56,13 +56,7 @@ export type ConflictMarker = 'unchanged' | 'changed' | 'conflict';
 /** The kind of field a {@link ConflictFieldRow} reports — the 5 scalar `RecipeSnapshot` fields, plus the two
  *  per-element collection kinds (one row PER changed step/ingredient, never one row for the whole collection). */
 export type ConflictFieldKind =
-    | 'title'
-    | 'description'
-    | 'servings'
-    | 'prepTimeMinutes'
-    | 'cookTimeMinutes'
-    | 'step'
-    | 'ingredient';
+    'title' | 'description' | 'servings' | 'prepTimeMinutes' | 'cookTimeMinutes' | 'step' | 'ingredient';
 
 /** One changed-or-conflicting field or element, three-way classified against a common base. */
 export interface ConflictFieldRow {

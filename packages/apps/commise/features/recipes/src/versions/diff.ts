@@ -50,13 +50,7 @@ import type { RecipeIngredient, RecipeSnapshot, RecipeStep } from '@kitchensink/
 
 /** The `RecipeSnapshot` fields this module diffs — every field except `version` (see module docs). */
 export type SnapshotFieldKey =
-    | 'title'
-    | 'description'
-    | 'servings'
-    | 'prepTimeMinutes'
-    | 'cookTimeMinutes'
-    | 'steps'
-    | 'ingredients';
+    'title' | 'description' | 'servings' | 'prepTimeMinutes' | 'cookTimeMinutes' | 'steps' | 'ingredients';
 
 /** Added/removed/modified tallies for one collection (steps, ingredients, or the overall summary). Exported
  *  so consumers (e.g. the W6 Task 4 compare view's per-collection tally) can type against it directly rather

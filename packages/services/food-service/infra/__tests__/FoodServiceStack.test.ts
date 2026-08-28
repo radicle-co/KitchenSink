@@ -604,8 +604,7 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
     function dashboardBody(): string {
         const dashboards = serviceTemplate.findResources('AWS::CloudWatch::Dashboard');
         const body = Object.values(dashboards)[0]?.Properties?.DashboardBody as
-            | string
-            | { 'Fn::Join': [string, unknown[]] };
+            string | { 'Fn::Join': [string, unknown[]] };
 
         if (typeof body === 'string') {
             return body;

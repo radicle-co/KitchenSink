@@ -396,8 +396,7 @@ export function divergentFields(first: VariantParse, second: VariantParse): read
  * demonstrated.
  */
 export type ResponseDivergence =
-    | { readonly kind: 'comparable'; readonly fields: readonly ParseField[] }
-    | { readonly kind: 'incomparable' };
+    { readonly kind: 'comparable'; readonly fields: readonly ParseField[] } | { readonly kind: 'incomparable' };
 
 /**
  * Compare two raw responses to the same line by the same model.

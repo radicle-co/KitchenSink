@@ -47,6 +47,7 @@
         "local:up": "npm run up --workspace=@kitchensink/local-sandbox",
         "local:down": "docker compose -f .local-sandbox/docker-compose.yml -p local-sandbox down",
         "local:audit": "npm run audit --workspace=@kitchensink/local-sandbox",
+        "local:seed-food": "npm run seed-food --workspace=@kitchensink/local-sandbox",
         "local:dev": "npm run local:up && turbo run dev"
     },
     "overrides": {

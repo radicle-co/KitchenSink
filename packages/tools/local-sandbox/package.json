@@ -11,7 +11,8 @@
         "test": "vitest run",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
-        "up": "tsx bin/up.ts"
+        "up": "tsx bin/up.ts",
+        "seed-food": "tsx bin/seedFood.ts"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",

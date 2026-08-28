@@ -25,6 +25,7 @@ import { discoverImageBuilds, localContainerEnv, portConflicts } from '../src/lo
 import { secretRefsOf, ssmRefsOf } from '../src/secretRefs.js';
 import { MIGRATION_TABLE, pendingMigrations } from '../src/pendingMigrations.js';
 import { composeValue } from '../src/composeValue.js';
+import { planFoodSeed, SR_LEGACY_FOOD_COUNT } from '../src/foodSeedPlan.js';
 import {
     creatableResources,
     importRefsOf,
@@ -612,6 +613,46 @@ async function main(): Promise<void> {
     }
 
     process.stdout.write(`\n  migrations applied : ${applied} file(s)\n`);
+
+    // ⛔ REPORT THE CATALOG, because its emptiness is otherwise INVISIBLE. `local:up` seeds no data, so a
+    // fresh volume has zero foods — and the recipe service degrades to `catalogAvailability: 'unavailable'`
+    // rather than failing, so an import runs to completion with `catalog_suggestion 0.0%` and reports
+    // success. Measured before this line existed: 348 recipes and 1,832 ingredient lines, zero of them
+    // carrying a real `food_id`, with nothing anywhere saying why.
+    //
+    // ⚠️ Reported, never FIXED here. Seeding needs a ~6 MB third-party download, and booting a sandbox must
+    // not reach out to usda.gov on its own — `local:seed-food` is the explicit way to ask for it.
+    const foodRows =
+        Number.parseInt(
+            (
+                spawnSync(
+                    'docker',
+                    [
+                        'exec',
+                        'local-sandbox-postgres',
+                        'psql',
+                        '-U',
+                        'postgres',
+                        '-d',
+                        'kitchensink_food_dev',
+                        '-tAc',
+                        'SELECT count(*) FROM food',
+                    ],
+                    { encoding: 'utf8' },
+                ).stdout ?? ''
+            ).trim(),
+            10,
+        ) || 0;
+    const seedPlan = planFoodSeed({ foodRows, datasetPresent: false });
+
+    if (seedPlan.kind === 'up-to-date') {
+        process.stdout.write(`  food catalog       : ${String(foodRows)} foods\n`);
+    } else {
+        process.stdout.write(
+            `  food catalog       : ${String(foodRows)} foods — EMPTY or partial (expected ${String(SR_LEGACY_FOOD_COUNT)}).\n` +
+                `                       Ingredient resolution cannot match anything. Run: npm run local:seed-food\n`,
+        );
+    }
 
     for (const note of skipped) {
         process.stdout.write(`  · not migrated     : ${note}\n`);

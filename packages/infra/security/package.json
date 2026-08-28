@@ -39,7 +39,7 @@
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
-        "@types/node": "^26.4.0",
+        "@types/node": "^24.13.3",
         "aws-cdk-lib": "*",
         "constructs": "*",
         "eslint": "^10.0.3",

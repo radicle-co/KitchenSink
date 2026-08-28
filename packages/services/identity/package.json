@@ -72,7 +72,7 @@
         "@nestjs/cli": "^11.0.0",
         "@types/debug": "^4.1.12",
         "@types/express": "^5.0.6",
-        "@types/node": "^26.4.0",
+        "@types/node": "^24.13.3",
         "@types/pg": "^8.11.0",
         "@aws-sdk/client-secrets-manager": "^3.935.0",
         "aws-cdk": "^2.1134.0",

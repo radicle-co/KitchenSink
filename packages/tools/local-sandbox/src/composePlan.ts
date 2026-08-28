@@ -16,9 +16,23 @@ export interface ComposeInput {
     readonly containers: readonly string[];
 }
 
+/** One of OUR services, ready to run from a locally-built image. */
+export interface ServiceContainer {
+    /** Compose service name, e.g. `food`. */
+    readonly name: string;
+    /** The locally-built tag. */
+    readonly image: string;
+    /** Host port; the container port it maps to. */
+    readonly hostPort: number;
+    readonly containerPort: number;
+    readonly environment: Readonly<Record<string, string>>;
+}
+
 export interface ComposeOptions {
     /** Logical databases the CDK named, each created on first start. */
     readonly databases: readonly string[];
+    /** Services built from this repo's own Dockerfiles. */
+    readonly serviceContainers?: readonly ServiceContainer[];
 }
 
 /** One container in the generated stack. */
@@ -28,6 +42,8 @@ export interface ComposeService {
     readonly environment: Readonly<Record<string, string>>;
     readonly healthcheck: Readonly<Record<string, unknown>>;
     readonly volumes?: readonly string[];
+    /** Compose services that must be HEALTHY before this one starts. */
+    readonly dependsOn?: readonly string[];
 }
 
 export interface ComposePlan {
@@ -101,6 +117,26 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
             // silently discarded on every recreate. The same note is on the file this replaces.
             volumes: ['local-sandbox-pgdata:/var/lib/postgresql'],
         };
+    }
+
+    for (const container of options.serviceContainers ?? []) {
+        services[container.name] = {
+            image: container.image,
+            ports: [`${String(container.hostPort)}:${String(container.containerPort)}`],
+            environment: container.environment,
+            // ⚠️ The service's OWN health endpoint, so `up --wait` means "answering", not "process started".
+            // A Nest app that failed to wire its modules still has a running process.
+            healthcheck: {
+                test: [
+                    'CMD-SHELL',
+                    `node -e "fetch('http://localhost:${String(container.containerPort)}/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"`,
+                ],
+                interval: '5s',
+                timeout: '5s',
+                retries: 30,
+            },
+            dependsOn: ['postgres', 'localstack'],
+        } as ComposeService;
     }
 
     return { services, initSql: initSql(options.databases) };

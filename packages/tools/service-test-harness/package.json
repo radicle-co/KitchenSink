@@ -31,7 +31,7 @@
         "@nestjs/common": "^11.1.27",
         "@nestjs/core": "^11.0.0",
         "@nestjs/platform-express": "^11.1.28",
-        "@types/node": "^26.4.0",
+        "@types/node": "^24.13.3",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "typescript": "^6.0.3",

@@ -15,7 +15,7 @@
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
-        "@types/node": "^26.4.0",
+        "@types/node": "^24.13.3",
         "vitest": "^4.0.0"
     }
 }

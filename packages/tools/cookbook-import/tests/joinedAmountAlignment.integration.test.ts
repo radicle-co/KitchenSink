@@ -153,19 +153,24 @@ const CASES: readonly DivergentCase[] = [
         why: 'the exemplar §14.6 and ADR-0026 §8a both quote',
     },
     {
-        // ⛔ THE ROW THAT DOES NOT MOVE, and the reason the report says 7 rather than 8.
+        // ⛔ THE ROW U37's REPAIR DOES NOT MOVE — its fold still reads a real `quart`, which is why the
+        // report says 7 rather than 8. ⚠️ Its DISPOSITION moved anyway on 2026-08-28, by a different route:
+        // the CRF stated no leading amount and the model stated one, so U38's `crfQuantityAbsent` now
+        // disposes it `llmWins`, which is what the merge was doing all along. The reader mismatch under it
+        // is untouched and is still pinned by `crfUnitIsEmpty: false` here and by
+        // `parseAgreement.test.ts`'s `normalizeMeasure('quart 15')` assertion.
         id: 'L00777',
         line: 'a quart of spinach about fifteen minutes',
         model: { measure: 'a quart', foods: [{ name: 'spinach', prep: null }] },
         crfMeasure: 'quart 15',
         crfUnitIsEmpty: false,
-        disposition: 'crfWins',
-        why: 'a REAL unit joined to a stray amount (`quart 15`) — a different reader mismatch, still open',
+        disposition: 'llmWins',
+        why: 'a REAL unit joined to a stray amount (`quart 15`) — the fold mismatch is still open',
     },
 ];
 
 describeIfInstalled('U37 — a joined CRF amount, against the real CRF engine', () => {
-    it('folds the joined measure to NO unit, and the census and the merge then agree on all but L00777', async () => {
+    it('folds the joined measure to NO unit, and the census and the merge then dispose of all eight alike', async () => {
         const parses = await parseLinesWithCrf(CASES.map((entry) => entry.line));
 
         // ⛔ Anti-vacuity BEFORE the invariant. A run that returned nothing would make every mapped

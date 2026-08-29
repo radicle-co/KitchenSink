@@ -285,6 +285,7 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
             agree: true,
             crfUnitInName: true,
             crfUnitAbsent: true,
+            crfQuantityAbsent: true,
             crfSizeField: true,
             amountCountDiffers: true,
             unitDiffers: true,
@@ -326,6 +327,14 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
         for (const verdict of ['crfSizeField', 'crfUnitInName', 'crfUnitAbsent'] as const) {
             expect(disposeAgreement(verdict)).toBe('llmWins');
         }
+    });
+
+    it('U38 — and the verdict for an absent AMOUNT disposes the way the merge stores it', () => {
+        // ⛔ THE OTHER HALF OF THE SAME ALIGNMENT. `parseComparator.ts`'s `llmRescuedTheAmount` takes the
+        // LLM's number whenever the CRF read none and the two agree about the unit, so a census that said
+        // `crfWins` here would report a line whose stored amount came from the other engine — the exact
+        // defect §14.6 recorded, one field over.
+        expect(disposeAgreement('crfQuantityAbsent')).toBe('llmWins');
     });
 
     it('U36a — and `llmWins` reaches the NUMBER, because a measure verdict is WHOLE-MEASURE', () => {
@@ -384,18 +393,22 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
         expect(disposeAgreement(agreement.measure)).toBe('llmWins');
     });
 
-    it('⚠️ U37 — PINS the ONE divergence that remains: a real unit joined to a stray amount', () => {
-        // ⚠️ RECORDED, NOT REPAIRED, and it is NOT the defect U37 fixed. Corpus L00777,
-        // `a quart of spinach about fifteen minutes`, reaches the CRF as the measure text `quart 15` — a
-        // genuine unit followed by a stray amount harvested out of a duration. `normalizeMeasure` reads
-        // `quart` (correctly, it is the first non-amount word) with `15` in the residue, so the units MATCH
-        // and the verdict turns on the residue: `amountCountDiffers` → `crfWins`. `readStatedMeasure` reads
-        // the same text and finds NO unit, so the merge rescues it.
+    it('U38 — the EIGHTH divergence closes too, and the reader mismatch under it does NOT', () => {
+        // ⛔ REWRITTEN, AND IT ASSERTS THE OPPOSITE DISPOSITION. As "PINS the ONE divergence that remains"
+        // this expected `amountCountDiffers` → `crfWins`, on the argument that closing L00777 meant ruling
+        // on whether a unit with no adjacent number is STATED — a question that lives in
+        // `readStatedMeasure`, the PRODUCTION reader, and was not U37's to take.
         //
-        // ⛔ Fixing this is a different change with a different argument: it is a disagreement about whether
-        // a unit with no adjacent number counts as stated, which lives in `readStatedMeasure` — the
-        // PRODUCTION reader, outside this harness — and U37 deliberately did not touch it. Naming it here
-        // keeps the residual honest instead of letting "the divergence was fixed" round 7 up to 8.
+        // ⚠️ U38 did not take it either, and the two halves must not be conflated:
+        //
+        //  - the READER MISMATCH is untouched and is asserted below. `normalizeMeasure` still reads `quart`
+        //    as the unit of `quart 15` while `readStatedMeasure` still finds none there, and that is still
+        //    why the merge reaches this line through the UNIT rescue rather than the amount one.
+        //  - the DISPOSITION now agrees, by a different route: the CRF stated no leading amount and the
+        //    model stated one, which is `crfQuantityAbsent` → `llmWins` — the same answer the merge gives.
+        //
+        // So §14.6's eight-line divergence is closed at the level that matters (what is DONE about the
+        // line) while the fold-level disagreement that produced it is still visible here, un-rounded.
         expect(normalizeMeasure('quart 15')).toEqual({ quantity: null, unit: 'quart', residue: '15' });
 
         const agreement = compareParses(
@@ -403,8 +416,8 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
             crf({ sentence: 'a quart of spinach about fifteen minutes', measure: 'quart 15', names: ['spinach'] }),
         );
 
-        expect(agreement.measure).toBe('amountCountDiffers');
-        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
+        expect(agreement.measure).toBe('crfQuantityAbsent');
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
     });
 
     it('U36 — gives the LLM the size field too, because a SIZE WORD IS A UNIT', () => {
@@ -442,6 +455,7 @@ describe('disposeAgreement — KTD-11’s disposition column, which the shape cl
             [
                 'crfUnitInName',
                 'crfUnitAbsent',
+                'crfQuantityAbsent',
                 'crfSizeField',
                 'amountCountDiffers',
                 'unitDiffers',
@@ -592,5 +606,101 @@ describe('compareParses — an ABSENT CRF unit is absence, not dissent (owner ru
 
     it('gives the LLM the unit the CRF never stated', () => {
         expect(disposeAgreement('crfUnitAbsent')).toBe('llmWins');
+    });
+});
+
+/**
+ * ⛔ THE CRF OUTPUTS QUOTED IN THIS BLOCK ARE MEASURED, NOT IMAGINED.
+ *
+ * Every `crf({ … })` below is what `ingredient-parser-nlp==2.3.0` really printed for that sentence on
+ * 2026-08-28, flattened exactly as `scripts/crfParse.py` flattens it — and
+ * `tests/absentAmountAlignment.integration.test.ts` re-derives every row from the REAL engine, and from the
+ * REAL merge, so a fixture cannot go on agreeing with a pipeline that has moved.
+ */
+describe('compareParses — U38, an absent CRF AMOUNT is absence, not dissent (owner ruling 2026-08-28)', () => {
+    it('names the CRF stating NO amount where the model stated one, rather than a quantity disagreement', () => {
+        // Measured: `a cup of water` -> measure `cup`, name `water`. The CRF found the unit and no number;
+        // a bare `cup` is not a competing reading of `1`. 206 of 1,808 stored lines carried no quantity at
+        // all because `quantityDiffers → crfWins` counted that silence as a vote.
+        const agreement = compareParses(
+            { measure: 'a cup', foods: [{ name: 'water', prep: null }] },
+            crf({ sentence: 'a cup of water', measure: 'cup', names: ['water'] }),
+        );
+
+        expect(agreement.measure).toBe('crfQuantityAbsent');
+        expect(agreement.kind).toBe('crfQuantityAbsent');
+        expect(agreement.agrees).toBe(false);
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
+    });
+
+    it('names it where NEITHER engine stated a unit — `Forty-five large tomatoes`', () => {
+        // Measured: the CRF returns an EMPTY measure and files `Forty-five` inside the food name. Two
+        // engines reading no unit is agreement about the unit, so the model's number is the only reading.
+        const agreement = compareParses(
+            { measure: 'forty-five', foods: [{ name: 'tomatoes', prep: null }] },
+            crf({ sentence: 'Forty-five large tomatoes', measure: '', names: ['Forty-five tomatoes'], size: 'large' }),
+        );
+
+        expect(agreement.measure).toBe('crfQuantityAbsent');
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
+    });
+
+    it('⛔ leaves a GENUINE amount disagreement alone — KTD-11’s `quantityDiffers` is NOT overturned', () => {
+        // ⛔ THE ANTI-OVER-REACH ASSERTION. Both engines READ a number and read different ones: that is
+        // dissent, and widening the new shape to "the amounts differ" swallows KTD-11's amount column whole.
+        const agreement = compareParses(model({ measure: 'two cups' }), crf({ measure: '1 cups' }));
+
+        expect(agreement.measure).toBe('quantityDiffers');
+        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
+    });
+
+    it('⛔ does NOT fire in the mirror direction — a silent MODEL amount is still a disagreement', () => {
+        // The claim is about the CRF's measured blindness, not a symmetry — the same asymmetry the absent
+        // UNIT ruling carries, and `crfWins` already gives the number to the engine that read one.
+        const agreement = compareParses(model({ measure: 'cup' }), crf({ measure: '1/2 cups' }));
+
+        expect(agreement.measure).toBe('quantityDiffers');
+        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
+    });
+
+    it('⛔ DECLINES when the units differ, because the merge would otherwise join `12` to `dozen`', () => {
+        // Measured: `a dozen small cantaloupes` -> measure `dozen`, name `cantaloupes`, size `small`. The
+        // CRF reads `dozen` as the unit of an amount it never found; the model folds the same word into
+        // `12`. This band stays `crfWins` — and stays REPORTED — because taking the number without the unit
+        // would publish `12 dozen`, and `parseComparator.ts` declines it for exactly that reason.
+        const agreement = compareParses(
+            { measure: 'a dozen', foods: [{ name: 'cantaloupes', prep: null }] },
+            crf({ sentence: 'a dozen small cantaloupes', measure: 'dozen', names: ['cantaloupes'], size: 'small' }),
+        );
+
+        expect(agreement.measure).toBe('unitDiffers');
+        expect(disposeAgreement(agreement.measure)).toBe('crfWins');
+    });
+
+    it('keeps the MORE SPECIFIC `crfUnitAbsent` when the CRF stated neither a unit nor an amount', () => {
+        // ⛔ THE ORDERING ASSERTION, and it mirrors the merge's: `crf.unit === ''` is the WIDER shape — the
+        // merge rescues the whole measure there, amount included — so it is judged first and this verdict
+        // never reaches a line the unit branch already explains. Both dispose `llmWins`, so what moves is
+        // what the census NAMES.
+        const agreement = compareParses(
+            { measure: 'a tablespoon', foods: [{ name: 'butter', prep: null }] },
+            crf({ sentence: 'a tablespoon of butter', measure: '', names: ['butter'] }),
+        );
+
+        expect(agreement.measure).toBe('crfUnitAbsent');
+        expect(agreement.measure).not.toBe('crfQuantityAbsent');
+        expect(disposeAgreement(agreement.measure)).toBe('llmWins');
+    });
+
+    it('⛔ leaves mutual silence about the amount on `agree` — there is nothing to rescue', () => {
+        // `a tablespoon of butter`, the 9-of-40 shape: the CRF returns `tablespoon` and the model reads no
+        // number either. Two silences are not a disagreement, and no attribution moves.
+        const agreement = compareParses(
+            { measure: 'tablespoon', foods: [{ name: 'butter', prep: null }] },
+            crf({ sentence: 'a tablespoon of butter', measure: 'tablespoon', names: ['butter'] }),
+        );
+
+        expect(agreement.measure).toBe('agree');
+        expect(disposeAgreement(agreement.kind)).toBe('agreed');
     });
 });

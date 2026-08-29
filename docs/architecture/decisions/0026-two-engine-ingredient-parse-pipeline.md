@@ -810,10 +810,123 @@ rescues it because `readStatedMeasure` finds no unit there. Closing it means rul
 adjacent number is **stated**, which lives in the PRODUCTION reader and is not U37's to take. Still open,
 still pinned.
 
+### 8c. AND AN ABSENT CRF **AMOUNT** IS ABSENCE TOO — but only where the units agree (U38)
+
+§3's principle reaches the last field it had not: `quantityDiffers → crfWins` was counting the CRF's
+SILENCE as a vote. This is one more carve-out on that principle — **it does not adjudicate the winner rule**,
+which stays observe-only in the sense the Consequences record until U23's oracle runs.
+
+#### The defect, measured in PRODUCTION rather than in the harness
+
+2026-08-28 was the day the pipeline stopped observing and became the authority for what an accepted line
+says (`bd243350`). The first real import under it — **349 recipes** — stored **206 of 1,808 ingredient lines
+(11.4%) with NO quantity at all**, where the `parse-ingredient` library leg it replaced always produced one.
+
+They are not honestly-unstated amounts. Both engines were re-run over a 40-line sample of them: on **31 of
+40 (78%)** the LLM states an amount the CRF does not; the other 9 are genuinely silent on both sides. The
+CRF rows below are the real `ingredient-parser-nlp==2.3.0` output, re-measured for this section:
+
+| line                        | the CRF returns             | the LLM returns | what was stored |
+| --------------------------- | --------------------------- | --------------- | --------------- |
+| `a cup of water`            | measure `cup` — no amount   | `1`, unit `cup` | no quantity     |
+| `Forty-five large tomatoes` | measure `` — nothing at all | `45`, no unit   | no quantity     |
+| `a dozen small cantaloupes` | measure `dozen` — no amount | `12`, no unit   | no quantity     |
+| `a tablespoon of butter`    | measure `tablespoon`        | silent          | no quantity ✅  |
+
+#### The ruling (owner, 2026-08-28)
+
+**Where the CRF read no amount and the LLM read one, the amount is the LLM's** — `llmRescuedTheAmount`
+(`packages/shared/recipe-import-core/src/domain/parseComparator.ts`), disposed `crfQuantityAbsent → llmWins`
+in the census. It is §8's argument one field over, and §3's one field down: a leg that read no number has not
+offered a competing reading of the number, so a winner rule has nothing to resolve.
+
+⛔ **ONLY the amount moves.** The CRF stated the phrase and the unit on these lines, so neither is silence,
+and taking either would reach `unitDiffers` — the column §8 deliberately kept with the CRF.
+
+#### ⛔ AND ONLY WHERE THE UNITS AGREE — otherwise the merge MANUFACTURES a measure
+
+The conjunct is the design, not a decoration, and `a dozen small cantaloupes` is why. The CRF reads `dozen`
+as the unit of an amount it never found; the LLM folds that same word into the number `12`. Taking the number
+from one engine under the unit of the other stores **`12 dozen`** — one word counted twice, in a reading
+neither engine gave, and exactly the _"blatantly incorrectly parsing measurement values"_ §8's acceptance bar
+rules out. Where both engines read the same unit — including where neither read one — there is no second
+reading of the word to double-count, and the merged measure is coherent whichever engine is credited.
+
+⚠️ **So one of the three defective examples above is NOT fixed, and that is recorded rather than tidied
+away.** `a dozen small cantaloupes` still stores no quantity. Closing it means choosing between two readings
+of one word — drop the CRF's `dozen` and store `12`, or keep it and store `12 dozen` — which is a genuine
+two-reading conflict about how the phrase decomposes, not the absence this rule is for. It stays `crfWins`
+and it stays REPORTED, which is what puts it in front of U23's oracle instead of resolving it silently.
+
+⚠️ The path to closing it is already half-built and is worth naming: §9a's `statedUnit`/`statedQuantity`
+distinction (`undefined` = "no such slot, derive from the phrase"; `null` = "has the slot and read nothing")
+would say whether the LLM's silence about the unit is a READING — under the v5 prompt it is — but
+`ParsedLine` has no slot carrying it, so the comparator cannot see it. Plumbing it through is a contract
+change and was not attempted here.
+
+#### What did NOT change
+
+- **KTD-11's amount column stands.** `quantityDiffers → crfWins` governs every line on which BOTH engines
+  read a number, whatever they read. `DEFAULT_WINNERS` still reads `quantity: 'crf'`.
+- **The mirror is §8a's own guard, and it holds.** An LLM that read no number against a CRF that did is
+  silence, not a reading — `a large mixing bowl whip to a cream two eggs` still stores the CRF's `2`.
+- **Mutual silence does not move.** `a tablespoon of butter` stores no amount, from the CRF, as before.
+- ⚠️ **What is REPORTED does not move, at all.** `ABSENT_QUANTITY` on the CRF is a READING of the number —
+  `salt to taste` is the shape where it is the right one — so it competes with the LLM's and the
+  disagreement is still reported as `differ: ['quantity']`, exactly as §8a keeps it on the 69 lines whose
+  amount it moved. The band this rule DECLINES is reported too. Silencing either would hide the very lines
+  the oracle is being built to adjudicate.
+
+#### ⛔ The two rescues are DISJOINT — and the ordering mutant SURVIVES on purpose
+
+`llmRescuedTheMeasure` requires the CRF to have named **no** unit against an LLM that named one, which IS a
+unit disagreement; `llmRescuedTheAmount` requires the two units to **agree**. No pair can satisfy both, so
+asking them in either order gives the same answer — measured: a mutant that asks the amount rescue first
+passes every test in `parseComparator.test.ts`. That is recorded rather than left as an apparent hole, and
+the invariant ordering would otherwise have protected is asserted directly over the whole unit × amount
+matrix: the measure rescue moves the phrase and the unit together or not at all, and the amount rescue moves
+only the amount.
+
+#### The census and the merge agree — and the EIGHTH divergence closes with them
+
+`judgeMeasure` returns `crfQuantityAbsent` **from inside its units-agree branch only**, which is the same
+conjunct the merge carries, so the declined `12 dozen` band stays `unitDiffers → crfWins` in both paths. It
+sits FIRST within that branch, before the residue comparison: a row that stated no leading amount stated
+none to disagree with, however many amounts its measure text went on to join. Unlike the unit branch's
+ordering (§3's update), this one changes what is DONE rather than what is named, because
+`amountCountDiffers` disposes `crfWins`.
+
+⚠️ **That closes L00777, the divergence §8a pinned and §8b could not reach — by a different route, and the
+reader mismatch under it is untouched.** `normalizeMeasure('quart 15')` still answers `unit: 'quart'` while
+`readStatedMeasure` still finds no unit there, so the merge still reaches that line through the UNIT rescue;
+what changed is that the census now disposes it `llmWins` too, because the CRF stated no leading amount and
+the model stated one. §8b's "7 of 8" is now 8 of 8 at the level of what is DONE, and the fold-level
+disagreement that produced it is still pinned by a test in `parseAgreement.test.ts`.
+
+#### ⚠️ Residual
+
+- **The winner rule is still un-adjudicated.** This is one carve-out on §3's principle, not an adjudication:
+  U23's oracle has not run, and nothing here decides who is right on the residual `differ` list.
+- **An LLM that invents a number now reaches the store.** The rule takes the model's amount on a line the
+  CRF read none from, so a hallucinated `1` on a genuinely amount-less line would be stored where the old
+  rule stored nothing. The 40-line sample says the model's reading was the source's on the lines measured;
+  the failure is bounded by the units-agree conjunct (the unit is common ground) and stays visible in
+  `differ`.
+- ⚠️ **The census has no quantity SLOT, and the merge does.** `VariantParse` carries `statedUnit` but no
+  `statedQuantity`, so the harness always derives the model's amount from the PHRASE while `promoteLlmParse`
+  takes the model's own split under the v5 answer shape (§9a). A v5 answer whose `quantity` is `null` beside
+  a phrase that reads as a number would therefore be `crfQuantityAbsent → llmWins` in the census and
+  `ABSENT_QUANTITY` in the merge — the §14.6 divergence class again, in the MODEL's half rather than the
+  CRF's. Not observed; recorded because it is now reachable.
+- **These figures are the FIRST in this document measured against the shipped leg** — the v5-static prompt
+  on Nova 2 Lite (§9) — but they are one import of one corpus, and the LLM half of every test row is a
+  stated reading rather than a billed call.
+
 ### 9. Update (2026-08-27) — the shipped prompt and model BOTH changed, so every rate below is historical
 
-⛔ **EVERY MEASURED FIGURE IN THIS ADR WAS TAKEN AGAINST A PROMPT AND A MODEL THAT NO LONGER SHIP.** The 115
-rescue lines, the `crfUnitAbsent` population, the agreement census, the 53 bare-number lines of §8, the 1,975
+⛔ **EVERY MEASURED FIGURE IN THIS ADR WAS TAKEN AGAINST A PROMPT AND A MODEL THAT NO LONGER SHIP — except
+§8c's, which are the first taken against the shipped one.** The 115 rescue lines, the `crfUnitAbsent`
+population, the agreement census, the 53 bare-number lines of §8, the 1,975
 replayed answers of §8b — all of them were measured with the **511-byte** prompt (SHA-256
 `4ea63a78…`) against **Nova Micro**. On 2026-08-27 the shipped leg became the **19,777-character** v5-static
 prompt against **Nova 2 Lite** on the `flex` tier. The RULINGS below stand; the RATES do not describe the
@@ -880,9 +993,13 @@ and published `ABSENT_QUANTITY` for numbers the phrase plainly stated.
   would have nothing to compare.
 - **A field-level winner rule**, not a whole-line one: `statedMeasure`, `quantity` and `unit` from the CRF,
   `foods` from the LLM — with the LLM taking the measure phrase **and** the unit whenever the CRF named **no
-  unit at all** (§8, owner ruling 2026-08-26; it was limited to the HISTORICAL units before that), and never
+  unit at all** (§8, owner ruling 2026-08-26; it was limited to the HISTORICAL units before that), ~~and never
   the quantity, because missing the unit does not stop the CRF reading the leading number and a differing
-  number is a genuine disagreement that must be reported.
+  number is a genuine disagreement that must be reported~~ — **the amount too**, on a rescue (§8a) and, since
+  2026-08-28, wherever the CRF read NO amount and the units are not in dispute (§8c). The struck clause is
+  kept because it is the reading KTD-11 alone supports, and §8a/§8c are the arguments against it; what
+  survives of it is intact, and is the reason the disagreement is still REPORTED on every line whose stored
+  amount moves.
 - **Placement is canonicalised rather than won.** `foods: 'llm'` records the LLM's measured strength on
   multi-food lines and on pulling a unit out of a food name — **not** on filing modifiers. Scored against
   KTD-11b over the contested modifier words, the **CRF's filing matched 125 times to the LLM's 58**. That

@@ -23,6 +23,12 @@
  * | ⛔ U36a — and NOTHING more: KTD-11's amount column is intact | "⛔ leaves the amount with the CRF when BOTH engines stated a unit and the amounts differ" |
  * | ⛔ U36a — an LLM phrase stating no amount is silence, not a reading | "⛔ keeps the CRF amount when the rescued phrase states a unit but NO amount" |
  * | ⚠️ U36a — only what is STORED moves; the report does not | "⚠️ does not change WHAT IS REPORTED — a stated amount read differently is still dissent" |
+ * | U38 — an absent CRF AMOUNT is absence, not dissent | "supplies the amount on `a cup of water`…" + "supplies the amount when NEITHER engine named a unit…" |
+ * | ⛔ U38 — and NOTHING more: two STATED amounts that differ still go to the CRF | "⛔ leaves the amount with the CRF when BOTH engines stated one and they differ" |
+ * | ⛔ U38 — a silent LLM amount is not a reading either | "⛔ does not fire in the mirror direction…" |
+ * | ⛔ U38 — the units must AGREE, or the merge manufactures `12 dozen` | "⛔ DECLINES when the two engines read different units…" |
+ * | ⛔ U38 — the wider measure rescue keeps precedence | "leaves the MEASURE rescue in charge where the CRF named no unit at all" |
+ * | ⚠️ U38 — only what is STORED moves; the report does not | "⚠️ does not silence the report…" |
  * | KTD-12 — an unavailable engine is never a disagreement | "reports a single engine, never a disagreement" |
  * | KTD-12 — as a PROPERTY, over every shape the survivor can take | "is single-engine even when the answering parse is the kind that WOULD have differed" |
  * | U19 — both unavailable resolves nothing | "resolves nothing when neither engine answered" |
@@ -69,6 +75,17 @@
  * | revert to the unit-only rescue (`quantity: 'crf'`) | all four fraction lines, "supplies an amount on the 57 lines…", "keeps the RANGE the source states…", "bucket 2 of 4…", + 3 more |
  * | drop the `absent` guard, so an LLM phrase naming no amount wins | "⛔ keeps the CRF amount when the rescued phrase states a unit but NO amount" |
  * | ALSO silence `quantity` on a rescue | "⚠️ does not change WHAT IS REPORTED…", "bucket 2 of 4…", "treats an absent QUANTITY and a stated one as a disagreement…" |
+ *
+ * ⚠️ Measured 2026-08-28, for U38: four mutations of `llmRescuedTheAmount` and of where it is asked. Each is a
+ * repair a later reader is likely to propose, and each is caught here.
+ *
+ * | mutation | tests it fails |
+ * | -------- | -------------- |
+ * | fire whenever the amounts DIFFER, not only where the CRF stated none | "⛔ leaves the amount with the CRF when BOTH engines stated one and they differ", "takes a differing amount from the CRF and reports it", + 2 more |
+ * | drop the units-agree conjunct, so a number joins the other engine's unit | "⛔ DECLINES when the two engines read different units — `12 dozen` is nobody’s reading" |
+ * | fire in the MIRROR direction, so a silent LLM amount wins | "⛔ does not fire in the mirror direction…", "⛔ keeps the CRF amount when the rescued phrase states a unit but NO amount" |
+ * | ⚠️ ask the amount rescue BEFORE the measure rescue | NONE — and that is MEASURED, not a hole: the two predicates are DISJOINT (a measure rescue IS a unit disagreement, and the amount rescue requires the units to agree), so the order cannot change an answer. Asserted directly by "⛔ the two rescues are DISJOINT…" |
+ * | ALSO silence `quantity` when the amount is rescued | "⚠️ does not silence the report…", "⚠️ does not change WHAT IS REPORTED…", "treats an absent QUANTITY and a stated one as a disagreement…" |
  */
 import { ABSENT_QUANTITY, statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core';
 import { describe, it, expect } from 'vitest';
@@ -806,6 +823,226 @@ describe('compareParses — U36a, a rescued measure carries its amount', () => {
 
         expect(result.agreement).toEqual({ kind: 'differ', fields: ['quantity'] });
         expect(result.merged?.quantity).toEqual(exactly(1.5));
+    });
+});
+
+/**
+ * U38 — AN ABSENT CRF AMOUNT IS ABSENCE, NOT DISSENT (owner ruling 2026-08-28).
+ *
+ * Measured on a real 349-recipe import, the day the pipeline became the authority for what an accepted
+ * line says: **206 of 1,808 stored ingredient lines (11.4%) carried NO quantity at all**, where the
+ * library parser that preceded the pipeline always produced one. Both engines were re-run over a 40-line
+ * sample of them: on **31 of 40 (78%)** the LLM states an amount the CRF does not, and the rest are
+ * genuinely silent on both sides.
+ *
+ * | line                        | the CRF returns                | the LLM returns   | what was stored |
+ * | --------------------------- | ------------------------------ | ----------------- | --------------- |
+ * | `a cup of water`            | measure `cup` — no amount      | `1`, unit `cup`  | no quantity     |
+ * | `Forty-five large tomatoes` | measure `` — nothing at all   | `45`, no unit     | no quantity     |
+ * | `a dozen small cantaloupes` | measure `dozen` — no amount   | `12`, no unit     | no quantity     |
+ * | `a tablespoon of butter`    | measure `tablespoon`           | silent            | no quantity ✅  |
+ *
+ * The CRF rows are the REAL `ingredient-parser-nlp==2.3.0` output, measured 2026-08-28.
+ *
+ * ## ⛔ THE RULE IS §3's PRINCIPLE, ONE FIELD OVER AGAIN — AND IT IS NARROWER THAN §8a's
+ *
+ * `quantityDiffers → crfWins` counted the CRF's SILENCE as a vote. §8 made exactly this argument for the
+ * unit and §3 states it generally: an engine that did not answer is ABSENCE, not dissent, and a winner
+ * rule has nothing to resolve when only one leg spoke.
+ *
+ * ⛔ It fires only where the two engines READ THE SAME UNIT — including where neither read one. That
+ * conjunct is not decoration, and `a dozen small cantaloupes` is why: the CRF reads `dozen` as the unit of
+ * an amount it never found, while the LLM folds the same word into the number `12`. Taking the number from
+ * one engine and the unit from the other publishes **`12 dozen`** — a twelvefold error assembled out of one
+ * word read twice, which no engine ever said and which is precisely the _"blatantly incorrect measurement
+ * value"_ §8's acceptance bar rules out. Where the units agree there is no second reading of the word to
+ * double-count, so the merged measure is coherent whichever engine's unit is credited.
+ *
+ * ⚠️ The declined band is therefore left EXACTLY as it was — `crfWins`, with the disagreement reported —
+ * and ADR-0026 §8c records it as open rather than closed: two engines that decompose the phrase
+ * differently is a genuine two-reading conflict, which is U23's oracle to adjudicate, not this rule's.
+ */
+describe('compareParses — U38, an absent CRF amount is absence, not dissent', () => {
+    it('supplies the amount on `a cup of water`, where the CRF read the unit and no number', () => {
+        // Measured: the CRF returns the measure text `cup`, which `readStatedMeasure` reads as
+        // `{ absent, 'cup' }` — it found the unit and no number. The LLM reads `a cup` as one cup.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'cup', quantity: ABSENT_QUANTITY, unit: 'cup' }),
+            llm: llmParse({ statedMeasure: 'a cup', quantity: exactly(1), unit: 'cup' }),
+        });
+
+        expect(result.merged).not.toBeNull();
+        expect(result.merged?.quantity).toEqual(exactly(1));
+        expect(result.merged?.quantity).not.toEqual(ABSENT_QUANTITY);
+        // ⛔ The UNIT and the PHRASE stay with the CRF: it stated both, so neither is silence. Only the
+        // amount moves, and the merge reads that winner out of the provenance it is about to record.
+        expect(result.merged?.unit).toBe('cup');
+        expect(result.merged?.provenance).toEqual({
+            statedMeasure: 'crf',
+            quantity: 'llm',
+            unit: 'crf',
+            foods: 'llm',
+        });
+    });
+
+    it('supplies the amount when NEITHER engine named a unit — `Forty-five large tomatoes`', () => {
+        // Measured: the CRF returns an EMPTY measure and files `Forty-five` inside the food name, so it
+        // states neither an amount nor a unit. Both engines reading no unit is agreement about the unit,
+        // so the number the LLM read is the only reading there is.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: null, quantity: ABSENT_QUANTITY, unit: null }),
+            llm: llmParse({ statedMeasure: 'forty-five', quantity: exactly(45), unit: null }),
+        });
+
+        expect(result.merged).not.toBeNull();
+        expect(result.merged?.quantity).toEqual(exactly(45));
+        expect(result.merged?.unit).toBeNull();
+        expect(result.merged?.provenance.quantity).toBe('llm');
+    });
+
+    it('⛔ leaves the amount with the CRF when BOTH engines stated one and they differ', () => {
+        // ⛔ THE ANTI-OVER-REACH ASSERTION. KTD-11's amount column is untouched: two engines that each
+        // READ a number and read different ones is dissent, and the CRF still wins it. A mutant that fires
+        // the rescue whenever the amounts differ passes every other test in this block and fails here.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'one cup', quantity: exactly(1), unit: 'cup' }),
+            llm: llmParse({ statedMeasure: 'two cups', quantity: exactly(2), unit: 'cup' }),
+        });
+
+        expect(result.merged?.quantity).toEqual(exactly(1));
+        expect(result.merged?.provenance).toEqual(BY_WINNER_RULE);
+    });
+
+    it('⛔ does not fire in the mirror direction — a silent LLM amount is not a reading either', () => {
+        // §8a's guard, in the shape this rule could regress it into. The claim is about the CRF's measured
+        // blindness, not a symmetry: an LLM that named no amount has not offered a competing reading of
+        // the CRF's number, so the CRF's `2` stands exactly as it did.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'two cups', quantity: exactly(2), unit: 'cup' }),
+            llm: llmParse({ statedMeasure: 'cups', quantity: ABSENT_QUANTITY, unit: 'cup' }),
+        });
+
+        expect(result.merged?.quantity).toEqual(exactly(2));
+        expect(result.merged?.provenance).toEqual(BY_WINNER_RULE);
+    });
+
+    it('⛔ changes nothing when NEITHER engine read an amount — `a tablespoon of butter`', () => {
+        // The honestly-unstated case, and the one the 40-line sample found 9 of. Both engines looked and
+        // found no number; there is nothing to rescue and no attribution to move.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'tablespoon', quantity: ABSENT_QUANTITY, unit: 'tablespoon' }),
+            llm: llmParse({ statedMeasure: 'tablespoon', quantity: ABSENT_QUANTITY, unit: 'tablespoon' }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(result.merged?.quantity).toEqual(ABSENT_QUANTITY);
+        expect(result.merged?.provenance.quantity).toBe('crf');
+    });
+
+    it('⛔ DECLINES when the two engines read different units — `12 dozen` is nobody’s reading', () => {
+        // ⛔ THE ANTI-MANUFACTURE ASSERTION, measured on `a dozen small cantaloupes`: the CRF reads the
+        // measure text `dozen` (a unit, no amount) and the LLM folds the same word into `12`. Joining the
+        // LLM's number to the CRF's unit stores TWELVE DOZEN cantaloupes — one word counted twice, in a
+        // reading neither engine gave. The units disagreeing is the signal that the two engines segmented
+        // the phrase differently, which is dissent about the whole measure and not the absence this rule
+        // is for. A mutant that drops the units-agree conjunct fails HERE and nowhere else.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'dozen', quantity: ABSENT_QUANTITY, unit: 'dozen' }),
+            llm: llmParse({ statedMeasure: 'a dozen', quantity: exactly(12), unit: null }),
+        });
+
+        expect(result.merged?.quantity).toEqual(ABSENT_QUANTITY);
+        expect(result.merged?.unit).toBe('dozen');
+        expect(result.merged?.provenance).toEqual(BY_WINNER_RULE);
+        // ⚠️ And it stays VISIBLE: the band this rule declines is reported, which is what puts it in front
+        // of U23's oracle rather than resolving it silently in either direction.
+        expect(result.agreement).toEqual({
+            kind: 'differ',
+            fields: ['statedMeasure', 'quantity', 'unit'],
+        });
+    });
+
+    it('⚠️ does not silence the report — the amount moving is not the absence becoming agreement', () => {
+        // The two questions are computed independently, and U38 moves only the first. `ABSENT_QUANTITY` on
+        // the CRF is a READING of the number (`salt to taste` is the shape where it is the right one), so
+        // it competes with the LLM's and the disagreement is REPORTED even though the LLM's reading is now
+        // what is stored. A mutant that adds `quantity` to the silenced set fails here.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: 'cup', quantity: ABSENT_QUANTITY, unit: 'cup' }),
+            llm: llmParse({ statedMeasure: 'cup', quantity: exactly(1), unit: 'cup' }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'differ', fields: ['quantity'] });
+        expect(result.merged?.quantity).toEqual(exactly(1));
+    });
+
+    it('leaves the MEASURE rescue in charge where the CRF named no unit at all', () => {
+        // §8/§8a's rescue is the WIDER rule — it takes the phrase and the unit as well, and decides the
+        // amount on its own terms — and U38 must not narrow what it stores on the lines it already owns.
+        const result = compareParses({
+            crf: crfParse({ statedMeasure: null, quantity: ABSENT_QUANTITY, unit: null }),
+            llm: llmParse({ statedMeasure: 'a tablespoon', quantity: exactly(1), unit: 'tablespoon' }),
+        });
+
+        expect(result.merged?.provenance).toEqual({
+            statedMeasure: 'llm',
+            quantity: 'llm',
+            unit: 'llm',
+            foods: 'llm',
+        });
+        expect(result.merged?.unit).toBe('tablespoon');
+    });
+
+    it('⛔ the two rescues are DISJOINT, so their ORDER cannot matter — over the whole unit × amount matrix', () => {
+        // ⛔ MEASURED, AND RECORDED BECAUSE IT IS A SURPRISE. A mutant that asks the amount rescue FIRST
+        // survives every other test in this file, and that is not a hole: `llmRescuedTheMeasure` requires
+        // the CRF to have named NO unit against an LLM that named one — which IS a unit disagreement — while
+        // `llmRescuedTheAmount` requires the two units to AGREE. No pair can satisfy both. The order in
+        // `compareParses` is therefore documentation of precedence, not a load-bearing branch, and this
+        // asserts the invariant that ordering would otherwise have had to protect:
+        //
+        //  - the measure rescue is ALL OR NOTHING — the phrase and the unit move together, never one alone;
+        //  - the amount rescue moves ONLY the amount, and only where the CRF read none and the units agree.
+        const units: readonly (string | null)[] = [null, 'cup', 'tablespoon'];
+        const amounts: readonly IngredientQuantity[] = [ABSENT_QUANTITY, exactly(1), exactly(2)];
+        const seen = new Set<string>();
+
+        for (const crfUnit of units) {
+            for (const llmUnit of units) {
+                for (const crfAmount of amounts) {
+                    for (const llmAmount of amounts) {
+                        const where = `crf ${String(crfUnit)}/${crfAmount.kind} vs llm ${String(llmUnit)}/${llmAmount.kind}`;
+                        const result = compareParses({
+                            crf: crfParse({ statedMeasure: 'measure', quantity: crfAmount, unit: crfUnit }),
+                            llm: llmParse({ statedMeasure: 'phrase', quantity: llmAmount, unit: llmUnit }),
+                        });
+                        const provenance = result.merged?.provenance;
+
+                        expect(provenance, where).toBeDefined();
+                        seen.add(`${provenance?.statedMeasure}:${provenance?.quantity}:${provenance?.unit}`);
+
+                        // The measure rescue moves the phrase and the unit together, or neither.
+                        expect(provenance?.statedMeasure === 'llm', where).toBe(provenance?.unit === 'llm');
+
+                        if (provenance?.unit === 'llm') {
+                            expect(crfUnit, where).toBeNull();
+                            expect(llmUnit, where).not.toBeNull();
+                        }
+
+                        // The amount rescue: the amount alone moved, so the CRF read none and the units agree.
+                        if (provenance?.quantity === 'llm' && provenance.unit === 'crf') {
+                            expect(crfAmount.kind, where).toBe('absent');
+                            expect(llmAmount.kind, where).not.toBe('absent');
+                            expect(crfUnit, where).toBe(llmUnit);
+                        }
+                    }
+                }
+            }
+        }
+
+        // ⛔ ANTI-VACUITY. Every implication above is satisfied by a comparator that never rescues anything,
+        // so the matrix must be shown to REACH all three winner shapes.
+        expect([...seen].sort()).toEqual(['crf:crf:crf', 'crf:llm:crf', 'llm:crf:llm', 'llm:llm:llm']);
     });
 });
 

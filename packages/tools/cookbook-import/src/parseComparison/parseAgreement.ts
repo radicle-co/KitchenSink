@@ -40,6 +40,14 @@
  * quart, unit-less, against a source stating one and a half. It is named here (owner ruling 2026-08-25)
  * because a leg that stated no unit did not offer a competing reading; see {@link DISPOSITIONS} for the
  * argument and for why it does not overturn KTD-11's amount column.
+ *
+ * ## ⚠️ AND A FIFTH, FOUND THE SAME WAY — an absent AMOUNT (owner ruling 2026-08-28)
+ *
+ * `crfQuantityAbsent` arrived out of the `quantityDiffers` residue, and out of production rather than out of
+ * the harness: promoting the pipeline to decide what a line SAYS left **206 of 1,808 stored ingredient lines
+ * (11.4%)** with no quantity at all, because a CRF that read no number was being counted as a vote against
+ * the model that read one. It is the fourth shape's argument one field over, and it is likewise narrow —
+ * see {@link DISPOSITIONS}, and `parseComparator.ts`, which declines the same band this does.
  */
 import type { CrfParse } from './crfParse.js';
 import {
@@ -57,6 +65,7 @@ export type MeasureVerdict =
     | 'agree'
     | 'crfUnitInName'
     | 'crfUnitAbsent'
+    | 'crfQuantityAbsent'
     | 'crfSizeField'
     | 'amountCountDiffers'
     | 'unitDiffers'
@@ -185,6 +194,25 @@ const DISPOSITIONS: Readonly<Record<AgreementKind, AgreementDisposition>> = {
     // `one and a half quarts of boiling water` (seed L00177, 9 corpus lines), where the CRF returns `1`
     // with no unit at all against a source that plainly states one and a half quarts.
     crfUnitAbsent: 'llmWins',
+    // ⛔ AND SO IS AN ABSENT AMOUNT — owner ruling 2026-08-28, and it does NOT overturn KTD-11 either.
+    //
+    // The same argument as the row above, one field over. `quantityDiffers` stands exactly as it is: two
+    // engines that each READ a number and read different ones still go to the CRF. This row is narrower and
+    // PRIOR to it — a leg that read NO number offered no competing reading of the number.
+    //
+    // Measured on the first import the pipeline decided (349 recipes, 2026-08-28): **206 of 1,808 stored
+    // lines — 11.4% — carried no quantity at all**, where the library parser it replaced always produced
+    // one. Re-running both engines over a 40-line sample found the model stating an amount the CRF did not
+    // on **31 of 40 (78%)**; `a cup of water` is the shape, where the CRF returns the measure text `cup` —
+    // the unit, and no number.
+    //
+    // ⛔ `judgeMeasure` returns it ONLY from inside the units-agree branch, and that is what makes the
+    // census describe the merge rather than something adjacent to it: `parseComparator.ts`'s
+    // `llmRescuedTheAmount` carries the same conjunct, because a number taken from one engine and a unit
+    // from the other publishes `12 dozen` for `a dozen small cantaloupes` — one word read twice, by two
+    // engines that segmented the phrase differently. That band stays `unitDiffers` → `crfWins` in BOTH
+    // paths, and stays visible.
+    crfQuantityAbsent: 'llmWins',
     // ⛔ A SIZE WORD IS A UNIT — owner ruling 2026-08-26, and this row MOVED from `canonicalised`.
     //
     // It is the third and last verdict `judgeMeasure` can return from inside the `crf.unit === ''` branch,
@@ -264,6 +292,19 @@ function judgeMeasure(
     crfSize: string,
 ): MeasureVerdict {
     if (model.unit === crf.unit) {
+        // ⛔ FIRST WITHIN THE BRANCH, and before the residue comparison rather than beside the quantity one.
+        // A CRF row that stated no leading amount stated no amount to disagree WITH, however many amounts
+        // its measure text went on to join — L00777 (`quart 15`) is exactly that shape, and the merge
+        // rescues it. The two verdicts it displaces — `amountCountDiffers` and `quantityDiffers` — both
+        // dispose `crfWins`, so unlike the unit branch's ordering (§3's update) this placement changes what
+        // is DONE rather than what is named, which is the whole of the 2026-08-28 ruling.
+        //
+        // ⚠️ The UNITS-AGREE guard is the branch itself. Outside it the two engines have read the phrase
+        // differently, and taking one's number under the other's unit manufactures a measure neither gave.
+        if (crf.quantity === null && model.quantity !== null) {
+            return 'crfQuantityAbsent';
+        }
+
         if (model.residue !== crf.residue) {
             return 'amountCountDiffers';
         }

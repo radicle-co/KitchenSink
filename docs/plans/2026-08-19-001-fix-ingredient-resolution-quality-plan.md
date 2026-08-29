@@ -9,6 +9,11 @@ evidence: 'imported corpus in `recipe_clean`; ~900+ of 2,432 ingredient lines ca
 branch: chore/code-quality-enforcement-phase-1-2
 ---
 
+> ⚠️ **Superseded as a description of current state** by [`docs/architecture/2026-08-28-ingredient-pipeline-state.md`](../architecture/2026-08-28-ingredient-pipeline-state.md) (2026-08-28, PR 91).
+>
+> The decisions and reasoning below remain valid and this document is deliberately NOT deleted. Where it
+> and the state addendum disagree about **what exists today**, the addendum wins.
+
 # fix: ingredient resolution quality
 
 > ⛔ **SUPERSEDED (2026-08-20) by `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`.**

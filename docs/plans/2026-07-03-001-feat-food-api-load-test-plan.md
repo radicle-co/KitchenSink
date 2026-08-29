@@ -7,6 +7,11 @@ origin: docs/brainstorms/2026-07-03-food-api-load-test-requirements.md
 target: worktree .worktrees/003-usda-food-data (branch infra/sandbox-cost-and-per-pr-db)
 ---
 
+> ⚠️ **Superseded as a description of current state** by [`docs/architecture/2026-08-28-ingredient-pipeline-state.md`](../architecture/2026-08-28-ingredient-pipeline-state.md) (2026-08-28, PR 91).
+>
+> The decisions and reasoning below remain valid and this document is deliberately NOT deleted. Where it
+> and the state addendum disagree about **what exists today**, the addendum wins.
+
 # feat: Food API load-test harness (k6, sandbox pr-59)
 
 ## Summary

@@ -6,6 +6,11 @@ title: 'Ingredient search & USDA-blended autocomplete — coverage-first (seed �
 origin: owner ask (this session) — "autocomplete from both our database and USDA; there is a performance and UX concern to be figured out." Grounded in 3 parallel research streams (internal system map, competitive/food-DB market research, federated-autocomplete UX research), all cited inline.
 ---
 
+> ⚠️ **Superseded as a description of current state** by [`docs/architecture/2026-08-28-ingredient-pipeline-state.md`](../architecture/2026-08-28-ingredient-pipeline-state.md) (2026-08-28, PR 91).
+>
+> The decisions and reasoning below remain valid and this document is deliberately NOT deleted. Where it
+> and the state addendum disagree about **what exists today**, the addendum wins.
+
 # Ingredient search & USDA-blended autocomplete
 
 > **Intent (owner):** when a user types an ingredient, autocomplete should draw on **both our own catalog and

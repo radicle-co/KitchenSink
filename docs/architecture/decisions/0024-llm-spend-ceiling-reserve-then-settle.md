@@ -1,6 +1,6 @@
 # 0024 — The LLM spend ceiling is enforced by a RESERVE-THEN-SETTLE counter in our own code; no AWS mechanism can gate it
 
-- **Status**: Accepted
+- **Status**: Accepted — ⚠️ **§4c's consumer list is PARTLY DEPRECATED (2026-08-29)**; the ruling it sits under still binds. See §4c.
 - **Date**: 2026-08-20
 - **Drivers**: `R23` sets an owner-mandated **$100/month, enforced, configurable** ceiling on the U11
   verification gate — a `recipe-workers` Lambda calling Bedrock `Converse` (~660 input / ~80 output tokens,
@@ -448,12 +448,38 @@ under credentials that BYPASS this role, and it keeps its own `INVOCATION_IDS` m
 conflation survived a full measurement pass. That second map stays, deliberately: the runner is an operator
 script that already sits outside this ceiling by design.
 
-### 4c. The ceiling is ONE global pool, and spend is ATTRIBUTED rather than PARTITIONED — added 2026-08-25
+### 4c. The ceiling is ONE global pool, and spend is ATTRIBUTED rather than PARTITIONED — added 2026-08-25 ⚠️ consumer list DEPRECATED 2026-08-29
 
 Owner ruling, 2026-08-24 (KTD-17): the **$100/month is a single pool**, first come first served, shared by the
 verification gate, the ingredient parse leg and 017's capture tiers. It is not sub-divided per consumer — the
 same reasoning that rejected the daily sub-ceiling in §3: a second cap denies legitimate work and never
 enforces the figure it sits under.
+
+⛔ **DEPRECATED 2026-08-29 — THE CONSUMER LIST ABOVE IS WRONG. Two of its three members do not exist.**
+
+Owner directive, 2026-08-29. `recipe-workers/src/parsing/llmParse.ts` — "the ingredient parse leg" — was
+**DELETED**, together with the whole `src/parsing/` directory (`llmParse.ts`, `readParseAnswer.ts` and both
+test files). It was dead code: every reference to `parseLineWithLlm` outside the module lived in its own
+test file, and it had no handler, therefore no Lambda, therefore no execution role, therefore no path to
+Bedrock at all. It had never executed outside a unit test. 017's capture tiers are specced and unbuilt.
+
+**The pool therefore has exactly ONE consumer — the verification gate** — which is exactly what layer 4b's
+single grantee admits. Before this, §4c budgeted for three consumers while the IAM granted
+`bedrock:InvokeModel` to one role; **the budget and the grant now agree.** The deletion closed that
+inconsistency rather than creating one.
+
+⚠️ **ONLY THE ENUMERATION IS DEPRECATED — the ruling it sits under is untouched and still binds.** The
+$100/month remains ONE pool, first come first served, and it is still NOT sub-divided per consumer (item 10
+of "ten improvements that are all wrong"). `CallSite` attribution likewise stands unchanged: it reads
+`verification-gate` today and is the right mechanism the moment a second consumer exists. Nothing about
+reserve-then-settle, the ceiling figure, the prod-only ruling or layer 4b moves.
+
+⛔ **A future parse leg reopens THIS SECTION AND LAYER 4b TOGETHER**, because it needs a Bedrock grant:
+either it runs inside the verification gate's existing role (layer 4b intact, but the gate does two jobs
+and the parse inherits the verifier's concurrency), or it adds a second grantee — which
+`packages/infra/global/__tests__/llmSpendGuards.test.ts` fails by design with kind `'second-grantee'`.
+**That decision is unmade, and deleting the dead file did not make it.** Current state:
+`docs/architecture/2026-08-28-ingredient-pipeline-state.md` §3.
 
 ⛔ **Not capping per consumer makes attribution MORE important, not less.** When the pool empties, the first
 question is "who burned it", and a dimensionless `VerificationSpendMicros` cannot answer it. So the spend

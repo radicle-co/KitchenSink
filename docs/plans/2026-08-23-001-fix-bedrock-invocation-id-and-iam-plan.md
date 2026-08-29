@@ -4,6 +4,11 @@ type: fix
 date: 2026-08-23
 ---
 
+> ⚠️ **Superseded as a description of current state** by [`docs/architecture/2026-08-28-ingredient-pipeline-state.md`](../architecture/2026-08-28-ingredient-pipeline-state.md) (2026-08-28, PR 91).
+>
+> The decisions and reasoning below remain valid and this document is deliberately NOT deleted. Where it
+> and the state addendum disagree about **what exists today**, the addendum wins.
+
 > ⛔ **SUPERSEDED 2026-08-25 — do not execute from this document.** Its scope was consolidated into
 > [`docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`](2026-08-20-001-fix-ingredient-resolution-quality-plan.md),
 > which is the single source of truth for this effort. This plan's content is **U35** there.

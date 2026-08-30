@@ -181,3 +181,13 @@ reference implementation and must never be "converged".
 ## Assumptions
 
 - The trainer-client relationship for nutrition planning requires explicit consent from the client user.
+
+## Cross-feature note — user-authored food nutrient expansion (added 2026-08-30)
+
+The food catalog's user-authored create endpoint (`POST /api/v1/foods/authored`, decided in
+`docs/brainstorms/2026-08-30-ingredient-resolution-pipeline-requirements.md` D9a) launches **macros-only**
+(calories, protein, carbs, fat, optional portions) by owner ruling. This feature owns the expansion: when
+009 is implemented, widen that endpoint (additively) to accept full nutrient-dictionary rows so
+user-authored foods can become as detailed as USDA entries. The expansion inherits D9a's constraints:
+provenance stays server-set (`source='user'`), nutrient rows carry user provenance, and only the author
+may edit their food.

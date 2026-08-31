@@ -1156,8 +1156,10 @@ jobs:
         name: E2E (food — booted app + Postgres + LocalStack)
         # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
         # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
-        if: ${{ false }}
+        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
+        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
+        # actionlint's if-cond check rejects constant expressions.
+        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
         timeout-minutes: 25
         runs-on: ubuntu-latest
         needs: [install]
@@ -1368,8 +1370,10 @@ jobs:
         name: E2E (recipe ↔ food LIVE — both services, one real Clerk token)
         # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
         # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
-        if: ${{ false }}
+        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
+        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
+        # actionlint's if-cond check rejects constant expressions.
+        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
         timeout-minutes: 30
         runs-on: ubuntu-latest
         needs: [install]
@@ -1786,8 +1790,10 @@ jobs:
         name: E2E (backend services)
         # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
         # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
-        if: ${{ false }}
+        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
+        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
+        # actionlint's if-cond check rejects constant expressions.
+        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
         timeout-minutes: 25
         runs-on: ubuntu-latest
         needs: build
@@ -1845,8 +1851,10 @@ jobs:
         name: E2E (web — Playwright) ${{ matrix.shard }}/${{ strategy.job-total }}
         # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
         # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
-        if: ${{ false }}
+        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
+        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
+        # actionlint's if-cond check rejects constant expressions.
+        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
         # 30 + the sandbox wake's own 15-minute bound (see the wake step below). A run that lands in ADR-0007's
         # 00:00–09:00 ET window legitimately waits minutes for a stopped `db.t4g.micro` to reach `available`,
         # and a JOB timeout is precisely the misleading failure that step exists to prevent: it would kill the
@@ -2230,9 +2238,9 @@ jobs:
         runs-on: ubuntu-latest
         needs: e2e-web
         # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): the shard job it reports on reaches the
-        # sandbox Clerk instance, which is unavailable right now. Restore `${{ !cancelled() }}` alone (drop
-        # the `false &&`) once the sandbox remote services are reachable again.
-        if: ${{ false && !cancelled() }}
+        # sandbox Clerk instance, which is unavailable right now. Restore `${{ !cancelled() }}` alone once
+        # the sandbox remote services are reachable again (or set REMOTE_E2E_ENABLED=true).
+        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' && !cancelled() }}
         permissions:
             # Checkout only — this job merges blob artifacts and uploads to Argos; it writes nothing to the repo.
             contents: read
@@ -2369,8 +2377,10 @@ jobs:
         name: E2E (mobile — Vitest)
         # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
         # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
-        if: ${{ false }}
+        # Re-enable by setting the repo variable REMOTE_E2E_ENABLED=true (or deleting this guard) once the
+        # sandbox remote services are reachable again. A vars gate rather than a literal `false` because
+        # actionlint's if-cond check rejects constant expressions.
+        if: ${{ vars.REMOTE_E2E_ENABLED == 'true' }}
         timeout-minutes: 30
         runs-on: ubuntu-latest
         needs: build

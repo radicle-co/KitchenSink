@@ -33,7 +33,7 @@
  */
 import { createRequire } from 'node:module';
 import { generateKeyPairSync } from 'node:crypto';
-import { mkdtempSync, statSync } from 'node:fs';
+import { mkdtempSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -360,6 +360,13 @@ describe('the artifact esbuild actually ships to the edge', () => {
      */
     async function bundleEdgeVerifier(jwtKey: string): Promise<string> {
         const outdir = mkdtempSync(path.join(tmpdir(), 'kitchensink-edge-real-'));
+
+        // ⚠️ The bundle is CJS in a `.js` file — Lambda's shape, and the filename must stay `handler.js`.
+        // Whether Node loads that as CJS depends on the NEAREST package.json, and CI's TMPDIR resolves
+        // INSIDE this repo (whose root declares `"type": "module"`), so without this marker the require
+        // below fails with `module is not defined in ES module scope` — on CI alone, which is exactly how
+        // it shipped red. The marker makes the temp dir self-describing wherever TMPDIR points.
+        writeFileSync(path.join(outdir, 'package.json'), '{"type":"commonjs"}\n');
 
         await build({
             entryPoints: [

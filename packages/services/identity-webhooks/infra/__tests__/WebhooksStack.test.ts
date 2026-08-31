@@ -86,7 +86,10 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
         });
 
         template = Template.fromStack(stack);
-    });
+        // ⚠️ 120s, not vitest's 10s default: a full-stack CDK synth on a cold CI runner has been measured
+        // over the default (the whole `Test (services)` job failed on exactly this hook, 2026-08-31), and
+        // a timeout here reports as a suite failure indistinguishable from a real synth error.
+    }, 120_000);
 
     // ADR-0011 cannot be discharged without this. The webhook is reachable on TWO base-path mappings —
     // canonical `api/v1` and the deprecated `v1` alias — and the alias may only be deleted once we can

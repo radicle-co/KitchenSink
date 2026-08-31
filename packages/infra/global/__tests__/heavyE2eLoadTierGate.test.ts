@@ -398,11 +398,12 @@ function resolveAtom(atom: string, scenario: Scenario): Truth {
         return asTruth(scenario.event === 'pull_request' && filterMatches(outputName, scenario.changedFiles ?? []));
     }
 
-    if (atom === 'false') {
+    if (atom === "vars.REMOTE_E2E_ENABLED == 'true'") {
         // The TEMPORARY kill switch (owner directive 2026-08-31): the sandbox remote services both heavy
-        // tiers depend on are unreachable, so heavy-e2e.yml's gate is `false && (…)`. Modelled as the
-        // literal it is; the scenario suite asserts the disable below, so REMOVING the switch is also a
-        // deliberate act here rather than a silent gate change.
+        // tiers depend on are unreachable, so heavy-e2e.yml's gate is vars-wrapped (a repo VARIABLE rather
+        // than a literal `false`, because actionlint's if-cond check rejects constant expressions). The
+        // variable is unset in this model — the disabled state; the scenario suite evaluates the UNDERLYING
+        // gate via stripKillSwitch, so the logic cannot rot while the switch is in.
         return asTruth(false);
     }
 
@@ -469,9 +470,9 @@ function gatedJobRuns(scenario: Scenario): boolean {
     );
 }
 
-/** Strip the `false && (…)` kill-switch wrapper, returning the underlying gate expression. Pure. */
+/** Strip the vars kill-switch wrapper, returning the underlying gate expression. Pure. */
 function stripKillSwitch(expression: string): string {
-    const match = /^\s*false\s*&&\s*\(([\s\S]*)\)\s*$/.exec(expression.trim());
+    const match = /^\s*vars\.REMOTE_E2E_ENABLED == 'true'\s*&&\s*\(([\s\S]*)\)\s*$/.exec(expression.trim());
 
     return match?.[1] ?? expression;
 }
@@ -861,18 +862,19 @@ describe('heavy-e2e load tier — Maestro stays off the automatic path', () => {
 });
 
 describe('the temporary heavy-tier kill switch (owner directive 2026-08-31)', () => {
-    it('is present, as `false && (…)` wrapping the whole gate — and its removal re-runs the scenarios above', () => {
+    it('is present, as a REMOTE_E2E_ENABLED vars clause wrapping the whole gate', () => {
         const gate = jobOf(caller, CALLER_FILE, GATED_JOB);
 
         // Both heavy tiers reach REMOTE sandbox services (Clerk from the emulator, k6 against sandbox
-        // hosts), which are unreachable right now. Delete the `false &&` (and this test) to re-enable —
-        // the scenario suite evaluates the UNDERLYING expression either way, so re-enabling cannot ship a
-        // gate that rotted while it was off.
+        // hosts), which are unreachable right now. Set the repo variable REMOTE_E2E_ENABLED=true (or
+        // delete the clause and this test) to re-enable — the scenario suite evaluates the UNDERLYING
+        // expression either way, so re-enabling cannot ship a gate that rotted while it was off. A vars
+        // gate rather than a literal `false` because actionlint's if-cond check rejects constants.
         expect(
             gate.if
                 ?.trim()
                 .replace(/^\$\{\{\s*/u, '')
-                .startsWith('false &&'),
+                .startsWith("vars.REMOTE_E2E_ENABLED == 'true' &&"),
         ).toBe(true);
     });
 });

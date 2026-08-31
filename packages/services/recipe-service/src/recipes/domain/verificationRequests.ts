@@ -56,10 +56,15 @@
  */
 import type { IngredientQuantity, StatedMeasure } from '@kitchensink/recipe-core';
 import {
+    curatedExactEvidence,
     decideVerification,
+    rememberedEvidence,
     unattributedEvidence,
+    type IdentityEvidence,
     type VerificationThresholds,
 } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
+
+import type { ResolutionTierId } from '../../ingredients/resolution/resolutionCascade.js';
 import { verificationKeyPreimage } from '@kitchensink/recipe-core/resolution/verification-key';
 import type { VerifyIngredientLineMessage } from '@kitchensink/recipe-core/resolution/verification-message';
 
@@ -106,6 +111,12 @@ export interface VerifiableLine {
      * every projection site a compile error rather than a silent reversion to the old question.
      */
     readonly statedMeasure: StatedMeasure | undefined;
+    /**
+     * Which cascade tier resolved this line's ingredient, or `undefined` when no resolution event is
+     * recorded (plan U2). A REQUIRED key carrying `undefined`, like {@link sourceLine} — every projection
+     * site must decide, and absence is a statement ("nothing attributed"), never missing data.
+     */
+    readonly resolutionTier: ResolutionTierId | undefined;
 }
 
 /**
@@ -217,6 +228,28 @@ function judgementIdentity(line: VerifiableLine): string | undefined {
  * @returns The messages to enqueue in the author's line order, deduplicated by judgement, and every line
  *   that will never be asked about. Pure.
  */
+/**
+ * The identity evidence a persisted resolution tier honestly supports (plan U2).
+ *
+ * ⛔ `lexical` maps to UNATTRIBUTED until U4 ships: `ranked` evidence requires the structured shortlist
+ * the lexical tier will persist, and a bare tier name cannot claim it — `curated-exact` here would
+ * suppress an identity check nothing established. `llm` likewise (no tier ships it yet).
+ *
+ * @param tier - The recorded tier, or `undefined` when no resolution event exists.
+ * @returns The evidence the gate policy may act on. Pure.
+ */
+function evidenceFor(tier: ResolutionTierId | undefined): IdentityEvidence {
+    if (tier === 'curated') {
+        return curatedExactEvidence();
+    }
+
+    if (tier === 'memo') {
+        return rememberedEvidence();
+    }
+
+    return unattributedEvidence();
+}
+
 export function buildVerificationRequests(input: VerificationRequestInput): VerificationRequestPlan {
     const seen = new Set<string>();
 
@@ -251,9 +284,10 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
         // ⛔ ADR-0024 layer 0. The pure policy decides whether there is anything to ask BEFORE anything is
         // sent — `skip` for a blank line, `reject` for an over-cap one (which is never truncated).
+        const evidence = evidenceFor(line.resolutionTier);
         const decision = decideVerification({
             sourceLine,
-            evidence: unattributedEvidence(),
+            evidence,
             thresholds: input.thresholds,
         });
 
@@ -300,9 +334,9 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
             // U14's reader never looks up. `null` on the identity means "not restated"; the wire spells that
             // by omitting the key, which is why this is a spread rather than an assignment.
             ...(judgement.statedMeasure === null ? {} : { statedMeasure: judgement.statedMeasure }),
-            // ⛔ The producer knows of no tier, and must not guess one: `curated-exact` would suppress the
-            // identity check. See the module docstring.
-            evidenceKind: 'unattributed',
+            // U2: the PERSISTED tier, mapped through `evidenceFor` — the same evidence the decision above
+            // was made from, so the worker's re-run judges what this producer judged.
+            evidenceKind: evidence.kind,
             // No lexical tier has shipped, and this path never ranked anything even when one does — the
             // shortlist belongs to whoever ranked, which is not this caller.
             shortlist: [],

@@ -37,6 +37,10 @@ export type {
     FoodResolutionStatus,
 } from './ingredients.js';
 
+// ── ingredient_resolutions (plan U2, 0035) — the cascade's provenance events ─────────────────────
+export { ingredientResolutions } from './ingredientResolutions.js';
+export type { IngredientResolutionRow, NewIngredientResolutionRow } from './ingredientResolutions.js';
+
 // ── ingredient_resolution_mappings + ingredient_resolution_memos (plan U10, 0021) ───────────────
 export {
     ingredientResolutionMappings,

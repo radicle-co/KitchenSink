@@ -70,6 +70,8 @@ import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDt
 import type { CreateRecipeIngredientInput } from './recipes.schema.js';
 import { carryForwardTranscription } from './domain/transcriptionCarryForward.js';
 import { buildVerificationRequests, type VerifiableLine } from './domain/verificationRequests.js';
+import { IngredientResolutionsDal } from '../ingredients/resolution/ingredientResolutions.dal.js';
+import type { ResolutionTierId } from '../ingredients/resolution/resolutionCascade.js';
 import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
@@ -126,7 +128,11 @@ interface ResolvedIngredientLines {
  *   no `foodId`, hence no judgement identity, hence no suppression — the SAFE direction (re-ask).
  * @returns The verifiable projection. Pure.
  */
-function storedLineToVerifiable(row: RecipeIngredientRow, catalog: ReadonlyMap<string, Ingredient>): VerifiableLine {
+function storedLineToVerifiable(
+    row: RecipeIngredientRow,
+    catalog: ReadonlyMap<string, Ingredient>,
+    tiers: ReadonlyMap<string, ResolutionTierId>,
+): VerifiableLine {
     const ingredient = catalog.get(row.ingredientId);
 
     return {
@@ -144,6 +150,9 @@ function storedLineToVerifiable(row: RecipeIngredientRow, catalog: ReadonlyMap<s
         // line whose source said `one gill` — a false DISAGREE against a line we parsed correctly — AND would
         // key the resulting verdict the pre-0027 way, so the corrected line could never find it.
         statedMeasure: statedMeasureFromColumns(row),
+        // U2: the latest recorded cascade tier for this line's ingredient — absence means no resolution
+        // event exists, which the producer maps to `unattributed`.
+        resolutionTier: tiers.get(row.ingredientId),
     };
 }
 
@@ -640,6 +649,9 @@ export class RecipesService {
         // U14 — the read side of the U11 verification gate. Its OWN DAL instance over the shared Drizzle
         // client, the same pattern as the embedded PhotosDal/RatingsDal above (no module import, no cycle).
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL) private readonly lineVerificationsDal: LineVerificationsDal,
+        // U2, LAST and OPTIONAL like IngredientsService's tiers: a service constructed without the store
+        // (unit fixtures) degrades to `unattributed` evidence — the pre-U2 behaviour, never an error.
+        private readonly ingredientResolutions?: IngredientResolutionsDal,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
@@ -1172,10 +1184,27 @@ export class RecipesService {
         catalog: ReadonlyMap<string, Ingredient>,
         previous: readonly RecipeIngredientRow[],
     ): Promise<void> {
+        // U2: the latest resolution event per ingredient, batched over every line this call names. Inside
+        // the same never-throws boundary as the enqueue — a failed read degrades to `unattributed`.
+        const tiers = await (
+            this.ingredientResolutions === undefined
+                ? Promise.resolve(new Map<string, ResolutionTierId>())
+                : this.ingredientResolutions.latestTiersByIngredientIds(
+                      [...lines, ...previous].map((row) => row.ingredientId),
+                  )
+        ).catch((error: unknown) => {
+            this.logger.warn(
+                'Resolution provenance read failed; verification proceeds unattributed.',
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return new Map<string, ResolutionTierId>();
+        });
+
         const { requests, unasked } = buildVerificationRequests({
             recipeId,
-            lines: lines.map((row) => storedLineToVerifiable(row, catalog)),
-            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, catalog)),
+            lines: lines.map((row) => storedLineToVerifiable(row, catalog, tiers)),
+            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, catalog, tiers)),
             thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
             requestedAt: new Date().toISOString(),
         });

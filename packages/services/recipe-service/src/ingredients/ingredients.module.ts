@@ -59,6 +59,7 @@ import { IngredientsDal } from './dal/ingredients.dal.js';
 import { createCuratedTier } from './resolution/curatedTier.js';
 import { createMemoTier } from './resolution/memoTier.js';
 import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
+import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
 import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
 import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
 import type { ResolutionTier } from './resolution/resolutionCascade.js';
@@ -138,6 +139,11 @@ function resolutionTiers(mappings: ResolutionMappingsDal): readonly ResolutionTi
             useFactory: (clients: FoodServiceClients): FoodNutritionGateway => new FoodNutritionGateway(clients),
         },
         {
+            provide: IngredientResolutionsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): IngredientResolutionsDal => new IngredientResolutionsDal(db),
+        },
+        {
             provide: ResolutionMappingsDal,
             inject: [DrizzleProvider],
             useFactory: (db: RecipeDrizzle): ResolutionMappingsDal => new ResolutionMappingsDal(db),
@@ -157,15 +163,23 @@ function resolutionTiers(mappings: ResolutionMappingsDal): readonly ResolutionTi
         ResolutionMappingsService,
         {
             provide: IngredientsService,
-            inject: [IngredientsDal, FoodServiceClients, FoodCatalogGateway, ResolutionMappingsDal],
+            inject: [
+                IngredientsDal,
+                FoodServiceClients,
+                FoodCatalogGateway,
+                ResolutionMappingsDal,
+                IngredientResolutionsDal,
+            ],
             useFactory: (
                 dal: IngredientsDal,
                 clients: FoodServiceClients,
                 catalog: FoodCatalogGateway,
                 mappings: ResolutionMappingsDal,
-            ): IngredientsService => new IngredientsService(dal, clients, catalog, resolutionTiers(mappings)),
+                resolutions: IngredientResolutionsDal,
+            ): IngredientsService =>
+                new IngredientsService(dal, clients, catalog, resolutionTiers(mappings), resolutions),
         },
     ],
-    exports: [IngredientsService, FoodNutritionGateway, ResolutionMappingsService],
+    exports: [IngredientsService, FoodNutritionGateway, ResolutionMappingsService, IngredientResolutionsDal],
 })
 export class IngredientsModule {}

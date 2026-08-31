@@ -65,7 +65,40 @@ const makeLine = (overrides: Partial<VerifiableLine> = {}): VerifiableLine => ({
     quantity: amount(2),
     unit: 'cup',
     statedMeasure: undefined,
+    resolutionTier: undefined,
     ...overrides,
+});
+
+describe('resolution provenance reaches the gate as evidence (plan U2)', () => {
+    // ⛔ Before U2 every line enqueued `unattributedEvidence()` — the cascade kept only the foodId and no
+    // column recorded which tier answered, so a curated hit paid for an identity check its tier had already
+    // established. The producer now maps the persisted resolution tier onto the evidence the policy reads.
+    it('a curated resolution sends curated-exact evidence, and the identity aspect is excused', () => {
+        const { requests } = plan([makeLine({ resolutionTier: 'curated' })]);
+
+        expect(requests).toHaveLength(1);
+        expect(requests[0]?.evidenceKind).toBe('curated-exact');
+    });
+
+    it('a memo resolution sends remembered evidence, which establishes nothing on its own', () => {
+        const { requests } = plan([makeLine({ resolutionTier: 'memo' })]);
+
+        expect(requests[0]?.evidenceKind).toBe('remembered');
+    });
+
+    it('a line with no recorded resolution stays unattributed — absence is not evidence', () => {
+        const { requests } = plan([makeLine({ resolutionTier: undefined })]);
+
+        expect(requests[0]?.evidenceKind).toBe('unattributed');
+    });
+
+    it('a lexical resolution stays unattributed UNTIL the tier ships shortlists (plan U4)', () => {
+        // The `ranked` evidence kind needs the structured shortlist the lexical tier will persist; a bare
+        // tier name cannot honestly claim it. Revisit in U4 — this test pins the interim honesty.
+        const { requests } = plan([makeLine({ resolutionTier: 'lexical' })]);
+
+        expect(requests[0]?.evidenceKind).toBe('unattributed');
+    });
 });
 
 const plan = (

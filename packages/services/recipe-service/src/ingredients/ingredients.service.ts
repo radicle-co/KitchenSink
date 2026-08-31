@@ -60,6 +60,7 @@ import type { CallerToken } from '../auth/CallerToken.js';
 import { clampLimit, IngredientsDal } from './dal/ingredients.dal.js';
 import type { CanonicalIngredientName } from './domain/ingredientName.js';
 import { canonicalNameFrom, toResolutionStatus } from './foodStatusTranslation.js';
+import type { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
 import { runResolutionCascade, type ResolutionTier } from './resolution/resolutionCascade.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
@@ -128,6 +129,10 @@ export class IngredientsService {
         private readonly foodClients: FoodServiceClients,
         private readonly catalog: FoodCatalogGateway,
         private readonly resolutionTiers: readonly ResolutionTier[] = [],
+        // Optional like the tiers above, for the same reason: a service constructed without the store is a
+        // fully-supported state (unit fixtures, pre-0035 callers) — resolutions simply go unrecorded, which
+        // is the pre-U2 behaviour.
+        private readonly resolutions?: IngredientResolutionsDal,
     ) {}
 
     /**
@@ -394,7 +399,24 @@ export class IngredientsService {
         }
 
         try {
-            return await this.addByFoodId(caller, outcome.foodId);
+            const admitted = await this.addByFoodId(caller, outcome.foodId);
+
+            // U2: the provenance EVENT — which tier answered, recorded so the verification producer can
+            // send real evidence and the band log (plan U3) has a substrate. Quietly: a lost event
+            // degrades to `unattributed`, the pre-U2 behaviour, and must never fail a resolution that
+            // already succeeded.
+            if (this.resolutions !== undefined) {
+                try {
+                    await this.resolutions.record({ ingredientId: admitted.id, tier: outcome.tier });
+                } catch (recordError) {
+                    this.logger.warn(
+                        `Resolution provenance write failed for ingredient '${admitted.id}' (tier '${outcome.tier}').`,
+                        recordError instanceof Error ? recordError.stack : String(recordError),
+                    );
+                }
+            }
+
+            return admitted;
         } catch (error) {
             if (isRecipeDomainError(error) && error.code === RecipeErrorCode.UNKNOWN_INGREDIENT) {
                 // The stale-mapping case. `food_id` has no foreign key and U12's reseed mints fresh ULIDs, so

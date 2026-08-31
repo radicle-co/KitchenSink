@@ -29,6 +29,8 @@ export interface ResolutionEvent {
     readonly margin?: number;
     readonly shortlist?: unknown;
     readonly bandEpoch?: string;
+    /** U11 (0040): the shortlist contained the caller's own private food — band-stats exclusion. */
+    readonly authorAugmented?: boolean;
     readonly queryShape?: string;
     readonly rankerVersion?: string;
 }
@@ -52,6 +54,7 @@ export class IngredientResolutionsDal {
             bandEpoch: event.bandEpoch,
             queryShape: event.queryShape,
             rankerVersion: event.rankerVersion,
+            authorAugmented: event.authorAugmented ?? false,
         });
     }
 
@@ -83,6 +86,7 @@ export class IngredientResolutionsDal {
                 queryShape: ingredientResolutions.queryShape,
                 rankerVersion: ingredientResolutions.rankerVersion,
                 bandEpoch: ingredientResolutions.bandEpoch,
+                authorAugmented: ingredientResolutions.authorAugmented,
                 createdAt: ingredientResolutions.createdAt,
             })
             .from(ingredientResolutions)
@@ -100,6 +104,7 @@ export class IngredientResolutionsDal {
                     queryShape: row.queryShape,
                     rankerVersion: row.rankerVersion,
                     bandEpoch: row.bandEpoch,
+                    authorAugmented: row.authorAugmented,
                     createdAt: row.createdAt,
                 },
             ]),
@@ -116,6 +121,7 @@ export interface LatestResolution {
     readonly shortlist: unknown;
     readonly queryShape: string | null;
     readonly rankerVersion: string | null;
+    readonly authorAugmented: boolean;
     readonly bandEpoch: string | null;
     /** When the resolution was made — the clock KTD-A's pending state ages against. */
     readonly createdAt: Date;

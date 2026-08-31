@@ -42,6 +42,11 @@ import type { IngredientSuggestion } from './ingredients.schema.js';
 
 /** One food-service catalog hit, normalized (non-null trimmed name) for the blend. */
 export interface CatalogHit {
+    /**
+     * U11 (R20): present ONLY on the CALLER's own authored hits (`private`) or a promoted one — the
+     * lexical tier's author-augmentation signal. A stranger never receives a private row at all.
+     */
+    readonly visibility?: 'private' | 'promoted' | undefined;
     /** The opaque food-service internal id — `SearchResultView.id` IS the `food_id`. */
     readonly foodId: string;
     /** The golden display name (never null/blank; the gateway drops unrenderable hits). */

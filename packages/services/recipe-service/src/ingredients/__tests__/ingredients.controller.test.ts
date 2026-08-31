@@ -82,7 +82,7 @@ describe('IngredientsController', () => {
 
             const result = await controller.search(CALLER, '  flour  ', '5');
 
-            expect(mocks.search).toHaveBeenCalledWith('flour', 5);
+            expect(mocks.search).toHaveBeenCalledWith('flour', CALLER, 5);
             expect(result).toBe(rows);
         });
 
@@ -91,7 +91,7 @@ describe('IngredientsController', () => {
 
             await controller.search(CALLER, 'flour');
 
-            expect(mocks.search).toHaveBeenCalledWith('flour', undefined);
+            expect(mocks.search).toHaveBeenCalledWith('flour', CALLER, undefined);
         });
 
         it('rejects a missing/blank q with 400', async () => {
@@ -112,7 +112,7 @@ describe('IngredientsController', () => {
 
             const result = await controller.suggest(CALLER, TOKEN, '  chicken  ', '5');
 
-            expect(mocks.suggest).toHaveBeenCalledWith(TOKEN, 'chicken', 5);
+            expect(mocks.suggest).toHaveBeenCalledWith(TOKEN, 'chicken', CALLER, 5);
             // Mutation guard: routing /suggest at the local-only search would silently un-blend the typeahead.
             expect(mocks.search).not.toHaveBeenCalled();
             expect(result).toBe(envelope);
@@ -123,7 +123,7 @@ describe('IngredientsController', () => {
 
             await controller.suggest(CALLER, TOKEN, 'chicken');
 
-            expect(mocks.suggest).toHaveBeenCalledWith(TOKEN, 'chicken', undefined);
+            expect(mocks.suggest).toHaveBeenCalledWith(TOKEN, 'chicken', CALLER, undefined);
         });
 
         it('rejects a missing/blank q with 400', async () => {
@@ -193,7 +193,7 @@ describe('IngredientsController', () => {
             await controller.suggest(CALLER, undefined, 'chicken');
 
             // Not a 401 here and not a substituted credential: the controller forwards what the request had.
-            expect(mocks.suggest).toHaveBeenCalledWith(undefined, 'chicken', undefined);
+            expect(mocks.suggest).toHaveBeenCalledWith(undefined, 'chicken', CALLER, undefined);
         });
 
         it('does NOT take a credential on the local-only routes (no cross-service call to authorize)', async () => {
@@ -203,7 +203,7 @@ describe('IngredientsController', () => {
             await controller.search(CALLER, 'flour');
             await controller.create(CALLER, { name: 'Grandma spice' } as CreateIngredientDto);
 
-            expect(mocks.search).toHaveBeenCalledWith('flour', undefined);
+            expect(mocks.search).toHaveBeenCalledWith('flour', CALLER, undefined);
             expect(mocks.createFreeform).toHaveBeenCalledWith('Grandma spice');
         });
     });
@@ -413,7 +413,7 @@ describe('IngredientsController', () => {
 
             const result = await controller.status(CALLER, TOKEN, ID);
 
-            expect(mocks.refreshStatus).toHaveBeenCalledWith(TOKEN, ID);
+            expect(mocks.refreshStatus).toHaveBeenCalledWith(TOKEN, ID, CALLER);
             expect(result).toBe(refreshed);
         });
     });

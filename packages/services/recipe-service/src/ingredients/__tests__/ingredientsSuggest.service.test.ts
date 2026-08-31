@@ -67,12 +67,12 @@ describe('IngredientsService.suggest', () => {
     it('trims the query before it reaches EITHER catalog', async () => {
         await service.suggest(CALLER, '  chicken  ');
 
-        expect(mocks['search']).toHaveBeenCalledWith('chicken', 10);
+        expect(mocks['search']).toHaveBeenCalledWith('chicken', undefined, 10);
         expect(catalogSearch).toHaveBeenCalledWith(CALLER, 'chicken', 10);
     });
 
     it('clamps the per-section limit the same way the local DAL does', async () => {
-        await service.suggest(CALLER, 'chicken', 999);
+        await service.suggest(CALLER, 'chicken', undefined, 999);
 
         expect(catalogSearch).toHaveBeenCalledWith(CALLER, 'chicken', 50);
     });

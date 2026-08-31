@@ -31,12 +31,12 @@ import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './supp
 /** Insert a RESOLVED food (search only surfaces RESOLVED golden records). */
 async function seedFood(
     pool: pg.Pool,
-    input: { id: string; name: string; description?: string | null },
+    input: { id: string; name: string; description?: string | null; userId?: string; visibility?: string },
 ): Promise<void> {
     await pool.query(
-        `INSERT INTO food (id, name, normalized_name, description, status)
-         VALUES ($1, $2, lower($2), $3, 'RESOLVED')`,
-        [input.id, input.name, input.description ?? null],
+        `INSERT INTO food (id, name, normalized_name, description, status, user_id, visibility)
+         VALUES ($1, $2, lower($2), $3, 'RESOLVED', $4, $5)`,
+        [input.id, input.name, input.description ?? null, input.userId ?? null, input.visibility ?? 'public'],
     );
 }
 
@@ -65,7 +65,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
         await seedFood(pool, { id: 'f_beef', name: 'Beef steak, raw' });
 
         // "breast chicken" is NOT a substring of "Chicken breast, raw" — only FTS lexeme matching hits.
-        const hits = await dao.search('breast chicken');
+        const hits = await dao.search('breast chicken', 'search-it-caller');
 
         expect(hits.map((hit) => hit.id)).toContain('f_chicken');
         expect(hits.map((hit) => hit.id)).not.toContain('f_beef');
@@ -77,7 +77,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
         await seedFood(pool, { id: 'f_exact', name: 'Chicken, raw' });
         await seedFood(pool, { id: 'f_long', name: 'Barbecue marinated grilled boneless chicken thigh pieces' });
 
-        const hits = await dao.search('chicken');
+        const hits = await dao.search('chicken', 'search-it-caller');
         const ids = hits.map((hit) => hit.id);
 
         expect(ids[0]).toBe('f_exact');
@@ -92,18 +92,18 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
         await seedFood(pool, { id: 'f_avocado', name: 'Avocado, raw' });
 
         // FTS hit on the description.
-        expect((await dao.search('soybeans')).map((hit) => hit.id)).toContain('f_desc');
+        expect((await dao.search('soybeans', 'search-it-caller')).map((hit) => hit.id)).toContain('f_desc');
         // pg_trgm fuzzy fallback: a typo'd name still matches.
-        expect((await dao.search('avacado')).map((hit) => hit.id)).toContain('f_avocado');
+        expect((await dao.search('avacado', 'search-it-caller')).map((hit) => hit.id)).toContain('f_avocado');
     });
 
     it('returns canonical ids and an empty set on no match (never throws, never calls a source)', async () => {
         await seedFood(pool, { id: 'f_kale', name: 'Kale, raw' });
 
-        const hits = await dao.search('zzzznotathing');
+        const hits = await dao.search('zzzznotathing', 'search-it-caller');
         expect(hits).toEqual([]);
 
-        const kale = await dao.search('kale');
+        const kale = await dao.search('kale', 'search-it-caller');
         expect(kale.map((hit) => hit.id)).toEqual(['f_kale']);
         expect(kale[0]).toMatchObject({ id: 'f_kale', name: 'Kale, raw' });
         expect(typeof kale[0]!.score).toBe('number');
@@ -144,7 +144,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
                 // Eggplant/Large egg, `be` → Beef). On the real 8,094-row catalog one character matched
                 // 51% of rows and two characters 23%, against a surface showing ten to twenty — so the
                 // page was an arbitrary slice, and FR-010a rules that worse than nothing.
-                await expect(dao.search(query)).resolves.toEqual([]);
+                await expect(dao.search(query, 'search-it-caller')).resolves.toEqual([]);
             },
         );
 
@@ -152,7 +152,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
             // The strongest form of the rule: not "we could not find a good match" but "we did not look".
             await seedFood(pool, { id: 'f_ox', name: 'Ox' });
 
-            await expect(dao.search('Ox')).resolves.toEqual([]);
+            await expect(dao.search('Ox', 'search-it-caller')).resolves.toEqual([]);
         });
 
         it.each(['&', '|', '!', ':', '(', ')', "'", '<', '*', '&&', '::', '<>'])(
@@ -166,7 +166,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
                 // `to_tsquery`; these are simply below the minimum. The case stays because the failure it
                 // guards (a 500 rather than a result) is the one that hurts, and it must keep holding
                 // however the code arrives at it.
-                await expect(dao.search(query)).resolves.toEqual([]);
+                await expect(dao.search(query, 'search-it-caller')).resolves.toEqual([]);
             },
         );
 
@@ -180,7 +180,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
                 // sanitisation. These DO reach the statement, with the metacharacter bound as a value, and
                 // they must not raise — `plainto_tsquery` sanitises, `name % $n` compares text, and the
                 // `ILIKE` pattern is escaped where it is built.
-                await expect(dao.search(query)).resolves.toBeInstanceOf(Array);
+                await expect(dao.search(query, 'search-it-caller')).resolves.toBeInstanceOf(Array);
             },
         );
 
@@ -208,7 +208,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
             await seedFood(pool, { id: `f_${food}`, name: `${food}, raw` });
             await seedFood(pool, { id: 'f_kale', name: 'Kale, raw' });
 
-            expect((await dao.search(food)).map((hit) => hit.id)).toContain(`f_${food}`);
+            expect((await dao.search(food, 'search-it-caller')).map((hit) => hit.id)).toContain(`f_${food}`);
         });
 
         it('matches MID-word again at three characters, which is the 3+ behaviour unchanged', async () => {
@@ -217,9 +217,9 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
 
             // Only the `ILIKE '%hic%'` / trigram branch can match a mid-word 3-character needle, so this is
             // also the assertion that the minimum did not accidentally swallow the third character.
-            expect((await dao.search('hic')).map((hit) => hit.id)).toContain('f_chicken');
+            expect((await dao.search('hic', 'search-it-caller')).map((hit) => hit.id)).toContain('f_chicken');
             // And the statement still searches the DESCRIPTION.
-            expect((await dao.search('soybeans')).map((hit) => hit.id)).toContain('f_desc');
+            expect((await dao.search('soybeans', 'search-it-caller')).map((hit) => hit.id)).toContain('f_desc');
         });
 
         it('surfaces ONLY RESOLVED rows — an in-flight or terminal food is not a search result', async () => {
@@ -237,7 +237,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
                 );
             }
 
-            expect((await dao.search('ched')).map((hit) => hit.id)).toEqual(['f_resolved']);
+            expect((await dao.search('ched', 'search-it-caller')).map((hit) => hit.id)).toEqual(['f_resolved']);
         });
 
         it('caps the result set at the FR-010 limit', async () => {
@@ -246,8 +246,8 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
                 await seedFood(pool, { id: `f_c_${index}`, name: `Cheese variety ${index}` });
             }
 
-            expect(await dao.search('cheese')).toHaveLength(20);
-            expect(await dao.search('cheese', 5)).toHaveLength(5);
+            expect(await dao.search('cheese', 'search-it-caller')).toHaveLength(20);
+            expect(await dao.search('cheese', 'search-it-caller', 5)).toHaveLength(5);
         });
     });
 
@@ -337,7 +337,9 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao head-term retrieval (integration)'
     it('⛔ retrieves across a DIACRITIC the catalog does not carry', async () => {
         await seedFood(pool, { id: 'f-jal', name: 'Peppers, jalapeno, raw' });
 
-        expect((await dao.search('jalapeño', 20)).map((row) => row.name)).toContain('Peppers, jalapeno, raw');
+        expect((await dao.search('jalapeño', 'search-it-caller', 20)).map((row) => row.name)).toContain(
+            'Peppers, jalapeno, raw',
+        );
     });
 
     it('⛔ retrieves the head noun when the cook supplied a modifier the row does not have', async () => {
@@ -346,7 +348,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao head-term retrieval (integration)'
         await seedFood(pool, { id: 'f-ore', name: 'Spices, oregano, dried' });
         await seedFood(pool, { id: 'f-bas', name: 'Basil, fresh' });
 
-        const names = (await dao.search('Fresh oregano', 20)).map((row) => row.name);
+        const names = (await dao.search('Fresh oregano', 'search-it-caller', 20)).map((row) => row.name);
 
         expect(names).toContain('Spices, oregano, dried');
 
@@ -367,7 +369,9 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao head-term retrieval (integration)'
     it('retrieves the generic food behind a brand the catalog has never heard of', async () => {
         await seedFood(pool, { id: 'f-but', name: 'Butter, salted' });
 
-        expect((await dao.search('Kerrygold butter', 20)).map((row) => row.name)).toContain('Butter, salted');
+        expect((await dao.search('Kerrygold butter', 'search-it-caller', 20)).map((row) => row.name)).toContain(
+            'Butter, salted',
+        );
     });
 
     it('⛔ does NOT retrieve on a typo — widening retrieval must not become matching anything', async () => {
@@ -375,12 +379,77 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao head-term retrieval (integration)'
         // starts returning rows, the predicate has stopped discriminating rather than started bridging.
         await seedFood(pool, { id: 'f-chk', name: 'Chicken, broilers or fryers, breast' });
 
-        expect(await dao.search('chikcen', 20)).toHaveLength(0);
+        expect(await dao.search('chikcen', 'search-it-caller', 20)).toHaveLength(0);
     });
 
     it('leaves a single-token query that already worked exactly as it was', async () => {
         await seedFood(pool, { id: 'f-flr', name: 'Flour, wheat, all-purpose' });
 
-        expect((await dao.search('flour', 20)).map((row) => row.name)).toContain('Flour, wheat, all-purpose');
+        expect((await dao.search('flour', 'search-it-caller', 20)).map((row) => row.name)).toContain(
+            'Flour, wheat, all-purpose',
+        );
+    });
+});
+
+describe.skipIf(!DATABASE_URL)('U11/R20 — a private authored food is retrievable ONLY by its author', () => {
+    let pool: pg.Pool;
+    let db: TestDb;
+    let dao: FoodSearchDao;
+
+    const AUTHOR = '01JU11AUTHOR00000000000AAA';
+    const STRANGER = '01JU11STRANGER000000000BBB';
+
+    beforeAll(async () => {
+        pool = makePool();
+        await resetSchema(pool);
+        db = makeDb(pool);
+        dao = new FoodSearchDao(db);
+    });
+
+    afterAll(async () => {
+        await pool?.end();
+    });
+
+    beforeEach(async () => {
+        await pool.query('TRUNCATE food CASCADE');
+        await seedFood(pool, { id: 'f_catalog', name: 'Quinoa, uncooked' });
+        await seedFood(pool, {
+            id: 'f_private',
+            name: 'Quinoa, grandma blend',
+            userId: AUTHOR,
+            visibility: 'private',
+        });
+        await seedFood(pool, {
+            id: 'f_promoted',
+            name: 'Quinoa, promoted blend',
+            userId: AUTHOR,
+            visibility: 'promoted',
+        });
+    });
+
+    it("a stranger's search sees the catalog and PROMOTED rows, never the private one", async () => {
+        const ids = (await dao.search('quinoa', STRANGER)).map((hit) => hit.id);
+
+        expect(ids).toContain('f_catalog');
+        expect(ids).toContain('f_promoted');
+        expect(ids).not.toContain('f_private');
+    });
+
+    it("the author's own search includes their private food, with the raw ownership columns", async () => {
+        const hits = await dao.search('quinoa', AUTHOR);
+
+        const privateHit = hits.find((hit) => hit.id === 'f_private');
+        expect(privateHit).toBeDefined();
+        expect(privateHit?.visibility).toBe('private');
+        expect(privateHit?.userId).toBe(AUTHOR);
+    });
+
+    it("a promoted authored food is flagged 'promoted' for EVERYONE — strangers included", async () => {
+        const hits = await dao.search('quinoa', STRANGER);
+
+        expect(hits.find((hit) => hit.id === 'f_promoted')?.visibility).toBe('promoted');
+        // The DAO carries the RAW column; the service maps 'public' to "no flag on the wire"
+        // (foods.service.test.ts pins that projection), so the raw value is what is asserted here.
+        expect(hits.find((hit) => hit.id === 'f_catalog')?.visibility).toBe('public');
     });
 });

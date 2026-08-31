@@ -80,6 +80,8 @@ export interface MappingWriteFacts {
     readonly liveGlobal: LiveGlobalMapping | undefined;
     readonly liveOwn: { readonly id: string; readonly foodId: string } | undefined;
     readonly corroboratorsForSameFood: readonly CorroboratingMapping[];
+    /** U11/R20: whether the corrected food is someone's PRIVATE authored one (`food_owner_id` set). */
+    readonly correctedFoodIsPrivate: boolean;
 }
 
 /** Everything a write needs beyond the decision itself. */
@@ -285,6 +287,16 @@ export class ResolutionMappingsDal {
             ORDER BY created_at, id
         `);
 
+        // U11/R20: the privacy fact the policy clamps reach on. Read from `ingredients.food_owner_id`
+        // inside the same transaction as the facts above — a food promoted concurrently is read as still
+        // private, which errs toward the NARROWER reach (the correction lands author-scoped and the next
+        // corroborating write promotes it).
+        const privateRows = await writer.execute<{ [column: string]: unknown; one: number }>(sql`
+            SELECT 1 AS one FROM ingredients
+            WHERE food_id = ${foodId} AND food_owner_id IS NOT NULL
+            LIMIT 1
+        `);
+
         const liveGlobal = globalRows.rows[0];
         const liveOwn = ownRows.rows[0];
 
@@ -299,6 +311,7 @@ export class ResolutionMappingsDal {
                       },
             liveOwn: liveOwn === undefined ? undefined : { id: liveOwn.id, foodId: liveOwn.food_id },
             corroboratorsForSameFood: corroboratorRows.rows.map((row) => ({ id: row.id, userId: row.user_id })),
+            correctedFoodIsPrivate: privateRows.rows.length > 0,
         };
     }
 

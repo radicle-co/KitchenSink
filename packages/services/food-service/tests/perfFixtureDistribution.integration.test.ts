@@ -214,7 +214,7 @@ describe.skipIf(!DATABASE_URL)('the SC-007 load fixture, seeded into a real Post
             for (const probe of probes[shape as keyof PerfSearchProbes]) {
                 checked += 1;
 
-                if ((await dao.search(probe)).length === 0) {
+                if ((await dao.search(probe, 'search-it-caller')).length === 0) {
                     empty.push(`${shape}:'${probe}'`);
                 }
             }
@@ -232,7 +232,7 @@ describe.skipIf(!DATABASE_URL)('the SC-007 load fixture, seeded into a real Post
         expect(misses.length).toBeGreaterThan(0);
 
         for (const probe of misses) {
-            expect(await dao.search(probe), `miss probe '${probe}' matched rows`).toEqual([]);
+            expect(await dao.search(probe, 'search-it-caller'), `miss probe '${probe}' matched rows`).toEqual([]);
         }
     }, 60_000);
 });

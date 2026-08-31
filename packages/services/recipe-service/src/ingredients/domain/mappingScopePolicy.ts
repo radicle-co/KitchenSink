@@ -144,6 +144,15 @@ export interface MappingWriteInput {
     /** The food this correction points the phrase at. */
     readonly correctedFoodId: string;
     /**
+     * U11/R20: whether that food is someone's PRIVATE authored one (`ingredients.food_owner_id` set).
+     *
+     * ⛔ REQUIRED, never defaulted, for the reason 015's `hasAvailablePrivateSlot` records: a default would
+     * let a call site that never thought about privacy silently keep the old behaviour, and the old
+     * behaviour here is a curator grant or a corroboration pair binding a private food id for EVERY user —
+     * a mapping strangers can neither resolve (the food 404s for them) nor should ever see.
+     */
+    readonly correctedFoodIsPrivate: boolean;
+    /**
      * Every grant the caller holds.
      *
      * The service passes `scopes` ∪ `permissions`, mirroring `identity`'s `ScopesGuard` rule that a scope is
@@ -200,12 +209,16 @@ export function evaluateMappingWrite(input: MappingWriteInput): MappingWriteDeci
         // ⛔ The mapping subject's OWN grant, supplied here rather than baked into the shared rule. A grant
         // shared between subjects would silently widen whichever one got reused.
         requiredGrant: CURATOR_MAPPING_SCOPE,
-        grantedScopes: input.grantedScopes,
+        // U11/R20: a PRIVATE food's mapping never reaches beyond its author. Spelled as "the grant does not
+        // apply and the corroborators do not count" — one subject-level fact, zero new branches in the
+        // shared rule, so idempotence and own-row supersession behave exactly as they always did. This is
+        // the same shape as the shared policy's own grant parameter: reach is a property of the SUBJECT.
+        grantedScopes: input.correctedFoodIsPrivate ? [] : input.grantedScopes,
         liveGlobal:
             input.liveGlobal === undefined
                 ? undefined
                 : { id: input.liveGlobal.id, answer: input.liveGlobal.foodId, origin: input.liveGlobal.origin },
         liveOwn: input.liveOwn === undefined ? undefined : { id: input.liveOwn.id, answer: input.liveOwn.foodId },
-        corroboratorsForSameAnswer: input.corroboratorsForSameFood,
+        corroboratorsForSameAnswer: input.correctedFoodIsPrivate ? [] : input.corroboratorsForSameFood,
     });
 }

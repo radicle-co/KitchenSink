@@ -336,18 +336,25 @@ export class FoodsService {
      * @returns Ranked results; an empty set on no local match, and an empty set with NO read at all when the
      *   query is below `MIN_SEARCH_QUERY_LENGTH` (FR-010a).
      */
-    public async search(rawQuery: string, withNutrition = false): Promise<SearchResponse> {
+    public async search(rawQuery: string, callerId: string, withNutrition = false): Promise<SearchResponse> {
         const query = rawQuery.trim();
 
         if (!meetsSearchMinimum(query)) {
             return { results: [] };
         }
 
-        const hits = await this.searchDao.search(query);
+        const hits = await this.searchDao.search(query, callerId);
         const results: SearchResponse['results'] = hits.map((hit) => ({
             id: hit.id,
             name: hit.name,
             score: hit.score,
+            // R20 (U11): flagged ONLY on the caller's own authored hits — the lexical tier's
+            // author-augmentation signal. A catalog row publishes nothing; a stranger's private row never
+            // left the DAO's predicate.
+            ...(hit.userId !== null && hit.userId === callerId && hit.visibility === 'private'
+                ? { visibility: 'private' as const }
+                : {}),
+            ...(hit.userId !== null && hit.visibility === 'promoted' ? { visibility: 'promoted' as const } : {}),
         }));
 
         // Crosswalk: a query that is a known barcode or source external_key resolves directly to an id.

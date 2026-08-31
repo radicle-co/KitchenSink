@@ -106,6 +106,13 @@ export interface SearchHit {
     name: string | null;
     /** Relevance score — see {@link SearchStrategy} for the per-strategy definition. */
     score: number;
+    /**
+     * U11 (R20): the 0013 visibility, carried so the service can flag the CALLER's own authored hits on
+     * the wire. Always 'public' for a catalog row; a stranger's private row never leaves the predicate.
+     */
+    visibility: string;
+    /** The authored row's owner, or null for a catalog row — the "is this MY food" comparison key. */
+    userId: string | null;
 }
 
 /**
@@ -149,7 +156,7 @@ export class FoodSearchDao {
      *   the query is below `MIN_SEARCH_QUERY_LENGTH`.
      * @sideEffect Reads `food` — only at or above the minimum.
      */
-    public async search(query: string, limit: number = SEARCH_LIMIT): Promise<SearchHit[]> {
+    public async search(query: string, callerId: string, limit: number = SEARCH_LIMIT): Promise<SearchHit[]> {
         const strategy = selectSearchStrategy(query);
 
         switch (strategy.kind) {
@@ -157,7 +164,7 @@ export class FoodSearchDao {
                 return [];
 
             case 'relevance':
-                return this.run(this.relevanceQuery(query, limit));
+                return this.run(this.relevanceQuery(query, callerId, limit));
 
             default: {
                 const unreachable: never = strategy;
@@ -205,7 +212,7 @@ export class FoodSearchDao {
      * @param limit - Max rows.
      * @returns The composable statement.
      */
-    private relevanceQuery(query: string, limit: number): SQL {
+    private relevanceQuery(query: string, callerId: string, limit: number): SQL {
         // Escaped HERE, at the one place a PATTERN is built — see `toIlikePattern` for why not at validation
         // (the same `query` is bound raw below, where it is a value rather than a pattern).
         const pattern = toIlikePattern(query);
@@ -241,14 +248,14 @@ export class FoodSearchDao {
         const headTerm = head === undefined ? sql`` : sql` OR rank_tokens @> ARRAY[${head}]::text[]`;
 
         return sql`
-            SELECT food.id, food.name, ${score} AS score
+            SELECT food.id, food.name, food.user_id, food.visibility, ${score} AS score
             FROM food
             LEFT JOIN food_popularity fp ON fp.food_id = food.id
             WHERE status = 'RESOLVED'
-              -- ⛔ CATALOG rows only (0013, plan U10): an authored food is author-PRIVATE until U12's
-              -- promotion, and this query serves EVERY caller. U11 widens it to author-scoped inclusion;
-              -- until then an authored row in these results would leak a private record to strangers.
-              AND user_id IS NULL
+              -- R20 (plan U11): catalog rows for everyone, the CALLER's own authored rows for the caller,
+              -- promoted rows for everyone (U12's outcome, admitted here already). A stranger's search can
+              -- never receive another user's private row — the predicate is the privacy boundary.
+              AND (user_id IS NULL OR user_id = ${callerId} OR visibility = 'promoted')
               AND name IS NOT NULL
               AND (
                   search_vector @@ plainto_tsquery('english', ${query})
@@ -271,8 +278,20 @@ export class FoodSearchDao {
      * @sideEffect Reads `food`.
      */
     private async run(statement: SQL): Promise<SearchHit[]> {
-        const result = await this.db.execute<{ id: string; name: string | null; score: number }>(statement);
+        const result = await this.db.execute<{
+            id: string;
+            name: string | null;
+            score: number;
+            visibility: string;
+            user_id: string | null;
+        }>(statement);
 
-        return result.rows.map((row) => ({ id: row.id, name: row.name, score: Number(row.score) }));
+        return result.rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            score: Number(row.score),
+            visibility: row.visibility,
+            userId: row.user_id,
+        }));
     }
 }

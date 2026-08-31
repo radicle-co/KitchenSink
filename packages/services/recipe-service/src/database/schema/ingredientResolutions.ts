@@ -11,7 +11,7 @@
  * (plan U3) is what reads them.
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
-import { check, index, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, index, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const ingredientResolutions = pgTable(
     'ingredient_resolutions',
@@ -32,6 +32,8 @@ export const ingredientResolutions = pgTable(
         rankerVersion: text('ranker_version'),
         /** The band-authority epoch the resolution was made under (plan U3). Null until bands exist. */
         bandEpoch: text('band_epoch'),
+        /** U11 (0040): the shortlist contained the caller's own private food — excluded from band stats. */
+        authorAugmented: boolean('author_augmented').notNull().default(false),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [

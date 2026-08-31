@@ -93,7 +93,7 @@ describe.skipIf(!DATABASE_URL)('catalog tiered ranking (integration)', () => {
 
     /** Rank a query and return the display names in the order the statement produced. */
     async function rank(query: string): Promise<readonly string[]> {
-        const hits = await dao.search(query);
+        const hits = await dao.search(query, 'search-it-caller');
 
         return hits.map((hit) => hit.name ?? '');
     }
@@ -230,7 +230,7 @@ describe.skipIf(!DATABASE_URL)('catalog tiered ranking (integration)', () => {
             // score would reach 9 and silently demote an exact identifier match below a lexical one.
             await seedFoods(pool, [{ id: 'f-flour', name: 'Flour' }]);
 
-            const hits = await dao.search('flour');
+            const hits = await dao.search('flour', 'search-it-caller');
 
             expect(hits[0]!.score).toBeLessThan(1);
             expect(hits[0]!.score).toBeGreaterThan(0);
@@ -308,7 +308,7 @@ describe.skipIf(!DATABASE_URL)('catalog tiered ranking (integration)', () => {
                 await seedFoods(pool, rows);
             },
             search: async (query: string): Promise<readonly ConformanceRow[]> => {
-                const hits = await dao.search(query);
+                const hits = await dao.search(query, 'search-it-caller');
 
                 return hits.map((hit) => ({ id: hit.id, name: hit.name ?? '' }));
             },

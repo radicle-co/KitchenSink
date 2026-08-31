@@ -94,7 +94,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal search (integration: pg_trgm + 
         await dal.createFreeform(makeCanonicalName('Cake flour'));
         await dal.createFreeform(makeCanonicalName('Pastry flour'));
 
-        const results = await dal.search('flour', 2);
+        const results = await dal.search('flour', undefined, 2);
 
         expect(results).toHaveLength(2);
     });

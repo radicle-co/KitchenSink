@@ -185,9 +185,10 @@ describe('FoodsController.getStatus / getCandidates / search', () => {
         // we only assert the delegation.
         ctx.service.search.mockResolvedValue({ results: [] });
 
-        await ctx.controller.search({ query: 'chicken' });
+        await ctx.controller.search({ query: 'chicken' }, makeReq());
 
-        expect(ctx.service.search).toHaveBeenCalledWith('chicken', false);
+        // U11/R20: the requester key rides along so the caller's own authored rows can rank.
+        expect(ctx.service.search).toHaveBeenCalledWith('chicken', USER_ULID, false);
     });
 });
 

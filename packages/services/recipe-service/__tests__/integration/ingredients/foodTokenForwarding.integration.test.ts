@@ -175,7 +175,7 @@ describe('forwarding the caller credential to a REAL food-service socket (integr
             new FoodCatalogGateway(clients(), { enabled: true }),
         );
 
-        const result = await service.suggest(callerToken(ALICE_SECRET), 'chicken', 10);
+        const result = await service.suggest(callerToken(ALICE_SECRET), 'chicken', undefined, 10);
 
         expect(API_REQUESTS(observed)).toEqual([`Bearer ${ALICE_SECRET}`]);
         expect(result.catalogAvailability).toBe('ok');
@@ -280,7 +280,7 @@ describe('forwarding the caller credential to a REAL food-service socket (integr
             new FoodCatalogGateway(clients(), { enabled: true }),
         );
 
-        const result = await service.suggest(callerToken(ALICE_SECRET), 'chicken', 10);
+        const result = await service.suggest(callerToken(ALICE_SECRET), 'chicken', undefined, 10);
 
         // The user still gets their typeahead, with the catalog's absence reported honestly…
         expect(result.catalogAvailability).toBe('unavailable');

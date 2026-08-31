@@ -34,6 +34,7 @@ import {
 import { bandKeyText } from '@kitchensink/recipe-core/resolution/band-authority-store';
 
 import {
+    bandKeyOf,
     buildVerificationRequests,
     type VerifiableLine,
     type VerificationRequestInput,
@@ -87,6 +88,7 @@ const resolutionOf = (
     queryShape: null,
     rankerVersion: null,
     bandEpoch: null,
+    authorAugmented: false,
     createdAt: new Date('2026-08-31T00:00:00.000Z'),
     ...overrides,
 });
@@ -593,5 +595,38 @@ describe("pending re-drives — the withholding lines' stored messages (plan U4c
         const { pendingRedrives } = plan([makeLine({ resolution: undefined })]);
 
         expect(pendingRedrives).toEqual([]);
+    });
+});
+
+describe('U11/R20 — an author-augmented or private-food line stays OUT of the shared band machinery', () => {
+    it('bandKeyOf answers no key for an author-augmented resolution, even a fully-keyed lexical one', () => {
+        // The one change covers consult, skip-record and shadow at once: no key, no band, the line verifies.
+        expect(bandKeyOf(lexicalResolution({ authorAugmented: true }))).toBeUndefined();
+    });
+
+    it('bandKeyOf still answers a key for the same resolution without the flag — the exclusion reads the flag', () => {
+        expect(bandKeyOf(lexicalResolution())).toBeDefined();
+    });
+
+    it("stamps authorAugmented on the message when the shortlist ranked the author's own food", () => {
+        const requests = build([makeLine({ resolution: lexicalResolution({ authorAugmented: true }) })]);
+
+        expect(requests).toHaveLength(1);
+        expect(requests[0]?.authorAugmented).toBe(true);
+    });
+
+    it("stamps privateFood on the message when the bound food is the author's private one", () => {
+        const requests = build([makeLine({ privateFood: true })]);
+
+        expect(requests).toHaveLength(1);
+        expect(requests[0]?.privateFood).toBe(true);
+    });
+
+    it('an ordinary line carries NEITHER key — the wire bytes of the common case are unchanged', () => {
+        const requests = build([makeLine({ resolution: lexicalResolution() })]);
+
+        expect(requests).toHaveLength(1);
+        expect('authorAugmented' in (requests[0] ?? {})).toBe(false);
+        expect('privateFood' in (requests[0] ?? {})).toBe(false);
     });
 });

@@ -145,6 +145,7 @@ function storedLineToVerifiable(
     row: RecipeIngredientRow,
     catalog: ReadonlyMap<string, Ingredient>,
     resolutions: ReadonlyMap<string, LatestResolution>,
+    privateFoodIngredients: ReadonlySet<string>,
 ): VerifiableLine {
     const ingredient = catalog.get(row.ingredientId);
 
@@ -166,6 +167,9 @@ function storedLineToVerifiable(
         // U2/U4: the latest recorded resolution EVENT for this line's ingredient — absence means none
         // exists, which the producer maps to `unattributed`.
         resolution: resolutions.get(row.ingredientId),
+        // U11 (0040): whether this line's food is someone's PRIVATE authored one. Rides to the worker as
+        // the message's `privateFood` — no memo write, no band observation for a food only its author sees.
+        privateFood: privateFoodIngredients.has(row.ingredientId),
     };
 }
 
@@ -1323,10 +1327,32 @@ export class RecipesService {
             return new Map<string, LatestResolution>();
         });
 
+        // U11 (0040): which lines are backed by a PRIVATE authored food, batched like the read above —
+        // but failing the OTHER way. The resolutions read degrades to `unattributed` because absence is
+        // harmless there; here absence of the flag would let the worker write a private food id into the
+        // shared memo tier, so an unreadable privacy fact SKIPS the request instead. The gate's own
+        // contract makes that safe: absence of a verdict means PUBLISH (0023), the pre-gate behaviour.
+        let privateFoodIngredients: ReadonlySet<string>;
+
+        try {
+            privateFoodIngredients = await this.ingredientsDal.privateFoodIngredientIds(
+                [...lines, ...previous].map((row) => row.ingredientId),
+            );
+        } catch (error: unknown) {
+            this.logger.error(
+                'Private-food read failed; verification for this write is skipped (absence means publish).',
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return;
+        }
+
         const plan = buildVerificationRequests({
             recipeId,
-            lines: lines.map((row) => storedLineToVerifiable(row, catalog, resolutions)),
-            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, catalog, resolutions)),
+            lines: lines.map((row) => storedLineToVerifiable(row, catalog, resolutions, privateFoodIngredients)),
+            alreadyRequested: previous.map((row) =>
+                storedLineToVerifiable(row, catalog, resolutions, privateFoodIngredients),
+            ),
             thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
             requestedAt: new Date().toISOString(),
             bands: await this.consultBands(resolutions),

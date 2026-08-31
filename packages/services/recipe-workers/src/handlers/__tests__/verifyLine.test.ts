@@ -730,3 +730,46 @@ describe('band authority at the worker (plan U4b, KTD-A)', () => {
         );
     });
 });
+
+describe('U11/R20 — private-food and author-augmented lines stay OUT of the shared knowledge', () => {
+    it('a privateFood message writes NO memo, even on a verified identity agreement', async () => {
+        const d = deps();
+        await processVerification(d, { ...MESSAGE, privateFood: true });
+
+        // The verdict itself still lands — the author's own line is verified like any other.
+        expect(d.spies.recordVerdict).toHaveBeenCalledTimes(1);
+        expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
+    });
+
+    it('a privateFood message feeds NO band observation and consults NO authority', async () => {
+        const d = deps();
+        await processVerification(d, { ...MESSAGE, privateFood: true });
+
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+    });
+
+    it('an authorAugmented message feeds NO band observation — but the memo is NOT its concern', async () => {
+        const d = deps();
+        await processVerification(d, { ...MESSAGE, authorAugmented: true });
+
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+        // The BOUND food here is public (only the shortlist ranked a private one), so the phrase → food
+        // memo is still legitimate shared knowledge and still written.
+        expect(d.spies.rememberAgreement).toHaveBeenCalledTimes(1);
+    });
+
+    it('an unreadable answer on an excluded line reports nothing to the bands either', async () => {
+        const d = deps();
+        d.spies.converse.mockResolvedValue({
+            kind: 'answered',
+            text: 'not json at all',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 660, outputTokens: 42, totalTokens: 702 },
+        });
+        await processVerification(d, { ...MESSAGE, privateFood: true });
+
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+    });
+});

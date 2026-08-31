@@ -173,6 +173,9 @@ const OWNER_COLUMNS = [
     // table uses the spelling), and ONE vocabulary beats a per-database one: a spelling is a decision,
     // not a schema fact, and two lists would drift the day a table moves between services.
     'requester_id',
+    // U11 (0040): `ingredients.food_owner_id` — the captured privacy fact for a private authored food.
+    // An app-user ULID like every other member; the sweep's step 13 reaches it.
+    'food_owner_id',
 ] as const;
 
 /**
@@ -345,12 +348,13 @@ const RETAINED_BY_RULING: ReadonlyMap<string, { readonly why: string; readonly c
  * parser that silently stops matching goes RED instead of green, which is the failure a gate over a derived
  * set is most exposed to.
  *
- * ⚠️ Raised from 6 to 8 when the discovery became a FOLD (see the module docstring). The current schema has
- * exactly eight, so the slack a fold could use to spuriously drop a table is ZERO — one spurious drop goes
- * red. That is deliberate, and it is the cost: this constant must be raised in the same change as any
- * migration adding a user-bearing table, or the gate goes red on the addition rather than on a defect.
+ * ⚠️ Raised from 6 to 8 when the discovery became a FOLD (see the module docstring), and 8 → 9 when U11's
+ * 0040 gave `ingredients` its `food_owner_id`. The current schema has exactly nine, so the slack a fold
+ * could use to spuriously drop a table is ZERO — one spurious drop goes red. That is deliberate, and it is
+ * the cost: this constant must be raised in the same change as any migration adding a user-bearing table,
+ * or the gate goes red on the addition rather than on a defect.
  */
-const MINIMUM_OWNER_BEARING_TABLES = 8;
+const MINIMUM_OWNER_BEARING_TABLES = 9;
 
 /**
  * The fewest handle-bearing `table.column` locations a working discovery must find.

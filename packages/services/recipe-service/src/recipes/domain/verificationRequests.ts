@@ -129,6 +129,11 @@ export interface VerifiableLine {
      * requires, and the band fields are what authority is consulted under.
      */
     readonly resolution: LatestResolution | undefined;
+    /**
+     * U11/R20: the bound food is the OWNER's private authored one (`ingredients.food_owner_id` matched
+     * the recipe's owner). Rides to the worker as the message's `privateFood` — no memo, no band.
+     */
+    readonly privateFood?: boolean;
 }
 
 /**
@@ -327,7 +332,10 @@ export function bandKeyOf(resolution: LatestResolution | undefined): BandKey | u
         resolution.tier !== 'lexical' ||
         resolution.rung === null ||
         resolution.queryShape === null ||
-        resolution.rankerVersion === null
+        resolution.rankerVersion === null ||
+        // U11/R20: an author-augmented shortlist's margins describe ONE user's private catalog. No band is
+        // consulted (no skip, no shadow) and none is fed — the line simply verifies, every time.
+        resolution.authorAugmented
     ) {
         return undefined;
     }
@@ -439,6 +447,10 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
             shortlist: evidence.kind === 'ranked' ? [...evidence.shortlist] : [],
             requestedAt: input.requestedAt,
             ...(shadow ? { shadowSample: true } : {}),
+            // U11/R20 — see the message schema: author-augmented margins feed no band; a private bound
+            // food writes no memo. Spread so an ordinary line's wire bytes are unchanged.
+            ...(line.resolution?.authorAugmented ? { authorAugmented: true } : {}),
+            ...(line.privateFood ? { privateFood: true } : {}),
         };
 
         requests.push(message);

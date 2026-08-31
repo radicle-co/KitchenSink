@@ -42,6 +42,7 @@ const AUTHOR_B = '01JU10AUTHOR000000000000BB';
 function input(overrides: Partial<MappingWriteInput> = {}): MappingWriteInput {
     return {
         correctedFoodId: CORRECTED_FOOD,
+        correctedFoodIsPrivate: false,
         grantedScopes: [],
         liveGlobal: undefined,
         liveOwn: undefined,
@@ -228,5 +229,64 @@ describe('evaluateMappingWrite — supersession is SCOPE-GATED (the two escalati
                 }
             }
         }
+    });
+});
+
+describe('evaluateMappingWrite — U11/R20: a PRIVATE authored food never binds beyond its author', () => {
+    it('clamps a grant holder to an author-scoped write — the grant buys no global reach over a private food', () => {
+        const decision = evaluateMappingWrite(
+            input({ correctedFoodIsPrivate: true, grantedScopes: [CURATOR_MAPPING_SCOPE] }),
+        );
+
+        expectWrite(decision, 'author');
+
+        if (decision.write === 'author') {
+            expect(decision.scope).toBe('author');
+            expect(decision.promotion).toBeUndefined();
+        }
+    });
+
+    it('never promotes by corroboration, however many other authors agree', () => {
+        const decision = evaluateMappingWrite(
+            input({ correctedFoodIsPrivate: true, corroboratorsForSameFood: ONE_CORROBORATOR }),
+        );
+
+        expectWrite(decision, 'author');
+
+        if (decision.write === 'author') {
+            expect(decision.promotion).toBeUndefined();
+        }
+    });
+
+    it("still supersedes the caller's OWN earlier mapping — privacy narrows reach, not self-correction", () => {
+        const decision = evaluateMappingWrite(
+            input({
+                correctedFoodIsPrivate: true,
+                liveOwn: { id: OWN_ID, foodId: OTHER_FOOD },
+            }),
+        );
+
+        expectWrite(decision, 'author');
+
+        if (decision.write === 'author') {
+            expect(decision.supersedes).toBe(OWN_ID);
+        }
+    });
+
+    it("stays idempotent — re-asserting the caller's own private-food mapping writes nothing", () => {
+        const decision = evaluateMappingWrite(
+            input({
+                correctedFoodIsPrivate: true,
+                liveOwn: { id: OWN_ID, foodId: CORRECTED_FOOD },
+            }),
+        );
+
+        expectWrite(decision, 'none');
+    });
+
+    it('a PUBLIC food with the same grant still writes globally — the clamp reads the flag, not the vibe', () => {
+        const decision = evaluateMappingWrite(input({ grantedScopes: [CURATOR_MAPPING_SCOPE] }));
+
+        expectWrite(decision, 'global');
     });
 });

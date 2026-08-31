@@ -80,9 +80,9 @@ describe('IngredientsService', () => {
             const rows = [makeIngredient({ id: 'a' })];
             dalMocks['search']!.mockResolvedValue(rows);
 
-            const results = await service.search('  flour  ', 5);
+            const results = await service.search('  flour  ', undefined, 5);
 
-            expect(dalMocks['search']).toHaveBeenCalledWith('flour', 5);
+            expect(dalMocks['search']).toHaveBeenCalledWith('flour', undefined, 5);
             expect(results).toBe(rows);
         });
     });
@@ -265,6 +265,8 @@ describe('IngredientsService', () => {
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 canonicalName: 'Flour, wheat, all-purpose',
+                // U11 (0040): the refresh SAW the food body (no private visibility), so the fact CLEARS.
+                foodOwnerId: null,
             });
             expect(result).toBe(resolved);
         });
@@ -291,6 +293,8 @@ describe('IngredientsService', () => {
 
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                // U11 (0040): same re-capture — a non-private body clears the privacy fact.
+                foodOwnerId: null,
             });
         });
 

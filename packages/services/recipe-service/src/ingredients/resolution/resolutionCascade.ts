@@ -99,6 +99,12 @@ export type TierOutcome =
           readonly shortlist?: readonly ScoredCandidate[] | undefined;
           /** The top hit's ladder rung — the band key's first axis. Ranking tiers only. */
           readonly rung?: string | undefined;
+          /**
+           * U11 (R20): the shortlist contained the CALLER's own private authored food, so its margins are
+           * facts about one user's catalog rather than the shared ranker. The event records the flag, no
+           * band epoch is observed, and the verification is excluded from band feedback on both sides.
+           */
+          readonly authorAugmented?: boolean | undefined;
       }
     | {
           readonly kind: 'pass';
@@ -172,6 +178,7 @@ export type CascadeOutcome =
           readonly confidence?: number | undefined;
           readonly shortlist?: readonly ScoredCandidate[] | undefined;
           readonly rung?: string | undefined;
+          readonly authorAugmented?: boolean | undefined;
           /** The tiers consulted, in order, up to and including the one that answered. */
           readonly consulted: readonly ResolutionTierId[];
           /** The consulted tiers whose I/O FAILED. Never overlaps with the tier that answered. */
@@ -249,6 +256,7 @@ export async function runResolutionCascade(
                 confidence: outcome.confidence,
                 shortlist: outcome.shortlist,
                 rung: outcome.rung,
+                authorAugmented: outcome.authorAugmented,
                 consulted,
                 unavailable,
             };

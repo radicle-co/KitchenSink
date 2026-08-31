@@ -18,6 +18,7 @@ import {
     timestamp,
     uniqueIndex,
     uuid,
+    varchar,
 } from 'drizzle-orm/pg-core';
 import type { CatalogFoodResolutionStatus, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
@@ -58,6 +59,13 @@ export const ingredients = pgTable(
         // fdcId; not a cross-DB FK. NULL for user-entered / freeform ingredients.
         foodId: text('food_id'),
         foodResolutionStatus: text('food_resolution_status'),
+        /**
+         * R20 (0040, plan U11): the AUTHOR's ULID when the referenced food is their PRIVATE authored one,
+         * captured at admission/refresh like `prior_fraction` (ADR-0006 forbids the cross-DB join). Every
+         * local retrieval surface filters on it; NULL for catalog/promoted foods. Erasure deletes
+         * unreferenced rows and retains referenced ones pseudonymously (the recipes/owner_id posture).
+         */
+        foodOwnerId: varchar('food_owner_id', { length: 255 }),
         isUserEntered: boolean('is_user_entered').notNull().default(false),
         // ⛔ NO NUTRITION COLUMNS, and none may be added (KTD-3 / plan U10, migration 0019).
         //

@@ -84,7 +84,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal tiered ranking (integration)', 
             await dal.createFreeform(makeCanonicalName(name));
         }
 
-        const results = await dal.search(query, limit);
+        const results = await dal.search(query, undefined, limit);
 
         return results.map((row) => row.name);
     }
@@ -220,7 +220,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal tiered ranking (integration)', 
                 }
             },
             search: async (query: string): Promise<readonly ConformanceRow[]> => {
-                const results = await dal.search(query, 50);
+                const results = await dal.search(query, undefined, 50);
 
                 return results.map((row) => ({ id: row.id, name: row.name }));
             },

@@ -172,8 +172,8 @@ export class IngredientsService {
      * @returns Ranked catalog ingredients.
      * @sideEffect Reads `ingredients`.
      */
-    public async search(query: string, limit?: number): Promise<Ingredient[]> {
-        return this.dal.search(query.trim(), limit);
+    public async search(query: string, callerUserId?: string, limit?: number): Promise<Ingredient[]> {
+        return this.dal.search(query.trim(), callerUserId, limit);
     }
 
     /**
@@ -208,13 +208,14 @@ export class IngredientsService {
     public async suggest(
         caller: CallerToken | undefined,
         query: string,
+        callerUserId?: string,
         limit?: number,
     ): Promise<IngredientSuggestions> {
         const trimmed = query.trim();
         const perSection = clampLimit(limit);
 
         const [local, catalog] = await Promise.all([
-            this.dal.search(trimmed, perSection),
+            this.dal.search(trimmed, callerUserId, perSection),
             // The gateway is total by contract; this guard exists so a future regression there degrades the
             // typeahead rather than 500-ing a keystroke.
             this.catalog
@@ -316,7 +317,11 @@ export class IngredientsService {
      *   terminal, still mid-resolution, or nameless — and no row already exists to advance.
      * @sideEffect One food-service read, then inserts/updates `ingredients`.
      */
-    public async addByFoodId(caller: CallerToken | undefined, foodId: string): Promise<Ingredient> {
+    public async addByFoodId(
+        caller: CallerToken | undefined,
+        foodId: string,
+        callerUserId?: string,
+    ): Promise<Ingredient> {
         const id = foodId.trim();
         const existing = await this.dal.findByFoodId(id);
 
@@ -362,6 +367,11 @@ export class IngredientsService {
         // U5: the golden record's consumption prior, captured into the local cache (ADR-0006 forbids a
         // cross-database join at rank time). Spread, not assigned: absent stays absent.
         const prior = status.food?.priorFraction === undefined ? {} : { priorFraction: status.food.priorFraction };
+        // U11/R20: the privacy fact, captured the same way. `visibility: 'private'` on the response means
+        // the CALLER is the author — the authorship policy 404s everyone else — so their ULID is the one
+        // to record; anything else (catalog, promoted) records nothing.
+        const privacy =
+            status.food?.visibility === 'private' && callerUserId !== undefined ? { foodOwnerId: callerUserId } : {};
         const row =
             existing ??
             (await this.dal.createFoodBacked({
@@ -369,6 +379,7 @@ export class IngredientsService {
                 foodId: id,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
                 ...prior,
+                ...privacy,
             }));
         // Status + name — nutrition is no longer copied into this table (U10). The name matters even when the
         // row already existed: the pick may be landing on a row the importer minted under prose, and leaving
@@ -472,7 +483,7 @@ export class IngredientsService {
         }
 
         try {
-            const admitted = await this.addByFoodId(caller, outcome.foodId);
+            const admitted = await this.addByFoodId(caller, outcome.foodId, userId);
 
             // U2: the provenance EVENT — which tier answered, recorded so the verification producer can
             // send real evidence and the band log (plan U3) has a substrate. Quietly: a lost event
@@ -494,7 +505,12 @@ export class IngredientsService {
                                   shortlist: outcome.shortlist,
                                   queryShape: queryShapeOf(name),
                                   rankerVersion: RANKER_VERSION,
-                                  bandEpoch: await this.observedBandEpoch(outcome.rung, outcome.confidence, name),
+                                  authorAugmented: outcome.authorAugmented ?? false,
+                                  // U11/R20: an author-augmented shortlist's margins describe ONE user's
+                                  // catalog, so no shared band authority is consulted or observed for it.
+                                  bandEpoch: outcome.authorAugmented
+                                      ? undefined
+                                      : await this.observedBandEpoch(outcome.rung, outcome.confidence, name),
                               }),
                     });
                 } catch (recordError) {
@@ -669,7 +685,11 @@ export class IngredientsService {
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      * @sideEffect Calls the food service, then updates `ingredients`.
      */
-    public async refreshStatus(caller: CallerToken | undefined, id: string): Promise<Ingredient> {
+    public async refreshStatus(
+        caller: CallerToken | undefined,
+        id: string,
+        callerUserId?: string,
+    ): Promise<Ingredient> {
         const ingredient = await this.requireIngredient(id);
 
         // Freeform / user-entered ingredients carry no food reference — nothing to poll.
@@ -690,6 +710,15 @@ export class IngredientsService {
                 // U5: the refresh IS the prior's staleness contract — a food-side prior update reaches
                 // the local rank column on exactly this write. Absent leaves the stored value.
                 ...(status.food?.priorFraction === undefined ? {} : { priorFraction: status.food.priorFraction }),
+                // U11/R20: the refresh re-captures the privacy fact — and unlike the prior, it CLEARS on a
+                // non-private answer (promotion is exactly the transition this write must observe). A
+                // status-only response (no food body) leaves it untouched.
+                ...(status.food === undefined
+                    ? {}
+                    : {
+                          foodOwnerId:
+                              status.food.visibility === 'private' && callerUserId !== undefined ? callerUserId : null,
+                      }),
             });
 
             return updated ?? ingredient;

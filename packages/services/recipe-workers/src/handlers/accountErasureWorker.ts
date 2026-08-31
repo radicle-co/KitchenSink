@@ -564,6 +564,19 @@ export const eraseRecipeRows = async (
         //     not cover it, which is why this step exists while 10-12's old sweeps stay removed.
         await tx.execute(sql`DELETE FROM recipe_parse_jobs WHERE owner_id = ${ownerId}`);
 
+        // 13. Private-food catalog rows (plan U11/R20, 0040). The shared `ingredients` catalog carries
+        //     `food_owner_id` for the dead author's PRIVATE authored foods; those rows exist only so the
+        //     author could bind them. Unreferenced ones are DELETED (nothing needs the name any more);
+        //     ones a KEPT public recipe still lines against are RETAINED — the pseudonymous ULID beside a
+        //     food NAME is the recipes/owner_id posture, and the search filter hides the row from every
+        //     living caller regardless. The DELETE runs AFTER the recipe deletes above, so references from
+        //     the erased recipes are already gone.
+        await tx.execute(sql`
+            DELETE FROM ingredients i
+             WHERE i.food_owner_id = ${ownerId}
+               AND NOT EXISTS (SELECT 1 FROM recipe_ingredients ri WHERE ri.ingredient_id = i.id)
+        `);
+
         // ⛔ STEPS 10-12 (curated mappings, resolution memos, parse corrections) STOOD HERE AND WERE
         //    REMOVED — owner ruling 2026-08-25, ADR-0027. An ingredient phrase is not private data, so no
         //    statement here targets one, and the `user_id` those two correction tiers still carry is a

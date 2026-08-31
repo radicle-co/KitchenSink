@@ -123,6 +123,11 @@ export function shouldReformulate(phrase: string, hits: readonly CatalogHit[]): 
  * @param hits - The ranked hits, highest score first (the gateway's order).
  * @returns A resolution proposing the top hit with its evidence, or a pass on an empty set.
  */
+/** Whether any hit is the CALLER's own private authored food (U11/R20) — the band-exclusion trigger. Pure. */
+function isAuthorAugmented(hits: readonly CatalogHit[]): boolean {
+    return hits.some((hit) => hit.visibility === 'private');
+}
+
 export function decideLexicalTier(phrase: string, hits: readonly CatalogHit[]): TierOutcome {
     const top = hits[0];
 
@@ -146,6 +151,7 @@ export function decideLexicalTier(phrase: string, hits: readonly CatalogHit[]): 
 
     return {
         kind: 'resolved',
+        authorAugmented: isAuthorAugmented(hits),
         tier: 'lexical',
         foodId: top.foodId,
         evidence: `lexical shortlist (rung ${rung}, ${String(hits.length)} candidates, margin ${

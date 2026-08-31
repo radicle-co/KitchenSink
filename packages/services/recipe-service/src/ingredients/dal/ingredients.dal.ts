@@ -63,6 +63,8 @@ export interface CreateFoodBackedInput {
     readonly foodResolutionStatus: CatalogFoodResolutionStatus;
     /** U5: the FNDDS consumption-prior fraction captured from food's golden record. Omit when none. */
     readonly priorFraction?: number;
+    /** U11 (0040): the admitting AUTHOR's ULID when the food is their PRIVATE authored one. Omit otherwise. */
+    readonly foodOwnerId?: string;
 }
 
 /** Input to {@link IngredientsDal.updateResolution}. */
@@ -82,6 +84,12 @@ export interface UpdateResolutionInput {
      * must not clobber a fraction an earlier refresh captured.
      */
     readonly priorFraction?: number;
+    /**
+     * U11 (0040): the re-captured privacy fact. `null` CLEARS it (promotion/catalog — the refresh KNOWS
+     * the current state, unlike the prior above), a ULID sets it, and `undefined` leaves it untouched
+     * (status-only refresh paths that never saw the food body).
+     */
+    readonly foodOwnerId?: string | null;
 }
 
 /**
@@ -241,7 +249,7 @@ export class IngredientsDal {
         return result.rows.map((row) => ({ recipeId: row.recipe_id, ownerId: row.owner_id }));
     }
 
-    public async search(query: string, limit?: number): Promise<Ingredient[]> {
+    public async search(query: string, callerId?: string, limit?: number): Promise<Ingredient[]> {
         const strategy = selectIngredientMatchStrategy(query);
 
         if (strategy.kind === 'none') {
@@ -272,9 +280,13 @@ export class IngredientsDal {
         const result = await this.db.execute<RawIngredientRow>(sql`
             SELECT ${RETURNING}, ${score} AS score
             FROM ingredients
-            WHERE search_vector @@ plainto_tsquery('english', ${query})
+            WHERE (food_owner_id IS NULL OR food_owner_id = ${callerId ?? null})
+              -- ⛔ R20 (0040, plan U11): a private authored food's row is visible ONLY to its author. The
+              -- privacy predicate wraps ALL retrieval branches — a new branch added below is scoped
+              -- automatically rather than remembered.
+              AND (search_vector @@ plainto_tsquery('english', ${query})
                OR ${query} <% ingredients.name
-               OR ingredients.name ILIKE ${pattern}${headRetrieval}
+               OR ingredients.name ILIKE ${pattern}${headRetrieval})
             ORDER BY score DESC,
                      ingredients.name ASC
             LIMIT ${clampLimit(limit)}
@@ -319,6 +331,33 @@ export class IngredientsDal {
         );
 
         return result.rows.map(rowToIngredient);
+    }
+
+    /**
+     * U11 (0040): of the given ingredient ids, the ones whose backing food is someone's PRIVATE authored
+     * one (`food_owner_id IS NOT NULL`).
+     *
+     * ⛔ A SET, not the owner ids: the verification producer needs only the boolean ("is this line's food
+     * private?") to stamp `privateFood` on the message, and handing it the owner ULIDs would put a user
+     * id in a code path that has no business holding one (ADR-0027's counter-not-predicate posture).
+     *
+     * @param ids - The ingredient ids to check (empty is answered without a query).
+     * @returns The subset of `ids` backed by a private food.
+     * @sideEffect Reads `ingredients`.
+     */
+    public async privateFoodIngredientIds(ids: readonly string[]): Promise<ReadonlySet<string>> {
+        if (ids.length === 0) {
+            return new Set<string>();
+        }
+
+        const result = await this.db.execute<{ [column: string]: unknown; id: string }>(
+            sql`SELECT id FROM ingredients WHERE food_owner_id IS NOT NULL AND id IN (${sql.join(
+                ids.map((id) => sql`${id}`),
+                sql`, `,
+            )})`,
+        );
+
+        return new Set(result.rows.map((row) => row.id));
     }
 
     /**
@@ -442,9 +481,10 @@ export class IngredientsDal {
         // empty — we then re-read the winner's row instead of creating a duplicate catalog entry.
         const result = await this.db.execute<RawIngredientRow>(sql`
             INSERT INTO ingredients (name, food_id, food_resolution_status, is_user_entered, search_vector,
-                                     prior_fraction)
+                                     prior_fraction, food_owner_id)
             VALUES (${input.name}, ${input.foodId}, ${input.foodResolutionStatus}, false,
-                    to_tsvector('english', ${input.name}), ${input.priorFraction ?? null})
+                    to_tsvector('english', ${input.name}), ${input.priorFraction ?? null},
+                    ${input.foodOwnerId ?? null})
             ON CONFLICT DO NOTHING
             RETURNING ${RETURNING}
         `);
@@ -504,7 +544,11 @@ export class IngredientsDal {
                 search_vector = to_tsvector('english', COALESCE(${canonicalName}::text, name)),
                 -- U5: absent input LEAVES the stored fraction — one refresh without a prior must not
                 -- clobber what an earlier refresh captured.
-                prior_fraction = COALESCE(${input.priorFraction ?? null}::numeric, prior_fraction)
+                prior_fraction = COALESCE(${input.priorFraction ?? null}::numeric, prior_fraction),
+                -- U11: the refresh KNOWS the privacy fact when it saw the food body: null clears it
+                -- (promotion), a ULID sets it, and an omitted input (status-only paths) leaves it alone.
+                food_owner_id = CASE WHEN ${input.foodOwnerId === undefined}
+                                     THEN food_owner_id ELSE ${input.foodOwnerId ?? null} END
             WHERE id = ${id}
             RETURNING ${RETURNING}
         `);

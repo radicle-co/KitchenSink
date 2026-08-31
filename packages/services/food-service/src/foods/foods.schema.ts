@@ -357,6 +357,12 @@ export const searchResultViewSchema = z.object({
     proteinGPer100g: z.number().finite().optional(),
     carbsGPer100g: z.number().finite().optional(),
     fatGPer100g: z.number().finite().optional(),
+    /**
+     * U11 (R20): present ONLY on the CALLER's own authored hits — `private` until promotion. A stranger
+     * never receives the row at all, so this never describes anyone else's food; the recipe side's
+     * lexical tier reads it to flag an author-augmented shortlist out of the shared band statistics.
+     */
+    visibility: z.enum(['private', 'promoted']).optional(),
 });
 
 export type SearchResultView = z.infer<typeof searchResultViewSchema>;

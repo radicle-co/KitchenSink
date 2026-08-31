@@ -612,15 +612,25 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         }
     });
 
-    it('never deletes from the shared global ingredients table', async () => {
+    it('deletes from the shared ingredients table ONLY behind the owner + unreferenced predicates (U11)', async () => {
+        // REWRITTEN for plan U11/R20 (this test used to forbid ANY delete here): step 13 now removes the
+        // dead author's PRIVATE-food rows, so the guard proves the new shape instead — every DELETE that
+        // touches `ingredients` must carry BOTH the `food_owner_id` scope and the reference check. A bare
+        // `DELETE FROM ingredients`, or one missing either predicate, is still the catastrophic statement
+        // this test exists to forbid. The behavioural half (referenced rows survive, `food_owner_id`
+        // intact) is proven against a real database in `privateFoodErasure.integration.test.ts`.
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
 
         await eraseRecipeRows(control.db, OWNER, []);
 
-        for (const statement of control.statements()) {
-            expect(statement.text).not.toMatch(/delete from ingredients/i);
-        }
+        const touching = control.statements().filter((statement) => /delete from ingredients\b/i.test(statement.text));
+
+        expect(touching).toHaveLength(1);
+        expect(touching[0]?.text).toMatch(/food_owner_id\s*=\s*\$\d/i);
+        expect(touching[0]?.text).toMatch(/not exists/i);
+        expect(touching[0]?.text).toMatch(/recipe_ingredients/i);
+        expect(touching[0]?.params).toContain(OWNER);
     });
 
     it('does not hand-delete rows the FK cascade already removes', async () => {

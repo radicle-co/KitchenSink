@@ -178,7 +178,7 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
             async (query) => {
                 const { service, searchDao, sources } = makeSearchService();
 
-                await expect(service.search(query)).resolves.toEqual({ results: [] });
+                await expect(service.search(query, CALLER)).resolves.toEqual({ results: [] });
 
                 expect(searchDao.search).not.toHaveBeenCalled();
                 // ⛔ The two reads a DAO-only gate would leave running on every keystroke.
@@ -190,9 +190,64 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
         it('refuses everything shorter than the shared minimum, whatever that minimum is', async () => {
             const { service, searchDao } = makeSearchService();
 
-            await service.search('a'.repeat(MIN_SEARCH_QUERY_LENGTH - 1));
+            await service.search('a'.repeat(MIN_SEARCH_QUERY_LENGTH - 1), CALLER);
 
             expect(searchDao.search).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('U11/R20 — the wire visibility flag on search results', () => {
+        /** A raw DAO hit; overrides pick the ownership axis under test. */
+        function hit(overrides: { userId?: string | null; visibility?: string } = {}): {
+            id: string;
+            name: string;
+            score: number;
+            userId: string | null;
+            visibility: string;
+        } {
+            return {
+                id: 'f_hit',
+                name: 'Quinoa, blend',
+                score: 0.9,
+                userId: overrides.userId ?? null,
+                visibility: overrides.visibility ?? 'public',
+            };
+        }
+
+        it("flags the CALLER's own private food 'private'", async () => {
+            const { service, searchDao } = makeSearchService();
+            searchDao.search.mockResolvedValue([hit({ userId: CALLER, visibility: 'private' })]);
+
+            const { results } = await service.search('quinoa', CALLER);
+
+            expect(results[0]?.visibility).toBe('private');
+        });
+
+        it("flags a promoted authored food 'promoted' for a STRANGER", async () => {
+            const { service, searchDao } = makeSearchService();
+            searchDao.search.mockResolvedValue([hit({ userId: 'someone-else', visibility: 'promoted' })]);
+
+            const { results } = await service.search('quinoa', CALLER);
+
+            expect(results[0]?.visibility).toBe('promoted');
+        });
+
+        it('publishes NO flag for a plain catalog row — the common case is byte-identical to pre-U11', async () => {
+            const { service, searchDao } = makeSearchService();
+            searchDao.search.mockResolvedValue([hit()]);
+
+            const { results } = await service.search('quinoa', CALLER);
+
+            expect(results[0] !== undefined && 'visibility' in results[0]).toBe(false);
+        });
+
+        it("NEVER flags another user's private row 'private' — even if the DAO predicate ever leaked one", async () => {
+            const { service, searchDao } = makeSearchService();
+            searchDao.search.mockResolvedValue([hit({ userId: 'someone-else', visibility: 'private' })]);
+
+            const { results } = await service.search('quinoa', CALLER);
+
+            expect(results[0] !== undefined && 'visibility' in results[0]).toBe(false);
         });
     });
 
@@ -211,7 +266,7 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
             searchDao.search.mockResolvedValue([...HITS]);
             foodDao.nutrientRowsFor.mockResolvedValue([...ROWS]);
 
-            const response = await service.search('flour', true);
+            const response = await service.search('flour', CALLER, true);
 
             expect(foodDao.nutrientRowsFor).toHaveBeenCalledWith(['F-1', 'F-2']);
             expect(response.results[0]).toMatchObject({ id: 'F-1', caloriesPer100g: 364, proteinGPer100g: 10 });
@@ -223,7 +278,7 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
             const { service, searchDao, foodDao } = makeSearchService();
             searchDao.search.mockResolvedValue([...HITS]);
 
-            await service.search('flour');
+            await service.search('flour', CALLER);
 
             expect(foodDao.nutrientRowsFor).not.toHaveBeenCalled();
         });
@@ -231,7 +286,7 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
         it('an empty hit set never issues the nutrient read', async () => {
             const { service, foodDao } = makeSearchService();
 
-            await service.search('flour', true);
+            await service.search('flour', CALLER, true);
 
             expect(foodDao.nutrientRowsFor).not.toHaveBeenCalled();
         });
@@ -241,10 +296,10 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
         it.each(['egg', 'ham', 'rye', 'chicken breast'])('searches for %j', async (query) => {
             const { service, searchDao, sources } = makeSearchService();
 
-            await service.search(query);
+            await service.search(query, CALLER);
 
             // Without this the suite above would pass on a `search` that does nothing at all.
-            expect(searchDao.search).toHaveBeenCalledWith(query);
+            expect(searchDao.search).toHaveBeenCalledWith(query, CALLER);
             expect(sources.findFoodIdByBarcode).toHaveBeenCalledWith(query);
             expect(sources.findFoodIdByExternalKey).toHaveBeenCalledWith('usda', query);
         });
@@ -252,9 +307,9 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
         it('still trims before measuring, so a padded three-character query is searched', async () => {
             const { service, searchDao } = makeSearchService();
 
-            await service.search('  egg  ');
+            await service.search('  egg  ', CALLER);
 
-            expect(searchDao.search).toHaveBeenCalledWith('egg');
+            expect(searchDao.search).toHaveBeenCalledWith('egg', CALLER);
         });
     });
 });

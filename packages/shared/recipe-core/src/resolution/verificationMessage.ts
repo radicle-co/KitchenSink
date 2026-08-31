@@ -246,6 +246,18 @@ export const verifyIngredientLineMessageSchema = z.object({
      * the resulting observation under source `shadow` rather than `gate`. Absent means an ordinary send.
      */
     shadowSample: z.boolean().optional(),
+    /**
+     * U11/R20: the shortlist behind this line was AUTHOR-AUGMENTED — the caller's own private food ranked
+     * in it, so its margins are facts about one user's catalog. The worker records NO band observation
+     * for the verdict; everything else about the verification is unchanged.
+     */
+    authorAugmented: z.boolean().optional(),
+    /**
+     * U11/R20: the BOUND food is the caller's own PRIVATE authored one. The worker writes NO resolution
+     * memo (a memo row would surface the private food id in every user's memo tier) and NO band
+     * observation. The verdict itself still lands — the author's own line is verified like any other.
+     */
+    privateFood: z.boolean().optional(),
 });
 
 /** The verification gate's message contract. */

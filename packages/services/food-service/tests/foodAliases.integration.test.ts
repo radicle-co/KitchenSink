@@ -223,7 +223,7 @@ describe.skipIf(!DATABASE_URL)('food.aliases — USDA curated aliases (U2, integ
             });
 
             // 'Tillamook' is in no name and no description in the store — only the alias vector can find it.
-            const hits = await search.search('Tillamook');
+            const hits = await search.search('Tillamook', 'alias-test-caller');
 
             expect(hits.map((hit) => hit.id)).toEqual([cheddar]);
         });
@@ -236,7 +236,7 @@ describe.skipIf(!DATABASE_URL)('food.aliases — USDA curated aliases (U2, integ
                 candidates: [makeCandidate({ aliases: ['Tillamook'] })],
             });
 
-            const [hit] = await search.search('Tillamook');
+            const [hit] = await search.search('Tillamook', 'alias-test-caller');
 
             expect(hit?.score).toBeGreaterThan(0);
         });
@@ -264,7 +264,7 @@ describe.skipIf(!DATABASE_URL)('food.aliases — USDA curated aliases (U2, integ
                 ],
             });
 
-            const hits = await search.search('Cheddar cheese');
+            const hits = await search.search('Cheddar cheese', 'alias-test-caller');
 
             expect(hits.map((hit) => hit.id)).toEqual([named, aliased]);
         });
@@ -279,7 +279,7 @@ describe.skipIf(!DATABASE_URL)('food.aliases — USDA curated aliases (U2, integ
                 candidates: [makeCandidate({ aliases: ['Tillamook'] })],
             });
 
-            const hits = await search.search('llamoo');
+            const hits = await search.search('llamoo', 'alias-test-caller');
 
             expect(hits.map((hit) => hit.id)).not.toContain(id);
         });

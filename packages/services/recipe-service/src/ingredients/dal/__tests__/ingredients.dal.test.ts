@@ -91,7 +91,7 @@ describe('IngredientsDal', () => {
                 ],
             });
 
-            const results = await dal.search('flour', 5);
+            const results = await dal.search('flour', undefined, 5);
 
             expect(execute).toHaveBeenCalledTimes(1);
             expect(results.map((r) => r.id)).toEqual(['a', 'b']);
@@ -101,7 +101,7 @@ describe('IngredientsDal', () => {
         it('issues a single ranked read for a non-empty query', async () => {
             execute.mockResolvedValue({ rows: [] });
 
-            await dal.search('flour', 5);
+            await dal.search('flour', undefined, 5);
 
             expect(execute).toHaveBeenCalledTimes(1);
         });

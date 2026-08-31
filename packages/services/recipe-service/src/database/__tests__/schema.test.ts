@@ -169,6 +169,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             rank_head: { type: 'text', notNull: false },
             // U5 (0038): the captured FNDDS consumption-prior fraction; NULL = no prior.
             prior_fraction: { type: 'numeric', notNull: false },
+            // U11 (0040): the admitting AUTHOR's ULID for a PRIVATE authored food; NULL = shared catalog.
+            food_owner_id: { type: 'varchar(255)', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });
     });

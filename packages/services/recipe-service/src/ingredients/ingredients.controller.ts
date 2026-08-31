@@ -145,7 +145,7 @@ export class IngredientsController {
     @Get('search')
     @SearchRateLimit()
     public async search(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @Query('q') q?: string,
         @Query('limit') limit?: string,
     ): Promise<Ingredient[]> {
@@ -155,7 +155,8 @@ export class IngredientsController {
             throw new BadRequestException('q is required');
         }
 
-        return this.ingredients.search(query, parseLimit(limit));
+        // R20 (plan U11): the caller's identity scopes private-food rows into (only) their own results.
+        return this.ingredients.search(query, ownerId, parseLimit(limit));
     }
 
     /**
@@ -188,7 +189,7 @@ export class IngredientsController {
     @Get('suggest')
     @SearchRateLimit()
     public async suggest(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Query('q') q?: string,
         @Query('limit') limit?: string,
@@ -199,7 +200,7 @@ export class IngredientsController {
             throw new BadRequestException('q is required');
         }
 
-        return this.ingredients.suggest(caller, query, parseLimit(limit));
+        return this.ingredients.suggest(caller, query, ownerId, parseLimit(limit));
     }
 
     /**
@@ -357,11 +358,13 @@ export class IngredientsController {
 
     @Get(':id/status')
     public async status(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<Ingredient> {
-        return this.ingredients.refreshStatus(caller, id);
+        // The ULID rides along so a refresh re-captures the privacy fact (U11) exactly as it re-captures
+        // the consumption prior.
+        return this.ingredients.refreshStatus(caller, id, ownerId);
     }
 
     /**

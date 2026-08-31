@@ -103,6 +103,10 @@ function fakeIngredientsDal(): IngredientsDal {
     return {
         findById: vi.fn(),
         findByIds: vi.fn().mockResolvedValue([FLOUR]),
+        // U11 (0040): the producer reads which lines are backed by a PRIVATE food and SKIPS the enqueue
+        // when the read fails (privacy fails closed) — so the fake must answer, or every case here would
+        // be asserting the failure path.
+        privateFoodIngredientIds: vi.fn().mockResolvedValue(new Set<string>()),
     } as unknown as IngredientsDal;
 }
 
@@ -146,6 +150,33 @@ const createDto = (sourceLine: string | null = SOURCE_LINE): CreateRecipeDto => 
 });
 
 describe('RecipesService.create — the verification producer', () => {
+    it('U11/R20: stamps privateFood on the message when the line is backed by a PRIVATE food', async () => {
+        const queue = fakeVerificationQueue();
+        const ingredientsDal = fakeIngredientsDal();
+        (ingredientsDal.privateFoodIngredientIds as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+            new Set([FLOUR_INGREDIENT_ID]),
+        );
+
+        await makeService(fakeRecipesDal(), queue, ingredientsDal).create(OWNER_PRINCIPAL, createDto());
+
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+        expect(queue.enqueue.mock.calls[0]?.[0]?.[0]?.privateFood).toBe(true);
+    });
+
+    it('U11/R20: an UNREADABLE privacy fact SKIPS the enqueue — privacy fails closed, the save succeeds', async () => {
+        const queue = fakeVerificationQueue();
+        const ingredientsDal = fakeIngredientsDal();
+        (ingredientsDal.privateFoodIngredientIds as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+            new Error('read failed'),
+        );
+
+        await makeService(fakeRecipesDal(), queue, ingredientsDal).create(OWNER_PRINCIPAL, createDto());
+
+        // No throw above — the save landed. But nothing was enqueued: absence of a verdict means PUBLISH
+        // (0023), while a message sent WITHOUT the flag could leak a private food id into the memo tier.
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
     it('enqueues one request for the transcribed, catalog-backed line, AFTER the write', async () => {
         const queue = fakeVerificationQueue();
         const dal = fakeRecipesDal();

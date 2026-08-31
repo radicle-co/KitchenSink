@@ -209,7 +209,11 @@ describe('recipe-workers CDK app — deploy input contract', () => {
         // matters here specifically because it WRITES the spend counter: a gate pointed at the shared base
         // database would enforce ONE monthly ceiling across every open preview and deny them all once any
         // single preview exhausted it.
-        expect(dbNames).toHaveLength(8);
+        //
+        // TEN since the band-authority drain (plan U3, `BandDrainFunction`) and the parse leg (plan U8,
+        // `RecipeParseLineFunction`) landed — both write this same preview database (band epochs / the
+        // parse cache and job aggregates), so both are inside the #119 guarantee for the same reason.
+        expect(dbNames).toHaveLength(10);
         expect(new Set(dbNames)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 
@@ -235,10 +239,29 @@ describe('recipe-workers CDK app — deploy input contract', () => {
             }
         }
 
-        // Six worker roles plus the migration runner's — all authenticating as `recipe_app` over RDS-IAM,
-        // so all failing the same way if the separator regresses. Derived from the database-bound set rather
-        // than restated as a literal, so the count cannot be "repaired" to whatever it happens to be.
-        expect(grants).toHaveLength(databaseBoundFunctions(template).size);
+        // One grant per distinct ROLE, not per function — all authenticating as `recipe_app` over
+        // RDS-IAM, so all failing the same way if the separator regresses. Derived from the database-bound
+        // set rather than restated as a literal, so the count cannot be "repaired" to whatever it happens
+        // to be. ⚠️ Functions can SHARE a role (plan U8: `RecipeParseLineFunction` reuses the verification
+        // role, ADR-0024 §4b's single Bedrock grantee), so the function count over-counts grants; the role
+        // set is the authorization surface this test guards.
+        const roleIds = new Set<string>();
+
+        for (const logicalId of databaseBoundFunctions(template).keys()) {
+            const fn = resources(template)[logicalId] as unknown as {
+                Properties?: { Role?: { 'Fn::GetAtt'?: [string, string] } };
+            };
+            const roleRef = fn.Properties?.Role?.['Fn::GetAtt']?.[0];
+
+            expect(roleRef).toBeDefined();
+
+            if (roleRef !== undefined) {
+                roleIds.add(roleRef);
+            }
+        }
+
+        expect(grants).toHaveLength(roleIds.size);
+        expect(roleIds.size).toBeGreaterThanOrEqual(9);
 
         for (const grant of grants) {
             // The colon after `dbuser` is the entire fix: the SLASH form (CDK's `formatArn` default) names

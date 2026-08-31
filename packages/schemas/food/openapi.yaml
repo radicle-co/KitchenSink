@@ -1531,6 +1531,11 @@ components:
           type: number
         fatGPer100g:
           type: number
+        visibility:
+          type: string
+          enum:
+            - private
+            - promoted
       required:
         - id
         - name

@@ -291,7 +291,7 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
             },
         });
 
-        await new FoodSearchDao(logged).search(query);
+        await new FoodSearchDao(logged).search(query, 'search-it-caller');
 
         const relevance = seen.filter((statement) => /name % \$\d+/.test(statement.text));
 

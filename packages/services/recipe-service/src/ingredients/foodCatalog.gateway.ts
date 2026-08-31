@@ -130,6 +130,8 @@ function toCatalogHit(row: SearchResultView): CatalogHit | null {
         ...(typeof row.proteinGPer100g === 'number' ? { proteinGPer100g: row.proteinGPer100g } : {}),
         ...(typeof row.fatGPer100g === 'number' ? { fatGPer100g: row.fatGPer100g } : {}),
         ...(typeof row.carbsGPer100g === 'number' ? { carbohydrateGPer100g: row.carbsGPer100g } : {}),
+        // U11 (R20): the caller's own authored hit, or a promoted one — the author-augmentation signal.
+        ...(row.visibility === 'private' || row.visibility === 'promoted' ? { visibility: row.visibility } : {}),
     };
 }
 

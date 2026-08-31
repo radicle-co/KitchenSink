@@ -34,7 +34,12 @@ function principal(scopes: string[] = [], permissions: string[] = []): Principal
 }
 
 /** No history at all — the virgin-phrase facts. */
-const NO_HISTORY = { liveGlobal: undefined, liveOwn: undefined, corroboratorsForSameFood: [] };
+const NO_HISTORY = {
+    liveGlobal: undefined,
+    liveOwn: undefined,
+    corroboratorsForSameFood: [],
+    correctedFoodIsPrivate: false,
+};
 
 /** Build the service over stubs, returning the stubs so a spec can assert against them. */
 function build(

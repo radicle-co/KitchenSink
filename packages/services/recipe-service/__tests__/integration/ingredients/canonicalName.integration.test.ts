@@ -224,8 +224,8 @@ describe.skipIf(!hasDatabaseUrl)('ingredient canonical naming (integration: serv
 
             // The user-visible consequence, proven through `IngredientsDal.search` itself rather than by
             // re-deriving its SQL here.
-            const byCanonical = await dal.search('all-purpose flour', 50);
-            const byProse = await dal.search('sifted pastry', 50);
+            const byCanonical = await dal.search('all-purpose flour', undefined, 50);
+            const byProse = await dal.search('sifted pastry', undefined, 50);
 
             expect(byCanonical.map((hit) => hit.id)).toContain(row?.id);
             expect(byProse.map((hit) => hit.id)).not.toContain(row?.id);
@@ -352,7 +352,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient canonical naming (integration: serv
 
             // ⛔ A food being acquired is something a searcher WANTS to see, and the demand signal is useful.
             // The fix for prose is the WRITE path — never a status filter on the read.
-            const hits = await dal.search('brown sugar', 50);
+            const hits = await dal.search('brown sugar', undefined, 50);
             expect(hits.map((hit) => hit.id)).toContain(row?.id);
         });
 

@@ -115,8 +115,11 @@ export class FoodsController {
      * the DAO as `query ?? ''`, so the published `searchFoodQuerySchema` described a check that never ran.
      */
     @Get('search')
-    public async search(@Query() query: SearchFoodQueryDto): Promise<SearchResponse> {
-        return this.foodsService.search(query.query, query.withNutrition === 'true');
+    public async search(@Query() query: SearchFoodQueryDto, @Req() req: AuthenticatedRequest): Promise<SearchResponse> {
+        // R20 (plan U11): the requester key scopes authored rows — the caller's own private foods rank
+        // beside the catalog; nobody else's ever leave the DAO. A `svc_*` principal owns no foods and gets
+        // pure catalog, which is exactly right for machine callers.
+        return this.foodsService.search(query.query, this.requireRequesterId(req), query.withNutrition === 'true');
     }
 
     /**

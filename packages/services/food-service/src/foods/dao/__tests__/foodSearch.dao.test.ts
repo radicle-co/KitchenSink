@@ -86,7 +86,9 @@ async function statementsFor(query: string, limit?: number): Promise<CapturedSta
 
     const dao = new FoodSearchDao({ execute } as unknown as FoodDrizzle);
 
-    await (limit === undefined ? dao.search(query) : dao.search(query, limit));
+    await (limit === undefined
+        ? dao.search(query, 'caller-scoping-test')
+        : dao.search(query, 'caller-scoping-test', limit));
 
     return statements;
 }

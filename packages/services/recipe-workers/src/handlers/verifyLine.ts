@@ -248,6 +248,17 @@ async function recordQuietly(deps: VerificationDeps, row: Parameters<VerdictStor
 }
 
 /**
+ * U11/R20: whether this message is EXCLUDED from the shared band statistics — both directions, consult and
+ * record. `authorAugmented` means the shortlist's margins describe one user's private catalog, not the
+ * shared ranker; `privateFood` means the food itself is one author's. Feeding either in would let a single
+ * user's private data move the authority every OTHER user's lines are judged under; consulting would judge
+ * a private line under margins it never contributed to. The line still verifies — it just always asks. Pure.
+ */
+function excludedFromBands(message: VerifyIngredientLineMessage): boolean {
+    return message.authorAugmented === true || message.privateFood === true;
+}
+
+/**
  * Read band authority, degrading any failure to `undefined`.
  *
  * The production implementation already degrades internally, but KTD-B's stale-read rule belongs to the
@@ -307,7 +318,10 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     //    producer release or a replayed message must not be able to skip an identity check silently. Band
     //    authority follows the same rule (KTD-A): the worker reads its OWN — a shadow-sampled message
     //    deliberately reads none, because the coin's whole job is to ask identity anyway.
-    const bandAuthority = message.shadowSample === true ? undefined : await authorityQuietly(deps, message.foodId);
+    const bandAuthority =
+        message.shadowSample === true || excludedFromBands(message)
+            ? undefined
+            : await authorityQuietly(deps, message.foodId);
     const decision = decideVerification({
         sourceLine: message.sourceLine,
         evidence: evidenceFrom(message),
@@ -468,12 +482,15 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         // so a model that cannot answer leaves the line exactly as the gate found it.
         logger.warn('verification answer was unreadable', { reason: reading.reason });
         await recordQuietly(deps, verdictRow(message, plan, decision.aspects, 'abstain', 'low', 'inconclusive', key));
-        await reportBandQuietly(deps, {
-            foodId: message.foodId,
-            band: 'inconclusive',
-            aspects: decision.aspects,
-            shadowSample: message.shadowSample === true,
-        });
+
+        if (!excludedFromBands(message)) {
+            await reportBandQuietly(deps, {
+                foodId: message.foodId,
+                band: 'inconclusive',
+                aspects: decision.aspects,
+                shadowSample: message.shadowSample === true,
+            });
+        }
 
         return;
     }
@@ -483,18 +500,24 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         deps,
         verdictRow(message, plan, decision.aspects, reading.outcome.verdict, reading.outcome.certainty, band, key),
     );
-    await reportBandQuietly(deps, {
-        foodId: message.foodId,
-        band,
-        aspects: decision.aspects,
-        shadowSample: message.shadowSample === true,
-    });
+
+    if (!excludedFromBands(message)) {
+        await reportBandQuietly(deps, {
+            foodId: message.foodId,
+            band,
+            aspects: decision.aspects,
+            shadowSample: message.shadowSample === true,
+        });
+    }
 
     // ⛔ A MEMO ONLY WHEN IDENTITY WAS ACTUALLY CHECKED. `ingredient_resolution_memos` records that a MODEL
     // agreed this phrase means this food, and it then answers for every future cook. An `agree` from a run
     // that only asked about quantity would launder a curated human assertion — or a lexical guess — into a
     // machine verification that never happened.
-    if (band === 'verified' && decision.aspects.includes('identity')) {
+    // U11/R20: NEVER for a private food — `ingredient_resolution_memos` answers for EVERY future cook,
+    // and a memo row would surface the private food id in every user's memo tier. The author's own line
+    // is still verified (the verdict above landed); only the shared cache abstains.
+    if (band === 'verified' && decision.aspects.includes('identity') && message.privateFood !== true) {
         try {
             await deps.store.rememberAgreement({
                 sourceLine: message.sourceLine,

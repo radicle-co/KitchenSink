@@ -86,7 +86,7 @@ import { apiError } from '../common/apiError.js';
 import { canonicalIngredientName, type CanonicalIngredientName } from './domain/ingredientName.js';
 import { IngredientsService } from './ingredients.service.js';
 import type { IngredientSuggestions } from './ingredientSuggestion.js';
-import type { FoodReferencesResponse } from './ingredients.schema.js';
+import type { FoodReferencesResponse, CreateAuthoredFoodViaPickerResponse } from './ingredients.schema.js';
 import type {
     IngredientCandidate,
     LiveIngredientSearchResponse,
@@ -96,6 +96,7 @@ import { ResolutionMappingsService } from './resolution/resolutionMappings.servi
 import { AddIngredientByFoodDto } from './dto/addIngredientByFood.dto.js';
 import { CreateIngredientDto } from './dto/createIngredient.dto.js';
 import { RecordCorrectionDto } from './dto/recordCorrection.dto.js';
+import { CreateAuthoredFoodViaPickerDto } from './dto/createAuthoredFoodViaPicker.dto.js';
 import { ResolveIngredientDto } from './dto/resolveIngredient.dto.js';
 import { SearchRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
@@ -320,11 +321,50 @@ export class IngredientsController {
     @HttpCode(HttpStatus.OK)
     @WriteRateLimit()
     public async addByFood(
-        @OwnerId() _ownerId: string,
+        @OwnerId() ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: AddIngredientByFoodDto,
     ): Promise<Ingredient> {
-        return this.ingredients.addByFoodId(caller, body.foodId);
+        // U11/R20: the caller ULID rides along for the privacy capture — a private authored food admitted
+        // here must land with `food_owner_id` set, or its NAME enters every user's local search.
+        return this.ingredients.addByFoodId(caller, body.foodId, ownerId);
+    }
+
+    /**
+     * `POST /api/v1/ingredients/authored-food` (plan U16) — the picker's create-and-attach: author a food
+     * (macros-only, Q3a) and admit it as a food-backed ingredient in ONE round-trip.
+     *
+     * A BFF composition — neither app holds a food-service origin; the caller's own bearer is forwarded
+     * for both halves (issue #120), and the U11 privacy capture rides the admission. The per-author dedup
+     * collision comes back as the `created: false` union arm carrying the existing food's id (the
+     * `recordCorrection` `recorded`-discriminant precedent), so the reuse affordance needs no error parse.
+     *
+     * A mutation (food-service write + local writes) → the write rate limit.
+     *
+     * @param ownerId - The verified caller ULID — the food's author, and the privacy capture's input.
+     * @param caller - The caller's own bearer, forwarded to the food service.
+     * @param body - `{ name, macros }`, validated by {@link CreateAuthoredFoodViaPickerDto} (bounds are
+     *   the food service's own, composed — never redeclared).
+     * @returns The admitted ingredient, or the duplicate arm naming the caller's existing food.
+     */
+    @Post('authored-food')
+    @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
+    public async createAuthoredFood(
+        @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Body() body: CreateAuthoredFoodViaPickerDto,
+    ): Promise<CreateAuthoredFoodViaPickerResponse> {
+        const outcome = await this.ingredients.createAuthoredFood(caller, ownerId, {
+            name: body.name,
+            macros: body.macros,
+        });
+
+        if (outcome.kind === 'duplicate') {
+            return { created: false, reason: 'duplicate', existingFoodId: outcome.existingFoodId };
+        }
+
+        return { created: true, ingredient: outcome.ingredient };
     }
 
     /**

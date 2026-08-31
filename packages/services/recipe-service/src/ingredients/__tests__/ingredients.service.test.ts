@@ -51,6 +51,55 @@ describe('IngredientsService', () => {
         service = new IngredientsService(dal, clients, makeCatalogGateway());
     });
 
+    describe('createAuthoredFood — the U16 picker create-and-attach vertical', () => {
+        it('creates through food under the CALLER credential, then admits by-food with the privacy capture', async () => {
+            clientMocks['createAuthoredFood']!.mockResolvedValue({
+                kind: 'created',
+                food: makeFoodView({ id: 'F_new', name: 'My Blend', visibility: 'private' }),
+            });
+            clientMocks['getStatus']!.mockResolvedValue(
+                makeStatusResult({
+                    id: 'F_new',
+                    status: FoodResolutionStatus.RESOLVED,
+                    food: makeFoodView({ id: 'F_new', name: 'My Blend', visibility: 'private' }),
+                }),
+            );
+            dalMocks['findByFoodId']!.mockResolvedValue(undefined);
+            dalMocks['createFoodBacked']!.mockResolvedValue(makeIngredient({ id: 'i9', foodId: 'F_new' }));
+            dalMocks['updateResolution']!.mockResolvedValue(makeIngredient({ id: 'i9', foodId: 'F_new' }));
+
+            const result = await service.createAuthoredFood(CALLER, '01J0USERAUTHOR', {
+                name: 'My Blend',
+                macros: { calories: 100, proteinG: 10, carbsG: 20, fatG: 5 },
+            });
+
+            expect(standard).toHaveBeenCalledWith(CALLER);
+            expect(result.kind).toBe('created');
+
+            if (result.kind === 'created') {
+                expect(result.ingredient.id).toBe('i9');
+            }
+
+            // U11/R20: the admission carries the author ULID, so `food_owner_id` is captured on the row.
+            expect(dalMocks['createFoodBacked']).toHaveBeenCalledWith(
+                expect.objectContaining({ foodId: 'F_new', foodOwnerId: '01J0USERAUTHOR' }),
+            );
+        });
+
+        it('surfaces the per-author dedup collision as the duplicate arm with the EXISTING food id', async () => {
+            clientMocks['createAuthoredFood']!.mockResolvedValue({ kind: 'duplicate', existingId: 'F_prior' });
+
+            const result = await service.createAuthoredFood(CALLER, '01J0USERAUTHOR', {
+                name: 'My Blend',
+                macros: { calories: 100, proteinG: 10, carbsG: 20, fatG: 5 },
+            });
+
+            expect(result).toEqual({ kind: 'duplicate', existingFoodId: 'F_prior' });
+            // Nothing was admitted — the reuse decision belongs to the cook, not to this fallthrough.
+            expect(dalMocks['createFoodBacked']).not.toHaveBeenCalled();
+        });
+    });
+
     describe('caller-credential forwarding (issue #120)', () => {
         it('mints the 8s standard client for THIS caller on every food-touching path', async () => {
             clientMocks['addByName']!.mockResolvedValue(makeAddResult({ id: 'F1' }));

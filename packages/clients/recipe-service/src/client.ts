@@ -91,6 +91,8 @@ import {
     foodReferencesResponseSchema,
     type FoodReferencesResponse,
     addIngredientByFoodRequestSchema,
+    createAuthoredFoodViaPickerRequestSchema,
+    createAuthoredFoodViaPickerResponseSchema,
     addRecipeToCollectionRequestSchema,
     apiErrorSchema,
     cloneCollectionRequestSchema,
@@ -137,6 +139,8 @@ import type {
     RestoreVersionResponse,
     SetRatingRequest,
     UpdateRecipeRequest,
+    CreateAuthoredFoodViaPickerRequest,
+    CreateAuthoredFoodViaPickerResponse,
 } from '@kitchensink/schema-recipe';
 
 /**
@@ -655,6 +659,30 @@ export class RecipeServiceClient {
         );
 
         return this.expect(res, 200, ingredientSchema);
+    }
+
+    /**
+     * `POST /api/v1/ingredients/authored-food` (plan U16) — the picker's create-and-attach: author a
+     * macros-only food AND admit it as a food-backed ingredient in one round-trip.
+     *
+     * The per-author name collision is the `created: false` union arm carrying the caller's EXISTING
+     * food's id — the reuse affordance's input, never an error to parse copy out of.
+     *
+     * @param input - Display name + per-100g macros (bounds are the food service's own, composed).
+     * @returns The admitted ingredient, or the duplicate arm.
+     * @throws {BadRequestError} on a body outside the published bounds; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async createAuthoredFoodViaPicker(
+        input: CreateAuthoredFoodViaPickerRequest,
+    ): Promise<CreateAuthoredFoodViaPickerResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/ingredients/authored-food',
+            this.request('createAuthoredFoodViaPicker', createAuthoredFoodViaPickerRequestSchema, input),
+        );
+
+        return this.expect(res, 200, createAuthoredFoodViaPickerResponseSchema);
     }
 
     /**

@@ -78,6 +78,8 @@ import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import { useImperativeHandle, useRef, type FC, type JSX, type Ref } from 'react';
 
 import { webMessages } from '@/i18n/messages';
+
+import { AuthoredFoodCreateForm } from './AuthoredFoodCreateForm';
 import { IngredientRowsSkeleton } from './IngredientRowsSkeleton';
 
 /**
@@ -135,7 +137,11 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect, ref }) =
     const formMessages = useMessages(recipeFormMessages);
     // 003-FR-010a: the search-minimum copy is shared by all four ingredient-search surfaces, so it lives in
     // the feature package rather than in this app's dictionary — see `IngredientSearchMessages`.
-    const { ingredientSearch: minimumCopy, ingredientLiveSearch: liveCopy } = useMessages(recipeMessages);
+    const {
+        ingredientSearch: minimumCopy,
+        ingredientLiveSearch: liveCopy,
+        ingredientCreateFood: createFoodCopy,
+    } = useMessages(recipeMessages);
     const {
         query,
         setQuery,
@@ -153,6 +159,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect, ref }) =
         cancelDisambiguation,
         liveSearch,
         selectLiveHit,
+        createFood,
     } = useIngredientResolver(onSelect);
     const correctionMessages = useMessages(recipeCorrectionMessages);
     // `ingredient_picker` is a CLOSED wire enum, so this surface cannot invent an audit value (R20).
@@ -432,6 +439,15 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect, ref }) =
                 >
                     {fillTemplate(picker.addFreeform, { query: trimmed })}
                 </button>
+                {/* U16: author a REAL food (macros and all) when nothing matches well — the door the
+                    authored-food vertical was missing. Opens the shared create form below. */}
+                <button
+                    type="button"
+                    onClick={createFood.open}
+                    className="rounded-full bg-seafoam/10 px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/20"
+                >
+                    {createFoodCopy.action}
+                </button>
             </div>
 
             {liveSearchPanel}
@@ -605,6 +621,19 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect, ref }) =
                     <IngredientRowsSkeleton label={picker.searching} />
                     {actionRow}
                 </div>
+            )}
+
+            {createFood.state.kind !== 'closed' && (
+                <AuthoredFoodCreateForm
+                    state={createFood.state}
+                    copy={createFoodCopy}
+                    actions={{
+                        cancel: createFood.cancel,
+                        setField: createFood.setField,
+                        submit: createFood.submit,
+                        reuseExisting: createFood.reuseExisting,
+                    }}
+                />
             )}
 
             {viewState.kind === 'terminal' && (

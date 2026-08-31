@@ -305,6 +305,60 @@ export interface IngredientLiveSearchMessages {
     readonly regionLabel: string;
 }
 
+/**
+ * Copy for the U16 create-your-own-food affordance and form, shared by both ingredient pickers.
+ *
+ * ⛔ Shared for the {@link IngredientSearchMessages} reason: every string here renders on BOTH platforms,
+ * and the create/duplicate/failed states must say the same thing about the same food everywhere.
+ *
+ * ⚠️ {@link IngredientCreateFoodMessages.privateHint} is a PROMISE the backend keeps (U10/U11): a created
+ * food is visible to its author alone until promotion. Do not soften or drop it — it is the one line that
+ * tells a cook their grandma's blend is not being published.
+ */
+export interface IngredientCreateFoodMessages {
+    /** The affordance row — offered when the results are empty or nothing matches well. */
+    readonly action: string;
+    /** The form's heading (contains `{query}` when opened from a typed search). */
+    readonly formTitle: string;
+    /** Only-you visibility promise, shown under the form. */
+    readonly privateHint: string;
+    /** Name field label. */
+    readonly nameLabel: string;
+    /** Per-100g section hint over the macro fields. */
+    readonly per100gHint: string;
+    /** Calories field label. */
+    readonly caloriesLabel: string;
+    /** Protein field label. */
+    readonly proteinLabel: string;
+    /** Carbohydrate field label. */
+    readonly carbsLabel: string;
+    /** Fat field label. */
+    readonly fatLabel: string;
+    /** Submit control — creates AND attaches to the line. */
+    readonly submit: string;
+    /** Cancel/dismiss the form. */
+    readonly cancel: string;
+    /** In-flight caption (live-region content while the create runs). */
+    readonly submitting: string;
+    /** Inline field error: the field is required. */
+    readonly errorRequired: string;
+    /** Inline field error: not a number. */
+    readonly errorNotANumber: string;
+    /** Inline field error: outside the published bounds. */
+    readonly errorOutOfRange: string;
+    /** ⛔ The retryable SUBMIT failure — network/server, distinct from any field error. */
+    readonly submitFailed: string;
+    /**
+     * ⛔ The per-author duplicate — a DISTINCT sentence from validation copy, because the fix is different:
+     * the cook already made this food, and the affordance below attaches it (contains `{name}`).
+     */
+    readonly duplicateNotice: string;
+    /** The reuse affordance on the duplicate notice. */
+    readonly duplicateReuse: string;
+    /** The reuse admission failed — retryable. */
+    readonly duplicateReuseFailed: string;
+}
+
 /** The shape of the recipe feature's shared copy. */
 export interface RecipeMessages {
     /** Title of the recent-recipes Home widget card. */
@@ -321,6 +375,8 @@ export interface RecipeMessages {
     readonly ingredientSearch: IngredientSearchMessages;
     /** Copy for the on-demand live source search (plan U29), shared by both ingredient pickers. */
     readonly ingredientLiveSearch: IngredientLiveSearchMessages;
+    /** Copy for the U16 create-your-own-food affordance and form, shared by both ingredient pickers. */
+    readonly ingredientCreateFood: IngredientCreateFoodMessages;
 }
 
 export const recipeMessages: LocalizedMessages<RecipeMessages> = {
@@ -342,6 +398,27 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             retry: 'Try again',
             dismiss: 'Close USDA results',
             regionLabel: 'USDA search results',
+        },
+        ingredientCreateFood: {
+            action: 'Create your own food',
+            formTitle: 'Create “{query}”',
+            privateHint: 'Only you can see foods you create.',
+            nameLabel: 'Food name',
+            per100gHint: 'Nutrition per 100 g',
+            caloriesLabel: 'Calories (kcal)',
+            proteinLabel: 'Protein (g)',
+            carbsLabel: 'Carbs (g)',
+            fatLabel: 'Fat (g)',
+            submit: 'Create and add',
+            cancel: 'Cancel',
+            submitting: 'Creating your food…',
+            errorRequired: 'Required',
+            errorNotANumber: 'Enter a number',
+            errorOutOfRange: 'Outside the allowed range',
+            submitFailed: 'Could not create the food. Check your connection and try again.',
+            duplicateNotice: 'You already have a food named “{name}”.',
+            duplicateReuse: 'Use that one',
+            duplicateReuseFailed: 'Could not add your existing food. Try again.',
         },
         list: {
             heading: 'Recipes',

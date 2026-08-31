@@ -863,6 +863,10 @@ export async function mockRecipeApi(
     // Freeform (user-entered) ingredient create — REQ-032b requires every freeform line to come back
     // flagged `isUserEntered: true`, distinct from the fixed catalog-resolved `catalogIngredient` double.
     let nextFreeformIngredientId = 1;
+    /** U16: the authored foods this session created, by NAME (the per-author dedup key) and by food id. */
+    const authoredFoodsByName = new Map<string, string>();
+    const authoredIngredientsByFoodId = new Map<string, Ingredient>();
+    let nextAuthoredFoodId = 1;
     // The ingredient CATALOG this mock has handed out (id → `isUserEntered`), so a recipe write can resolve
     // each line's flag from the catalog exactly as the service does — the wire input never carries it. Seeded
     // with the food-backed typeahead double; every freeform `POST /api/v1/ingredients` registers its own row.
@@ -1026,6 +1030,13 @@ export async function mockRecipeApi(
         if (path.endsWith('/api/v1/ingredients/by-food') && method === 'POST') {
             const { foodId } = body() as { foodId?: string };
 
+            // U16: the duplicate-reuse affordance admits the caller's EXISTING authored food here.
+            const authored = foodId === undefined ? undefined : authoredIngredientsByFoodId.get(foodId);
+
+            if (authored !== undefined) {
+                return route.fulfill({ json: authored });
+            }
+
             if (foodId !== catalogSuggestionFoodId) {
                 return route.fulfill({
                     status: 400,
@@ -1034,6 +1045,40 @@ export async function mockRecipeApi(
             }
 
             return route.fulfill({ json: admittedCatalogIngredient });
+        }
+
+        // U16: the picker's create-and-attach vertical. Creates the caller's own food AND admits it in one
+        // round-trip; a repeat of the same name answers the per-author duplicate arm carrying the earlier
+        // food id — which the reuse affordance then admits through `by-food` above.
+        if (path.endsWith('/api/v1/ingredients/authored-food') && method === 'POST') {
+            const request = body() as { name?: string };
+            const name = request.name ?? 'Authored food';
+
+            if (authoredFoodsByName.has(name)) {
+                return route.fulfill({
+                    json: { created: false, reason: 'duplicate', existingFoodId: authoredFoodsByName.get(name) },
+                });
+            }
+
+            const foodId = `authored-food-${String(nextAuthoredFoodId)}`;
+            const ingredient: Ingredient = {
+                id: `a0000000-0000-4000-8000-${String(nextAuthoredFoodId++).padStart(12, '0')}`,
+                name,
+                foodId,
+                foodResolutionStatus: 'RESOLVED',
+                isUserEntered: false,
+                caloriesPer100g: 100,
+                proteinGPer100g: 10,
+                carbsGPer100g: 20,
+                fatGPer100g: 5,
+                createdAt: ISO,
+            };
+
+            authoredFoodsByName.set(name, foodId);
+            authoredIngredientsByFoodId.set(foodId, ingredient);
+            ingredientCatalog.set(ingredient.id, false);
+
+            return route.fulfill({ json: { created: true, ingredient } });
         }
 
         if (path.endsWith('/api/v1/ingredients') && method === 'POST') {

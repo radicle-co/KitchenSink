@@ -21,6 +21,13 @@ import { RecipeCreateScreen } from '../../src/screens/RecipeCreateScreen.js';
 import { makeIngredient, makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U16: the create-your-own-food mutation the picker now reads — inert idle default.
+    useCreateAuthoredFoodViaPicker: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
     useCreateRecipe: vi.fn(),
     // U33 — the create screen now composes the real photo surface (a pick lands in the draft and flushes
     // once the recipe has an id), so its hooks must exist even though this suite never picks a file.

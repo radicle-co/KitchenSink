@@ -48,6 +48,14 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     // mocking this module must list every hook the leaf mounts. Its own states are covered next door, in
     // `IngredientPickerCorrection.native.test.tsx`.
     useRecordIngredientCorrection: vi.fn(),
+    // U16: the create-your-own-food mutation the picker now reads — inert idle default; these suites
+    // never drive the create flow (IngredientPickerCreateFood.native.test.tsx owns those states).
+    useCreateAuthoredFoodViaPicker: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
 }));
 
 const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);

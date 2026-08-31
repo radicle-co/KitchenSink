@@ -34,6 +34,7 @@ const {
     useIngredientCandidatesMock,
     useResolveIngredientMock,
     useSearchIngredientsLiveMock,
+    useCreateAuthoredFoodViaPickerMock,
 } = vi.hoisted(() => ({
     useSuggestIngredientsMock: vi.fn(),
     useAddIngredientByNameMock: vi.fn(),
@@ -42,6 +43,7 @@ const {
     useIngredientCandidatesMock: vi.fn(),
     useResolveIngredientMock: vi.fn(),
     useSearchIngredientsLiveMock: vi.fn(),
+    useCreateAuthoredFoodViaPickerMock: vi.fn(),
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
@@ -52,6 +54,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useIngredientCandidates: useIngredientCandidatesMock,
     useResolveIngredient: useResolveIngredientMock,
     useSearchIngredientsLive: useSearchIngredientsLiveMock,
+    useCreateAuthoredFoodViaPicker: useCreateAuthoredFoodViaPickerMock,
 }));
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '../ingredientResolver.model.js';
@@ -115,6 +118,8 @@ beforeEach(() => {
     useResolveIngredientMock.mockReturnValue(mutation(null));
     // U29 — the on-demand live source search. Idle by default: it must never run unless a leaf presses it.
     useSearchIngredientsLiveMock.mockReturnValue(mutation(null, { data: undefined, error: undefined }));
+    // U16 — the create-your-own-food mutation. Idle by default.
+    useCreateAuthoredFoodViaPickerMock.mockReturnValue(mutation(null));
 });
 
 afterEach(() => {
@@ -851,5 +856,170 @@ describe('useIngredientResolver — the on-demand live source search (U29)', () 
         // The accepted cost of picking something the source has and we do not — surfaced, never silent.
         expect(result.current.viewState.kind).toBe('disambiguating');
         expect(onResolved).not.toHaveBeenCalled();
+    });
+});
+
+describe('useIngredientResolver — the U16 create-your-own-food sub-machine', () => {
+    /** A resolvable authored ingredient, as the BFF returns it (already admitted). */
+    const ADMITTED = makeIngredient({ id: 'ing-a1', name: 'Grandma Blend', foodId: 'F_new' });
+
+    function openForm(
+        result: ReturnType<typeof renderHook<ReturnType<typeof useIngredientResolver>, unknown>>['result'],
+    ): void {
+        act(() => {
+            result.current.setQuery('grandma blend');
+        });
+        settleDebounce();
+        act(() => {
+            result.current.createFood.open();
+        });
+    }
+
+    function fillMacros(
+        result: ReturnType<typeof renderHook<ReturnType<typeof useIngredientResolver>, unknown>>['result'],
+    ): void {
+        act(() => {
+            result.current.createFood.setField('calories', '100');
+        });
+        act(() => {
+            result.current.createFood.setField('proteinG', '10');
+        });
+        act(() => {
+            result.current.createFood.setField('carbsG', '20');
+        });
+        act(() => {
+            result.current.createFood.setField('fatG', '5');
+        });
+    }
+
+    it('open() prefills the name from the typed query; cancel() closes and discards', () => {
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        openForm(result);
+
+        expect(result.current.createFood.state.kind).toBe('open');
+
+        if (result.current.createFood.state.kind === 'open') {
+            expect(result.current.createFood.state.draft.name).toBe('grandma blend');
+        }
+
+        act(() => {
+            result.current.createFood.cancel();
+        });
+
+        expect(result.current.createFood.state.kind).toBe('closed');
+    });
+
+    it('submit() with invalid fields reports INLINE field errors and sends nothing', () => {
+        const mutate = vi.fn();
+        useCreateAuthoredFoodViaPickerMock.mockReturnValue(mutation(null, { mutate }));
+
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        openForm(result);
+        act(() => {
+            result.current.createFood.submit();
+        });
+
+        expect(mutate).not.toHaveBeenCalled();
+        expect(result.current.createFood.state.kind).toBe('open');
+
+        if (result.current.createFood.state.kind === 'open') {
+            expect(result.current.createFood.state.fieldErrors['calories']).toBe('required');
+        }
+    });
+
+    it('a valid submit resolves the ADMITTED line and closes the form — one flow, no second step', () => {
+        const onResolved = vi.fn();
+
+        useCreateAuthoredFoodViaPickerMock.mockReturnValue(mutation({ created: true, ingredient: ADMITTED }));
+
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        openForm(result);
+        fillMacros(result);
+        act(() => {
+            result.current.createFood.submit();
+        });
+
+        expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ ingredientId: 'ing-a1' }));
+        expect(result.current.createFood.state.kind).toBe('closed');
+        // The picker resets to a blank search, exactly like every other resolve route.
+        expect(result.current.query).toBe('');
+    });
+
+    it('the per-author collision lands in the DISTINCT duplicate state carrying the existing id', () => {
+        useCreateAuthoredFoodViaPickerMock.mockReturnValue(
+            mutation({ created: false, reason: 'duplicate', existingFoodId: 'F_prior' }),
+        );
+
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        openForm(result);
+        fillMacros(result);
+        act(() => {
+            result.current.createFood.submit();
+        });
+
+        expect(result.current.createFood.state.kind).toBe('duplicate');
+
+        if (result.current.createFood.state.kind === 'duplicate') {
+            expect(result.current.createFood.state.existingFoodId).toBe('F_prior');
+        }
+    });
+
+    it('reuseExisting() admits the EXISTING food through the by-food flow and resolves the line', () => {
+        const onResolved = vi.fn();
+        const byFoodMutate = vi.fn((_foodId: unknown, options?: { onSuccess?: (value: unknown) => void }) => {
+            options?.onSuccess?.(ADMITTED);
+        });
+
+        useCreateAuthoredFoodViaPickerMock.mockReturnValue(
+            mutation({ created: false, reason: 'duplicate', existingFoodId: 'F_prior' }),
+        );
+        useAddIngredientByFoodMock.mockReturnValue(mutation(null, { mutate: byFoodMutate }));
+
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+
+        openForm(result);
+        fillMacros(result);
+        act(() => {
+            result.current.createFood.submit();
+        });
+        act(() => {
+            result.current.createFood.reuseExisting();
+        });
+
+        expect(byFoodMutate).toHaveBeenCalledWith('F_prior', expect.anything());
+        expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ ingredientId: 'ing-a1' }));
+        expect(result.current.createFood.state.kind).toBe('closed');
+    });
+
+    it('a FAILED submit surfaces submitFailed on the open form — retryable, fields intact', () => {
+        const failing = {
+            mutate: vi.fn((_arg: unknown, options?: { onError?: (error: unknown) => void }) => {
+                options?.onError?.(new Error('down'));
+            }),
+            isPending: false,
+            isError: true,
+            reset: vi.fn(),
+        };
+
+        useCreateAuthoredFoodViaPickerMock.mockReturnValue(failing);
+
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        openForm(result);
+        fillMacros(result);
+        act(() => {
+            result.current.createFood.submit();
+        });
+
+        expect(result.current.createFood.state.kind).toBe('open');
+
+        if (result.current.createFood.state.kind === 'open') {
+            expect(result.current.createFood.state.submitFailed).toBe(true);
+            expect(result.current.createFood.state.draft.calories).toBe('100');
+        }
     });
 });

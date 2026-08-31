@@ -102,6 +102,8 @@ import {
     recordCorrectionRequestSchema,
     recordCorrectionResponseSchema,
     resolveIngredientRequestSchema,
+    createAuthoredFoodViaPickerRequestSchema,
+    createAuthoredFoodViaPickerResponseSchema,
 } from '../src/ingredients/ingredients.schema.js';
 import {
     confirmPhotoRequestSchema,
@@ -198,6 +200,8 @@ export const openApiComponents = {
     LiveIngredientSearch: liveIngredientSearchResponseSchema,
     CreateIngredientRequest: createIngredientRequestSchema,
     AddIngredientByFoodRequest: addIngredientByFoodRequestSchema,
+    CreateAuthoredFoodViaPickerRequest: createAuthoredFoodViaPickerRequestSchema,
+    CreateAuthoredFoodViaPickerResponse: createAuthoredFoodViaPickerResponseSchema,
     RecordCorrectionRequest: recordCorrectionRequestSchema,
     RecordCorrectionResponse: recordCorrectionResponseSchema,
     ResolveIngredientRequest: resolveIngredientRequestSchema,
@@ -922,6 +926,30 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             },
             responses: {
                 '200': { description: 'The admitted ingredient.', schema: 'Ingredient' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/ingredients/authored-food': {
+        post: {
+            operationId: 'createAuthoredFoodViaPicker',
+            summary: 'Create one of the caller’s own foods AND admit it as an ingredient, in one round-trip.',
+            description:
+                'The picker’s create-and-attach vertical (plan U16). Authors a macros-only food (visibility ' +
+                'private — retrievable by its author alone until promotion, plan U11/U12) through the food ' +
+                'service under the caller’s own forwarded credential, then admits it exactly as a `by-food` ' +
+                'pick. The per-author name collision is the `created: false` union arm carrying the existing ' +
+                'food’s id — the reuse affordance’s input, never an error to parse copy out of.',
+            requestBody: {
+                description: 'Display name and per-100g macros — bounds are the food service’s own, composed.',
+                required: true,
+                schema: 'CreateAuthoredFoodViaPickerRequest',
+            },
+            responses: {
+                '200': {
+                    description: 'The admitted ingredient, or the duplicate arm naming the existing food.',
+                    schema: 'CreateAuthoredFoodViaPickerResponse',
+                },
                 ...sharedErrorResponses(),
             },
         },

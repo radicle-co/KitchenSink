@@ -167,6 +167,74 @@ describe('FoodServiceClient — getById result mapping', () => {
     });
 });
 
+describe('FoodServiceClient.createAuthoredFood (plan U16)', () => {
+    const AUTHORED = {
+        id: 'food_a1',
+        name: 'My Protein Blend',
+        description: null,
+        kind: 'generic',
+        status: 'RESOLVED',
+        nutrients: [],
+        portions: [],
+        provenance: {},
+        visibility: 'private',
+    };
+    const BODY = { name: 'My Protein Blend', macros: { calories: 380, proteinG: 70, carbsG: 12, fatG: 6 } };
+
+    it('201 → created, with the full authored record', async () => {
+        const fetchMock = stubFetch(201, AUTHORED);
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const result = await client.createAuthoredFood(BODY);
+
+        expect(result.kind).toBe('created');
+
+        if (result.kind === 'created') {
+            expect(result.food.id).toBe('food_a1');
+        }
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, { method: string; body: string }];
+
+        expect(url).toBe(`${BASE}/api/v1/foods/authored`);
+        expect(init.method).toBe('POST');
+        expect(JSON.parse(init.body)).toEqual(BODY);
+    });
+
+    it('409 DUPLICATE_AUTHORED_NAME → the duplicate arm carrying the EXISTING food id, never a throw', async () => {
+        // The reuse affordance (U16) needs the colliding row's id — a bare ConflictError cannot carry it.
+        const fetchMock = stubFetch(409, {
+            code: 'DUPLICATE_AUTHORED_NAME',
+            message: 'You already authored a food with this name',
+            details: { existingId: 'food_prior' },
+        });
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const result = await client.createAuthoredFood(BODY);
+
+        expect(result).toEqual({ kind: 'duplicate', existingId: 'food_prior' });
+    });
+
+    it('any OTHER failure still maps through the shared error ladder', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: stubFetch(401, { code: 'UNAUTHORIZED', message: 'no' }),
+        });
+
+        await expect(client.createAuthoredFood(BODY)).rejects.toBeInstanceOf(UnauthorizedError);
+    });
+
+    it('refuses an ILLEGAL body before any request leaves (parse, do not validate)', async () => {
+        const fetchMock = stubFetch(201, AUTHORED);
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        await expect(
+            client.createAuthoredFood({ name: '', macros: { calories: -1, proteinG: 0, carbsG: 0, fatG: 0 } }),
+        ).rejects.toBeInstanceOf(Error);
+        expect(apiCalls(fetchMock)).toHaveLength(0);
+    });
+});
+
 describe('FoodServiceClient — status → typed error mapping', () => {
     it('401 → UnauthorizedError', async () => {
         const client = new FoodServiceClient({

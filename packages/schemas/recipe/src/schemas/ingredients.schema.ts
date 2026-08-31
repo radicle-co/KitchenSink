@@ -43,6 +43,7 @@
 import { z } from 'zod';
 
 import { foodResolutionStatusSchema, ingredientSchema } from '@kitchensink/recipe-core';
+import { createAuthoredFoodRequestSchema } from '@kitchensink/schema-food';
 
 export const MAX_FOOD_ID_LENGTH = 64;
 
@@ -433,3 +434,42 @@ export {
     /** The `Ingredient` component — the `ingredients/search` item and every `local` suggestion's payload. */
     ingredientSchema,
 };
+
+/**
+ * Body of `POST /api/v1/ingredients/authored-food` (plan U16) — the picker's create-and-attach vertical.
+ *
+ * ⛔ DERIVED from the food service's own `createAuthoredFoodRequestSchema` (ADR-0014: a forwarded wire
+ * shape is composed, never redeclared — name and macro bounds have exactly ONE authority). The launch
+ * form is macros-only (Q3a), so `description`/`portions` are picked away; adding them later is additive.
+ */
+export const createAuthoredFoodViaPickerRequestSchema = createAuthoredFoodRequestSchema.pick({
+    name: true,
+    macros: true,
+});
+
+export type CreateAuthoredFoodViaPickerRequest = z.infer<typeof createAuthoredFoodViaPickerRequestSchema>;
+
+/**
+ * Response of `POST /api/v1/ingredients/authored-food` — the `recordCorrection` `recorded`-discriminant
+ * precedent: the per-author dedup collision is a UNION ARM the reuse affordance renders, never an error
+ * a picker would have to parse copy out of.
+ */
+export const createAuthoredFoodViaPickerResponseSchema = z.union([
+    z
+        .object({
+            created: z.literal(true),
+            /** The admitted, food-backed ingredient — ready to go on the line. */
+            ingredient: ingredientSchema,
+        })
+        .loose(),
+    z
+        .object({
+            created: z.literal(false),
+            reason: z.literal('duplicate'),
+            /** The caller's OWN existing food with this name — the reuse affordance's input. */
+            existingFoodId: z.string(),
+        })
+        .loose(),
+]);
+
+export type CreateAuthoredFoodViaPickerResponse = z.infer<typeof createAuthoredFoodViaPickerResponseSchema>;

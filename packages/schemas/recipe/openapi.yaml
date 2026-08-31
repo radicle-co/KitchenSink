@@ -2355,6 +2355,71 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/AddIngredientByFoodRequest"
+  /api/v1/ingredients/authored-food:
+    post:
+      operationId: createAuthoredFoodViaPicker
+      summary: Create one of the caller’s own foods AND admit it as an ingredient, in one round-trip.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The admitted ingredient, or the duplicate arm naming the existing food.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAuthoredFoodViaPickerResponse"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "The picker’s create-and-attach vertical (plan U16). Authors a macros-only food (visibility private —
+        retrievable by its author alone until promotion, plan U11/U12) through the food service under the caller’s own
+        forwarded credential, then admits it exactly as a `by-food` pick. The per-author name collision is the `created:
+        false` union arm carrying the existing food’s id — the reuse affordance’s input, never an error to parse copy
+        out of."
+      requestBody:
+        description: Display name and per-100g macros — bounds are the food service’s own, composed.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAuthoredFoodViaPickerRequest"
   /api/v1/ingredients/corrections:
     post:
       operationId: recordIngredientCorrection
@@ -5935,6 +6000,74 @@ components:
       required:
         - foodId
       additionalProperties: false
+    CreateAuthoredFoodViaPickerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: \S
+        macros:
+          type: object
+          properties:
+            calories:
+              type: number
+              minimum: 0
+              maximum: 900
+            proteinG:
+              type: number
+              minimum: 0
+              maximum: 100
+            carbsG:
+              type: number
+              minimum: 0
+              maximum: 100
+            fatG:
+              type: number
+              minimum: 0
+              maximum: 100
+          required:
+            - calories
+            - proteinG
+            - carbsG
+            - fatG
+          additionalProperties: false
+      required:
+        - name
+        - macros
+      additionalProperties: false
+    CreateAuthoredFoodViaPickerResponse:
+      anyOf:
+        - type: object
+          properties:
+            created:
+              type: boolean
+              enum:
+                - true
+            ingredient:
+              $ref: "#/components/schemas/Ingredient"
+          required:
+            - created
+            - ingredient
+          additionalProperties: {}
+        - type: object
+          properties:
+            created:
+              type: boolean
+              enum:
+                - false
+            reason:
+              type: string
+              enum:
+                - duplicate
+            existingFoodId:
+              type: string
+          required:
+            - created
+            - reason
+            - existingFoodId
+          additionalProperties: {}
     RecordCorrectionRequest:
       type: object
       properties:

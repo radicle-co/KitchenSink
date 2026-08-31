@@ -62,6 +62,8 @@ export type {
 
 export type {
     AddResult,
+    CreateAuthoredFoodInput,
+    CreateAuthoredFoodResult,
     BatchResult,
     CandidatesResult,
     FoodView,

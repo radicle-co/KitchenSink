@@ -3,7 +3,7 @@
  * authored food TRIGGERS a moderation-queue entry, and which contributing food is elected canonical
  * when a human approves it.
  *
- * DESIGN PATTERN: **Specification / Policy module**, the sibling of {@link ../authorshipPolicy.ts} and
+ * DESIGN PATTERN: **Specification / Policy module**, the sibling of `authorshipPolicy.ts` and
  * recipe-service's `correctionScopePolicy` — no DB, no `Principal`, no I/O; the service reads the facts
  * and passes them in, and the same inputs always produce the same decision.
  *

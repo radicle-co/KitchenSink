@@ -17,6 +17,7 @@
     },
     "dependencies": {
         "@kitchensink/recipe-core": "*",
+        "@kitchensink/schema-food": "*",
         "zod": "^4.4.3"
     },
     "devDependencies": {

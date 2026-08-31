@@ -48,6 +48,13 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
 });
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U16: the create-your-own-food mutation the picker now reads — inert idle default.
+    useCreateAuthoredFoodViaPicker: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
     useRecipe: vi.fn(),
     useUpdateRecipe: vi.fn(),
     useSuggestIngredients: vi.fn(),

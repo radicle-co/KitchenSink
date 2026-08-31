@@ -18,6 +18,7 @@ export type { RecipeCardGridSkeletonProps } from './card/RecipeCardGridSkeleton.
 // in-page skeleton does, instead of minting a second string for the same wait.
 export { recipeMessages } from './messages.js';
 export type { IngredientSearchMessages } from './messages.js';
+export type { IngredientCreateFoodMessages } from './messages.js';
 export type { RecipeMessages } from './messages.js';
 
 export {

@@ -55,6 +55,7 @@ import type { Ingredient } from '@kitchensink/recipe-core';
 import {
     useAddIngredientByFood,
     useAddIngredientByName,
+    useCreateAuthoredFoodViaPicker,
     useCreateIngredient,
     useIngredientCandidates,
     useResolveIngredient,
@@ -73,6 +74,8 @@ import {
     toIngredientLine,
 } from './ingredientResolver.model.js';
 import type { IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
+import { draftFromQuery, validateAuthoredFoodDraft } from './authoredFoodCreate.model.js';
+import type { AuthoredFoodCreateState, AuthoredFoodDraft } from './authoredFoodCreate.model.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
 import { useOnDemandIngredientSearch } from './useOnDemandIngredientSearch.js';
 import type { UseOnDemandIngredientSearchResult } from './useOnDemandIngredientSearch.js';
@@ -128,6 +131,25 @@ export interface UseIngredientResolverResult {
      */
     readonly liveSearch: UseOnDemandIngredientSearchResult;
     /**
+     * U16 — the create-your-own-food sub-machine: the "Create your own food" affordance's whole
+     * behaviour, from the empty/no-good-match state through the macros form to the admitted line (or the
+     * per-author duplicate's reuse affordance). See {@link AuthoredFoodCreateState} for the states a leaf
+     * renders.
+     */
+    readonly createFood: {
+        readonly state: AuthoredFoodCreateState;
+        /** Open the form, name prefilled from the typed query. */
+        readonly open: () => void;
+        /** Close the form (or the duplicate notice), discarding the draft. */
+        readonly cancel: () => void;
+        /** Update one draft field (clears that field's error). */
+        readonly setField: (field: keyof AuthoredFoodDraft, value: string) => void;
+        /** Validate and submit; on success the admitted line resolves like any other pick. */
+        readonly submit: () => void;
+        /** From the duplicate state: admit the EXISTING food onto the line instead. */
+        readonly reuseExisting: () => void;
+    };
+    /**
      * Pick one live-search hit. Dispatches on whether we already hold the food:
      *  - `foodId` present — it is already in our catalog, so it admits through the SAME `by-food` path a
      *    catalog suggestion uses: one round-trip, nutrition already attached, NO further source call.
@@ -136,6 +158,22 @@ export interface UseIngredientResolverResult {
      */
     readonly selectLiveHit: (hit: LiveIngredientHit) => void;
 }
+
+/** The U16 create-food sub-machine's INTERNAL phase (`submitting`/`reusePending` derive from mutations). */
+type CreateFoodPhase =
+    | null
+    | {
+          readonly kind: 'open';
+          readonly draft: AuthoredFoodDraft;
+          readonly fieldErrors: Extract<ReturnType<typeof validateAuthoredFoodDraft>, { ok: false }>['fieldErrors'];
+          readonly submitFailed: boolean;
+      }
+    | {
+          readonly kind: 'duplicate';
+          readonly draft: AuthoredFoodDraft;
+          readonly existingFoodId: string;
+          readonly reuseFailed: boolean;
+      };
 
 /**
  * The shared ingredient-resolution state machine.
@@ -173,6 +211,9 @@ export function useIngredientResolver(
     // The on-demand source search composes HERE rather than in each leaf, so a leaf gets one hook and one
     // view model and the two platforms cannot drift on when a source call is made.
     const liveSearch = useOnDemandIngredientSearch(trimmed);
+    // U16: the create-your-own-food sub-machine. `null` = closed; the duplicate arm carries the colliding id.
+    const [createFoodPhase, setCreateFoodPhase] = useState<CreateFoodPhase>(null);
+    const createAuthoredFood = useCreateAuthoredFoodViaPicker();
 
     // ⛔ The SERVER's order, unmodified (plan U5). This used to call `rankIngredientSuggestions`; that
     // client re-sort is retired — see the "RETIRED IN PLAN U5" note in `ingredientResolver.model.ts` for
@@ -309,6 +350,110 @@ export function useIngredientResolver(
         resolveIngredient.reset();
     };
 
+    // ── U16: the create-your-own-food sub-machine ────────────────────────────────────────────────
+    /** The leaf-facing state: `submitting`/`reusePending` are DERIVED from the mutations, never stored. */
+    const createFoodState: AuthoredFoodCreateState = (() => {
+        if (createFoodPhase === null) {
+            return { kind: 'closed' };
+        }
+
+        if (createFoodPhase.kind === 'open') {
+            if (createAuthoredFood.isPending) {
+                return { kind: 'submitting', draft: createFoodPhase.draft };
+            }
+
+            return {
+                kind: 'open',
+                draft: createFoodPhase.draft,
+                fieldErrors: createFoodPhase.fieldErrors,
+                submitFailed: createFoodPhase.submitFailed,
+            };
+        }
+
+        return {
+            kind: 'duplicate',
+            draft: createFoodPhase.draft,
+            existingFoodId: createFoodPhase.existingFoodId,
+            reusePending: addIngredientByFood.isPending,
+            reuseFailed: createFoodPhase.reuseFailed,
+        };
+    })();
+
+    const createFood: UseIngredientResolverResult['createFood'] = {
+        state: createFoodState,
+        open: (): void => {
+            setCreateFoodPhase({ kind: 'open', draft: draftFromQuery(trimmed), fieldErrors: {}, submitFailed: false });
+        },
+        cancel: (): void => {
+            setCreateFoodPhase(null);
+            createAuthoredFood.reset();
+        },
+        setField: (field, value): void => {
+            setCreateFoodPhase((phase) => {
+                if (phase === null || phase.kind !== 'open') {
+                    return phase;
+                }
+
+                const { [field]: _cleared, ...rest } = phase.fieldErrors;
+
+                return { ...phase, draft: { ...phase.draft, [field]: value }, fieldErrors: rest, submitFailed: false };
+            });
+        },
+        submit: (): void => {
+            if (createFoodPhase === null || createFoodPhase.kind !== 'open') {
+                return;
+            }
+
+            const validated = validateAuthoredFoodDraft(createFoodPhase.draft);
+
+            if (!validated.ok) {
+                // Inline, per-field — never a toast: the cook fixes the field they can see.
+                setCreateFoodPhase({ ...createFoodPhase, fieldErrors: validated.fieldErrors });
+
+                return;
+            }
+
+            createAuthoredFood.mutate(validated.value, {
+                onSuccess: (outcome) => {
+                    if (!outcome.created) {
+                        // The per-author collision — a DISTINCT state with a reuse affordance, not
+                        // validation copy (U16's test scenario says so explicitly).
+                        setCreateFoodPhase({
+                            kind: 'duplicate',
+                            draft: createFoodPhase.draft,
+                            existingFoodId: outcome.existingFoodId,
+                            reuseFailed: false,
+                        });
+
+                        return;
+                    }
+
+                    setCreateFoodPhase(null);
+                    resolveLine(outcome.ingredient);
+                },
+                onError: () => {
+                    setCreateFoodPhase({ ...createFoodPhase, submitFailed: true });
+                },
+            });
+        },
+        reuseExisting: (): void => {
+            if (createFoodPhase === null || createFoodPhase.kind !== 'duplicate') {
+                return;
+            }
+
+            // The EXISTING by-food admission — one flow for "put this food on the line", whoever made it.
+            addIngredientByFood.mutate(createFoodPhase.existingFoodId, {
+                onSuccess: (ingredient) => {
+                    setCreateFoodPhase(null);
+                    resolveLine(ingredient);
+                },
+                onError: () => {
+                    setCreateFoodPhase({ ...createFoodPhase, reuseFailed: true });
+                },
+            });
+        },
+    };
+
     const viewState = deriveViewState({
         disambiguating,
         trimmed,
@@ -335,6 +480,7 @@ export function useIngredientResolver(
         addByFoodStatus: { isPending: addIngredientByFood.isPending, isError: addIngredientByFood.isError },
         createStatus: { isPending: createIngredient.isPending, isError: createIngredient.isError },
         resolveError: resolveIngredient.isError,
+        createFood,
         selectSuggestion,
         selectMatch,
         findNutrition,

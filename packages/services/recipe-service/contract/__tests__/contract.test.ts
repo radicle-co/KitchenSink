@@ -122,10 +122,14 @@ describe('the authored recipe wire contract', () => {
      * from being a second declaration of `Recipe`. It is admissible on the same test every entry must pass —
      * it is itself a leaf whose only runtime dependency is zod, asserted below rather than asserted about.
      */
-    it('allows ONLY zod and recipe-core at the package level', () => {
+    it('allows ONLY zod, recipe-core and schema-food at the package level', () => {
+        // The THIRD entry is U16's: the picker's create-and-attach route FORWARDS an authored-food body,
+        // and ADR-0014 says a forwarded wire shape is composed from its owner, never redeclared. Admitted
+        // on the same leaf test as recipe-core, asserted below rather than asserted about.
         expect(ALLOWED_PACKAGE_IMPORTS.map((entry) => entry.specifier)).toStrictEqual([
             'zod',
             '@kitchensink/recipe-core',
+            '@kitchensink/schema-food',
         ]);
     });
 
@@ -274,14 +278,18 @@ describe('the leaf property', () => {
      * Recipe's list is `['@kitchensink/recipe-core', 'zod']` where food's is `['zod']`, and the extra entry is
      * exactly the allowlist's second specifier — so the two assertions cannot disagree about what is admitted.
      */
-    it('declares only recipe-core and zod as runtime dependencies', async () => {
+    it('declares only recipe-core, schema-food and zod as runtime dependencies', async () => {
         const manifest = JSON.parse(await readCommitted('package.json')) as {
             name: string;
             dependencies: Record<string, string>;
         };
 
         expect(manifest.name).toBe(SCHEMA_PACKAGE_NAME);
-        expect(Object.keys(manifest.dependencies).sort()).toStrictEqual(['@kitchensink/recipe-core', 'zod']);
+        expect(Object.keys(manifest.dependencies).sort()).toStrictEqual([
+            '@kitchensink/recipe-core',
+            '@kitchensink/schema-food',
+            'zod',
+        ]);
     });
 
     // `recipe-core` is admitted to the allowlist ON THE GROUND that it is itself a zod-only leaf. That claim is
@@ -653,6 +661,9 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         CreatePhotoUploadRequest: 'createPhotoUploadRequestSchema',
         PhotoUploadUrlResponse: 'photoUploadUrlResponseSchema',
         ConfirmPhotoRequest: 'confirmPhotoRequestSchema',
+        // U16: the picker's create-and-attach route (composed from @kitchensink/schema-food's authored body).
+        CreateAuthoredFoodViaPickerRequest: 'createAuthoredFoodViaPickerRequestSchema',
+        CreateAuthoredFoodViaPickerResponse: 'createAuthoredFoodViaPickerResponseSchema',
         ReorderPhotosRequest: 'reorderPhotosRequestSchema',
         Ingredient: 'ingredientSchema',
         IngredientList: 'ingredientSchema',

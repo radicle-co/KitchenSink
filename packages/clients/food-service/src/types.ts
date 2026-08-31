@@ -58,6 +58,7 @@ import type {
     AddResponse,
     BatchResponse,
     CandidatesResponse,
+    CreateAuthoredFoodRequest,
     FoodResponse,
     ResolveResponse,
     SearchResponse,
@@ -115,3 +116,14 @@ export type FoodNutritionBatchResult = FoodNutritionBatchResponse;
  * @deprecated Use `ResolveResponse`, the name the service publishes. Identical type.
  */
 export type ResolveResult = ResolveResponse;
+
+/** Input to `createAuthoredFood` — the service-published request type, re-exported under the client's name. */
+export type CreateAuthoredFoodInput = CreateAuthoredFoodRequest;
+
+/**
+ * Outcome of `createAuthoredFood`: created, or the caller's per-author dedup collision carrying the
+ * EXISTING food's id (the U16 reuse affordance's whole input).
+ */
+export type CreateAuthoredFoodResult =
+    | { readonly kind: 'created'; readonly food: FoodResponse }
+    | { readonly kind: 'duplicate'; readonly existingId: string };

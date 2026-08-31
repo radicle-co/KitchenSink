@@ -58,6 +58,7 @@ import { isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, StatusResult } from '@kitchensink/food-service-client';
 
 import type { CallerToken } from '../auth/CallerToken.js';
+import type { AuthoredMacros } from '@kitchensink/schema-food';
 import { clampLimit, IngredientsDal } from './dal/ingredients.dal.js';
 import type { CanonicalIngredientName } from './domain/ingredientName.js';
 import { canonicalNameFrom, toResolutionStatus } from './foodStatusTranslation.js';
@@ -115,6 +116,11 @@ function toIngredientCandidate(view: CandidateView): IngredientCandidate {
     };
 }
 
+/** Outcome of {@link IngredientsService.createAuthoredFood} — created-and-admitted, or the dedup collision. */
+export type CreateAuthoredFoodOutcome =
+    | { readonly kind: 'created'; readonly ingredient: Ingredient }
+    | { readonly kind: 'duplicate'; readonly existingFoodId: string };
+
 @Injectable()
 export class IngredientsService {
     /** One logger for the cascade's tier failures — a degraded tier must be visible, never silent. */
@@ -141,6 +147,41 @@ export class IngredientsService {
         // Optional for the same reason again: without it, ranked events simply record no band epoch.
         private readonly bands?: Pick<ResolutionBandsDal, 'authorityFor'>,
     ) {}
+
+    /**
+     * `POST /api/v1/ingredients/authored-food` (plan U16) — the picker's create-and-attach vertical:
+     * author a food (macros-only, Q3a) AND admit it as a food-backed ingredient in ONE round-trip.
+     *
+     * ⛔ A BFF composition, deliberately: neither app holds a food-service origin — every food read and
+     * write the picker makes rides this service with the caller's own forwarded bearer (issue #120), and
+     * splitting create/admit across the client would add a public origin, a CORS surface, and a
+     * half-created state (food authored, line never admitted) for zero gain.
+     *
+     * The per-author dedup collision is a UNION ARM, not an error: the U16 reuse affordance turns it
+     * into "attach the food you already made", which needs the existing id — the `recordCorrection`
+     * `recorded` discriminant precedent.
+     *
+     * @param caller - The caller's own bearer, forwarded to food for both the create and the admission.
+     * @param callerUserId - The verified author ULID — the U11 privacy capture on the admitted row.
+     * @param input - Name + per-100g macros.
+     * @returns The admitted ingredient, or the colliding existing food's id.
+     * @sideEffect One food-service create, then the by-food admission (a read + local writes).
+     */
+    public async createAuthoredFood(
+        caller: CallerToken | undefined,
+        callerUserId: string,
+        input: { readonly name: string; readonly macros: AuthoredMacros },
+    ): Promise<CreateAuthoredFoodOutcome> {
+        const created = await this.foodClients.standard(caller).createAuthoredFood(input);
+
+        if (created.kind === 'duplicate') {
+            return { kind: 'duplicate', existingFoodId: created.existingId };
+        }
+
+        const ingredient = await this.addByFoodId(caller, created.food.id, callerUserId);
+
+        return { kind: 'created', ingredient };
+    }
 
     /**
      * `GET /api/v1/ingredients/food-references/{foodId}` (plan U18, R22) — who references this food.

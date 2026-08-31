@@ -46,6 +46,7 @@ export function makeFoodClients(): {
         getCandidates: vi.fn(),
         resolve: vi.fn(),
         batch: vi.fn(),
+        createAuthoredFood: vi.fn(),
     };
     const client = mocks as unknown as FoodServiceClient;
     const standard = vi.fn(() => client);

@@ -65,6 +65,14 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     })),
     // U14 — see the sibling screen suites: the picker in this tree now mounts the correction command too.
     useRecordIngredientCorrection: vi.fn(),
+    // U16: the create-your-own-food mutation the picker now reads — inert idle default; these suites
+    // never drive the create flow (IngredientPickerCreateFood.native.test.tsx owns those states).
+    useCreateAuthoredFoodViaPicker: () => ({
+        mutate: () => undefined,
+        isPending: false,
+        isError: false,
+        reset: () => undefined,
+    }),
 }));
 
 const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);

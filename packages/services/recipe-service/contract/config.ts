@@ -50,6 +50,15 @@ export const ALLOWED_PACKAGE_IMPORTS: readonly AllowedPackageImport[] = [
         specifier: '@kitchensink/recipe-core',
         why: 'Zod-only leaf that already owns the recipe DOMAIN schemas; composed, never re-declared.',
     },
+    {
+        // U16: the picker's create-and-attach BFF route forwards an AUTHORED-FOOD body to the food
+        // service, and ADR-0014's rule is that a consumer DERIVES a wire shape it forwards rather than
+        // redeclaring it — redeclaring food's name/macro bounds here is exactly the silent drift §15
+        // exists to prevent. Safe on the same test as recipe-core: `@kitchensink/schema-food` is a
+        // generated zod-only leaf whose only runtime dependency is zod.
+        specifier: '@kitchensink/schema-food',
+        why: "Zod-only generated leaf owning food's wire schemas; composed for the forwarded authored-create body.",
+    },
 ];
 
 /**

@@ -22,6 +22,7 @@ import {
     batchAddFoodRequestSchema,
     batchResponseSchema,
     candidatesResponseSchema,
+    createAuthoredFoodRequestSchema,
     foodErrorSchema,
     foodResponseSchema,
     pendingResponseSchema,
@@ -52,6 +53,8 @@ import {
 } from './errors.js';
 import type {
     AddResult,
+    CreateAuthoredFoodInput,
+    CreateAuthoredFoodResult,
     BatchResult,
     CandidatesResult,
     GetFoodResult,
@@ -214,6 +217,38 @@ export class FoodServiceClient {
         }
 
         throw this.toError(res, id);
+    }
+
+    /**
+     * `POST /api/v1/foods/authored` — create one of the CALLER's own foods (plan U10/U16; macros-only per
+     * Q3a). Born `RESOLVED`, visibility `private` — retrievable by its author alone until promotion.
+     *
+     * The per-author name collision is a RESULT, not a throw: the U16 picker's reuse affordance needs the
+     * colliding row's id, and a bare `ConflictError` cannot carry it. Every other failure maps through
+     * the shared ladder.
+     *
+     * @param input - Name + per-100g macros (description/portions optional).
+     * @returns `created` with the full authored record, or `duplicate` naming the existing food.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async createAuthoredFood(input: CreateAuthoredFoodInput): Promise<CreateAuthoredFoodResult> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/foods/authored',
+            this.request('createAuthoredFood', createAuthoredFoodRequestSchema, input),
+        );
+
+        if (res.status === 201) {
+            return { kind: 'created', food: foodResponseSchema.parse(res.body) };
+        }
+
+        const raw = res.body as { code?: string; details?: { existingId?: string } } | undefined;
+
+        if (res.status === 409 && raw?.code === 'DUPLICATE_AUTHORED_NAME' && raw.details?.existingId !== undefined) {
+            return { kind: 'duplicate', existingId: raw.details.existingId };
+        }
+
+        throw this.toError(res, '');
     }
 
     /**

@@ -151,7 +151,10 @@ describe('IngredientsController', () => {
 
             const result = await controller.addByFood(CALLER, TOKEN, { foodId: '01J0FOOD' } as AddIngredientByFoodDto);
 
-            expect(mocks.addByFoodId).toHaveBeenCalledWith(TOKEN, '01J0FOOD');
+            // U11/R20: the caller ULID must ride along — the privacy capture (`food_owner_id`) happens inside
+            // `addByFoodId`, and an admission without it would put a private food's NAME in every user's
+            // local search. This was the one admission route that dropped it.
+            expect(mocks.addByFoodId).toHaveBeenCalledWith(TOKEN, '01J0FOOD', CALLER);
             // Mutation guards: the pick must not fall through to the by-name or freeform paths.
             expect(mocks.addByName).not.toHaveBeenCalled();
             expect(mocks.createFreeform).not.toHaveBeenCalled();
@@ -443,5 +446,39 @@ describe('IngredientsController', () => {
             expect(mocks.resolve).toHaveBeenCalledWith(TOKEN, ID, ['cand-1', 'cand-2']);
             expect(result).toBe(resolved);
         });
+    });
+});
+
+describe('POST /api/v1/ingredients/authored-food (plan U16)', () => {
+    const BODY = { name: 'My Blend', macros: { calories: 100, proteinG: 10, carbsG: 20, fatG: 5 } };
+
+    function build(outcome: unknown): {
+        controller: IngredientsController;
+        createAuthoredFood: ReturnType<typeof vi.fn>;
+    } {
+        const createAuthoredFood = vi.fn().mockResolvedValue(outcome);
+        const controller = new IngredientsController(
+            { createAuthoredFood } as unknown as IngredientsService,
+            { recordCorrection: vi.fn() } as unknown as ResolutionMappingsService,
+        );
+
+        return { controller, createAuthoredFood };
+    }
+
+    it('delegates create-and-attach with the caller credential AND the author ULID', async () => {
+        const { controller, createAuthoredFood } = build({ kind: 'created', ingredient: { id: 'i9' } });
+
+        const result = await controller.createAuthoredFood('01J0USER', TOKEN, BODY as never);
+
+        expect(createAuthoredFood).toHaveBeenCalledWith(TOKEN, '01J0USER', BODY);
+        expect(result).toEqual({ created: true, ingredient: { id: 'i9' } });
+    });
+
+    it('maps the duplicate arm onto the recorded-style union — a 200, never an error', async () => {
+        const { controller } = build({ kind: 'duplicate', existingFoodId: 'F_prior' });
+
+        const result = await controller.createAuthoredFood('01J0USER', TOKEN, BODY as never);
+
+        expect(result).toEqual({ created: false, reason: 'duplicate', existingFoodId: 'F_prior' });
     });
 });

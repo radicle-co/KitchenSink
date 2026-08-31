@@ -21,6 +21,13 @@ export type {
     IngredientResolverViewState,
     MutationView,
 } from './ingredientResolver.model.js';
+export { AUTHORED_MACRO_FIELDS, draftFromQuery, validateAuthoredFoodDraft } from './authoredFoodCreate.model.js';
+export type {
+    AuthoredFoodCreateState,
+    AuthoredFoodDraft,
+    AuthoredFoodFieldError,
+    AuthoredFoodFieldErrors,
+} from './authoredFoodCreate.model.js';
 export { useDebouncedValue } from './useDebouncedValue.js';
 export { toRecipeNutritionPages, useRecipeNutritionBatches } from './useRecipeNutritionBatches.js';
 export type { RecipeNutritionLookup } from './useRecipeNutritionBatches.js';

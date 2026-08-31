@@ -81,6 +81,8 @@ import type { LiveIngredientHit } from '@kitchensink/recipe-service-client';
 import { useMessages } from '@commise/i18n/react';
 import { palette, tint } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
+
+import { AuthoredFoodCreateForm } from './AuthoredFoodCreateForm';
 import { Feather } from '@expo/vector-icons';
 import { suggestionKey } from '@commise/features-recipes/hooks';
 import type { Ingredient } from '@kitchensink/recipe-core';
@@ -265,7 +267,11 @@ export function IngredientPicker({ onResolve, ref }: IngredientPickerProps): JSX
     const correctionMessages = useMessages(recipeCorrectionMessages);
     // 003-FR-010a: the search-minimum copy is shared by all four ingredient-search surfaces, so it lives in
     // the feature package rather than in this app's dictionary — see `IngredientSearchMessages`.
-    const { ingredientSearch: minimumCopy, ingredientLiveSearch: liveCopy } = useMessages(recipeMessages);
+    const {
+        ingredientSearch: minimumCopy,
+        ingredientLiveSearch: liveCopy,
+        ingredientCreateFood: createFoodCopy,
+    } = useMessages(recipeMessages);
     // `ingredient_picker` is a CLOSED wire enum, so this surface cannot invent an audit value (R20).
     const correction = useIngredientCorrection('ingredient_picker');
     const {
@@ -285,6 +291,7 @@ export function IngredientPicker({ onResolve, ref }: IngredientPickerProps): JSX
         cancelDisambiguation,
         liveSearch,
         selectLiveHit,
+        createFood,
     } = useIngredientResolver(onResolve);
 
     /**
@@ -627,6 +634,17 @@ export function IngredientPicker({ onResolve, ref }: IngredientPickerProps): JSX
                                 </Text>
                             </View>
                         </PressScale>
+                        {/* U16: author a REAL food (macros and all) when nothing matches well — the door
+                            the authored-food vertical was missing. Opens the shared create form below. */}
+                        <PressScale
+                            accessibilityRole="button"
+                            accessibilityLabel={createFoodCopy.action}
+                            onPress={createFood.open}
+                        >
+                            <View style={styles.fallbackAction}>
+                                <Text style={styles.fallbackActionLabel}>{createFoodCopy.action}</Text>
+                            </View>
+                        </PressScale>
                     </View>
 
                     {/* U29: the ON-DEMAND source search, no longer a seam. ⛔ A press, never a keystroke
@@ -656,6 +674,19 @@ export function IngredientPicker({ onResolve, ref }: IngredientPickerProps): JSX
                         </PressScale>
                     )}
                 </>
+            )}
+
+            {createFood.state.kind !== 'closed' && (
+                <AuthoredFoodCreateForm
+                    state={createFood.state}
+                    copy={createFoodCopy}
+                    actions={{
+                        cancel: createFood.cancel,
+                        setField: createFood.setField,
+                        submit: createFood.submit,
+                        reuseExisting: createFood.reuseExisting,
+                    }}
+                />
             )}
 
             {liveSearchPanel}

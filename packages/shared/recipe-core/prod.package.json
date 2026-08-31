@@ -38,6 +38,22 @@
             "types": "./dist/resolution/rankingTiers.d.ts",
             "default": "./dist/resolution/rankingTiers.js"
         },
+        "./resolution/verification-prompt": {
+            "types": "./dist/resolution/verificationPrompt.d.ts",
+            "default": "./dist/resolution/verificationPrompt.js"
+        },
+        "./resolution/verification-verdict": {
+            "types": "./dist/resolution/verificationVerdict.d.ts",
+            "default": "./dist/resolution/verificationVerdict.js"
+        },
+        "./parsing/foodness-prompt": {
+            "types": "./dist/parsing/foodnessPrompt.d.ts",
+            "default": "./dist/parsing/foodnessPrompt.js"
+        },
+        "./parsing/foodness-answer": {
+            "types": "./dist/parsing/foodnessAnswer.d.ts",
+            "default": "./dist/parsing/foodnessAnswer.js"
+        },
         "./resolution/verification-gate-policy": {
             "types": "./dist/resolution/verificationGatePolicy.d.ts",
             "default": "./dist/resolution/verificationGatePolicy.js"

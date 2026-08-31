@@ -32,7 +32,10 @@ import {
     createVerificationSettings,
     type VerificationSettingsResolver,
 } from '../verification/settings.js';
-import { VERIFICATION_MAX_INPUT_TOKENS, VERIFICATION_MAX_OUTPUT_TOKENS } from '../verification/prompt.js';
+import {
+    VERIFICATION_MAX_INPUT_TOKENS,
+    VERIFICATION_MAX_OUTPUT_TOKENS,
+} from '@kitchensink/recipe-core/resolution/verification-prompt';
 
 /** The flat per-tick cap, binding when headroom is plentiful (and in ungated stages, where it is all there is). */
 export const DRAIN_MAX_BATCH = 50;

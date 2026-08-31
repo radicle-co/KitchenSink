@@ -91,6 +91,16 @@ export interface ConverseRequest {
      * is flex, not batch. Verified live 2026-08-27 against Nova 2 Lite.
      */
     readonly serviceTier?: 'flex' | 'priority' | 'default' | undefined;
+    /**
+     * Few-shot MESSAGE TURNS placed before {@link userMessage}, in order (plan U6, KTD-E).
+     *
+     * ⛔ ADDITIVE AND ABSENT BY DEFAULT: the verification gate and the parse leg send exactly one user
+     * message, and their measured figures are denominated in that shape — an absent field leaves their
+     * assembled request byte-identical. The foodness validator sets it because its optimization measured
+     * the same examples as SYSTEM-PROMPT LINES making the prompt WORSE (p = 0.0001, backwards) and as
+     * real turns cutting weighted loss 43% — this model learns from turns, not prose examples.
+     */
+    readonly fewShotTurns?: readonly { readonly user: string; readonly assistant: string }[] | undefined;
 }
 
 /**
@@ -212,7 +222,16 @@ export function createBedrockConverseClient(send: ConverseTransport): BedrockCon
                     request.cachePrompt === true
                         ? [{ text: request.systemPrompt }, { cachePoint: { type: 'default' } }]
                         : [{ text: request.systemPrompt }],
-                messages: [{ role: 'user', content: [{ text: request.userMessage }] }],
+                messages: [
+                    // U6: the few-shot turns precede the real user message; assembled HERE, in the one
+                    // adapter, so the prompt module's SHA pin covers the complete structured call and the
+                    // transport maps it without inventing anything the pin does not cover.
+                    ...(request.fewShotTurns ?? []).flatMap((turn) => [
+                        { role: 'user' as const, content: [{ text: turn.user }] },
+                        { role: 'assistant' as const, content: [{ text: turn.assistant }] },
+                    ]),
+                    { role: 'user' as const, content: [{ text: request.userMessage }] },
+                ],
                 inferenceConfig: {
                     maxTokens: request.maxOutputTokens,
                     ...(request.temperature === undefined ? {} : { temperature: request.temperature }),

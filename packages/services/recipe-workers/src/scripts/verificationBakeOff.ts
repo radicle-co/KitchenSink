@@ -84,8 +84,11 @@ import { bandFor } from '@kitchensink/recipe-core/resolution/confidence';
 import { scoreBakeOff, type BakeOffReport, type BakeOffTrial } from '../verification/bakeOff.js';
 import { parseCorpusJsonl, type CorpusLine } from '../verification/corpus.js';
 import { RESIDUAL_SLICE_CLASSES } from '../verification/corpusSynthesis.js';
-import { VERIFICATION_MAX_OUTPUT_TOKENS, buildVerificationPrompt } from '../verification/prompt.js';
-import { readVerdict } from '../verification/verdict.js';
+import {
+    VERIFICATION_MAX_OUTPUT_TOKENS,
+    buildVerificationPrompt,
+} from '@kitchensink/recipe-core/resolution/verification-prompt';
+import { readVerdict } from '@kitchensink/recipe-core/resolution/verification-verdict';
 
 /**
  * What a BARE invocation runs — ADR-0024 §4a's roster, and nothing else.

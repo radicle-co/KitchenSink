@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { readVerdict } from '../verdict.js';
+import { readVerdict } from '../verificationVerdict.js';
 
 /** The reading, or the reason it could not be read. */
 const read = (text: string, stopReason = 'end_turn'): ReturnType<typeof readVerdict> => readVerdict(text, stopReason);

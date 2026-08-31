@@ -32,7 +32,7 @@
  * with peers you cannot change; here the cost of accepting a near-miss is publishing unverified nutrition, and
  * the cost of refusing one is one wasted call at $0.000036.
  */
-import { verificationOutcomeSchema, type VerificationOutcome } from '@kitchensink/recipe-core/resolution/confidence';
+import { verificationOutcomeSchema, type VerificationOutcome } from './confidence.js';
 
 /** The only stop reason from which an answer may be believed. */
 const TRUSTED_STOP_REASON = 'end_turn';

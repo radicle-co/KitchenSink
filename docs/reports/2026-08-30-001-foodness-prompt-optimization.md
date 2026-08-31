@@ -75,3 +75,28 @@ caught by a disjoint check, redone clean), one depleted-strata screen (patched w
   most residual errors are internal contradictions.
 - Raw data: 30+ runs in the session scratchpad (`r1..r7, rF, hold*`); word sets, variants JSON, and
   the paired scorer alongside. Corpus files are scratchpad-only by rule and not committed.
+
+## Update (2026-08-31) — the SHIPPED module's verification runs (plan U6)
+
+The pinned artifact now ships as `@kitchensink/recipe-core/parsing/foodness-prompt` +
+`foodness-answer` (SHA `67fa4c10…` over the canonical structured serialization of system + turns), and
+two live runs were made THROUGH the shipped modules (`packages/shared/recipe-core/scripts/foodnessHoldoutRun.ts`):
+
+**1. Tolerance-band verification over the committed holdout** (`src/parsing/__fixtures__/foodnessHoldout.tsv`,
+10,002 words): overall **98.13%** (band ≥ 97.5% ✓), food-loss FN **9** (band ≤ 12 ✓), junk-pass FP 167,
+could-not-judge 11 (the reader's new consistency cross-check absorbing hedges), equipment/units/tricky/plain
+**100/100/100/100**. The shipped module reproduces the champion within the band — the ±0.13pt drift vs the
+report's 98.26% is inside run-to-run variance on an unpinned model version, exactly the class the band exists
+to absorb.
+
+**2. The parsed-name population** (KTD-E's transfer caveat, measured): the 771 unique food names the 1919
+replay's LLM leg produced. **81.1% isFood=true, 146 false, 0 could-not-judge.** The false verdicts are
+overwhelmingly the validator doing its job on mis-segmented residue — `Bake`→verb, `a bowl`→equipment,
+`Cook gently`→instruction, `butler`→occupation, `baking-pan`→equipment — i.e. exactly the material the
+retry loop (U7) exists to bounce. **Known residual, recorded before any policy treats 98.26% as the
+operating point:** a `<state> water/fat` class reads false with a food-shaped taxonomy (`boiling water`→
+liquid, `cold water`→liquid, `hot fat`→ingredient — 9 of the 146). These are real ingredients; in the U7
+loop each costs retries and, exhausted, an un-parseable line — the curated-mapping tier is the named
+safety net, and the retry context ("not a food (liquid)") gives the parser a correction signal. The
+inverse-contradiction shape (`isFood: false` + food-shaped taxonomy) is deliberately NOT gated by the
+reader's cross-check — gating it needs a food-shaped-taxonomy list that the open taxonomy would rot.

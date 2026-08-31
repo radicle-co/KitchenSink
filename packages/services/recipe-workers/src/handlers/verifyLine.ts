@@ -82,8 +82,8 @@ import {
     VERIFICATION_MAX_OUTPUT_TOKENS,
     buildVerificationPrompt,
     isPromptTooLargeError,
-} from '../verification/prompt.js';
-import { readVerdict } from '../verification/verdict.js';
+} from '@kitchensink/recipe-core/resolution/verification-prompt';
+import { readVerdict } from '@kitchensink/recipe-core/resolution/verification-verdict';
 import {
     createVerificationSettings,
     createSsmSettingsLoader,

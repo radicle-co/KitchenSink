@@ -21,7 +21,7 @@ import {
     VERIFICATION_MAX_OUTPUT_TOKENS,
     buildVerificationPrompt,
     isPromptTooLargeError,
-} from '../prompt.js';
+} from '../verificationPrompt.js';
 
 const REQUEST = {
     sourceLine: '2 cups all-purpose flour',

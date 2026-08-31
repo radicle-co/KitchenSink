@@ -125,7 +125,7 @@ export const DEFAULT_MONTHLY_CEILING_MICROS = 100 * MICROS_PER_DOLLAR;
  * the property `food-service`'s `source-rolling-window-count` lost by carrying `source` with no `stage`, so
  * that prod and every preview co-mingle into one series and no call can be attributed at all.
  */
-export const SPEND_CALL_SITES = ['verification-gate', 'ingredient-parse'] as const;
+export const SPEND_CALL_SITES = ['verification-gate', 'ingredient-parse', 'foodness-validator'] as const;
 
 /** One claimant on ADR-0024's single spend pool. */
 export type SpendCallSite = (typeof SPEND_CALL_SITES)[number];
@@ -141,6 +141,16 @@ export const VERIFICATION_GATE_CALL_SITE: SpendCallSite = 'verification-gate';
  * IMPORTED line and a single bulk import can claim a large share of the month in minutes.
  */
 export const INGREDIENT_PARSE_CALL_SITE: SpendCallSite = 'ingredient-parse';
+
+/**
+ * The FOODNESS VALIDATOR (plan U6, KTD-E/KTD-F) — the pool's third consumer.
+ *
+ * ⚠️ It fires up to twice per PARSE ATTEMPT (once per attempt's judged name, and the retry loop allows up
+ * to 4 attempts per line — KTD-F's recomputed worst case), so its per-line worst case is a multiple of
+ * the parse leg's. Measurement validation is deliberately NOT a call site: it reuses the gate's quantity
+ * machinery as a LIBRARY (plan U7, origin R7) and spends nothing.
+ */
+export const FOODNESS_VALIDATOR_CALL_SITE: SpendCallSite = 'foodness-validator';
 
 /**
  * Where a decision to route this model's inference beyond the calling region is written down.

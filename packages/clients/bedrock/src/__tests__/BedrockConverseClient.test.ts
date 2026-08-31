@@ -428,3 +428,48 @@ describe('cachePoint and serviceTier — the two levers the shipped parse call n
         expect(transport.calls[0]).not.toHaveProperty('serviceTier');
     });
 });
+
+describe("fewShotTurns — the foodness validator's measured message turns (plan U6, KTD-E)", () => {
+    const BODY = {
+        output: { message: { role: 'assistant', content: [{ text: '{}' }] } },
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    };
+
+    it('assembles the turns BEFORE the real user message, role-tagged, in order', async () => {
+        const transport = transportReturning(BODY);
+        const client = createBedrockConverseClient(transport.send);
+
+        await client.converse({
+            invocationId: 'amazon.nova-micro-v1:0',
+            systemPrompt: 'judge foodness',
+            userMessage: 'lady fingers',
+            maxOutputTokens: 100,
+            fewShotTurns: [
+                { user: 'blorvik', assistant: '{"isFood": false, "taxonomy": "unknown word"}' },
+                { user: 'springform pan', assistant: '{"isFood": false, "taxonomy": "equipment"}' },
+            ],
+        });
+
+        const messages = transport.calls[0]?.messages ?? [];
+
+        expect(messages.map((message) => message.role)).toEqual(['user', 'assistant', 'user', 'assistant', 'user']);
+        expect(messages[0]?.content?.[0]).toEqual({ text: 'blorvik' });
+        expect(messages[1]?.content?.[0]).toEqual({ text: '{"isFood": false, "taxonomy": "unknown word"}' });
+        expect(messages.at(-1)?.content?.[0]).toEqual({ text: 'lady fingers' });
+    });
+
+    it('⛔ absent leaves the message array byte-identical — the gate and parse legs are untouched', async () => {
+        const transport = transportReturning(BODY);
+        const client = createBedrockConverseClient(transport.send);
+
+        await client.converse({
+            invocationId: 'amazon.nova-micro-v1:0',
+            systemPrompt: 'sys',
+            userMessage: 'line',
+            maxOutputTokens: 100,
+        });
+
+        expect(transport.calls[0]?.messages).toEqual([{ role: 'user', content: [{ text: 'line' }] }]);
+    });
+});

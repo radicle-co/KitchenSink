@@ -135,10 +135,12 @@
  *
  * ## ⚠️ SCOPE, stated so it is not over-read
  *
- * This gate covers ONE database and ONE sweep: the recipe database and `eraseRecipeRows`. `identity` and
- * `food` have their own erasure surfaces, which this file makes no claim about. A second database that gains
- * a sweep adds an entry to {@link SWEPT_DATABASES}; the pure predicates below are subject-neutral so that
- * costs one line and no new logic.
+ * This gate covers the RECIPE database (`eraseRecipeRows`) and — since plan U17 — the FOOD database
+ * (`eraseFoodRows`), each with its own floors and maps on its {@link SWEPT_DATABASES} entry. `identity`
+ * has its own erasure surface, which this file makes no claim about. The food entry exists AHEAD of any
+ * `food.user_id` column on purpose (R24): U10's authored-foods tables must land RED here until swept or
+ * ruled, never silently — verified by mutation on 2026-08-31 (a fake user-keyed food migration turned the
+ * gate red naming the table).
  *
  * DESIGN PATTERN: Specification module over eight pure verdicts — {@link columnEffectsIn} (folded by
  * {@link trackedColumnsAfter} for both vocabularies), {@link declaredColumnsIn}, {@link currentColumnsOf},
@@ -161,7 +163,17 @@ import { parse, presentFiles, repoRoot, visit, type SourceFile } from './service
  * the one thing this gate cannot discover, which is why the set is small, closed, and stated here rather
  * than inferred from a shape.
  */
-const OWNER_COLUMNS = ['owner_id', 'author_id', 'user_id', 'created_by'] as const;
+const OWNER_COLUMNS = [
+    'owner_id',
+    'author_id',
+    'user_id',
+    'created_by',
+    // The FOOD database's one spelling (plan U17): `fetch_requesters.requester_id` — an app-user ULID
+    // since migration 0002 renamed it from the Clerk `sub`. Harmless to the recipe database (no recipe
+    // table uses the spelling), and ONE vocabulary beats a per-database one: a spelling is a decision,
+    // not a schema fact, and two lists would drift the day a table moves between services.
+    'requester_id',
+] as const;
 
 /**
  * The columns that hold a person's DISPLAY HANDLE — their name as other people read it.
@@ -204,16 +216,22 @@ interface SweptDatabase {
     readonly sweepFile: string;
     /** The exported function whose statements ARE the sweep. */
     readonly sweepFunction: string;
+    /**
+     * The fewest user-bearing tables a working discovery must find in THIS database — the non-vacuity
+     * floor, per database because the databases are different sizes and slack in one must not hide a
+     * spurious drop in the other. Keep it EXACT (zero slack): it must be raised in the same change as any
+     * migration adding a user-bearing table.
+     */
+    readonly minimumOwnerBearingTables: number;
+    /** The fewest handle-bearing `table.column` locations — same posture, per database. May be 0. */
+    readonly minimumHandleBearingColumns: number;
+    /** This database's {@link EXEMPT_FROM_SWEEP}-shaped map. */
+    readonly exemptFromSweep: ReadonlyMap<string, string>;
+    /** This database's {@link RETAINED_BY_RULING}-shaped map. */
+    readonly retainedByRuling: ReadonlyMap<string, { readonly why: string; readonly columns: readonly string[] }>;
+    /** This database's {@link HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW}-shaped map. */
+    readonly handleColumnsDeletedWithTheirRow: ReadonlyMap<string, string>;
 }
-
-/** The databases this gate covers. See the module docstring's scope note before adding one. */
-const SWEPT_DATABASES: readonly SweptDatabase[] = [
-    {
-        migrations: 'packages/services/recipe-service/src/database/migrations',
-        sweepFile: 'packages/services/recipe-workers/src/handlers/accountErasureWorker.ts',
-        sweepFunction: 'eraseRecipeRows',
-    },
-];
 
 /**
  * Tables that carry an owner column and are DELIBERATELY not swept by a statement of their own.
@@ -347,6 +365,43 @@ const MINIMUM_OWNER_BEARING_TABLES = 8;
  * that adds a fifth must raise this in the same change.
  */
 const MINIMUM_HANDLE_BEARING_COLUMNS = 4;
+
+/**
+ * The databases this gate covers. See the module docstring's scope note before adding one.
+ *
+ * ⛔ THE FOOD ENTRY IS U17's WHOLE POINT, and it ships BEFORE any `food.user_id` column exists (R24's
+ * precondition, made a real dependency edge by the round-2 review): U10's authored-foods migration must
+ * land RED here until its table is swept or ruled, never silently. Today the food database's one
+ * user-bearing table is `fetch_requesters` (`requester_id`, an app-user ULID since its 0002 rename), and
+ * its sweep is `eraseFoodRows` — the raw-SQL sweep function `UserErasureService.eraseUser` issues, shaped
+ * like `eraseRecipeRows` precisely so this parser can read its statements.
+ */
+const SWEPT_DATABASES: readonly SweptDatabase[] = [
+    {
+        migrations: 'packages/services/recipe-service/src/database/migrations',
+        sweepFile: 'packages/services/recipe-workers/src/handlers/accountErasureWorker.ts',
+        sweepFunction: 'eraseRecipeRows',
+        minimumOwnerBearingTables: MINIMUM_OWNER_BEARING_TABLES,
+        minimumHandleBearingColumns: MINIMUM_HANDLE_BEARING_COLUMNS,
+        exemptFromSweep: EXEMPT_FROM_SWEEP,
+        retainedByRuling: RETAINED_BY_RULING,
+        handleColumnsDeletedWithTheirRow: HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW,
+    },
+    {
+        migrations: 'packages/services/food-service/src/db/migrations',
+        sweepFile: 'packages/services/food-service/src/foods/eraseFoodRows.ts',
+        sweepFunction: 'eraseFoodRows',
+        // Exactly `fetch_requesters` today — zero slack, like the recipe floor. U10's authored-foods
+        // table raises this to 2 in the same change, or this gate goes red on the addition.
+        minimumOwnerBearingTables: 1,
+        // The food schema carries no display handles. A first one arriving must raise this floor in the
+        // same change that adjudicates it.
+        minimumHandleBearingColumns: 0,
+        exemptFromSweep: new Map(),
+        retainedByRuling: new Map(),
+        handleColumnsDeletedWithTheirRow: new Map(),
+    },
+];
 
 /**
  * Strip SQL comments so prose about a column is never read as a column.
@@ -1046,7 +1101,7 @@ describe('account-erasure sweep coverage', () => {
                 expect(
                     owned.length,
                     'fewer user-bearing tables than this database is known to have — discovery has broken',
-                ).toBeGreaterThanOrEqual(MINIMUM_OWNER_BEARING_TABLES);
+                ).toBeGreaterThanOrEqual(database.minimumOwnerBearingTables);
                 expect(
                     swept.size,
                     `${database.sweepFunction} addresses no tables — the parser has broken`,
@@ -1057,7 +1112,10 @@ describe('account-erasure sweep coverage', () => {
                 // the ADR that ruled it need not be erased — never none of the three.
                 expect(
                     owned.filter(
-                        (table) => !swept.has(table) && !EXEMPT_FROM_SWEEP.has(table) && !RETAINED_BY_RULING.has(table),
+                        (table) =>
+                            !swept.has(table) &&
+                            !database.exemptFromSweep.has(table) &&
+                            !database.retainedByRuling.has(table),
                     ),
                 ).toEqual([]);
             });
@@ -1069,11 +1127,18 @@ describe('account-erasure sweep coverage', () => {
                 expect(
                     handles.length,
                     'fewer handle-bearing columns than this database is known to have — discovery has broken',
-                ).toBeGreaterThanOrEqual(MINIMUM_HANDLE_BEARING_COLUMNS);
-                expect(
-                    written.size,
-                    `${database.sweepFunction} assigns to no columns — the parser has broken`,
-                ).toBeGreaterThan(0);
+                ).toBeGreaterThanOrEqual(database.minimumHandleBearingColumns);
+
+                if (database.minimumHandleBearingColumns > 0) {
+                    // ⚠️ Conditional on purpose: the food sweep is pure row deletion (no UPDATE anywhere),
+                    // so an unconditional floor would be a false claim about it. The floor's job — catching
+                    // a wiring break — is carried for that database by the `swept.size > 0` assertion above,
+                    // which reads the SAME statementTextsIn over the SAME declaration.
+                    expect(
+                        written.size,
+                        `${database.sweepFunction} assigns to no columns — the parser has broken`,
+                    ).toBeGreaterThan(0);
+                }
 
                 // ⛔ Each entry here is a COPY of a person's display name that survives their erasure. The
                 // table-level assertion above cannot see one: `collections` is swept, and the handle it kept
@@ -1081,7 +1146,8 @@ describe('account-erasure sweep coverage', () => {
                 // `HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW` that erasure destroys the row that holds it.
                 expect(
                     handles.filter(
-                        (location) => !written.has(location) && !HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.has(location),
+                        (location) =>
+                            !written.has(location) && !database.handleColumnsDeletedWithTheirRow.has(location),
                     ),
                 ).toEqual([]);
             });
@@ -1093,8 +1159,12 @@ describe('account-erasure sweep coverage', () => {
                 // Both directions, exactly as the table-level maps are checked. A claim outliving its column
                 // excuses nothing and would silently cover a future column that reused the name; a claim about
                 // a column the sweep now writes reads as "erasure does not clear this", the opposite of true.
-                expect([...HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.keys()].filter((at) => !handles.has(at))).toEqual([]);
-                expect([...HANDLE_COLUMNS_DELETED_WITH_THEIR_ROW.keys()].filter((at) => written.has(at))).toEqual([]);
+                expect([...database.handleColumnsDeletedWithTheirRow.keys()].filter((at) => !handles.has(at))).toEqual(
+                    [],
+                );
+                expect([...database.handleColumnsDeletedWithTheirRow.keys()].filter((at) => written.has(at))).toEqual(
+                    [],
+                );
             });
 
             it('⛔ never REMOVES a table the union found — a fold may only ever subtract', () => {
@@ -1103,7 +1173,7 @@ describe('account-erasure sweep coverage', () => {
                 const now = userBearingTablesAfter(migrations);
 
                 expect(ever.size, 'the union found nothing — the parser has broken').toBeGreaterThanOrEqual(
-                    MINIMUM_OWNER_BEARING_TABLES,
+                    database.minimumOwnerBearingTables,
                 );
 
                 // ⛔ The one direction a fold can fail that a union cannot: inventing a table, or mis-parsing a
@@ -1117,7 +1187,7 @@ describe('account-erasure sweep coverage', () => {
                 const migrations = migrationsOf(database);
                 const owned = new Set(ownerBearingTables(database));
 
-                for (const [table, entry] of RETAINED_BY_RULING) {
+                for (const [table, entry] of database.retainedByRuling) {
                     if (!owned.has(table)) {
                         continue;
                     }
@@ -1180,8 +1250,8 @@ describe('account-erasure sweep coverage', () => {
                 // table that happened to reuse the name. ⚠️ This is also the assertion that would have caught
                 // a lazier version of ADR-0027 — leaving `ingredient_resolution_memos` in a map after 0033
                 // dropped its person column.
-                expect([...EXEMPT_FROM_SWEEP.keys()].filter((table) => !owned.has(table))).toEqual([]);
-                expect([...RETAINED_BY_RULING.keys()].filter((table) => !owned.has(table))).toEqual([]);
+                expect([...database.exemptFromSweep.keys()].filter((table) => !owned.has(table))).toEqual([]);
+                expect([...database.retainedByRuling.keys()].filter((table) => !owned.has(table))).toEqual([]);
             });
 
             it('carries no exemption or retention for a table the sweep already reaches', () => {
@@ -1192,8 +1262,8 @@ describe('account-erasure sweep coverage', () => {
                 // RETENTION it is worse: a sweep against a retained table means somebody added an erasable
                 // column there, and that has to be re-adjudicated rather than silently coexist with a ruling
                 // that says the table holds nothing erasable.
-                expect([...EXEMPT_FROM_SWEEP.keys()].filter((table) => swept.has(table))).toEqual([]);
-                expect([...RETAINED_BY_RULING.keys()].filter((table) => swept.has(table))).toEqual([]);
+                expect([...database.exemptFromSweep.keys()].filter((table) => swept.has(table))).toEqual([]);
+                expect([...database.retainedByRuling.keys()].filter((table) => swept.has(table))).toEqual([]);
             });
         });
     }

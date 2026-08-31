@@ -25,7 +25,7 @@
  */
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FetchRequestersDao } from './dao/fetchRequesters.dao.js';
+import { eraseFoodRows } from './eraseFoodRows.js';
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
 
 /** The outcome of erasing one user. */
@@ -38,11 +38,7 @@ export interface EraseUserResult {
 
 @Injectable()
 export class UserErasureService {
-    private readonly requesters: FetchRequestersDao;
-
-    public constructor(@Inject(DrizzleProvider) db: FoodDrizzle) {
-        this.requesters = new FetchRequestersDao(db);
-    }
+    public constructor(@Inject(DrizzleProvider) private readonly db: FoodDrizzle) {}
 
     /**
      * Erase a deleted user's food-service footprint: delete every `fetch_requesters` row keyed by the
@@ -53,7 +49,10 @@ export class UserErasureService {
      * @sideEffect Deletes from `fetch_requesters`.
      */
     public async eraseUser(requesterId: string): Promise<EraseUserResult> {
-        const deletedRequesterRows = await this.requesters.deleteForRequester(requesterId);
+        // ⛔ Delegated to `eraseFoodRows` — the ONE raw-SQL sweep the erasure-coverage gate audits (plan
+        // U17). Do not re-inline a builder call here: the gate cannot read one, and the sweep would go
+        // back to being correct-but-unauditable.
+        const { deletedRequesterRows } = await eraseFoodRows(this.db, requesterId);
 
         return { requesterId, deletedRequesterRows };
     }

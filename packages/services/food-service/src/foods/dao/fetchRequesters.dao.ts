@@ -68,20 +68,7 @@ export class FetchRequestersDao {
         return result.rowCount ?? 0;
     }
 
-    /**
-     * Erase every requester row recorded for a requester across all foods (user-erasure, T-056/FR-043/
-     * FR-044). `fetch_requesters` is the ONLY per-user data this service stores (there are deliberately
-     * no `user_fetch_quota`/`global_fetch_quota` tables), so deleting a deleted user's rows here fully
-     * removes their footprint; foods stay shared reference data and the surviving requesters keep their
-     * demand weight. Idempotent (a re-run deletes nothing).
-     *
-     * @param requesterId - The requester key to erase (CR-002/U1: the app-user ULID, not the Clerk `sub`).
-     * @returns The number of erased rows.
-     * @sideEffect Deletes from `fetch_requesters`.
-     */
-    public async deleteForRequester(requesterId: string): Promise<number> {
-        const result = await this.db.delete(fetchRequesters).where(eq(fetchRequesters.requesterId, requesterId));
-
-        return result.rowCount ?? 0;
-    }
+    // ⛔ NO `deleteForRequester` here any more (plan U17). The user-erasure DELETE moved to
+    // `eraseFoodRows.ts` — the ONE raw-SQL sweep the erasure-coverage gate can audit — and a second
+    // builder-shaped copy of the same statement would be exactly the drift that gate exists to prevent.
 }

@@ -29,6 +29,7 @@ import { InMemoryPublisher } from '@kitchensink/messaging';
 import { FoodEventEmitter } from '../src/events/FoodEventEmitter.js';
 import { FoodRecoveryService } from '../src/foods/admin/foodRecovery.service.js';
 import { FetchQueueDao } from '../src/foods/dao/fetchQueue.dao.js';
+import { eraseFoodRows } from '../src/foods/eraseFoodRows.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetchRequesters.dao.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
 import { FoodSourcesDao } from '../src/foods/dao/foodSources.dao.js';
@@ -210,8 +211,9 @@ describe.skipIf(!DATABASE_URL)('U9 operator requeue — the recovery loop (integ
         await recovery().requeueFood(id, OPERATOR);
 
         expect(await queue.listRequesterIds(id)).toStrictEqual([SVC_ADMIN_REQUEUE]);
-        // Erasing a human can never touch it: it is a constant belonging to no person.
-        expect(await requesters.deleteForRequester(OPERATOR)).toBe(0);
+        // Erasing a human can never touch it: it is a constant belonging to no person. Driven through the
+        // REAL sweep (`eraseFoodRows`, plan U17) — the one statement erasure actually issues.
+        expect((await eraseFoodRows(db, OPERATOR)).deletedRequesterRows).toBe(0);
         expect(await queue.listRequesterIds(id)).toStrictEqual([SVC_ADMIN_REQUEUE]);
     });
 

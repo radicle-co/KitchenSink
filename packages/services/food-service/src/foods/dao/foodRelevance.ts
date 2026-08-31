@@ -65,7 +65,7 @@ import { BASE_METRIC_MAX, SCORE_CEILING, TIER_GAP } from '@kitchensink/recipe-co
  */
 const RANK_FOLDED = 'food.rank_folded';
 
-/** The materialized token array; `[1]` is the head term. See {@link RANK_FOLDED}. */
+/** The materialized token array. The head term lives in `rank_head` (U1) — not `[1]`. */
 const RANK_TOKENS = 'food.rank_tokens';
 
 /**
@@ -93,7 +93,7 @@ function rankTierSql(terms: RankingTerms): SQL {
     return sql`(CASE
         WHEN food.rank_folded = ${terms.folded} THEN 4
         WHEN food.rank_tokens <@ ${queryTokens} AND ${queryTokens} <@ food.rank_tokens THEN 3
-        WHEN food.rank_tokens[1] = ${terms.head ?? null} THEN 2
+        WHEN food.rank_head = ${terms.head ?? null} THEN 2
         WHEN ${queryTokens} <@ food.rank_tokens THEN 1
         ELSE 0
     END)`;

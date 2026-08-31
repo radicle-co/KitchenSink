@@ -239,7 +239,8 @@ export interface GateObservations {
      * singleton shortlist starts reading as a tie rather than as the warning sign KTD-3 says it is.
      */
     readonly margin: number | undefined;
-    /** Inter-candidate nutrient agreement. Reported; never a door. See the file docstring. */
+    /** Inter-candidate nutrient agreement. Reported — and since plan U1 (D4a), also the SECOND CONJUNCT
+     * of the ranked identity skip: a wide margin opens nothing without it. */
     readonly nutrientAgreement: NutrientAgreement;
 }
 
@@ -367,19 +368,30 @@ function nutrientAgreementOf(shortlist: readonly ScoredCandidate[], fraction: nu
  *
  * A singleton shortlist can never pass — it has no runner-up, so {@link marginOf} is `undefined`, and a naive
  * `top - next` on one candidate reading as maximal confidence is the exact inversion KTD-3 guards against.
+ * And since plan U1 (D4a), a wide margin passes ONLY together with nutrient agreement — the skip is a
+ * conjunction, so a confidently-wrong ladder assignment cannot open the door on margin alone.
  *
  * @param evidence - What the cascade established.
  * @param thresholds - The bands.
  * @returns Whether the identity aspect may be skipped. Pure.
  */
-function identityEstablished(evidence: IdentityEvidence, thresholds: VerificationThresholds): boolean {
+function identityEstablished(
+    evidence: IdentityEvidence,
+    thresholds: VerificationThresholds,
+    nutrientAgreement: NutrientAgreement,
+): boolean {
     if (evidence.kind === 'curated-exact') {
         return true;
     }
 
     const margin = marginOf(shortlistOf(evidence));
 
-    return margin !== undefined && margin >= thresholds.wideMarginScore;
+    // ⛔ CONJUNCTIVE, never OR (plan U1, D4a — amends KTD-3's skip set). A wide margin alone let a
+    // wide-margin-WRONG winner bypass the gate: `Cinnamon buns, frosted` won the bare query `cinnamon` by a
+    // full tier (measured 2026-08-29). Requiring agreement as the second conjunct bounds the damage of any
+    // false catch to candidates within the nutrient tolerance of each other — and an `unknown` agreement
+    // fails toward verify, because missing data cannot affirm anything.
+    return margin !== undefined && margin >= thresholds.wideMarginScore && nutrientAgreement === 'agree';
 }
 
 /**
@@ -430,7 +442,11 @@ export function decideVerification(input: VerificationGateInput): VerificationDe
     }
 
     // ⛔ Quantity is NEVER absent from this tuple. Nothing the cascade produces is evidence about a number.
-    const aspects: [VerificationAspect, ...VerificationAspect[]] = identityEstablished(input.evidence, input.thresholds)
+    const aspects: [VerificationAspect, ...VerificationAspect[]] = identityEstablished(
+        input.evidence,
+        input.thresholds,
+        observations.nutrientAgreement,
+    )
         ? ['quantity']
         : ['identity', 'quantity'];
 

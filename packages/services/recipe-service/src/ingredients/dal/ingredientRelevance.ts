@@ -98,7 +98,7 @@ function rankTierSql(terms: RankingTerms): SQL {
     return sql`(CASE
         WHEN ingredients.rank_folded = ${terms.folded} THEN 4
         WHEN ingredients.rank_tokens <@ ${queryTokens} AND ${queryTokens} <@ ingredients.rank_tokens THEN 3
-        WHEN ingredients.rank_tokens[1] = ${terms.head ?? null} THEN 2
+        WHEN ingredients.rank_head = ${terms.head ?? null} THEN 2
         WHEN ${queryTokens} <@ ingredients.rank_tokens THEN 1
         ELSE 0
     END)`;

@@ -25,7 +25,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { foldForRanking, rankingTokens } from '@kitchensink/recipe-core/resolution/ranking-terms';
+import { describeRankingName, foldForRanking, rankingTokens } from '@kitchensink/recipe-core/resolution/ranking-terms';
 
 import { DATABASE_URL, makePool, resetSchema } from './support/db.js';
 
@@ -73,6 +73,47 @@ describe.skipIf(!DATABASE_URL)('food.rank_folded / rank_tokens (migration 0008, 
 
     beforeEach(async () => {
         await pool.query('TRUNCATE food CASCADE');
+    });
+
+    describe('food.rank_head (migration 0011) mirrors the comma-segment head rule (plan U1, D4b)', () => {
+        it('the column exists, is GENERATED, and is STORED', async () => {
+            const { rows } = await pool.query(
+                `SELECT is_generated FROM information_schema.columns
+                 WHERE table_name = 'food' AND column_name = 'rank_head'`,
+            );
+
+            expect(rows).toHaveLength(1);
+            expect(rows[0].is_generated).toBe('ALWAYS');
+        });
+
+        it('⛔ computes EXACTLY what describeRankingName().head computes, for every name', async () => {
+            for (const name of [...NAMES, 'Cinnamon buns, frosted', 'Salad dressing, russian', ', frosted']) {
+                await pool.query(
+                    `INSERT INTO food (id, name, normalized_name, status)
+                     VALUES (gen_random_uuid()::text, $1, $1 || '-' || gen_random_uuid()::text, 'RESOLVED')`,
+                    [name],
+                );
+            }
+
+            const { rows } = await pool.query('SELECT name, rank_head FROM food');
+
+            for (const row of rows) {
+                expect(row.rank_head ?? undefined, `head of ${JSON.stringify(row.name)}`).toBe(
+                    describeRankingName(row.name).head,
+                );
+            }
+        });
+
+        it('crowns the noun of a natural-order first segment — the measured cinnamon case', async () => {
+            await pool.query(
+                `INSERT INTO food (id, name, normalized_name, status)
+                 VALUES ('u1-cinnamon', 'Cinnamon buns, frosted', 'u1-cinnamon', 'RESOLVED')`,
+            );
+
+            const { rows } = await pool.query(`SELECT rank_head FROM food WHERE id = 'u1-cinnamon'`);
+
+            expect(rows[0].rank_head).toBe('bun');
+        });
     });
 
     it('the migration applied — both columns exist and are GENERATED', async () => {

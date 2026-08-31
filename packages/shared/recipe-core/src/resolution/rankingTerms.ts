@@ -153,20 +153,41 @@ export interface RankingTerms {
 }
 
 /**
- * Parse a CATALOG NAME into its ranking terms. The head is the **first** token.
+ * Parse a CATALOG NAME into its ranking terms. The head is the **first** token — unless the name carries a
+ * comma AND its first comma segment is multi-word, in which case the head is that segment's **last** token.
  *
- * That rule is USDA's naming convention read literally: the catalog inverts a food's name so the head noun
- * leads (`Flour, wheat, all-purpose`; `Sugars, brown`; `Vinegar, red wine`; `Chives, raw`). A name whose
- * head is `carob` is a carob product however prominently `flour` appears later in it — which is exactly what
- * disqualifies `Carob flour`, `Crackers, milk` and the sugar-coated candy from the head tier.
+ * The base rule is USDA's naming convention read literally: the catalog inverts a food's name so the head
+ * noun leads (`Flour, wheat, all-purpose`; `Sugars, brown`; `Vinegar, red wine`; `Chives, raw`). A name
+ * whose head is `carob` is a carob product however prominently `flour` appears later in it — which is
+ * exactly what disqualifies `Carob flour`, `Crackers, milk` and the sugar-coated candy from the head tier.
+ *
+ * ⛔ The comma-segment amendment (plan U1, D4b) exists because SR Legacy also contains NATURAL-ORDER
+ * product names whose first segment is an English noun phrase: `Cinnamon buns, frosted` is a bun, and the
+ * first-token rule crowned its MODIFIER — measured 2026-08-29, that name won the bare query `cinnamon` at
+ * the head rung with a WIDE margin, a false catch that would have skipped verification. Inside a multi-word
+ * first segment the head noun is FINAL (the same reason {@link describeRankingQuery}'s head is last).
+ *
+ * ⚠️ A NO-COMMA name keeps its first token deliberately, in both directions: flipping `Carob flour` to a
+ * last-word head would promote the attractor INTO the head rung for the query `flour` — the exact defect
+ * the head asymmetry was built to end.
  *
  * @param name - The catalog (or local ingredient) display name.
  * @returns Its ranking terms. Pure.
  */
 export function describeRankingName(name: string): RankingTerms {
     const tokens = rankingTokens(name);
+    const commaIndex = name.indexOf(',');
+    let head = tokens[0];
 
-    return { folded: foldForRanking(name), tokens, head: tokens[0] };
+    if (commaIndex >= 0) {
+        const segmentTokens = rankingTokens(name.slice(0, commaIndex));
+
+        if (segmentTokens.length > 1) {
+            head = segmentTokens[segmentTokens.length - 1];
+        }
+    }
+
+    return { folded: foldForRanking(name), tokens, head };
 }
 
 /**

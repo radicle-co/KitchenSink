@@ -208,7 +208,44 @@ describe('identity is skipped only on identity evidence', () => {
     });
 });
 
-describe('nutrient equivalence is OBSERVED, never a door', () => {
+describe('nutrient equivalence is the SECOND CONJUNCT of the identity skip (plan U1, D4a)', () => {
+    // ⛔ REWRITTEN 2026-08-30 (was: "OBSERVED, never a door"). The OR'd skip set let a wide-margin-WRONG
+    // winner bypass the gate — measured: `Cinnamon buns, frosted` won the bare query `cinnamon` by a full
+    // tier. Under D4a the ranked identity skip requires margin AND agreement; agreement ALONE still opens
+    // nothing (the 334-attractor lesson stands), and an `unknown` agreement fails toward verify.
+    it('wide margin with DIVERGENT nutrients verifies identity — the cinnamon case', () => {
+        const decision = decideVerification(
+            input({ evidence: rankedEvidence([candidate(1), candidate(0, { energyKcalPer100g: 40 })]) }),
+        );
+
+        expect(aspectsOf(decision)).toContain('identity');
+    });
+
+    it('wide margin with UNKNOWN agreement (a candidate without nutrients) verifies identity', () => {
+        const decision = decideVerification(
+            input({
+                evidence: rankedEvidence([
+                    candidate(1, {
+                        energyKcalPer100g: undefined,
+                        proteinGPer100g: undefined,
+                        fatGPer100g: undefined,
+                        carbohydrateGPer100g: undefined,
+                    }),
+                    candidate(0),
+                ]),
+            }),
+        );
+
+        expect(aspectsOf(decision)).toContain('identity');
+    });
+
+    it('wide margin WITH agreement still skips identity — the conjunction, positive arm', () => {
+        const decision = decideVerification(input({ evidence: rankedEvidence([candidate(1), candidate(0)]) }));
+
+        expect(aspectsOf(decision)).not.toContain('identity');
+        expect(aspectsOf(decision)).toContain('quantity');
+    });
+
     it('reports agreement when energy and the macros are within the tolerance', () => {
         const decision = decideVerification(
             input({

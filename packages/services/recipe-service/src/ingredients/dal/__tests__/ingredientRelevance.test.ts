@@ -114,8 +114,11 @@ describe('localTieredSortKey — it reads the MATERIALIZED terms, and that is lo
         }
     });
 
-    it('reads the head term as element 1 of the materialized array', () => {
-        expect(score.text).toContain('ingredients.rank_tokens[1]');
+    it('reads the head from the materialized rank_head column (U1, migration 0034)', () => {
+        // Rewritten 2026-08-30: was `rank_tokens[1]` — see foodRelevance.test.ts's twin for the measured
+        // false catch the comma-segment rule ends. `rank_head` mirrors describeRankingName().head.
+        expect(score.text).toContain('ingredients.rank_head');
+        expect(score.text).not.toContain('rank_tokens[1]');
     });
 });
 

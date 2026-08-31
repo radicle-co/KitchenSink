@@ -158,6 +158,14 @@ export const food = pgTable(
             .generatedAlwaysAs(
                 sql`array_remove(regexp_split_to_array(regexp_replace(regexp_replace(btrim(regexp_replace(regexp_replace(normalize(lower(name), NFD), '[\u0300-\u036f]', '', 'g'), '[ \t\n\r\f\v]+', ' ', 'g'), ' '), '([[:alnum:]]{2}(s|x|z|ch|sh))es(?![[:alnum:]])', '\1', 'g'), '([[:alnum:]]{2}(?!s)[[:alnum:]])s(?![[:alnum:]])', '\1', 'g'), '[^[:alnum:]]+'), '')`,
             ),
+        /**
+         * U1's head term — the SQL mirror of `describeRankingName(name).head` (migration 0011): the last
+         * token of a multi-word first comma segment, else the first token. Supersedes `rankTokens[1]` as
+         * the head; `rank_tokens_of()` is the immutable helper 0011 creates.
+         */
+        rankHead: text('rank_head').generatedAlwaysAs(
+            sql`CASE WHEN position(',' in name) > 0 AND cardinality(rank_tokens_of(split_part(name, ',', 1))) > 1 THEN (rank_tokens_of(split_part(name, ',', 1)))[cardinality(rank_tokens_of(split_part(name, ',', 1)))] ELSE (rank_tokens_of(name))[1] END`,
+        ),
     },
     (table) => [
         uniqueIndex('food_normalized_name_unique').on(table.normalizedName),

@@ -165,6 +165,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // because they are GENERATED from `name` — Postgres owns the value and no writer supplies it.
             rank_folded: { type: 'text', notNull: false },
             rank_tokens: { type: 'text[]', notNull: false },
+            // U1 (migration 0034): the head term, comma-segment rule included — supersedes rank_tokens[1].
+            rank_head: { type: 'text', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });
     });

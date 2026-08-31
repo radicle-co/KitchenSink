@@ -51,6 +51,7 @@ function foodRow(overrides: Partial<FoodRow> = {}): FoodRow {
         // the right shape. The real ones are asserted in `tests/rankingTerms.integration.test.ts`.
         rankFolded: null,
         rankTokens: null,
+        rankHead: null,
         ...overrides,
     };
 }

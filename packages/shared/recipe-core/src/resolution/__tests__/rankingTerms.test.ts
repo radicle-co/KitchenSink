@@ -145,6 +145,32 @@ describe('describeRankingName — a catalog name is HEAD-FIRST', () => {
         expect(describeRankingName('Crackers, milk').head).toBe('cracker');
     });
 
+    describe('a NATURAL-ORDER first comma segment yields its LAST word as the head (plan U1, D4b)', () => {
+        it('crowns the noun of a multi-word first segment, not its modifier', () => {
+            // Measured 2026-08-29: `Cinnamon buns, frosted` classified at the HEAD rung for the query
+            // `cinnamon` with a WIDE margin — a false catch that would have skipped verification. The name
+            // is natural-order English inside its first segment; its head noun is `buns`, not `cinnamon`.
+            expect(describeRankingName('Cinnamon buns, frosted').head).toBe('bun');
+            expect(describeRankingName('Salad dressing, russian').head).toBe('dressing');
+        });
+
+        it('leaves a single-word first segment on the inverted-convention rule', () => {
+            expect(describeRankingName('Pepper, banana, raw').head).toBe('pepper');
+            expect(describeRankingName('Flour, wheat, all-purpose').head).toBe('flour');
+        });
+
+        it('⛔ applies ONLY when a comma exists — a no-comma name keeps its FIRST token', () => {
+            // The boundary in both directions: flipping `Carob flour` to a last-word head would promote it
+            // INTO the head rung for the query `flour` and hand the attractor a tier it never had.
+            expect(describeRankingName('Carob flour').head).toBe('carob');
+            expect(describeRankingName('Milk and cereal bar').head).toBe('milk');
+        });
+
+        it('falls back to the first token when the first segment is empty', () => {
+            expect(describeRankingName(', frosted').head).toBe('frosted');
+        });
+    });
+
     it('has no head when the name holds no alphanumeric character', () => {
         expect(describeRankingName('   ').head).toBeUndefined();
     });

@@ -110,8 +110,12 @@ describe('catalogTieredSortKey — it reads the MATERIALIZED terms, and that is 
         }
     });
 
-    it('reads the head term as element 1 of the materialized array', () => {
-        expect(SCORE.text).toContain('food.rank_tokens[1]');
+    it('reads the head from the materialized rank_head column (U1, migration 0011)', () => {
+        // Rewritten 2026-08-30: was `rank_tokens[1]`, which crowned the MODIFIER of natural-order names
+        // (`Cinnamon buns, frosted` won the query `cinnamon` at the head rung — the measured false catch).
+        // `rank_head` mirrors describeRankingName().head, comma-segment rule included.
+        expect(SCORE.text).toContain('food.rank_head');
+        expect(SCORE.text).not.toContain('rank_tokens[1]');
     });
 });
 

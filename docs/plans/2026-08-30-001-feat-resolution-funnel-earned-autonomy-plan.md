@@ -52,7 +52,8 @@ Origin R1–R13 carry verbatim (see origin doc). Plan-added, from flow analysis 
 - **R20** Private authored `food_id`s never enter another user's retrieval shortlist, any global memo or
   embedding row, or shared band statistics; the author's own resolutions include them.
 - **R21** Post-promotion edits stay allowed and are VERSIONED with the recipe versioning pattern (owner
-  ruling 2026-08-30) — versions table, archive worker, pseudonymized editor handles.
+  ruling 2026-08-30) — versions table + pseudonymized editor handles; the archive worker is explicitly
+  deferred until version volume warrants it (see U10).
 - **R22** Voluntary `DELETE` of a referenced authored food refuses with `409` + referencing recipes;
   delete-if-unreferenced otherwise; orphaning is erasure-only.
 - **R23** A published recipe may carry ambiguous lines: viewers see the line name with the nutrition
@@ -68,11 +69,22 @@ Origin R1–R13 carry verbatim (see origin doc). Plan-added, from flow analysis 
 ## Key Technical Decisions
 
 - **KTD-A — Zero-authority binds WITHHOLD until the verdict (owner ruling 2026-08-30).** A lexical
-  resolution with no band authority lands `UNRESOLVED` — macros uncounted, line visibly pending — until
-  the gate agrees (typically seconds). This changes the shipped absence-means-publish read semantics FOR
+  resolution with no band authority renders as a NEW derived-at-read line state, `pending-verification` —
+  macros unaccounted, line visibly pending — until the gate agrees. ⛔ NOT `UNRESOLVED`, which ships with
+  the opposite meaning ("several candidates, pick one") and drives the disambiguation picker; and NOT a
+  status write — migration 0023 forbids verdict writes into `food_resolution_status`, so pending is
+  DERIVED exactly like the shipped `NEEDS_REVIEW` precedent: `ranked` provenance (U2's row) + a
+  zero-authority band epoch + no verdict row at the line's verification key ⇒ pending. The verdict row
+  landing flips it with no catalog write. Pending is AGE-BOUNDED: past a threshold (calibration constant)
+  the line renders as the actionable needs-review treatment instead of pending forever, and a scheduled
+  sweep re-enqueues verdict-less pending lines past that age — a DLQ'd verification is user-visible harm
+  under withhold, so the re-drive is part of the design, not ops. This changes the shipped absence-means-publish read semantics FOR
   LEXICAL-TIER BINDS ONLY (curated/memo hits and user picks are unaffected): R1 stays true as written; a
-  lost enqueue degrades to a visible pending line rather than a silent unchecked bind, so the enqueue is
-  no longer fire-and-swallow on this path — it participates in the write; and earned autonomy gains its
+  lost enqueue degrades to a visible pending line rather than a silent unchecked bind — which is exactly
+  why the enqueue STAYS post-commit and swallowed (the shipped shape: the message carries ids that only
+  exist after commit, and failing a save over a committed row manufactures duplicates on retry): the
+  pending state is written in the SAME transaction as the line, so nothing is ever silent, and the
+  age-bounded sweep re-drives any stranded line; and earned autonomy gains its
   real payoff — an authorized band binds INSTANTLY while a cold band waits. The tier still RESOLVES with
   `ranked` evidence, and every zero-authority resolution enqueues verification. Earned autonomy = the skip
   branch of `decideVerification` gated on band authority, with KTD-3's conditions (conjunctive per D4a)
@@ -101,12 +113,16 @@ Origin R1–R13 carry verbatim (see origin doc). Plan-added, from flow analysis 
   few-shot MESSAGE TURNS** (optimized 2026-08-30, ~275k calls, pre-registered protocol —
   `docs/reports/2026-08-30-001-foodness-prompt-optimization.md`). Holdout: **98.26%**, food-loss 0.4%,
   equipment/units/tricky/plain all 100%; the turns alone cut weighted loss 43% over the instruction-only
-  form. It judges the NAME and nothing else (one-argument `Exact` pin), answers
+  form. ⚠️ TRANSFER CAVEAT: the holdout measured catalog names and dictionary words; production input
+  is PARSED NAMES from the pipeline (multi-word, occasionally mis-segmented, historical spellings) — the
+  same off-distribution risk the origin's FoodSEM citation records (98% → 37%). The operating point is
+  therefore measured, not assumed: see U6's parsed-name slice. It judges the NAME and nothing else (one-argument `Exact` pin), answers
   `{"isFood": boolean, "taxonomy": string}` with an OPEN taxonomy (owner ruling, KISS), is pinned by
   SHA-256 + length covering the system prompt AND the turns, and runs on **Nova Micro** — measured
   better than Nova 2 Lite on units-as-names (93% vs 83%), the validator's core class. ⚠️ The
-  cross-family PAIR RULE (validator family := the roster member the parser did not take; self-preference
-  measured −31.5 points) is recorded but UNSATISFIABLE today: no Anthropic model is invocable on this
+  cross-family PAIR RULE — the MODEL the validator calls must come from a different model family than the
+  MODEL the parser leg calls, because a same-family judge inflates agreement (self-preference measured
+  −31.5 points in the bake-off) — is recorded but UNSATISFIABLE today: no Anthropic model is invocable on this
   account until the owner submits Bedrock's use-case form — re-run the bake-off if Haiku unlocks, and
   keep the `llmSpendGuards`-style family guard staged for that day. The reader is three-valued and adds
   the taxonomy-vs-boolean consistency cross-check (holdout-evidenced: most residual errors are internal
@@ -128,8 +144,9 @@ Origin R1–R13 carry verbatim (see origin doc). Plan-added, from flow analysis 
   no `source` field exists on the wire. Dedup: two partial unique indexes (catalog-unique where unowned;
   per-`(normalized_name, user_id)` where owned), ADR-0027 rename-don't-recreate discipline, replay-clean
   on live `pr-{N}` clones.
-- **KTD-I — Authored-food versioning reuses the recipe versioning pattern** (owner ruling): versions
-  table + archive worker + `pseudonymizedAuthorHandle` on tombstone. Residual risk (promoted food's
+- **KTD-I — Authored-food versioning reuses the recipe
+  versioning pattern** (owner ruling): versions table + `pseudonymizedAuthorHandle` on tombstone (the
+  archive-worker half deferred — see U10). Residual risk (promoted food's
   nutrition shifts under referencing recipes) is accepted with version history as recourse — recorded in
   Risks, not silently.
 - **KTD-J — In-service pipeline shape: RxJS is the owner's preference for the intra-service filter
@@ -148,7 +165,7 @@ flowchart TD
     B -->|miss| C[lexical tier: retrieve + rank + prior]
     C -->|resolved + ranked evidence| G{decideVerification}
     B -->|hit| BIND[bind food_id]
-    C -->|no candidates| M[memo tier] --> L[llm tier]
+    C -->|no candidates| M[memo tier] --> L[llm escalation — NOT a cascade tier: the out-of-band gate path]
     G -->|band authorized AND floors met| BIND
     G -->|else| Q[verification queue] --> V[verifyLine gate]
     V -->|agree| BIND
@@ -216,14 +233,16 @@ bind diff (R12) recorded; k6 SC-007 budget still passes.
 **Goal:** the cascade records WHICH tier answered, with what evidence — the band log's substrate.
 **Requirements:** R2, KTD-C. **Dependencies:** none.
 **Files:** new migration in `packages/services/recipe-service/src/database/migrations/` (line-resolution
-provenance: tier id, rung, margin band, shortlist digest, band epoch — nullable, additive, expand-first),
+provenance: tier id, rung, margin band, the FULL structured shortlist (candidates + scores + per-100g
+nutrient snapshot, JSONB — per KTD-C; a digest alone cannot rebuild the gate's `ScoredCandidate[]`), and
+band epoch — nullable, additive, expand-first),
 `packages/services/recipe-service/src/ingredients/ingredients.service.ts` (`resolveThroughCascade`
 returns and persists the outcome's provenance), `packages/services/recipe-service/src/recipes/domain/verificationRequests.ts`
 (evidence built from real provenance, retiring `unattributedEvidence()` for cascade-resolved lines),
 integration test in `packages/services/recipe-service/tests/` asserting the migrated schema + persisted
 provenance against a real database.
 **Test scenarios:** a curated hit records tier `curated` and no rung · a lexical resolution records rung,
-margin band, shortlist digest · legacy rows (null provenance) read back as unattributed · the
+margin band, the structured shortlist · legacy rows (null provenance) read back as unattributed · the
 verification message carries `ranked` evidence with the real shortlist.
 **Verification:** erasureSweepCoverage still green (provenance columns carry no user id).
 
@@ -269,8 +288,9 @@ and re-retrieve once; deterministic, no LLM, costs one extra query. Test scenari
 through the reformulation; an unknown word still passes cleanly.
 
 **Test scenarios:** resolves with evidence on any candidate set (never binds unverified — KTD-A holds at
-the gate, asserted in the integration test: a zero-authority lexical resolution lands UNRESOLVED and uncounted until the verdict, its
-enqueue failure fails the write rather than being swallowed, and an agree verdict flips it to counted) · empty catalog → pass · singleton → resolves with zero margin · private food
+the gate, asserted in the integration test: a zero-authority lexical resolution renders `pending-verification` and unaccounted until the verdict;
+an enqueue failure leaves the line pending — the write NEVER fails — and the sweep re-drives it; an
+agree verdict flips it to counted) · empty catalog → pass · singleton → resolves with zero margin · private food
 excluded for a stranger, included for its author · consultation order asserted `['curated','lexical','memo']`.
 **Verification:** the 14-query set through the real cascade: staples reach the gate; salt/vanilla-class
 wide-margin rows verify too (no bands earned yet).
@@ -314,9 +334,18 @@ against the (not-yet-gate-ready) judgement set with the annotation caveat stated
 pin, SHA-256 + length pins, OPEN taxonomy per the owner ruling, version constant),
 `packages/shared/recipe-core/src/parsing/foodnessAnswer.ts` (three-valued reader),
 `packages/shared/recipe-core/src/spend/spendArithmetic.ts` (`SPEND_CALL_SITES` gains the validator
-sites; reservation arithmetic recomputed per KTD-F), unit tests incl. the type-level pins.
+sites; reservation arithmetic recomputed per KTD-F), `packages/clients/bedrock` (⛔ the shipped
+`ConverseRequest` carries ONE `userMessage` and cannot send the turns — an ADDITIVE, optional
+`fewShotTurns: readonly {user, assistant}[]` field, absent by default so the gate and parse legs are
+byte-untouched, with the message-array assembly in the adapter and its own tests), unit tests incl. the
+type-level pins. ⚠️ The SHA pin is computed over a CANONICAL STRUCTURED serialization (JSON of the
+role-tagged turn array plus the system prompt) — never a naive concatenation, which is blind to text
+migrating across a boundary — and the builder returns the complete structured call so the transport maps
+it without assembling anything the pin does not cover.
 **Test scenarios:** `mixing bowl whip` → false/equipment-ish taxonomy · `chicken` → true · `five minutes` → false ·
-truncated answer → could-not-judge (never a verdict) · over-cap input rejected, never truncated · the
+truncated answer → could-not-judge (never a verdict) · an internally contradictory answer
+(`isFood: true` with a non-food taxonomy like "unknown word") → could-not-judge via the consistency
+cross-check · over-cap input rejected, never truncated · the
 builder's second parameter is a compile error (type test) · prompt SHA asserted.
 **Prompt (pinned — the measured champion, verbatim; changing a byte is a new experiment):**
 
@@ -356,8 +385,16 @@ Call config, pinned with the text: temperature 0, maxTokens 100, input cap on th
 REJECTED, never truncated), model Nova Micro (`amazon.nova-micro-v1:0`).
 
 **Execution note:** test-first from the measured behavior; the prompt above ships byte-for-byte.
-**Verification:** the shipped module reproduces the report's holdout profile on the report's word sets
-(98.26% overall; equipment/units/tricky/plain 100%; the `date` polysemy miss is a known, documented
+**Verification:** additionally, the shipped validator runs over the PARSED-NAME population from the
+existing 1919 replay (a few thousand calls, cents on Nova Micro) and that profile is recorded beside the
+holdout profile BEFORE any band or retry policy treats 98.26% as the operating point; the shipped module
+reproduces the report's holdout profile — as a TOLERANCE BAND, not an exact match (overall ≥ 97.5%,
+food-loss FN within +50% of the report's 8): the model id is not a pinned model VERSION and Bedrock
+offers no snapshot pinning, so a profile shift under an unchanged prompt SHA is the model-drift signal,
+not a code defect (the PG18 re-baseline reasoning). ⛔ The word sets move OUT of the ephemeral session
+scratchpad and into a committed fixture (`packages/shared/recipe-core/src/parsing/__fixtures__/` —
+dictionary and USDA-name material, not the restricted corpus) in this unit, or this verification is
+unexecutable (98.26% overall; equipment/units/tricky/plain 100%; the `date` polysemy miss is a known, documented
 residual with the curated-mapping safety net named).
 
 ### U7. The validator loop (engine-port decorator)
@@ -420,11 +457,10 @@ sweeps job rows.
 
 ## Phase C — authored foods, the UX, and the record
 
-### U10. Authored foods — schema, routes, versioning, erasure
+### U10. Authored foods — schema, routes, and the authorship policy
 
 **Goal:** D8/D9a in full, under all four owner rulings.
-**Requirements:** origin R10, R11; R21, R22, R24; KTD-H, KTD-I. **Dependencies:** R24's gate first
-(this unit ships it), U11 gates U10's EXPOSURE, not its build —
+**Requirements:** origin R10, R11; KTD-H. **Dependencies:** U17 merged and green (R24); U11 gates U10's EXPOSURE, not its build —
 retrieval and picker surfaces stay author-only until U11 lands (stated so the ordering is a release
 constraint, never a dependency cycle: the build order is U10 → U11 → U12).
 **Files:** food-service migrations (`food.user_id` nullable; dedup split as two partial uniques,
@@ -455,6 +491,35 @@ both partial indexes asserted against the real migrated database.
 **Execution note:** the dedup-index migration is the delicate piece — expand-first, replay-clean on
 live pr-N clones; design reviewed against ADR-0027's precedent before writing SQL.
 
+### U17. The food-side erasure-coverage gate (ships FIRST)
+
+**Goal:** R24's precondition as its own landable unit — the gate must be MERGED AND GREEN before any
+`food.user_id` migration lands anywhere.
+**Requirements:** R24. **Dependencies:** none — U10 depends on THIS, not the reverse (the round-2 review
+made the ordering constraint a real dependency edge).
+**Files:** the `erasureSweepCoverage` sibling gate for the food database in
+`packages/infra/global/__tests__/` (fold-over-migrations discovery; swept / EXEMPT / RETAINED_BY_RULING
+maps, per the recipe gate's shape).
+**Test scenarios:** the gate discovers every user-bearing food table · a new user-keyed table lands RED
+until swept or ruled · the gate cites its ADR on disk.
+**Verification:** merged and green on a tree with NO `food.user_id` column yet.
+
+### U18. Authored foods — versioning, erasure semantics, and the cache split
+
+**Goal:** the lifecycle half split out of U10: versions, delete-or-orphan, and the private-food cache
+bifurcation.
+**Requirements:** R21, R22; Q3b/Q3c rulings; KTD-I. **Dependencies:** U10 (rows and routes exist), U17.
+**Files:** the `food_versions` migration (recipe-pattern table half; archive worker deferred),
+versioning service, `DELETE /:id` 409-when-referenced, `userErasure.service.ts` (TOMBSTONE-FIRST
+delete-or-orphan + cross-service reference check + `pseudonymizedAuthorHandle`, with the concurrent-bind
+race integration test), the ADR-0020 cache split (private foods excluded from the edge-cached nutrition
+endpoint; authenticated path for the author), migration integration tests.
+**Test scenarios:** edit creates a version; promoted food's edit still versions · DELETE referenced →
+409 + list; unreferenced → deleted · erasure: unreferenced deleted, referenced orphaned with
+pseudonymized handle · concurrent bind during erasure loses to the tombstone · cached endpoint never
+serves a private food.
+**Verification:** erasure gate (U17) stays green; the race test passes against a real database.
+
 ### U11. Private-food visibility scoping across shared tiers
 
 **Goal:** R20 — a private food is invisible everywhere except to its author.
@@ -469,7 +534,9 @@ food_id is refused · band observations over author-augmented shortlists are exc
 
 **Goal:** the Q5 design: private → public with a merge that names the survivor.
 **Requirements:** origin D8; gap 13. **Dependencies:** U10, U11.
-**Files:** promotion detection over the per-author dedup index (same normalized name, compatible macros,
+**Files:** the promotion queue table (food-service migration), the pending/approve/reject admin routes on
+`packages/services/food-service/src/foods/admin/foodsAdmin.controller.ts` + schema + contract regen, a
+CLI script over those routes, promotion detection over the per-author dedup index (same normalized name, compatible macros,
 distinct authors), canonical election + superseding-mapping rewrite of loser references (the existing
 supersession shape), — ⛔ NOT one transaction: the two sides live in different logical databases (ADR-0006), so promotion is
 an explicit TWO-PHASE design — phase 1 (food DB, atomic): election + partition transition + visibility
@@ -477,15 +544,23 @@ flip; phase 2 (recipe DB, idempotent + resumable): superseding-mapping rewrite o
 to re-run, with a kill-between-phases test scenario and every intermediate state failing safe (a
 promoted canonical with unrewritten references renders through `resolved-unavailable`, never an error) — audit signal per
 U10's promotion precedent, integration tests.
+**Release constraint:** U16 (the creation affordance) ships concurrently or prior — a promotion
+mechanism without a creation affordance is a feature with no door.
 **Approach:** trigger numbers (how many authors, what macro tolerance) are Q2-style calibration —
 provisional 2 authors / ≤10% macro agreement; the MECHANISM is settled here. ⛔ **Promotion is
 Sybil-gated (owner ruling 2026-08-30): corroboration is the TRIGGER, never the PUBLISHER.** A triggered
-promotion lands in an owner-visible MODERATION QUEUE (data + a minimal review surface or CLI at launch)
-and publishes only on approval; candidacy requires accounts older than a minimum age (calibration
-constant). Two throwaway accounts can trigger a queue entry, never a public food — closing the bypass
+promotion lands in an owner-visible MODERATION QUEUE and publishes only on approval. The surface is the
+repo's existing admin pattern, not a new one: a queue table plus
+`GET /api/v1/foods/promotions/pending` and `POST /api/v1/foods/promotions/{id}/approve|reject` on
+`foodsAdmin.controller.ts`, behind a `FOOD_ADMIN_SCOPE`-style `hasScope` check (scopes from the signed
+token's `public_metadata`) — CLI over these routes at launch, a web admin page EXPLICITLY DEFERRED so no
+UI deliverable is left unowned. Candidacy requires accounts older than a minimum age (calibration
+constant), and a REJECTED candidacy does not retrigger for the same normalized name without new data (a
+new corroborating author or changed macros) — the queue cannot be griefed by resubmission. Two throwaway accounts can trigger a queue entry, never a public food — closing the bypass
 around the verification funnel the security review named as this plan's largest gap.
 **Test scenarios:** two compatible authors TRIGGER a queue entry — nothing publishes without approval;
-under-age accounts do not trigger; approval publishes and one canonical survives; loser references rewritten ·
+under-age accounts do not trigger; a rejected pair's resubmission without new data does not re-enter
+the queue; the approve route refuses a caller without the admin scope; approval publishes and one canonical survives; loser references rewritten ·
 incompatible macros do not promote · promotion emits its audit signal · post-promotion the food is
 world-readable and enters the cached endpoint population.
 
@@ -494,12 +569,13 @@ world-readable and enters the cached endpoint population.
 **Goal:** D7/R9/R23 — material ambiguity surfaces; picks feed the flywheel.
 **Requirements:** origin R9; R23; R17. **Dependencies:** U3 (verdicts produce `ambiguous`), standing-plan
 U14 machinery. **Files:** `packages/shared/recipe-core/src/recipe.types.ts` (line-union members
-`ambiguous` + `resolved-unavailable`; catalog union stays closed). Definitions: `ambiguous` = the gate
+`ambiguous` + `resolved-unavailable` + `pending-verification` (KTD-A's derived state — distinct from the
+shipped `UNRESOLVED`, whose picker semantics it must never trigger); catalog union stays closed). Definitions: `ambiguous` = the gate
 abstained with a MATERIAL nutrient spread — author-actionable, pick affordance shown; `resolved-unavailable`
 = the line IS bound and its macros ARE counted in the recipe summary, but the food entity is not served to
 THIS viewer (private authored food on a public recipe) — viewer copy directionally "Ingredient details
-unavailable", no pick affordance, never an error state, `nutritionState.ts` (unaccounted
-reason), batched review surface + inline picker states in
+unavailable", no pick affordance, never an error state, `nutritionState.ts` (a FIFTH `unaccounted` reason `verification_pending` plus a required pending-line
+count on `RecipeNutritionAccounting`), batched review surface + inline picker states in
 `packages/apps/commise/features/recipes/src/form/RecipeIngredientsFields.tsx` (+ `.native.tsx`),
 `IngredientPicker` both platforms, clone-unbind in the clone path, localized copy, component tests for
 every state on both platforms, Playwright spec AND Maestro flow for the pick story, contract regen.
@@ -511,7 +587,9 @@ named, not left to invention: ENTRY = a count badge on recipe detail opening the
 DISMISSAL is always safe because each pick persists individually; a FAILED correction write surfaces a
 retryable error state on that row (the rest of the batch is unaffected); a STALE pick (re-derived
 shortlist no longer offers the id) refreshes the row's shortlist with a one-line notice, never a dead
-select. CLONE NOTICE: a cloned recipe that arrived with unbound private-food lines shows a one-time
+select. PENDING treatment: a quiet "checking…"
+badge on the line (never the picker), the recipe total re-flows as verdicts land, and past the age bound
+the line adopts the needs-review treatment with its existing affordance. CLONE NOTICE: a cloned recipe that arrived with unbound private-food lines shows a one-time
 banner ("N ingredients need re-matching — the original used the author's own foods"), distinguishing them
 from ordinary ambiguity.
 **Test scenarios:** every union member renders on both platforms · pick binds 30 siblings, writes one
@@ -531,9 +609,24 @@ the create-and-attach story, `packages/apps/commise/features/recipes` form wirin
 `POST /foods/authored` then the existing `by-food` admission.
 **Test scenarios:** empty search offers create · created food attaches to the line in one flow · the new
 food is immediately visible in the AUTHOR's subsequent searches and absent from another user's ·
-validation errors render inline · both platforms render every state.
+validation errors render inline · a 409 dedup conflict (same author, same name) surfaces the EXISTING
+food as a suggested match with a reuse affordance, distinct from generic validation copy · both
+platforms render every state.
 **Verification:** a user on either platform authors a food and uses it in a recipe without leaving the
 picker flow.
+
+### U19. Corroborated corrections complete a PENDING catalog food (R10's second clause)
+
+**Goal:** the uncovered half of R10: a PENDING catalog food (add-by-name path, queued for USDA sync)
+whose identity is corroborated by independent corrections transitions to complete and LEAVES the sync
+queue — a different object and mechanism than authored-food promotion.
+**Requirements:** origin R10 (second clause). **Dependencies:** standing-plan U10 (corroboration
+machinery), U3 (observation substrate).
+**Files:** food-service status transition + sync-queue removal, the corroboration trigger read from the
+correction tables, integration test.
+**Test scenarios:** two independent corroborating corrections complete a PENDING food and remove it from
+the sync queue · a single correction does not · an already-synced food is untouched.
+**Verification:** a corroborated food stops appearing in the sync scan's candidate set.
 
 ### U14. The record — ADRs and guard amendments
 
@@ -562,7 +655,9 @@ effect, and spend attribution per callSite.
 ## Scope Boundaries
 
 **In:** everything above. **Deferred to follow-up:** recipe-context tie-breaking; community nutrition
-moderation (009 owns nutrient expansion); cross-encoder rerank rung; conformal set-size signals;
+moderation (009 owns nutrient expansion); origin D2's calibration progression (Platt → isotonic → learned ranker, with its per-population and
+OOD-abstention guards) — gated on band data that only exists after U15's first harvest, same reasoning
+as budget-aware abstention below; cross-encoder rerank rung; conformal set-size signals;
 budget-aware abstention beyond the ceiling's existing fail-closed — deferred WITH REASON, amending
 origin D11's in-scope listing: the ceiling already fails closed and transient denials retry via DLQ, and
 the graduated policy needs band data that only exists after U15's first harvest; per-user write throttle on authored

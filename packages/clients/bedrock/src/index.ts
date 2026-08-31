@@ -10,7 +10,11 @@
  * boundary with its own zod and declares its own types (ADR-0014 / GR-015 §15-d). No OpenAPI document is
  * written for it, and no `packages/schemas/*` copy exists.
  */
-export { createBedrockConverseClient, createBedrockTransport } from './BedrockConverseClient.js';
+export {
+    createBedrockConverseClient,
+    createBedrockTransport,
+    DEFAULT_REQUEST_TIMEOUT_MS,
+} from './BedrockConverseClient.js';
 export type {
     BedrockConverseClient,
     BedrockTransport,

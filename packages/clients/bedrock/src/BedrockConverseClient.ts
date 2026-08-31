@@ -288,11 +288,31 @@ export function createBedrockConverseClient(send: ConverseTransport): BedrockCon
     };
 }
 
+/**
+ * The per-request deadline every transport carries unless a caller overrides it.
+ *
+ * ⛔ The SDK's own default is NO timeout, and with {@link createBedrockTransport}'s pinned `maxAttempts: 1`
+ * that combination is an INFINITE hang: observed live (2026-08-31), one silently-dropped HTTPS flow parked
+ * the full-corpus cookbook import on `epoll_wait` for 49 minutes — request sent, partial response received,
+ * then nothing, forever. {@link BedrockTimeoutError} and its refund-full settle path exist for exactly this
+ * outcome but can never fire on an unbounded transport, and the reservation the deadline exists to bound
+ * (see {@link BedrockTransportConfig.requestTimeoutMs}) stays outstanding for the life of the process.
+ *
+ * 60 seconds is generous for the calls this client makes — a ≤{@code maxTokens}-bounded completion over a
+ * one-line prompt — while still finite for every caller class: a Lambda's own timeout usually lands first,
+ * and an operator script (the case that hung) recovers within the minute.
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+
 /** Settings for the real transport. */
 export interface BedrockTransportConfig {
     /** The AWS region hosting the model. */
     readonly region: string;
-    /** Overall per-request deadline. Bounds how long one reservation stays outstanding. */
+    /**
+     * Overall per-request deadline. Bounds how long one reservation stays outstanding. Defaults to
+     * {@link DEFAULT_REQUEST_TIMEOUT_MS}; it cannot be disabled, only lengthened, because an unbounded
+     * request makes the reservation bound a lie.
+     */
     readonly requestTimeoutMs?: number | undefined;
 }
 
@@ -317,9 +337,13 @@ export function createBedrockTransport(config: BedrockTransportConfig): BedrockT
     const client = new BedrockRuntimeClient({
         region: config.region,
         maxAttempts: 1,
-        ...(config.requestTimeoutMs === undefined
-            ? {}
-            : { requestHandler: { requestTimeout: config.requestTimeoutMs } }),
+        // ⚠️ A plain `requestHandler` object replaces the SDK's resolved handler options WHOLESALE, so the
+        // Bedrock Runtime default `disableConcurrentStreams: true` (one HTTP/2 stream per session) must ride
+        // along explicitly or setting a timeout silently changes connection behaviour too.
+        requestHandler: {
+            requestTimeout: config.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+            disableConcurrentStreams: true,
+        },
     });
 
     return {

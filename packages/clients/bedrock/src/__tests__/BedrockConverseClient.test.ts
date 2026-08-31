@@ -24,7 +24,12 @@ import type { BedrockRuntimeClient, ConverseCommandInput } from '@aws-sdk/client
 import { describe, expect, it } from 'vitest';
 
 import { NOVA_TEXT_RESPONSE, converseResponseWith } from '../__fixtures__/converseResponse.js';
-import { createBedrockConverseClient, createBedrockTransport } from '../BedrockConverseClient.js';
+import {
+    createBedrockConverseClient,
+    createBedrockTransport,
+    DEFAULT_REQUEST_TIMEOUT_MS,
+    type BedrockTransport,
+} from '../BedrockConverseClient.js';
 import {
     isBedrockAccessDeniedError,
     isBedrockClientError,
@@ -370,6 +375,54 @@ describe('createBedrockTransport', () => {
         // seam the tests supply — this one runs through `createBedrockTransport`'s real `new ConverseCommand`
         // and reads the input the SDK was about to serialise.
         expect(dispatched.inputs[0]).toMatchObject({ modelId: HAIKU_PROFILE_ID });
+    });
+
+    /**
+     * Reads the handler options the SDK resolved for the transport's request handler. `configProvider` is
+     * the promise the smithy handler resolves its options from when a plain config object is supplied —
+     * internal, but the only observable seam short of a live socket, and a rename fails these tests loudly
+     * rather than silently.
+     */
+    async function resolvedHandlerConfig(transport: BedrockTransport): Promise<Record<string, unknown>> {
+        const handler = transport.client.config.requestHandler as unknown as {
+            configProvider: Promise<Record<string, unknown>>;
+        };
+
+        return await handler.configProvider;
+    }
+
+    it('bounds every request with a finite deadline BY DEFAULT, so one dead socket cannot hang a caller forever', async () => {
+        // ⛔ Observed live (2026-08-31): the SDK ships NO request timeout, and with `maxAttempts: 1` a single
+        // silently-dropped HTTPS flow parked the full-corpus import on `epoll_wait` for 49 minutes — one
+        // request sent, a partial response received, then nothing, forever. `BedrockTimeoutError` and its
+        // refund-full settle path exist for exactly this outcome but can never fire on an unbounded
+        // transport. The config docstring states the deadline's job — "bounds how long one reservation stays
+        // outstanding" — so an UNDEFINED default contradicts the contract it sits in.
+        const config = await resolvedHandlerConfig(createBedrockTransport({ region: 'us-east-1' }));
+
+        // Pinned as a literal, not the exported constant: asserting `toBe(DEFAULT_REQUEST_TIMEOUT_MS)`
+        // passes vacuously while the constant does not exist (an unresolved import is `undefined`, and so is
+        // the absent config key). The export equality is asserted alongside so the two cannot drift.
+        expect(config['requestTimeout']).toBe(60_000);
+        expect(DEFAULT_REQUEST_TIMEOUT_MS).toBe(60_000);
+    });
+
+    it('lets a caller override the deadline without losing the bound', async () => {
+        const config = await resolvedHandlerConfig(
+            createBedrockTransport({ region: 'us-east-1', requestTimeoutMs: 5_000 }),
+        );
+
+        expect(config['requestTimeout']).toBe(5_000);
+    });
+
+    it('preserves disableConcurrentStreams, the SDK default a bare handler-config object silently drops', async () => {
+        // ⚠️ Passing ANY plain `requestHandler` object replaces the SDK's own resolved handler options
+        // wholesale. Bedrock Runtime's default handler resolves `{ disableConcurrentStreams: true }` (one
+        // HTTP/2 stream per session), and losing it changes connection behaviour as a side effect of setting
+        // a timeout — so the transport carries it explicitly.
+        const config = await resolvedHandlerConfig(createBedrockTransport({ region: 'us-east-1' }));
+
+        expect(config['disableConcurrentStreams']).toBe(true);
     });
 
     it('is pinned to bedrock-runtime, not bedrock-mantle', () => {

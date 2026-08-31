@@ -228,6 +228,12 @@ describe('foodErrorSchema', () => {
             code: 'REFERENCE_CHECK_UNAVAILABLE',
             message: 'The reference check could not run; the delete is refused',
         },
+        PROMOTION_NOT_FOUND: { code: 'PROMOTION_NOT_FOUND', message: 'No promotion queue row with that id' },
+        PROMOTION_NOT_ACTIONABLE: {
+            code: 'PROMOTION_NOT_ACTIONABLE',
+            message: 'The promotion cannot be approved in its current state',
+            details: { reason: 'not_pending' },
+        },
     };
 
     // Exhaustiveness in the direction that matters: a code added to the enum without an arm (or a fixture)

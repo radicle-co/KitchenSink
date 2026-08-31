@@ -545,6 +545,37 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
     });
 
     // ── Admin operational-query endpoints (FR-039 / US-10, T-184) ────────────────────────────────────
+    describe('the U12 promotion moderation routes (auth ladder over the booted stack)', () => {
+        it('unauth → 401; non-admin → 403; admin → 200 with the (empty) pending queue', async () => {
+            expect((await call('GET', '/api/v1/foods/admin/promotions/pending')).status).toBe(401);
+            expect((await call('GET', '/api/v1/foods/admin/promotions/pending', { token: userToken })).status).toBe(
+                403,
+            );
+
+            const pending = await call('GET', '/api/v1/foods/admin/promotions/pending', { token: adminToken });
+
+            expect(pending.status).toBe(200);
+            expect((pending.body as { pending: unknown[] }).pending).toEqual([]);
+
+            // The decision routes hold the same ladder, and 403 precedes id validation (FR-051).
+            expect(
+                (await call('POST', '/api/v1/foods/admin/promotions/not-even-a-uuid/approve', { token: userToken }))
+                    .status,
+            ).toBe(403);
+            expect(
+                (await call('POST', '/api/v1/foods/admin/promotions/not-even-a-uuid/approve', { token: adminToken }))
+                    .status,
+            ).toBe(400);
+            expect(
+                (
+                    await call('POST', '/api/v1/foods/admin/promotions/00000000-0000-4000-8000-000000000001/approve', {
+                        token: adminToken,
+                    })
+                ).status,
+            ).toBe(404);
+        });
+    });
+
     describe('GET /api/v1/foods/admin/* operational metrics', () => {
         it('unauth → 401; authenticated non-admin → 403; admin → 200 with the operational signals', async () => {
             // Unauthenticated → 401 (the guard, before any handler).

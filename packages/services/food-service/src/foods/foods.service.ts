@@ -39,6 +39,7 @@ import {
     ReferenceCheckUnavailableError,
 } from './foods.errors.js';
 import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
+import type { PromotionsService } from './promotions/promotions.service.js';
 import { projectNutrition } from './nutrition/nutrientSelection.js';
 import type {
     AddResponse,
@@ -74,6 +75,9 @@ const RESOLVE_RETRY_AFTER_SECONDS = 30;
  */
 /** DI token for {@link FoodReferenceCheck} — provided by `FoodsModule` from `RECIPE_SERVICE_URL`. */
 export const FOOD_REFERENCE_CHECK = 'FOOD_REFERENCE_CHECK';
+
+/** DI token for the U12 promotion detector — provided by `FoodsModule`; optional in unit fixtures. */
+export const PROMOTIONS_SERVICE = 'PROMOTIONS_SERVICE';
 
 export interface FoodReferenceCheck {
     /**
@@ -126,6 +130,12 @@ export class FoodsService {
          * boot-abort the `FoodRecoveryService` note in `foods.module.ts` records.
          */
         @Optional() @Inject(FOOD_REFERENCE_CHECK) private readonly referenceCheck?: FoodReferenceCheck,
+        /**
+         * U12: the promotion-candidacy detector, riding the authored write path. `@Optional` + token for
+         * the same `design:paramtypes` reason as the reference check above; absent (unit fixtures) means
+         * no detection, never an error.
+         */
+        @Optional() @Inject(PROMOTIONS_SERVICE) private readonly promotions?: PromotionsService,
     ) {}
 
     /**
@@ -642,6 +652,10 @@ export class FoodsService {
             throw new DuplicateAuthoredNameError(created.existingId);
         }
 
+        // U12: cross-author agreement on this name may now TRIGGER a moderation-queue candidacy. The
+        // detector never throws — a queue enhancement must not fail the write it observes.
+        await this.promotions?.detectCandidacy(normalizeName(input.name));
+
         return this.getFood(created.id, authorId);
     }
 
@@ -699,6 +713,9 @@ export class FoodsService {
         if (replaced.kind === 'duplicate') {
             throw new DuplicateAuthoredNameError(replaced.existingId);
         }
+
+        // U12: a macro or name edit changes the candidacy data — re-detect under the (possibly new) name.
+        await this.promotions?.detectCandidacy(normalizeName(input.name));
 
         return this.getFood(id, callerId);
     }

@@ -135,7 +135,8 @@ describe('route input validation — the closed inventory', () => {
         // REUSING `FoodNutritionQueryDto`, one shape for one meaning). The live search reuses
         // `SearchFoodQueryDto` the same way.
         expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(4);
-        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(8);
+        // Ten params: the eight `:id` food routes plus U12's two promotion decisions (UUID-guarded).
+        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(10);
         // Nothing reads a caller-supplied HEADER. §15.4(1) puts headers under the pipe too, so a new one has to
         // arrive as a zod DTO — and this assertion is what makes adding one a decision rather than an accident.
         expect(ALL_INPUTS.filter((input) => input.kind === 'headers')).toStrictEqual([]);
@@ -171,6 +172,10 @@ describe('route input validation — the closed inventory', () => {
             .sort();
 
         expect(raw).toStrictEqual([
+            // U12's promotion decisions. Guarded by `requirePromotionId` (UUID shape — 0015 rows are
+            // `gen_random_uuid()`), AFTER the scope check for the same FR-051 precedence as requeue.
+            'FoodsAdminController.approvePromotion(@param id): String',
+            'FoodsAdminController.rejectPromotion(@param id): String',
             // U9's operator requeue. Guarded by the same `isFoodId` check as every other `:id` route.
             'FoodsAdminController.requeueFood(@param id): String',
             // U18's authored-food DELETE. Same `requireId` → `isFoodId` validation as every `:id` route.

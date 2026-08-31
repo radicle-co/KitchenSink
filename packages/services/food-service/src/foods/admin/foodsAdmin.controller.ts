@@ -20,6 +20,12 @@ import { apiError } from '../../common/apiError.js';
 import { isFoodId } from '../../db/ulid.js';
 import { AdminMetricsService, type OperationalMetrics } from './adminMetrics.service.js';
 import { FoodRecoveryService, type RequeueResponse } from './foodRecovery.service.js';
+import { PromotionsService } from '../promotions/promotions.service.js';
+import type {
+    ApprovePromotionResponse,
+    PendingPromotionsResponse,
+    RejectPromotionResponse,
+} from './promotions.schema.js';
 import type { QueueDepthMetrics } from './adminMetrics.dao.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
@@ -31,6 +37,7 @@ export class FoodsAdminController {
     public constructor(
         private readonly metrics: AdminMetricsService,
         private readonly recovery: FoodRecoveryService,
+        private readonly promotions: PromotionsService,
     ) {}
 
     /** `GET /api/v1/foods/admin/metrics` — full operational dashboard signals (admin-scoped, FR-039). */
@@ -82,6 +89,95 @@ export class FoodsAdminController {
         // records the CONSTANT `svc_admin_requeue` in `fetch_requesters`, never an operator's own id,
         // because that table is this service's user-erasure surface.
         return this.recovery.requeueFood(id, req.user?.sub ?? '');
+    }
+
+    /**
+     * `GET /api/v1/foods/admin/promotions/pending` — the promotion MODERATION QUEUE (plan U12).
+     *
+     * Corroboration is the TRIGGER, never the PUBLISHER (owner ruling 2026-08-30): rows here were
+     * triggered by cross-author agreement and publish only through the approve route below. Admin-scoped
+     * because reviewing candidacies exposes private authored foods' names and contributing authors.
+     */
+    @Get('promotions/pending')
+    public async getPendingPromotions(@Req() req: AuthenticatedRequest): Promise<PendingPromotionsResponse> {
+        this.requireAdmin(req);
+
+        return {
+            pending: (await this.promotions.pending()).map((row) => ({
+                ...row,
+                candidateFoodIds: [...row.candidateFoodIds],
+            })),
+        };
+    }
+
+    /**
+     * `POST /api/v1/foods/admin/promotions/:id/approve` — publish one candidacy (U12 phase 1).
+     *
+     * Elects the canonical over the STORED candidate set and flips it to `promoted` atomically. The
+     * recipe-side mapping rewrite (phase 2) is driven separately and is idempotent — a kill between the
+     * phases leaves every intermediate state safe (see `promotions.service.ts`).
+     */
+    @Post('promotions/:id/approve')
+    public async approvePromotion(
+        @Param('id') id: string,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<ApprovePromotionResponse> {
+        this.requireAdmin(req);
+        this.requirePromotionId(id);
+
+        const result = await this.promotions.approve(id);
+
+        if (result.outcome === 'not_found') {
+            throw apiError('PROMOTION_NOT_FOUND', 'No promotion queue row with that id');
+        }
+
+        if (result.outcome !== 'approved') {
+            throw apiError('PROMOTION_NOT_ACTIONABLE', 'The promotion cannot be approved in its current state', {
+                reason: result.outcome,
+            });
+        }
+
+        return { id, canonicalFoodId: result.canonicalFoodId, normalizedName: result.normalizedName };
+    }
+
+    /**
+     * `POST /api/v1/foods/admin/promotions/:id/reject` — decline one candidacy (U12).
+     *
+     * The rejected row's fingerprint bars an IDENTICAL resubmission forever (0015); a new corroborating
+     * author or changed macros re-opens the door.
+     */
+    @Post('promotions/:id/reject')
+    public async rejectPromotion(
+        @Param('id') id: string,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<RejectPromotionResponse> {
+        this.requireAdmin(req);
+        this.requirePromotionId(id);
+
+        const result = await this.promotions.reject(id);
+
+        if (result.outcome === 'not_found') {
+            throw apiError('PROMOTION_NOT_FOUND', 'No promotion queue row with that id');
+        }
+
+        if (result.outcome !== 'rejected') {
+            throw apiError('PROMOTION_NOT_ACTIONABLE', 'The promotion cannot be rejected in its current state', {
+                reason: result.outcome,
+            });
+        }
+
+        return { id, status: 'rejected' };
+    }
+
+    /**
+     * Same posture as the `:id` food-ULID guard above: a malformed id answers `400` AFTER the scope
+     * check (FR-051 puts `403` first), and the route-input inventory requires every raw param to name
+     * its validator. Promotion ids are `gen_random_uuid()` rows (0015), so the shape is a UUID.
+     */
+    private requirePromotionId(id: string): void {
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+            throw apiError('INVALID_ID', 'The id is not a valid promotion id (UUID)');
+        }
     }
 
     /** Require the `food:admin` scope from the verified token, else `403` (FR-039/FR-051). */

@@ -499,5 +499,35 @@ export const foodVersions = pgTable(
     ],
 );
 
+/**
+ * U12 (0015): the promotion MODERATION QUEUE — corroboration is the TRIGGER, never the PUBLISHER
+ * (owner ruling 2026-08-30). A pending row is a candidacy awaiting a human; approval elects
+ * `canonical_food_id` and publishes; a rejected row's `data_fingerprint` bars identical resubmission.
+ * No person columns by design — contributing AUTHORS are derivable by join, and the operator's identity
+ * reaches the audit log only (the `requeue` precedent), so this table stays out of the erasure sweep.
+ */
+export const foodPromotions = pgTable(
+    'food_promotions',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        normalizedName: text('normalized_name').notNull(),
+        /** The compatible contributing food ids, ordered by id — one policy evaluation, one unit. */
+        candidateFoodIds: jsonb('candidate_food_ids').notNull(),
+        dataFingerprint: varchar('data_fingerprint', { length: 64 }).notNull(),
+        status: text('status').notNull().default('pending'),
+        canonicalFoodId: text('canonical_food_id'),
+        createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+        decidedAt: timestamp('decided_at', { withTimezone: true }),
+    },
+    (table) => [
+        uniqueIndex('food_promotions_pending_name_unique')
+            .on(table.normalizedName)
+            .where(sql`${table.status} = 'pending'`),
+        index('idx_food_promotions_name').on(table.normalizedName),
+    ],
+);
+
+export type FoodPromotionRow = InferSelectModel<typeof foodPromotions>;
+
 export type FoodVersionRow = InferSelectModel<typeof foodVersions>;
 export type NewFoodVersionRow = InferInsertModel<typeof foodVersions>;

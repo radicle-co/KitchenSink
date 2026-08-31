@@ -599,6 +599,13 @@ export class FoodServiceClient {
             case 'FOOD_PENDING':
             case 'INTERNAL_ERROR':
                 return new UnexpectedResponseError(res.status, body.message);
+            // U12: the promotion moderation routes are OPERATOR surfaces (CLI over the admin routes); this
+            // generated client exposes no promotion method, so a body carrying one of their codes can only
+            // reach here through a mis-addressed call — surfaced loudly, never given a domain error that
+            // would invite handling it.
+            case 'PROMOTION_NOT_FOUND':
+            case 'PROMOTION_NOT_ACTIONABLE':
+                return new UnexpectedResponseError(res.status, body.message);
 
             default: {
                 // EXHAUSTIVENESS GATE (§15.1: drift must fail at `typecheck`, not in e2e). Adding a code to the

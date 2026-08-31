@@ -22,6 +22,7 @@ import type { ApiErrorBody } from '../../../common/apiError.schema.js';
 import { AdminMetricsService } from '../adminMetrics.service.js';
 import { FoodRecoveryService } from '../foodRecovery.service.js';
 import { FoodsAdminController } from '../foodsAdmin.controller.js';
+import { PromotionsService } from '../../promotions/promotions.service.js';
 
 const METRICS = {
     queue: { pending: 1, inFlight: 0, tombstone: 2 },
@@ -38,24 +39,49 @@ function makeReq(scopes: string[] = []): AuthenticatedRequest {
 /** A structurally valid food ULID — the requeue route rejects anything else with `400` before delegating. */
 const FOOD_ID = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
 
+/** A pending promotion queue row, as the U12 routes serve it. */
+const PROMOTION_ID = '00000000-0000-4000-8000-000000000001';
+const PENDING_ROW = {
+    id: PROMOTION_ID,
+    normalizedName: 'quinoa blend',
+    candidateFoodIds: [FOOD_ID],
+    dataFingerprint: 'f'.repeat(64),
+    status: 'pending',
+    canonicalFoodId: null,
+    createdAt: '2026-08-30T00:00:00.000Z',
+    decidedAt: null,
+};
+
 function makeController(): {
     controller: FoodsAdminController;
     service: Record<string, ReturnType<typeof vi.fn>>;
     recovery: Record<string, ReturnType<typeof vi.fn>>;
+    promotions: Record<string, ReturnType<typeof vi.fn>>;
 } {
     const service = {
         collect: vi.fn().mockResolvedValue(METRICS),
         queueDepths: vi.fn().mockResolvedValue(METRICS.queue),
     };
     const recovery = { requeueFood: vi.fn().mockResolvedValue({ id: FOOD_ID, status: 'PENDING' }) };
+    const promotions = {
+        pending: vi.fn().mockResolvedValue([PENDING_ROW]),
+        approve: vi.fn().mockResolvedValue({
+            outcome: 'approved',
+            canonicalFoodId: FOOD_ID,
+            normalizedName: 'quinoa blend',
+        }),
+        reject: vi.fn().mockResolvedValue({ outcome: 'rejected' }),
+    };
 
     return {
         controller: new FoodsAdminController(
             service as unknown as AdminMetricsService,
             recovery as unknown as FoodRecoveryService,
+            promotions as unknown as PromotionsService,
         ),
         service,
         recovery,
+        promotions,
     };
 }
 
@@ -175,5 +201,103 @@ describe('FoodsAdminController.requeueFood (U9)', () => {
         await ctx.controller.requeueFood(FOOD_ID, req);
 
         expect(ctx.recovery['requeueFood']).toHaveBeenCalledExactlyOnceWith(FOOD_ID, 'admin_1');
+    });
+});
+
+describe('U12 — the promotion moderation routes', () => {
+    let ctx: ReturnType<typeof makeController>;
+
+    beforeEach(() => {
+        ctx = makeController();
+    });
+
+    it.each([
+        ['pending list', (c: FoodsAdminController) => c.getPendingPromotions(makeReq([]))],
+        ['approve', (c: FoodsAdminController) => c.approvePromotion(PROMOTION_ID, makeReq([]))],
+        ['reject', (c: FoodsAdminController) => c.rejectPromotion(PROMOTION_ID, makeReq([]))],
+    ])('%s refuses a caller without the food:admin scope → 403 FORBIDDEN', async (_label, call) => {
+        let thrown: unknown;
+
+        try {
+            await call(ctx.controller);
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(HttpException);
+        expect((thrown as HttpException).getStatus()).toBe(HttpStatus.FORBIDDEN);
+        expect(ctx.promotions['pending']).not.toHaveBeenCalled();
+        expect(ctx.promotions['approve']).not.toHaveBeenCalled();
+        expect(ctx.promotions['reject']).not.toHaveBeenCalled();
+    });
+
+    it('lists the pending queue for a scoped operator', async () => {
+        const result = await ctx.controller.getPendingPromotions(makeReq(['food:admin']));
+
+        expect(result).toEqual({ pending: [PENDING_ROW] });
+    });
+
+    it('approves and reports the published canonical', async () => {
+        const result = await ctx.controller.approvePromotion(PROMOTION_ID, makeReq(['food:admin']));
+
+        expect(result).toEqual({ id: PROMOTION_ID, canonicalFoodId: FOOD_ID, normalizedName: 'quinoa blend' });
+        expect(ctx.promotions['approve']).toHaveBeenCalledWith(PROMOTION_ID);
+    });
+
+    it('maps not_found → 404 PROMOTION_NOT_FOUND', async () => {
+        ctx.promotions['approve']!.mockResolvedValue({ outcome: 'not_found' });
+
+        let thrown: unknown;
+
+        try {
+            await ctx.controller.approvePromotion(PROMOTION_ID, makeReq(['food:admin']));
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect((thrown as HttpException).getStatus()).toBe(HttpStatus.NOT_FOUND);
+        expect(((thrown as HttpException).getResponse() as ApiErrorBody).code).toBe('PROMOTION_NOT_FOUND');
+    });
+
+    it.each(['not_pending', 'not_promotable'])(
+        'maps %s → 409 PROMOTION_NOT_ACTIONABLE with the reason',
+        async (reason) => {
+            ctx.promotions['approve']!.mockResolvedValue({ outcome: reason });
+
+            let thrown: unknown;
+
+            try {
+                await ctx.controller.approvePromotion(PROMOTION_ID, makeReq(['food:admin']));
+            } catch (error) {
+                thrown = error;
+            }
+
+            expect((thrown as HttpException).getStatus()).toBe(HttpStatus.CONFLICT);
+
+            const body = (thrown as HttpException).getResponse() as ApiErrorBody;
+
+            expect(body.code).toBe('PROMOTION_NOT_ACTIONABLE');
+            expect(body.details?.['reason']).toBe(reason);
+        },
+    );
+
+    it('rejects a candidacy and answers the typed outcome', async () => {
+        const result = await ctx.controller.rejectPromotion(PROMOTION_ID, makeReq(['food:admin']));
+
+        expect(result).toEqual({ id: PROMOTION_ID, status: 'rejected' });
+        expect(ctx.promotions['reject']).toHaveBeenCalledWith(PROMOTION_ID);
+    });
+
+    it('refuses a malformed promotion id with 400 AFTER the scope check', async () => {
+        let thrown: unknown;
+
+        try {
+            await ctx.controller.approvePromotion('not-a-uuid', makeReq(['food:admin']));
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect((thrown as HttpException).getStatus()).toBe(HttpStatus.BAD_REQUEST);
+        expect(ctx.promotions['approve']).not.toHaveBeenCalled();
     });
 });

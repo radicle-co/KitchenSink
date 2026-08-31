@@ -5951,6 +5951,7 @@ components:
           enum:
             - ingredient_picker
             - recipe_line
+            - promotion
       required:
         - phrase
         - foodId

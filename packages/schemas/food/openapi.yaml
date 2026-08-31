@@ -833,6 +833,143 @@ paths:
           description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
           schema:
             type: string
+  /api/v1/foods/admin/promotions/pending:
+    get:
+      operationId: getPendingPromotions
+      summary: List pending food promotions (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The pending queue, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingPromotionsResponse"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "The promotion MODERATION QUEUE (plan U12). Corroboration is the TRIGGER, never the PUBLISHER: rows here
+        were queued by cross-author agreement and publish only through the approve route. Requires the `food:admin`
+        scope (FR-039/FR-051)."
+  /api/v1/foods/admin/promotions/{id}/approve:
+    post:
+      operationId: approvePromotion
+      summary: Approve a food promotion (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Approved; the canonical is world-readable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovePromotionResponse"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: "No such promotion — `code: PROMOTION_NOT_FOUND`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "The row is not actionable — already decided, or no contributing food survives. `code:
+            PROMOTION_NOT_ACTIONABLE`, with `details.reason`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "Publishes one candidacy (U12 phase 1, atomic): elects the canonical over the STORED candidate set and
+        flips it to `promoted`. The recipe-side mapping rewrite (phase 2) is driven separately and is idempotent.
+        `food:admin` scope required, checked BEFORE id validation so `403` precedes `400` (FR-051)."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The promotion queue row id (UUID).
+          schema:
+            type: string
+  /api/v1/foods/admin/promotions/{id}/reject:
+    post:
+      operationId: rejectPromotion
+      summary: Reject a food promotion (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Rejected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RejectPromotionResponse"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: "No such promotion — `code: PROMOTION_NOT_FOUND`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "The row is already decided — `code: PROMOTION_NOT_ACTIONABLE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Declines one candidacy. The rejected fingerprint bars an IDENTICAL resubmission (0015); a new corroborating
+        author or changed macros re-opens the door. `food:admin` scope required (FR-051).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The promotion queue row id (UUID).
+          schema:
+            type: string
   /api/v1/internal/account/erasure:
     post:
       operationId: eraseAccountFootprint
@@ -1188,6 +1325,42 @@ components:
           required:
             - code
             - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PROMOTION_NOT_FOUND
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PROMOTION_NOT_ACTIONABLE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - not_pending
+                    - not_promotable
+              required:
+                - reason
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
           additionalProperties: {}
         - type: object
           properties:
@@ -1824,6 +1997,74 @@ components:
           type: string
           enum:
             - PENDING
+      required:
+        - id
+        - status
+    PendingPromotionsResponse:
+      type: object
+      properties:
+        pending:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              normalizedName:
+                type: string
+              candidateFoodIds:
+                type: array
+                items:
+                  type: string
+              dataFingerprint:
+                type: string
+              status:
+                type: string
+                enum:
+                  - pending
+                  - approved
+                  - rejected
+              canonicalFoodId:
+                nullable: true
+                type: string
+              createdAt:
+                type: string
+              decidedAt:
+                nullable: true
+                type: string
+            required:
+              - id
+              - normalizedName
+              - candidateFoodIds
+              - dataFingerprint
+              - status
+              - canonicalFoodId
+              - createdAt
+              - decidedAt
+      required:
+        - pending
+    ApprovePromotionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        canonicalFoodId:
+          type: string
+        normalizedName:
+          type: string
+      required:
+        - id
+        - canonicalFoodId
+        - normalizedName
+    RejectPromotionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - rejected
       required:
         - id
         - status

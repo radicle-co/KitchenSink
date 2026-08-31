@@ -701,11 +701,15 @@ export class FoodDao {
             this.db
                 .select({ id: food.id, status: food.status })
                 .from(food)
-                // ⛔ CATALOG rows only (0013, plan U10). This feeds the EDGE-CACHED nutrition endpoint,
-                // whose response must not vary by caller (ADR-0020) — so a private authored food cannot
-                // appear here for ANYONE; its id lands in `unknownIds`. U18's cache split adds the
-                // authenticated author path.
-                .where(sql`${food.id} = ANY(${sql.param(ids)}) AND ${food.userId} IS NULL`),
+                // ⛔ CATALOG + PROMOTED rows (0013 U10, 0015 U12). This feeds the EDGE-CACHED nutrition
+                // endpoint, whose response must not vary by caller (ADR-0020) — a PRIVATE authored food
+                // cannot appear here for ANYONE (its id lands in `unknownIds`; U18's cache split serves
+                // the author), while a PROMOTED one is world-readable with caller-invariant nutrition, so
+                // it enters the shared population the moment phase 1 commits.
+                .where(
+                    sql`${food.id} = ANY(${sql.param(ids)})
+                        AND (${food.userId} IS NULL OR ${food.visibility} = 'promoted')`,
+                ),
             this.db
                 .select({
                     foodId: foodNutrientView.foodId,

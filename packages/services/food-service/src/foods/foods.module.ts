@@ -26,6 +26,8 @@ import { createUsdaSourceRegistry } from '../sources/usda/usdaRegistry.js';
 import { AdmissionService } from './admission.service.js';
 import { AdminMetricsDao } from './admin/adminMetrics.dao.js';
 import { AdminMetricsService } from './admin/adminMetrics.service.js';
+import { PromotionsService } from './promotions/promotions.service.js';
+import { PromotionsDao } from './dao/promotions.dao.js';
 import { FoodRecoveryService } from './admin/foodRecovery.service.js';
 import { FoodsAdminController } from './admin/foodsAdmin.controller.js';
 import { CandidateStore, FetchQueueDao, FoodDao, FoodSourcesDao, SourceCallLogDao } from './dao/index.js';
@@ -39,7 +41,7 @@ import { GoldenRecordMergeEngine } from './merge/mergeEngine.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
 import { createRecipeReferenceCheck } from './recipeReferences.client.js';
-import { FOOD_REFERENCE_CHECK } from './foods.service.js';
+import { FOOD_REFERENCE_CHECK, PROMOTIONS_SERVICE } from './foods.service.js';
 import { UserErasureService } from './userErasure.service.js';
 import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
 
@@ -86,6 +88,22 @@ import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
             inject: [DrizzleProvider],
             useFactory: (db: FoodDrizzle): AuthoredFoodsDao => new AuthoredFoodsDao(db),
         },
+        // U12 — the promotion moderation queue: repository + orchestration. The service is a FACTORY for
+        // the same reason FoodRecoveryService is (its audit sink is the WorkerLogger INTERFACE, which
+        // erases to `Object` in design:paramtypes); PROMOTIONS_SERVICE aliases it so FoodsService can
+        // take it @Optional-ly without a class-reference cycle in its constructor metadata.
+        {
+            provide: PromotionsDao,
+            inject: [DrizzleProvider],
+            useFactory: (db: FoodDrizzle): PromotionsDao => new PromotionsDao(db),
+        },
+        {
+            provide: PromotionsService,
+            inject: [PromotionsDao],
+            useFactory: (dao: PromotionsDao): PromotionsService =>
+                new PromotionsService(dao, new ConsoleWorkerLogger('food-promotions')),
+        },
+        { provide: PROMOTIONS_SERVICE, useExisting: PromotionsService },
         // ⛔ NOT optional, and its absence did not fail a unit test: `FoodRecoveryService` takes this in its
         // constructor (U9), so without the provider Nest cannot instantiate the module AT ALL — the API
         // process aborts at boot. It went unnoticed because the unit tests construct that service directly,

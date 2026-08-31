@@ -58,6 +58,11 @@ import {
 } from '../src/foods/admin/adminMetrics.schema.js';
 import { requeueResponseSchema } from '../src/foods/admin/foodRecovery.schema.js';
 import {
+    approvePromotionResponseSchema,
+    pendingPromotionsResponseSchema,
+    rejectPromotionResponseSchema,
+} from '../src/foods/admin/promotions.schema.js';
+import {
     foodServiceErasureBeginResponseSchema,
     foodServiceErasureRequestSchema,
     foodServiceErasureAcceptedResponseSchema,
@@ -109,6 +114,9 @@ export const openApiComponents = {
     SourceWindowMetrics: sourceWindowMetricsSchema,
     OperationalMetrics: operationalMetricsSchema,
     RequeueResponse: requeueResponseSchema,
+    PendingPromotionsResponse: pendingPromotionsResponseSchema,
+    ApprovePromotionResponse: approvePromotionResponseSchema,
+    RejectPromotionResponse: rejectPromotionResponseSchema,
     FoodServiceErasureAcceptedResponse: foodServiceErasureAcceptedResponseSchema,
     FoodServiceErasureBeginResponse: foodServiceErasureBeginResponseSchema,
     FoodServiceErasureRequest: foodServiceErasureRequestSchema,
@@ -120,6 +128,14 @@ const idParameter = {
     name: 'id',
     in: 'path',
     description: 'The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.',
+    schema: z.string(),
+} as const;
+
+/** The promotion-queue row id (a 0015 `gen_random_uuid()` UUID, plan U12) — never a food ULID. */
+const promotionIdParameter = {
+    name: 'id',
+    in: 'path',
+    description: 'The promotion queue row id (UUID).',
     schema: z.string(),
 } as const;
 
@@ -596,6 +612,71 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                             'The food is not blackholed — a `RESOLVED`/`UNRESOLVED` food has nothing to clear. ' +
                             '`code: NOT_REQUEUEABLE`, with the observed status in `details.status` and the ' +
                             'route that IS applicable (`POST /api/v1/foods/{id}/refetch`) named in the message.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/foods/admin/promotions/pending': {
+            get: {
+                operationId: 'getPendingPromotions',
+                summary: 'List pending food promotions (admin)',
+                description:
+                    'The promotion MODERATION QUEUE (plan U12). Corroboration is the TRIGGER, never the ' +
+                    'PUBLISHER: rows here were queued by cross-author agreement and publish only through the ' +
+                    'approve route. Requires the `food:admin` scope (FR-039/FR-051).',
+                responses: {
+                    '200': { description: 'The pending queue, oldest first.', schema: 'PendingPromotionsResponse' },
+                    '401': unauthorized,
+                    '403': forbidden,
+                },
+            },
+        },
+        '/api/v1/foods/admin/promotions/{id}/approve': {
+            post: {
+                operationId: 'approvePromotion',
+                summary: 'Approve a food promotion (admin)',
+                description:
+                    'Publishes one candidacy (U12 phase 1, atomic): elects the canonical over the STORED ' +
+                    'candidate set and flips it to `promoted`. The recipe-side mapping rewrite (phase 2) is ' +
+                    'driven separately and is idempotent. `food:admin` scope required, checked BEFORE id ' +
+                    'validation so `403` precedes `400` (FR-051).',
+                parameters: [promotionIdParameter],
+                responses: {
+                    '200': {
+                        description: 'Approved; the canonical is world-readable.',
+                        schema: 'ApprovePromotionResponse',
+                    },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                    '404': { description: 'No such promotion — `code: PROMOTION_NOT_FOUND`.', schema: 'ApiError' },
+                    '409': {
+                        description:
+                            'The row is not actionable — already decided, or no contributing food survives. ' +
+                            '`code: PROMOTION_NOT_ACTIONABLE`, with `details.reason`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/foods/admin/promotions/{id}/reject': {
+            post: {
+                operationId: 'rejectPromotion',
+                summary: 'Reject a food promotion (admin)',
+                description:
+                    'Declines one candidacy. The rejected fingerprint bars an IDENTICAL resubmission (0015); ' +
+                    'a new corroborating author or changed macros re-opens the door. `food:admin` scope ' +
+                    'required (FR-051).',
+                parameters: [promotionIdParameter],
+                responses: {
+                    '200': { description: 'Rejected.', schema: 'RejectPromotionResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                    '404': { description: 'No such promotion — `code: PROMOTION_NOT_FOUND`.', schema: 'ApiError' },
+                    '409': {
+                        description: 'The row is already decided — `code: PROMOTION_NOT_ACTIONABLE`.',
                         schema: 'ApiError',
                     },
                 },

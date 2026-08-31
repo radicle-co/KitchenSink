@@ -652,6 +652,10 @@ export const foodErrorCodeSchema = z.enum([
     'FOOD_REFERENCED',
     /** The delete's cross-service reference check could not run, so the delete fails CLOSED (`503`, U18). */
     'REFERENCE_CHECK_UNAVAILABLE',
+    /** No promotion queue row with that id (`404`, U12). */
+    'PROMOTION_NOT_FOUND',
+    /** The queue row is not actionable — `details.reason` says `not_pending` or `not_promotable` (`409`, U12). */
+    'PROMOTION_NOT_ACTIONABLE',
     /** Backpressure / flood-shed / resolve cap — a `503` + `Retry-After`, NEVER a per-user `429` (FR-046). */
     'FETCH_UNAVAILABLE',
     /** An upstream food-data source did not answer a live search — a `502`, distinct from our own `503` (U29). */
@@ -759,6 +763,15 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
         })
         .loose(),
     z.object({ code: z.literal('REFERENCE_CHECK_UNAVAILABLE'), message: z.string() }).loose(),
+    z.object({ code: z.literal('PROMOTION_NOT_FOUND'), message: z.string() }).loose(),
+    z
+        .object({
+            code: z.literal('PROMOTION_NOT_ACTIONABLE'),
+            message: z.string(),
+            /** Why the decision could not apply: the row is already decided, or no candidate survives. */
+            details: z.object({ reason: z.enum(['not_pending', 'not_promotable']) }).loose(),
+        })
+        .loose(),
     z
         .object({
             code: z.literal('NOT_EDITABLE'),

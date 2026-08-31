@@ -289,6 +289,22 @@ describe.skipIf(!DATABASE_URL)('batched nutrition read (integration)', () => {
             ]);
         });
 
+        it('U12: a PROMOTED authored food ENTERS the batch; a private one stays out (edge-cache population)', async () => {
+            // Post-promotion the food is world-readable and its nutrition does not vary by caller, so the
+            // ADR-0020 objection to authored rows in the shared cache no longer applies to it.
+            const promoted = await seedFood({ name: 'promoted blend' });
+            const privateFood = await seedFood({ name: 'private blend' });
+
+            await pool.query(`UPDATE food SET user_id = 'author-a', visibility = 'promoted' WHERE id = $1`, [promoted]);
+            await pool.query(`UPDATE food SET user_id = 'author-a', visibility = 'private' WHERE id = $1`, [
+                privateFood,
+            ]);
+
+            const records = await dao.readNutritionBatch([promoted, privateFood]);
+
+            expect(records.map((record) => record.id)).toEqual([promoted]);
+        });
+
         it('omits an id that names no food, and returns a food that has no nutrition at all', async () => {
             const bare = await seedFood({ name: 'bare failed', status: 'FAILED' });
             const ghost = newFoodId();

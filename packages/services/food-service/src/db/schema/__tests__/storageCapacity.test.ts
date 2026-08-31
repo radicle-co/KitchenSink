@@ -60,6 +60,13 @@ const accounts: readonly ColumnAccount[] = [
             'the erasure sweep on kept foods; never a wire field.',
     },
     {
+        table: 'food_promotions',
+        column: 'data_fingerprint',
+        why:
+            'A server-computed SHA-256 hex (0015, plan U12) — `promotionFingerprint` derives it from the ' +
+            'contributing foods; exactly 64 chars by construction, never a wire field.',
+    },
+    {
         table: 'food',
         column: 'user_id',
         why:

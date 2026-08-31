@@ -281,7 +281,14 @@ export const CURATOR_MAPPING_SCOPE = 'recipes:mappings:global';
  * invents cannot be aggregated, and R20 asks for it precisely so corrections can be attributed to the
  * affordance that produced them. Adding a member is additive on both sides and needs no migration.
  */
-export const CORRECTION_SURFACINGS = ['ingredient_picker', 'recipe_line'] as const;
+export const CORRECTION_SURFACINGS = [
+    'ingredient_picker',
+    'recipe_line',
+    // U12: phase 2 of a food promotion — the operator CLI binds the promoted name to the canonical food
+    // through this same route (the mapping write IS the existing supersession shape; a promotion is not a
+    // new kind of write, only a new affordance producing one).
+    'promotion',
+] as const;
 
 /** Which affordance produced a correction. */
 export const correctionSurfacingSchema = z.enum(CORRECTION_SURFACINGS);

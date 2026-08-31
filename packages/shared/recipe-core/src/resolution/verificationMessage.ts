@@ -148,7 +148,7 @@ export const verifyIngredientLineMessageSchema = z.object({
     /** The line the cook's source said. UNTRUSTED, and the reason for every bound above. */
     sourceLine: boundedText(MAX_VERIFICATION_SOURCE_LINE_LENGTH),
     /**
-     * The ingredient PHRASE the parse lifted out of {@link sourceLine} — `all-purpose flour` from
+     * The ingredient PHRASE the parse lifted out of `sourceLine` — `all-purpose flour` from
      * `2 cups all-purpose flour` (owner ruling 2026-08-31, U15 report "Owner rulings" §3).
      *
      * ⛔ THE MEMO-GRAIN FIELD. The memo tier's read side queries `normalizedIngredientKey(name)` — the

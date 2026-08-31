@@ -57,6 +57,9 @@
  * status. Collapsing them is how a transient degradation becomes a permanent fact about an ingredient.
  */
 import type { NormalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
+import type { ScoredCandidate } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
+
+import type { CallerToken } from '../../auth/CallerToken.js';
 
 /**
  * The four tiers R11 names, in the order R11 names them.
@@ -86,6 +89,16 @@ export type TierOutcome =
           readonly foodId: string;
           /** Why this tier answered — carried into telemetry and into a reviewer's read of a resolution. */
           readonly evidence: string;
+          /**
+           * The measured margin (`top - runnerUp` on the tier's own scale) — the reserved additive field
+           * the file docstring promised (plan U4). `undefined` for a singleton shortlist (a missing
+           * runner-up is NOT a margin of zero — see `marginBandOf`) and for tiers that rank nothing.
+           */
+          readonly confidence?: number | undefined;
+          /** The full structured shortlist (KTD-C), for the gate's evidence and the event log. */
+          readonly shortlist?: readonly ScoredCandidate[] | undefined;
+          /** The top hit's ladder rung — the band key's first axis. Ranking tiers only. */
+          readonly rung?: string | undefined;
       }
     | {
           readonly kind: 'pass';
@@ -112,6 +125,15 @@ export interface ResolutionContext {
      * ones, because one user's private correction must never silently rewrite an import.
      */
     readonly userId: string | undefined;
+    /**
+     * The caller's own bearer, for tiers that query another service AS the caller (the lexical tier —
+     * issue #120's rule). `undefined` when nobody is present; the lexical tier then degrades exactly like
+     * a down catalog rather than substituting a credential.
+     *
+     * ⛔ REQUIRED, not optional-with-default: every construction site must decide who is calling, the same
+     * discipline `VerifiableLine.resolutionTier` applies (plan U2).
+     */
+    readonly caller: CallerToken | undefined;
 }
 
 /**
@@ -146,6 +168,10 @@ export type CascadeOutcome =
           readonly tier: ResolutionTierId;
           readonly foodId: string;
           readonly evidence: string;
+          /** Passed through from the winning tier's outcome — see {@link TierOutcome}'s resolved member. */
+          readonly confidence?: number | undefined;
+          readonly shortlist?: readonly ScoredCandidate[] | undefined;
+          readonly rung?: string | undefined;
           /** The tiers consulted, in order, up to and including the one that answered. */
           readonly consulted: readonly ResolutionTierId[];
           /** The consulted tiers whose I/O FAILED. Never overlaps with the tier that answered. */
@@ -220,6 +246,9 @@ export async function runResolutionCascade(
                 tier: outcome.tier,
                 foodId: outcome.foodId,
                 evidence: outcome.evidence,
+                confidence: outcome.confidence,
+                shortlist: outcome.shortlist,
+                rung: outcome.rung,
                 consulted,
                 unavailable,
             };

@@ -47,9 +47,10 @@
  * `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` (the per-keystroke bound).
  */
 import { Logger, Module } from '@nestjs/common';
+import type pg from 'pg';
 import { ConfigService } from '@nestjs/config';
 
-import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
+import { DrizzleProvider, PgPoolProvider, type RecipeDrizzle } from '../database/database.module.js';
 import { IngredientsController } from './ingredients.controller.js';
 import { IngredientsService } from './ingredients.service.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
@@ -57,9 +58,11 @@ import { FoodServiceClients } from './FoodServiceClients.factory.js';
 import { FoodNutritionGateway } from './foodNutrition.gateway.js';
 import { IngredientsDal } from './dal/ingredients.dal.js';
 import { createCuratedTier } from './resolution/curatedTier.js';
+import { createLexicalTier } from './resolution/lexicalTier.js';
 import { createMemoTier } from './resolution/memoTier.js';
 import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
 import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
+import { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
 import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
 import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
 import type { ResolutionTier } from './resolution/resolutionCascade.js';
@@ -80,13 +83,9 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
  * precedence, not an implementation detail, which is why it lives here as an explicit registry rather than
  * being assembled inside the service.
  *
- * Today it holds tiers **1** (curated mappings) and **3** (remembered resolutions). The two absentees are
- * absent for stated reasons rather than by oversight:
- *
- *  - **Tier 2, lexical**, is U5/U6's: the ranking and the margin at which it is confident are theirs, and
- *    inserting a half-built one here would give the cascade a metric nobody had measured. Until it ships, the
- *    EXISTING `addByName` path is the lexical fallback — it runs after the cascade is exhausted, which is the
- *    same position in the precedence. U5/U6 insert their tier at index 1.
+ * It holds tiers **1** (curated mappings), **2** (the lexical shortlist-builder, plan U4 — zero initial
+ * authority; see `lexicalTier.ts` for why it has no tier-side threshold) and **3** (remembered
+ * resolutions). The one absentee is absent for a stated reason rather than by oversight:
  *  - **Tier 4, the LLM gate, is NOT A TIER OF THIS CHAIN AT ALL** — corrected 2026-08-22, when its producer
  *    shipped. KTD-3 is "the verification gate, NOT a residual fallback": the model verifies what is about to
  *    be PUBLISHED, whereas a tier here is consulted precisely when tiers 1–3 have all passed, i.e. when there
@@ -95,11 +94,12 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
  *    see `recipes/domain/verificationRequests.ts`. This registry stays two tiers long until U5/U6 ship the
  *    lexical one at index 1.
  *
- * @param mappings - The knowledge-base repository both live tiers read through.
+ * @param mappings - The knowledge-base repository tiers 1 and 3 read through.
+ * @param catalog - The availability-disciplined search gateway tier 2 retrieves through (plan U4).
  * @returns The tiers, in R11's order.
  */
-function resolutionTiers(mappings: ResolutionMappingsDal): readonly ResolutionTier[] {
-    return [createCuratedTier(mappings), createMemoTier(mappings)];
+function resolutionTiers(mappings: ResolutionMappingsDal, catalog: FoodCatalogGateway): readonly ResolutionTier[] {
+    return [createCuratedTier(mappings), createLexicalTier(catalog), createMemoTier(mappings)];
 }
 
 @Module({
@@ -149,6 +149,11 @@ function resolutionTiers(mappings: ResolutionMappingsDal): readonly ResolutionTi
             useFactory: (db: RecipeDrizzle): ResolutionMappingsDal => new ResolutionMappingsDal(db),
         },
         {
+            provide: ResolutionBandsDal,
+            inject: [PgPoolProvider],
+            useFactory: (pool: pg.Pool): ResolutionBandsDal => new ResolutionBandsDal(pool),
+        },
+        {
             // The promotion audit's log half goes through Nest's `Logger`, so the identifiers it carries are
             // scrubbed on the way out; the metric half writes EMF straight to stdout by default.
             provide: MappingPromotionAudit,
@@ -169,6 +174,7 @@ function resolutionTiers(mappings: ResolutionMappingsDal): readonly ResolutionTi
                 FoodCatalogGateway,
                 ResolutionMappingsDal,
                 IngredientResolutionsDal,
+                ResolutionBandsDal,
             ],
             useFactory: (
                 dal: IngredientsDal,
@@ -176,8 +182,9 @@ function resolutionTiers(mappings: ResolutionMappingsDal): readonly ResolutionTi
                 catalog: FoodCatalogGateway,
                 mappings: ResolutionMappingsDal,
                 resolutions: IngredientResolutionsDal,
+                bands: ResolutionBandsDal,
             ): IngredientsService =>
-                new IngredientsService(dal, clients, catalog, resolutionTiers(mappings), resolutions),
+                new IngredientsService(dal, clients, catalog, resolutionTiers(mappings, catalog), resolutions, bands),
         },
     ],
     exports: [IngredientsService, FoodNutritionGateway, ResolutionMappingsService, IngredientResolutionsDal],

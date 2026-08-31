@@ -34,7 +34,7 @@ import {
 
 const KEY = normalizedIngredientKey('plain flour')!;
 const QUERY: ResolutionQuery = { key: KEY, phrase: 'plain flour' };
-const CONTEXT = { userId: '01JU10CASCADE0000000AUTHOR' } as const;
+const CONTEXT = { userId: '01JU10CASCADE0000000AUTHOR', caller: undefined } as const;
 
 /** A tier that always resolves to `foodId`, recording that it was consulted. */
 function resolving(id: ResolutionTierId, foodId: string, consulted: ResolutionTierId[]): ResolutionTier {

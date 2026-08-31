@@ -191,3 +191,80 @@ describe('addByName — an exhausted cascade leaves the shipped path unchanged',
         expect(client.addByName).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('addByName — a RANKED resolution records the full band-keyed event (plan U4, KTD-C)', () => {
+    const rankedTier: ResolutionTier = {
+        id: 'lexical',
+        resolve: async () => ({
+            kind: 'resolved',
+            tier: 'lexical',
+            foodId: MAPPED_FOOD,
+            evidence: 'lexical shortlist (rung head, 2 candidates, margin 0.290)',
+            confidence: 0.29,
+            shortlist: [
+                { foodId: MAPPED_FOOD, score: 0.91 },
+                { foodId: '01JU10WIRE000000000RUNNER0', score: 0.62 },
+            ],
+            rung: 'head',
+        }),
+    };
+
+    it('persists rung, margin, shortlist, query shape, ranker version and the observed band epoch', async () => {
+        const { dal } = makeDal();
+        const { clients, mocks: client } = makeFoodClients();
+        client.getStatus.mockResolvedValue(
+            makeStatusResult({ id: MAPPED_FOOD, status: 'RESOLVED', food: makeFoodView({ name: 'Plain flour' }) }),
+        );
+        const record = vi.fn().mockResolvedValue(undefined);
+        const authorityFor = vi.fn().mockResolvedValue({ state: 'observing', epoch: 0 });
+        const service = new IngredientsService(
+            dal,
+            clients,
+            { search: vi.fn() } as unknown as FoodCatalogGateway,
+            [rankedTier],
+            { record } as never,
+            { authorityFor } as never,
+        );
+
+        await service.addByName(CALLER, NAME, AUTHOR);
+
+        expect(record).toHaveBeenCalledWith(
+            expect.objectContaining({
+                tier: 'lexical',
+                rung: 'head',
+                margin: 0.29,
+                queryShape: 'multi-word',
+                rankerVersion: expect.any(String),
+                bandEpoch: '0',
+                shortlist: [
+                    { foodId: MAPPED_FOOD, score: 0.91 },
+                    { foodId: '01JU10WIRE000000000RUNNER0', score: 0.62 },
+                ],
+            }),
+        );
+        expect(authorityFor).toHaveBeenCalledWith(expect.objectContaining({ rung: 'head', queryShape: 'multi-word' }));
+    });
+
+    it('⚠️ an unreadable band authority degrades to an event with NO epoch — never a failed resolution', async () => {
+        const { dal } = makeDal();
+        const { clients, mocks: client } = makeFoodClients();
+        client.getStatus.mockResolvedValue(
+            makeStatusResult({ id: MAPPED_FOOD, status: 'RESOLVED', food: makeFoodView({ name: 'Plain flour' }) }),
+        );
+        const record = vi.fn().mockResolvedValue(undefined);
+        const authorityFor = vi.fn().mockRejectedValue(new Error('band table unreachable'));
+        const service = new IngredientsService(
+            dal,
+            clients,
+            { search: vi.fn() } as unknown as FoodCatalogGateway,
+            [rankedTier],
+            { record } as never,
+            { authorityFor } as never,
+        );
+
+        const admitted = await service.addByName(CALLER, NAME, AUTHOR);
+
+        expect(admitted.foodId).toBe(MAPPED_FOOD);
+        expect(record).toHaveBeenCalledWith(expect.objectContaining({ bandEpoch: undefined }));
+    });
+});

@@ -61,6 +61,10 @@ import { clampLimit, IngredientsDal } from './dal/ingredients.dal.js';
 import type { CanonicalIngredientName } from './domain/ingredientName.js';
 import { canonicalNameFrom, toResolutionStatus } from './foodStatusTranslation.js';
 import type { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
+import { marginBandOf } from '@kitchensink/recipe-core/resolution/band-policy';
+import { queryShapeOf } from '@kitchensink/recipe-core/resolution/band-policy';
+import { RANKER_VERSION } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import type { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
 import { runResolutionCascade, type ResolutionTier } from './resolution/resolutionCascade.js';
 import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
@@ -133,6 +137,8 @@ export class IngredientsService {
         // fully-supported state (unit fixtures, pre-0035 callers) — resolutions simply go unrecorded, which
         // is the pre-U2 behaviour.
         private readonly resolutions?: IngredientResolutionsDal,
+        // Optional for the same reason again: without it, ranked events simply record no band epoch.
+        private readonly bands?: Pick<ResolutionBandsDal, 'authorityFor'>,
     ) {}
 
     /**
@@ -366,6 +372,46 @@ export class IngredientsService {
      * @returns The admitted ingredient, or `undefined` when the cascade could not (or should not) answer.
      * @sideEffect Runs the cascade's tiers, then admits a food (one food-service read + an `ingredients` write).
      */
+    /**
+     * The band-authority epoch a ranked resolution was made under, or `undefined` when the band has never
+     * crossed a threshold — the "zero-authority" state KTD-A's pending derivation keys on.
+     *
+     * ⚠️ Quiet by contract: an unreadable band table degrades to "no epoch observed" rather than failing a
+     * resolution that already succeeded, the same discipline as the event write around it.
+     *
+     * @param rung - The winner's ladder rung.
+     * @param margin - The measured margin, or `undefined` for a singleton shortlist.
+     * @param phrase - The resolved phrase, for the query-shape axis.
+     * @returns The epoch as stored text, or `undefined`. @sideEffect One band-authority read.
+     */
+    private async observedBandEpoch(
+        rung: string,
+        margin: number | undefined,
+        phrase: string,
+    ): Promise<string | undefined> {
+        if (this.bands === undefined) {
+            return undefined;
+        }
+
+        try {
+            const authority = await this.bands.authorityFor({
+                rung,
+                marginBand: marginBandOf(margin),
+                queryShape: queryShapeOf(phrase),
+                rankerVersion: RANKER_VERSION,
+            });
+
+            return authority === undefined ? undefined : String(authority.epoch);
+        } catch (error) {
+            this.logger.warn(
+                'Band-authority read failed; the resolution event records no epoch.',
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return undefined;
+        }
+    }
+
     private async resolveThroughCascade(
         caller: CallerToken | undefined,
         name: CanonicalIngredientName,
@@ -384,7 +430,7 @@ export class IngredientsService {
         const outcome = await runResolutionCascade(
             this.resolutionTiers,
             { key, phrase: name },
-            { userId },
+            { userId, caller },
             {
                 onTierFailure: (tier, error) =>
                     this.logger.warn(
@@ -407,7 +453,23 @@ export class IngredientsService {
             // already succeeded.
             if (this.resolutions !== undefined) {
                 try {
-                    await this.resolutions.record({ ingredientId: admitted.id, tier: outcome.tier });
+                    await this.resolutions.record({
+                        ingredientId: admitted.id,
+                        tier: outcome.tier,
+                        // KTD-C: a RANKED resolution persists its full confidence shape — the band log's
+                        // substrate and the verification producer's evidence. Non-ranking tiers leave all
+                        // of this undefined, exactly as before.
+                        ...(outcome.rung === undefined
+                            ? {}
+                            : {
+                                  rung: outcome.rung,
+                                  margin: outcome.confidence,
+                                  shortlist: outcome.shortlist,
+                                  queryShape: queryShapeOf(name),
+                                  rankerVersion: RANKER_VERSION,
+                                  bandEpoch: await this.observedBandEpoch(outcome.rung, outcome.confidence, name),
+                              }),
+                    });
                 } catch (recordError) {
                     this.logger.warn(
                         `Resolution provenance write failed for ingredient '${admitted.id}' (tier '${outcome.tier}').`,

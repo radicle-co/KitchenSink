@@ -5,7 +5,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 WORKDIR /app
 
 COPY node_modules ./node_modules
-COPY packages/services/recipe-service/node_modules ./packages/services/recipe-service/node_modules
+# ⛔ There is deliberately NO `COPY packages/services/recipe-service/node_modules` here, and re-adding one breaks
+# the build. npm workspaces hoist to the ROOT `node_modules` (copied above); a workspace gets its own
+# directory only when a version conflict blocks hoisting, so its existence was never a property of this
+# service. `c90098ff` aligned `@types/node` across workspaces on 2026-08-27, the last conflict vanished,
+# `npm ci` stopped creating the directory, and every deploy failed with:
+#     ERROR: failed to compute cache key: "/packages/services/recipe-service/node_modules": not found
+# It copied nothing either way: the only entries that directory EVER held were `@types/node` and
+# `undici-types`, both dev-only, and the pipeline runs `npm prune --omit=dev` BEFORE this build — so the
+# line was copying an empty directory. Asserted by
+# `packages/infra/global/__tests__/serviceImageWorkspaceModules.test.ts`, which permits the COPY again if
+# a runtime dependency is ever genuinely pinned into a workspace.
 COPY packages/services/recipe-service/prod.package.json ./packages/services/recipe-service/package.json
 COPY packages/services/recipe-service/dist ./packages/services/recipe-service/dist
 # Shared @kitchensink runtime deps. The root node_modules symlinks (@kitchensink/recipe-core,

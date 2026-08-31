@@ -26,6 +26,14 @@
             "types": "./dist/resolution/rankingTerms.d.ts",
             "default": "./dist/resolution/rankingTerms.js"
         },
+        "./resolution/band-authority-store": {
+            "types": "./dist/resolution/bandAuthorityStore.d.ts",
+            "default": "./dist/resolution/bandAuthorityStore.js"
+        },
+        "./resolution/band-policy": {
+            "types": "./dist/resolution/bandPolicy.d.ts",
+            "default": "./dist/resolution/bandPolicy.js"
+        },
         "./resolution/ranking-tiers": {
             "types": "./dist/resolution/rankingTiers.d.ts",
             "default": "./dist/resolution/rankingTiers.js"

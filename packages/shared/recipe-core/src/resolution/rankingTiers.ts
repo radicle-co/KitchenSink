@@ -63,6 +63,20 @@ export type RankTier = (typeof RANK_TIERS)[number];
  * The largest value either surface's base metric can take. `similarity` and `word_similarity` are both
  * defined on `[0, 1]`.
  */
+/**
+ * The RANKER'S VERSION — part of every band-authority key (plan U3, R15).
+ *
+ * ⛔ Bump this on ANY change that moves ranked results: the tier ladder, `describeRankingName`'s head
+ * rule, the relevance SQL renderings, or a popularity-prior change (plan U5). A bump makes every band
+ * re-earn authority from scratch under the new version — the old rows stay as history — because a band's
+ * measured agreement is a fact about the ranker that produced it, not about the band label.
+ *
+ * ⚠️ An accidental edit is a silent full authority reset, so the constant is PINNED by test the way
+ * `engineVersionDiff.test.ts` pins the RDS engine: changing it must be a decision, not a side effect.
+ * The current value names the U1 comma-segment head-rule era.
+ */
+export const RANKER_VERSION = 'ladder-v2-comma-head';
+
 export const BASE_METRIC_MAX = 1;
 
 /**

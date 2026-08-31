@@ -517,6 +517,13 @@ export class RecipeWorkersStack extends Stack {
         grantRdsIam(erasureSweeperRole);
         this.erasureQueue.grantSendMessages(erasureSweeperRole);
 
+        // band drain: the revocation backlog's scheduled sender (plan U3, R14). Reads the band tables and
+        // the spend counter, sends stored messages to the verification queue, and marks them drained. Sends
+        // to SQS but must NOT consume (ARCH-IT-7); ⛔ NO bedrock permission of any kind — it feeds the gate,
+        // and the gate's role stays the only InvokeModel grantee (ADR-0024 §4b).
+        const bandDrainRole = makeRole('BandDrainRole', 'Least-privilege role for the band revocation drain Lambda');
+        grantRdsIam(bandDrainRole);
+
         // erasure-orphan sweeper: the resurrection backstop across BOTH object buckets. Reads
         // `account_erasure_jobs` for recently-COMPLETED owners and deletes any object a late write orphaned
         // under their prefix — a version-archive PUT in the ARCHIVE bucket, or a photo-upload presigned PUT
@@ -943,6 +950,52 @@ export class RecipeWorkersStack extends Stack {
         // batchSize 1: one message is one ingredient line, so a DLQ message maps to exactly one unverified
         // line — and a partial-batch failure would otherwise re-call (and re-pay for) lines already verified.
         verificationFn.addEventSource(new lambda_event_sources.SqsEventSource(verificationQueue, { batchSize: 1 }));
+
+        // ── band revocation drain (plan U3, R14) ────────────────────────────────────────────────────
+        //
+        // Revocation flips a band's state and enqueues NOTHING; `resolution_band_skips` is the backlog,
+        // each row carrying the producer-built verification message verbatim. This scheduled drain sends
+        // batches sized against the spend pool's REMAINING headroom, so an exhausted ceiling pauses the
+        // drain instead of DLQ-ing thousands of re-verifications. ⛔ Its role has NO bedrock permission —
+        // it produces for the gate, and the gate stays the single InvokeModel grantee (ADR-0024 §4b).
+        verificationQueue.grantSendMessages(bandDrainRole);
+        bandDrainRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['ssm:GetParameters'],
+                resources: [ceilingParameterName, modelParameterName].map((name) =>
+                    Stack.of(this).formatArn({ service: 'ssm', resource: 'parameter', resourceName: name.slice(1) }),
+                ),
+            }),
+        );
+
+        const bandDrainFn = new lambda.Function(this, 'BandDrainFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/bandDrain.handler',
+            code: lambda.Code.fromAsset(DIST_PATH),
+            role: bandDrainRole,
+            vpc,
+            vpcSubnets,
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(60),
+            memorySize: 256,
+            environment: {
+                ...commonDbEnv,
+                INGREDIENT_VERIFICATION_QUEUE_URL: verificationQueue.queueUrl,
+                // Selects the prod-only headroom sizing, and matches the gate's own stage key.
+                STAGE: props.stage,
+            },
+            logGroup,
+        });
+
+        // Every 15 minutes: the drain is a background repayment plan, not a latency path. Each tick claims
+        // at most a quarter of the remaining headroom, so the cadence bounds how fast a revoked epoch can
+        // burn the shared pool far more than it bounds how fast the backlog empties.
+        new events.Rule(this, 'BandDrainSchedule', {
+            ruleName: `kitchensink-recipe-band-drain-${props.stage}`,
+            schedule: events.Schedule.rate(Duration.minutes(15)),
+            targets: [new events_targets.LambdaFunction(bandDrainFn)],
+        });
 
         // ── ⛔ SCHEMA BEFORE WORK — the in-deploy migration barrier ─────────────────────────────────
         //

@@ -47,6 +47,7 @@ const entryPoints = [
     'src/handlers/erasureSweeper.ts',
     'src/handlers/erasureOrphanSweeper.ts',
     'src/handlers/verifyLine.ts',
+    'src/handlers/bandDrain.ts',
 ];
 
 /**

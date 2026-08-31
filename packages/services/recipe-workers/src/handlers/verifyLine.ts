@@ -72,7 +72,7 @@ import {
 import { createHash } from 'node:crypto';
 
 import { requireEnv } from '../common/config.js';
-import { getRecipeDb } from '../common/db.js';
+import { getRecipeDb, getRecipePool } from '../common/db.js';
 import { logger } from '../common/logger.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { createSpendLedger, isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
@@ -90,6 +90,7 @@ import {
     type VerificationSettingsResolver,
 } from '../verification/settings.js';
 import { createVerdictStore, type VerdictStore } from '../verification/verdictStore.js';
+import { createBandFeedback, type BandFeedback } from '../verification/bandFeedback.js';
 
 /**
  * The EMF namespace every metric below is published under. The alarms extract by exact namespace.
@@ -148,6 +149,8 @@ export interface VerificationDeps {
     readonly ledger: SpendLedger;
     readonly bedrock: BedrockConverseClient;
     readonly store: VerdictStore;
+    /** Where TERMINAL verdicts are reported so lexical bands earn or lose autonomy (plan U3). */
+    readonly bands: BandFeedback;
     /** Metric sink, injected so the unit suite can read what was published. */
     readonly emit: (metric: EmfMetric) => void;
     /** Clock, injected so the period key is testable across a month boundary. */
@@ -239,6 +242,27 @@ async function recordQuietly(deps: VerificationDeps, row: Parameters<VerdictStor
     } catch (error) {
         logger.error('verification verdict write failed; the line will publish unverified', {
             band: row.band,
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+}
+
+/**
+ * Report a terminal verdict to the band store, swallowing any failure.
+ *
+ * The production implementation already swallows internally, but the guarantee belongs to the HANDLER: by
+ * this point the call is billed and the verdict stored, so no injected implementation may be able to
+ * redeliver the message.
+ *
+ * @param deps - The handler's collaborators.
+ * @param input - The verdict, as the band mapping wants it.
+ * @sideEffect Reads and writes the band tables.
+ */
+async function reportBandQuietly(deps: VerificationDeps, input: Parameters<BandFeedback['record']>[0]): Promise<void> {
+    try {
+        await deps.bands.record(input);
+    } catch (error) {
+        logger.error('band feedback failed; the observation is lost', {
             error: error instanceof Error ? error.message : String(error),
         });
     }
@@ -414,6 +438,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         // so a model that cannot answer leaves the line exactly as the gate found it.
         logger.warn('verification answer was unreadable', { reason: reading.reason });
         await recordQuietly(deps, verdictRow(message, plan, decision.aspects, 'abstain', 'low', 'inconclusive', key));
+        await reportBandQuietly(deps, { foodId: message.foodId, band: 'inconclusive', aspects: decision.aspects });
 
         return;
     }
@@ -423,6 +448,7 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         deps,
         verdictRow(message, plan, decision.aspects, reading.outcome.verdict, reading.outcome.certainty, band, key),
     );
+    await reportBandQuietly(deps, { foodId: message.foodId, band, aspects: decision.aspects });
 
     // ⛔ A MEMO ONLY WHEN IDENTITY WAS ACTUALLY CHECKED. `ingredient_resolution_memos` records that a MODEL
     // agreed this phrase means this food, and it then answers for every future cook. An `agree` from a run
@@ -521,6 +547,7 @@ function productionDeps(stage: string, region: string): VerificationDeps {
         ledger: createSpendLedger(db),
         bedrock: createBedrockConverseClient(createBedrockTransport({ region }).send),
         store: createVerdictStore(db),
+        bands: createBandFeedback(getRecipePool()),
         emit: emitMetric,
         now: () => new Date(),
     };

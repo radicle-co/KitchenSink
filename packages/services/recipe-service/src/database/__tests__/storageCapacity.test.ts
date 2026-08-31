@@ -268,6 +268,18 @@ const accounts: readonly ColumnAccount[] = [
         column: 'attempts',
         why: 'Server-incremented retry counter; no wire field sets it.',
     },
+
+    // ── band authority (plan U3, 0036) ────────────────────────────────────────────────────────────
+    {
+        table: 'resolution_band_authority',
+        column: 'epoch',
+        why: 'Server-incremented on each grant by the band state machine; no wire field sets it.',
+    },
+    {
+        table: 'resolution_band_skips',
+        column: 'epoch',
+        why: 'Copied from the authority row at skip time by the producer; no wire field sets it.',
+    },
 ];
 
 describe('storage capacity — every wire bound fits the column it writes', () => {

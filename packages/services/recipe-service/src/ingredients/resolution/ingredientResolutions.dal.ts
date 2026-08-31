@@ -29,6 +29,8 @@ export interface ResolutionEvent {
     readonly margin?: number;
     readonly shortlist?: unknown;
     readonly bandEpoch?: string;
+    readonly queryShape?: string;
+    readonly rankerVersion?: string;
 }
 
 export class IngredientResolutionsDal {
@@ -48,6 +50,8 @@ export class IngredientResolutionsDal {
             margin: event.margin === undefined ? undefined : String(event.margin),
             shortlist: event.shortlist,
             bandEpoch: event.bandEpoch,
+            queryShape: event.queryShape,
+            rankerVersion: event.rankerVersion,
         });
     }
 

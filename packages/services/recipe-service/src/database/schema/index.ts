@@ -41,6 +41,25 @@ export type {
 export { ingredientResolutions } from './ingredientResolutions.js';
 export type { IngredientResolutionRow, NewIngredientResolutionRow } from './ingredientResolutions.js';
 
+// ── resolution_band_* (plan U3, 0036) — earned autonomy's memory ─────────────────────────────────
+export {
+    resolutionBandAuthority,
+    resolutionBandObservations,
+    resolutionBandSkips,
+    BAND_STATES,
+    BAND_OBSERVATION_SOURCES,
+} from './resolutionBands.js';
+export type {
+    BandStateValue,
+    BandObservationSource,
+    ResolutionBandAuthorityRow,
+    NewResolutionBandAuthorityRow,
+    ResolutionBandObservationRow,
+    NewResolutionBandObservationRow,
+    ResolutionBandSkipRow,
+    NewResolutionBandSkipRow,
+} from './resolutionBands.js';
+
 // ── ingredient_resolution_mappings + ingredient_resolution_memos (plan U10, 0021) ───────────────
 export {
     ingredientResolutionMappings,

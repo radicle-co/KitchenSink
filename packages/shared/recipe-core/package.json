@@ -13,6 +13,8 @@
         "./food-name": "./src/foodName.ts",
         "./resolution/normalized-key": "./src/resolution/normalizedKey.ts",
         "./resolution/ranking-terms": "./src/resolution/rankingTerms.ts",
+        "./resolution/band-authority-store": "./src/resolution/bandAuthorityStore.ts",
+        "./resolution/band-policy": "./src/resolution/bandPolicy.ts",
         "./resolution/ranking-tiers": "./src/resolution/rankingTiers.ts",
         "./resolution/verification-gate-policy": "./src/resolution/verificationGatePolicy.ts",
         "./resolution/verification-message": "./src/resolution/verificationMessage.ts",

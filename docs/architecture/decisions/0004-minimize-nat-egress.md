@@ -7,7 +7,7 @@
 
 ## ⚠️ Before you change this — the trap
 
-- **Do not move the DB-bound lambdas off the NAT, and do not "simplify" by deleting the NAT.** ⚠️ That set is no longer the three webhook handlers plus a migration runner this ADR was written around — it is **17 VPC-attached Lambdas across six stacks**, listed and machine-checked in [the 2026-08-20 update](#update-2026-08-20--the-consumer-list-grew-and-is-now-asserted). Read it before reasoning about "what is on the NAT". They are VPC-attached for exactly one reason: the RDS is `publiclyAccessible: false` (PRIVATE_ISOLATED), so they can only reach it from inside the VPC — and a VPC Lambda's only outbound paths are a NAT or VPC endpoints. `assignPublicIp` does **not** give a Lambda internet/AWS egress (that works only for Fargate/EC2). Removing the NAT silently breaks their Secrets Manager / CloudWatch Logs / SQS / Clerk access.
+- **Do not move the DB-bound lambdas off the NAT, and do not "simplify" by deleting the NAT.** ⚠️ That set is no longer the three webhook handlers plus a migration runner this ADR was written around — it is **18 VPC-attached Lambdas across six stacks**, listed and machine-checked in [the 2026-08-20 update](#update-2026-08-20--the-consumer-list-grew-and-is-now-asserted). Read it before reasoning about "what is on the NAT". They are VPC-attached for exactly one reason: the RDS is `publiclyAccessible: false` (PRIVATE_ISOLATED), so they can only reach it from inside the VPC — and a VPC Lambda's only outbound paths are a NAT or VPC endpoints. `assignPublicIp` does **not** give a Lambda internet/AWS egress (that works only for Fargate/EC2). Removing the NAT silently breaks their Secrets Manager / CloudWatch Logs / SQS / Clerk access.
 - **Do not open the NAT instance security group beyond the VPC CIDR.** It is `OUTBOUND_ONLY` by default with inbound restricted to the VPC range so only the private subnets route through it.
 - **The single NAT instance is a deliberate single-AZ SPOF + ~5 Gbps cap.** Fine at this scale; revisit (HA NAT instances per-AZ, or back to a managed Gateway) when uptime/throughput demands grow.
 - **Tasks now get public IPs.** That is _egress-only_ — inbound is locked to the ALB security group. Do not relax the service SG's inbound rules thinking the task is "already public."
@@ -28,10 +28,12 @@
 ## Update (2026-08-20) — the consumer list grew, and is now asserted
 
 **The rule in Decision 3 held. The list under it did not, and nothing failed, because a prose list cannot go
-red.** Written in June around three webhook handlers plus a migration runner, the set is now **17
+red.** Written in June around three webhook handlers plus a migration runner, the set was by then **17
 VPC-attached Lambdas across six stacks**: ADR-0022 gave every DB-touching stack its own in-deploy migration
 runner, `recipe-workers` shipped seven Lambdas of its own, `DataStack` grew two database-bootstrap Lambdas,
-and identity-webhooks gained two erasure sweepers.
+and identity-webhooks gained two erasure sweepers. (2026-08-31: plan U3's `BandDrainFunction` —
+recipe-workers' eighth — makes it **18**; it is VPC-attached solely to read the band tables and the spend
+counter in the recipe database, and its role carries no bedrock permission.)
 
 ⛔ **This matters because a stale premise gets REUSED.** Feature 004's LLM verification gate was designed
 around a `com.amazonaws.<region>.bedrock-runtime` **VPC interface endpoint** whose entire justification was
@@ -52,14 +54,14 @@ still deliberately non-VPC.
 
 <!-- nat-consumers:start -->
 
-| Stack                | VPC-attached Lambdas                                                                                                                                                                                                                            |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DataStack (global)   | `FoodDbBootstrapFunction`, `RecipeDbBootstrapFunction`                                                                                                                                                                                          |
-| WebhooksStack        | `WebhookFunction`, `DeletionWorkerFunction`, `ReconciliationFunction`, `TombstoneSweepFunction`, `ErasureReconciliationFunction`                                                                                                                |
-| IdentityServiceStack | `IdentityMigrationFunction`                                                                                                                                                                                                                     |
-| FoodServiceStack     | `FoodMigrationFunction`                                                                                                                                                                                                                         |
-| RecipeServiceStack   | `RecipeMigrationFunction`                                                                                                                                                                                                                       |
-| RecipeWorkersStack   | `VersionArchiveWorkerFunction`, `ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`, `ErasureOrphanSweeperFunction`, `IngredientVerificationFunction`, `RecipeSchemaMigrationRunner` |
+| Stack                | VPC-attached Lambdas                                                                                                                                                                                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DataStack (global)   | `FoodDbBootstrapFunction`, `RecipeDbBootstrapFunction`                                                                                                                                                                                                               |
+| WebhooksStack        | `WebhookFunction`, `DeletionWorkerFunction`, `ReconciliationFunction`, `TombstoneSweepFunction`, `ErasureReconciliationFunction`                                                                                                                                     |
+| IdentityServiceStack | `IdentityMigrationFunction`                                                                                                                                                                                                                                          |
+| FoodServiceStack     | `FoodMigrationFunction`                                                                                                                                                                                                                                              |
+| RecipeServiceStack   | `RecipeMigrationFunction`                                                                                                                                                                                                                                            |
+| RecipeWorkersStack   | `VersionArchiveWorkerFunction`, `ArchiveSweeperFunction`, `AccountErasureWorkerFunction`, `HandleSyncWorkerFunction`, `ErasureSweeperFunction`, `ErasureOrphanSweeperFunction`, `IngredientVerificationFunction`, `BandDrainFunction`, `RecipeSchemaMigrationRunner` |
 
 <!-- nat-consumers:end -->
 

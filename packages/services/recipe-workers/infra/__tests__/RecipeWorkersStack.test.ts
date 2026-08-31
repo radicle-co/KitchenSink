@@ -465,7 +465,9 @@ describe('RecipeWorkersStack', () => {
         // ⚠️ MOVED AGAIN when U11's verification gate landed: seven workers now, plus the runner. The number
         // is pinned rather than derived on purpose — a Lambda that quietly LOSES its database env would
         // otherwise leave this subject set silently, which is the drift ADR-0004's own consumer list suffered.
-        expect([...bound.keys()], 'the seven workers plus the in-deploy migration runner').toHaveLength(8);
+        // ⚠️ AND AGAIN (2026-08-31) when plan U3's band revocation drain landed: eight workers plus the
+        // runner. It reads the band tables and the spend counter, so it is database-bound by construction.
+        expect([...bound.keys()], 'the eight workers plus the in-deploy migration runner').toHaveLength(9);
 
         const functions = template.findResources('AWS::Lambda::Function');
         const unbound = Object.keys(functions).filter((name) => !bound.has(name));
@@ -696,8 +698,9 @@ describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
         // wrong schema and report success — #119's failure mode arriving through a new door. U11's
         // verification gate is the seventh worker, and it MATTERS here specifically: it writes the spend
         // counter, so a gate reading the shared base database would enforce ONE ceiling across every open
-        // preview and deny them all once any of them exhausted it.
-        expect(names).toHaveLength(8);
+        // preview and deny them all once any of them exhausted it. The band drain (plan U3) is the eighth:
+        // it reads the preview's own band tables and spend counter, for exactly the same isolation reason.
+        expect(names).toHaveLength(9);
         expect(new Set(names)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 

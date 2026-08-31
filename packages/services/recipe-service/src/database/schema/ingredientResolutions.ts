@@ -26,6 +26,10 @@ export const ingredientResolutions = pgTable(
         margin: numeric('margin'),
         /** The FULL structured `ScoredCandidate[]` snapshot (KTD-C) — null for non-ranking tiers. */
         shortlist: jsonb('shortlist'),
+        /** The band key's third axis (`QueryShape`), recorded at resolve time (plan U3, 0036). */
+        queryShape: text('query_shape'),
+        /** The ranker version the shortlist was produced under — the band key's fourth axis (0036). */
+        rankerVersion: text('ranker_version'),
         /** The band-authority epoch the resolution was made under (plan U3). Null until bands exist. */
         bandEpoch: text('band_epoch'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -54,6 +54,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         converse: ReturnType<typeof vi.fn>;
         recordVerdict: ReturnType<typeof vi.fn>;
         rememberAgreement: ReturnType<typeof vi.fn>;
+        bandRecord: ReturnType<typeof vi.fn>;
         emit: ReturnType<typeof vi.fn>;
     };
 } {
@@ -63,6 +64,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         converse: vi.fn().mockResolvedValue(ANSWERED),
         recordVerdict: vi.fn().mockResolvedValue(undefined),
         rememberAgreement: vi.fn().mockResolvedValue(undefined),
+        bandRecord: vi.fn().mockResolvedValue(undefined),
         emit: vi.fn(),
     };
 
@@ -73,6 +75,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         ledger: { reserve: spies.reserve, settle: spies.settle },
         bedrock: { converse: spies.converse },
         store: { recordVerdict: spies.recordVerdict, rememberAgreement: spies.rememberAgreement },
+        bands: { record: spies.bandRecord },
         emit: spies.emit,
         now: () => new Date('2026-08-21T10:00:01.000Z'),
         ...overrides,
@@ -624,5 +627,41 @@ describe('a line whose measure was RESTATED', () => {
         await processVerification(d, RESTATED);
 
         expect(String(d.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey)).toMatch(/^v2:/u);
+    });
+});
+
+describe('band feedback (plan U3)', () => {
+    it('reports the TERMINAL verdict to the band store, after the verdict is recorded', async () => {
+        const d = deps();
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.bandRecord).toHaveBeenCalledWith({
+            foodId: MESSAGE.foodId,
+            band: 'verified',
+            aspects: expect.arrayContaining(['identity']),
+        });
+        expect(d.spies.bandRecord.mock.invocationCallOrder[0]!).toBeGreaterThan(
+            d.spies.recordVerdict.mock.invocationCallOrder[0]!,
+        );
+    });
+
+    it('⚠️ a band-feedback failure never fails the handler — the call is already billed', async () => {
+        const d = deps();
+        d.spies.bandRecord.mockRejectedValue(new Error('band store down'));
+
+        await expect(processVerification(d, MESSAGE)).resolves.toBeUndefined();
+    });
+
+    it('an unreadable answer reports inconclusive — which the mapping discards as absence', async () => {
+        const d = deps();
+        d.spies.converse.mockResolvedValue({
+            kind: 'answered',
+            text: 'not json at all',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 660, outputTokens: 42, totalTokens: 702 },
+        });
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.bandRecord).toHaveBeenCalledWith(expect.objectContaining({ band: 'inconclusive' }));
     });
 });

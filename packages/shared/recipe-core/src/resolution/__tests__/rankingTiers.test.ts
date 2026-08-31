@@ -34,6 +34,7 @@ import { describe, expect, it } from 'vitest';
 
 import { describeRankingName, describeRankingQuery } from '../rankingTerms.js';
 import {
+    RANKER_VERSION,
     BASE_METRIC_MAX,
     RANK_TIERS,
     RAW_AFFINITY_BONUS,
@@ -184,5 +185,17 @@ describe('compareTieredHits — the score IS the sort key', () => {
         const b = { score: 0.5, name: 'Banana' };
 
         expect(Math.sign(compareTieredHits(a, b))).toBe(-Math.sign(compareTieredHits(b, a)));
+    });
+});
+
+describe('RANKER_VERSION — the band-authority version key (plan U3, R15)', () => {
+    /**
+     * ⛔ PINNED deliberately, like `engineVersionDiff.test.ts` pins the RDS engine. Changing the ranker's
+     * version resets EVERY band's earned authority to `observing` under the new key — that must be a
+     * decision taken with a ladder/head-rule/prior change, never a drive-by edit. If you changed ranking
+     * behavior, update BOTH together and say so in the commit.
+     */
+    it('is pinned to the current ladder era', () => {
+        expect(RANKER_VERSION).toBe('ladder-v2-comma-head');
     });
 });

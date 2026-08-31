@@ -134,10 +134,29 @@ This ADR recorded the sandbox ALB (~$16.43/mo) and its RDS storage as "the resid
 of scope", on the grounds that deleting an ALB requires tearing down every stack importing its listener ARN
 first (ADR-0002's export-in-use deadlock).
 
-**That was measured, and the deadlock is one stack deep.** With the per-PR stacks reaped, all three live
-exports of `kitchensink-alb-sandbox` have exactly ONE importer: `kitchensink-identity-service-sandbox`
-(`SharedAlbArn` has none at all). Together the ALB and its two public IPv4 addresses cost **$23.73/month**,
-billed around the clock for a tier that is live a few hours a week.
+**That was measured.** With the per-PR stacks reaped, all three live exports of `kitchensink-alb-sandbox`
+have exactly ONE importer: `kitchensink-identity-service-sandbox` (`SharedAlbArn` has none at all). Together
+the ALB and its two public IPv4 addresses cost **$23.73/month**, billed around the clock for a tier that is
+live a few hours a week.
+
+> ⛔ **CORRECTION (2026-08-31) — an earlier revision of this section claimed "the deadlock is one stack
+> deep". THAT IS FALSE, and the first real run of the reclaim proved it.** Only the ALB's _inbound_ edge was
+> measured. `kitchensink-identity-service-sandbox` has nine exports of its own, and one of them is imported:
+>
+> ```
+> Delete canceled. Cannot delete export
+>   kitchensink-identity-service-sandbox:IdentityServiceLogGroupName
+> as it is in use by kitchensink-identity-webhooks-sandbox.
+> ```
+>
+> `WebhooksStack` builds a `SubscriptionFilter` on the identity service's ECS log group to drain it to the
+> log-forwarder Lambda, importing the group name with `Fn.importValue`. So the chain is two deep, and the
+> second link lands on the ONE sandbox stack that must not be deleted — the webhook `e2e-web`'s Clerk fixture
+> blocks on. **Reclamation is therefore BLOCKED until that edge is removed.** See "The log-group edge" below.
+>
+> Nothing was damaged: CloudFormation cancelled the delete before removing any resource, and
+> `sandbox-shared-tier.sh` refused to continue to the ALB — so the ALB was never left with its importer gone.
+> The mirror-order abort earned its place on its first run.
 
 ### Decision
 
@@ -227,3 +246,33 @@ order fails 1.
   harmless to `runStart`, but it accumulates one per cycle.
 - The ~$11.13/month of sandbox RDS gp3 storage remains, as does this ADR's note that shrinking it needs a
   deliberate instance replacement (`6056779c` reverted an attempt that wedged the data stack).
+
+## The log-group edge — the actual blocker, and the design that removes it
+
+The reclaim cannot complete while a PERSISTENT stack imports from an EPHEMERAL one. That direction is the
+defect, not the symptom: `WebhooksStack` (which stays) reaches into `IdentityServiceStack` (which now comes
+and goes) for `IdentityServiceLogGroupName`.
+
+Three ways out, and the ranking is not close:
+
+|     | Approach                                                                                                                 | Verdict                                                                                                                                                     |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Invert the import: the identity stack creates the `SubscriptionFilter`, importing the forwarder Lambda ARN from webhooks | ⛔ Reverses the prod deploy order of two stacks. ADR-0022 is explicit that reordering that pipeline trades schema skew for message-contract skew. Rejected. |
+| B   | Reference the log group by a shared literal NAME instead of `Fn.importValue`                                             | Removes the CFN edge, but the group is still DELETED with the identity stack, so the surviving subscription filter points at nothing. Half a fix.           |
+| C   | **A persistent stack owns the log group**; both the identity service and webhooks import it                              | ✅ Recommended.                                                                                                                                             |
+
+**C is recommended** because it fixes the direction rather than the symptom. A stack that already deploys
+before both — `kitchensink-global-{stage}` — creates `/kitchensink/identity-service/{stage}` and exports it;
+the identity service imports it for ECS task logging and the webhooks stack imports it for the drain.
+Deleting the identity service then removes neither the group nor the filter, the existing deploy order is
+untouched, and log history SURVIVES across sandboxes — which also retires the "log history no longer
+survives" consequence recorded above.
+
+⚠️ C is not free: it changes three stacks including two that serve prod, and it migrates ownership of an
+existing log group (the current one is owned by `IdentityServiceStack`, so the move needs `RETAIN` on the old
+resource plus an import, or an accepted recreation). That is a larger change than the one this amendment
+scoped, and it is why the reclaim ships wired-but-blocked rather than silently disabled.
+
+⛔ **Do not merge the reclaim step before C lands.** The step is correct and fails loudly, which is the right
+behaviour — but on `main` the reconciler runs hourly, so merging it as-is buys an hourly red run until C is
+done. Either land C first, or remove the reclaim step from `sandbox-reconcile.yml` and re-add it with C.

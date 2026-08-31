@@ -26,6 +26,7 @@ import {
     timestamp,
     unique,
     uniqueIndex,
+    varchar,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -114,6 +115,19 @@ export const food = pgTable(
         // every future API-admitted food — stays in the live change-refresh scan; only the bulk seed
         // importer sets `bulk` (F-C2).
         origin: foodOriginEnum('origin').notNull().default('live'),
+        /**
+         * The AUTHOR's app-user ULID for a user-authored food (0013, plan U10/D8), or NULL for a catalog
+         * row. This column IS the provenance marker (D9a: provenance is the route, never a wire field) —
+         * an authored food also has NO `food_sources` crosswalk row, keeping it out of both refresh
+         * scans structurally. Swept on erasure by `eraseFoodRows` (R24 — the coverage gate enforces it).
+         */
+        userId: varchar('user_id', { length: 255 }),
+        /**
+         * Q3c: author-PRIVATE until promoted. The 0013 CHECK (`food_visibility_coherent`) makes the
+         * illegal states unrepresentable: catalog rows are exactly 'public'; authored rows are 'private'
+         * or 'promoted', never 'public'.
+         */
+        visibility: text('visibility').notNull().default('public'),
         tombstonedAt: timestamp('tombstoned_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -168,7 +182,18 @@ export const food = pgTable(
         ),
     },
     (table) => [
-        uniqueIndex('food_normalized_name_unique').on(table.normalizedName),
+        // 0013's dedup split (KTD-H): catalog-unique where unowned, per-author where owned — so two
+        // authors may own one name, one author may not own it twice, and an authored name may SHADOW a
+        // catalog name (ranking, not uniqueness, decides what a search shows).
+        uniqueIndex('food_normalized_name_catalog_unique')
+            .on(table.normalizedName)
+            .where(sql`${table.userId} IS NULL`),
+        uniqueIndex('food_normalized_name_per_author_unique')
+            .on(table.normalizedName, table.userId)
+            .where(sql`${table.userId} IS NOT NULL`),
+        index('idx_food_user_id')
+            .on(table.userId)
+            .where(sql`${table.userId} IS NOT NULL`),
         index('food_status_idx').on(table.status),
         index('food_barcode_idx')
             .on(table.barcode)
@@ -284,7 +309,10 @@ export const foodNutrients = pgTable(
             .references(() => nutrient.id),
         amount: numeric('amount').notNull(),
         basis: nutrientBasisEnum('basis').notNull().default('per_100g'),
-        sourceId: text('source_id').notNull(),
+        // NULLABLE since 0013 (plan U10/KTD-H): NULL means "the food's AUTHOR wrote this value" — an
+        // authored food has no crosswalk row to cite. The composite same-food FK is MATCH SIMPLE, so
+        // enforcement skips NULL exactly as food_category_assignment's has since 0000.
+        sourceId: text('source_id'),
     },
     (table) => [
         unique('food_nutrients_food_nutrient_unique').on(table.foodId, table.nutrientId),
@@ -320,7 +348,8 @@ export const foodPortions = pgTable(
             .references(() => food.id, { onDelete: 'cascade' }),
         label: text('label').notNull(),
         gramWeight: numeric('gram_weight').notNull(),
-        sourceId: text('source_id').notNull(),
+        // NULLABLE since 0013 — see food_nutrients.sourceId above.
+        sourceId: text('source_id'),
     },
     (table) => [
         check('food_portions_gram_weight_pos', sql`${table.gramWeight} > 0`),

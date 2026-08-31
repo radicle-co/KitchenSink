@@ -245,6 +245,10 @@ export class FoodSearchDao {
             FROM food
             LEFT JOIN food_popularity fp ON fp.food_id = food.id
             WHERE status = 'RESOLVED'
+              -- ⛔ CATALOG rows only (0013, plan U10): an authored food is author-PRIVATE until U12's
+              -- promotion, and this query serves EVERY caller. U11 widens it to author-scoped inclusion;
+              -- until then an authored row in these results would leak a private record to strangers.
+              AND user_id IS NULL
               AND name IS NOT NULL
               AND (
                   search_vector @@ plainto_tsquery('english', ${query})

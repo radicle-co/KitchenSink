@@ -26,6 +26,10 @@ import { z } from 'zod';
 import { apiErrorSchema } from '../src/common/apiError.schema.js';
 import {
     addFoodRequestSchema,
+    authoredMacrosSchema,
+    authoredPortionInputSchema,
+    createAuthoredFoodRequestSchema,
+    updateAuthoredFoodRequestSchema,
     addResponseSchema,
     batchAddFoodRequestSchema,
     batchItemViewSchema,
@@ -86,6 +90,10 @@ export const openApiComponents = {
     BatchResponse: batchResponseSchema,
     ResolveResponse: resolveResponseSchema,
     AddFoodRequest: addFoodRequestSchema,
+    CreateAuthoredFoodRequest: createAuthoredFoodRequestSchema,
+    UpdateAuthoredFoodRequest: updateAuthoredFoodRequestSchema,
+    AuthoredMacros: authoredMacrosSchema,
+    AuthoredPortionInput: authoredPortionInputSchema,
     BatchAddFoodRequest: batchAddFoodRequestSchema,
     ResolveFoodRequest: resolveFoodRequestSchema,
     QueueDepthMetrics: queueDepthMetricsSchema,
@@ -245,6 +253,36 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                 },
             },
         },
+        '/api/v1/foods/authored': {
+            post: {
+                operationId: 'createAuthoredFood',
+                summary: 'Create a user-authored food',
+                description:
+                    'The sibling CREATE door (U10/D9a): answers `201` with the COMPLETE entity, born RESOLVED ' +
+                    'and author-PRIVATE. Walking through this door IS the provenance — there is no `source` ' +
+                    'field, the author comes from the verified principal, and the food never syncs against ' +
+                    'any external source. Macros are per-100g (Q3a: macros-only at launch).',
+                requestBody: {
+                    description: 'The name, macros and optional portions.',
+                    schema: 'CreateAuthoredFoodRequest',
+                },
+                responses: {
+                    '201': { description: 'The created food (visibility `private`).', schema: 'FoodResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': {
+                        description: 'A service (`svc_*`) principal — authored foods belong to user accounts.',
+                        schema: 'ApiError',
+                    },
+                    '409': {
+                        description:
+                            'The caller already authored a food with this normalized name — ' +
+                            '`code: DUPLICATE_AUTHORED_NAME`, with the colliding id in `details.existingId`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
         '/api/v1/foods': {
             post: {
                 operationId: 'addFoodByName',
@@ -288,6 +326,36 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
             },
         },
         '/api/v1/foods/{id}': {
+            put: {
+                operationId: 'updateAuthoredFood',
+                summary: 'Replace a user-authored food',
+                description:
+                    'Full replacement, author-only (U10): the pure authorship policy answers a stranger on a ' +
+                    'PRIVATE food with the same `404` a missing id gets (existence concealed), a stranger on a ' +
+                    'PROMOTED food with `403`, and ANY caller on a pipeline (catalog) food with `409 ' +
+                    'NOT_EDITABLE` — catalog rows have a single writer.',
+                parameters: [idParameter],
+                requestBody: { description: 'The full replacement body.', schema: 'UpdateAuthoredFoodRequest' },
+                responses: {
+                    '200': { description: 'The updated food.', schema: 'FoodResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': {
+                        description: 'A stranger writing a PROMOTED food, or a `svc_*` principal.',
+                        schema: 'ApiError',
+                    },
+                    '404': {
+                        description: 'No such food — or a PRIVATE authored food the caller does not own.',
+                        schema: 'ApiError',
+                    },
+                    '409': {
+                        description:
+                            "A pipeline food (`code: NOT_EDITABLE`), or a rename colliding with the caller's " +
+                            'other authored food (`code: DUPLICATE_AUTHORED_NAME`).',
+                        schema: 'ApiError',
+                    },
+                },
+            },
             get: {
                 operationId: 'getFood',
                 summary: 'Read an ingredient golden record',

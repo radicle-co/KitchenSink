@@ -127,7 +127,7 @@ describe('FoodsController.getFood', () => {
         ctx.service.getFood.mockResolvedValue(food);
         const { res, status } = makeRes();
 
-        const result = await ctx.controller.getFood(VALID_ID, res);
+        const result = await ctx.controller.getFood(VALID_ID, makeReq(), res);
 
         expect(status).toHaveBeenCalledWith(HttpStatus.OK);
         expect(result).toBe(food);
@@ -137,7 +137,7 @@ describe('FoodsController.getFood', () => {
         ctx.service.getFood.mockRejectedValue(new FoodPendingError(VALID_ID, 'PENDING', 30));
         const { res, status } = makeRes();
 
-        const result = await ctx.controller.getFood(VALID_ID, res);
+        const result = await ctx.controller.getFood(VALID_ID, makeReq(), res);
 
         expect(status).toHaveBeenCalledWith(HttpStatus.ACCEPTED);
         expect(result).toEqual({ id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 30 });
@@ -149,13 +149,13 @@ describe('FoodsController.getFood', () => {
         const { res } = makeRes();
 
         // Identity, not just type: re-wrapping it here would put the code→status decision in two places.
-        await expect(ctx.controller.getFood(VALID_ID, res)).rejects.toBe(domainError);
+        await expect(ctx.controller.getFood(VALID_ID, makeReq(), res)).rejects.toBe(domainError);
     });
 
     it('rejects a malformed ULID with 400 INVALID_ID, without calling the service (FR-006)', async () => {
         const { res } = makeRes();
 
-        expectApiError(await thrownBy(() => ctx.controller.getFood('not-a-ulid', res)), 'INVALID_ID');
+        expectApiError(await thrownBy(() => ctx.controller.getFood('not-a-ulid', makeReq(), res)), 'INVALID_ID');
         expect(ctx.service.getFood).not.toHaveBeenCalled();
     });
 });
@@ -354,7 +354,7 @@ describe('every by-id route rejects a malformed ULID before touching the service
     const BAD = 'not-a-ulid';
 
     it.each([
-        ['getFood', (c: FoodsController) => c.getFood(BAD, makeRes().res), 'getFood'],
+        ['getFood', (c: FoodsController) => c.getFood(BAD, makeReq(), makeRes().res), 'getFood'],
         ['getStatus', (c: FoodsController) => c.getStatus(BAD), 'getStatus'],
         ['getCandidates', (c: FoodsController) => c.getCandidates(BAD), 'getCandidates'],
         [

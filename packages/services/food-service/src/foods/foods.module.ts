@@ -37,6 +37,7 @@ import { LiveFoodSearchService } from './liveSearch.service.js';
 import { ServiceErasureController } from './serviceErasure.controller.js';
 import { GoldenRecordMergeEngine } from './merge/mergeEngine.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
+import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
 import { UserErasureService } from './userErasure.service.js';
 import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
 
@@ -69,6 +70,13 @@ import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
             useFactory: (db: FoodDrizzle): AdminMetricsDao => new AdminMetricsDao(db),
         },
         { provide: FoodDao, inject: [DrizzleProvider], useFactory: (db: FoodDrizzle): FoodDao => new FoodDao(db) },
+        // U10 — the authored-foods write path, its own repository (the single-writer disciplines must not
+        // share a class; see the DAO's docstring).
+        {
+            provide: AuthoredFoodsDao,
+            inject: [DrizzleProvider],
+            useFactory: (db: FoodDrizzle): AuthoredFoodsDao => new AuthoredFoodsDao(db),
+        },
         // ⛔ NOT optional, and its absence did not fail a unit test: `FoodRecoveryService` takes this in its
         // constructor (U9), so without the provider Nest cannot instantiate the module AT ALL — the API
         // process aborts at boot. It went unnoticed because the unit tests construct that service directly,

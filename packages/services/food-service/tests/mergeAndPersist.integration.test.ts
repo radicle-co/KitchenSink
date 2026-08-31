@@ -81,12 +81,13 @@ describe.skipIf(!DATABASE_URL)('MergeAndPersistService (integration)', () => {
         expect(record?.nutrients).toHaveLength(2);
 
         for (const nutrient of record?.nutrients ?? []) {
-            expect(sourceIds.has(nutrient.sourceId)).toBe(true);
+            // PIPELINE values always cite a crosswalk row — NULL provenance is the AUTHORED path's (0013).
+            expect(nutrient.sourceId !== null && sourceIds.has(nutrient.sourceId)).toBe(true);
             expect(nutrient.basis).toBe('per_100g');
         }
 
         for (const portion of record?.portions ?? []) {
-            expect(sourceIds.has(portion.sourceId)).toBe(true);
+            expect(portion.sourceId !== null && sourceIds.has(portion.sourceId)).toBe(true);
         }
 
         const provenanceFields = (record?.fieldProvenance ?? []).map((entry) => entry.field).sort();
@@ -200,7 +201,7 @@ describe.skipIf(!DATABASE_URL)('MergeAndPersistService (integration)', () => {
         const sourceIds = new Set(record?.sources.map((source) => source.id));
 
         for (const nutrient of record?.nutrients ?? []) {
-            expect(sourceIds.has(nutrient.sourceId)).toBe(true);
+            expect(nutrient.sourceId !== null && sourceIds.has(nutrient.sourceId)).toBe(true);
         }
     });
 

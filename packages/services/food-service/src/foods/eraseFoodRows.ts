@@ -15,10 +15,18 @@
  *
  * ## What it sweeps, and what it deliberately does not
  *
- *  - `fetch_requesters` — the ONLY per-user data this service stores today: demand rows keyed by the
- *    app-user ULID (`requester_id`, since migration 0002's rename from the Clerk `sub`). Deleted outright;
- *    other users' demand rows and the foods themselves (shared reference data) survive.
- *  - The `svc_*` rows in the same table are NAMED SERVICE PRINCIPALS (`svc_change_refresh`,
+ *  - `fetch_requesters` — demand rows keyed by the app-user ULID (`requester_id`, since migration 0002's
+ *    rename from the Clerk `sub`). Deleted outright; other users' demand rows and the catalog foods
+ *    themselves (shared reference data) survive.
+ *  - `food` — the erased user's AUTHORED foods (migration 0013, plan U10). ⚠️ DELETE at this stage is
+ *    Q3b's UNREFERENCED arm applied to the whole set, and it is CORRECT until U12 ships: every authored
+ *    food is `private` (the visibility CHECK admits nothing else pre-promotion) and bindable only by its
+ *    author, whose recipes are being erased in the same fan-out — no other person's data can reference
+ *    the row being deleted. U18 refines this to delete-or-orphan with the TOMBSTONE-FIRST cross-service
+ *    reference check and `pseudonymizedAuthorHandle`, which becomes NECESSARY exactly when U12's
+ *    promotion makes cross-author references possible. The CASCADE removes the food's nutrient and
+ *    portion rows with it.
+ *  - The `svc_*` rows in `fetch_requesters` are NAMED SERVICE PRINCIPALS (`svc_change_refresh`,
  *    `svc_admin_requeue`) — constants belonging to no person. They are structurally unreachable here
  *    because the predicate is equality on the erased USER's ULID, which a `svc_*` literal can never equal.
  *
@@ -26,8 +34,8 @@
  *
  * @param db - The food Drizzle client (or a transaction over it).
  * @param requesterId - The deleted user's app-user ULID (identity's `users.id`) — NEVER the Clerk `sub`.
- * @returns How many `fetch_requesters` rows were removed.
- * @sideEffect Deletes from `fetch_requesters`.
+ * @returns How many rows each statement removed.
+ * @sideEffect Deletes from `fetch_requesters` and `food`.
  */
 import { sql } from 'drizzle-orm';
 
@@ -39,8 +47,9 @@ import type { FoodDrizzle } from '../database/database.module.js';
 export const eraseFoodRows = async (
     db: FoodDrizzle,
     requesterId: string,
-): Promise<{ deletedRequesterRows: number }> => {
-    const result = await db.execute(sql`DELETE FROM fetch_requesters WHERE requester_id = ${requesterId}`);
+): Promise<{ deletedRequesterRows: number; deletedAuthoredFoods: number }> => {
+    const requesters = await db.execute(sql`DELETE FROM fetch_requesters WHERE requester_id = ${requesterId}`);
+    const authored = await db.execute(sql`DELETE FROM food WHERE user_id = ${requesterId}`);
 
-    return { deletedRequesterRows: result.rowCount ?? 0 };
+    return { deletedRequesterRows: requesters.rowCount ?? 0, deletedAuthoredFoods: authored.rowCount ?? 0 };
 };

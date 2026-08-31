@@ -30,6 +30,9 @@ import {
 import { normalizeName } from './foodName.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { normalizePortions } from './nutrition/portionNormalization.js';
+import { evaluateAuthorship } from './domain/authorshipPolicy.js';
+import { DuplicateAuthoredNameError, NotEditableError, NotFoodAuthorError } from './foods.errors.js';
+import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
 import { projectNutrition } from './nutrition/nutrientSelection.js';
 import type {
     AddResponse,
@@ -42,6 +45,8 @@ import type {
     ResolveResponse,
     SearchResponse,
     StatusResponse,
+    CreateAuthoredFoodRequest,
+    UpdateAuthoredFoodRequest,
 } from './foods.schema.js';
 import { SourceAdapterRegistry } from '../sources/SourceAdapterRegistry.js';
 import { isSourceApiError } from '../sources/foodSource.errors.js';
@@ -68,6 +73,8 @@ export class FoodsService {
         private readonly limiter: RollingWindowLimiter,
         private readonly admission: AdmissionService,
         private readonly metrics: FoodMetrics,
+        /** The authored-foods write path (plan U10). */
+        private readonly authored: AuthoredFoodsDao,
     ) {}
 
     /**
@@ -79,7 +86,7 @@ export class FoodsService {
      * @throws {FoodNotFoundError} (→ 404) for `NOT_FOUND`/`FAILED`/no row.
      * @sideEffect Emits one local-store serve-rate observation (SC-004/SC-005).
      */
-    public async getFood(id: string): Promise<FoodResponse> {
+    public async getFood(id: string, callerId: string): Promise<FoodResponse> {
         const record = await this.foodDao.readGoldenRecord(id);
 
         // SC-004/SC-005: this is the ONE path that knows whether the local store could answer a read
@@ -90,6 +97,18 @@ export class FoodsService {
         this.metrics.recordLocalStoreServe(record?.status === 'RESOLVED');
 
         if (record === null) {
+            throw new FoodNotFoundError(id);
+        }
+
+        // ⛔ AUTHORIZATION FIRST (plan U10): a stranger reading a PRIVATE authored food gets the SAME
+        // FoodNotFoundError a missing id gets — existence concealed; nothing below this line runs for them.
+        const readVerdict = evaluateAuthorship({
+            callerId,
+            food: { userId: record.userId, visibility: record.visibility },
+            action: 'read',
+        });
+
+        if (readVerdict.kind !== 'allowed') {
             throw new FoodNotFoundError(id);
         }
 
@@ -526,10 +545,101 @@ export class FoodsService {
         return { id, status: food.status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
     }
 
+    /**
+     * `POST /api/v1/foods/authored` → `201` + the COMPLETE entity, born `RESOLVED` (plan U10, D9a).
+     *
+     * Walking through this door IS the provenance: `user_id` is set from the verified principal, there is
+     * no `source` field on the wire and no crosswalk row in the store — never-synced is structural (KTD-H).
+     * Dedup is the database's per-author partial unique, surfaced as `DUPLICATE_AUTHORED_NAME` (409) with
+     * the colliding id so a client can offer "edit that one instead".
+     *
+     * @param authorId - The verified caller's app-user ULID.
+     * @param input - The validated create body.
+     * @returns The created food's full response (visibility `private`).
+     * @sideEffect Writes food + macro + portion rows; reads the golden record back.
+     */
+    public async createAuthored(authorId: string, input: CreateAuthoredFoodRequest): Promise<FoodResponse> {
+        const created = await this.authored.createAuthored({
+            userId: authorId,
+            name: input.name,
+            normalizedName: normalizeName(input.name),
+            description: input.description ?? null,
+            macros: input.macros,
+            portions: input.portions ?? [],
+        });
+
+        if (created.kind === 'duplicate') {
+            throw new DuplicateAuthoredNameError(created.existingId);
+        }
+
+        return this.getFood(created.id, authorId);
+    }
+
+    /**
+     * `PUT /api/v1/foods/{id}` — full replacement of an authored food (plan U10; "the author may edit
+     * EVERYTHING in a food they own").
+     *
+     * ⛔ AUTHORIZATION FIRST: `evaluateAuthorship` runs before anything else touches the row, and its
+     * verdicts map exactly — a stranger on a private food gets the not-found a missing id gets, a
+     * stranger on a promoted food gets 403, ANY caller on a pipeline food gets 409 `NOT_EDITABLE`.
+     *
+     * @param callerId - The verified caller's app-user ULID.
+     * @param id - The food id.
+     * @param input - The validated replacement body.
+     * @returns The updated food's full response.
+     * @sideEffect Rewrites the food's scalars, macros and portions.
+     */
+    public async updateAuthored(callerId: string, id: string, input: UpdateAuthoredFoodRequest): Promise<FoodResponse> {
+        const facts = await this.authored.readAuthorshipFacts(id);
+
+        if (facts === undefined) {
+            throw new FoodNotFoundError(id);
+        }
+
+        const verdict = evaluateAuthorship({ callerId, food: facts, action: 'edit' });
+
+        if (verdict.kind === 'not-found') {
+            throw new FoodNotFoundError(id);
+        }
+
+        if (verdict.kind === 'not-editable') {
+            throw new NotEditableError(id);
+        }
+
+        if (verdict.kind === 'forbidden') {
+            throw new NotFoodAuthorError(id);
+        }
+
+        const replaced = await this.authored.replaceAuthored({
+            id,
+            userId: callerId,
+            name: input.name,
+            normalizedName: normalizeName(input.name),
+            description: input.description ?? null,
+            macros: input.macros,
+            portions: input.portions ?? [],
+        });
+
+        if (replaced.kind === 'missing') {
+            // The row raced away (a concurrent erasure) between the policy read and the write — the
+            // truthful answer is the one it would have gotten a moment later.
+            throw new FoodNotFoundError(id);
+        }
+
+        if (replaced.kind === 'duplicate') {
+            throw new DuplicateAuthoredNameError(replaced.existingId);
+        }
+
+        return this.getFood(id, callerId);
+    }
+
     /** Map a {@link GoldenFoodRecord} to the public {@link FoodResponse} (source-tagged, no `fdcId`). */
     private toFoodResponse(record: GoldenFoodRecord): FoodResponse {
         const sourceById = new Map(record.sources.map((source) => [source.id, source.source]));
-        const sourceOf = (sourceId: string): string => sourceById.get(sourceId) ?? 'unknown';
+        // NULL provenance = the food's AUTHOR wrote the value (0013, plan U10) — reported as 'author',
+        // never 'unknown': the reader must be able to tell "we lost track" from "a person stands behind it".
+        const sourceOf = (sourceId: string | null): string =>
+            sourceId === null ? 'author' : (sourceById.get(sourceId) ?? 'unknown');
 
         const provenance: Record<string, string> = {};
 
@@ -558,6 +668,10 @@ export class FoodsService {
             provenance,
             // Absent (never null, never 0) when the food has no measured consumption — see the schema.
             ...(record.priorFraction === null ? {} : { priorFraction: record.priorFraction }),
+            // U10 (Q3c): present ONLY for an authored food; a catalog row publishes no visibility at all.
+            ...(record.userId === null || record.visibility === 'public'
+                ? {}
+                : { visibility: record.visibility === 'promoted' ? ('promoted' as const) : ('private' as const) }),
         };
     }
 }

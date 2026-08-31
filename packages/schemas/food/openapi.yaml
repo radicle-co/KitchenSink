@@ -124,6 +124,56 @@ paths:
             emptied, because an empty page here would be indistinguishable from "the source has nothing".
           schema:
             type: string
+  /api/v1/foods/authored:
+    post:
+      operationId: createAuthoredFood
+      summary: Create a user-authored food
+      security:
+        - clerkSession: []
+      responses:
+        "201":
+          description: The created food (visibility `private`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodResponse"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: A service (`svc_*`) principal — authored foods belong to user accounts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "The caller already authored a food with this normalized name — `code: DUPLICATE_AUTHORED_NAME`, with the
+            colliding id in `details.existingId`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "The sibling CREATE door (U10/D9a): answers `201` with the COMPLETE entity, born RESOLVED and
+        author-PRIVATE. Walking through this door IS the provenance — there is no `source` field, the author comes from
+        the verified principal, and the food never syncs against any external source. Macros are per-100g (Q3a:
+        macros-only at launch)."
+      requestBody:
+        description: The name, macros and optional portions.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAuthoredFoodRequest"
   /api/v1/foods:
     post:
       operationId: addFoodByName
@@ -225,6 +275,67 @@ paths:
             schema:
               $ref: "#/components/schemas/BatchAddFoodRequest"
   /api/v1/foods/{id}:
+    put:
+      operationId: updateAuthoredFood
+      summary: Replace a user-authored food
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The updated food.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodResponse"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: A stranger writing a PROMOTED food, or a `svc_*` principal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such food — or a PRIVATE authored food the caller does not own.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "A pipeline food (`code: NOT_EDITABLE`), or a rename colliding with the caller's other authored food
+            (`code: DUPLICATE_AUTHORED_NAME`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "Full replacement, author-only (U10): the pure authorship policy answers a stranger on a PRIVATE food with
+        the same `404` a missing id gets (existence concealed), a stranger on a PROMOTED food with `403`, and ANY caller
+        on a pipeline (catalog) food with `409 NOT_EDITABLE` — catalog rows have a single writer."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
+      requestBody:
+        description: The full replacement body.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAuthoredFoodRequest"
     get:
       operationId: getFood
       summary: Read an ingredient golden record
@@ -886,6 +997,48 @@ components:
             code:
               type: string
               enum:
+                - NOT_EDITABLE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+              required:
+                - id
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - DUPLICATE_AUTHORED_NAME
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                existingId:
+                  type: string
+              required:
+                - existingId
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - NOT_REQUEUEABLE
             message:
               type: string
@@ -1027,6 +1180,11 @@ components:
           type: number
           minimum: 0
           maximum: 1
+        visibility:
+          type: string
+          enum:
+            - private
+            - promoted
       required:
         - id
         - name
@@ -1227,6 +1385,96 @@ components:
           pattern: \S
       required:
         - name
+      additionalProperties: false
+    CreateAuthoredFoodRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: \S
+        description:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: \S
+        macros:
+          $ref: "#/components/schemas/AuthoredMacros"
+        portions:
+          maxItems: 10
+          type: array
+          items:
+            $ref: "#/components/schemas/AuthoredPortionInput"
+      required:
+        - name
+        - macros
+      additionalProperties: false
+    UpdateAuthoredFoodRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: \S
+        description:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: \S
+        macros:
+          $ref: "#/components/schemas/AuthoredMacros"
+        portions:
+          maxItems: 10
+          type: array
+          items:
+            $ref: "#/components/schemas/AuthoredPortionInput"
+      required:
+        - name
+        - macros
+      additionalProperties: false
+    AuthoredMacros:
+      type: object
+      properties:
+        calories:
+          type: number
+          minimum: 0
+          maximum: 900
+        proteinG:
+          type: number
+          minimum: 0
+          maximum: 100
+        carbsG:
+          type: number
+          minimum: 0
+          maximum: 100
+        fatG:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - calories
+        - proteinG
+        - carbsG
+        - fatG
+      additionalProperties: false
+    AuthoredPortionInput:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: \S
+        gramWeight:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 10000
+      required:
+        - label
+        - gramWeight
       additionalProperties: false
     BatchAddFoodRequest:
       type: object

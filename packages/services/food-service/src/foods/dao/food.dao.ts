@@ -44,8 +44,8 @@ export interface GoldenNutrient {
     amount: string;
     /** Amount basis (`per_100g` by default). */
     basis: string;
-    /** Crosswalk row id that supplied this value (per-value provenance). */
-    sourceId: string;
+    /** Crosswalk row id that supplied this value, or NULL for an author-written one (0013, plan U10). */
+    sourceId: string | null;
 }
 
 /** A household-measure portion in the golden read shape. */
@@ -56,8 +56,8 @@ export interface GoldenPortion {
     label: string;
     /** Gram weight as a string (numeric, strictly positive). */
     gramWeight: string;
-    /** Crosswalk row id that supplied this portion. */
-    sourceId: string;
+    /** Crosswalk row id that supplied this portion, or NULL for an authored one (0013, plan U10). */
+    sourceId: string | null;
 }
 
 /** A crosswalk entry in the golden read shape (no raw payload). */
@@ -107,6 +107,10 @@ export interface GoldenFoodRecord {
     fieldProvenance: GoldenFieldProvenance[];
     /** U5: the FNDDS consumption-prior fraction in [0, 1], or `null` when the food has none. */
     priorFraction: number | null;
+    /** The author's app-user ULID, or `null` for a catalog row (0013, plan U10). */
+    userId: string | null;
+    /** The 0013 visibility state (`public` is catalog-only; the CHECK guarantees coherence). */
+    visibility: 'public' | 'private' | 'promoted';
 }
 
 /**
@@ -202,6 +206,15 @@ export interface GoldenScalars {
     barcode?: string | null;
     /** The flattened curated-alias text (`foodAliases.joinAliases`), or `null` for a food with none. */
     aliases?: string | null;
+}
+
+/** Narrow the 0013 visibility text column; the CHECK makes anything else a defect worth throwing on. Pure. */
+function narrowVisibility(visibility: string): 'public' | 'private' | 'promoted' {
+    if (visibility === 'public' || visibility === 'private' || visibility === 'promoted') {
+        return visibility;
+    }
+
+    throw new Error(`unknown food visibility '${visibility}'`);
 }
 
 /** Two-int advisory-lock classid for per-name dedup (DSN-15) — distinct from the drainer/limiter classes. */
@@ -301,12 +314,20 @@ export class FoodDao {
             const newId = newFoodId();
             const result = await tx.execute<{ id: string; inserted: boolean; reactivated: boolean }>(sql`
                 WITH existing AS (
-                    SELECT id, status, tombstoned_at FROM food WHERE normalized_name = ${normalizedName}
+                    SELECT id, status, tombstoned_at FROM food
+                     WHERE normalized_name = ${normalizedName}
+                       -- ⛔ CATALOG rows only (0013, plan U10). Without this, add-by-name would dedup
+                       -- against another user's PRIVATE authored food — returning its id to a stranger
+                       -- and binding their recipe to a row the author may edit or delete at will.
+                       AND user_id IS NULL
                 ),
                 upserted AS (
                     INSERT INTO food (id, name, normalized_name, status)
                     VALUES (${newId}, ${displayName}, ${normalizedName}, 'PENDING')
-                    ON CONFLICT (normalized_name) DO UPDATE SET
+                    -- ⚠️ The WHERE names the PARTIAL catalog unique as the arbiter (0013 split the old
+                    -- full-table index in two); without it Postgres finds no matching constraint and the
+                    -- whole statement errors. The inserted row's user_id is NULL, so the arbiter applies.
+                    ON CONFLICT (normalized_name) WHERE user_id IS NULL DO UPDATE SET
                         status = CASE
                             WHEN food.status IN ('NOT_FOUND', 'FAILED')
                                  AND food.tombstoned_at < now() - ${this.terminalTtl}
@@ -550,6 +571,8 @@ export class FoodDao {
             portions,
             fieldProvenance,
             priorFraction: popularity[0]?.priorFraction === undefined ? null : Number(popularity[0].priorFraction),
+            userId: foodRow.userId,
+            visibility: narrowVisibility(foodRow.visibility),
         };
     }
 
@@ -601,7 +624,11 @@ export class FoodDao {
             this.db
                 .select({ id: food.id, status: food.status })
                 .from(food)
-                .where(sql`${food.id} = ANY(${sql.param(ids)})`),
+                // ⛔ CATALOG rows only (0013, plan U10). This feeds the EDGE-CACHED nutrition endpoint,
+                // whose response must not vary by caller (ADR-0020) — so a private authored food cannot
+                // appear here for ANYONE; its id lands in `unknownIds`. U18's cache split adds the
+                // authenticated author path.
+                .where(sql`${food.id} = ANY(${sql.param(ids)}) AND ${food.userId} IS NULL`),
             this.db
                 .select({
                     foodId: foodNutrientView.foodId,

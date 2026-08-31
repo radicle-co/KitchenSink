@@ -38,6 +38,8 @@ function foodRow(overrides: Partial<FoodRow> = {}): FoodRow {
         kind: 'generic',
         brandOwner: null,
         brandName: null,
+        userId: null,
+        visibility: 'public',
         barcode: null,
         aliases: null,
         status: 'PENDING',

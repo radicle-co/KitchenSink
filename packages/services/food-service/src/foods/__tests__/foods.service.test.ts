@@ -23,6 +23,8 @@ import type { FoodSearchDao } from '../dao/foodSearch.dao.js';
 import { FoodsService } from '../foods.service.js';
 
 const FOOD_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
+/** The authenticated caller getFood's authorship gate (plan U10) decides over. */
+const CALLER = '01JGETFOODCALLER0000000000';
 
 /** A minimal golden record in `status`; enough for `toFoodResponse` to map it. */
 function makeRecord(status: FoodStatus): GoldenFoodRecord {
@@ -36,6 +38,9 @@ function makeRecord(status: FoodStatus): GoldenFoodRecord {
         portions: [],
         sources: [],
         fieldProvenance: [],
+        priorFraction: null,
+        userId: null,
+        visibility: 'public',
     } as unknown as GoldenFoodRecord;
 }
 
@@ -58,6 +63,7 @@ function makeService(record: GoldenFoodRecord | null): {
         unused,
         unused,
         new FoodMetrics(sink),
+        unused,
     );
 
     return { service, sink };
@@ -79,7 +85,7 @@ describe('FoodsService.getFood — local-store serve rate (SC-004/SC-005)', () =
     it('records a SERVED read (100) when the local store returns a RESOLVED golden record', async () => {
         const { service, sink } = makeService(makeRecord('RESOLVED'));
 
-        await service.getFood(FOOD_ID);
+        await service.getFood(FOOD_ID, CALLER);
 
         expect(serveRateValues(sink)).toEqual([100]);
     });
@@ -89,7 +95,7 @@ describe('FoodsService.getFood — local-store serve rate (SC-004/SC-005)', () =
         async (status) => {
             const { service, sink } = makeService(makeRecord(status));
 
-            await expect(service.getFood(FOOD_ID)).rejects.toThrow();
+            await expect(service.getFood(FOOD_ID, CALLER)).rejects.toThrow();
             expect(serveRateValues(sink)).toEqual([0]);
         },
     );
@@ -97,22 +103,22 @@ describe('FoodsService.getFood — local-store serve rate (SC-004/SC-005)', () =
     it.each<FoodStatus>(['NOT_FOUND', 'FAILED'])('records an UNSERVED read (0) for a %s food', async (status) => {
         const { service, sink } = makeService(makeRecord(status));
 
-        await expect(service.getFood(FOOD_ID)).rejects.toThrow();
+        await expect(service.getFood(FOOD_ID, CALLER)).rejects.toThrow();
         expect(serveRateValues(sink)).toEqual([0]);
     });
 
     it('records an UNSERVED read (0) when no row exists at all', async () => {
         const { service, sink } = makeService(null);
 
-        await expect(service.getFood(FOOD_ID)).rejects.toThrow();
+        await expect(service.getFood(FOOD_ID, CALLER)).rejects.toThrow();
         expect(serveRateValues(sink)).toEqual([0]);
     });
 
     it('emits exactly ONE observation per read (CloudWatch aggregates; the service must not double-count)', async () => {
         const { service, sink } = makeService(makeRecord('RESOLVED'));
 
-        await service.getFood(FOOD_ID);
-        await service.getFood(FOOD_ID);
+        await service.getFood(FOOD_ID, CALLER);
+        await service.getFood(FOOD_ID, CALLER);
 
         expect(serveRateValues(sink)).toEqual([100, 100]);
     });
@@ -160,6 +166,7 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
             unused,
             unused,
             new FoodMetrics(vi.fn()),
+            unused,
         );
 
         return { service, searchDao, foodDao, sources };

@@ -191,6 +191,12 @@ describe('foodErrorSchema', () => {
         // we know nothing about when it will. Promising a retry window we cannot honour is worse than none.
         SOURCE_UNAVAILABLE: { code: 'SOURCE_UNAVAILABLE', message: 'The food data source is unavailable' },
         INTERNAL_ERROR: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+        NOT_EDITABLE: { code: 'NOT_EDITABLE', message: 'Catalog foods have a single writer', details: { id: 'f1' } },
+        DUPLICATE_AUTHORED_NAME: {
+            code: 'DUPLICATE_AUTHORED_NAME',
+            message: 'You already authored a food with this name',
+            details: { existingId: 'f1' },
+        },
     };
 
     // Exhaustiveness in the direction that matters: a code added to the enum without an arm (or a fixture)

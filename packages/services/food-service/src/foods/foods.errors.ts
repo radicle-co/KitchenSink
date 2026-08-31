@@ -205,3 +205,68 @@ export class SourceUnavailableError extends Error {
 export function isSourceUnavailableError(error: unknown): error is SourceUnavailableError {
     return error instanceof SourceUnavailableError;
 }
+
+/**
+ * An edit/delete was attempted on a PIPELINE food → `409 NOT_EDITABLE` (plan U10, D8).
+ *
+ * A 409 rather than a 403 ON PURPOSE: the refusal is about the RESOURCE's nature (catalog rows have a
+ * single writer — the USDA merge engine), not the caller's identity. Every caller gets the same answer.
+ */
+export class NotEditableError extends Error {
+    /** The pipeline food's id. */
+    public readonly id: string;
+
+    public constructor(id: string) {
+        super(`Food '${id}' is catalog data and cannot be edited`);
+        this.name = 'NotEditableError';
+        this.id = id;
+        Object.setPrototypeOf(this, NotEditableError.prototype);
+    }
+}
+
+/** Type guard for {@link NotEditableError}. */
+export function isNotEditableError(error: unknown): error is NotEditableError {
+    return error instanceof NotEditableError;
+}
+
+/**
+ * The caller already authored a food with this normalized name → `409 DUPLICATE_AUTHORED_NAME` (plan U10,
+ * KTD-H's per-author partial unique surfacing as a domain answer instead of a bare 23505).
+ */
+export class DuplicateAuthoredNameError extends Error {
+    /** The already-authored food the name collides with. */
+    public readonly existingId: string;
+
+    public constructor(existingId: string) {
+        super('You already authored a food with this name');
+        this.name = 'DuplicateAuthoredNameError';
+        this.existingId = existingId;
+        Object.setPrototypeOf(this, DuplicateAuthoredNameError.prototype);
+    }
+}
+
+/** Type guard for {@link DuplicateAuthoredNameError}. */
+export function isDuplicateAuthoredNameError(error: unknown): error is DuplicateAuthoredNameError {
+    return error instanceof DuplicateAuthoredNameError;
+}
+
+/**
+ * A stranger's write on a PROMOTED authored food → `403 FORBIDDEN` (plan U10 — existence is public after
+ * promotion, so unlike the private case the honest refusal names the reason rather than hiding the row).
+ */
+export class NotFoodAuthorError extends Error {
+    /** The food's id. */
+    public readonly id: string;
+
+    public constructor(id: string) {
+        super(`Food '${id}' can only be edited by its author`);
+        this.name = 'NotFoodAuthorError';
+        this.id = id;
+        Object.setPrototypeOf(this, NotFoodAuthorError.prototype);
+    }
+}
+
+/** Type guard for {@link NotFoodAuthorError}. */
+export function isNotFoodAuthorError(error: unknown): error is NotFoodAuthorError {
+    return error instanceof NotFoodAuthorError;
+}

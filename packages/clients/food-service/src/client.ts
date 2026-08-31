@@ -563,6 +563,8 @@ export class FoodServiceClient {
             // the `code` on the parsed body.
             case 'NOT_RESOLVABLE':
             case 'NOT_REQUEUEABLE':
+            case 'NOT_EDITABLE': // U10: a pipeline food refusing edits — same 409 treatment; `code` carries the distinction.
+            case 'DUPLICATE_AUTHORED_NAME': // U10: the per-author name collision; `details.existingId` names the row.
                 return new ConflictError(body.message);
             case 'FETCH_UNAVAILABLE':
                 // The header is the transport-level contract and wins; the body repeats it for a consumer that

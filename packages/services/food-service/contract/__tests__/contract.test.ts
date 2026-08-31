@@ -321,7 +321,16 @@ describe('openapi coverage', () => {
             .map(([name]) => name)
             .sort();
 
-        expect(claimingRejection).toStrictEqual(['AddFoodRequest', 'BatchAddFoodRequest', 'ResolveFoodRequest']);
+        expect(claimingRejection).toStrictEqual([
+            'AddFoodRequest',
+            // U10's authored-food bodies (and their nested strict shapes): all strict per the same ruling.
+            'AuthoredMacros',
+            'AuthoredPortionInput',
+            'BatchAddFoodRequest',
+            'CreateAuthoredFoodRequest',
+            'ResolveFoodRequest',
+            'UpdateAuthoredFoodRequest',
+        ]);
 
         expect(
             schemas['ApiError']?.['additionalProperties'],

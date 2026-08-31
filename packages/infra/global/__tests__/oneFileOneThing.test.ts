@@ -120,7 +120,7 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 2, components: 0 },
-            { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 7, components: 0 },
+            { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 10, components: 0 },
             { file: 'packages/services/food-service/src/foods/seed/clearCli.errors.ts', classes: 4, components: 0 },
             { file: 'packages/services/food-service/src/foods/seed/reseedCli.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/recipe-service/src/ingredients/unlinkCli.errors.ts', classes: 2, components: 0 },
@@ -147,7 +147,7 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'decorator, a hand-written field) is no longer this shape and must not be added here — pin it, split ' +
             'it, or argue a new ruling.',
         files: [
-            { file: 'packages/services/food-service/src/foods/dto/foods.dto.ts', classes: 5, components: 0 },
+            { file: 'packages/services/food-service/src/foods/dto/foods.dto.ts', classes: 7, components: 0 },
             { file: 'packages/services/identity/src/admin/dto/admin.dto.ts', classes: 5, components: 0 },
             { file: 'packages/services/identity/src/users/dto/user.dto.ts', classes: 3, components: 0 },
             { file: 'packages/services/recipe-service/src/recipes/dto/createRecipe.dto.ts', classes: 3, components: 0 },

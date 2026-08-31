@@ -279,6 +279,12 @@ export const foodResponseSchema = z.object({
      * ingredients cache at admission/refresh time (ADR-0006 forbids a cross-database join).
      */
     priorFraction: z.number().min(0).max(1).optional(),
+    /**
+     * U10 (Q3c): present ONLY for a user-authored food — `private` until U12's promotion. Absent for a
+     * catalog row (never `'public'` on the wire: catalog visibility is not a fact a client branches on,
+     * and publishing it would invite exactly that).
+     */
+    visibility: z.enum(['private', 'promoted']).optional(),
 });
 
 export type FoodResponse = z.infer<typeof foodResponseSchema>;
@@ -523,6 +529,68 @@ export type ResolveFoodRequest = z.infer<typeof resolveFoodRequestSchema>;
  * because escaping at validation time would corrupt the full-text and trigram branches, which receive the same
  * string as a VALUE and where a backslash is a character to match.
  */
+// ── Authored foods (plan U10, D8/D9a — owner rulings 2026-08-30 Q3a-c) ───────────────────────────
+
+/** Longest authored-portion label; matches what the catalog's own portion labels run to. */
+export const MAX_AUTHORED_PORTION_LABEL = 80;
+
+/** Most portions one authored food may declare. */
+export const MAX_AUTHORED_PORTIONS = 10;
+
+/**
+ * The macros an authored food declares, PER 100g (Q3a: macros-only at launch; feature 009 owns the
+ * additive expansion to full nutrient rows). Bounds are physical sanity, not nutrition science: no macro
+ * gram figure can exceed 100 in 100g, and energy tops out below 900 kcal/100g (pure fat).
+ */
+export const authoredMacrosSchema = z.strictObject({
+    /** Energy, kcal per 100g. */
+    calories: z.number().min(0).max(900),
+    /** Protein, g per 100g. */
+    proteinG: z.number().min(0).max(100),
+    /** Carbohydrate, g per 100g. */
+    carbsG: z.number().min(0).max(100),
+    /** Total fat, g per 100g. */
+    fatG: z.number().min(0).max(100),
+});
+
+export type AuthoredMacros = z.infer<typeof authoredMacrosSchema>;
+
+/** One household-measure portion an authored food declares. */
+export const authoredPortionInputSchema = z.strictObject({
+    /** The household label (`1 cup`, `1 scoop`). */
+    label: z.string().max(MAX_AUTHORED_PORTION_LABEL).trim().min(1),
+    /** What that portion weighs, in grams. */
+    gramWeight: z.number().positive().max(10_000),
+});
+
+export type AuthoredPortionInput = z.infer<typeof authoredPortionInputSchema>;
+
+/**
+ * Body of `POST /api/v1/foods/authored` (D9a: the sibling CREATE door — walking through it IS the
+ * provenance; there is deliberately NO `source` field, and no field here ever will say who wrote it).
+ */
+export const createAuthoredFoodRequestSchema = z.strictObject({
+    /** Display name. Normalized server-side for the per-author dedup key. */
+    name: z.string().max(MAX_FOOD_NAME_LENGTH).trim().min(1),
+    /** Optional free-text description. */
+    description: z.string().max(2_000).trim().min(1).optional(),
+    /** The per-100g macros (Q3a). */
+    macros: authoredMacrosSchema,
+    /** Optional household portions. */
+    portions: z.array(authoredPortionInputSchema).max(MAX_AUTHORED_PORTIONS).optional(),
+});
+
+export type CreateAuthoredFoodRequest = z.infer<typeof createAuthoredFoodRequestSchema>;
+
+/**
+ * Body of `PUT /api/v1/foods/{id}` — a FULL replacement, same shape as create (the owner ruling: "the
+ * author may edit EVERYTHING in a food they own"). PUT rather than PATCH so absence means removal, not
+ * "keep" — one semantics, no merge table.
+ */
+export const updateAuthoredFoodRequestSchema = createAuthoredFoodRequestSchema;
+
+export type UpdateAuthoredFoodRequest = z.infer<typeof updateAuthoredFoodRequestSchema>;
+
 export const searchFoodQuerySchema = z.strictObject({
     query: z.string().max(MAX_FOOD_NAME_LENGTH).trim().min(1),
     /** Opt-in per-100g macro enrichment (plan U4b). A query param, so the value is the string 'true'. */
@@ -570,6 +638,10 @@ export const foodErrorCodeSchema = z.enum([
     'NOT_RESOLVABLE',
     /** An operator requeue was attempted on a food that is not blackholed — use `POST /{id}/refetch` (`409`, U9). */
     'NOT_REQUEUEABLE',
+    /** An edit/delete was attempted on a PIPELINE food — catalog rows have a single writer (`409`, U10/D8). */
+    'NOT_EDITABLE',
+    /** The caller already authored a food with this normalized name (`409`, U10/KTD-H's per-author unique). */
+    'DUPLICATE_AUTHORED_NAME',
     /** Backpressure / flood-shed / resolve cap — a `503` + `Retry-After`, NEVER a per-user `429` (FR-046). */
     'FETCH_UNAVAILABLE',
     /** An upstream food-data source did not answer a live search — a `502`, distinct from our own `503` (U29). */
@@ -666,6 +738,22 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
                     status: foodStatusSchema,
                 })
                 .loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('NOT_EDITABLE'),
+            message: z.string(),
+            /** The pipeline food a caller tried to edit — catalog rows have a single writer (U10/D8). */
+            details: z.object({ id: z.string() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('DUPLICATE_AUTHORED_NAME'),
+            message: z.string(),
+            /** The already-authored food the name collides with, so a client can offer "edit that one". */
+            details: z.object({ existingId: z.string() }).loose(),
         })
         .loose(),
     z

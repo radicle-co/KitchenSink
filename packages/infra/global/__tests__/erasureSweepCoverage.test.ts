@@ -391,9 +391,10 @@ const SWEPT_DATABASES: readonly SweptDatabase[] = [
         migrations: 'packages/services/food-service/src/db/migrations',
         sweepFile: 'packages/services/food-service/src/foods/eraseFoodRows.ts',
         sweepFunction: 'eraseFoodRows',
-        // Exactly `fetch_requesters` today — zero slack, like the recipe floor. U10's authored-foods
-        // table raises this to 2 in the same change, or this gate goes red on the addition.
-        minimumOwnerBearingTables: 1,
+        // Exactly `fetch_requesters` + `food` (0013's authored-foods user_id, plan U10) — zero slack,
+        // like the recipe floor. This went 1 → 2 in the same change as 0013, exactly as the entry's own
+        // comment demanded.
+        minimumOwnerBearingTables: 2,
         // The food schema carries no display handles. A first one arriving must raise this floor in the
         // same change that adjudicates it.
         minimumHandleBearingColumns: 0,

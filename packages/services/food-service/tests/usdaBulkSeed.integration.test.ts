@@ -117,8 +117,12 @@ describe.skipIf(!DATABASE_URL)('USDA bulk seed importer (integration)', () => {
         expect(await count('SELECT count(*)::int AS n FROM nutrient')).toBe(2);
         // Every value carries a resolvable same-food source_id (D-PROVENANCE-FK).
         const crosswalkIds = new Set(record?.sources.map((source) => source.id));
-        expect(record?.nutrients.every((entry) => crosswalkIds.has(entry.sourceId))).toBe(true);
-        expect(record?.portions.every((entry) => crosswalkIds.has(entry.sourceId))).toBe(true);
+        expect(record?.nutrients.every((entry) => entry.sourceId !== null && crosswalkIds.has(entry.sourceId))).toBe(
+            true,
+        );
+        expect(record?.portions.every((entry) => entry.sourceId !== null && crosswalkIds.has(entry.sourceId))).toBe(
+            true,
+        );
         expect(record?.fieldProvenance.length).toBeGreaterThan(0);
 
         const origin = await pool.query<{ origin: string }>('SELECT origin FROM food WHERE id = $1', [foodId]);

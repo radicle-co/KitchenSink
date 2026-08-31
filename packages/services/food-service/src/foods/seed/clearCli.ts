@@ -61,6 +61,7 @@ import {
     foodNutrients,
     foodPortions,
     foodSources,
+    foodPopularity,
 } from '../../db/schema/index.js';
 import { decideConfirmation, refuseMisplacedProdFlag } from './operatorIntent.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
@@ -94,6 +95,9 @@ export const CASCADING_CATALOG_TABLES: readonly PgTable[] = [
     foodCategoryAssignment,
     fetchQueue,
     fetchRequesters,
+    // U5's consumption prior (0012). Found by the pg_constraint discovery in
+    // `catalogClear.integration.test.ts` — exactly the drift that check exists for.
+    foodPopularity,
 ];
 
 /** The recipe-side columns the linkage probe reads. Absent → the probe fails closed. */

@@ -61,6 +61,7 @@ function buildService(records: readonly NutritionRecord[]): {
         {} as never,
         {} as never,
         { recordLocalStoreServe: vi.fn() } as never,
+        {} as never,
     );
 
     return { service, dao, enqueue };

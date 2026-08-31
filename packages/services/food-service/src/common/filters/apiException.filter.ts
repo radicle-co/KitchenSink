@@ -8,8 +8,11 @@ import {
     isFetchUnavailableError,
     isSearchQueryTooShortError,
     isSourceUnavailableError,
+    isDuplicateAuthoredNameError,
     isFoodNotFoundError,
     isFoodPendingError,
+    isNotEditableError,
+    isNotFoodAuthorError,
     isNotResolvableError,
 } from '../../foods/foods.errors.js';
 import { foodErrorCodeSchema, type FoodErrorCode } from '../../foods/foods.schema.js';
@@ -108,6 +111,22 @@ function classifyFoodError(exception: unknown): ClassifiedEnvelope | undefined {
             message: exception.message,
             details: { fields: [`query: at least ${exception.minimum} characters`] },
         };
+    }
+
+    if (isNotEditableError(exception)) {
+        return { code: CODE.NOT_EDITABLE, message: exception.message, details: { id: exception.id } };
+    }
+
+    if (isDuplicateAuthoredNameError(exception)) {
+        return {
+            code: CODE.DUPLICATE_AUTHORED_NAME,
+            message: exception.message,
+            details: { existingId: exception.existingId },
+        };
+    }
+
+    if (isNotFoodAuthorError(exception)) {
+        return { code: CODE.FORBIDDEN, message: exception.message };
     }
 
     if (isSourceUnavailableError(exception)) {

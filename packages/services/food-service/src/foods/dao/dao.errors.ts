@@ -77,10 +77,19 @@ const PG_UNIQUE_VIOLATION = '23505';
  * @returns `true` when `error` carries the `23505` SQLSTATE `code`.
  */
 export function isUniqueViolation(error: unknown): error is { code: string } {
-    return (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        (error as { code: unknown }).code === PG_UNIQUE_VIOLATION
-    );
+    // ⚠️ Drizzle wraps the pg error in `DrizzleQueryError` with the original as `.cause` (verified
+    // against this tree's pg-core/session.ts, 2026-08-31) — so the guard walks the cause chain,
+    // bounded, rather than reading only the top level. Before this, every `catch (isUniqueViolation)`
+    // recovery path in the DAOs silently rethrew as a 500 whenever the query ran through drizzle.
+    let candidate: unknown = error;
+
+    for (let depth = 0; depth < 5 && typeof candidate === 'object' && candidate !== null; depth += 1) {
+        if ('code' in candidate && (candidate as { code: unknown }).code === PG_UNIQUE_VIOLATION) {
+            return true;
+        }
+
+        candidate = (candidate as { cause?: unknown }).cause;
+    }
+
+    return false;
 }

@@ -128,12 +128,13 @@ describe('route input validation — the closed inventory', () => {
     // pass over an empty list. These figures are the tripwire.
     it('reads Nest route metadata at all (guards every other case in this file from vacuity)', () => {
         expect(ALL_INPUTS.length).toBeGreaterThanOrEqual(7);
-        expect(ALL_INPUTS.filter((input) => input.kind === 'body')).toHaveLength(3);
+        // Five bodies since U10's authored create + PUT joined the original three.
+        expect(ALL_INPUTS.filter((input) => input.kind === 'body')).toHaveLength(5);
         // Three queries now: `GET /foods/search`, `GET /foods/search/live` (plan U29) and
         // `GET /foods/nutrition` (plan U8) — all three zod DTOs, and the live one deliberately REUSES
         // `SearchFoodQueryDto` rather than declaring a second identical shape.
         expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(3);
-        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(6);
+        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(7);
         // Nothing reads a caller-supplied HEADER. §15.4(1) puts headers under the pipe too, so a new one has to
         // arrive as a zod DTO — and this assertion is what makes adding one a decision rather than an accident.
         expect(ALL_INPUTS.filter((input) => input.kind === 'headers')).toStrictEqual([]);
@@ -176,6 +177,8 @@ describe('route input validation — the closed inventory', () => {
             'FoodsController.getStatus(@param id): String',
             'FoodsController.patchResolve(@param id): String',
             'FoodsController.refetch(@param id): String',
+            // U10's authored-food PUT. Same `requireId` → `isFoodId` validation as every other `:id` route.
+            'FoodsController.updateAuthored(@param id): String',
         ]);
     });
 

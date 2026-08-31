@@ -20,9 +20,11 @@ import { createZodDto } from 'nestjs-zod';
 import {
     addFoodRequestSchema,
     batchAddFoodRequestSchema,
+    createAuthoredFoodRequestSchema,
     foodNutritionQuerySchema,
     resolveFoodRequestSchema,
     searchFoodQuerySchema,
+    updateAuthoredFoodRequestSchema,
 } from '../foods.schema.js';
 
 /** Body of `POST /api/v1/foods` — add by name (FR-005/FR-006). */
@@ -46,3 +48,9 @@ export class SearchFoodQueryDto extends createZodDto(searchFoodQuerySchema) {}
 
 /** Query for `GET /api/v1/foods/nutrition` — the id list, validated by the pipe like every other query. */
 export class FoodNutritionQueryDto extends createZodDto(foodNutritionQuerySchema) {}
+
+/** Body of `POST /api/v1/foods/authored` — the authored-food create (plan U10, D9a). */
+export class CreateAuthoredFoodBodyDto extends createZodDto(createAuthoredFoodRequestSchema) {}
+
+/** Body of `PUT /api/v1/foods/{id}` — full replacement of an authored food (plan U10). */
+export class UpdateAuthoredFoodBodyDto extends createZodDto(updateAuthoredFoodRequestSchema) {}

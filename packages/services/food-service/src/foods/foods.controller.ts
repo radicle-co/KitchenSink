@@ -38,6 +38,7 @@ import {
     Param,
     Patch,
     Post,
+    Put,
     Query,
     Req,
     Res,
@@ -73,9 +74,11 @@ import { LiveFoodSearchService } from './liveSearch.service.js';
 import {
     AddFoodBodyDto,
     BatchAddFoodBodyDto,
+    CreateAuthoredFoodBodyDto,
     FoodNutritionQueryDto,
     ResolveFoodBodyDto,
     SearchFoodQueryDto,
+    UpdateAuthoredFoodBodyDto,
 } from './dto/foods.dto.js';
 import type {
     AddResponse,
@@ -139,6 +142,26 @@ export class FoodsController {
     @Get('search/live')
     public async searchLive(@Query() query: SearchFoodQueryDto): Promise<LiveSearchResponse> {
         return this.liveSearch.search(query.query);
+    }
+
+    /**
+     * `POST /api/v1/foods/authored` — create a user-authored food → `201` + the COMPLETE entity (plan
+     * U10, D9a: the sibling CREATE door, beside add-by-name's `202` + PENDING).
+     *
+     * ⚠️ Declared BEFORE every `:id` route (Nest matches in declaration order — the `nutrition` route's
+     * own warning). The author comes from the VERIFIED principal, never the body; a `svc_*` principal
+     * cannot author a food (authored rows belong to people).
+     */
+    @Post('authored')
+    public async createAuthored(
+        @Body() body: CreateAuthoredFoodBodyDto,
+        @Req() req: AuthenticatedRequest,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<FoodResponse> {
+        const result = await this.foodsService.createAuthored(this.requireUserUlid(req), body);
+        res.status(HttpStatus.CREATED);
+
+        return result;
     }
 
     /** `POST /api/v1/foods` — add by name → `202` + `id` (FR-005); empty name → `400` (FR-006). */
@@ -245,15 +268,35 @@ export class FoodsController {
     }
 
     /** `GET /api/v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004). */
+    /**
+     * `PUT /api/v1/foods/{id}` — full replacement of an AUTHORED food (plan U10). Authorization is the
+     * pure `authorshipPolicy`, evaluated in the service BEFORE anything else touches the row: stranger +
+     * private → 404, stranger + promoted → 403, pipeline food → 409 `NOT_EDITABLE`.
+     */
+    @Put(':id')
+    public async updateAuthored(
+        @Param('id') id: string,
+        @Body() body: UpdateAuthoredFoodBodyDto,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<FoodResponse> {
+        this.requireId(id);
+
+        return this.foodsService.updateAuthored(this.requireUserUlid(req), id, body);
+    }
+
     @Get(':id')
     public async getFood(
         @Param('id') id: string,
+        @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<FoodResponse | PendingResponse> {
         this.requireId(id);
 
         try {
-            const food = await this.foodsService.getFood(id);
+            // The requester key feeds the authorship gate (plan U10): a stranger reading a PRIVATE
+            // authored food must get the same 404 a missing id gets. A `svc_*` principal is a stranger
+            // to every authored food by construction.
+            const food = await this.foodsService.getFood(id, this.requireRequesterId(req));
             res.status(HttpStatus.OK);
 
             return food;
@@ -298,6 +341,25 @@ export class FoodsController {
         }
 
         return resolution.requesterId;
+    }
+
+    /**
+     * The requester key, narrowed to a PERSON (plan U10): the authored-food routes take a user's app ULID
+     * and refuse a `svc_*` service principal with `403` — authored rows belong to people, and a service
+     * writing one would put un-attributable content behind a person-shaped column.
+     *
+     * @param req - The guard-authenticated request.
+     * @returns The caller's app-user ULID.
+     * @throws (→ 401) the {@link requireRequesterId} cases; (→ 403) for a service principal.
+     */
+    private requireUserUlid(req: AuthenticatedRequest): string {
+        const requesterId = this.requireRequesterId(req);
+
+        if (requesterId.startsWith('svc_')) {
+            throw apiError('FORBIDDEN', 'Authored foods belong to user accounts, not service principals.');
+        }
+
+        return requesterId;
     }
 
     /** Narrow the guard-populated principal, failing closed with `401` if somehow absent. */

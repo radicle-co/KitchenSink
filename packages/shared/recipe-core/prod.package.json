@@ -50,6 +50,8 @@
             "types": "./dist/parsing/parseJobMessage.d.ts",
             "default": "./dist/parsing/parseJobMessage.js"
         },
+        "./parsing/parse-job-text": "./dist/parsing/parseJobText.js",
+        "./parsing/parse-job-aggregate": "./dist/parsing/parseJobAggregate.js",
         "./parsing/parse-retry-prompt": {
             "types": "./dist/parsing/parseRetryPrompt.d.ts",
             "default": "./dist/parsing/parseRetryPrompt.js"

@@ -1008,6 +1008,20 @@ export class RecipeWorkersStack extends Stack {
         });
         parseLineFn.addEventSource(new lambda_event_sources.SqsEventSource(parseQueue, { batchSize: 1 }));
 
+        // Cross-stack hand-off to recipe-service's parse-job PRODUCER (plan U9), by SSM for the reason the
+        // erasure and verification parameters are: an imported CfnOutput export is LOCKED while referenced,
+        // and ADR-0005's PR-close cleanup deletes a PR's stacks in no guaranteed order. Keyed on the DEPLOY
+        // stage (never baseStage): a pr-{N} service must enqueue onto the pr-{N} queue, whose worker points
+        // at the pr-{N} logical database (ADR-0006).
+        new ssm.StringParameter(this, 'RecipeParseQueueUrlParam', {
+            parameterName: `/kitchensink/${props.stage}/recipe/parse-queue-url`,
+            stringValue: parseQueue.queueUrl,
+        });
+        new ssm.StringParameter(this, 'RecipeParseQueueArnParam', {
+            parameterName: `/kitchensink/${props.stage}/recipe/parse-queue-arn`,
+            stringValue: parseQueue.queueArn,
+        });
+
         // ── band revocation drain (plan U3, R14) ────────────────────────────────────────────────────
         //
         // Revocation flips a band's state and enqueues NOTHING; `resolution_band_skips` is the backlog,

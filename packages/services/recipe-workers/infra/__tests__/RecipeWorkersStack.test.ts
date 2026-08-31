@@ -1337,3 +1337,37 @@ describe('RecipeWorkersStack — the spend alarm still watches the aggregate', (
         expect(alarms[0]?.Properties?.Dimensions).toEqual([{ Name: 'Stage', Value: 'sandbox' }]);
     });
 });
+
+/**
+ * The parse-job hand-off (plan U9) — the producer's discovery path.
+ *
+ * ⛔ SAME FAILURE CLASS AS THE VERIFICATION QUEUE'S: U8 shipped the parse consumer (queue, DLQ, Lambda,
+ * CRF grant) with nothing producing. U9's producer reads `RECIPE_PARSE_QUEUE_URL`, which
+ * `parseJobConfigSchema` makes REQUIRED — honoured only if this stack actually publishes the parameter
+ * the service stack resolves. SSM rather than a CfnOutput export for the ADR-0005 ordering reason the
+ * erasure/verification parameters document.
+ */
+describe('RecipeWorkersStack — the parse-job hand-off', () => {
+    const template = synth('sandbox');
+
+    it('publishes the parse queue URL + ARN to per-stage SSM for the recipe-service stack', () => {
+        template.hasResourceProperties('AWS::SSM::Parameter', {
+            Name: '/kitchensink/sandbox/recipe/parse-queue-url',
+            Type: 'String',
+        });
+        template.hasResourceProperties('AWS::SSM::Parameter', {
+            Name: '/kitchensink/sandbox/recipe/parse-queue-arn',
+            Type: 'String',
+        });
+    });
+
+    it('keys the parameters on the DEPLOY stage, so a pr-{N} service enqueues onto its own queue', () => {
+        // ADR-0006: the pr-{N} worker points at the pr-{N} logical database; a message crossing stages
+        // would land parse rows in the wrong database and bill the wrong stage's spend pool.
+        const prTemplate = synth('pr-73');
+
+        prTemplate.hasResourceProperties('AWS::SSM::Parameter', {
+            Name: '/kitchensink/pr-73/recipe/parse-queue-url',
+        });
+    });
+});

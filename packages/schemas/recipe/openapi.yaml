@@ -1455,6 +1455,296 @@ paths:
             type: integer
             minimum: 0
             exclusiveMinimum: true
+  /api/v1/recipe-parse-jobs:
+    post:
+      operationId: createParseJob
+      summary: Accept a pasted ingredient block; parsing continues asynchronously (poll the job).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "202":
+          description: The accepted job, every line pending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParseJob"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      requestBody:
+        description: The pasted text.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateParseJobRequest"
+  /api/v1/recipe-parse-jobs/{id}:
+    get:
+      operationId: getParseJob
+      summary: Poll the caller's parse job. A stranger's poll answers 404, never 403.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The job with per-line statuses and proposals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParseJob"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such job owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The job id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipe-parse-jobs/{id}/retry:
+    post:
+      operationId: retryParseJob
+      summary: Re-drive exactly the failed_retryable lines of the job.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "202":
+          description: The job, retryable lines pending again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParseJob"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such job owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The job expired; create a new one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The job id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipe-parse-jobs/{id}/lines/{lineIndex}:
+    patch:
+      operationId: editParseJobLine
+      summary: Replace one line's text; the stored digest moves with it and the new phrase re-parses.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "202":
+          description: The job, the edited line pending again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParseJob"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such job or line owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The job expired; create a new one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The job id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        - name: lineIndex
+          in: path
+          required: true
+          description: The line's position within the job.
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        description: The replacement line.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditParseJobLineRequest"
   /api/v1/search/recipes:
     get:
       operationId: searchRecipes
@@ -3864,6 +4154,30 @@ components:
             code:
               type: string
               enum:
+                - PARSE_JOB_NOT_FOUND
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PARSE_JOB_EXPIRED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - UNAUTHORIZED
             message:
               type: string
@@ -4931,6 +5245,160 @@ components:
       required:
         - recipeIds
       additionalProperties: false
+    CreateParseJobRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 200200
+      required:
+        - text
+      additionalProperties: false
+    EditParseJobLineRequest:
+      type: object
+      properties:
+        sourceLine:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required:
+        - sourceLine
+      additionalProperties: false
+    ParseJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        status:
+          type: string
+          enum:
+            - running
+            - partial
+            - complete
+            - expired
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        expiresAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              lineIndex:
+                type: integer
+                minimum: 0
+              sourceLine:
+                type: string
+              status:
+                type: string
+                enum:
+                  - pending
+                  - parsed
+                  - unparseable
+                  - failed_retryable
+              proposal:
+                nullable: true
+                allOf:
+                  - $ref: "#/components/schemas/ParseProposal"
+            required:
+              - lineIndex
+              - sourceLine
+              - status
+              - proposal
+      required:
+        - id
+        - status
+        - createdAt
+        - expiresAt
+        - lines
+    ParseProposal:
+      type: object
+      properties:
+        raw:
+          type: string
+        quantity:
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - exact
+                value:
+                  type: number
+                  minimum: 0.001
+                  maximum: 1000000
+              required:
+                - kind
+                - value
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - range
+                low:
+                  type: number
+                  minimum: 0.001
+                  maximum: 1000000
+                high:
+                  type: number
+                  minimum: 0.001
+                  maximum: 1000000
+              required:
+                - kind
+                - low
+                - high
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - absent
+              required:
+                - kind
+              additionalProperties: false
+        unit:
+          nullable: true
+          type: string
+        statedMeasure:
+          nullable: true
+          type: string
+        foods:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                minLength: 1
+              prep:
+                nullable: true
+                type: string
+            required:
+              - name
+              - prep
+        reviewReasons:
+          type: array
+          items:
+            type: string
+      required:
+        - raw
+        - quantity
+        - unit
+        - statedMeasure
+        - foods
+        - reviewReasons
     RecipeNutritionState:
       oneOf:
         - type: object

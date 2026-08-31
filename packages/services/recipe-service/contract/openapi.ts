@@ -117,6 +117,12 @@ import {
     updateRecipeRequestSchema,
     MAX_NUTRITION_RECIPE_IDS,
 } from '../src/recipes/recipes.schema.js';
+import {
+    createParseJobRequestSchema,
+    editParseJobLineRequestSchema,
+    parseJobResponseSchema,
+    parseProposalSchema,
+} from '../src/recipes/parseJobs.schema.js';
 import { RECIPE_SEARCH_SORT_BY, recipeSearchResponseSchema } from '../src/search/search.schema.js';
 import { restoreVersionResponseSchema } from '../src/versions/versions.schema.js';
 
@@ -160,6 +166,13 @@ export const openApiComponents = {
     CreateRecipeRequest: createRecipeRequestSchema,
     UpdateRecipeRequest: updateRecipeRequestSchema,
     RecipeNutritionRequest: recipeNutritionRequestSchema,
+    // Plan U9 — the async parse-job resource. The proposal is published as its OWN component: it is the
+    // shape the review UI iterates, and R19's "no food id here, by construction" is easiest to see (and
+    // diff) on a named type.
+    CreateParseJobRequest: createParseJobRequestSchema,
+    EditParseJobLineRequest: editParseJobLineRequestSchema,
+    ParseJob: parseJobResponseSchema,
+    ParseProposal: parseProposalSchema,
     // Published as its OWN component rather than inlined in the response, so an integrator's generated
     // client gets one named type for the three-state union and `oasdiff` reports a change to it once.
     RecipeNutritionState: recipeNutritionStateSchema,
@@ -643,6 +656,66 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
                 '403': NOT_OWNER,
                 '404': { description: 'No such recipe or version.', schema: 'ErrorResponse' },
                 '409': { description: 'The version archive is still pending.', schema: 'ErrorResponse' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    // ── Parse jobs (plan U9, origin D9/R13) — the async paste-to-parse resource ─────────────────
+    '/api/v1/recipe-parse-jobs': {
+        post: {
+            operationId: 'createParseJob',
+            summary: 'Accept a pasted ingredient block; parsing continues asynchronously (poll the job).',
+            requestBody: { description: 'The pasted text.', required: true, schema: 'CreateParseJobRequest' },
+            responses: {
+                '202': { description: 'The accepted job, every line pending.', schema: 'ParseJob' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/recipe-parse-jobs/{id}': {
+        get: {
+            operationId: 'getParseJob',
+            summary: "Poll the caller's parse job. A stranger's poll answers 404, never 403.",
+            parameters: [uuidPathParam('id', 'The job id.')],
+            responses: {
+                '200': { description: 'The job with per-line statuses and proposals.', schema: 'ParseJob' },
+                '404': { description: 'No such job owned by the caller.', schema: 'ErrorResponse' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/recipe-parse-jobs/{id}/retry': {
+        post: {
+            operationId: 'retryParseJob',
+            summary: 'Re-drive exactly the failed_retryable lines of the job.',
+            parameters: [uuidPathParam('id', 'The job id.')],
+            responses: {
+                '202': { description: 'The job, retryable lines pending again.', schema: 'ParseJob' },
+                '404': { description: 'No such job owned by the caller.', schema: 'ErrorResponse' },
+                '409': { description: 'The job expired; create a new one.', schema: 'ErrorResponse' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/recipe-parse-jobs/{id}/lines/{lineIndex}': {
+        patch: {
+            operationId: 'editParseJobLine',
+            summary: "Replace one line's text; the stored digest moves with it and the new phrase re-parses.",
+            parameters: [
+                uuidPathParam('id', 'The job id.'),
+                {
+                    name: 'lineIndex',
+                    in: 'path',
+                    required: true,
+                    description: "The line's position within the job.",
+                    schema: z.number().int().min(0),
+                },
+            ],
+            requestBody: { description: 'The replacement line.', required: true, schema: 'EditParseJobLineRequest' },
+            responses: {
+                '202': { description: 'The job, the edited line pending again.', schema: 'ParseJob' },
+                '404': { description: 'No such job or line owned by the caller.', schema: 'ErrorResponse' },
+                '409': { description: 'The job expired; create a new one.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),
             },
         },

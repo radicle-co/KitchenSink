@@ -1380,6 +1380,16 @@ export const RecipeErrorCode = {
      * Here the caller owns the recipe, so they already know it exists and there is nothing to leak.
      */
     CANNOT_RATE_OWN_RECIPE: 'CANNOT_RATE_OWN_RECIPE',
+    /**
+     * Plan U9 — no parse job with that id owned by the caller (or no such line index on it). Always a 404
+     * for a stranger, never a 403: a 403 would confirm another user's job id exists.
+     */
+    PARSE_JOB_NOT_FOUND: 'PARSE_JOB_NOT_FOUND',
+    /**
+     * Plan U9 — the parse job passed its TTL and the sweep closed it; retry and line edits are refused
+     * (409). The remedy is a fresh `POST /recipe-parse-jobs` with the same text.
+     */
+    PARSE_JOB_EXPIRED: 'PARSE_JOB_EXPIRED',
 } as const;
 
 /**
@@ -1417,6 +1427,8 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.ERASURE_IN_PROGRESS,
     RecipeErrorCode.UNKNOWN_INGREDIENT,
     RecipeErrorCode.CANNOT_RATE_OWN_RECIPE,
+    RecipeErrorCode.PARSE_JOB_NOT_FOUND,
+    RecipeErrorCode.PARSE_JOB_EXPIRED,
 ]);
 
 /**

@@ -61,6 +61,9 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     ERASURE_IN_PROGRESS: HTTP_STATUS_LOCKED,
     UNKNOWN_INGREDIENT: HttpStatus.BAD_REQUEST,
     CANNOT_RATE_OWN_RECIPE: HttpStatus.FORBIDDEN,
+    // ── Parse jobs (plan U9) ──
+    PARSE_JOB_NOT_FOUND: HttpStatus.NOT_FOUND,
+    PARSE_JOB_EXPIRED: HttpStatus.CONFLICT,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,

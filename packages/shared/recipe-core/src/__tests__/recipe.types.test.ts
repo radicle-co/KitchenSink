@@ -6,6 +6,7 @@ import {
     CUISINES,
     isRecipeError,
     MAX_RECIPE_PHOTO_UPLOAD_BYTES,
+    recipeErrorCodeSchema,
     recipeVersionSchema,
     RecipeErrorCode,
 } from '../index.js';
@@ -244,5 +245,18 @@ describe('recipeVersionSchema — the version-history read contract', () => {
         expect(recipeVersionSchema.safeParse(wireVersion('cup', { kind: 'range', low: 3, high: 2 })).success).toBe(
             false,
         );
+    });
+});
+
+describe('recipeErrorCodeSchema cannot drift from RecipeErrorCode', () => {
+    /**
+     * ⛔ THE FAILURE THIS PINS ALREADY HAPPENED (plan U9, 2026-08-31): `PARSE_JOB_NOT_FOUND` was added to
+     * the `RecipeErrorCode` const object but not to this hand-enumerated z.enum — so `isRecipeError`
+     * refused the thrown domain error, and the API answered `500` where the contract promised `404`. Two
+     * representations of one code set MUST be asserted equal, because nothing in the type system relates
+     * a `z.enum` literal list to a const object's values.
+     */
+    it('enumerates exactly the values of the RecipeErrorCode const object', () => {
+        expect([...recipeErrorCodeSchema.options].sort()).toEqual(Object.values(RecipeErrorCode).sort());
     });
 });

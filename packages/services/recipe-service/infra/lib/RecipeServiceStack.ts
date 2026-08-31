@@ -273,6 +273,14 @@ export class RecipeServiceStack extends Stack {
                 this,
                 `/kitchensink/${stage}/recipe/verification-queue-url`,
             ),
+            // THE PARSE-JOB QUEUE (plan U9) — same discovery path, same rules as the verification queue
+            // above: UNCONDITIONAL because `parseJobConfigSchema` requires it (a stage wired without the
+            // queue fails the DEPLOY, not silently a poll that never completes), and keyed on `stage`
+            // because a pr-{N} preview's parse rows and spend belong to the pr-{N} database (ADR-0006).
+            RECIPE_PARSE_QUEUE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/${stage}/recipe/parse-queue-url`,
+            ),
             // The food service (003) this stage's ingredients vertical reads through (issue #120).
             // UNCONDITIONAL: the service's config requires it, so an absent value is a boot failure, and the
             // previous conditional passthrough is precisely how the live task ended up with no food origin at
@@ -348,6 +356,19 @@ export class RecipeServiceStack extends Stack {
                         this,
                         `/kitchensink/${stage}/recipe/verification-queue-arn`,
                     ),
+                ],
+            }),
+        );
+
+        // sqs:SendMessage on the PARSE queue, and nothing more (plan U9). Its own statement for the same
+        // reason as the two above. ⛔ Send only: the parse Lambda is the sole consumer AND shares the
+        // verification role's single `bedrock:InvokeModel` grant (ADR-0024 layer 4b) — a task role that
+        // could receive here could drain parse work without paying for it through the gated path.
+        apiTaskRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['sqs:SendMessage'],
+                resources: [
+                    ssm.StringParameter.valueForStringParameter(this, `/kitchensink/${stage}/recipe/parse-queue-arn`),
                 ],
             }),
         );

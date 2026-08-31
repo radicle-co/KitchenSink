@@ -912,3 +912,63 @@ describe('Container Insights is off on every cluster (ADR-0007, amended 2026-08-
         insightsOf(synthTemplate('sandbox', 'sandbox'), 'disabled');
     });
 });
+
+/**
+ * The PARSE-JOB queue hand-off (plan U9) — the producer's other half, the verification block's sibling.
+ *
+ * Same failure class: U8 shipped the parse consumer complete (queue, DLQ, Lambda, CRF grant) with nothing
+ * producing. `parseJobConfigSchema` makes `RECIPE_PARSE_QUEUE_URL` REQUIRED, so the container refuses to
+ * boot without it — honoured only if this stack supplies it.
+ */
+describe('Parse-job queue wiring', () => {
+    let template: Template;
+
+    beforeAll(() => {
+        template = synthTemplate('pr-73', 'sandbox');
+    });
+
+    const apiEnvironment = (t: Template): { Name: string; Value: unknown }[] => {
+        const taskDefs = t.findResources('AWS::ECS::TaskDefinition');
+
+        return Object.values(taskDefs).flatMap((def) =>
+            (def.Properties?.ContainerDefinitions ?? []).flatMap(
+                (container: { Environment?: { Name: string; Value: unknown }[] }) => container.Environment ?? [],
+            ),
+        );
+    };
+
+    it('supplies RECIPE_PARSE_QUEUE_URL to the API task', () => {
+        expect(apiEnvironment(template).map((entry) => entry.Name)).toContain('RECIPE_PARSE_QUEUE_URL');
+    });
+
+    it('sources it from SSM at THIS stage, never the base stage and never a cross-stack export', () => {
+        const serialized = JSON.stringify(
+            apiEnvironment(template).find((entry) => entry.Name === 'RECIPE_PARSE_QUEUE_URL')?.Value,
+        );
+
+        expect(serialized).toContain('Ref');
+        expect(serialized).not.toContain('Fn::ImportValue');
+
+        const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
+
+        expect(parameters).toContain('/kitchensink/pr-73/recipe/parse-queue-url');
+        expect(parameters).not.toContain('/kitchensink/sandbox/recipe/parse-queue-url');
+    });
+
+    it('grants sqs:SendMessage scoped to the parse queue ARN, and NOTHING else on it', () => {
+        // Positive assertion on the statement's action list, for the wildcard reason the verification
+        // block documents: a negative check cannot see `sqs:*`.
+        const parameters = JSON.stringify(template.toJSON().Parameters ?? {});
+
+        expect(parameters).toContain('/kitchensink/pr-73/recipe/parse-queue-arn');
+
+        const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
+            (policy: { Properties?: { PolicyDocument?: { Statement?: unknown[] } } }) =>
+                policy.Properties?.PolicyDocument?.Statement ?? [],
+        );
+        const parseStatements = statements.filter((statement) => JSON.stringify(statement).includes('parsequeuearn'));
+
+        expect(parseStatements).toHaveLength(1);
+        expect(parseStatements[0]).toMatchObject({ Action: 'sqs:SendMessage', Effect: 'Allow' });
+    });
+});

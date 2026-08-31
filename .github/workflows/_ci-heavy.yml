@@ -317,6 +317,7 @@ jobs:
                       -e SQS_ENDPOINT=http://localhost:4566 \
                       -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
                       -e INGREDIENT_VERIFICATION_QUEUE_URL=http://localhost:4566/000000000000/recipe-verification \
+                      -e RECIPE_PARSE_QUEUE_URL=http://localhost:4566/000000000000/recipe-parse-line \
                       -e FOOD_SERVICE_URL=http://localhost:3002 \
                       -e RECIPE_DEV_AUTH_USER_ID=01J0K6000000000000000000K6 \
                       -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
@@ -625,6 +626,7 @@ jobs:
                       -e SQS_ENDPOINT=http://localhost:4566 \
                       -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
                       -e INGREDIENT_VERIFICATION_QUEUE_URL=http://localhost:4566/000000000000/recipe-verification \
+                      -e RECIPE_PARSE_QUEUE_URL=http://localhost:4566/000000000000/recipe-parse-line \
                       -e FOOD_SERVICE_URL=http://localhost:3002 \
                       -e RECIPE_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/recipe-service/tests/load/erasure-public-key.pem)" \
                       -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \
@@ -689,6 +691,7 @@ jobs:
                   k6 run --summary-export=k6-save-summary.json tests/load/saveUnderArchive.load.js
                   k6 run --summary-export=k6-pull-summary.json tests/load/pullFromSource.load.js
                   k6 run --summary-export=k6-version-archive-summary.json tests/load/versionArchiveRead.load.js
+                  k6 run --summary-export=k6-parse-job-summary.json tests/load/parseJobCreate.load.js
                   k6 run --summary-export=k6-correction-summary.json tests/load/ingredientCorrection.load.js
             # ── The deferred-nutrition batch (ADR-0021 §4 + its residual-risk note) ────────────────────
             #

@@ -661,6 +661,11 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         LiveIngredientSearch: 'liveIngredientSearchResponseSchema',
         CreateIngredientRequest: 'createIngredientRequestSchema',
         AddIngredientByFoodRequest: 'addIngredientByFoodRequestSchema',
+        // Plan U9 — the parse-job resource.
+        CreateParseJobRequest: 'createParseJobRequestSchema',
+        EditParseJobLineRequest: 'editParseJobLineRequestSchema',
+        ParseJob: 'parseJobResponseSchema',
+        ParseProposal: 'parseProposalSchema',
         ResolveIngredientRequest: 'resolveIngredientRequestSchema',
         // U14 — the correction write path's two bodies. The response is a DISCRIMINATED UNION so the
         // published document emits a real `oneOf` + discriminator rather than an opaque object: a client

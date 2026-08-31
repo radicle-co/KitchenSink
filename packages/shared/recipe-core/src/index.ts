@@ -202,3 +202,15 @@ export {
     toNutritionLine,
 } from './nutrition.js';
 export type { LineCatalogNutrition, LineMeasure, LineNutritionSource, NutritionLine } from './nutrition.js';
+// Plan U9 — the parse-job text admission. On the barrel (not only the subpath) because the AUTHORED wire
+// contract `recipes/parseJobs.schema.ts` composes it, and a `*.schema.ts` may import only zod, this
+// package's root, or a sibling schema (contract-gen's allowlist). Dependency-free and tiny, so safe for
+// the web/mobile bundles the schema package reaches.
+export {
+    MAX_PARSE_JOB_LINES,
+    PARSE_JOB_LINE_MAX_CHARS,
+    PARSE_JOB_TEXT_MAX_CHARS,
+    refuseParseJobLines,
+    splitParseJobLines,
+} from './parsing/parseJobText.js';
+export type { ParseJobLineRefusal } from './parsing/parseJobText.js';

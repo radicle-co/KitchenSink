@@ -65,6 +65,15 @@ export const SEED_ERASURE_QUEUE_NAME = 'account-erasure';
 export const SEED_VERIFICATION_QUEUE_NAME = 'recipe-verification';
 
 /**
+ * The parse-line queue's name (plan U9).
+ *
+ * `RecipesModule` reads its URL from `RECIPE_PARSE_QUEUE_URL`, which `parseJobConfigSchema` makes
+ * REQUIRED for the same reason the verification queue's is — so this queue, too, is a boot precondition
+ * of the app under test.
+ */
+export const SEED_PARSE_QUEUE_NAME = 'recipe-parse-line';
+
+/**
  * LocalStack's fixed default AWS account id. Not a secret and not configurable — it is the constant
  * LocalStack namespaces every queue URL under.
  */
@@ -92,6 +101,12 @@ export const SEED_ERASURE_QUEUE_URL = `${SQS_ENDPOINT}/${LOCALSTACK_ACCOUNT_ID}/
  * this queue's address so the app under test and the spec draining it cannot address different queues.
  */
 export const SEED_VERIFICATION_QUEUE_URL = `${SQS_ENDPOINT}/${LOCALSTACK_ACCOUNT_ID}/${SEED_VERIFICATION_QUEUE_NAME}`;
+
+/**
+ * The `recipe-parse-line` queue URL the booted app and the specs both address (plan U9). Path-style and
+ * single-sourced for the same reasons as its two siblings above.
+ */
+export const SEED_PARSE_QUEUE_URL = `${SQS_ENDPOINT}/${LOCALSTACK_ACCOUNT_ID}/${SEED_PARSE_QUEUE_NAME}`;
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/database/migrations');
 
@@ -157,7 +172,7 @@ async function provisionQueues(): Promise<void> {
     });
 
     try {
-        for (const name of [SEED_ERASURE_QUEUE_NAME, SEED_VERIFICATION_QUEUE_NAME]) {
+        for (const name of [SEED_ERASURE_QUEUE_NAME, SEED_VERIFICATION_QUEUE_NAME, SEED_PARSE_QUEUE_NAME]) {
             await sqs.send(new CreateQueueCommand({ QueueName: name }));
         }
     } finally {

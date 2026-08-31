@@ -1520,6 +1520,7 @@ export class RecipeServiceClient {
                 return new GoneError(body.message, body.code);
             case 'RECIPE_NOT_FOUND':
             case 'NOT_FOUND':
+            case 'PARSE_JOB_NOT_FOUND': // Plan U9: a stranger's job and a missing one are ONE answer on purpose.
                 return new NotFoundError(body.message, body.code);
             case 'NOT_OWNER':
             case 'CANNOT_RATE_OWN_RECIPE':
@@ -1552,6 +1553,7 @@ export class RecipeServiceClient {
             case 'MAX_PHOTOS_EXCEEDED':
             case 'ARCHIVE_PENDING':
             case 'COLLECTION_LIMIT_REACHED':
+            case 'PARSE_JOB_EXPIRED': // Plan U9: the TTL passed — the remedy is a fresh create, not a retry.
             case 'PHOTO_PROCESSING_FAILED':
             case 'ARCHIVE_DLQ':
             case 'ERASURE_IN_PROGRESS':

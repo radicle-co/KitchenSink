@@ -27,6 +27,7 @@ import { requireEnv } from '../common/config.js';
 import { getRecipePool } from '../common/db.js';
 import { logger } from '../common/logger.js';
 import { isSpendGated } from '../common/verificationSpend.js';
+import { expireParseJobs } from '../parsing/parseJobExpiry.js';
 import {
     createSsmSettingsLoader,
     createVerificationSettings,
@@ -260,4 +261,7 @@ export const handler = async (): Promise<void> => {
     const queueUrl = requireEnv('INGREDIENT_VERIFICATION_QUEUE_URL');
 
     await drainRevokedBands(productionDeps(stage, region, queueUrl));
+    // Plan U9: the parse-job TTL sweep rides this tick (see `parseJobExpiry.ts` for why it is not its own
+    // Lambda). Pure SQL, no spend — deliberately OUTSIDE the drain's headroom budget.
+    await expireParseJobs(getRecipePool());
 };

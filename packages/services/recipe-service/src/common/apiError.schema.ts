@@ -125,6 +125,10 @@ export const recipeErrorCodeSchema = z.enum([
     'UNKNOWN_INGREDIENT',
     /** A caller may not rate their own recipe (FR-013) — always a `403`, never a `404`. */
     'CANNOT_RATE_OWN_RECIPE',
+    /** Plan U9 — no parse job with that id owned by the caller (or no such line index on it). */
+    'PARSE_JOB_NOT_FOUND',
+    /** Plan U9 — the parse job passed its TTL; retry/edit are refused. Remedy: a fresh create. */
+    'PARSE_JOB_EXPIRED',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -252,6 +256,8 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('ERASURE_IN_PROGRESS'),
     bare('UNKNOWN_INGREDIENT'),
     bare('CANNOT_RATE_OWN_RECIPE'),
+    bare('PARSE_JOB_NOT_FOUND'),
+    bare('PARSE_JOB_EXPIRED'),
     bare('UNAUTHORIZED'),
     bare('IDENTITY_SYNC_PENDING'),
     bare('FORBIDDEN'),

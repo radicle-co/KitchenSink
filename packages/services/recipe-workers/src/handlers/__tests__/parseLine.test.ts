@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
+import { lineDigest as realLineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import type { EngineAnswer, ParsedLine, ParseEnginePort } from '@kitchensink/recipe-import-core';
 
@@ -91,14 +92,12 @@ function build(overrides: Partial<ParseLineDeps> & { cacheRows?: unknown[]; llm?
             },
             ledger: { reserve: vi.fn().mockResolvedValue({ kind: 'reserved', reservedMicros: 100 }), settle: vi.fn() },
             bedrock: {
-                converse: vi
-                    .fn()
-                    .mockResolvedValue({
-                        kind: 'answered',
-                        text: '[]',
-                        stopReason: 'end_turn',
-                        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-                    }),
+                converse: vi.fn().mockResolvedValue({
+                    kind: 'answered',
+                    text: '[]',
+                    stopReason: 'end_turn',
+                    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                }),
             },
             emit: vi.fn(),
             now: () => new Date('2026-08-31T12:00:01.000Z'),
@@ -137,15 +136,7 @@ describe('R17 — the digest guard', () => {
 
 /** The REAL digest the handler recomputes — derived through the same recipe-core function. */
 function computeRealDigest(): string {
-    // lineDigest() prefixes a version; recompute through the handler's own digest port shape by importing
-    // is overkill here — instead capture what the guard compares by running once and reading the landing.
-    // For determinism the suite computes it the same way the handler does:
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { lineDigest } = require('@kitchensink/recipe-core/parsing/parse-key') as {
-        lineDigest: (line: string, hash: (value: string) => string) => string;
-    };
-
-    return lineDigest(LINE, digest);
+    return realLineDigest(LINE, digest);
 }
 
 describe('the transient/terminal split', () => {
@@ -184,10 +175,7 @@ describe('the transient/terminal split', () => {
 
 describe('KTD-F — the cache bounds redelivery amplification', () => {
     it('⛔ a redelivered line with BOTH engines cached calls NO engine at all', async () => {
-        const { lineDigest } = require('@kitchensink/recipe-core/parsing/parse-key') as {
-            lineDigest: (line: string, hash: (value: string) => string) => string;
-        };
-        const storedDigest = lineDigest(LINE, digest);
+        const storedDigest = realLineDigest(LINE, digest);
         const cachedFacts = {
             statedMeasure: '2 cups',
             quantity: { kind: 'exact', value: 2 },

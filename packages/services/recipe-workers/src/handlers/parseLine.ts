@@ -24,6 +24,7 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { createBedrockConverseClient, createBedrockTransport, isBedrockClientError } from '@kitchensink/bedrock-client';
 import { lineDigest, type HexDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { PARSE_JOB_AGGREGATE_SQL } from '@kitchensink/recipe-core/parsing/parse-job-aggregate';
 import {
     parseLineJobMessageSchema,
     type ParseLineJobMessage,
@@ -179,20 +180,10 @@ export async function processParseLine(deps: ParseLineDeps, message: ParseLineJo
         return;
     }
 
-    // Job aggregate: terminal when no line is pending; partial when any line is retryable.
-    await deps.pool.query(
-        `UPDATE recipe_parse_jobs job
-            SET status = CASE
-                    WHEN EXISTS (SELECT 1 FROM recipe_parse_job_lines l
-                                  WHERE l.job_id = job.id AND l.status = 'pending') THEN job.status
-                    WHEN EXISTS (SELECT 1 FROM recipe_parse_job_lines l
-                                  WHERE l.job_id = job.id AND l.status = 'failed_retryable') THEN 'partial'
-                    ELSE 'complete'
-                END,
-                updated_at = now()
-          WHERE job.id = $1 AND job.status IN ('running', 'partial')`,
-        [message.jobId],
-    );
+    // Job aggregate: terminal when no line is pending; partial when any line is retryable. The rule is
+    // SHARED with the producer's enqueue-failure path — one statement, in recipe-core, so the two writers
+    // cannot drift (see PARSE_JOB_AGGREGATE_SQL's docstring).
+    await deps.pool.query(PARSE_JOB_AGGREGATE_SQL, [message.jobId]);
 }
 
 /** Parse one SQS record body. Throws on anything invalid — the DLQ is for poison. */

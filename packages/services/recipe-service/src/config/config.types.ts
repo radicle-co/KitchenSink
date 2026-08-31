@@ -511,6 +511,32 @@ export const ingredientVerificationConfigMeta: Record<keyof IngredientVerificati
     },
 };
 
+/**
+ * Config for the parse-job hand-off (plan U9, origin D9/R13): the `recipe-parse-line` SQS queue this
+ * service enqueues one message per pasted line onto, drained by `parseLine` in
+ * `@kitchensink/recipe-workers`.
+ *
+ * ⛔ REQUIRED for the same historical reason `INGREDIENT_VERIFICATION_QUEUE_URL` is (see above): an
+ * optional URL is how a consumer ships with nothing producing — the service would boot, accept parse
+ * jobs, and silently enqueue nowhere, leaving every line `pending` until the TTL sweep expired the job.
+ * Published per stage by `RecipeWorkersStack` (`/kitchensink/{stage}/recipe/parse-queue-url`).
+ */
+export const parseJobConfigSchema = z.object({
+    /** URL of the `recipe-parse-line` SQS queue (published per stage by `RecipeWorkersStack`). */
+    RECIPE_PARSE_QUEUE_URL: z.string().url(),
+});
+
+/** Typed parse-job configuration. */
+export type ParseJobConfig = z.infer<typeof parseJobConfigSchema>;
+
+/** Secret/non-secret metadata. A queue URL is not a secret. */
+export const parseJobConfigMeta: Record<keyof ParseJobConfig, ConfigFieldMeta> = {
+    RECIPE_PARSE_QUEUE_URL: {
+        secret: false,
+        description: 'recipe-parse-line SQS queue URL (plan U9)',
+    },
+};
+
 // ---------------------------------------------------------------------------
 // Composite: Full API Config
 // ---------------------------------------------------------------------------
@@ -534,6 +560,7 @@ export const apiConfigSchema = baseConfigSchema
     .merge(foodServiceConfigSchema)
     .merge(accountErasureConfigSchema)
     .merge(ingredientVerificationConfigSchema)
+    .merge(parseJobConfigSchema)
     // The DB connection is an either/or (URL vs discrete IAM parts), so it is intersected in rather
     // than merged — a union is not a ZodObject and cannot be `.merge()`d.
     .and(databaseConnectionSchema)

@@ -34,6 +34,7 @@ const validEnv = (): Record<string, string> => ({
     DATABASE_URL: 'postgres://recipe_app@localhost:5432/kitchensink_recipes',
     ACCOUNT_ERASURE_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/account-erasure',
     INGREDIENT_VERIFICATION_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/recipe-verification',
+    RECIPE_PARSE_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/recipe-parse-line',
     FOOD_SERVICE_URL: 'https://food.commise.app',
 });
 

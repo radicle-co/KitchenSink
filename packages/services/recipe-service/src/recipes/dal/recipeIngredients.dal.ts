@@ -53,6 +53,12 @@ export interface ResolvedIngredientLine {
      */
     sourceLine?: string;
     /**
+     * The ingredient PHRASE the parse lifted out of {@link sourceLine} — the memo tier's key grain
+     * (migration 0041, owner ruling 2026-08-31). Absent for an authored line and for every line created
+     * before the field existed.
+     */
+    sourcePhrase?: string;
+    /**
      * What the SOURCE printed, when {@link quantity}/{@link unit} are a RESTATEMENT of it (migration 0027).
      *
      * Absent for the ordinary line, whose quantity and unit ARE what the source said. Its PRESENCE is the
@@ -110,6 +116,7 @@ export class RecipeIngredientsDal {
                     preparation: line.preparation ?? null,
                     groupLabel: line.groupLabel ?? null,
                     sourceLine: line.sourceLine ?? null,
+                    sourcePhrase: line.sourcePhrase ?? null,
                     // U7/U11 — all THREE stated columns on every line, `null` included. A partial write would
                     // leave a previous line's `stated_unit` attached to an amount nobody restated; the ONE
                     // adapter is what makes that unspellable here (see `quantityColumns.ts`).

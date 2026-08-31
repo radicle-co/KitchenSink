@@ -109,6 +109,7 @@ export {
     recipeIngredientPreparationSchema,
     recipeIngredientQuantitySchema,
     recipeIngredientSourceLineSchema,
+    recipeIngredientSourcePhraseSchema,
     recipeIngredientUnitSchema,
     recipeLineNutritionSchema,
     recipeListMemberSchema,

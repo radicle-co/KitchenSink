@@ -60,6 +60,7 @@ import {
     recipeIngredientNotesSchema,
     recipeIngredientPreparationSchema,
     recipeIngredientSourceLineSchema,
+    recipeIngredientSourcePhraseSchema,
     recipeIngredientUnitSchema,
     recipeLineNutritionSchema,
     recipeListMemberSchema,
@@ -187,6 +188,24 @@ export const createRecipeIngredientInputSchema = recipeIngredientInputSchema.ext
      * parse to disagree with, which is a stated non-conclusion rather than a gap.
      */
     sourceLine: recipeIngredientSourceLineSchema.optional(),
+    /**
+     * The ingredient PHRASE the parse lifted out of `sourceLine` — `all-purpose flour` from
+     * `2 cups all-purpose flour, sifted` (owner ruling 2026-08-31, U15 report "Owner rulings" §3).
+     *
+     * ⛔ THE MEMO TIER'S KEY GRAIN. The memo read side queries `normalizedIngredientKey(name)` — the phrase
+     * a picker or importer asks with — while the gate's memo write keyed on the whole source line, so no
+     * memo it ever wrote could serve any query. The producer carries this to the worker, which keys
+     * `ingredient_resolution_memos` on it; absent, the worker writes NO memo rather than one at a dead
+     * grain. Only clients that PARSED the line can supply it (the importer, the parse pipeline) — a
+     * picker-built line has no source and never reaches the gate at all.
+     *
+     * ⛔ CREATE-ONLY, for a SHARPER version of `sourceLine`'s reason above: the source line is what the
+     * gate judges, but this phrase IS the cross-user memo's KEY. A caller able to re-assert it on `PATCH`
+     * could bind an arbitrary key to a legitimately-verified food for every user. The worker additionally
+     * refuses to memoize a phrase whose tokens do not appear in the judged line — belt beside this braces.
+     * Carried forward through an edit by `transcriptionCarryForward` on exactly `sourceLine`'s condition.
+     */
+    sourcePhrase: recipeIngredientSourcePhraseSchema.optional(),
     /**
      * What the source PRINTED, when `quantity`/`unit` above are a RESTATEMENT of it (plan U7 R35 / U11).
      *

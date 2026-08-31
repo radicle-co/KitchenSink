@@ -67,6 +67,7 @@ function statedAmount(low: number, high?: number): StatedAmount {
 
 const makeLine = (overrides: Partial<VerifiableLine> = {}): VerifiableLine => ({
     sourceLine: '2 cups all-purpose flour, sifted',
+    sourcePhrase: undefined,
     foodId: '01JFOOD000000000000000000',
     candidateFoodName: 'Flour, wheat, all-purpose',
     quantity: amount(2),
@@ -425,6 +426,26 @@ describe('buildVerificationRequests — the owner travels with every request (00
  * correctly. U11 ranks a wrong DISAGREE as the unacceptable direction, because it withholds nutrition from a
  * correct line while a wrong AGREE only passes data that would have shipped anyway.
  */
+/**
+ * Migration 0041 (owner ruling 2026-08-31, U15 report "Owner rulings" §3): the parsed phrase — the memo
+ * tier's key grain — travels with the request, and its absence travels as absence, because the worker's
+ * behaviour differs on it: present, the memo is keyed at the grain the cascade queries; absent, NO memo is
+ * written rather than one at the dead line grain.
+ */
+describe('buildVerificationRequests — the parsed phrase travels with the request', () => {
+    it('carries the phrase onto the message as ingredientPhrase', () => {
+        const { requests } = plan([makeLine({ sourcePhrase: 'all-purpose flour' })]);
+
+        expect(requests[0]?.ingredientPhrase).toBe('all-purpose flour');
+    });
+
+    it('omits the member entirely for a line with no phrase — the pre-0041 population', () => {
+        const { requests } = plan([makeLine()]);
+
+        expect(requests[0]).not.toHaveProperty('ingredientPhrase');
+    });
+});
+
 describe('buildVerificationRequests — what the SOURCE printed travels with the request', () => {
     const GILL = { quantity: statedAmount(1), unit: 'gill' } as const;
 

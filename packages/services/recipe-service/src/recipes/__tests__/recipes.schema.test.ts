@@ -62,6 +62,7 @@ import {
     recipeIngredientNotesSchema,
     recipeIngredientPreparationSchema,
     recipeIngredientSourceLineSchema,
+    recipeIngredientSourcePhraseSchema,
     ingredientQuantitySchema,
     recipeIngredientUnitSchema,
     recipeLineNutritionSchema,
@@ -839,6 +840,61 @@ describe('ingredient sourceLine — create-only, and the gate’s only source of
         const parsed = updateRecipeRequestSchema.safeParse({
             expectedVersion: 1,
             ingredients: [{ ...A_LINE, sourceLine: '2 cups all-purpose flour' }],
+        });
+
+        expect(parsed.success).toBe(false);
+    });
+});
+
+/**
+ * `sourcePhrase` — the memo-grain repair (owner ruling 2026-08-31, U15 report "Owner rulings" §3).
+ *
+ * The ingredient PHRASE the parse lifted out of the source line — `all-purpose flour` from
+ * `2 cups all-purpose flour, sifted`. It exists because the memo tier's read side queries
+ * `normalizedIngredientKey(name)` — the phrase a picker types — while the memo write keyed on the whole
+ * line, so no memo the gate ever wrote could serve any query. The producer carries this to the worker,
+ * which keys `ingredient_resolution_memos` on it.
+ *
+ * ⛔ CREATE-ONLY for a SHARPER version of `sourceLine`'s reason: the source line is what the gate judges,
+ * but the phrase IS the cross-user memo's KEY. A caller able to re-assert it on `PATCH` could bind an
+ * arbitrary key to a legitimately-verified food for every user. Same ADR-0023 shape, higher stakes.
+ */
+describe('ingredient sourcePhrase — create-only, the memo tier’s key grain', () => {
+    it('the field IS the recipe-core Value Object, not a bound restated here', () => {
+        expect(createRecipeIngredientInputSchema.shape.sourcePhrase.unwrap()).toBe(recipeIngredientSourcePhraseSchema);
+    });
+
+    it('the CREATE body accepts a line carrying the parsed phrase beside its source line', () => {
+        expect(
+            createAccepts({
+                ingredients: [
+                    {
+                        ...A_LINE,
+                        sourceLine: '2 cups all-purpose flour, sifted',
+                        sourcePhrase: 'all-purpose flour',
+                    },
+                ],
+            }),
+        ).toBe(true);
+    });
+
+    it('is OPTIONAL — an authored line has no parse and no phrase, and that is not an error', () => {
+        expect(createAccepts({ ingredients: [A_LINE] })).toBe(true);
+    });
+
+    it('rejects `""` and whitespace, so "no phrase" has ONE representation — omitting the key', () => {
+        expect(createAccepts({ ingredients: [{ ...A_LINE, sourcePhrase: '' }] })).toBe(false);
+        expect(createAccepts({ ingredients: [{ ...A_LINE, sourcePhrase: '   ' }] })).toBe(false);
+    });
+
+    it('⛔ is ABSENT from the BASE element schema, which is what `PATCH` derives from', () => {
+        expect(Object.keys(recipeIngredientInputSchema.shape)).not.toContain('sourcePhrase');
+    });
+
+    it('⛔ answers 400 for a PATCH that tries to assert a phrase — the memo key must not be steerable', () => {
+        const parsed = updateRecipeRequestSchema.safeParse({
+            expectedVersion: 1,
+            ingredients: [{ ...A_LINE, sourcePhrase: 'all-purpose flour' }],
         });
 
         expect(parsed.success).toBe(false);

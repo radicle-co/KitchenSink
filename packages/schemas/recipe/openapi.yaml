@@ -5110,6 +5110,10 @@ components:
                 type: string
                 minLength: 1
                 maxLength: 1000
+              sourcePhrase:
+                type: string
+                minLength: 1
+                maxLength: 1000
               statedMeasure:
                 type: object
                 properties:

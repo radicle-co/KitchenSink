@@ -2,10 +2,11 @@
  * THE TRANSCRIPTION CARRY-FORWARD RULE (plan U11/U14, widened by U7) — when an updated ingredient line keeps
  * what it was transcribed from, and when that transcription has gone stale.
  *
- * ⚠️ It carries TWO facts, and the module was renamed from `sourceLineCarryForward.ts` when the second
- * arrived: the raw source line (migration 0024) and the measure the source PRINTED before a historical unit
- * was restated (migration 0027). A name that enumerated only one of them was an invitation to add a third
- * carry-forward somewhere else instead of here.
+ * ⚠️ It carries THREE facts, and the module was renamed from `sourceLineCarryForward.ts` when the second
+ * arrived: the raw source line (migration 0024), the measure the source PRINTED before a historical unit
+ * was restated (migration 0027), and the ingredient PHRASE the parse lifted out of the line — the memo
+ * tier's key grain (migration 0041, owner ruling 2026-08-31). A name that enumerated only one of them was
+ * an invitation to add the next carry-forward somewhere else instead of here.
  *
  * DESIGN PATTERN: **Specification / Policy module**, the sibling of `provenancePolicy.ts` and
  * `visibilityPolicy.ts` and shaped like them: pure, total, no I/O, no Drizzle, no Nest, and exhaustible as a
@@ -71,6 +72,11 @@ export interface CarriedTranscription {
     readonly sourceLine: string | undefined;
     /** The measure the source PRINTED, inherited, or `undefined` when the line was never restated. */
     readonly statedMeasure: StatedMeasure | undefined;
+    /**
+     * The ingredient PHRASE the parse lifted out of the line — the memo tier's key grain (migration 0041,
+     * owner ruling 2026-08-31) — inherited, or `undefined` when the line predates the field or was authored.
+     */
+    readonly sourcePhrase: string | undefined;
 }
 
 /** One PERSISTED line, reduced to the facts a verdict about it would be keyed on, plus what it transcribed. */
@@ -92,6 +98,8 @@ export interface StoredTranscription {
      * as "digest membership MINUS the line itself" rather than as the whole digest.
      */
     readonly statedMeasure: StatedMeasure | undefined;
+    /** The parsed phrase held for it, or `undefined`. In the bundle, not the tuple, like its two siblings. */
+    readonly sourcePhrase: string | undefined;
 }
 
 /** One INCOMING line, reduced to the same facts. Deliberately a subset of `ResolvedIngredientLine`. */
@@ -151,14 +159,20 @@ export function carryForwardTranscription(
         );
 
         if (match === -1) {
-            return { sourceLine: undefined, statedMeasure: undefined };
+            return { sourceLine: undefined, statedMeasure: undefined, sourcePhrase: undefined };
         }
 
         claimed[match] = true;
 
-        // ⛔ BOTH members from the SAME matched line, or neither. A stated measure kept beside an amount the
+        // ⛔ ALL members from the SAME matched line, or none. A stated measure kept beside an amount the
         // author has since edited would claim the source printed a gill for a quantity it never printed —
-        // a restatement whose two halves describe different lines, which is worse than no restatement.
-        return { sourceLine: stored[match]?.sourceLine, statedMeasure: stored[match]?.statedMeasure };
+        // a restatement whose two halves describe different lines, which is worse than no restatement. The
+        // phrase rides the same rule: a memo key detached from the line it was lifted from is the cross-user
+        // poisoning shape the create-only wire exists to prevent.
+        return {
+            sourceLine: stored[match]?.sourceLine,
+            statedMeasure: stored[match]?.statedMeasure,
+            sourcePhrase: stored[match]?.sourcePhrase,
+        };
     });
 }

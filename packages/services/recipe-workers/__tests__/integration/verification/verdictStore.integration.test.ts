@@ -16,6 +16,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
+import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
+
 import { createVerdictStore } from '../../../src/verification/verdictStore.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -115,9 +117,9 @@ describe.skipIf(!canRun)('createVerdictStore (integration)', () => {
         expect(rows[0]).toMatchObject({ verdict: 'disagree', band: 'contradicted', aspects: ['identity', 'quantity'] });
     });
 
-    it('remembers an agreement in the memo table, keyed on the normalized phrase', async () => {
+    it('remembers an agreement in the memo table, keyed on the normalized PHRASE', async () => {
         await store.rememberAgreement({
-            sourceLine: `${KEY_PREFIX} Chopped Onions`,
+            phrase: `${KEY_PREFIX} Chopped Onions`,
             foodId: '01M13XBBPQQNBDNTMH0BQ4BYJ2',
             modelId: 'amazon.nova-micro-v1:0',
         });
@@ -129,5 +131,26 @@ describe.skipIf(!canRun)('createVerdictStore (integration)', () => {
 
         expect(rows).toHaveLength(1);
         expect(rows[0]).toMatchObject({ food_id: '01M13XBBPQQNBDNTMH0BQ4BYJ2', verified_by: 'amazon.nova-micro-v1:0' });
+    });
+
+    it('⛔ PINS the grain: the stored key IS normalizedIngredientKey(phrase), the value the cascade queries with', async () => {
+        // The whole 0041 repair is this identity (owner ruling 2026-08-31): the memo tier's read side asks
+        // `normalizedIngredientKey(name)` for the phrase a picker types, so the write side must produce the
+        // SAME key from the SAME function over the SAME phrase. U15 measured what happens when they differ:
+        // 289 memos keyed on whole lines, none of which could ever serve any query. A drift in either
+        // direction — the write keying on something else, or a second normalizer — fails here.
+        const phrase = `${KEY_PREFIX} Cold Water`;
+        await store.rememberAgreement({
+            phrase,
+            foodId: '01M13XN0T7CTXKSYHZMZR7Y8VB',
+            modelId: 'amazon.nova-micro-v1:0',
+        });
+
+        const { rows } = await pool.query(
+            `SELECT normalized_key FROM ingredient_resolution_memos WHERE source_phrase = $1`,
+            [phrase],
+        );
+
+        expect(rows[0]?.normalized_key).toBe(normalizedIngredientKey(phrase));
     });
 });

@@ -62,6 +62,7 @@ import {
     type VerifyIngredientLineMessage,
 } from '@kitchensink/recipe-core/resolution/verification-message';
 import { bandFor, type ConfidenceBand } from '@kitchensink/recipe-core/resolution/confidence';
+import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import {
     createBedrockConverseClient,
@@ -518,9 +519,30 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     // and a memo row would surface the private food id in every user's memo tier. The author's own line
     // is still verified (the verdict above landed); only the shared cache abstains.
     if (band === 'verified' && decision.aspects.includes('identity') && message.privateFood !== true) {
+        // ⛔ KEYED ON THE PARSED PHRASE, OR NOT AT ALL (migration 0041, owner ruling 2026-08-31). The memo
+        // tier's read side queries `normalizedIngredientKey(name)` — the phrase a picker types — so a memo
+        // keyed on the whole line is unreachable by construction: U15 measured 289 of them, none of which
+        // could ever serve any query. An absent phrase (an older producer, a line whose parse produced
+        // none) writes NO memo; the verdict above still landed, so only the shared cache abstains.
+        if (message.ingredientPhrase === undefined) {
+            return;
+        }
+
+        // ⛔ THE CROSS-USER POISONING GUARD. The model's agreement is about `sourceLine` ↔ this food, but
+        // the phrase is the KEY the memo answers under for every user — so a phrase the judged line does
+        // not contain would let a producer bind an arbitrary key to a legitimately-verified food. The
+        // wire keeps the phrase create-only (ADR-0023's shape); this is the worker's own belt beside it.
+        if (!phraseWithinLine(message.ingredientPhrase, message.sourceLine)) {
+            logger.warn('verification memo refused: the phrase is not contained in the judged line', {
+                foodId: message.foodId,
+            });
+
+            return;
+        }
+
         try {
             await deps.store.rememberAgreement({
-                sourceLine: message.sourceLine,
+                phrase: message.ingredientPhrase,
                 foodId: message.foodId,
                 modelId: plan.modelId,
             });
@@ -530,6 +552,32 @@ export async function processVerification(deps: VerificationDeps, message: Verif
             });
         }
     }
+}
+
+/**
+ * Whether every token of the phrase appears among the line's tokens, judged on the SAME normalization the
+ * memo key itself uses — so case, accents and whitespace differences between the two never defeat a
+ * legitimate memo, and the containment test cannot drift from the key's own grain.
+ *
+ * Token-set containment rather than substring: `flour` must not be "contained" in `flourless`, and the
+ * phrase's tokens may be non-adjacent in the line (`sifted all-purpose white flour` contains
+ * `all-purpose flour`). Pure.
+ *
+ * @param phrase - The producer-asserted parsed phrase.
+ * @param sourceLine - The line the model actually judged.
+ * @returns `true` when the phrase's normalized tokens are a subset of the line's.
+ */
+function phraseWithinLine(phrase: string, sourceLine: string): boolean {
+    const phraseKey = normalizedIngredientKey(phrase);
+    const lineKey = normalizedIngredientKey(sourceLine);
+
+    if (phraseKey === undefined || lineKey === undefined) {
+        return false;
+    }
+
+    const lineTokens = new Set(lineKey.split(' '));
+
+    return phraseKey.split(' ').every((token) => lineTokens.has(token));
 }
 
 /** Assemble the row, so the seven-argument shape is written once rather than at three call sites. */

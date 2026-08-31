@@ -155,6 +155,9 @@ function storedLineToVerifiable(
 
     return {
         sourceLine: row.sourceLine ?? undefined,
+        // Migration 0041 — the parsed phrase, the memo tier's key grain. Absent for authored lines and
+        // every line written before the column existed; the worker writes no memo for those.
+        sourcePhrase: row.sourcePhrase ?? undefined,
         foodId: ingredient?.foodId,
         // The CATALOG's canonical name where we have it, never the caller's phrase: the gate asks whether the
         // source line means THIS food, and our rendering is the output of the very parse under test
@@ -1320,6 +1323,10 @@ export class RecipesService {
                 // `withCarriedTranscription` — see `domain/transcriptionCarryForward.ts` for why that is a
                 // carry-forward rather than a wire field.
                 ...(line.sourceLine !== undefined ? { sourceLine: line.sourceLine } : {}),
+                // Migration 0041 — the parsed phrase, likewise create-only: it IS the cross-user memo's key
+                // (owner ruling 2026-08-31), so PATCH must not be able to re-assert it. Carried forward by
+                // `withCarriedTranscription` beside its two siblings.
+                ...(line.sourcePhrase !== undefined ? { sourcePhrase: line.sourcePhrase } : {}),
                 // U7/U11 — likewise create-only, and for a SHARPER version of the same reason: a source line
                 // is what the gate checks our parse against, so a lie in it is visible to the model, while a
                 // stated measure IS the parse the model is shown. An UPDATE's lines arrive without one and are
@@ -1561,6 +1568,7 @@ export class RecipesService {
                 unit: row.unit,
                 sourceLine: row.sourceLine ?? undefined,
                 statedMeasure: statedMeasureFromColumns(row),
+                sourcePhrase: row.sourcePhrase ?? undefined,
             })),
             resolved,
         );
@@ -1572,6 +1580,7 @@ export class RecipesService {
             // explicit `undefined` would put a second spelling of absence into the persistence path.
             ...(carried[index]?.sourceLine === undefined ? {} : { sourceLine: carried[index]?.sourceLine }),
             ...(carried[index]?.statedMeasure === undefined ? {} : { statedMeasure: carried[index]?.statedMeasure }),
+            ...(carried[index]?.sourcePhrase === undefined ? {} : { sourcePhrase: carried[index]?.sourcePhrase }),
         }));
     }
 

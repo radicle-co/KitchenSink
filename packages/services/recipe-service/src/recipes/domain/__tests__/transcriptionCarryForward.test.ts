@@ -68,6 +68,7 @@ const stored = (over: Partial<StoredTranscription> = {}): StoredTranscription =>
     unit: 'cup',
     sourceLine: '2 cups all-purpose flour, sifted',
     statedMeasure: undefined,
+    sourcePhrase: undefined,
     ...over,
 });
 
@@ -182,6 +183,35 @@ describe('carryForwardTranscription — the transcription survives an edit that 
  * exactly `sourceLine`'s position, and it is why the module docstring derives the tuple as "digest membership
  * MINUS the line itself" rather than "the whole digest".
  */
+/**
+ * The THIRD fact in the bundle (owner ruling 2026-08-31, U15 report "Owner rulings" §3): the parsed
+ * ingredient phrase — the memo tier's key grain — is create-only wire like its two siblings, swapped away
+ * by `replaceForRecipe` on every save, and stale under exactly the same condition. The module docstring
+ * called a third carry-forward landing anywhere else the failure mode this file exists to prevent.
+ */
+describe('carryForwardTranscription — the source phrase rides with the transcription', () => {
+    const phrased = (): StoredTranscription => stored({ sourcePhrase: 'all-purpose flour' });
+
+    it('CARRIES the phrase when the judgement is unchanged', () => {
+        const [carried] = carryForwardTranscription([phrased()], [incoming()]);
+
+        expect(carried?.sourcePhrase).toBe('all-purpose flour');
+    });
+
+    it('DROPS the phrase with the rest of the bundle when the judgement moved', () => {
+        const [carried] = carryForwardTranscription([phrased()], [incoming({ quantity: exact(3) })]);
+
+        expect(carried).toEqual({ sourceLine: undefined, statedMeasure: undefined, sourcePhrase: undefined });
+    });
+
+    it('carries a transcription with no phrase, which every pre-existing row is', () => {
+        const [carried] = carryForwardTranscription([stored()], [incoming()]);
+
+        expect(carried?.sourceLine).toBe('2 cups all-purpose flour, sifted');
+        expect(carried?.sourcePhrase).toBeUndefined();
+    });
+});
+
 describe('carryForwardTranscription — the stated measure rides with the transcription', () => {
     const GILL = { quantity: statedExact(1), unit: 'gill' } as const;
 

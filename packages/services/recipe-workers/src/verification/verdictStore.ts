@@ -68,8 +68,15 @@ export interface VerdictRow {
 
 /** One agreed identity, ready to remember. */
 export interface AgreementRow {
-    /** The line the cook's source said — normalized into the knowledge base's match grain before storing. */
-    readonly sourceLine: string;
+    /**
+     * The ingredient PHRASE the parse lifted out of the judged line — `all-purpose flour`, never
+     * `2 cups all-purpose flour` (migration 0041, owner ruling 2026-08-31). This is what the memo key is
+     * derived from, because the memo tier's read side queries `normalizedIngredientKey(name)` — the phrase
+     * a picker types. It was `sourceLine` (the whole line) until U15 measured that not one of 289
+     * line-keyed memos could ever serve any query. The caller (`verifyLine`) has already verified the
+     * phrase is contained in the judged line.
+     */
+    readonly phrase: string;
     readonly foodId: string;
     readonly modelId: string;
 }
@@ -124,7 +131,10 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
         },
 
         async rememberAgreement(row: AgreementRow): Promise<void> {
-            const key = normalizedIngredientKey(row.sourceLine);
+            // ⛔ THE SAME FUNCTION THE MEMO TIER QUERIES WITH — that identity is the whole repair (0041):
+            // reads and writes cannot sit at different grains while both go through this one normalizer
+            // over the same phrase. Pinned by `verdictStore.integration.test.ts`.
+            const key = normalizedIngredientKey(row.phrase);
 
             if (key === undefined) {
                 // A phrase with no visible content cannot be a match grain. Total rather than throwing, for
@@ -140,10 +150,14 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
             // and the sweep, so a memo now records exactly what it always meant to — the machine's conclusion
             // and the words it judged. ⛔ Do not reintroduce a conditional here; a memo with no phrase would
             // silently cost the two-way door 0021 keeps the phrase for.
+            //
+            // ⚠️ Since 0041 the stored words are the parsed PHRASE, not the whole line — `source_phrase` is
+            // 0021's two-way door (re-derive keys if the normalization ever changes), so it must hold the
+            // raw text the KEY normalizes, or a re-key would reintroduce the line-grain mismatch.
             await db.execute(sql`
                 INSERT INTO ingredient_resolution_memos
                     (normalized_key, food_id, source_phrase, verified_by)
-                VALUES (${key}, ${row.foodId}, ${row.sourceLine}, ${row.modelId})
+                VALUES (${key}, ${row.foodId}, ${row.phrase}, ${row.modelId})
                 ON CONFLICT (normalized_key) DO UPDATE
                    SET food_id     = EXCLUDED.food_id,
                        source_phrase = EXCLUDED.source_phrase,

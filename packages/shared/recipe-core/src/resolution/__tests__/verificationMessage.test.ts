@@ -130,6 +130,38 @@ describe('verifyIngredientLineMessageSchema (plan U11)', () => {
         expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ sourceLine: '   ' }))).toThrow();
     });
 
+    /**
+     * `ingredientPhrase` — the memo-grain repair (owner ruling 2026-08-31, U15 report).
+     *
+     * The memo tier's read side queries `normalizedIngredientKey(name)` — the PHRASE a picker types — while
+     * the write side keyed on the whole source line, so a memo written from `one quart of cold water` could
+     * never serve a query for `cold water`. The phrase the parse lifted out of the line now rides the
+     * message so the worker can key the memo at the grain the cascade actually asks.
+     */
+    it('carries the parsed ingredient phrase, the grain the memo tier is keyed on', () => {
+        const parsed = verifyIngredientLineMessageSchema.parse(
+            verifyLine({ sourceLine: '2 cups all-purpose flour', ingredientPhrase: 'all-purpose flour' }),
+        );
+
+        expect(parsed.ingredientPhrase).toBe('all-purpose flour');
+    });
+
+    it('parses a message from a producer that predates ingredientPhrase — the field is optional', () => {
+        const parsed = verifyIngredientLineMessageSchema.parse(verifyLine());
+
+        expect(parsed.ingredientPhrase).toBeUndefined();
+    });
+
+    it('rejects a blank ingredient phrase — absence has exactly one spelling', () => {
+        expect(() => verifyIngredientLineMessageSchema.parse(verifyLine({ ingredientPhrase: '   ' }))).toThrow();
+    });
+
+    it('bounds the ingredient phrase like the line it was lifted from', () => {
+        expect(() =>
+            verifyIngredientLineMessageSchema.parse(verifyLine({ ingredientPhrase: 'x'.repeat(5_000) })),
+        ).toThrow();
+    });
+
     it('bounds the candidate food name — it too reaches the prompt', () => {
         expect(() =>
             verifyIngredientLineMessageSchema.parse(verifyLine({ candidateFoodName: 'x'.repeat(5_000) })),

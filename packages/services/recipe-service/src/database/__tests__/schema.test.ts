@@ -193,6 +193,11 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // author-chosen display override) and from `ingredient_name` (OUR rendering) — the verification
             // gate checks our parse against this, and checking a parse against its own output always agrees.
             source_line: { type: 'text', notNull: false },
+            // Migration 0041 (owner ruling 2026-08-31) — the ingredient PHRASE the parse lifted out of
+            // `source_line`, the memo tier's key grain: `ingredient_resolution_memos` is keyed on
+            // `normalizedIngredientKey` of THIS, because the cascade queries with the phrase a picker
+            // types, never with a whole line. NULL: authored line, or created before 0041.
+            source_phrase: { type: 'text', notNull: false },
             // U7/U11 (migration 0027) — what the SOURCE printed, before a historical measure was restated
             // into one the USDA household-portion table carries. All three are NULL together for an authored
             // line, for a line stating a modern unit, and for every line imported before 0027. Without them

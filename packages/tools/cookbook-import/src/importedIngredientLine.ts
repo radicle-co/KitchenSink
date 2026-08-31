@@ -116,6 +116,13 @@ export function toImportedIngredientLine(parsed: ParsedClause, ingredient: Resol
         // duplicate of `notes` in meaning either: one is a display override, the other is the transcription
         // a verdict is keyed on.
         sourceLine: parsed.sourceText ?? parsed.raw,
+        // ⛔ The memo tier's KEY GRAIN (migration 0041, owner ruling 2026-08-31): the phrase the parser
+        // lifted out of the clause — what a future picker will QUERY with. This importer is the one
+        // producer that has it; without it the worker writes no memo and the gate's agreements are
+        // banked nowhere. Never the catalog name (that is the parse's OUTPUT — the circularity argument
+        // on `sourceLine` above applies) and never the whole clause (U15 measured that grain: 289 memos,
+        // zero reachable).
+        sourcePhrase: parsed.name,
         // ⛔ WHAT THE SOURCE PRINTED, when `quantity`/`unit` above are a RESTATEMENT of it (R35). Without it
         // U11's gate is shown a source line reading `one gill of milk` beside a parse claiming `0.5 cup` and
         // asked whether they agree — a manufactured false DISAGREE about a line we parsed CORRECTLY, which

@@ -96,6 +96,12 @@ export interface VerifiableLine {
      */
     readonly sourceLine: string | undefined;
     /**
+     * The ingredient PHRASE the parse lifted out of {@link sourceLine} — the memo tier's key grain
+     * (migration 0041, owner ruling 2026-08-31). A REQUIRED key carrying `undefined`, like its siblings:
+     * absence is a statement ("no parse produced a phrase; write no memo"), never missing data.
+     */
+    readonly sourcePhrase: string | undefined;
+    /**
      * The opaque food-service id, or `undefined` for a user-entered ingredient.
      *
      * A user-entered ingredient carries its own nutrition (FR-007a) and references no catalog row, so there
@@ -443,6 +449,9 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
         const message: VerifyIngredientLineMessage = {
             recipeId: input.recipeId,
             sourceLine,
+            // Migration 0041 — the parsed phrase the memo will be keyed on (owner ruling 2026-08-31).
+            // Spread-if-present: absence means the worker writes NO memo, never one at the dead line grain.
+            ...(line.sourcePhrase === undefined ? {} : { ingredientPhrase: line.sourcePhrase }),
             foodId,
             candidateFoodName: line.candidateFoodName,
             quantityLow: judgement.quantityLow,

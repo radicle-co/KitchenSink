@@ -321,6 +321,24 @@ export const recipeIngredientSourceLineSchema = z
     .transform((value) => value.trim())
     .pipe(z.string().min(1).max(MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH));
 
+/**
+ * The ingredient PHRASE the parse lifted out of {@link recipeIngredientSourceLineSchema}'s line —
+ * `all-purpose flour` from `2 cups all-purpose flour, sifted` (owner ruling 2026-08-31, U15 report).
+ *
+ * ⛔ It exists to be the MEMO TIER'S KEY GRAIN. The memo read side queries `normalizedIngredientKey(name)` —
+ * the phrase a picker or importer asks with — while the gate's memo write keyed on the whole source line,
+ * so a memo written from `one quart of cold water` could never serve a query for `cold water`. This field
+ * carries the phrase from the client that parsed it (the only place it exists) to the verification worker.
+ *
+ * Bounded by the SAME constant as the source line, and that is one piece of knowledge rather than two that
+ * happen to agree: the phrase is a substring the parse lifted OUT of the line, so whatever bounds the line
+ * bounds it. `.trim()` then `.min(1)`, so "no phrase" has exactly one wire spelling — omitting the key.
+ */
+export const recipeIngredientSourcePhraseSchema = z
+    .string()
+    .transform((value) => value.trim())
+    .pipe(z.string().min(1).max(MAX_RECIPE_INGREDIENT_SOURCE_LINE_LENGTH));
+
 /** A per-line nutrition override (FR-007a) — absolute for the line's quantity, bounded by `numeric(8, 2)`. */
 export const recipeLineNutritionSchema = z.number().nonnegative().max(NUMERIC_8_2_CEILING);
 

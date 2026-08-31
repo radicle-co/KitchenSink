@@ -27,6 +27,9 @@ import { processVerification, type VerificationDeps } from '../verifyLine.js';
 const MESSAGE = {
     recipeId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
     sourceLine: '2 cups all-purpose flour',
+    // The memo tier's key grain (migration 0041) — present on the fixture because the dominant path
+    // carries it, and CONTAINED in the source line above, which the memo write requires.
+    ingredientPhrase: 'all-purpose flour',
     foodId: '01JFOOD000000000000000000',
     candidateFoodName: 'Flour, wheat, all-purpose',
     quantityLow: 2,
@@ -327,6 +330,55 @@ describe('the aspects it asks about', () => {
 
         expect(bandRecorded(d.spies)).toBe('verified');
         expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The memo grain (migration 0041, owner ruling 2026-08-31, U15 report "Owner rulings" §3).
+ *
+ * The memo tier's read side queries `normalizedIngredientKey(name)` — the phrase a picker types — so the
+ * memo must be keyed on the PHRASE the parse lifted out of the line, never on the whole line: U15 measured
+ * 289 line-keyed memos of which not one could ever serve any query. And because
+ * `ingredient_resolution_memos` answers for EVERY user while the model's agreement is about the LINE, a
+ * phrase the producer asserts must actually appear in the judged line, or a hostile producer could bind an
+ * arbitrary key to a legitimately-verified food.
+ */
+describe('the memo is keyed on the parsed phrase, and only a phrase the model actually judged', () => {
+    it('remembers the agreement under the PHRASE, not the line', async () => {
+        const d = deps();
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.rememberAgreement).toHaveBeenCalledWith(
+            expect.objectContaining({ phrase: 'all-purpose flour', foodId: MESSAGE.foodId }),
+        );
+    });
+
+    it('writes NO memo when the message carries no phrase — never one at the dead line grain', async () => {
+        // An older producer, or a line whose parse produced no phrase. The verdict still lands; only the
+        // shared cache abstains, exactly as it does for a private food.
+        const d = deps();
+        const { ingredientPhrase: _omitted, ...withoutPhrase } = MESSAGE;
+        await processVerification(d, withoutPhrase);
+
+        expect(bandRecorded(d.spies)).toBe('verified');
+        expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
+    });
+
+    it('⛔ REFUSES a phrase that does not appear in the judged line — the cross-user poisoning guard', async () => {
+        const d = deps();
+        await processVerification(d, { ...MESSAGE, ingredientPhrase: 'granulated sugar' });
+
+        expect(bandRecorded(d.spies)).toBe('verified');
+        expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
+    });
+
+    it('containment is judged on normalized tokens, not raw substrings', async () => {
+        // Case and pluralization differences between the phrase and the line must not defeat a legitimate
+        // memo — both sides go through the same normalization the memo key itself uses.
+        const d = deps();
+        await processVerification(d, { ...MESSAGE, ingredientPhrase: 'All-Purpose FLOUR' });
+
+        expect(d.spies.rememberAgreement).toHaveBeenCalledTimes(1);
     });
 });
 

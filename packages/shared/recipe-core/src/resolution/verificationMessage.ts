@@ -147,6 +147,25 @@ export const verifyIngredientLineMessageSchema = z.object({
      */
     /** The line the cook's source said. UNTRUSTED, and the reason for every bound above. */
     sourceLine: boundedText(MAX_VERIFICATION_SOURCE_LINE_LENGTH),
+    /**
+     * The ingredient PHRASE the parse lifted out of {@link sourceLine} — `all-purpose flour` from
+     * `2 cups all-purpose flour` (owner ruling 2026-08-31, U15 report "Owner rulings" §3).
+     *
+     * ⛔ THE MEMO-GRAIN FIELD. The memo tier's read side queries `normalizedIngredientKey(name)` — the
+     * phrase a picker or importer asks with — while the memo write keyed on the whole source line, so a
+     * memo written from `one quart of cold water` could never serve a query for `cold water`. The worker
+     * keys `ingredient_resolution_memos` on THIS field; when it is absent (an older producer, or a line
+     * whose phrase is unknown) the worker writes NO memo rather than one at a dead grain.
+     *
+     * ⚠️ IT IS A KEY, NOT EVIDENCE, and the worker must not trust it blindly: the model's agreement is
+     * about `sourceLine` ↔ `candidateFoodName`, so a phrase not contained in the judged line would let a
+     * producer bind an arbitrary key to a legitimately-verified food in a memo table shared ACROSS USERS.
+     * The worker therefore refuses to memoize a phrase whose tokens do not appear in the source line.
+     *
+     * Optional through at least one release for the same reason `statedMeasure` is: the queue holds
+     * messages from the producer that predates the field.
+     */
+    ingredientPhrase: boundedText(MAX_VERIFICATION_SOURCE_LINE_LENGTH).optional(),
     /** The opaque food-service id the cascade resolved to. */
     foodId: z.string().min(1).max(64),
     /** That food's catalog name — what the model is asked to judge identity against. */

@@ -57,6 +57,23 @@ describe('toImportedIngredientLine', () => {
         expect(line.sourceLine).not.toBe(parsed.name);
     });
 
+    /**
+     * Migration 0041 (owner ruling 2026-08-31): the parsed NAME rides as `sourcePhrase` — the memo tier's
+     * key grain. This is the ONE producer that has the phrase (the parser lifted it out of the clause), and
+     * omitting it silently reverts the memo tier to writing nothing, which is why presence is asserted the
+     * same way `sourceLine`'s is — an optional key's omission is not a compile error.
+     */
+    it('⛔ sends the parsed name as `sourcePhrase`, the grain the memo will be keyed on', () => {
+        expect(toImportedIngredientLine(parsed, ingredient).sourcePhrase).toBe('all-purpose flour');
+    });
+
+    it('never sends the catalog name or the whole clause as the phrase', () => {
+        const line = toImportedIngredientLine(parsed, ingredient);
+
+        expect(line.sourcePhrase).not.toBe(ingredient.name);
+        expect(line.sourcePhrase).not.toBe(parsed.raw);
+    });
+
     it('references the catalog row and carries the parsed values through unchanged', () => {
         const line = toImportedIngredientLine(parsed, ingredient);
 

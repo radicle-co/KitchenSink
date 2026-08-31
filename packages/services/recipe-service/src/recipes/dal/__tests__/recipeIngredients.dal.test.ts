@@ -58,6 +58,10 @@ describe('RecipeIngredientsDal.replaceForRecipe', () => {
             // whole-row `toEqual` for the reason stated above: a column the mapper forgets to emit is a row
             // that silently keeps a previous value, and this is the column a verification verdict joins on.
             sourceLine: null,
+            // Migration 0041 — the parsed phrase, written on EVERY insert, `null` when the line carried
+            // none. In the whole-row `toEqual` for the same reason as its siblings: this is the memo tier's
+            // key grain, and a mapper that stopped emitting it would silently starve the memo write.
+            sourcePhrase: null,
             // U7/U11 — all three stated columns are written on EVERY line, `null` included. Asserted rather
             // than omitted: a partial write would leave a previous line's `stated_unit` attached to an amount
             // nobody restated, and this expectation is what makes that visible if the spread is ever dropped.

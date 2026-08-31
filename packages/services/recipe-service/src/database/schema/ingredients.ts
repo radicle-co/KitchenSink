@@ -159,6 +159,12 @@ export const recipeIngredients = pgTable(
         // checks our parse against this, and checking a parse against its own output agrees by construction.
         // `NULL` means the line was AUTHORED rather than transcribed — see `0024_ingredient_source_line.sql`.
         sourceLine: text('source_line'),
+        // The ingredient PHRASE the parse lifted out of `source_line` — `all-purpose flour` from
+        // `2 cups all-purpose flour, sifted` (migration 0041, owner ruling 2026-08-31). ⛔ The memo tier's
+        // KEY GRAIN: `ingredient_resolution_memos` is keyed on `normalizedIngredientKey` of THIS, because
+        // the cascade queries with the phrase a picker types, never with a whole line. `NULL` for an
+        // authored line and for every line created before 0041.
+        sourcePhrase: text('source_phrase'),
         // U7/U11 — what the SOURCE printed, before the importer restated a historical measure into one the
         // USDA household-portion table carries. `one gill of milk` persists as `quantity 0.5, unit 'cup'`
         // with `stated_quantity 1, stated_unit 'gill'` beside it. ⛔ Without these the verification gate is

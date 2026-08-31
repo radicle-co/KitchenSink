@@ -85,14 +85,18 @@ export function rulesSelecting(policy: LifecyclePolicy, tag: string): number[] {
             if (selection.tagStatus === 'untagged') {
                 return false;
             }
+
             if (selection.tagStatus === 'any') {
                 return true;
             }
+
             // `tagged` with no prefix list selects EVERY tagged image, prod releases included.
             const prefixes = selection.tagPrefixList ?? [];
+
             if (prefixes.length === 0) {
                 return true;
             }
+
             return prefixes.some((prefix) => tag.startsWith(prefix));
         })
         .map(({ rulePriority }) => rulePriority)

@@ -377,11 +377,16 @@ jobs:
         # and the run is RED — visible and re-runnable — whereas a skip-tolerant gate would evaluate the
         # changed-path clauses against empty outputs and skip the tiers anyway, just without the red. Losing a
         # tier must never be quieter than losing the detection.
+        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): both heavy tiers reach REMOTE sandbox
+        # services (Clerk sign-in from the emulator, k6 against sandbox hosts), which are unavailable right
+        # now, so they can only fail. Restore the original gate below by deleting the `false &&` clause once
+        # the sandbox remote services are reachable again.
         if: >-
-            github.event_name != 'pull_request' ||
+            false &&
+            (github.event_name != 'pull_request' ||
             contains(github.event.pull_request.labels.*.name, 'heavy-e2e') ||
             needs.detect.outputs.search == 'true' ||
-            needs.detect.outputs.mobile == 'true'
+            needs.detect.outputs.mobile == 'true')
         uses: ./.github/workflows/_ci-heavy.yml
         with:
             # SANDBOX, never prod. The Maestro job does a REAL Clerk sign-in from the emulator, and Clerk

@@ -1154,6 +1154,10 @@ jobs:
 
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)
+        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
+        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
+        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
+        if: ${{ false }}
         timeout-minutes: 25
         runs-on: ubuntu-latest
         needs: [install]
@@ -1362,6 +1366,10 @@ jobs:
     # deploy smoke's job (`recipe-service/infra/smoke/deployedSmoke.ts`).
     e2e-cross-service-linkage:
         name: E2E (recipe ↔ food LIVE — both services, one real Clerk token)
+        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
+        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
+        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
+        if: ${{ false }}
         timeout-minutes: 30
         runs-on: ubuntu-latest
         needs: [install]
@@ -1776,6 +1784,10 @@ jobs:
         # Static name (not a matrix) so a skipped run still shows a clean title instead of a raw
         # `${{ matrix.* }}` template. Both backend workspaces run sequentially in one job.
         name: E2E (backend services)
+        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
+        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
+        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
+        if: ${{ false }}
         timeout-minutes: 25
         runs-on: ubuntu-latest
         needs: build
@@ -1831,6 +1843,10 @@ jobs:
 
     e2e-web:
         name: E2E (web — Playwright) ${{ matrix.shard }}/${{ strategy.job-total }}
+        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
+        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
+        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
+        if: ${{ false }}
         # 30 + the sandbox wake's own 15-minute bound (see the wake step below). A run that lands in ADR-0007's
         # 00:00–09:00 ET window legitimately waits minutes for a stopped `db.t4g.micro` to reach `available`,
         # and a JOB timeout is precisely the misleading failure that step exists to prevent: it would kill the
@@ -2210,6 +2226,10 @@ jobs:
     # gate: without it this job would report success over a broken suite.
     e2e-web-report:
         name: E2E (web — Playwright) · merged report
+        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
+        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
+        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
+        if: ${{ false }}
         timeout-minutes: 15
         runs-on: ubuntu-latest
         needs: e2e-web
@@ -2348,6 +2368,10 @@ jobs:
 
     e2e-mobile:
         name: E2E (mobile — Vitest)
+        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
+        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
+        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
+        if: ${{ false }}
         timeout-minutes: 30
         runs-on: ubuntu-latest
         needs: build

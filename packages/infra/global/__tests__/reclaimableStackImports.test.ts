@@ -79,10 +79,13 @@ function importedExportsIn(file: string): string[] {
         if (!ts.isCallExpression(node) || referenceText(node.expression) !== 'Fn.importValue') {
             return;
         }
+
         const [argument] = node.arguments;
+
         if (argument === undefined) {
             return;
         }
+
         if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) {
             names.push(argument.text);
         } else if (ts.isTemplateExpression(argument)) {
@@ -140,6 +143,7 @@ describe('no persistent stack imports from a reclaimable one (ADR-0028)', () => 
         const deleted = [...allowlist.matchAll(/^\s+'(kitchensink-[a-z-]+)'$/gmu)].map((match) => match[1] ?? '');
 
         expect(deleted.length).toBeGreaterThan(0);
+
         for (const stack of deleted) {
             expect(RECLAIMABLE_EXPORT_PREFIXES.some((prefix) => stack.startsWith(prefix))).toBe(true);
         }

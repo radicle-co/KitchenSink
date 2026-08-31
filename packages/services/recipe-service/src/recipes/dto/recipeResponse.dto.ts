@@ -72,6 +72,13 @@ export interface RecipeResponse {
      * calorie figure is `nutrition`, and there is no other.
      */
     ingredients: RecipeIngredientResponse[];
+    /**
+     * U13 (R20): on a CLONE response only — how many source lines were UNBOUND because they referenced
+     * another author's private food (they arrive as user-entered lines, re-resolvable in the picker).
+     * The one-time "N ingredients need re-matching" banner's number; absent on every other read, and on
+     * a clone that unbound nothing, so the ordinary wire bytes are unchanged.
+     */
+    cloneUnboundLineCount?: number;
     steps: RecipeStepResponse[];
     servings: number;
     prepTimeMinutes: number;

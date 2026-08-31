@@ -1283,6 +1283,12 @@ export async function mockRecipeApi(
 
         if (clone && method === 'POST') {
             const source = store.get(clone[1] as string);
+            // U13 (R20): mirror the service's clone-unbind — the source's private-food lines (the ones a
+            // stranger sees as RESOLVED_UNAVAILABLE) arrive on the clone as user-entered lines, and the
+            // response carries the banner's count. Only when it unbound something, like the real wire.
+            const unbound = (source?.ingredients ?? []).filter(
+                (ingredient) => ingredient.resolutionStatus === 'RESOLVED_UNAVAILABLE',
+            ).length;
             const created = makeRecipeDetail({
                 id: `rec_clone_${nextId++}`,
                 ownerId: viewerId,
@@ -1290,6 +1296,16 @@ export async function mockRecipeApi(
                 visibility: 'private',
                 clonedFromId: clone[1] as string,
                 sourceAttribution: source?.title,
+                ...(source === undefined
+                    ? {}
+                    : {
+                          ingredients: source.ingredients.map((ingredient) =>
+                              ingredient.resolutionStatus === 'RESOLVED_UNAVAILABLE'
+                                  ? { ...ingredient, resolutionStatus: undefined, isUserEntered: true }
+                                  : ingredient,
+                          ),
+                      }),
+                ...(unbound > 0 ? { cloneUnboundLineCount: unbound } : {}),
             });
             store.set(created.id, created);
 

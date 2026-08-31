@@ -118,6 +118,46 @@ export interface RecipeDetailMessages {
     readonly needsReviewNoticeOne: string;
     /** The same disclosure for two or more doubted lines (contains `{count}`). */
     readonly needsReviewNoticeMany: string;
+    /**
+     * Badge shown on a line the gate marked AMBIGUOUS (plan U13, D7/R9) — the pick affordance's entry.
+     * ⛔ NOT the needs-review badge: that one says our match was CONTRADICTED and the figure withheld;
+     * this one says the gate ABSTAINED over materially-different candidates and the figure still counts
+     * (R23) — the author improves it by picking, nothing is broken.
+     */
+    readonly ambiguousBadge: string;
+    /** The batched-review ENTRY for exactly one ambiguous line. */
+    readonly ambiguousNoticeOne: string;
+    /** The same entry for two or more (contains `{count}`). */
+    readonly ambiguousNoticeMany: string;
+    /** The review surface's own heading. */
+    readonly ambiguousReviewHeading: string;
+    /** Accessible name of the control that opens/closes the batched review surface. */
+    readonly ambiguousReviewToggle: string;
+    /** Per-row caption while a row's fresh shortlist loads. */
+    readonly ambiguousReviewLoading: string;
+    /** A row whose pick SAVED — the correction persists individually, so dismissal is always safe. */
+    readonly ambiguousReviewSaved: string;
+    /** ⛔ A row whose correction write FAILED — retryable, and ONLY that row (the batch is unaffected). */
+    readonly ambiguousReviewFailed: string;
+    /** Retry control on a failed row. */
+    readonly ambiguousReviewRetry: string;
+    /** A refreshed shortlist replaced a stale one (a picked id stopped resolving) — one line, no alarm. */
+    readonly ambiguousReviewRefreshed: string;
+    /** How many sibling lines one pick binds, shown on a row covering >1 line (contains `{count}`). */
+    readonly ambiguousReviewBindsMany: string;
+    /**
+     * Badge for a line whose food is another author's PRIVATE one (plan U13, R20) — name-only,
+     * directionally "details unavailable", never an error.
+     */
+    readonly unavailableBadge: string;
+    /**
+     * The one-time CLONE banner: N lines arrived unbound because the original used the author's own
+     * private foods (contains `{count}`). Distinguishes them from ordinary ambiguity — the fix is
+     * re-matching in the editor, not a review pick.
+     */
+    readonly cloneUnboundBanner: string;
+    /** Dismiss control on the clone banner. */
+    readonly cloneUnboundDismiss: string;
     /** Heading for the instructions section. */
     readonly instructionsHeading: string;
     /** Timer template for a step (contains `{seconds}`). */
@@ -466,6 +506,21 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
                 'One ingredient didn’t match its original wording, so it isn’t counted here. Check it and pick the right food.',
             needsReviewNoticeMany:
                 '{count} ingredients didn’t match their original wording, so they aren’t counted here. Check them and pick the right foods.',
+            ambiguousBadge: 'Needs a pick',
+            ambiguousNoticeOne: '1 ingredient could match more than one food. Review it to sharpen the nutrition.',
+            ambiguousNoticeMany:
+                '{count} ingredients could match more than one food. Review them to sharpen the nutrition.',
+            ambiguousReviewHeading: 'Review ingredient matches',
+            ambiguousReviewToggle: 'Review ingredient matches',
+            ambiguousReviewLoading: 'Finding matches…',
+            ambiguousReviewSaved: 'Saved — future recipes will use this match.',
+            ambiguousReviewFailed: 'Could not save this pick. The rest are unaffected.',
+            ambiguousReviewRetry: 'Try again',
+            ambiguousReviewRefreshed: 'The match list was refreshed.',
+            ambiguousReviewBindsMany: 'Applies to {count} lines in this recipe.',
+            unavailableBadge: 'Details unavailable',
+            cloneUnboundBanner: '{count} ingredients need re-matching — the original used the author’s own foods.',
+            cloneUnboundDismiss: 'Dismiss',
             instructionsHeading: 'Instructions',
             stepTimer: '{seconds}s timer',
             stepToggleLabel: 'Mark step {step} complete',

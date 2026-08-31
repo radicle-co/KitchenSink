@@ -361,6 +361,33 @@ export class IngredientsDal {
     }
 
     /**
+     * U13 (R20): the PRIVATE-food OWNER for each of the given ingredient ids that has one.
+     *
+     * The sibling of {@link IngredientsDal.privateFoodIngredientIds}, answering the one question that read
+     * deliberately does not: WHO owns the food — needed by the viewer-scoped line overlay, which must tell
+     * the AUTHOR (full status) apart from a stranger (`RESOLVED_UNAVAILABLE`). Still never on the wire:
+     * the projection compares it to the viewer and emits only the status.
+     *
+     * @param ids - The ingredient ids to check (empty is answered without a query).
+     * @returns owner ULID by ingredient id, for the private-food subset only.
+     * @sideEffect Reads `ingredients`.
+     */
+    public async privateFoodOwnersByIngredientIds(ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
+        if (ids.length === 0) {
+            return new Map<string, string>();
+        }
+
+        const result = await this.db.execute<{ [column: string]: unknown; id: string; food_owner_id: string }>(
+            sql`SELECT id, food_owner_id FROM ingredients WHERE food_owner_id IS NOT NULL AND id IN (${sql.join(
+                ids.map((id) => sql`${id}`),
+                sql`, `,
+            )})`,
+        );
+
+        return new Map(result.rows.map((row) => [row.id, row.food_owner_id]));
+    }
+
+    /**
      * Look up an existing food-backed ingredient by its opaque `food_id` (dedup key).
      *
      * @param foodId - The food-service internal id.

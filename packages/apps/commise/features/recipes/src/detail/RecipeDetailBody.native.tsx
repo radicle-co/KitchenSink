@@ -26,6 +26,7 @@ import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
+import { AmbiguityReview } from './AmbiguityReview.native.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
 import { PhotoCarousel } from './PhotoCarousel.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
@@ -33,7 +34,9 @@ import { RecipeSourceLine } from './RecipeSourceLine.native.js';
 import { SERVING_STEPPER_MIN_WIDTH, ServingScaleControl } from './ServingScaleControl.native.js';
 import {
     formatQuantity,
+    isLineAmbiguous,
     isLineNeedsReview,
+    isLineUnavailable,
     needsReviewNotice,
     rangeDerivedNotice,
     type RecipeDetailBodyProps,
@@ -221,6 +224,15 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             {isLineNeedsReview(ingredient) && (
                                 <Text style={styles.needsReviewBadge}>{detail.needsReviewBadge}</Text>
                             )}
+                            {/* U13 (D7/R9) — same warning tint as needs-review; the pick lives in the
+                                batched review surface below (the figure still counts, R23). */}
+                            {isLineAmbiguous(ingredient) && (
+                                <Text style={styles.needsReviewBadge}>{detail.ambiguousBadge}</Text>
+                            )}
+                            {/* U13 (R20) — another author's private food: name-only, NEUTRAL tone. */}
+                            {isLineUnavailable(ingredient) && (
+                                <Text style={styles.unavailableBadge}>{detail.unavailableBadge}</Text>
+                            )}
                         </View>
                     );
                 })}
@@ -302,6 +314,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
             {hasUserEnteredIngredients(recipe.ingredients) && (
                 <Text style={styles.sourceNote}>{detail.nutritionSourceNote}</Text>
             )}
+
+            {/* U13 — the batched ambiguity review surface + the one-time clone banner (stored lines). */}
+            <AmbiguityReview ingredients={recipe.ingredients} cloneUnboundLineCount={recipe.cloneUnboundLineCount} />
 
             {/* C3 wireframe parity: the clone action (caller-supplied) + version + visibility badges are ONE
                 grouped footer row — `[Clone to My Recipes] [v12] [Public]` — rather than three loose pieces. */}
@@ -469,6 +484,17 @@ const styles = StyleSheet.create({
         fontSize: nativeTokens.fontSize.overline,
         fontWeight: '600',
         color: palette.charcoal,
+    },
+    unavailableBadge: {
+        backgroundColor: 'rgba(178, 190, 195, 0.2)',
+        borderRadius: 999,
+        color: palette.slate,
+        fontSize: 11,
+        fontWeight: '500',
+        marginLeft: 'auto',
+        overflow: 'hidden',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
     },
     // The recipe-level disclosure. `description`'s size, but charcoal and weighted rather than slate, so it
     // is distinguishable at a glance from the two neutral caveats above it — it is an admission a cook can

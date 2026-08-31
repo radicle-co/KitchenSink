@@ -47,7 +47,9 @@ import {
     isWithheldLine,
     pendingStateOf,
     type PendingState,
+    ambiguousStateOf,
     resolveLineStatus,
+    viewerLineStatus,
     verifiedLineIdentity,
     type VerificationBand,
 } from './domain/lineVerification.js';
@@ -75,6 +77,7 @@ import type { CreateRecipeIngredientInput } from './recipes.schema.js';
 import { carryForwardTranscription } from './domain/transcriptionCarryForward.js';
 import {
     buildVerificationRequests,
+    parseStoredShortlist,
     type VerifiableLine,
     bandKeyOf,
     type BandConsultation,
@@ -89,6 +92,7 @@ import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.q
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeIngredientResponse, RecipeResponse } from './dto/recipeResponse.dto.js';
+import { canonicalIngredientName } from '../ingredients/domain/ingredientName.js';
 import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
 import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeIngredientRow, RecipePhotoRow, RecipeRow, RecipeStepRow } from '../database/schema/index.js';
@@ -744,6 +748,8 @@ export class RecipesService {
     private async computeDetailNutrition(
         aggregate: RecipeAggregate,
         caller: CallerToken | undefined,
+        /** U13 (R20): the VIEWING user — the private-food overlay's comparand. Absent classifies as a stranger. */
+        viewerId?: string,
     ): Promise<{ nutrition: RecipeNutrition; lineStatuses: ReadonlyMap<string, LineResolutionStatus> }> {
         const measures = aggregate.ingredients.map(rowToMeasureInput);
         const catalog = await this.loadLineCatalog(
@@ -751,14 +757,29 @@ export class RecipesService {
             measures.map((measure) => measure.ingredientId),
         );
         const verdicts = await this.loadLineVerdicts(catalog, measures);
-        const pending = await this.loadPendingStates(measures, verdicts);
+        const { pending, resolutions } = await this.loadPendingStates(measures, verdicts);
+        const privateOwners = await this.loadPrivateFoodOwners(measures);
         const lineStatuses = new Map<string, LineResolutionStatus>();
 
         for (const measure of measures) {
-            const status = resolveLineStatus(
-                verdicts.get(measure.lineId),
-                catalog.statusByIngredientId.get(measure.ingredientId),
-                pending.get(measure.lineId) ?? 'none',
+            const verdict = verdicts.get(measure.lineId);
+            // U13 (D7/R9): material spread over the SAME parsed shortlist the producer's evidence uses —
+            // one boundary parse, one agreement rule, so the gate and the badge cannot disagree.
+            const ambiguous = ambiguousStateOf(
+                verdict,
+                parseStoredShortlist(resolutions.get(measure.ingredientId)?.shortlist),
+            );
+            // U13 (R20): the viewer overlay LAST — a stranger to a private food gets name-only
+            // RESOLVED_UNAVAILABLE whatever the underlying state was, never a pick affordance.
+            const status = viewerLineStatus(
+                resolveLineStatus(
+                    verdict,
+                    catalog.statusByIngredientId.get(measure.ingredientId),
+                    pending.get(measure.lineId) ?? 'none',
+                    ambiguous,
+                ),
+                privateOwners.get(measure.ingredientId),
+                viewerId,
             );
 
             if (status !== undefined) {
@@ -776,6 +797,34 @@ export class RecipesService {
     }
 
     /**
+     * U13 (R20): the private-food OWNERS behind this read's lines — quiet and total like every auxiliary
+     * read on this path: on failure no line renders unavailable, which is the shipped pre-U13 behaviour.
+     * ⚠️ Failing OPEN here leaks only a STATUS treatment, never data: a stranger's nutrition read cannot
+     * fetch a private food regardless (the food service refuses it), so the worst case is a line briefly
+     * badged with its underlying state instead of "details unavailable".
+     *
+     * @sideEffect One batched `ingredients` read.
+     */
+    private async loadPrivateFoodOwners(measures: readonly LineNutritionInput[]): Promise<ReadonlyMap<string, string>> {
+        if (measures.length === 0) {
+            return new Map<string, string>();
+        }
+
+        try {
+            return await this.ingredientsDal.privateFoodOwnersByIngredientIds(
+                measures.map((measure) => measure.ingredientId),
+            );
+        } catch (error) {
+            this.logger.warn(
+                'Private-food owner read failed; no line renders unavailable.',
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return new Map<string, string>();
+        }
+    }
+
+    /**
      * KTD-A's per-line pending classification (plan U4c): for each line, whether its ingredient's latest
      * resolution is a zero-authority LEXICAL bind still awaiting its verdict.
      *
@@ -789,11 +838,15 @@ export class RecipesService {
     private async loadPendingStates(
         measures: readonly LineNutritionInput[],
         verdicts: LineVerdicts,
-    ): Promise<ReadonlyMap<string, PendingState>> {
+    ): Promise<{
+        pending: ReadonlyMap<string, PendingState>;
+        /** U13: the same batched read's events, by INGREDIENT id — the ambiguity classifier's feed. */
+        resolutions: ReadonlyMap<string, LatestResolution>;
+    }> {
         const pending = new Map<string, PendingState>();
 
         if (this.ingredientResolutions === undefined || measures.length === 0) {
-            return pending;
+            return { pending, resolutions: new Map<string, LatestResolution>() };
         }
 
         let resolutions: ReadonlyMap<string, LatestResolution>;
@@ -808,7 +861,7 @@ export class RecipesService {
                 error instanceof Error ? error.stack : String(error),
             );
 
-            return pending;
+            return { pending, resolutions: new Map<string, LatestResolution>() };
         }
 
         const now = new Date();
@@ -827,7 +880,7 @@ export class RecipesService {
             );
         }
 
-        return pending;
+        return { pending, resolutions };
     }
 
     /**
@@ -999,7 +1052,7 @@ export class RecipesService {
         // `loadLineVerdicts`. It runs AFTER the catalog because a verdict is keyed on the line's food id.
         const verdicts = await this.loadLineVerdicts(catalog, allMeasures);
         // KTD-A: one batched pending classification for the whole batch, like the verdict read above.
-        const pending = await this.loadPendingStates(allMeasures, verdicts);
+        const { pending } = await this.loadPendingStates(allMeasures, verdicts);
 
         const nutrition: Record<string, RecipeNutritionState> = {};
 
@@ -1058,7 +1111,7 @@ export class RecipesService {
         // `caller` is REQUIRED for nutrition: the numbers come from the food service, which authorizes the
         // request as the calling user. A path that omits it degrades to nutrition-absent (KTD-3b) — which
         // looks exactly like a food outage, so every detail path must supply it.
-        options: { viewerRating?: number; caller?: CallerToken } = {},
+        options: { viewerRating?: number; caller?: CallerToken; viewerId?: string } = {},
     ): Promise<RecipeResponse> {
         // The embedded gallery is always the FULL-SIZE originals (`resolvePhotoView.url`). The COVER,
         // however, serves the small thumbnail rendition (FOLLOW-UP-CR-001-A) via `resolveCoverUrl`, falling
@@ -1068,7 +1121,11 @@ export class RecipesService {
         const photos = photoRows.map((row) => resolvePhotoView(row, this.photosCdnUrl));
         const coverRow = photoRows[0];
 
-        const { nutrition, lineStatuses } = await this.computeDetailNutrition(aggregate, options.caller);
+        const { nutrition, lineStatuses } = await this.computeDetailNutrition(
+            aggregate,
+            options.caller,
+            options.viewerId,
+        );
 
         return toRecipeResponse(aggregate, {
             photos,
@@ -1220,7 +1277,7 @@ export class RecipesService {
         await this.requestVerification(aggregate.recipe.id, aggregate.ingredients, catalog, []);
 
         // A freshly-created recipe has no photos yet (uploaded afterward); nutrition is computed from its lines.
-        return this.toDetailResponse(aggregate, [], { caller });
+        return this.toDetailResponse(aggregate, [], { caller, viewerId: principal.userId });
     }
 
     /**
@@ -1543,6 +1600,7 @@ export class RecipesService {
         return this.toDetailResponse(aggregate, photos, {
             caller,
             ...(viewerRating !== undefined ? { viewerRating } : {}),
+            viewerId: ownerId,
         });
     }
 
@@ -1686,7 +1744,7 @@ export class RecipesService {
             await this.requestVerification(id, updated.ingredients, resolved.catalog, existing.ingredients);
         }
 
-        return this.toDetailResponse(updated, await this.loadPhotoRows(id));
+        return this.toDetailResponse(updated, await this.loadPhotoRows(id), { viewerId: ownerId });
     }
 
     /** Soft-delete (tombstone) a recipe the caller owns. */
@@ -1734,6 +1792,14 @@ export class RecipesService {
         // still credits provenance. An imported source already carries its attribution; keep it verbatim.
         const attribution = source.recipe.sourceAttribution ?? `Cloned from ${source.recipe.ownerId}`;
 
+        // U13 (R20): CLONE-UNBIND. A line backed by ANOTHER author's PRIVATE food must not travel into the
+        // clone still referencing that catalog row: the cloner cannot access the food, the row's name would
+        // keep resolving through a reference they cannot see, and the clone's line would count against the
+        // food's erasure reference check forever. Each such line arrives as a FREEFORM (user-entered) line
+        // carrying the same text — unbound, and re-resolvable through the ordinary picker. The count rides
+        // the response for the one-time banner. The food's OWN author cloning keeps their binding.
+        const { lines: clonedLines, unboundCount } = await this.unbindPrivateFoodLines(source.ingredients, ownerId);
+
         const created = await this.dal.create({
             ownerId,
             title: source.recipe.title,
@@ -1752,7 +1818,7 @@ export class RecipesService {
             clonedFromId: source.recipe.id,
             hasSubstantiveEdit: false,
             ingredientNamesText: source.recipe.ingredientNamesText,
-            ingredients: source.ingredients.map(toResolvedIngredientLine),
+            ingredients: clonedLines,
             steps: source.steps.map(toStepInputFromRow),
         });
 
@@ -1762,7 +1828,70 @@ export class RecipesService {
         await this.recordSnapshot(created, ownerId, `Cloned from ${source.recipe.id}`, editorHandle);
 
         // A fresh clone starts with no photos (not copied from the source); nutrition is computed from its lines.
-        return this.toDetailResponse(created, [], { caller });
+        const detail = await this.toDetailResponse(created, [], { caller, viewerId: ownerId });
+
+        // The banner's number — only on a clone that actually unbound something, so the ordinary clone's
+        // wire bytes are unchanged.
+        return unboundCount > 0 ? { ...detail, cloneUnboundLineCount: unboundCount } : detail;
+    }
+
+    /**
+     * U13 (R20): rewrite the source's lines for a clone — see the call site's rationale. Quiet on the
+     * privacy read the way every auxiliary read on the detail path is: on failure NOTHING unbinds, which
+     * keeps the clone whole; the viewer overlay still renders those lines `RESOLVED_UNAVAILABLE`.
+     *
+     * @param rows - The source recipe's stored lines.
+     * @param clonerId - The cloning user.
+     * @returns The lines to persist, and how many were unbound. @sideEffect Reads `ingredients`; may
+     *   create freeform rows.
+     */
+    private async unbindPrivateFoodLines(
+        rows: readonly RecipeIngredientRow[],
+        clonerId: string,
+    ): Promise<{ lines: ResolvedIngredientLine[]; unboundCount: number }> {
+        let privateOwners: ReadonlyMap<string, string>;
+
+        try {
+            privateOwners = await this.ingredientsDal.privateFoodOwnersByIngredientIds(
+                rows.map((row) => row.ingredientId),
+            );
+        } catch (error) {
+            this.logger.warn(
+                'Private-food owner read failed; the clone keeps every binding.',
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return { lines: rows.map(toResolvedIngredientLine), unboundCount: 0 };
+        }
+
+        const lines: ResolvedIngredientLine[] = [];
+        let unboundCount = 0;
+
+        for (const row of rows) {
+            const line = toResolvedIngredientLine(row);
+            const owner = privateOwners.get(row.ingredientId);
+
+            if (owner === undefined || owner === clonerId) {
+                lines.push(line);
+                continue;
+            }
+
+            const name = canonicalIngredientName(row.ingredientName);
+
+            if (name === undefined) {
+                // A name of invisible characters cannot key a freeform row; keep the binding — the viewer
+                // overlay still renders it unavailable, which is strictly better than dropping the line.
+                lines.push(line);
+                continue;
+            }
+
+            const freeform = await this.ingredientsDal.createFreeform(name);
+
+            lines.push({ ...line, ingredientId: freeform.id, isUserEntered: true });
+            unboundCount += 1;
+        }
+
+        return { lines, unboundCount };
     }
 
     /**
@@ -1804,7 +1933,7 @@ export class RecipesService {
             throw recipeNotFound(id);
         }
 
-        return this.toDetailResponse(updated, await this.loadPhotoRows(id));
+        return this.toDetailResponse(updated, await this.loadPhotoRows(id), { viewerId: principal.userId });
     }
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */

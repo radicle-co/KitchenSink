@@ -224,6 +224,115 @@ export const needsReviewNotice = (
 };
 
 /**
+ * Whether the gate marked this line AMBIGUOUS (plan U13, D7/R9) — the pick affordance's key. Pure.
+ *
+ * ⛔ ONLY `AMBIGUOUS`. Needs-review is a CONTRADICTION with the figure withheld; pending is a check in
+ * flight; this is an ABSTENTION over materially-different candidates whose figure still counts (R23) —
+ * three different affordances, three predicates.
+ *
+ * @param line - One recipe ingredient line as the detail read returns it.
+ * @returns `true` only for a gate-ambiguous line.
+ */
+export const isLineAmbiguous = (line: RecipeIngredientView): boolean =>
+    line.resolutionStatus === FoodResolutionStatus.AMBIGUOUS;
+
+/**
+ * Whether this line's food is another author's PRIVATE one (plan U13, R20). Name-only treatment — no pick
+ * affordance, never an error. Pure.
+ *
+ * @param line - One recipe ingredient line as the detail read returns it.
+ * @returns `true` only for a viewer-unavailable line.
+ */
+export const isLineUnavailable = (line: RecipeIngredientView): boolean =>
+    line.resolutionStatus === FoodResolutionStatus.RESOLVED_UNAVAILABLE;
+
+/** One row of the batched review surface: a distinct ambiguous PHRASE and how many lines it binds. */
+export interface AmbiguityReviewGroup {
+    /** The phrase (the line name, case-folded to the first spelling seen) a pick corrects. */
+    readonly phrase: string;
+    /** How many of this recipe's lines the one pick binds (gap 18). */
+    readonly lineCount: number;
+}
+
+/**
+ * The batched review surface's rows: the recipe's AMBIGUOUS lines grouped by phrase, in first-seen order.
+ *
+ * ⛔ ONE row per phrase, because ONE pick writes ONE correction (gap 18): the correction is keyed on the
+ * normalized phrase server-side, so two lines saying `Apple Sauce` and `apple sauce` are the same
+ * knowledge and folding them here is what makes "one pick binds every matching sibling" true rather than
+ * aspirational. Case folds; the first spelling seen is the row's display phrase. Pure.
+ *
+ * @param ingredients - The recipe's ingredient lines.
+ * @returns The review rows, in first-seen order.
+ */
+export const ambiguityReviewGroups = (ingredients: readonly RecipeIngredientView[]): AmbiguityReviewGroup[] => {
+    const groups = new Map<string, { phrase: string; lineCount: number }>();
+
+    for (const line of ingredients) {
+        if (!isLineAmbiguous(line)) {
+            continue;
+        }
+
+        const key = line.name.trim().toLowerCase();
+        const existing = groups.get(key);
+
+        if (existing === undefined) {
+            groups.set(key, { phrase: line.name.trim().toLowerCase(), lineCount: 1 });
+        } else {
+            existing.lineCount += 1;
+        }
+    }
+
+    return [...groups.values()];
+};
+
+/** The two localized sentences {@link ambiguousNotice} chooses between. */
+export interface AmbiguousNotices {
+    /** The entry sentence for exactly one ambiguous line. */
+    readonly ambiguousNoticeOne: string;
+    /** The template for two or more (contains `{count}`). */
+    readonly ambiguousNoticeMany: string;
+}
+
+/**
+ * The recipe-level ENTRY into the batched review surface, or `undefined` when nothing is ambiguous. The
+ * count is LINES (what a cook sees), not groups. Same singular/plural split as {@link needsReviewNotice},
+ * for the same localization reason. Pure.
+ *
+ * @param ingredients - The recipe's ingredient lines.
+ * @param notices - The localized copy for the active locale.
+ * @returns The entry sentence, or `undefined`.
+ */
+export const ambiguousNotice = (
+    ingredients: readonly RecipeIngredientView[],
+    notices: AmbiguousNotices,
+): string | undefined => {
+    const count = ingredients.filter(isLineAmbiguous).length;
+
+    if (count === 0) {
+        return undefined;
+    }
+
+    return count === 1 ? notices.ambiguousNoticeOne : fillTemplate(notices.ambiguousNoticeMany, { count });
+};
+
+/**
+ * The one-time CLONE banner's sentence (plan U13, R20), or `undefined` when the response carried no
+ * unbound count — which is every non-clone read, and every clone that unbound nothing. Pure.
+ *
+ * @param cloneUnboundLineCount - The clone response's count, if present.
+ * @param notices - The localized banner template (contains `{count}`).
+ * @returns The banner sentence, or `undefined`.
+ */
+export const cloneUnboundBannerText = (
+    cloneUnboundLineCount: number | undefined,
+    notices: { readonly cloneUnboundBanner: string },
+): string | undefined =>
+    cloneUnboundLineCount === undefined || cloneUnboundLineCount === 0
+        ? undefined
+        : fillTemplate(notices.cloneUnboundBanner, { count: cloneUnboundLineCount });
+
+/**
  * Props for the recipe-detail HERO cover, shared by the web (`RecipeHero.tsx`) and native
  * (`RecipeHero.native.tsx`) leaves so the two cannot drift on the contract (§14.4).
  */

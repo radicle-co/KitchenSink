@@ -27,7 +27,13 @@ import pg from 'pg';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from '../../../tests/e2e/harness.js';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
-import { recipes, recipeSteps, recipeIngredients, type RecipeRow } from '../../../src/database/schema/index.js';
+import {
+    ingredients,
+    recipes,
+    recipeSteps,
+    recipeIngredients,
+    type RecipeRow,
+} from '../../../src/database/schema/index.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
@@ -45,7 +51,8 @@ interface RecipeBody {
     visibility: string;
     currentVersion: number;
     steps: { stepNumber: number; instruction: string }[];
-    ingredients: { ingredientId: string }[];
+    ingredients: { ingredientId: string; isUserEntered?: boolean; resolutionStatus?: string }[];
+    cloneUnboundLineCount?: number;
 }
 
 /** Insert a full recipe (row + one step + one ingredient link) directly, returning its id. */
@@ -318,5 +325,112 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         });
         expect(allowed.status).toBe(201);
         expect((await allowed.json()).visibility).toBe('public');
+    });
+    // ── U13: clone-unbind (R20) — a private-food line arrives UNBOUND and re-resolvable ─────────────
+
+    it("U13: cloning a recipe with ANOTHER author's private-food line UNBINDS it — freeform, re-resolvable, counted", async () => {
+        // The source line's catalog row is backed by the AUTHOR's private food.
+        const privateCatalogId = '00000000-0000-4000-8000-0000c10de001';
+        await db
+            .insert(ingredients)
+            .values({
+                id: privateCatalogId,
+                name: 'Grandma Blend',
+                foodId: '01JU13CLONEPRIVFOOD000001',
+                foodResolutionStatus: 'RESOLVED',
+                foodOwnerId: AUTHOR,
+            })
+            .onConflictDoNothing();
+
+        const sourceId = await seedRecipe(db, {
+            ownerId: AUTHOR,
+            title: 'Clone unbind source',
+            visibility: 'public',
+            status: 'published',
+            sourceType: 'user_created',
+        });
+        // A second line bound to the private food (seedRecipe's own line stays freeform).
+        await db.insert(recipeIngredients).values({
+            recipeId: sourceId,
+            ingredientId: privateCatalogId,
+            ingredientName: 'Grandma Blend',
+            quantity: '1',
+            unit: 'cup',
+            sortOrder: 1,
+            isUserEntered: false,
+        });
+
+        const response = await fetch(`${baseUrl}/api/v1/recipes/${sourceId}/clone`, {
+            method: 'POST',
+            headers: { authorization: 'Bearer integration-caller-token' },
+        });
+
+        expect(response.status).toBe(201);
+
+        const clone = (await response.json()) as RecipeBody;
+
+        // The banner's number: exactly the private-food lines that arrived unbound.
+        expect(clone.cloneUnboundLineCount).toBe(1);
+
+        const unbound = clone.ingredients[1];
+
+        expect(unbound).toBeDefined();
+        // ⛔ A DIFFERENT ingredient id: the clone must not reference the private-food catalog row at all —
+        // referencing it would keep the food's NAME resolving through a row the cloner cannot access, and
+        // would count the cloner's line against the food's erasure reference check forever.
+        expect(unbound?.ingredientId).not.toBe(privateCatalogId);
+        expect(unbound?.isUserEntered).toBe(true);
+
+        // The normal (freeform) first line cloned exactly as before — no count, no rewrite.
+        expect(clone.ingredients[0]?.ingredientId).toBe(FLOUR_ID);
+    });
+
+    it('U13: the food AUTHOR cloning their OWN recipe keeps the private-food binding — nothing to unbind', async () => {
+        const privateCatalogId = '00000000-0000-4000-8000-0000c10de002';
+        await db
+            .insert(ingredients)
+            .values({
+                id: privateCatalogId,
+                name: 'Own Blend',
+                foodId: '01JU13CLONEPRIVFOOD000002',
+                foodResolutionStatus: 'RESOLVED',
+                foodOwnerId: AUTHOR,
+            })
+            .onConflictDoNothing();
+
+        const sourceId = await seedRecipe(db, {
+            ownerId: AUTHOR,
+            title: 'Own clone source',
+            visibility: 'public',
+            status: 'published',
+            sourceType: 'user_created',
+        });
+        await db.insert(recipeIngredients).values({
+            recipeId: sourceId,
+            ingredientId: privateCatalogId,
+            ingredientName: 'Own Blend',
+            quantity: '1',
+            unit: 'cup',
+            sortOrder: 1,
+            isUserEntered: false,
+        });
+
+        const closeAuthorApp = await bootRecipeApp({ devAuthUserId: AUTHOR });
+
+        try {
+            const response = await fetch(`${closeAuthorApp.baseUrl}/api/v1/recipes/${sourceId}/clone`, {
+                method: 'POST',
+                headers: { authorization: 'Bearer integration-caller-token' },
+            });
+
+            expect(response.status).toBe(201);
+
+            const clone = (await response.json()) as RecipeBody;
+
+            expect(clone.cloneUnboundLineCount ?? 0).toBe(0);
+            expect(clone.ingredients[1]?.ingredientId).toBe(privateCatalogId);
+        } finally {
+            await closeAuthorApp.close();
+        }
     });
 });

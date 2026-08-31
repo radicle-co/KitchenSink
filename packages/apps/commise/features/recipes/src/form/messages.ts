@@ -268,6 +268,10 @@ export interface RecipeFormMessages {
      * wait; the total re-flows as verdicts land), which is what separates it from `statusNeedsReview`.
      */
     readonly statusPendingVerification: string;
+    /** U13 (D7/R9): the gate abstained over materially-different candidates — the pick affordance's badge. */
+    readonly statusAmbiguous: string;
+    /** U13 (R20): another author's private food — details unavailable to this viewer, never an error. */
+    readonly statusResolvedUnavailable: string;
 
     /** Heading for the instructions section. */
     readonly stepsHeading: string;
@@ -391,6 +395,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         statusFailed: 'Resolution failed',
         statusNeedsReview: 'Needs review',
         statusPendingVerification: 'Checking…',
+        statusAmbiguous: 'Needs a pick',
+        statusResolvedUnavailable: 'Ingredient details unavailable',
 
         stepsHeading: 'Instructions',
         stepInstructionLabel: 'Step {number} instruction',

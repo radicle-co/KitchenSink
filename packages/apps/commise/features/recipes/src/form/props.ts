@@ -666,6 +666,14 @@ export const resolutionStatusLabel = (messages: RecipeFormMessages, status: Food
             // U4c — KTD-A's quiet state: the bind is made, the check is in flight, the figure re-flows when
             // the verdict lands. Deliberately calm copy — there is nothing for the cook to act on yet.
             return messages.statusPendingVerification;
+        case 'AMBIGUOUS':
+            // U13 (D7/R9) — the gate abstained over materially-different candidates. Author-actionable:
+            // the batched review surface and the inline pick affordance both key off this member.
+            return messages.statusAmbiguous;
+        case 'RESOLVED_UNAVAILABLE':
+            // U13 (R20) — bound, but the food is another author's private one. Name-only for this viewer:
+            // directionally "details unavailable", never an error, and no pick affordance.
+            return messages.statusResolvedUnavailable;
     }
 };
 

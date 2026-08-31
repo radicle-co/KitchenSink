@@ -204,6 +204,8 @@ describe.skipIf(!hasDatabaseUrl)('U14 — a verification verdict reaches the coo
     afterEach(async () => {
         await pool.query(`DELETE FROM recipe_ingredient_verifications WHERE verification_key = $1`, [VERDICT_KEY]);
         await pool.query(`DELETE FROM ingredient_resolutions WHERE ingredient_id = $1`, [CATALOG_ID]);
+        // U13: the R20 overlay cases set the privacy fact; every other case expects it clear.
+        await pool.query(`UPDATE ingredients SET food_owner_id = NULL WHERE id = $1`, [CATALOG_ID]);
     });
 
     /**
@@ -212,13 +214,17 @@ describe.skipIf(!hasDatabaseUrl)('U14 — a verification verdict reaches the coo
      *
      * @sideEffect Inserts `ingredient_resolutions`.
      */
-    async function recordLexicalEvent(ageHours: number, bandEpoch: string | null = null): Promise<void> {
+    async function recordLexicalEvent(
+        ageHours: number,
+        bandEpoch: string | null = null,
+        shortlist: unknown[] = [],
+    ): Promise<void> {
         await pool.query(
             `INSERT INTO ingredient_resolutions
                  (ingredient_id, tier, rung, margin, shortlist, query_shape, ranker_version, band_epoch, created_at)
-             VALUES ($1, 'lexical', 'head', 0.4, '[]'::jsonb, 'multi-word', 'ladder-v2-comma-head', $2,
+             VALUES ($1, 'lexical', 'head', 0.4, $4::jsonb, 'multi-word', 'ladder-v2-comma-head', $2,
                      now() - ($3 || ' hours')::interval)`,
-            [CATALOG_ID, bandEpoch, String(ageHours)],
+            [CATALOG_ID, bandEpoch, String(ageHours), JSON.stringify(shortlist)],
         );
     }
 
@@ -324,5 +330,99 @@ describe.skipIf(!hasDatabaseUrl)('U14 — a verification verdict reaches the coo
         // would withdraw nutrition from every recipe in the system referencing this food — 0023's first and
         // independently sufficient reason for keeping verdicts in their own table.
         expect(rows[0]?.food_resolution_status).toBe('RESOLVED');
+    });
+    // ── U13: the AMBIGUOUS member (D7/R9) ────────────────────────────────────────────────────────────
+
+    /** Two candidates whose macros AGREE within the gate's tolerance. */
+    const AGREEING_SHORTLIST = [
+        {
+            foodId: FOOD_ID,
+            score: 0.9,
+            energyKcalPer100g: 364,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+            carbohydrateGPer100g: 76,
+        },
+        {
+            foodId: '01JFOODU13OTHER0000000001',
+            score: 0.85,
+            energyKcalPer100g: 360,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+            carbohydrateGPer100g: 75,
+        },
+    ];
+    /** Two candidates that differ MATERIALLY — the pick changes the figure. */
+    const SPREAD_SHORTLIST = [
+        {
+            foodId: FOOD_ID,
+            score: 0.9,
+            energyKcalPer100g: 364,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+            carbohydrateGPer100g: 76,
+        },
+        {
+            foodId: '01JFOODU13OTHER0000000001',
+            score: 0.85,
+            energyKcalPer100g: 900,
+            proteinGPer100g: 0,
+            fatGPer100g: 100,
+            carbohydrateGPer100g: 0,
+        },
+    ];
+
+    it('U13: an INCONCLUSIVE verdict over a materially-spread shortlist badges the line AMBIGUOUS — and still publishes (R23)', async () => {
+        await recordLexicalEvent(1, null, SPREAD_SHORTLIST);
+        await recordVerdict('inconclusive');
+
+        const detail = await askDetail();
+
+        expect(detail.ingredients[0]?.resolutionStatus).toBe('AMBIGUOUS');
+        // R23: ambiguity never withholds — the abstention publishes exactly as absence does.
+        const batch = await askBatch();
+
+        expect(batch.nutrition[RECIPE_ID]?.state).toBe('known');
+    });
+
+    it('U13: the same inconclusive verdict over AGREEING candidates stays quiet — no pick over nothing', async () => {
+        await recordLexicalEvent(1, null, AGREEING_SHORTLIST);
+        await recordVerdict('inconclusive');
+
+        const detail = await askDetail();
+
+        expect(detail.ingredients[0]?.resolutionStatus).not.toBe('AMBIGUOUS');
+    });
+
+    // ── U13: the RESOLVED_UNAVAILABLE overlay (R20) ─────────────────────────────────────────────────
+
+    it('U13: a private food owned by SOMEONE ELSE renders RESOLVED_UNAVAILABLE to this viewer — name-only, never an error', async () => {
+        await pool.query(`UPDATE ingredients SET food_owner_id = '01JU13SOMEONEELSE00000001' WHERE id = $1`, [
+            CATALOG_ID,
+        ]);
+
+        const detail = await askDetail();
+
+        expect(detail.ingredients[0]?.resolutionStatus).toBe('RESOLVED_UNAVAILABLE');
+    });
+
+    it("U13: the food's OWN author sees the underlying status untouched", async () => {
+        await pool.query(`UPDATE ingredients SET food_owner_id = $2 WHERE id = $1`, [CATALOG_ID, OWNER]);
+        await recordVerdict('contradicted');
+
+        const detail = await askDetail();
+
+        expect(detail.ingredients[0]?.resolutionStatus).toBe('NEEDS_REVIEW');
+    });
+
+    it('U13: the overlay OUTRANKS the actionable states for a stranger — no pick affordance against an inaccessible food', async () => {
+        await pool.query(`UPDATE ingredients SET food_owner_id = '01JU13SOMEONEELSE00000001' WHERE id = $1`, [
+            CATALOG_ID,
+        ]);
+        await recordVerdict('contradicted');
+
+        const detail = await askDetail();
+
+        expect(detail.ingredients[0]?.resolutionStatus).toBe('RESOLVED_UNAVAILABLE');
     });
 });

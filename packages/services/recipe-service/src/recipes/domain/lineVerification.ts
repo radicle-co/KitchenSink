@@ -53,7 +53,12 @@
  * LOST verdict benign, which is what lets the worker swallow a failed verdict write without re-paying for
  * the call.
  */
-import { PENDING_VERIFICATION_MAX_AGE_HOURS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
+import {
+    nutrientAgreementOf,
+    PENDING_VERIFICATION_MAX_AGE_HOURS,
+    PROVISIONAL_VERIFICATION_THRESHOLDS,
+    type ScoredCandidate,
+} from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 import {
     FoodResolutionStatus,
     type IngredientQuantity,
@@ -214,6 +219,13 @@ export function resolveLineStatus(
     band: VerificationBand | undefined,
     catalogStatus: LineResolutionStatus | undefined,
     pending: PendingState,
+    /**
+     * U13 (D7/R9): whether the line's shortlist showed MATERIAL nutrient spread — the
+     * {@link ambiguousStateOf} verdict, computed by the caller from the line's latest resolution.
+     * ⛔ REQUIRED, never defaulted: a call site that has not thought about ambiguity must not silently
+     * keep the pre-U13 behaviour (the 015 `hasAvailablePrivateSlot` posture).
+     */
+    ambiguous: boolean,
 ): LineResolutionStatus | undefined {
     if (band === undefined) {
         // KTD-A (plan U4c): a zero-authority lexical bind is visibly PENDING until the gate agrees, and
@@ -234,8 +246,12 @@ export function resolveLineStatus(
         case 'contradicted':
             return FoodResolutionStatus.NEEDS_REVIEW;
         case 'verified':
-        case 'inconclusive':
             return catalogStatus;
+        case 'inconclusive':
+            // U13 (D7/R9): the gate ABSTAINED. When the shortlist it abstained over differs materially on
+            // nutrition, the pick changes the figure and the AUTHOR is asked; otherwise the abstention
+            // publishes exactly as before (the shipped absence semantics — R23 keeps publish allowed).
+            return ambiguous ? FoodResolutionStatus.AMBIGUOUS : catalogStatus;
     }
 }
 
@@ -325,4 +341,55 @@ function quantityLowOf(quantity: IngredientQuantity): number | null {
             // fabricated number would key the verdict to a quantity nobody wrote.
             return null;
     }
+}
+
+/**
+ * D7/R9 (plan U13): whether one line's gate abstention is AMBIGUOUS — author-actionable — rather than a
+ * quiet publish.
+ *
+ * ⛔ ONE authority for "material spread": {@link nutrientAgreementOf} is the SAME rule the gate's own
+ * decision read (`decideVerification`'s D4a conjunct), imported rather than re-derived — two spellings of
+ * "do these candidates agree?" would let the gate and this classifier disagree about the same shortlist.
+ * Only an explicit `disagree` is material: `unknown` (absent vectors, a lone candidate, no shortlist at
+ * all) must never invite a pick over nothing.
+ *
+ * @param band - The gate's verdict for this line, or `undefined`.
+ * @param shortlist - The line's latest resolution's stored shortlist, or `null`/absent.
+ * @returns Whether the line renders the AMBIGUOUS pick affordance. Pure.
+ */
+export function ambiguousStateOf(
+    band: VerificationBand | undefined,
+    shortlist: readonly ScoredCandidate[] | null | undefined,
+): boolean {
+    if (band !== 'inconclusive' || shortlist === null || shortlist === undefined) {
+        return false;
+    }
+
+    return nutrientAgreementOf(shortlist, PROVISIONAL_VERIFICATION_THRESHOLDS.nutrientAgreementFraction) === 'disagree';
+}
+
+/**
+ * R20 (plan U13): the VIEWER-scoped overlay — what one line reports to THIS viewer.
+ *
+ * A line bound to a PRIVATE authored food is `RESOLVED_UNAVAILABLE` for everyone but that food's author:
+ * the viewer gets the line's NAME and a "details unavailable" treatment — ⛔ no pick affordance and no
+ * needs-review invitation either, because both invite action against a food this viewer cannot access,
+ * and never an error state. An UNKNOWN viewer classifies as a stranger — privacy fails toward
+ * unavailable, the same direction every R20 predicate fails.
+ *
+ * @param status - The line's viewer-independent status ({@link resolveLineStatus}'s answer).
+ * @param privateFoodOwner - The food's author ULID when the line's food is private, else `undefined`.
+ * @param viewerId - The viewing user, or `undefined` when unknown.
+ * @returns The status THIS viewer sees. Pure.
+ */
+export function viewerLineStatus(
+    status: LineResolutionStatus | undefined,
+    privateFoodOwner: string | undefined,
+    viewerId: string | undefined,
+): LineResolutionStatus | undefined {
+    if (privateFoodOwner !== undefined && privateFoodOwner !== viewerId) {
+        return FoodResolutionStatus.RESOLVED_UNAVAILABLE;
+    }
+
+    return status;
 }

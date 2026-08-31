@@ -351,7 +351,7 @@ function within(left: number, right: number, fraction: number): boolean {
  * @param fraction - Relative tolerance.
  * @returns The agreement verdict. Pure.
  */
-function nutrientAgreementOf(shortlist: readonly ScoredCandidate[], fraction: number): NutrientAgreement {
+export function nutrientAgreementOf(shortlist: readonly ScoredCandidate[], fraction: number): NutrientAgreement {
     if (shortlist.length < 2) {
         return 'unknown';
     }

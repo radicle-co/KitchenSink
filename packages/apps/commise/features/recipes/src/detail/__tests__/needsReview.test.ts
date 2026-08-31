@@ -11,7 +11,16 @@ import { describe, expect, it } from 'vitest';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { makeIngredientView } from '../../__fixtures__/index.js';
-import { needsReviewCount, needsReviewNotice, isLineNeedsReview } from '../model.js';
+import {
+    ambiguityReviewGroups,
+    ambiguousNotice,
+    cloneUnboundBannerText,
+    isLineAmbiguous,
+    isLineNeedsReview,
+    isLineUnavailable,
+    needsReviewCount,
+    needsReviewNotice,
+} from '../model.js';
 import { recipeMessages } from '../../messages.js';
 
 const en = recipeMessages.en.detail;
@@ -82,5 +91,59 @@ describe('needsReviewNotice', () => {
         // withheld it. A cook who cannot tell those apart cannot act on either.
         expect(en.needsReviewNoticeOne).not.toBe(en.nutritionPartial);
         expect(en.needsReviewBadge).not.toBe(en.userEnteredBadge);
+    });
+});
+
+/** One ingredient view with the given line status and name — the U13 suite's fixture. */
+function line(status: string | undefined, name = 'probe'): ReturnType<typeof makeIngredientView> {
+    return makeIngredientView({
+        name,
+        ...(status === undefined ? {} : { resolutionStatus: status as never }),
+    });
+}
+
+describe('the U13 ambiguity surface model (D7/R9)', () => {
+    const notices = {
+        ambiguousNoticeOne: 'ONE could match more.',
+        ambiguousNoticeMany: '{count} could match more.',
+    };
+
+    it('isLineAmbiguous keys ONLY off AMBIGUOUS — needs-review and pending stay their own affordances', () => {
+        expect(isLineAmbiguous(line('AMBIGUOUS'))).toBe(true);
+        expect(isLineAmbiguous(line('NEEDS_REVIEW'))).toBe(false);
+        expect(isLineAmbiguous(line('PENDING_VERIFICATION'))).toBe(false);
+        expect(isLineAmbiguous(line(undefined))).toBe(false);
+    });
+
+    it('ambiguityReviewGroups: siblings sharing a NAME fold into one row — one pick, one correction (gap 18)', () => {
+        const groups = ambiguityReviewGroups([
+            line('AMBIGUOUS', 'apple sauce'),
+            line('AMBIGUOUS', 'Apple Sauce'),
+            line('AMBIGUOUS', 'brandy'),
+            line('RESOLVED', 'flour'),
+        ]);
+
+        expect(groups).toHaveLength(2);
+        expect(groups[0]).toEqual({ phrase: 'apple sauce', lineCount: 2 });
+        expect(groups[1]).toEqual({ phrase: 'brandy', lineCount: 1 });
+    });
+
+    it('ambiguousNotice: absent at zero, singular at one, counted template above', () => {
+        expect(ambiguousNotice([line('RESOLVED')], notices)).toBeUndefined();
+        expect(ambiguousNotice([line('AMBIGUOUS')], notices)).toBe('ONE could match more.');
+        expect(ambiguousNotice([line('AMBIGUOUS', 'a'), line('AMBIGUOUS', 'b')], notices)).toBe('2 could match more.');
+    });
+
+    it('isLineUnavailable keys ONLY off RESOLVED_UNAVAILABLE (R20) — name-only, never an error', () => {
+        expect(isLineUnavailable(line('RESOLVED_UNAVAILABLE'))).toBe(true);
+        expect(isLineUnavailable(line('RESOLVED'))).toBe(false);
+    });
+
+    it('cloneUnboundBannerText: only when the clone reported unbound lines, with the count filled', () => {
+        const banner = { cloneUnboundBanner: '{count} need re-matching.' };
+
+        expect(cloneUnboundBannerText(undefined, banner)).toBeUndefined();
+        expect(cloneUnboundBannerText(0, banner)).toBeUndefined();
+        expect(cloneUnboundBannerText(3, banner)).toBe('3 need re-matching.');
     });
 });

@@ -451,6 +451,23 @@ export const FoodResolutionStatus = {
      * exactly one proposed food and nothing for a picker to do.
      */
     PENDING_VERIFICATION: 'PENDING_VERIFICATION',
+    /**
+     * ⛔ RECIPE-LINE ONLY, and DERIVED at read (plan U13, D7/R9): the gate ABSTAINED (`inconclusive`) over
+     * a shortlist whose candidates differ MATERIALLY on nutrition — the pick changes the figure, so the
+     * AUTHOR is asked. Renders the pick affordance (re-derived shortlist; one pick binds every matching
+     * sibling and writes ONE correction). ⛔ NOT `UNRESOLVED`: that drives the CANDIDATE picker over a
+     * catalog row's own candidate set; this is the verification gate's abstention over a ranked shortlist.
+     * Publish stays allowed with ambiguous lines (R23).
+     */
+    AMBIGUOUS: 'AMBIGUOUS',
+    /**
+     * ⛔ RECIPE-LINE ONLY, DERIVED at read, and VIEWER-DEPENDENT (plan U13, R20): the line IS bound, but
+     * its food is a PRIVATE authored one whose author is not THIS viewer (a private food on a public
+     * recipe — a clone, or a promoted-then-reverted edge). The viewer gets the line's NAME and a
+     * "details unavailable" treatment: no pick affordance, never an error, and the recipe total reports
+     * the line as unaccounted for this viewer (the food service does not serve them the nutrition).
+     */
+    RESOLVED_UNAVAILABLE: 'RESOLVED_UNAVAILABLE',
 } as const;
 
 /**
@@ -502,6 +519,8 @@ export const lineResolutionStatusSchema = z.enum([
     FoodResolutionStatus.FAILED,
     FoodResolutionStatus.NEEDS_REVIEW,
     FoodResolutionStatus.PENDING_VERIFICATION,
+    FoodResolutionStatus.AMBIGUOUS,
+    FoodResolutionStatus.RESOLVED_UNAVAILABLE,
 ]);
 
 /** One recipe line's food-resolution status — the catalog mirror widened by the gate's own verdict. */
@@ -665,6 +684,13 @@ export interface RecipeDetail extends Recipe {
      * list/search {@link Recipe} projection, which carries only the community score.
      */
     viewerRating?: number;
+    /**
+     * U13 (R20): on a CLONE response only — how many source lines arrived UNBOUND because they referenced
+     * another author's private food (each became a user-entered line, re-resolvable through the picker).
+     * The one-time "N ingredients need re-matching" banner's number. Absent on every other read and on a
+     * clone that unbound nothing.
+     */
+    cloneUnboundLineCount?: number;
 }
 
 // NB: `recipeDetailSchema` is defined AFTER `recipePhotoSchema` (below) — it references it, and a `const`
@@ -916,6 +942,8 @@ export const recipeDetailSchema = recipeSchema.extend({
     // 1..5 whole stars; absent (never 0) when the viewer has not rated — see the RecipeDetail.viewerRating
     // docstring. The schema is non-strict, so without this line the client would silently STRIP the field.
     viewerRating: z.number().int().min(1).max(5).optional(),
+    // U13 — see the interface docstring. Non-strict schema: without this line a client would STRIP it.
+    cloneUnboundLineCount: nonNegativeIntSchema.optional(),
 });
 
 /**

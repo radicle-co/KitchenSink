@@ -50,7 +50,7 @@ describe('lineResolutionStatusSchema — the per-RECIPE-LINE status', () => {
         expect(lineResolutionStatusSchema.safeParse('NEEDS_REVIEW').success).toBe(true);
     });
 
-    it('adds EXACTLY two members to the mirror — nothing else drifts in', () => {
+    it('adds EXACTLY four members to the mirror — nothing else drifts in', () => {
         // ⚠️ REWRITTEN for plan U4c: KTD-A's derived `PENDING_VERIFICATION` joined `NEEDS_REVIEW` as the
         // second recipe-line-only member. Both are derived at read and never written to a catalog row —
         // the closed catalog schema is asserted unchanged below.
@@ -58,7 +58,15 @@ describe('lineResolutionStatusSchema — the per-RECIPE-LINE status', () => {
             (status) => !(foodResolutionStatusSchema.options as readonly string[]).includes(status),
         );
 
-        expect(extra).toEqual(['NEEDS_REVIEW', 'PENDING_VERIFICATION']);
+        // ⚠️ REWRITTEN for plan U13: D7/R9's `AMBIGUOUS` (the gate abstained over materially-different
+        // candidates — author-actionable) and R20's `RESOLVED_UNAVAILABLE` (bound, but the food entity is
+        // not served to THIS viewer — a private authored food on a public recipe) joined the line-only set.
+        expect([...extra].sort()).toEqual([
+            'AMBIGUOUS',
+            'NEEDS_REVIEW',
+            'PENDING_VERIFICATION',
+            'RESOLVED_UNAVAILABLE',
+        ]);
     });
 
     it('admits PENDING_VERIFICATION — and the CATALOG schema still refuses it', () => {
@@ -109,5 +117,25 @@ describe('recipeIngredientViewSchema — the per-line status on the wire (U14)',
         const parsed = recipeIngredientViewSchema.parse(makeLine({ someFutureField: 'x' }));
 
         expect(parsed).not.toHaveProperty('someFutureField');
+    });
+});
+
+describe('the U13 line-only members — AMBIGUOUS and RESOLVED_UNAVAILABLE', () => {
+    it('admits both on the LINE schema', () => {
+        expect(lineResolutionStatusSchema.safeParse('AMBIGUOUS').success).toBe(true);
+        expect(lineResolutionStatusSchema.safeParse('RESOLVED_UNAVAILABLE').success).toBe(true);
+    });
+
+    it('⛔ the CATALOG schema refuses both — the catalog union stays CLOSED (0023 blast-radius rule)', () => {
+        expect(foodResolutionStatusSchema.safeParse('AMBIGUOUS').success).toBe(false);
+        expect(foodResolutionStatusSchema.safeParse('RESOLVED_UNAVAILABLE').success).toBe(false);
+    });
+
+    it('⛔ AMBIGUOUS is not UNRESOLVED: the disambiguation picker semantics must never trigger on it', () => {
+        // UNRESOLVED drives the CANDIDATE picker (several catalog candidates, pick one). AMBIGUOUS is the
+        // GATE abstaining over a shortlist whose members differ materially — a different affordance
+        // (re-derived shortlist, one pick binds siblings, writes a correction). Same word territory,
+        // different machinery; the members being distinct is what keeps a picker row dead-branch-free.
+        expect(FoodResolutionStatus.AMBIGUOUS).not.toBe(FoodResolutionStatus.UNRESOLVED);
     });
 });

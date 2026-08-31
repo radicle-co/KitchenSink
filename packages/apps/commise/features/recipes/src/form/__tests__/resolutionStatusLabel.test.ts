@@ -47,3 +47,23 @@ describe('resolutionStatusLabel', () => {
         expect(label).not.toBe(en.statusUnresolved);
     });
 });
+
+describe('the U13 members', () => {
+    it('labels an AMBIGUOUS line with its own pick copy — never the disambiguation picker’s UNRESOLVED', () => {
+        const label = resolutionStatusLabel(en, FoodResolutionStatus.AMBIGUOUS);
+
+        expect(label).toBe(en.statusAmbiguous);
+        // ⛔ UNRESOLVED drives the candidate picker over a catalog row's own set; AMBIGUOUS is the gate's
+        // abstention over a ranked shortlist — reusing the copy would send a cook to the wrong affordance.
+        expect(label).not.toBe(en.statusUnresolved);
+        expect(label).not.toBe(en.statusNeedsReview);
+    });
+
+    it('labels a viewer-unavailable line with the details-unavailable copy — never an error tone', () => {
+        const label = resolutionStatusLabel(en, FoodResolutionStatus.RESOLVED_UNAVAILABLE);
+
+        expect(label).toBe(en.statusResolvedUnavailable);
+        expect(label).not.toBe(en.statusFailed);
+        expect(label).not.toBe(en.statusNotFound);
+    });
+});

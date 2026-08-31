@@ -24,7 +24,9 @@ import {
     PENDING_VERIFICATION_MAX_AGE_HOURS,
     isWithheldLine,
     pendingStateOf,
+    ambiguousStateOf,
     resolveLineStatus,
+    viewerLineStatus,
     verifiedLineIdentity,
     VERIFICATION_BANDS,
 } from '../lineVerification.js';
@@ -216,38 +218,40 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
 
 describe('resolveLineStatus — which status one recipe line reports', () => {
     it('reports NEEDS_REVIEW when the gate CONTRADICTED the line, overriding the catalog mirror', () => {
-        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none')).toBe(
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
             FoodResolutionStatus.NEEDS_REVIEW,
         );
     });
 
     it('reports NEEDS_REVIEW even when the catalog knows nothing about the food', () => {
-        expect(resolveLineStatus('contradicted', undefined, 'none')).toBe(FoodResolutionStatus.NEEDS_REVIEW);
+        expect(resolveLineStatus('contradicted', undefined, 'none', false)).toBe(FoodResolutionStatus.NEEDS_REVIEW);
     });
 
     it('⛔ passes a VERIFIED line through unchanged — a verdict that agreed changes nothing', () => {
-        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none')).toBe(
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
             FoodResolutionStatus.RESOLVED,
         );
     });
 
     it('⛔ passes an INCONCLUSIVE line through unchanged — abstention is not disagreement', () => {
-        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.PENDING, 'none')).toBe(
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.PENDING, 'none', false)).toBe(
             FoodResolutionStatus.PENDING,
         );
     });
 
     it('⛔ ABSENCE OF A VERDICT MEANS PUBLISH — the line reports its catalog status alone (0023)', () => {
-        expect(resolveLineStatus(undefined, FoodResolutionStatus.PENDING, 'none')).toBe(FoodResolutionStatus.PENDING);
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.PENDING, 'none', false)).toBe(
+            FoodResolutionStatus.PENDING,
+        );
     });
 
     it('reports nothing at all for an unjudged line with no catalog status', () => {
-        expect(resolveLineStatus(undefined, undefined, 'none')).toBeUndefined();
+        expect(resolveLineStatus(undefined, undefined, 'none', false)).toBeUndefined();
     });
 
     it('is TOTAL over every band migration 0023 admits', () => {
         for (const band of VERIFICATION_BANDS) {
-            expect(resolveLineStatus(band, FoodResolutionStatus.RESOLVED, 'none')).toBeDefined();
+            expect(resolveLineStatus(band, FoodResolutionStatus.RESOLVED, 'none', false)).toBeDefined();
         }
     });
 });
@@ -310,23 +314,141 @@ describe('isWithheldLine — pending and aged withhold macros exactly like a con
 
 describe('resolveLineStatus — the pending members (plan U4c)', () => {
     it('a PENDING line reports PENDING_VERIFICATION, whatever the catalog says', () => {
-        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'pending')).toBe(
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'pending', false)).toBe(
             FoodResolutionStatus.PENDING_VERIFICATION,
         );
     });
 
     it('an AGED line adopts the actionable NEEDS_REVIEW treatment', () => {
-        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'aged')).toBe(
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'aged', false)).toBe(
             FoodResolutionStatus.NEEDS_REVIEW,
         );
     });
 
     it('a verdict outranks pending inputs — the switch is on the verdict first', () => {
-        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none')).toBe(
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
             FoodResolutionStatus.RESOLVED,
         );
-        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none')).toBe(
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
             FoodResolutionStatus.NEEDS_REVIEW,
+        );
+    });
+});
+
+describe('ambiguousStateOf — D7/R9: the gate abstained over materially-different candidates (plan U13)', () => {
+    /** Two shortlist candidates whose macros AGREE within tolerance. */
+    const AGREEING = [
+        {
+            foodId: 'f1',
+            score: 0.9,
+            energyKcalPer100g: 364,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+            carbohydrateGPer100g: 76,
+        },
+        {
+            foodId: 'f2',
+            score: 0.4,
+            energyKcalPer100g: 360,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+            carbohydrateGPer100g: 75,
+        },
+    ];
+    /** Two candidates that differ MATERIALLY — the pick changes the figure. */
+    const SPREAD = [
+        {
+            foodId: 'f1',
+            score: 0.9,
+            energyKcalPer100g: 364,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+            carbohydrateGPer100g: 76,
+        },
+        {
+            foodId: 'f2',
+            score: 0.8,
+            energyKcalPer100g: 900,
+            proteinGPer100g: 0,
+            fatGPer100g: 100,
+            carbohydrateGPer100g: 0,
+        },
+    ];
+
+    it('AMBIGUOUS: an inconclusive verdict over a materially-spread shortlist', () => {
+        expect(ambiguousStateOf('inconclusive', SPREAD)).toBe(true);
+    });
+
+    it('NOT ambiguous when the candidates agree — the pick would not change the figure', () => {
+        expect(ambiguousStateOf('inconclusive', AGREEING)).toBe(false);
+    });
+
+    it('NOT ambiguous without an inconclusive verdict — verified, contradicted and unjudged all decline', () => {
+        expect(ambiguousStateOf('verified', SPREAD)).toBe(false);
+        expect(ambiguousStateOf('contradicted', SPREAD)).toBe(false);
+        expect(ambiguousStateOf(undefined, SPREAD)).toBe(false);
+    });
+
+    it('⛔ an ABSENT or single-candidate shortlist is NOT material spread — unknown never reads as disagree', () => {
+        expect(ambiguousStateOf('inconclusive', null)).toBe(false);
+        expect(ambiguousStateOf('inconclusive', [SPREAD[0]!])).toBe(false);
+        // Candidates with MISSING vectors are `unknown` agreement — never a pick affordance over nothing.
+        expect(
+            ambiguousStateOf('inconclusive', [
+                { foodId: 'f1', score: 0.9 },
+                { foodId: 'f2', score: 0.8 },
+            ]),
+        ).toBe(false);
+    });
+
+    it('resolveLineStatus layers it into the inconclusive arm', () => {
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, 'none', true)).toBe(
+            FoodResolutionStatus.AMBIGUOUS,
+        );
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
+            FoodResolutionStatus.RESOLVED,
+        );
+        // ⛔ Only the INCONCLUSIVE arm: a contradiction outranks ambiguity, a verified line is settled.
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', true)).toBe(
+            FoodResolutionStatus.NEEDS_REVIEW,
+        );
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', true)).toBe(
+            FoodResolutionStatus.RESOLVED,
+        );
+    });
+});
+
+describe('viewerLineStatus — R20: a private food on a public recipe, seen by a stranger (plan U13)', () => {
+    const AUTHOR = '01JU13AUTHOR00000000000AAA';
+    const STRANGER = '01JU13STRANGER000000000BBB';
+
+    it('a stranger sees RESOLVED_UNAVAILABLE, whatever the underlying status was', () => {
+        expect(viewerLineStatus(FoodResolutionStatus.RESOLVED, AUTHOR, STRANGER)).toBe(
+            FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+        );
+        // ⛔ Even the actionable states: a viewer who cannot ACCESS the food must get no pick affordance
+        // and no needs-review invitation — name-only, never an error.
+        expect(viewerLineStatus(FoodResolutionStatus.NEEDS_REVIEW, AUTHOR, STRANGER)).toBe(
+            FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+        );
+        expect(viewerLineStatus(undefined, AUTHOR, STRANGER)).toBe(FoodResolutionStatus.RESOLVED_UNAVAILABLE);
+    });
+
+    it('the AUTHOR sees the underlying status untouched', () => {
+        expect(viewerLineStatus(FoodResolutionStatus.AMBIGUOUS, AUTHOR, AUTHOR)).toBe(FoodResolutionStatus.AMBIGUOUS);
+        expect(viewerLineStatus(undefined, AUTHOR, AUTHOR)).toBeUndefined();
+    });
+
+    it('a line whose food is not private passes through for everyone', () => {
+        expect(viewerLineStatus(FoodResolutionStatus.RESOLVED, undefined, STRANGER)).toBe(
+            FoodResolutionStatus.RESOLVED,
+        );
+        expect(viewerLineStatus(undefined, undefined, undefined)).toBeUndefined();
+    });
+
+    it('⛔ an UNKNOWN viewer on a private-food line is a stranger — privacy fails toward unavailable', () => {
+        expect(viewerLineStatus(FoodResolutionStatus.RESOLVED, AUTHOR, undefined)).toBe(
+            FoodResolutionStatus.RESOLVED_UNAVAILABLE,
         );
     });
 });

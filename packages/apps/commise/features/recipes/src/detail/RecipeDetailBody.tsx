@@ -22,6 +22,7 @@ import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
+import { AmbiguityReview } from './AmbiguityReview.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
 import { PhotoCarousel } from './PhotoCarousel.js';
 import { RecipeHero } from './RecipeHero.js';
@@ -30,6 +31,8 @@ import { ServingScaleControl } from './ServingScaleControl.js';
 import {
     formatQuantity,
     isLineNeedsReview,
+    isLineAmbiguous,
+    isLineUnavailable,
     needsReviewNotice,
     rangeDerivedNotice,
     type RecipeDetailBodyProps,
@@ -266,6 +269,21 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                         {detail.needsReviewBadge}
                                     </span>
                                 )}
+                                {/* U13 (D7/R9) — the gate ABSTAINED over materially-different candidates.
+                                    Actionable like needs-review (same warning tint), but the figure still
+                                    counts (R23): the batched review surface below is where the pick lives. */}
+                                {isLineAmbiguous(ingredient) && (
+                                    <span className="ml-auto shrink-0 rounded-full bg-warning/25 px-2 py-0.5 text-caption font-medium text-charcoal">
+                                        {detail.ambiguousBadge}
+                                    </span>
+                                )}
+                                {/* U13 (R20) — another author's private food: name-only, NEUTRAL tone (pearl,
+                                    not warning) because nothing is wrong and nothing is actionable here. */}
+                                {isLineUnavailable(ingredient) && (
+                                    <span className="ml-auto shrink-0 rounded-full bg-pearl px-2 py-0.5 text-caption font-medium text-slate">
+                                        {detail.unavailableBadge}
+                                    </span>
+                                )}
                             </li>
                         );
                     })}
@@ -372,6 +390,10 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     <p className="text-caption text-slate">{detail.nutritionSourceNote}</p>
                 )}
             </section>
+
+            {/* U13 — the batched ambiguity review surface + the one-time clone banner. STORED lines, like
+                every judgement surface above. */}
+            <AmbiguityReview ingredients={recipe.ingredients} cloneUnboundLineCount={recipe.cloneUnboundLineCount} />
 
             {/* C3 wireframe parity: the clone action (caller-supplied) + version + visibility badges are ONE
                 grouped footer row — `[Clone to My Recipes] [v12] [Public]` — rather than three loose pieces. */}

@@ -290,6 +290,20 @@ function judgementIdentity(line: VerifiableLine): string | undefined {
 const storedShortlistSchema = z.array(scoredCandidateSchema).max(MAX_VERIFICATION_SHORTLIST);
 
 /**
+ * Parse a stored `ingredient_resolutions.shortlist` jsonb into the wire candidates, or `undefined` when
+ * the row predates the schema or was mangled.
+ *
+ * ⛔ THE one boundary parse, exported for the READ side (U13's `ambiguousStateOf` feed) so "what counts
+ * as a valid stored shortlist" has a single spelling — `evidenceFor` below and the detail projection
+ * must never disagree about the same row. Pure.
+ */
+export function parseStoredShortlist(raw: unknown): readonly z.infer<typeof scoredCandidateSchema>[] | undefined {
+    const parsed = storedShortlistSchema.safeParse(raw);
+
+    return parsed.success ? parsed.data : undefined;
+}
+
+/**
  * The identity evidence a persisted resolution event honestly supports (plan U2/U4).
  *
  * ⛔ `lexical` claims `ranked` ONLY through a shortlist the wire schema accepts: the stored jsonb is
@@ -309,10 +323,10 @@ function evidenceFor(resolution: LatestResolution | undefined): IdentityEvidence
     }
 
     if (resolution?.tier === 'lexical') {
-        const parsed = storedShortlistSchema.safeParse(resolution.shortlist);
+        const parsed = parseStoredShortlist(resolution.shortlist);
 
-        if (parsed.success) {
-            return rankedEvidence(parsed.data);
+        if (parsed !== undefined) {
+            return rankedEvidence(parsed);
         }
     }
 

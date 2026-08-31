@@ -557,6 +557,13 @@ export const eraseRecipeRows = async (
         // 11. author_handles read-model root (W8-a.10) — user-keyed, no cascade; delete removes the cleartext.
         await tx.execute(sql`DELETE FROM author_handles WHERE user_id = ${ownerId}`);
 
+        // 12. Parse jobs (plan U8/U9, 0039) — user-keyed rows carrying the cook's PASTED TEXT verbatim
+        //     (`recipe_parse_job_lines.source_line` cascades from the job). Deleted outright: proposals
+        //     bind nothing (R19), so nothing downstream references a job row and the whole record is the
+        //     user's content. ⚠️ This is USER TEXT, not an ingredient phrase — ADR-0027's ruling above does
+        //     not cover it, which is why this step exists while 10-12's old sweeps stay removed.
+        await tx.execute(sql`DELETE FROM recipe_parse_jobs WHERE owner_id = ${ownerId}`);
+
         // ⛔ STEPS 10-12 (curated mappings, resolution memos, parse corrections) STOOD HERE AND WERE
         //    REMOVED — owner ruling 2026-08-25, ADR-0027. An ingredient phrase is not private data, so no
         //    statement here targets one, and the `user_id` those two correction tiers still carry is a

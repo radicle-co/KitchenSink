@@ -46,6 +46,14 @@
             "types": "./dist/resolution/verificationVerdict.d.ts",
             "default": "./dist/resolution/verificationVerdict.js"
         },
+        "./parsing/parse-job-message": {
+            "types": "./dist/parsing/parseJobMessage.d.ts",
+            "default": "./dist/parsing/parseJobMessage.js"
+        },
+        "./parsing/parse-retry-prompt": {
+            "types": "./dist/parsing/parseRetryPrompt.d.ts",
+            "default": "./dist/parsing/parseRetryPrompt.js"
+        },
         "./parsing/foodness-prompt": {
             "types": "./dist/parsing/foodnessPrompt.d.ts",
             "default": "./dist/parsing/foodnessPrompt.js"

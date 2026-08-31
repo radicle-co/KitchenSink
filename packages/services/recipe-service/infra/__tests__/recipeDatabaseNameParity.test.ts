@@ -154,7 +154,8 @@ describe('recipe database-name parity — API vs workers', () => {
         // is pinned rather than derived because a worker that quietly LOSES its RECIPE_DB_NAME would
         // otherwise leave this comparison silently — and #119 was exactly a worker addressing a different
         // database than the API believed it was.
-        expect(workerNames).toHaveLength(8);
+        // NINE since plan U8's parse leg (2026-08-31).
+        expect(workerNames).toHaveLength(9);
         expect(new Set(workerNames)).toEqual(new Set([apiName]));
 
         // And that the shared value is the ADR-0006 suffix form, not merely "equal to each other" — two

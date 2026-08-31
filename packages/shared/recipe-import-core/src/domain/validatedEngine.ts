@@ -10,7 +10,7 @@
  *
  *  - The retry loop lives on the PARSE side only, and only where the critic adds information: a foodness
  *    verdict ("not a food — it is equipment") is NEW information a retry can use. Feeding it back is the
- *    conscious carve-out from the poisoning rule ({@link import('@kitchensink/recipe-core/parsing/parse-retry-prompt')}
+ *    conscious carve-out from the poisoning rule (`parse-retry-prompt`
  *    owns the containment: clamps + its own pin).
  *  - Max {@link MAX_PARSE_ATTEMPTS} total attempts (1 + 3 retries). Exhaustion is the recorded terminal
  *    `un-parseable` state (R6): the line is SAVED — `raw` intact, `foods` EMPTY so nothing is bound and
@@ -26,7 +26,7 @@
  * A retry the spend ceiling denied (or a transport that threw) is TRANSIENT. Returning the last FAILED
  * parse would publish an answer a validator already rejected; declaring `not_a_food` would turn an outage
  * into a permanent fact about the line (the `single-engine` ≠ `differ` rule one layer up). So the line's
- * answer is {@link EngineUnavailable}, and the caller's own redelivery/cache machinery re-pays only what
+ * answer is `EngineUnavailable`, and the caller's own redelivery/cache machinery re-pays only what
  * the cache has not kept (KTD-F).
  *
  * ## Validators are Ports (D6)

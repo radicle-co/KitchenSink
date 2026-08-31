@@ -41,6 +41,17 @@ export type {
 export { ingredientResolutions } from './ingredientResolutions.js';
 export type { IngredientResolutionRow, NewIngredientResolutionRow } from './ingredientResolutions.js';
 
+// ── recipe_parse_jobs + lines (plan U8/U9, 0039) — the async parse-job substrate ────────────────
+export { recipeParseJobs, recipeParseJobLines, PARSE_JOB_STATUSES, PARSE_JOB_LINE_STATUSES } from './parseJobs.js';
+export type {
+    ParseJobStatus,
+    ParseJobLineStatus,
+    RecipeParseJobRow,
+    NewRecipeParseJobRow,
+    RecipeParseJobLineRow,
+    NewRecipeParseJobLineRow,
+} from './parseJobs.js';
+
 // ── recipe_ingredient_verification_redrive (plan U4c, 0037) — the pending re-drive substrate ─────
 export { verificationRedrive } from './verificationRedrive.js';
 export type { VerificationRedriveRow, NewVerificationRedriveRow } from './verificationRedrive.js';

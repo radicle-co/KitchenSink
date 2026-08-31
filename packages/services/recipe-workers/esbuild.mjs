@@ -48,6 +48,7 @@ const entryPoints = [
     'src/handlers/erasureOrphanSweeper.ts',
     'src/handlers/verifyLine.ts',
     'src/handlers/bandDrain.ts',
+    'src/handlers/parseLine.ts',
 ];
 
 /**
@@ -73,7 +74,7 @@ const entryPoints = [
  * shared options object is the honest spelling, and `entryPoints` above stays the COMPLETE list so W2's
  * discovery gate keeps working.
  */
-const SELF_CONTAINED = new Set(['src/handlers/verifyLine.ts']);
+const SELF_CONTAINED = new Set(['src/handlers/verifyLine.ts', 'src/handlers/parseLine.ts']);
 
 /** Everything both passes share. Declared once so the two cannot drift in anything but `external`. */
 const shared = {

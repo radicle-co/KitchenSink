@@ -467,7 +467,9 @@ describe('RecipeWorkersStack', () => {
         // otherwise leave this subject set silently, which is the drift ADR-0004's own consumer list suffered.
         // ⚠️ AND AGAIN (2026-08-31) when plan U3's band revocation drain landed: eight workers plus the
         // runner. It reads the band tables and the spend counter, so it is database-bound by construction.
-        expect([...bound.keys()], 'the eight workers plus the in-deploy migration runner').toHaveLength(9);
+        // ⚠️ AND AGAIN when plan U8's parse leg landed: nine workers plus the runner — it reads the parse
+        // cache, the corrections tier and the job tables.
+        expect([...bound.keys()], 'the nine workers plus the in-deploy migration runner').toHaveLength(10);
 
         const functions = template.findResources('AWS::Lambda::Function');
         const unbound = Object.keys(functions).filter((name) => !bound.has(name));
@@ -676,7 +678,20 @@ describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
         // ("expect 7") indistinguishable from the dishonest one ("expect whatever it is now"), and the
         // runner is where a regression bites hardest: it fails on the FIRST deploy of a new stage, with no
         // previous schema to fall back on.
-        expect(resources).toHaveLength(databaseBoundFunctions(template).size);
+        // ⚠️ ROLES, not functions, since plan U8: the parse-line Lambda deliberately SHARES the
+        // verification gate's role (D6's single-Bedrock-grantee ruling), so the grant count is the count
+        // of DISTINCT roles among the database-bound functions — one grant per least-privilege role still,
+        // with sharing stated rather than double-counted.
+        const boundRoles = new Set(
+            [...databaseBoundFunctions(template).keys()].map((logicalId) => {
+                const fn = template.findResources('AWS::Lambda::Function')[logicalId] as SynthesizedResource;
+                const role = fn.Properties?.['Role'] as { 'Fn::GetAtt'?: [string, string] } | undefined;
+
+                return role?.['Fn::GetAtt']?.[0] ?? JSON.stringify(role);
+            }),
+        );
+
+        expect(resources).toHaveLength(boundRoles.size);
 
         for (const resource of resources) {
             expect(resource).toBe(expected);
@@ -700,7 +715,8 @@ describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
         // counter, so a gate reading the shared base database would enforce ONE ceiling across every open
         // preview and deny them all once any of them exhausted it. The band drain (plan U3) is the eighth:
         // it reads the preview's own band tables and spend counter, for exactly the same isolation reason.
-        expect(names).toHaveLength(9);
+        // The parse leg (plan U8) is the ninth — its cache, corrections and job tables are all per-preview.
+        expect(names).toHaveLength(10);
         expect(new Set(names)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 
@@ -1023,9 +1039,10 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         // would both change its trigger semantics and demand a consume grant it deliberately lacks.
         const mappings = Object.values(template.findResources('AWS::Lambda::EventSourceMapping'));
 
-        // The FOUR queue workers (archive + erasure + handle-sync + U11's verification gate) have
-        // event-source mappings; the orphan sweeper (EventBridge-scheduled) must not have introduced another.
-        expect(mappings).toHaveLength(4);
+        // The FIVE queue workers (archive + erasure + handle-sync + U11's verification gate + U8's parse
+        // leg) have event-source mappings; the orphan sweeper (EventBridge-scheduled) must not have
+        // introduced another.
+        expect(mappings).toHaveLength(5);
     });
 
     it('alarms when the sweeper deletes any orphan — the resurrection race actually fired', () => {

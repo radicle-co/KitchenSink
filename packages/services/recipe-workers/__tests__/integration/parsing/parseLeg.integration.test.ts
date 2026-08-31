@@ -1,0 +1,182 @@
+/**
+ * U8 — the parse leg's STORAGE claims against a real PostgreSQL: the cache round trip, the corrections
+ * precedence mirror, and R17's digest-guarded landing.
+ *
+ * ⛔ WHY THIS TIER IS MANDATORY: the cache's `ON CONFLICT (parse_key) DO NOTHING`, the corrections
+ * statement's three-way predicate, and the landing's zero-row discard are all claims about the DATABASE —
+ * a fake pool answers whatever it is told (`handle-sync-worker`'s lesson).
+ *
+ * Runs against `DATABASE_URL` (a recipe database with migrations applied); skipped without it.
+ */
+import { createHash } from 'node:crypto';
+
+import { afterEach, afterAll, beforeAll, describe, expect, it } from 'vitest';
+import pg from 'pg';
+
+import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+
+import { createParseCachePort, createParseCorrectionsPort } from '../../../src/parsing/parsePorts.js';
+import { processParseLine, type ParseLineDeps } from '../../../src/handlers/parseLine.js';
+
+const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
+const canRun = Boolean(DATABASE_URL);
+
+const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
+const LINE = '2 cups u8 integration flour';
+
+describe.skipIf(!canRun)('the parse leg storage (integration)', () => {
+    let pool: pg.Pool;
+
+    beforeAll(() => {
+        pool = new pg.Pool({ connectionString: DATABASE_URL });
+    });
+
+    afterEach(async () => {
+        await pool.query(`DELETE FROM ingredient_parse_cache WHERE engine_version = 'u8-test'`);
+        await pool.query(`DELETE FROM recipe_parse_jobs WHERE owner_id = 'u8-test-owner'`);
+    });
+
+    afterAll(async () => {
+        await pool.end();
+    });
+
+    const queryable = () => ({ query: (text: string, params: unknown[]) => pool.query(text, params) });
+
+    it('the cache remembers once per key and reads back by digest', async () => {
+        const cache = createParseCachePort(queryable());
+        const stored = {
+            parseKey: 'v1:u8testkey0001',
+            lineDigest: 'v1:u8testdigest01' as never,
+            engine: 'crf' as const,
+            engineVersion: 'u8-test',
+            parse: { statedMeasure: null, quantity: { kind: 'absent' }, unit: null, foods: [] } as never,
+        };
+
+        await cache.remember(stored);
+        // Second write under the same key: DO NOTHING — first write wins within a generation.
+        await cache.remember({ ...stored, parse: { ...(stored.parse as object), unit: 'cup' } as never });
+
+        const rows = await cache.findForLines(['v1:u8testdigest01' as never]);
+
+        expect(rows).toHaveLength(1);
+        const firstRow = rows[0];
+        expect(firstRow).toBeDefined();
+        expect((firstRow?.parse as { unit: string | null } | undefined)?.unit ?? 'MISSING').not.toBe('cup');
+    });
+
+    it('the corrections mirror honours scope: global visible to nobody-present, personal only to its author', async () => {
+        const corrections = createParseCorrectionsPort(queryable());
+        await pool.query(
+            `INSERT INTO ingredient_parse_corrections (normalized_key, source_line, corrected_facts, scope, origin, user_id, surfacing)
+             VALUES ('u8test global key', 'x', '{"foods": []}'::jsonb, 'global', 'curator', NULL, 'u8-test'),
+                    ('u8test personal key', 'x', '{"foods": []}'::jsonb, 'author', 'author', 'u8-author', 'u8-test')`,
+        );
+
+        try {
+            expect(await corrections.findInForce('u8test global key' as never, undefined)).toBeDefined();
+            expect(await corrections.findInForce('u8test personal key' as never, undefined)).toBeUndefined();
+            expect(await corrections.findInForce('u8test personal key' as never, 'u8-author')).toBeDefined();
+            expect(await corrections.findInForce('u8test personal key' as never, 'someone-else')).toBeUndefined();
+        } finally {
+            await pool.query(`DELETE FROM ingredient_parse_corrections WHERE normalized_key LIKE 'u8test%'`);
+        }
+    });
+
+    it('⛔ R17 end-to-end: a landing under the stored digest lands; a stale digest lands NOTHING', async () => {
+        const jobResult = await pool.query(
+            `INSERT INTO recipe_parse_jobs (owner_id, expires_at) VALUES ('u8-test-owner', now() + interval '1 day')
+             RETURNING id`,
+        );
+        const jobId = (jobResult.rows[0] as { id: string }).id;
+        const storedDigest = lineDigest(LINE, digest);
+        await pool.query(
+            `INSERT INTO recipe_parse_job_lines (job_id, line_index, source_line, line_digest)
+             VALUES ($1, 0, $2, $3)`,
+            [jobId, LINE, storedDigest],
+        );
+
+        const deps: ParseLineDeps = {
+            stage: 'sandbox',
+            gated: {
+                stage: 'sandbox',
+                settings: {
+                    resolve: async () => ({ ceilingMicros: 100_000_000, modelId: 'amazon.nova-micro-v1:0' }),
+                },
+                ledger: {
+                    reserve: async () => ({ kind: 'reserved' as const, reservedMicros: 1 }),
+                    settle: async () => undefined,
+                } as never,
+                bedrock: {
+                    converse: async () => ({
+                        kind: 'answered' as const,
+                        text: '[]',
+                        stopReason: 'end_turn',
+                        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                    }),
+                } as never,
+                emit: () => undefined,
+                now: () => new Date(),
+            } as never,
+            crf: {
+                engine: 'crf',
+                engineVersion: 'u8-test',
+                parse: async (lines) =>
+                    lines.map(() => ({
+                        raw: LINE,
+                        statedMeasure: '2 cups',
+                        quantity: { kind: 'exact' as const, value: 2 },
+                        unit: 'cup',
+                        foods: [{ name: 'u8 integration flour', prep: null }],
+                        reviewReasons: [],
+                        provenance: {
+                            statedMeasure: 'crf' as const,
+                            quantity: 'crf' as const,
+                            unit: 'crf' as const,
+                            foods: 'crf' as const,
+                        },
+                    })),
+            },
+            pool: queryable() as never,
+            digest,
+            parseModelId: 'amazon.nova-micro-v1:0',
+        };
+
+        await processParseLine(deps, {
+            jobId,
+            lineIndex: 0,
+            sourceLine: LINE,
+            lineDigest: storedDigest,
+            userId: 'u8-test-owner',
+            requestedAt: new Date().toISOString(),
+        });
+
+        const landed = await pool.query(
+            `SELECT status FROM recipe_parse_job_lines WHERE job_id = $1 AND line_index = 0`,
+            [jobId],
+        );
+
+        expect((landed.rows[0] as { status: string }).status).toBe('parsed');
+
+        const job = await pool.query(`SELECT status FROM recipe_parse_jobs WHERE id = $1`, [jobId]);
+
+        expect((job.rows[0] as { status: string }).status).toBe('complete');
+
+        // Simulate an EDIT: the stored hash moves on; a replay of the OLD message must land nothing.
+        await pool.query(
+            `UPDATE recipe_parse_job_lines SET line_digest = 'moved-on', status = 'pending' WHERE job_id = $1`,
+            [jobId],
+        );
+        await processParseLine(deps, {
+            jobId,
+            lineIndex: 0,
+            sourceLine: LINE,
+            lineDigest: storedDigest,
+            userId: 'u8-test-owner',
+            requestedAt: new Date().toISOString(),
+        });
+
+        const after = await pool.query(`SELECT status FROM recipe_parse_job_lines WHERE job_id = $1`, [jobId]);
+
+        expect((after.rows[0] as { status: string }).status).toBe('pending');
+    });
+});

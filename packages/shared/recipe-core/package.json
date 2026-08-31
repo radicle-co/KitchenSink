@@ -25,6 +25,7 @@
         "./resolution/search-minimum": "./src/resolution/searchMinimum.ts",
         "./parsing/foodness-prompt": "./src/parsing/foodnessPrompt.ts",
         "./parsing/foodness-answer": "./src/parsing/foodnessAnswer.ts",
+        "./parsing/parse-job-message": "./src/parsing/parseJobMessage.ts",
         "./parsing/parse-key": "./src/parsing/parseKey.ts",
         "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",
         "./parsing/parse-prompt": "./src/parsing/parsePrompt.ts",
@@ -45,6 +46,7 @@
         "format:check": "prettier --check ."
     },
     "devDependencies": {
+        "@aws-sdk/client-bedrock-runtime": "^3.935.0",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",

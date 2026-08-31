@@ -951,6 +951,63 @@ export class RecipeWorkersStack extends Stack {
         // line — and a partial-batch failure would otherwise re-call (and re-pay for) lines already verified.
         verificationFn.addEventSource(new lambda_event_sources.SqsEventSource(verificationQueue, { batchSize: 1 }));
 
+        // ── the service parse leg (plan U8, origin R6/R13) ──────────────────────────────────────────
+        //
+        // One queue message is one parse-job line; the handler runs corrections → cache → CRF Lambda +
+        // the GATED validator-looped LLM leg, and lands a digest-guarded proposal (R17/R19). ⛔ It runs
+        // under the SAME verificationRole — D6's ruling and `llmSpendGuards`' single-grantee set — and
+        // carries its own `reservedConcurrentExecutions: 1`: in ungated stages that constant is the only
+        // bound on the parse leg's spend, exactly as it is for the gate (ADR-0024 layer 2).
+        const parseDlq = new sqs.Queue(this, 'RecipeParseDlq', {
+            queueName: `kitchensink-recipe-parse-dlq-${props.stage}`,
+            retentionPeriod: Duration.days(14),
+        });
+        const parseQueue = new sqs.Queue(this, 'RecipeParseQueue', {
+            queueName: `kitchensink-recipe-parse-${props.stage}`,
+            // Worst case per line (KTD-F): up to 4 parse + 8 validator calls plus one CRF invoke. The
+            // visibility timeout clears the handler's own with margin, the sibling queues' rule.
+            visibilityTimeout: Duration.seconds(180),
+            deadLetterQueue: { queue: parseDlq, maxReceiveCount: 5 },
+        });
+        parseQueue.grantConsumeMessages(verificationRole);
+        // The CRF Lambda lives in ANOTHER CDK app (ADR-0025); its name is deterministic per stage, so the
+        // grant is by ARN rather than by construct — the same cross-app seam the SSM parameters use.
+        const crfFunctionArn = Stack.of(this).formatArn({
+            service: 'lambda',
+            resource: 'function',
+            resourceName: `kitchensink-ingredient-parser-${props.stage}`,
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+        });
+        verificationRole.addToPolicy(
+            new iam.PolicyStatement({ actions: ['lambda:InvokeFunction'], resources: [crfFunctionArn] }),
+        );
+
+        const parseLineFn = new lambda.Function(this, 'RecipeParseLineFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/parseLine.handler',
+            code: lambda.Code.fromAsset(DIST_PATH),
+            role: verificationRole,
+            vpc,
+            vpcSubnets,
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(150),
+            memorySize: 512,
+            // ADR-0024 layer 2, for the parse leg: the only spend bound in every ungated stage.
+            reservedConcurrentExecutions: 1,
+            environment: {
+                ...commonDbEnv,
+                STAGE: props.stage,
+                CRF_FUNCTION_NAME: `kitchensink-ingredient-parser-${props.stage}`,
+                // ⚠️ Mirrors the parser package's own `ingredient-parser-nlp` pin (ADR-0025). The adapter
+                // REFUSES a response whose reported version differs, so drift here fails safe (absence,
+                // never a mis-keyed cache row) — and loudly, in this function's logs.
+                CRF_ENGINE_VERSION: 'ingredient-parser-nlp==2.3.0',
+            },
+            logGroup,
+        });
+        parseLineFn.addEventSource(new lambda_event_sources.SqsEventSource(parseQueue, { batchSize: 1 }));
+
         // ── band revocation drain (plan U3, R14) ────────────────────────────────────────────────────
         //
         // Revocation flips a band's state and enqueues NOTHING; `resolution_band_skips` is the backlog,

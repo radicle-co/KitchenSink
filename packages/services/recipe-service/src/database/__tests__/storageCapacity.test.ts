@@ -269,6 +269,19 @@ const accounts: readonly ColumnAccount[] = [
         why: 'Server-incremented retry counter; no wire field sets it.',
     },
 
+    // ── parse jobs (plan U8/U9, 0039) ─────────────────────────────────────────────────────────────
+    { table: 'recipe_parse_jobs', column: 'owner_id', why: PRINCIPAL_DERIVED },
+    {
+        table: 'recipe_parse_job_lines',
+        column: 'line_index',
+        why: 'Server-assigned from the split of the submitted text; the queue message caps it at 9,999 (parseJobMessage) and the U9 request schema bounds the line count below that.',
+    },
+    {
+        table: 'recipe_parse_job_lines',
+        column: 'llm_attempts',
+        why: 'Server-recorded from the validator loop (bounded at MAX_PARSE_ATTEMPTS = 4); no wire field sets it.',
+    },
+
     // ── band authority (plan U3, 0036) ────────────────────────────────────────────────────────────
     {
         table: 'resolution_band_authority',

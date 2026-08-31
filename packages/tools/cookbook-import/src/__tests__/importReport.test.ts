@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 import { statedQuantity, type IngredientQuantity } from '@kitchensink/recipe-core';
 
 import { COOKBOOKS } from '../cookbooks.js';
-import { emptyReport, recordHistoricalConversion, renderReport } from '../importReport.js';
+import { emptyReport, recordHistoricalConversion, recordSuggestionLead, renderReport } from '../importReport.js';
 import { convertHistoricalUnit, unitEquivalenceFor, type HistoricalUnitConversion } from '../unitEquivalence.js';
 
 /** A real conversion, produced by the real resolver — never a hand-built literal that cannot go stale. */
@@ -72,6 +72,61 @@ describe('recordHistoricalConversion', () => {
             'british-imperial',
             'us-customary',
         ]);
+    });
+});
+
+/**
+ * Ranking-quality aggregation (owner ruling 2026-08-31, U15 report "Owner rulings" §2) — the operator-side
+ * instrument for the suggest blend's ordering. The capture census U15 had to derive by SQL after the fact
+ * ("Lentils … without salt" captured 18 distinct phrases) is now a first-class report figure.
+ */
+describe('recordSuggestionLead', () => {
+    it('partitions leads by provenance and counts the weak token-only captures', () => {
+        const report = emptyReport('international-jewish');
+
+        recordSuggestionLead(report, { provenance: 'catalog', weakTokenLead: false }, 'Salt, table', 'salt');
+        recordSuggestionLead(report, { provenance: 'local', weakTokenLead: false }, 'Onions, raw', 'onion');
+        recordSuggestionLead(report, { provenance: 'local', weakTokenLead: true }, 'Lentils, without salt', 'salt');
+
+        expect(report.suggestionLeads).toMatchObject({ local: 2, catalog: 1, weakTokenLeads: 1 });
+    });
+
+    it('records each attractor with the DISTINCT queries it captured — repeats collapse', () => {
+        const report = emptyReport('international-jewish');
+
+        recordSuggestionLead(report, { provenance: 'local', weakTokenLead: true }, 'Lentils, without salt', 'salt');
+        recordSuggestionLead(report, { provenance: 'local', weakTokenLead: true }, 'Lentils, without salt', 'salt');
+        recordSuggestionLead(
+            report,
+            { provenance: 'local', weakTokenLead: true },
+            'Lentils, without salt',
+            'a pinch of salt',
+        );
+
+        expect(report.suggestionLeads.attractors).toEqual({
+            'Lentils, without salt': ['salt', 'a pinch of salt'],
+        });
+        expect(report.suggestionLeads.weakTokenLeads).toBe(3);
+    });
+
+    it('renders the section with the capture share, worst attractors first', () => {
+        const report = emptyReport('international-jewish');
+        recordSuggestionLead(report, { provenance: 'local', weakTokenLead: true }, 'Lentils, without salt', 'salt');
+        recordSuggestionLead(report, { provenance: 'local', weakTokenLead: true }, 'Lentils, without salt', 'pepper');
+        recordSuggestionLead(report, { provenance: 'local', weakTokenLead: true }, 'Rice, white', 'white wine');
+        recordSuggestionLead(report, { provenance: 'catalog', weakTokenLead: false }, 'Salt, table', 'salt');
+
+        const rendered = renderReport(report);
+
+        expect(rendered).toContain('SUGGESTION RANKING');
+        expect(rendered).toContain('weak token-only local leads         3');
+        expect(rendered.indexOf('"Lentils, without salt" captured 2')).toBeLessThan(
+            rendered.indexOf('"Rice, white" captured 1'),
+        );
+    });
+
+    it('omits the section entirely for a run where nothing resolved via a suggestion', () => {
+        expect(renderReport(emptyReport('international-jewish'))).not.toContain('SUGGESTION RANKING');
     });
 });
 

@@ -188,6 +188,25 @@ export interface ImportReportData {
     /** A handful of complete recipes, for a reader who wants to see the output rather than the totals. */
     readonly examples: ImportedExample[];
     /**
+     * Ranking quality of the suggest blend (owner ruling 2026-08-31, U15 report "Owner rulings" §2) — the
+     * operator-side instrument the ruling put HERE instead of a client analytics event or a
+     * machine-judgement row in `ingredient_resolutions`. Counted over suggestion-resolved lines only.
+     */
+    readonly suggestionLeads: {
+        /** Lines whose list led with a local row. */
+        local: number;
+        /** Lines whose list led with a catalog hit. */
+        catalog: number;
+        /**
+         * Lines whose local leader's only claim was a shared NON-HEAD token — the first-mover capture
+         * shape U15 measured (`salt` led by "Lentils, …, without salt"). With the service's capture hoist
+         * in place this should trend toward zero; a climb is the blend regressing.
+         */
+        weakTokenLeads: number;
+        /** The capture attractors: each weak leader's name, with the DISTINCT queries it captured. */
+        readonly attractors: Record<string, string[]>;
+    };
+    /**
      * What the two-engine parse pipeline concluded, when this run observed it.
      *
      * ⚠️ `undefined` means the run did NOT observe — a different fact from an observation of zero lines, and
@@ -218,8 +237,38 @@ export function emptyReport(book: string): ImportReportData {
         historicalConversions: 0,
         historicalEquivalences: [],
         examples: [],
+        suggestionLeads: { local: 0, catalog: 0, weakTokenLeads: 0, attractors: {} },
         parseObservation: undefined,
     };
+}
+
+/**
+ * Record what led one suggestion-resolved line's list (owner ruling 2026-08-31).
+ *
+ * @param report - The accumulating report.
+ * @param lead - The resolver's lead observation.
+ * @param leaderName - The leading suggestion's display name (the attractor, when the lead is weak).
+ * @param query - The name the lookup ran for.
+ * @sideEffect Mutates `report`, like {@link recordDropped}.
+ */
+export function recordSuggestionLead(
+    report: ImportReportData,
+    lead: { provenance: 'local' | 'catalog'; weakTokenLead: boolean },
+    leaderName: string,
+    query: string,
+): void {
+    report.suggestionLeads[lead.provenance] += 1;
+
+    if (!lead.weakTokenLead) {
+        return;
+    }
+
+    report.suggestionLeads.weakTokenLeads += 1;
+    const captured = (report.suggestionLeads.attractors[leaderName] ??= []);
+
+    if (!captured.includes(query)) {
+        captured.push(query);
+    }
 }
 
 /**
@@ -323,6 +372,24 @@ export function renderReport(report: ImportReportData): string {
     );
     lines.push(`    of those, still non-terminal      ${report.foodPendingIngredients}`);
     lines.push(`  lookups during a catalog outage     ${report.catalogUnavailable}`);
+
+    const leads = report.suggestionLeads;
+    const suggested = leads.local + leads.catalog;
+
+    if (suggested > 0) {
+        lines.push('\nSUGGESTION RANKING  (what LED the blended list — owner ruling 2026-08-31)');
+        lines.push(`  led by a local row                  ${leads.local}  (${pct(leads.local, suggested)})`);
+        lines.push(`  led by a catalog hit                ${leads.catalog}  (${pct(leads.catalog, suggested)})`);
+        lines.push(
+            `  weak token-only local leads         ${leads.weakTokenLeads}  (${pct(leads.weakTokenLeads, suggested)} — the capture shape; should trend to zero)`,
+        );
+
+        const attractors = Object.entries(leads.attractors).sort((left, right) => right[1].length - left[1].length);
+
+        for (const [name, queries] of attractors.slice(0, 8)) {
+            lines.push(`    "${name}" captured ${queries.length} distinct quer${queries.length === 1 ? 'y' : 'ies'}`);
+        }
+    }
 
     const parse = report.parseObservation;
 

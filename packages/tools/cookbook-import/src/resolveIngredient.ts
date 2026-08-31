@@ -33,6 +33,8 @@
  *
  * @sideEffect Every branch performs network I/O through the port.
  */
+import { describeRankingName, describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
+
 import type { Ingredient, IngredientSuggestions } from './RecipeApiClient.js';
 
 /** The recipe-service calls the app's ingredient picker makes. Deliberately has NO food-service method. */
@@ -68,6 +70,43 @@ export interface IngredientResolution {
     readonly catalogAvailability: IngredientSuggestions['catalogAvailability'];
     /** Why add-by-name was not used, when the freeform fallback was reached. */
     readonly fallbackReason?: string;
+    /**
+     * What LED the suggestion list, when one did (owner ruling 2026-08-31, U15 report "Owner rulings" §2):
+     * the report is the operator-side instrument for the blend's ranking quality, and the figure that
+     * matters is how often the list led with a local row whose only claim was a shared non-head token —
+     * the first-mover capture shape U15 measured. OBSERVATION ONLY: nothing here changes which suggestion
+     * is taken, or the measurement stops describing the product (this file's own prime directive).
+     */
+    readonly lead?: SuggestionLead;
+}
+
+/** The first suggestion's provenance, and whether it was a weak token-only local match for the query. */
+export interface SuggestionLead {
+    readonly provenance: 'local' | 'catalog';
+    /**
+     * `true` when a LOCAL leader's head noun is not among the query's tokens — judged by the same
+     * `describeRankingName`/`describeRankingQuery` vocabulary the service's own capture hoist uses, so the
+     * two measure one rule.
+     */
+    readonly weakTokenLead: boolean;
+}
+
+/**
+ * Observe what led the list. Pure.
+ *
+ * @param query - The name as sent to suggest.
+ * @param top - The first suggestion.
+ * @returns The lead observation.
+ */
+function leadOf(query: string, top: IngredientSuggestions['suggestions'][number]): SuggestionLead {
+    if (top.provenance !== 'local') {
+        return { provenance: 'catalog', weakTokenLead: false };
+    }
+
+    const head = describeRankingName(top.ingredient.name).head;
+    const queryTokens = describeRankingQuery(query).tokens;
+
+    return { provenance: 'local', weakTokenLead: head === undefined || !queryTokens.includes(head) };
 }
 
 /**
@@ -88,8 +127,10 @@ export async function resolveIngredientLikeAUser(
     const top = suggestions.suggestions[0];
 
     if (top !== undefined) {
+        const lead = leadOf(name, top);
+
         if (top.provenance === 'local') {
-            return { kind: 'local_suggestion', query: name, ingredient: top.ingredient, catalogAvailability };
+            return { kind: 'local_suggestion', query: name, ingredient: top.ingredient, catalogAvailability, lead };
         }
 
         return {
@@ -97,6 +138,7 @@ export async function resolveIngredientLikeAUser(
             query: name,
             ingredient: await port.addIngredientByFood(top.foodId),
             catalogAvailability,
+            lead,
         };
     }
 

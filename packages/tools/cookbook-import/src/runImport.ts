@@ -62,6 +62,7 @@ import {
     emptyReport,
     recordDropped,
     recordHistoricalConversion,
+    recordSuggestionLead,
     type ImportReportData,
     type ImportedExample,
     type ParseObservationData,
@@ -377,6 +378,12 @@ export async function runImport(options: RunImportOptions): Promise<ImportReport
 
             report.ingredientLines += 1;
             report.resolutionKinds[resolution.kind] += 1;
+
+            // Ranking quality (owner ruling 2026-08-31): what led the suggestion list, and whether the
+            // leader was a weak token-only capture. Observation only — the pick above already happened.
+            if (resolution.lead !== undefined) {
+                recordSuggestionLead(report, resolution.lead, resolution.ingredient.name, resolution.query);
+            }
 
             // R35 — a restated amount is not the amount the book printed, and the run says so under whose
             // authority. The reader-facing half of the same disclosure is in the recipe's description.

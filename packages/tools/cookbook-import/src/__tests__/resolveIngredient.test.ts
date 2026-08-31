@@ -112,6 +112,63 @@ describe('resolveIngredientLikeAUser — it takes the system’s answer, it does
         expect(calls.map((call) => call.method)).toEqual(['suggestIngredients']);
     });
 
+    /**
+     * Ranking-quality observation (owner ruling 2026-08-31, U15 report "Owner rulings" §2): the report is
+     * the operator-side instrument for the suggest blend's ordering, so each suggestion-resolved line
+     * records what LED the list and whether that leader's only claim was a shared non-head token — the
+     * first-mover capture shape U15 measured (`salt` led by "Lentils, …, without salt"). Observation only:
+     * the pick still goes to the first suggestion, or the measurement stops describing the product.
+     */
+    describe('the lead observation — ranking quality, recorded but never acted on', () => {
+        it('flags a WEAK token-only local leader', async () => {
+            const { port } = fakePort({
+                suggestIngredients: async () =>
+                    ({
+                        suggestions: [localHit('local-lentils', 'Lentils, mature seeds, cooked, boiled, without salt')],
+                        catalogAvailability: 'ok',
+                    }) as never,
+            });
+
+            const outcome = await resolveIngredientLikeAUser(port, 'salt');
+
+            expect(outcome.kind).toBe('local_suggestion');
+            expect(outcome.lead).toEqual({ provenance: 'local', weakTokenLead: true });
+        });
+
+        it('does NOT flag a local leader whose head the query names', async () => {
+            const { port } = fakePort({
+                suggestIngredients: async () =>
+                    ({ suggestions: [localHit('local-onion', 'Onions, raw')], catalogAvailability: 'ok' }) as never,
+            });
+
+            const outcome = await resolveIngredientLikeAUser(port, 'onion');
+
+            expect(outcome.lead).toEqual({ provenance: 'local', weakTokenLead: false });
+        });
+
+        it('records a catalog leader as catalog, never weak', async () => {
+            const { port } = fakePort({
+                suggestIngredients: async () =>
+                    ({
+                        suggestions: [catalogHit('food_salt', 'Salt, table', 0.4)],
+                        catalogAvailability: 'ok',
+                    }) as never,
+            });
+
+            const outcome = await resolveIngredientLikeAUser(port, 'salt');
+
+            expect(outcome.lead).toEqual({ provenance: 'catalog', weakTokenLead: false });
+        });
+
+        it('records NO lead for add-by-name and freeform — nothing led an empty list', async () => {
+            const { port } = fakePort();
+
+            const outcome = await resolveIngredientLikeAUser(port, 'sour grass');
+
+            expect(outcome.lead).toBeUndefined();
+        });
+    });
+
     it('falls back to add-by-name when the service offered NOTHING — the app’s own primary action', async () => {
         const { port, calls } = fakePort();
 

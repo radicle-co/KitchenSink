@@ -185,6 +185,47 @@ jobs:
                       echo 'busy=false' >>"$GITHUB_OUTPUT"
                   fi
 
+            # ⛔ RECLAIM THE ALB — the residual floor ADR-0028 left, and the reason this step exists at all.
+            #
+            # An ALB cannot be stopped, only deleted, so unlike the RDS and NAT below it cannot be handled by
+            # the scheduler. `kitchensink-alb-sandbox` plus its two public IPv4 addresses billed ~$23.73/month
+            # around the clock for an environment live a few hours a week.
+            #
+            # ⚠️ ORDER, both halves of it:
+            #   - AFTER the per-PR teardown above: reclaiming shared infrastructure while a preview teardown
+            #     is still running is how a half-deleted preview becomes unreachable AND unreclaimable.
+            #   - BEFORE the scheduler stops the RDS and NAT: deleting an ECS service drains its tasks, and
+            #     draining them into an environment with no database is the shape that produced the
+            #     `NotStabilized` wedge repaired on 2026-08-30.
+            #
+            # The two stack names and their delete order live in the script, not here, because this is the
+            # ONE place in the repository that deletes `*-sandbox` stacks — the exact shape `pr-scope.sh`
+            # exists to forbid everywhere else. Its allowlist is pinned by `sandboxSharedTier.test.ts`,
+            # which fires the predicate at the shared database, the VPC, the webhooks and prod.
+            #
+            # `!cancelled()` for the same reason the teardown carries it: a failure in an earlier step must
+            # not silently skip reclamation. Asserted by `sharedTierLifecycle.test.ts`.
+            #
+            # ⛔ NO `continue-on-error` HERE, deliberately — and the first draft of this step had one.
+            #
+            # The reasoning for it was sound and the conclusion was wrong: a failed ALB delete must not stop
+            # the RDS and NAT from being stopped below, since those are the larger recurring cost. But
+            # `continue-on-error: true` buys that by reporting the JOB green, which means an ALB that never
+            # deletes bills forever behind a green check — ADR-0005's failure mode exactly, and what
+            # `workflowInvariants` invariant 4 exists to catch (it did).
+            #
+            # It is also unnecessary: the scheduler step below already carries `!cancelled()`, so it runs
+            # after a failed step regardless. Letting this one FAIL therefore keeps the fallback and makes
+            # the failure visible. If the delete does not complete, the scheduler's ECS half still finds the
+            # identity service and scales it to zero — the pre-amendment behaviour — so the tier is at worst
+            # left as it used to be left, the run is red, and the next hourly pass retries.
+            - name: Reclaim the shared sandbox ALB and identity service
+              if: ${{ !cancelled() && steps.find.outputs.live == '' && steps.inuse.outputs.busy == 'false' }}
+              run: |
+                  set -uo pipefail
+                  chmod +x .github/scripts/sandbox-shared-tier.sh
+                  .github/scripts/sandbox-shared-tier.sh down "$REGION"
+
             # ⛔ INVOKES THE SCHEDULER LAMBDA — it does NOT scale services itself, and the first draft of
             # this step, which did, was a real defect.
             #

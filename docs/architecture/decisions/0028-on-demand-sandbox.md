@@ -127,3 +127,103 @@ discovery step deliberately omits `set -e` so one stack's hiccup cannot cancel t
   a `kitchensink-*-pr-{N}` stack is invisible to it and relies on `teardown-sandbox-pr.sh`'s tag matching.
 - Sandbox storage is still 100 GB against a modelled full-scope need of ~10–11 GB; shrinking it needs a
   deliberate instance replacement (`allocatedStorage` is hardcoded, `deletionProtection` is on).
+
+## Update (2026-08-30) — the ALB was not an immovable floor, and the shared tier joins the lifecycle
+
+This ADR recorded the sandbox ALB (~$16.43/mo) and its RDS storage as "the residual floor … deliberately out
+of scope", on the grounds that deleting an ALB requires tearing down every stack importing its listener ARN
+first (ADR-0002's export-in-use deadlock).
+
+**That was measured, and the deadlock is one stack deep.** With the per-PR stacks reaped, all three live
+exports of `kitchensink-alb-sandbox` have exactly ONE importer: `kitchensink-identity-service-sandbox`
+(`SharedAlbArn` has none at all). Together the ALB and its two public IPv4 addresses cost **$23.73/month**,
+billed around the clock for a tier that is live a few hours a week.
+
+### Decision
+
+**The shared sandbox ALB and identity service are reclaimable, not merely stopped.** They are deleted with
+the tier and rebuilt by the button, joining the per-PR previews in ADR-0028's lifecycle. The RDS instance and
+the NAT are unchanged — the scheduler still stops and starts those, because they _can_ be stopped and
+because the data must survive.
+
+|       | Create                                                                    | Destroy                                                                 |
+| ----- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Owner | `sandbox-up.yml` → dispatches `sandbox-identity-deploy.yml` and **waits** | `sandbox-reconcile.yml` → `.github/scripts/sandbox-shared-tier.sh down` |
+| Order | ALB, then the identity service that imports it                            | identity service, then the ALB                                          |
+
+### The three things an implementer must not discover the hard way
+
+**1. `e2e-web` does NOT need the ALB — this was the premise that decided viability.** The obvious objection
+is that the Playwright suite depends on the shared tier and would break. It does depend on the tier, but
+`sandbox-wake.sh` **excludes ECS by construction** ("ECS is excluded for a reason rather than by omission"),
+and the suite's Clerk fixture blocks on the sandbox `user.created` **webhook Lambda** backfilling
+`external_id`. So its dependency is RDS + NAT + `kitchensink-identity-webhooks-sandbox` — none of which is
+touched here. Had the coupling been read from the workflow's name rather than from what the script actually
+wakes, this change would have been abandoned as blocked.
+
+**2. The scheduler must not be what restores the identity service.** `priorCountParamName` keys its SSM
+bookkeeping on `/kitchensink/sandbox-scheduler/ecs/{cluster}/{service}` — both CloudFormation-GENERATED
+names. Delete and recreate the stack and both change, so `runStart` finds no stored prior count, skips the
+service, and `sandbox-up.yml` (which greps for exactly that string) exits 1. **The button would fail on
+every press after the first reap.** The resolution is ordering, not a code change: the delete happens before
+the scheduler's stop, so it never records a count for a service that is about to vanish, and the rebuild
+creates the service at its CDK desired count. The scheduler's ECS half is not dead — it is a general
+mechanism whose subject set is now empty, and it remains the fallback if a delete fails.
+
+**3. The deploy gate probed the wrong stack.** `sandbox-identity-deploy.yml` decides to redeploy the
+global-sandbox app when `kitchensink-network-sandbox` is missing. That was correct while the ALB was
+permanent. It is now the stack that can vanish, while the network stack — owning the VPC and the NAT the RDS
+needs — deliberately outlives it. The old probe would answer `global_missing=false` after a reap, skip the
+deploy that recreates the ALB, and fail the identity deploy on an unresolvable `SharedAlbHttpsListenerArn`.
+Both stacks are now probed.
+
+### This supersedes the 2026-07-12 "never delete the shared identity service" requirement
+
+That requirement (task #12) said teardown must remove everything ephemeral **except** the shared identity
+services and the RDS cluster, because "wiping it or the DB cluster breaks all open previews and loses data."
+
+Half of that premise has expired and half has not:
+
+- **"Loses data" no longer applies.** The RDS instance and every per-PR logical database live in
+  `kitchensink-data-sandbox`, a different stack, which stays and is still merely stopped.
+  `kitchensink-identity-webhooks-sandbox` also stays.
+- **"Breaks all open previews" still applies while a preview is live** — which is why the delete runs only
+  when `steps.find.outputs.live == ''` and no wake consumer is mid-flight. The invariant changes from
+  _"identity always exists"_ to _"identity exists exactly while a preview does"_, enforced by the same
+  reconciler that owns preview lifetime.
+
+⛔ `pr-scope.sh` and `prScope.test.ts` are **unchanged and still correct**: those two stack names remain
+forbidden to the `pr-{N}` matcher, which is about that matcher's precision. This is a separate, explicitly
+named path — the ONE place in the repository that deletes `*-sandbox` stacks — so its safety is an explicit
+pinned allowlist of two exact names plus a refusal for everything else, fired in `sandboxSharedTier.test.ts`
+at the shared database, the VPC, the webhooks, the scheduler and both prod stacks. Mutation-checked in both
+directions: adding `kitchensink-data-sandbox` to the allowlist fails 3 assertions, and reversing the delete
+order fails 1.
+
+### Consequences
+
+- **Saving $23.73/month**, on top of this ADR's original $30–45 and the $101 from Container Insights.
+- **A button press now costs ~5–8 minutes more** — ALB creation plus DNS — and fails loudly if the rebuild
+  fails, rather than deploying previews nobody can sign into.
+- **Sandbox identity CloudWatch log groups are destroyed and recreated**, so log history no longer survives
+  across sandboxes.
+- `continue-on-error` is deliberately absent from the reclaim step. The first draft had one so a failed ALB
+  delete would not block stopping the RDS; that bought it by reporting the job GREEN, which is how an ALB
+  that never deletes bills forever behind a passing check. `workflowInvariants` invariant 4 caught it. It was
+  also unnecessary — the scheduler step already carries `!cancelled()`.
+
+### Residual risk
+
+- ⚠️ **Reclamation begins when this MERGES, not now.** `workflow_dispatch` and `schedule` resolve the
+  workflow from the DEFAULT branch, so until then the reconciler on `main` has no reclaim step and
+  `sandbox-identity-deploy.yml` on `main` has no ALB probe. Deleting the ALB before the merge would strand
+  the shared identity service, because the rebuild path that knows about it does not exist on `main` yet.
+  This is why the stacks were left standing rather than reclaimed by hand the day the change was written.
+- **Nothing asserts the button end-to-end**, which is this ADR's original residual risk, now carrying more
+  weight: the create half is a dispatch-and-watch of another workflow, and the first real press is still the
+  test. The delete half's predicates and the workflow ordering are unit-asserted; the AWS calls are not.
+- **A failed delete leaks an SSM parameter.** If the reclaim fails and the scheduler's fallback scales the
+  service to zero, it writes a prior-count parameter that a later successful delete orphans. Free, and
+  harmless to `runStart`, but it accumulates one per cycle.
+- The ~$11.13/month of sandbox RDS gp3 storage remains, as does this ADR's note that shrinking it needs a
+  deliberate instance replacement (`6056779c` reverted an attempt that wedged the data stack).

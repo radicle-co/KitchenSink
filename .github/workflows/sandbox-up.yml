@@ -79,16 +79,22 @@ jobs:
             # ⛔ WAKE THE SHARED TIER FIRST — a preview is not self-contained.
             #
             # `sandbox-deploy.yml` runs `sandbox-wake.sh`, which brings back the sandbox RDS and NAT, so the
-            # deploy itself is covered. What it does NOT cover is the shared sandbox IDENTITY service:
-            # `identity.sandbox.commise.app` is the ONE identity service every preview signs in against
-            # (ADR-0001), it is deployed by a different workflow, and the reconciler scales it to zero when
-            # the last sandbox expires. Without this step the preview comes up and sign-in is dead — the
-            # services answer, the smoke test passes, and nobody can log in.
+            # deploy itself is covered. This step is what restores the things the wake script deliberately
+            # does not touch, and it must run BEFORE the identity rebuild below: that rebuild deploys an ECS
+            # service and an in-stack migration Trigger (ADR-0022) against the shared database, which has to
+            # be running first.
             #
-            # The scheduler Lambda is the only thing that may restore it: `runStop` recorded each service's
-            # prior desired count in SSM and `runStart` reads it back, refusing to invent one. Scaling by
-            # hand here would work once and then strand the service the next time round.
-            - name: Wake the shared sandbox tier (RDS, NAT, and the identity service previews sign in to)
+            # ⚠️ AMENDED 2026-08-30 — this step no longer restores the identity SERVICE, and the scheduler
+            # is no longer what brings it back. ADR-0028's amendment made the shared identity service and
+            # the sandbox ALB reclaimable rather than merely stopped, so when the last sandbox expired they
+            # were DELETED, not scaled to zero. The scheduler's ECS half therefore finds no sandbox service
+            # to restore here and correctly does nothing; the next step is what recreates it. The RDS and
+            # NAT half of this call is still essential and is still the only thing that may issue it.
+            #
+            # The error check below stays, and stays meaningful: if a delete failed and the reconciler's
+            # fallback scaled the service to zero instead, this is still the path that restores it, and
+            # `runStart` refuses to invent a desired count it has no record of.
+            - name: Wake the shared sandbox tier (RDS and NAT — the identity service is rebuilt below)
               run: |
                   set -euo pipefail
                   FN=$(bash .github/scripts/cfn-export.sh 'kitchensink-sandbox-scheduler-sandbox:SchedulerFunctionName')
@@ -108,6 +114,48 @@ jobs:
                       echo '::error::the scheduler could not restore a sandbox service (no stored prior desired count) — sign-in for this preview will fail until it is scaled by hand' >&2
                       exit 1
                   fi
+
+            # ⛔ REBUILD THE SHARED TIER, AND WAIT FOR IT. This is the create half of ADR-0028's 2026-08-30
+            # amendment, and it must complete BEFORE the previews are dispatched.
+            #
+            # `identity.sandbox.commise.app` is the ONE identity service every preview signs in against
+            # (ADR-0001). Dispatch the previews first and they come up, their smoke tests pass, and nobody
+            # can log in — the failure `sandbox-up.yml` has always documented for the scaled-down case, now
+            # reachable one step earlier because the stack itself may be absent.
+            #
+            # `sandbox-identity-deploy.yml` already carries the ensure-exists logic (deploy when the code
+            # changed OR the stack is missing), so this dispatches THAT rather than growing a second copy of
+            # it here. On `workflow_dispatch` its gate deploys everything, which is what a rebuild needs:
+            # the global-sandbox app first — that is what recreates `kitchensink-alb-sandbox`, whose HTTPS
+            # listener ARN the identity stack imports — and then the service itself.
+            #
+            # ⚠️ `gh workflow run` returns the moment the dispatch is ACCEPTED, not when it finishes. The
+            # newest run id is captured BEFORE dispatching and polled for a change, because a fresh run does
+            # not appear in the API immediately and `--limit 1` would otherwise watch the PREVIOUS run and
+            # report its result — green, instantly, having built nothing.
+            - name: Rebuild the shared sandbox tier (ALB + identity) and wait for it
+              run: |
+                  set -euo pipefail
+                  before=$(gh run list --workflow sandbox-identity-deploy.yml --limit 1 \
+                    --json databaseId --jq '.[0].databaseId // 0')
+                  gh workflow run sandbox-identity-deploy.yml
+
+                  id="$before"
+                  for _ in $(seq 1 30); do
+                      sleep 10
+                      id=$(gh run list --workflow sandbox-identity-deploy.yml --limit 1 \
+                        --json databaseId --jq '.[0].databaseId // 0')
+                      [ "$id" != "$before" ] && break
+                  done
+                  if [ "$id" = "$before" ]; then
+                      echo '::error::sandbox-identity-deploy.yml never started — the shared identity service may be absent and this preview would have no sign-in.' >&2
+                      exit 1
+                  fi
+
+                  echo "watching sandbox-identity-deploy run ${id}"
+                  # `--exit-status` is what makes a failed rebuild fail THIS job, rather than letting the
+                  # previews deploy against a tier that did not come back.
+                  gh run watch "$id" --exit-status
 
             # `deploy-gate.sh` sees `forced=true` for a dispatch, so these deploy unconditionally — the press
             # IS the intent. SANDBOX_EXPIRES_AT rides through to the CDK app, which tags every stack with it.

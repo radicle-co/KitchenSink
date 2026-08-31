@@ -109,7 +109,17 @@ jobs:
               run: |
                   stack_exists() { aws cloudformation describe-stacks --stack-name "$1" >/dev/null 2>&1; }
                   global_missing=false; service_missing=false; webhooks_missing=false
+                  # ⛔ BOTH stacks are probed, and the ALB is the one that can actually be gone.
+                  # This gate used to ask only about the network stack, which was correct while the sandbox
+                  # ALB was permanent. ADR-0028's 2026-08-30 amendment made `kitchensink-alb-sandbox`
+                  # reclaimable — it is deleted with the tier and rebuilt here — while the network stack,
+                  # which owns the VPC and the NAT the RDS needs, deliberately OUTLIVES it. So the two no
+                  # longer imply one another: a reaped tier leaves the network stack standing, the old probe
+                  # answers `global_missing=false`, the global-sandbox deploy is skipped, and the identity
+                  # deploy then dies resolving `SharedAlbHttpsListenerArn` from a stack that no longer
+                  # exists. Probing the stack that can vanish is what makes the button self-healing.
                   stack_exists "kitchensink-network-sandbox" || global_missing=true
+                  stack_exists "kitchensink-alb-sandbox" || global_missing=true
                   stack_exists "kitchensink-identity-service-sandbox" || service_missing=true
                   stack_exists "kitchensink-identity-webhooks-sandbox" || webhooks_missing=true
 

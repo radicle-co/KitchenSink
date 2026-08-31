@@ -662,6 +662,10 @@ export const resolutionStatusLabel = (messages: RecipeFormMessages, status: Food
             // U14 — OUR OWN verdict, not food-service's. The gate read the line's raw source text against the
             // food we resolved it to and disagreed, so this line's nutrition is withheld until a human picks.
             return messages.statusNeedsReview;
+        case 'PENDING_VERIFICATION':
+            // U4c — KTD-A's quiet state: the bind is made, the check is in flight, the figure re-flows when
+            // the verdict lands. Deliberately calm copy — there is nothing for the cook to act on yet.
+            return messages.statusPendingVerification;
     }
 };
 

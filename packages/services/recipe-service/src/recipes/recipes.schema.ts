@@ -626,6 +626,7 @@ export const recipeNutritionStateSchema = z.discriminatedUnion('state', [
                 'no_nutrient_data',
                 'food_unavailable',
                 'verification_disagreement',
+                'verification_pending',
             ]),
         })
         .strict(),

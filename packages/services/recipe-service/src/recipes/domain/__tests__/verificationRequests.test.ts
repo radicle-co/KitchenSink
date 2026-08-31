@@ -87,6 +87,7 @@ const resolutionOf = (
     queryShape: null,
     rankerVersion: null,
     bandEpoch: null,
+    createdAt: new Date('2026-08-31T00:00:00.000Z'),
     ...overrides,
 });
 
@@ -554,5 +555,43 @@ describe('band consultation — earned autonomy at the producer (plan U4b, KTD-A
         const { bandSkips } = plan([makeLine({ resolution: singleton })], [], new Map([[KEY, authorized]]));
 
         expect(bandSkips).toEqual([]);
+    });
+});
+
+describe("pending re-drives — the withholding lines' stored messages (plan U4c, KTD-A)", () => {
+    it('emits a redrive judgement+message for a ranked line that will WITHHOLD', () => {
+        const { requests, pendingRedrives } = plan([makeLine({ resolution: lexicalResolution() })]);
+
+        expect(pendingRedrives).toHaveLength(1);
+        expect(pendingRedrives[0]?.message).toEqual(requests[0]);
+        expect(pendingRedrives[0]?.judgement.foodId).toBe('01JFOOD000000000000000000');
+    });
+
+    it('⛔ a band-EXCUSED line emits none — it is not pending, it settled instantly', () => {
+        const KEY = bandKeyText({
+            rung: 'head',
+            marginBand: '0.15+',
+            queryShape: 'single-token',
+            rankerVersion: 'ladder-v2-comma-head',
+        });
+        const { pendingRedrives } = plan(
+            [makeLine({ resolution: lexicalResolution() })],
+            [],
+            new Map([[KEY, { authority: { state: 'authorized', epoch: 2 }, shadow: false }]]),
+        );
+
+        expect(pendingRedrives).toEqual([]);
+    });
+
+    it('a curated line emits none — absence-means-publish changes for lexical binds only', () => {
+        const { pendingRedrives } = plan([makeLine({ resolution: resolutionOf('curated') })]);
+
+        expect(pendingRedrives).toEqual([]);
+    });
+
+    it('an unattributed line emits none, even though it verifies identity', () => {
+        const { pendingRedrives } = plan([makeLine({ resolution: undefined })]);
+
+        expect(pendingRedrives).toEqual([]);
     });
 });

@@ -53,6 +53,7 @@
  * LOST verdict benign, which is what lets the worker swallow a failed verdict write without re-paying for
  * the call.
  */
+import { PENDING_VERIFICATION_MAX_AGE_HOURS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 import {
     FoodResolutionStatus,
     type IngredientQuantity,
@@ -212,8 +213,20 @@ function unitOf(unit: string): string | null {
 export function resolveLineStatus(
     band: VerificationBand | undefined,
     catalogStatus: LineResolutionStatus | undefined,
+    pending: PendingState,
 ): LineResolutionStatus | undefined {
     if (band === undefined) {
+        // KTD-A (plan U4c): a zero-authority lexical bind is visibly PENDING until the gate agrees, and
+        // past the age bound it adopts the actionable needs-review treatment — a DLQ'd verification is
+        // user-visible harm under withhold semantics, so the aged state must invite action, not wait.
+        if (pending === 'pending') {
+            return FoodResolutionStatus.PENDING_VERIFICATION;
+        }
+
+        if (pending === 'aged') {
+            return FoodResolutionStatus.NEEDS_REVIEW;
+        }
+
         return catalogStatus;
     }
 
@@ -224,6 +237,67 @@ export function resolveLineStatus(
         case 'inconclusive':
             return catalogStatus;
     }
+}
+
+// The age bound lives in recipe-core (both sides of the worker seam read it); re-exported so this
+// module stays the one import site for the pending rule's vocabulary.
+export { PENDING_VERIFICATION_MAX_AGE_HOURS };
+
+/** A line's KTD-A pending classification. */
+export type PendingState = 'pending' | 'aged' | 'none';
+
+/** What the pending derivation reads off the line's latest resolution event. */
+export interface PendingProvenance {
+    readonly tier: string;
+    /** The band-authority epoch observed at resolve time — `null` IS the zero-authority state. */
+    readonly bandEpoch: string | null;
+    /** When the resolution was made — the clock pending ages against. */
+    readonly resolvedAt: Date;
+}
+
+/**
+ * Classify a line's KTD-A pending state. Pure.
+ *
+ * ⛔ FOR LEXICAL BINDS ONLY: curated and memo binds, user picks, and lines with no recorded resolution all
+ * keep the shipped absence-means-publish semantics. And ANY verdict ends pending — verified publishes,
+ * contradicted withholds via its own rule, inconclusive publishes (the shipped absence semantics) — so the
+ * verdict row landing flips the state with no write anywhere.
+ *
+ * @param band - The gate's verdict for this line, or `undefined` when it has not judged it.
+ * @param provenance - The line's latest resolution event, or `undefined` when none is recorded.
+ * @param now - The read's clock, injected.
+ * @returns The pending state.
+ */
+export function pendingStateOf(
+    band: VerificationBand | undefined,
+    provenance: PendingProvenance | undefined,
+    now: Date,
+): PendingState {
+    if (band !== undefined || provenance === undefined) {
+        return 'none';
+    }
+
+    if (provenance.tier !== 'lexical' || provenance.bandEpoch !== null) {
+        return 'none';
+    }
+
+    const ageHours = (now.getTime() - provenance.resolvedAt.getTime()) / 3_600_000;
+
+    return ageHours < PENDING_VERIFICATION_MAX_AGE_HOURS ? 'pending' : 'aged';
+}
+
+/**
+ * Whether a line's catalog nutrition is withheld from the recipe figure — the ONE definition, now over
+ * both withholding causes: an explicit contradiction, and KTD-A's pending/aged states (an aged line is
+ * still an unverified zero-authority bind; publishing it at an age threshold would re-open the silent
+ * wrong-bind hole through nothing more than a DLQ'd message).
+ *
+ * @param band - The gate's verdict, or `undefined`.
+ * @param pending - The line's pending state.
+ * @returns Whether the catalog contribution is withheld. Pure.
+ */
+export function isWithheldLine(band: VerificationBand | undefined, pending: PendingState): boolean {
+    return isWithheld(band) || pending !== 'none';
 }
 
 /**

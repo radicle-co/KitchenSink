@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { VerificationRedriveDal } from '../ingredients/resolution/verificationRedrive.dal.js';
 import { ConfigService } from '@nestjs/config';
 
 import { DEFAULT_AWS_REGION } from '../config/config.types.js';
@@ -43,6 +44,13 @@ import { createSqsVerificationQueue, VERIFICATION_QUEUE, type VerificationQueueP
     imports: [forwardRef(() => VersionsModule), IngredientsModule],
     controllers: [RecipesController],
     providers: [
+        {
+            // U4c — the pending re-drive substrate's write half. Its OWN instance over the shared Drizzle
+            // client, the embedded-DAL pattern PhotosDal/RatingsDal established (no module import, no cycle).
+            provide: VerificationRedriveDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): VerificationRedriveDal => new VerificationRedriveDal(db),
+        },
         {
             provide: VERIFICATION_QUEUE,
             inject: [ConfigService],

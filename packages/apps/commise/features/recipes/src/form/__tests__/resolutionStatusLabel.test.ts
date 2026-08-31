@@ -26,6 +26,16 @@ describe('resolutionStatusLabel', () => {
         expect(resolutionStatusLabel(en, FoodResolutionStatus.NEEDS_REVIEW)).toBe(en.statusNeedsReview);
     });
 
+    it('labels a KTD-A pending line with its own calm copy, distinct from every other badge (plan U4c)', () => {
+        const label = resolutionStatusLabel(en, FoodResolutionStatus.PENDING_VERIFICATION);
+
+        expect(label).toBe(en.statusPendingVerification);
+        // ⛔ Not the food-lifecycle 'Resolving…' and not the actionable 'Needs review' — pending is OUR
+        // in-flight check with nothing for the cook to do yet.
+        expect(label).not.toBe(en.statusPending);
+        expect(label).not.toBe(en.statusNeedsReview);
+    });
+
     it('⛔ does NOT reuse a food-lifecycle badge for it — the doubt is ours, and it is actionable', () => {
         // `NOT_FOUND`/`FAILED` are terminal facts about the food link, which a cook can only respond to by
         // going freeform. A contradicted line HAS a food and a figure; the cook's move is to re-pick, so the

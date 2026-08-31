@@ -20,7 +20,14 @@ import { describe, expect, it } from 'vitest';
 import { ABSENT_QUANTITY, FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { verificationKeyPreimage } from '@kitchensink/recipe-core/resolution/verification-key';
 
-import { resolveLineStatus, verifiedLineIdentity, VERIFICATION_BANDS } from '../lineVerification.js';
+import {
+    PENDING_VERIFICATION_MAX_AGE_HOURS,
+    isWithheldLine,
+    pendingStateOf,
+    resolveLineStatus,
+    verifiedLineIdentity,
+    VERIFICATION_BANDS,
+} from '../lineVerification.js';
 
 describe('verifiedLineIdentity — what a verdict about this line would be keyed on', () => {
     it('carries an exact quantity as the LOW bound with no high bound', () => {
@@ -209,34 +216,117 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
 
 describe('resolveLineStatus — which status one recipe line reports', () => {
     it('reports NEEDS_REVIEW when the gate CONTRADICTED the line, overriding the catalog mirror', () => {
-        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED)).toBe(
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none')).toBe(
             FoodResolutionStatus.NEEDS_REVIEW,
         );
     });
 
     it('reports NEEDS_REVIEW even when the catalog knows nothing about the food', () => {
-        expect(resolveLineStatus('contradicted', undefined)).toBe(FoodResolutionStatus.NEEDS_REVIEW);
+        expect(resolveLineStatus('contradicted', undefined, 'none')).toBe(FoodResolutionStatus.NEEDS_REVIEW);
     });
 
     it('⛔ passes a VERIFIED line through unchanged — a verdict that agreed changes nothing', () => {
-        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED)).toBe(FoodResolutionStatus.RESOLVED);
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none')).toBe(
+            FoodResolutionStatus.RESOLVED,
+        );
     });
 
     it('⛔ passes an INCONCLUSIVE line through unchanged — abstention is not disagreement', () => {
-        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.PENDING)).toBe(FoodResolutionStatus.PENDING);
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.PENDING, 'none')).toBe(
+            FoodResolutionStatus.PENDING,
+        );
     });
 
     it('⛔ ABSENCE OF A VERDICT MEANS PUBLISH — the line reports its catalog status alone (0023)', () => {
-        expect(resolveLineStatus(undefined, FoodResolutionStatus.PENDING)).toBe(FoodResolutionStatus.PENDING);
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.PENDING, 'none')).toBe(FoodResolutionStatus.PENDING);
     });
 
     it('reports nothing at all for an unjudged line with no catalog status', () => {
-        expect(resolveLineStatus(undefined, undefined)).toBeUndefined();
+        expect(resolveLineStatus(undefined, undefined, 'none')).toBeUndefined();
     });
 
     it('is TOTAL over every band migration 0023 admits', () => {
         for (const band of VERIFICATION_BANDS) {
-            expect(resolveLineStatus(band, FoodResolutionStatus.RESOLVED)).toBeDefined();
+            expect(resolveLineStatus(band, FoodResolutionStatus.RESOLVED, 'none')).toBeDefined();
         }
+    });
+});
+
+describe('pendingStateOf — KTD-A: zero-authority lexical binds WITHHOLD until the verdict (plan U4c)', () => {
+    const NOW = new Date('2026-08-31T12:00:00.000Z');
+    const hoursAgo = (hours: number) => new Date(NOW.getTime() - hours * 3_600_000);
+    const lexicalZeroAuthority = (resolvedAt: Date) => ({ tier: 'lexical' as const, bandEpoch: null, resolvedAt });
+
+    it('a fresh zero-authority lexical bind with no verdict is PENDING', () => {
+        expect(pendingStateOf(undefined, lexicalZeroAuthority(hoursAgo(1)), NOW)).toBe('pending');
+    });
+
+    it('past the age bound it becomes AGED — the actionable needs-review treatment', () => {
+        expect(
+            pendingStateOf(undefined, lexicalZeroAuthority(hoursAgo(PENDING_VERIFICATION_MAX_AGE_HOURS + 1)), NOW),
+        ).toBe('aged');
+    });
+
+    it('⛔ ANY verdict ends pending — verified, contradicted and inconclusive all have their own rules', () => {
+        for (const band of VERIFICATION_BANDS) {
+            expect(pendingStateOf(band, lexicalZeroAuthority(hoursAgo(1)), NOW)).toBe('none');
+        }
+    });
+
+    it('⛔ curated and memo binds never pend — absence-means-publish changes for LEXICAL binds only', () => {
+        expect(pendingStateOf(undefined, { tier: 'curated', bandEpoch: null, resolvedAt: hoursAgo(1) }, NOW)).toBe(
+            'none',
+        );
+        expect(pendingStateOf(undefined, { tier: 'memo', bandEpoch: null, resolvedAt: hoursAgo(1) }, NOW)).toBe('none');
+    });
+
+    it("an AUTHORIZED-band bind (non-null epoch) publishes instantly — earned autonomy's payoff", () => {
+        expect(pendingStateOf(undefined, { tier: 'lexical', bandEpoch: '2', resolvedAt: hoursAgo(1) }, NOW)).toBe(
+            'none',
+        );
+    });
+
+    it('a line with no recorded resolution keeps the shipped absence-means-publish semantics', () => {
+        expect(pendingStateOf(undefined, undefined, NOW)).toBe('none');
+    });
+});
+
+describe('isWithheldLine — pending and aged withhold macros exactly like a contradiction', () => {
+    it('withholds a contradicted line whatever its pending state', () => {
+        expect(isWithheldLine('contradicted', 'none')).toBe(true);
+    });
+
+    it('withholds pending AND aged — an aged line is still an unverified zero-authority bind', () => {
+        expect(isWithheldLine(undefined, 'pending')).toBe(true);
+        expect(isWithheldLine(undefined, 'aged')).toBe(true);
+    });
+
+    it('publishes a verified, an inconclusive, and an ordinary unjudged line', () => {
+        expect(isWithheldLine('verified', 'none')).toBe(false);
+        expect(isWithheldLine('inconclusive', 'none')).toBe(false);
+        expect(isWithheldLine(undefined, 'none')).toBe(false);
+    });
+});
+
+describe('resolveLineStatus — the pending members (plan U4c)', () => {
+    it('a PENDING line reports PENDING_VERIFICATION, whatever the catalog says', () => {
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'pending')).toBe(
+            FoodResolutionStatus.PENDING_VERIFICATION,
+        );
+    });
+
+    it('an AGED line adopts the actionable NEEDS_REVIEW treatment', () => {
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'aged')).toBe(
+            FoodResolutionStatus.NEEDS_REVIEW,
+        );
+    });
+
+    it('a verdict outranks pending inputs — the switch is on the verdict first', () => {
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none')).toBe(
+            FoodResolutionStatus.RESOLVED,
+        );
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none')).toBe(
+            FoodResolutionStatus.NEEDS_REVIEW,
+        );
     });
 });

@@ -21,6 +21,7 @@
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { BandAuthorityStore } from '@kitchensink/recipe-core/resolution/band-authority-store';
 import { planReservation } from '@kitchensink/recipe-core/spend/spend-arithmetic';
+import { PENDING_VERIFICATION_MAX_AGE_HOURS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
 
 import { requireEnv } from '../common/config.js';
 import { getRecipePool } from '../common/db.js';
@@ -49,6 +50,14 @@ export interface BandDrainDeps {
     readonly store: Pick<BandAuthorityStore, 'undrainedRevokedSkips' | 'markDrained'>;
     /** The period's `reserved_micros`, read from `verification_spend` (0 when the row is absent). */
     readonly reservedForPeriod: (period: string) => Promise<number>;
+    /**
+     * Aged verdict-less rows from the pending re-drive substrate (0037, plan U4c), oldest first, up to
+     * `limit` — rows past the age bound whose verification key has no verdict and that were not re-driven
+     * within the bound already.
+     */
+    readonly agedRedrives: (limit: number) => Promise<readonly { verificationKey: string; message: unknown }[]>;
+    /** Stamp one row's `last_driven_at` after its re-send. */
+    readonly markRedriven: (verificationKey: string) => Promise<void>;
     /** Send one stored message to the verification queue, verbatim. */
     readonly send: (message: unknown) => Promise<void>;
     readonly now: () => Date;
@@ -111,11 +120,83 @@ export async function drainRevokedBands(deps: BandDrainDeps): Promise<{ sent: nu
         }
     }
 
-    if (skips.length > 0) {
-        logger.info('band drain swept', { claimed: skips.length, sent, budget });
+    // KTD-A (plan U4c): the OTHER backlog — withholding lines whose verdicts never landed. Same budget,
+    // strictly after the revoked skips (a revocation is a measured judgement that binds were wrong; an aged
+    // pending line is merely unchecked), and a tick whose skips consumed the budget re-drives nothing.
+    const remaining = budget - skips.length;
+    let redriven = 0;
+
+    if (remaining > 0) {
+        const redrives = await deps.agedRedrives(remaining);
+
+        for (const redrive of redrives) {
+            try {
+                await deps.send(redrive.message);
+                await deps.markRedriven(redrive.verificationKey);
+                sent += 1;
+                redriven += 1;
+            } catch (error) {
+                logger.error('band drain could not re-drive a pending verification', {
+                    verificationKey: redrive.verificationKey,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }
+    }
+
+    if (skips.length > 0 || redriven > 0) {
+        logger.info('band drain swept', { claimed: skips.length, sent, redriven, budget });
     }
 
     return { sent, budget };
+}
+
+/** The minimal query surface the re-drive reads need — `pg.Pool` satisfies it structurally. */
+export interface RedriveQueryable {
+    query(text: string, params: unknown[]): Promise<{ rows: unknown[] }>;
+}
+
+/**
+ * The pending re-drive substrate's read half (0037, plan U4c), exported so the integration tier can
+ * exercise the REAL SQL — the interval cast and the verdict join are claims about the database.
+ *
+ * @param pool - The recipe database pool, or any queryable double.
+ * @returns The two reads the drain consumes. @sideEffect The returned methods read/write the substrate.
+ */
+export function createRedriveReads(pool: RedriveQueryable): {
+    agedRedrives: (limit: number) => Promise<readonly { verificationKey: string; message: unknown }[]>;
+    markRedriven: (verificationKey: string) => Promise<void>;
+} {
+    return {
+        async agedRedrives(limit: number): Promise<readonly { verificationKey: string; message: unknown }[]> {
+            // ⛔ The no-verdict check is a same-key LEFT JOIN against the verdict store's own primary key —
+            // no derivation anywhere, so it cannot drift from what the worker writes. The age bound is the
+            // SHARED constant the read side renders pending against, and the last-driven window equals it
+            // so each stranded line is re-asked at most once per bound.
+            const result = await pool.query(
+                `SELECT r.verification_key, r.message
+                   FROM recipe_ingredient_verification_redrive r
+                   LEFT JOIN recipe_ingredient_verifications v ON v.verification_key = r.verification_key
+                  WHERE v.verification_key IS NULL
+                    AND r.created_at < now() - ($2 || ' hours')::interval
+                    AND (r.last_driven_at IS NULL OR r.last_driven_at < now() - ($2 || ' hours')::interval)
+                  ORDER BY r.created_at ASC
+                  LIMIT $1`,
+                [limit, String(PENDING_VERIFICATION_MAX_AGE_HOURS)],
+            );
+
+            return (result.rows as { verification_key: string; message: unknown }[]).map((row) => ({
+                verificationKey: row.verification_key,
+                message: row.message,
+            }));
+        },
+        async markRedriven(verificationKey: string): Promise<void> {
+            await pool.query(
+                'UPDATE recipe_ingredient_verification_redrive SET last_driven_at = now() WHERE verification_key = $1',
+                [verificationKey],
+            );
+        },
+    };
 }
 
 /** How long a cached SSM read stays fresh — mirrors `verifyLine.ts`. */
@@ -155,6 +236,7 @@ function productionDeps(stage: string, region: string, queueUrl: string): BandDr
 
             return row === undefined ? 0 : Number(row.reserved_micros);
         },
+        ...createRedriveReads(pool),
         async send(message: unknown): Promise<void> {
             await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: JSON.stringify(message) }));
         },

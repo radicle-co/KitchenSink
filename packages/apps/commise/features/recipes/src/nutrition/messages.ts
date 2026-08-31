@@ -61,6 +61,12 @@ export interface RecipeNutritionMessages {
      * direction: it blames the catalog for data the catalog HAD.
      */
     readonly unaccountedVerificationDisagreement: string;
+    /**
+     * KTD-A's pending disclosure (plan U4c): verification is IN FLIGHT — softer than the disagreement
+     * sentence (nothing was judged yet) and pointedly not an outage (nothing to retry; the figure appears
+     * on its own when the verdicts land).
+     */
+    readonly unaccountedVerificationPending: string;
 }
 
 /**
@@ -85,5 +91,7 @@ export const recipeNutritionMessages: LocalizedMessages<RecipeNutritionMessages>
         unaccountedFoodUnavailable: 'Nutrition is unavailable right now. Try again shortly.',
         unaccountedVerificationDisagreement:
             'No nutrition yet — some ingredients didn’t match their original wording, so we’ve held the figure back. Check them and pick the right foods.',
+        unaccountedVerificationPending:
+            'Still checking these ingredients — the total will appear once verification finishes.',
     },
 };

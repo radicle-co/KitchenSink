@@ -236,5 +236,9 @@ export const unaccountedReasonText = (
             // checked and doubted, not an outage a retry will clear — plan U14 names that conflation as the
             // thing this reason exists to prevent.
             return messages.unaccountedVerificationDisagreement;
+        case 'verification_pending':
+            // U4c — not the disagreement sentence (nothing was judged) and not the outage sentence (nothing
+            // to retry): the check is running and the figure re-flows when it lands.
+            return messages.unaccountedVerificationPending;
     }
 };

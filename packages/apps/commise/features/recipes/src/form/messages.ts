@@ -262,6 +262,12 @@ export interface RecipeFormMessages {
      * this one is OUR own doubt about the match, and it is the only status a cook can act on by re-picking.
      */
     readonly statusNeedsReview: string;
+    /**
+     * Resolution-status badge: KTD-A's quiet "checking…" state (plan U4c/U13) — a zero-authority lexical
+     * bind whose verification verdict has not landed yet. NOT actionable (nothing for the cook to do but
+     * wait; the total re-flows as verdicts land), which is what separates it from `statusNeedsReview`.
+     */
+    readonly statusPendingVerification: string;
 
     /** Heading for the instructions section. */
     readonly stepsHeading: string;
@@ -384,6 +390,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         statusNotFound: 'No match found',
         statusFailed: 'Resolution failed',
         statusNeedsReview: 'Needs review',
+        statusPendingVerification: 'Checking…',
 
         stepsHeading: 'Instructions',
         stepInstructionLabel: 'Step {number} instruction',

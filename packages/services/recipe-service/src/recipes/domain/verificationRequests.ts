@@ -78,6 +78,7 @@ import {
 import type { LatestResolution } from '../../ingredients/resolution/ingredientResolutions.dal.js';
 
 import { verifiedLineIdentity } from './lineVerification.js';
+import type { VerifiedLineIdentity } from '@kitchensink/recipe-core/resolution/verification-key';
 
 /**
  * One persisted recipe ingredient line, adapted for the gate.
@@ -167,6 +168,12 @@ export interface BandSkipRecord {
     readonly message: VerifyIngredientLineMessage;
 }
 
+/** One withholding line's judgement identity and its ready message, for the re-drive substrate (0037). */
+export interface PendingRedriveRecord {
+    readonly judgement: VerifiedLineIdentity;
+    readonly message: VerifyIngredientLineMessage;
+}
+
 /** What the producer decided: the messages to send, and every line it will never ask about. */
 export interface VerificationRequestPlan {
     readonly requests: readonly VerifyIngredientLineMessage[];
@@ -176,6 +183,13 @@ export interface VerificationRequestPlan {
      * `resolution_band_skips`; revocation's drain re-sends from there.
      */
     readonly bandSkips: readonly BandSkipRecord[];
+    /**
+     * The WITHHOLDING lines' judgements + ready messages (plan U4c, KTD-A): every ranked line that will
+     * render `pending-verification` until its verdict lands. The impure half stores each in the re-drive
+     * substrate (0037) under the verdict store's content key, so a lost or DLQ'd verification is
+     * re-driven by the scheduled drain rather than pending forever.
+     */
+    readonly pendingRedrives: readonly PendingRedriveRecord[];
     /**
      * Lines that will never be verified.
      *
@@ -340,6 +354,7 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
     const requests: VerifyIngredientLineMessage[] = [];
     const unasked: UnaskedLine[] = [];
     const bandSkips: BandSkipRecord[] = [];
+    const pendingRedrives: PendingRedriveRecord[] = [];
 
     for (const line of input.lines) {
         const { sourceLine, foodId } = line;
@@ -440,7 +455,21 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
         ) {
             bandSkips.push({ band: bandKey, epoch: consultation.authority.epoch, message });
         }
+
+        // KTD-A: a RANKED line still being asked about identity is the withholding class — it renders
+        // `pending-verification` until this very message's verdict lands, so its judgement + message go to
+        // the re-drive substrate. Shadow is excluded (a shadow line's band is authorized, so it settled
+        // instantly and does not pend); curated/memo/unattributed keep absence-means-publish and need no
+        // re-drive.
+        if (
+            evidence.kind === 'ranked' &&
+            !shadow &&
+            decision.kind === 'verify' &&
+            decision.aspects.includes('identity')
+        ) {
+            pendingRedrives.push({ judgement, message });
+        }
     }
 
-    return { requests, unasked, bandSkips };
+    return { requests, unasked, bandSkips, pendingRedrives };
 }

@@ -11,6 +11,7 @@
  *
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
+import { createHash } from 'node:crypto';
 import { BadRequestException, forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import { deriveDisplayName } from '@kitchensink/identity-core';
 import {
@@ -43,6 +44,9 @@ import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.
 import { toRecipeNutritionState } from './domain/nutritionState.js';
 import {
     isWithheld,
+    isWithheldLine,
+    pendingStateOf,
+    type PendingState,
     resolveLineStatus,
     verifiedLineIdentity,
     type VerificationBand,
@@ -78,6 +82,7 @@ import {
 import { IngredientResolutionsDal } from '../ingredients/resolution/ingredientResolutions.dal.js';
 import type { LatestResolution } from '../ingredients/resolution/ingredientResolutions.dal.js';
 import { ResolutionBandsDal } from '../ingredients/resolution/resolutionBands.dal.js';
+import { VerificationRedriveDal } from '../ingredients/resolution/verificationRedrive.dal.js';
 import { bandKeyText } from '@kitchensink/recipe-core/resolution/band-authority-store';
 import { shadowRateFor } from '@kitchensink/recipe-core/resolution/band-policy';
 import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
@@ -468,13 +473,41 @@ function assembleLines(
     catalog: LineCatalog,
     measures: readonly LineNutritionInput[],
     verdicts: LineVerdicts,
+    pending: ReadonlyMap<string, PendingState>,
 ): NutritionLine[] {
     return measures.map(({ ingredientId, lineId, sourceLine: _sourceLine, ...measure }) =>
         toNutritionLine(
             measure,
-            isWithheld(verdicts.get(lineId)) ? undefined : catalog.byIngredientId.get(ingredientId),
+            isWithheldLine(verdicts.get(lineId), pending.get(lineId) ?? 'none')
+                ? undefined
+                : catalog.byIngredientId.get(ingredientId),
         ),
     );
+}
+
+/**
+ * How many of these lines KTD-A's pending state withheld and thereby cost this recipe a contribution.
+ * Pure — the pending twin of {@link countWithheldContributions}, with the same "would otherwise have
+ * accounted" discipline: a pending line the catalog could not have priced anyway, or one carrying the
+ * cook's own override, did not cost the recipe its figure.
+ */
+function countPendingContributions(
+    catalog: LineCatalog,
+    measures: readonly LineNutritionInput[],
+    pending: ReadonlyMap<string, PendingState>,
+): number {
+    return measures.filter(({ ingredientId, lineId, sourceLine: _sourceLine, ...measure }) => {
+        if ((pending.get(lineId) ?? 'none') === 'none') {
+            return false;
+        }
+
+        const withCatalog = toNutritionLine(measure, catalog.byIngredientId.get(ingredientId));
+
+        return (
+            lineNutritionSource(withCatalog) !== null &&
+            lineNutritionSource(toNutritionLine(measure, undefined)) === null
+        );
+    }).length;
 }
 
 /**
@@ -492,6 +525,9 @@ function countWithheldContributions(
     verdicts: LineVerdicts,
 ): number {
     return measures.filter(({ ingredientId, lineId, sourceLine: _sourceLine, ...measure }) => {
+        // ⛔ CONTRADICTIONS ONLY, deliberately not KTD-A's pending withholds — those are counted (and
+        // classified) separately, because "we disagreed" and "we have not checked yet" tell the reader two
+        // different things with two different fixes. See `countPendingContributions`.
         if (!isWithheld(verdicts.get(lineId))) {
             return false;
         }
@@ -672,6 +708,9 @@ export class RecipesService {
         // no cryptographic strength, only an unbiased rate. ⚠️ Token-injected: a bare `() => number`
         // param emits `Function` into design:paramtypes, which Nest cannot resolve.
         @Optional() @Inject(RECIPES_SHADOW_RNG) private readonly rng?: () => number,
+        // U4c, optional like its siblings: without it withholding lines are simply not re-drivable — the
+        // age-bounded needs-review treatment remains their backstop.
+        @Optional() private readonly verificationRedrive?: VerificationRedriveDal,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
@@ -708,12 +747,14 @@ export class RecipesService {
             measures.map((measure) => measure.ingredientId),
         );
         const verdicts = await this.loadLineVerdicts(catalog, measures);
+        const pending = await this.loadPendingStates(measures, verdicts);
         const lineStatuses = new Map<string, LineResolutionStatus>();
 
         for (const measure of measures) {
             const status = resolveLineStatus(
                 verdicts.get(measure.lineId),
                 catalog.statusByIngredientId.get(measure.ingredientId),
+                pending.get(measure.lineId) ?? 'none',
             );
 
             if (status !== undefined) {
@@ -722,9 +763,67 @@ export class RecipesService {
         }
 
         return {
-            nutrition: computeRecipeNutrition(assembleLines(catalog, measures, verdicts), aggregate.recipe.servings),
+            nutrition: computeRecipeNutrition(
+                assembleLines(catalog, measures, verdicts, pending),
+                aggregate.recipe.servings,
+            ),
             lineStatuses,
         };
+    }
+
+    /**
+     * KTD-A's per-line pending classification (plan U4c): for each line, whether its ingredient's latest
+     * resolution is a zero-authority LEXICAL bind still awaiting its verdict.
+     *
+     * ⚠️ Quiet and total, like every auxiliary read on this path: with no resolutions DAL, or on a failed
+     * read, every line classifies `none` — the shipped absence-means-publish semantics, never an error.
+     *
+     * @param measures - The recipe's lines.
+     * @param verdicts - The loaded verdicts, by line id.
+     * @returns Pending state by line id. @sideEffect One batched resolutions read.
+     */
+    private async loadPendingStates(
+        measures: readonly LineNutritionInput[],
+        verdicts: LineVerdicts,
+    ): Promise<ReadonlyMap<string, PendingState>> {
+        const pending = new Map<string, PendingState>();
+
+        if (this.ingredientResolutions === undefined || measures.length === 0) {
+            return pending;
+        }
+
+        let resolutions: ReadonlyMap<string, LatestResolution>;
+
+        try {
+            resolutions = await this.ingredientResolutions.latestResolutionsByIngredientIds(
+                measures.map((measure) => measure.ingredientId),
+            );
+        } catch (error) {
+            this.logger.warn(
+                'Resolution provenance read failed; no line renders pending.',
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return pending;
+        }
+
+        const now = new Date();
+
+        for (const measure of measures) {
+            const event = resolutions.get(measure.ingredientId);
+            pending.set(
+                measure.lineId,
+                pendingStateOf(
+                    verdicts.get(measure.lineId),
+                    event === undefined
+                        ? undefined
+                        : { tier: event.tier, bandEpoch: event.bandEpoch, resolvedAt: event.createdAt },
+                    now,
+                ),
+            );
+        }
+
+        return pending;
     }
 
     /**
@@ -895,6 +994,8 @@ export class RecipesService {
         // ONE verdict read for the whole batch, for the same reason there is one food call: see
         // `loadLineVerdicts`. It runs AFTER the catalog because a verdict is keyed on the line's food id.
         const verdicts = await this.loadLineVerdicts(catalog, allMeasures);
+        // KTD-A: one batched pending classification for the whole batch, like the verdict read above.
+        const pending = await this.loadPendingStates(allMeasures, verdicts);
 
         const nutrition: Record<string, RecipeNutritionState> = {};
 
@@ -911,11 +1012,12 @@ export class RecipesService {
 
             nutrition[input.recipeId] = toRecipeNutritionState(
                 {
-                    lines: assembleLines(catalog, measures, verdicts),
+                    lines: assembleLines(catalog, measures, verdicts, pending),
                     referencedFoodCount: referenced.size,
                     resolvedFoodCount: [...referenced].filter((foodId) => catalog.resolvedFoodIds.has(foodId)).length,
                     staleFoodCount: [...referenced].filter((foodId) => catalog.staleFoodIds.has(foodId)).length,
                     withheldLineCount: countWithheldContributions(catalog, measures, verdicts),
+                    pendingLineCount: countPendingContributions(catalog, measures, pending),
                 },
                 input.servings,
                 catalog.degraded,
@@ -1272,6 +1374,23 @@ export class RecipesService {
             } catch (error) {
                 this.logger.warn(
                     'band-skip record failed; the settlement is unlogged for the drain',
+                    error instanceof Error ? error.stack : String(error),
+                );
+            }
+        }
+
+        // KTD-A: the withholding lines' ready messages, stored under the verdict store's own content key so
+        // the scheduled drain can re-send any that age out with no verdict (plan U4c). Quietly — if BOTH
+        // the enqueue above and this write fail, the age-bounded needs-review treatment is the backstop.
+        for (const redrive of plan.pendingRedrives) {
+            try {
+                await this.verificationRedrive?.record(
+                    verificationKey(redrive.judgement, (input) => createHash('sha256').update(input).digest('hex')),
+                    redrive.message,
+                );
+            } catch (error) {
+                this.logger.warn(
+                    'pending-redrive record failed; the line relies on the age-bounded review treatment',
                     error instanceof Error ? error.stack : String(error),
                 );
             }

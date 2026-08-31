@@ -69,6 +69,14 @@ export interface RecipeNutritionAccounting {
      * so counting it would blame the gate for an absence it did not cause.
      */
     readonly withheldLineCount: number;
+    /**
+     * How many of this recipe's lines are WITHHELD as KTD-A `pending-verification` (plan U4c) **and**
+     * would otherwise have been accounted for.
+     *
+     * ⛔ REQUIRED, for `withheldLineCount`'s reason exactly: an optional count silently dropped at a call
+     * site reads as "nothing is pending".
+     */
+    readonly pendingLineCount: number;
 }
 
 /**
@@ -121,6 +129,14 @@ export function toRecipeNutritionState(
         // and we declined to publish it. The remaining lines' silence is not new information; the withholding
         // is. See `RecipeNutritionAccounting.withheldLineCount`.
         return { state: 'unaccounted', reason: 'verification_disagreement' };
+    }
+
+    if (accounting.pendingLineCount > 0) {
+        // KTD-A (plan U4c), SECOND after disagreement: the figure is absent because we have not finished
+        // CHECKING — the verdicts are in flight and the total re-flows as they land. Softer than
+        // `verification_disagreement` (which says we checked and disagreed), stronger than the food-side
+        // reasons (the catalog answered; the withholding is ours).
+        return { state: 'unaccounted', reason: 'verification_pending' };
     }
 
     if (accounting.referencedFoodCount === 0) {

@@ -50,12 +50,20 @@ describe('lineResolutionStatusSchema — the per-RECIPE-LINE status', () => {
         expect(lineResolutionStatusSchema.safeParse('NEEDS_REVIEW').success).toBe(true);
     });
 
-    it('adds EXACTLY one member to the mirror — nothing else drifts in', () => {
+    it('adds EXACTLY two members to the mirror — nothing else drifts in', () => {
+        // ⚠️ REWRITTEN for plan U4c: KTD-A's derived `PENDING_VERIFICATION` joined `NEEDS_REVIEW` as the
+        // second recipe-line-only member. Both are derived at read and never written to a catalog row —
+        // the closed catalog schema is asserted unchanged below.
         const extra = lineResolutionStatusSchema.options.filter(
             (status) => !(foodResolutionStatusSchema.options as readonly string[]).includes(status),
         );
 
-        expect(extra).toEqual(['NEEDS_REVIEW']);
+        expect(extra).toEqual(['NEEDS_REVIEW', 'PENDING_VERIFICATION']);
+    });
+
+    it('admits PENDING_VERIFICATION — and the CATALOG schema still refuses it', () => {
+        expect(lineResolutionStatusSchema.safeParse('PENDING_VERIFICATION').success).toBe(true);
+        expect(foodResolutionStatusSchema.safeParse('PENDING_VERIFICATION').success).toBe(false);
     });
 
     it('rejects an unknown status', () => {

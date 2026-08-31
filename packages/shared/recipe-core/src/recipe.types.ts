@@ -443,6 +443,14 @@ export const FoodResolutionStatus = {
     FAILED: 'FAILED',
     /** ⛔ RECIPE-LINE ONLY — see this block's header. Never written to a catalog row. */
     NEEDS_REVIEW: 'NEEDS_REVIEW',
+    /**
+     * ⛔ RECIPE-LINE ONLY, and DERIVED at read (plan U4c, KTD-A): a zero-authority lexical bind whose
+     * verification verdict has not landed yet. The line is bound and visible, its macros are withheld from
+     * the recipe figure, and the verdict's arrival flips it with no write anywhere. ⛔ NOT `UNRESOLVED`,
+     * which means "several candidates, pick one" and drives the disambiguation picker — a pending line has
+     * exactly one proposed food and nothing for a picker to do.
+     */
+    PENDING_VERIFICATION: 'PENDING_VERIFICATION',
 } as const;
 
 /**
@@ -493,6 +501,7 @@ export const lineResolutionStatusSchema = z.enum([
     FoodResolutionStatus.NOT_FOUND,
     FoodResolutionStatus.FAILED,
     FoodResolutionStatus.NEEDS_REVIEW,
+    FoodResolutionStatus.PENDING_VERIFICATION,
 ]);
 
 /** One recipe line's food-resolution status — the catalog mirror widened by the gate's own verdict. */

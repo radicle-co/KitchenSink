@@ -114,6 +114,14 @@ describe('toCalorieChipModel', () => {
 });
 
 describe('unaccountedReasonText', () => {
+    it('gives verification_pending its own sentence — not the disagreement, not the outage (plan U4c)', () => {
+        const text = unaccountedReasonText('verification_pending', en);
+
+        expect(text).toBe(en.unaccountedVerificationPending);
+        expect(text).not.toBe(en.unaccountedVerificationDisagreement);
+        expect(text).not.toBe(en.unaccountedFoodUnavailable);
+    });
+
     it('gives each wire reason its own copy', () => {
         // ⚠️ EXTENDED, not rewritten (plan U14): the wire union gained a fourth reason, and the switch this
         // covers is exhaustive with no default — so a missing arm is a compile error, and a missing CASE HERE

@@ -159,6 +159,16 @@ export const rankedEvidence = (shortlist: readonly ScoredCandidate[]): IdentityE
     shortlist,
 });
 
+/**
+ * How long a KTD-A pending line stays quietly "checking…" before it adopts the actionable needs-review
+ * treatment AND the re-drive sweep re-enqueues its verification (plan U4c). Provisional (Q2 calibration).
+ *
+ * Shared here because BOTH sides of the worker seam read it: recipe-service derives the pending state at
+ * read, recipe-workers' drain re-drives past the same bound — two copies of the number would let a line
+ * re-drive before (or long after) it turns actionable.
+ */
+export const PENDING_VERIFICATION_MAX_AGE_HOURS = 72;
+
 /** The measured (or, until the bake-off runs, provisional) bounds the policy compares against. */
 export interface VerificationThresholds {
     /**

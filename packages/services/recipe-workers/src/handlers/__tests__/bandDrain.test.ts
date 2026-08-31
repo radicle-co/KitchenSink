@@ -24,6 +24,8 @@ function deps(overrides: Partial<BandDrainDeps> = {}): BandDrainDeps & {
     readonly spies: {
         undrained: ReturnType<typeof vi.fn>;
         markDrained: ReturnType<typeof vi.fn>;
+        agedRedrives: ReturnType<typeof vi.fn>;
+        markRedriven: ReturnType<typeof vi.fn>;
         send: ReturnType<typeof vi.fn>;
         reserved: ReturnType<typeof vi.fn>;
     };
@@ -31,6 +33,8 @@ function deps(overrides: Partial<BandDrainDeps> = {}): BandDrainDeps & {
     const spies = {
         undrained: vi.fn().mockResolvedValue([SKIP('a'), SKIP('b')]),
         markDrained: vi.fn().mockResolvedValue(undefined),
+        agedRedrives: vi.fn().mockResolvedValue([]),
+        markRedriven: vi.fn().mockResolvedValue(undefined),
         send: vi.fn().mockResolvedValue(undefined),
         reserved: vi.fn().mockResolvedValue(0),
     };
@@ -41,6 +45,8 @@ function deps(overrides: Partial<BandDrainDeps> = {}): BandDrainDeps & {
         settings: { resolve: vi.fn().mockResolvedValue(SETTINGS) },
         store: { undrainedRevokedSkips: spies.undrained, markDrained: spies.markDrained },
         reservedForPeriod: spies.reserved,
+        agedRedrives: spies.agedRedrives,
+        markRedriven: spies.markRedriven,
         send: spies.send,
         now: () => new Date('2026-08-31T10:00:00.000Z'),
         ...overrides,
@@ -117,5 +123,47 @@ describe('degenerate settings', () => {
 
         expect(result.sent).toBe(0);
         expect(d.spies.send).not.toHaveBeenCalled();
+    });
+});
+
+describe("aged pending re-drives share the tick's budget (plan U4c, KTD-A)", () => {
+    const REDRIVE = (key: string) => ({ verificationKey: key, message: { sourceLine: `line ${key}` } });
+
+    it('drives aged verdict-less rows AFTER the revoked skips, out of the SAME budget', async () => {
+        const d = deps({ stage: 'sandbox' });
+        d.spies.agedRedrives.mockResolvedValue([REDRIVE('k1')]);
+
+        const result = await drainRevokedBands(d);
+
+        // 2 skips + 1 redrive; the redrive read was offered only the leftover budget.
+        expect(result.sent).toBe(3);
+        expect(d.spies.agedRedrives).toHaveBeenCalledWith(DRAIN_MAX_BATCH - 2);
+        expect(d.spies.send).toHaveBeenCalledWith({ sourceLine: 'line k1' });
+        expect(d.spies.markRedriven).toHaveBeenCalledWith('k1');
+    });
+
+    it('⛔ a tick whose skips consumed the whole budget re-drives NOTHING — pause, not overrun', async () => {
+        const d = deps({ stage: 'prod' });
+        // Headroom for exactly 8 worst-case calls → budget floor(8 × fraction) = 2, both spent on skips.
+        d.spies.reserved.mockResolvedValue(SETTINGS.ceilingMicros - 8 * 116);
+        d.spies.agedRedrives.mockResolvedValue([REDRIVE('k1')]);
+
+        const result = await drainRevokedBands(d);
+
+        expect(result.sent).toBe(2);
+        expect(d.spies.agedRedrives).not.toHaveBeenCalled();
+    });
+
+    it('⚠️ a failed re-send leaves the row unmarked for the next tick and does not strand the rest', async () => {
+        const d = deps({ stage: 'sandbox' });
+        d.spies.undrained.mockResolvedValue([]);
+        d.spies.agedRedrives.mockResolvedValue([REDRIVE('k1'), REDRIVE('k2')]);
+        d.spies.send.mockRejectedValueOnce(new Error('sqs throttled'));
+
+        const result = await drainRevokedBands(d);
+
+        expect(result.sent).toBe(1);
+        expect(d.spies.markRedriven).toHaveBeenCalledTimes(1);
+        expect(d.spies.markRedriven).toHaveBeenCalledWith('k2');
     });
 });

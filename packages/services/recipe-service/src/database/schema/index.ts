@@ -41,6 +41,10 @@ export type {
 export { ingredientResolutions } from './ingredientResolutions.js';
 export type { IngredientResolutionRow, NewIngredientResolutionRow } from './ingredientResolutions.js';
 
+// ── recipe_ingredient_verification_redrive (plan U4c, 0037) — the pending re-drive substrate ─────
+export { verificationRedrive } from './verificationRedrive.js';
+export type { VerificationRedriveRow, NewVerificationRedriveRow } from './verificationRedrive.js';
+
 // ── resolution_band_* (plan U3, 0036) — earned autonomy's memory ─────────────────────────────────
 export {
     resolutionBandAuthority,

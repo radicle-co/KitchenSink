@@ -4360,6 +4360,7 @@ components:
                   - NOT_FOUND
                   - FAILED
                   - NEEDS_REVIEW
+                  - PENDING_VERIFICATION
             required:
               - ingredientId
               - name
@@ -4984,6 +4985,7 @@ components:
                 - no_nutrient_data
                 - food_unavailable
                 - verification_disagreement
+                - verification_pending
           required:
             - state
             - reason

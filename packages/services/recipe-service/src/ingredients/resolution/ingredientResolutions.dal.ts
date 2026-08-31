@@ -83,6 +83,7 @@ export class IngredientResolutionsDal {
                 queryShape: ingredientResolutions.queryShape,
                 rankerVersion: ingredientResolutions.rankerVersion,
                 bandEpoch: ingredientResolutions.bandEpoch,
+                createdAt: ingredientResolutions.createdAt,
             })
             .from(ingredientResolutions)
             .where(inArray(ingredientResolutions.ingredientId, [...new Set(ingredientIds)]))
@@ -99,6 +100,7 @@ export class IngredientResolutionsDal {
                     queryShape: row.queryShape,
                     rankerVersion: row.rankerVersion,
                     bandEpoch: row.bandEpoch,
+                    createdAt: row.createdAt,
                 },
             ]),
         );
@@ -115,4 +117,6 @@ export interface LatestResolution {
     readonly queryShape: string | null;
     readonly rankerVersion: string | null;
     readonly bandEpoch: string | null;
+    /** When the resolution was made — the clock KTD-A's pending state ages against. */
+    readonly createdAt: Date;
 }

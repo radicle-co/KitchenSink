@@ -52,3 +52,13 @@ export { findQuantityPhrases } from './quantityPhrases.js';
 export type { QuantityPhraseSpan } from './quantityPhrases.js';
 export { normalizeDurationToMinutes, normalizeServings } from './valueNormalizers.js';
 export type { NormalizedMinutes, NormalizedServings, ValueReviewReason } from './valueNormalizers.js';
+// U7: the validator-loop decorator. `MAX_PARSE_ATTEMPTS` stays OFF this door on purpose — the barrel
+// admits behaviour and its two named Null Objects, never plain constants (`HISTORICAL_UNIT_DEFINITIONS`'
+// precedent); consumers of the bound reach it beside the decorator's own module.
+export { createValidatedLlmEngine } from './domain/validatedEngine.js';
+export type {
+    FoodnessValidatorPort,
+    MeasurementValidatorPort,
+    RetryParsePort,
+    ValidatedEngineDeps,
+} from './domain/validatedEngine.js';

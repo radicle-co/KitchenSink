@@ -113,6 +113,7 @@ describe('@kitchensink/recipe-import-core barrel', () => {
             'NO_CORRECTIONS',
             'compareParses',
             'corruptsStatedValue',
+            'createValidatedLlmEngine',
             'dropTrailingInstruction',
             'findQuantityPhrases',
             'measuresNoSubstance',

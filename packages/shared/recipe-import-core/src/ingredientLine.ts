@@ -125,7 +125,14 @@ export type IngredientReviewReason =
      * line is dropped whole and flagging it would fire this reason on text nobody meant to parse — the
      * muted-signal failure KTD-11 rules against.
      */
-    | 'instruction_text_dropped';
+    | 'instruction_text_dropped'
+    /**
+     * The foodness validator rejected every retry's food names, and the loop exhausted (plan U7, R6).
+     * The line is SAVED with `foods: []` — nothing is bound and no food entity is created — and this
+     * reason is the terminal `un-parseable` record. ⚠️ Not value-corrupting: no stated number was altered;
+     * the absence of a bound food is the honest reading.
+     */
+    | 'not_a_food';
 
 /**
  * Reasons meaning "the value we would persist is not the value the source stated" (R39).

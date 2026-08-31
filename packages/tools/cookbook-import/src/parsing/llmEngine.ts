@@ -48,6 +48,7 @@ import { promoteLlmParse, type EngineAnswer, type ParseEnginePort } from '@kitch
 import pLimit from 'p-limit';
 
 import { PARSE_MAX_OUTPUT_TOKENS, PARSE_PROMPT_VERSION, buildParsePrompt } from '../parseComparison/parsePrompt.js';
+import { buildParseRetryPrompt, type RetryFailure } from '@kitchensink/recipe-core/parsing/parse-retry-prompt';
 
 /** A fenced JSON block, which some models wrap their answer in however the prompt asks. */
 const CODE_FENCE = /```(?:json)?\s*([\s\S]*?)```/u;
@@ -100,6 +101,12 @@ export interface LlmEnginePort extends ParseEnginePort<'llm'> {
      * ⚠️ On the ADAPTER, never on the port the pipeline sees — see the module header.
      */
     spentMicros(): number;
+    /**
+     * The retry call (plan U7) — `RetryParsePort.parse`, sharing this adapter's transport, spend counter
+     * and reader. On the ADAPTER extension, never on `ParseEnginePort`: the pipeline must stay unable to
+     * reach a context-carrying call.
+     */
+    retry(line: string, failures: readonly RetryFailure[]): Promise<EngineAnswer>;
 }
 
 /**
@@ -134,7 +141,19 @@ export function createLlmEngine(options: LlmEngineOptions): LlmEnginePort {
      * @sideEffect Calls Amazon Bedrock. Billed.
      */
     async function readLine(line: string): Promise<EngineAnswer> {
-        const prompt = buildParsePrompt(line);
+        return readWithPrompt(line, buildParsePrompt(line));
+    }
+
+    /**
+     * Read one line under a given prompt — shared by the first attempt and the retry port, so the retry
+     * inherits the same transport, cost accounting and answer reading byte for byte.
+     *
+     * @sideEffect Calls Amazon Bedrock. Billed.
+     */
+    async function readWithPrompt(
+        line: string,
+        prompt: { readonly systemPrompt: string; readonly userMessage: string },
+    ): Promise<EngineAnswer> {
         // One token per code point is an upper bound for every tokenizer in the roster — the same reasoning
         // `MAX_PARSE_PROMPT_CHARS` rests on. Used only to cost a call whose `usage` never arrived.
         const inputCeiling = [...prompt.systemPrompt].length + [...prompt.userMessage].length;
@@ -203,6 +222,10 @@ export function createLlmEngine(options: LlmEngineOptions): LlmEnginePort {
         engine: 'llm',
         engineVersion: `${options.modelId}@${PARSE_PROMPT_VERSION}`,
         spentMicros: () => spent,
+        // U7: the retry call — a different contract on purpose (`RetryParsePort`), so the failure context
+        // can never reach the pinned one-argument first-attempt path. Same closure, so the retry inherits
+        // the same cost counter and the same reader.
+        retry: async (line, failures) => gate(async () => readWithPrompt(line, buildParseRetryPrompt(line, failures))),
         async parse(lines): Promise<readonly EngineAnswer[]> {
             // ⛔ EXACTLY one answer per line, in order — `Promise.all` over `map`, so a line that could not be
             // read still occupies its position. A `flatMap` that dropped it would mispair every line after it,

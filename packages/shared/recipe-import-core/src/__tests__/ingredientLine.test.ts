@@ -467,6 +467,8 @@ const CORRUPTS_STATED_VALUE = {
     // what was dropped is a vessel, a duration or a target. Membership would make `cookbook-import`
     // discard a whole line it can read — `additional_foods_dropped`'s argument, verbatim.
     instruction_text_dropped: false,
+    // U7: the validator's terminal not-a-food is an absence record — no stated number was altered.
+    not_a_food: false,
 } as const satisfies Record<IngredientReviewReason, boolean>;
 
 describe('corruptsStatedValue', () => {

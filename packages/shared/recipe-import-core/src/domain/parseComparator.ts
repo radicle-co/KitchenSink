@@ -646,6 +646,8 @@ function fromOneEngine(parse: ParsedLine, engine: ParseEngine): ParsedLine {
         foods: parse.foods.map(canonicaliseFood),
         reviewReasons: [...parse.reviewReasons],
         provenance: { statedMeasure: engine, quantity: engine, unit: engine, foods: engine },
+        // U7/R8: attempt provenance rides through — present only on the LLM side by construction.
+        ...(parse.llmAttempts === undefined ? {} : { llmAttempts: parse.llmAttempts }),
     };
 }
 
@@ -692,6 +694,8 @@ export function compareParses(answers: EngineAnswers): ParseComparison {
         foods: winnerOf('foods').foods.map(canonicaliseFood),
         reviewReasons: unionReasons(crf.reviewReasons, llm.reviewReasons),
         provenance,
+        // U7/R8: attempt provenance rides every merged result, from the LLM answer that carries it.
+        ...(llm.llmAttempts === undefined ? {} : { llmAttempts: llm.llmAttempts }),
     };
 
     // A fact the LLM rescued is not a fact the engines disagreed about: it is one the CRF is known to be

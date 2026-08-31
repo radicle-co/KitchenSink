@@ -270,3 +270,29 @@ describe('the call it makes', () => {
         );
     });
 });
+
+describe('the retry port (plan U7)', () => {
+    it('sends the RETRY prompt — the pinned base plus the failure context — through the same reader', async () => {
+        const { seen, engine } = makeEngine(() => answer(document('eggs')));
+
+        const result = await engine.retry('In a large mixing bowl whip two eggs', [
+            { kind: 'not-a-food', name: 'mixing bowl whip', taxonomy: 'equipment' },
+        ]);
+
+        expect(result).toMatchObject({ foods: [{ name: 'eggs' }] });
+        const system = (seen[0] as { system: { text: string }[] }).system[0]?.text ?? '';
+        expect(system).toContain('## Retry Context');
+        expect(system).toContain('"mixing bowl whip" is not a food (equipment)');
+        expect(engine.spentMicros()).toBeGreaterThan(0);
+    });
+
+    it('an unavailable retry reports absence, exactly as a first attempt does', async () => {
+        const { engine } = makeEngine(() => {
+            throw sdkFailure('ThrottlingException');
+        });
+
+        await expect(engine.retry('a bowl', [{ kind: 'measurement', statedByModel: '1 cup' }])).resolves.toEqual({
+            unavailable: true,
+        });
+    });
+});

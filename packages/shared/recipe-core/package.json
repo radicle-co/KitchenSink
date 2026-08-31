@@ -28,6 +28,7 @@
         "./parsing/parse-key": "./src/parsing/parseKey.ts",
         "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",
         "./parsing/parse-prompt": "./src/parsing/parsePrompt.ts",
+        "./parsing/parse-retry-prompt": "./src/parsing/parseRetryPrompt.ts",
         "./parsing/parse-answer": "./src/parsing/parseAnswer.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"

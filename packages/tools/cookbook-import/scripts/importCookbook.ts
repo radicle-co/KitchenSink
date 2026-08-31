@@ -41,7 +41,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 import { createBedrockConverseClient, createBedrockTransport } from '@kitchensink/bedrock-client';
 import { NOVA_2_LITE_MODEL_ID } from '@kitchensink/recipe-core/spend/spend-arithmetic';
-import { NO_CACHE, NO_CORRECTIONS } from '@kitchensink/recipe-import-core';
+import { createValidatedLlmEngine, NO_CACHE, NO_CORRECTIONS } from '@kitchensink/recipe-import-core';
 
 import { COOKBOOKS } from '../src/cookbooks.js';
 import { ImportLedger } from '../src/importLedger.js';
@@ -49,6 +49,7 @@ import { RecipeApiClient } from '../src/RecipeApiClient.js';
 import { renderReport } from '../src/importReport.js';
 import { createCrfEngine } from '../src/parsing/crfEngine.js';
 import { createLlmEngine } from '../src/parsing/llmEngine.js';
+import { createFoodnessValidator, createMeasurementValidator } from '../src/parsing/validators.js';
 import { runImport, type ParseObservation } from '../src/runImport.js';
 
 /** Read `--flag value` pairs into a map. */
@@ -114,12 +115,25 @@ async function resolveParseObservation(requested: boolean, region: string): Prom
     }
 
     const crf = await createCrfEngine();
+    const client = createBedrockConverseClient(createBedrockTransport({ region }).send);
     const llm = createLlmEngine({
-        client: createBedrockConverseClient(createBedrockTransport({ region }).send),
+        client,
         // ⛔ Nova 2 Lite, the model ADR-0026 records as shipping with the v5-static prompt. The registry
         // addresses it by an INFERENCE PROFILE (`us.amazon.nova-2-lite-v1:0`) because the bare id is refused
         // at call time — `inferenceTypesSupported = ["INFERENCE_PROFILE"]`.
         modelId: NOVA_2_LITE_MODEL_ID,
+    });
+    // U7: the validator loop wraps the LLM leg ONLY. The CRF port is handed through untouched — its
+    // answers are byte-identical with or without the decorator (ADR-0026 independence, asserted in the
+    // decorator's own suite), and the retry port is the adapter's own, so the failure context can never
+    // reach the pinned one-argument first-attempt path.
+    const foodness = createFoodnessValidator(client);
+    const measurement = createMeasurementValidator(client, NOVA_2_LITE_MODEL_ID);
+    const validatedLlm = createValidatedLlmEngine({
+        inner: llm,
+        retry: { parse: (line, failures) => llm.retry(line, failures) },
+        foodness,
+        measurement,
     });
 
     return {
@@ -127,10 +141,10 @@ async function resolveParseObservation(requested: boolean, region: string): Prom
         deps: {
             corrections: NO_CORRECTIONS,
             cache: NO_CACHE,
-            engines: { crf, llm },
+            engines: { crf, llm: validatedLlm },
             digest: (value) => createHash('sha256').update(value).digest('hex'),
         },
-        spentMicros: () => llm.spentMicros(),
+        spentMicros: () => llm.spentMicros() + foodness.spentMicros() + measurement.spentMicros(),
     };
 }
 

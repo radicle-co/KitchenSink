@@ -176,6 +176,15 @@ export interface ParsedLine extends ParsedFacts {
     readonly reviewReasons: readonly IngredientReviewReason[];
     /** Which engine produced each fact — see {@link ParseProvenance}. */
     readonly provenance: ParseProvenance;
+    /**
+     * How many LLM parse attempts produced this line's LLM-side answer (plan U7, R8): `1` for a
+     * first-try pass, up to the loop's maximum when validator failures fed retries. Absent for a line the
+     * validated leg never touched (the CRF's own answers, cache/correction tiers, and single-engine-CRF
+     * merges). ⚠️ META, deliberately NOT a member of {@link ParsedFacts}: it has no per-fact provenance
+     * and the comparator never compares it — it rides through so agreement stats can be sliced by attempt
+     * count without a second bookkeeping channel.
+     */
+    readonly llmAttempts?: number | undefined;
 }
 
 /**

@@ -110,11 +110,20 @@ function rankTierSql(terms: RankingTerms): SQL {
  * @param baseMetric - This statement's base metric expression (the catalog's `GREATEST(…, similarity(…))`).
  * @returns The score to select and order by. Pure.
  */
-export function catalogTieredSortKey(query: string, baseMetric: SQL): SQL {
+export function catalogTieredSortKey(query: string, baseMetric: SQL, priorFraction?: SQL): SQL {
     const terms = describeRankingQuery(query);
+    const clampedBase = sql`LEAST(GREATEST(${baseMetric}, 0::float8), ${BASE_METRIC_MAX}::float8)`;
+    // U5: max-fusion — within a rung the food's measured consumption base rate may STAND IN for its
+    // length-penalized trigram score, and the better of the two signals decides. A MAX and not an
+    // additive bonus, on measurement: see `rankingTiers.ts`'s fusion note. Clamped in SQL like the base
+    // metric, so a bad stored fraction cannot cross a tier gap; absent renders the pre-U5 expression.
+    const metric =
+        priorFraction === undefined
+            ? clampedBase
+            : sql`GREATEST(${clampedBase}, LEAST(GREATEST(${priorFraction}, 0::float8), 1::float8))`;
 
     return sql`((${TIER_GAP}::float8 * ${rankTierSql(terms)}::float8
-        + LEAST(GREATEST(${baseMetric}, 0::float8), ${BASE_METRIC_MAX}::float8)
+        + ${metric}
     ) / ${SCORE_CEILING}::float8)::float8`;
 }
 

@@ -1023,6 +1023,10 @@ components:
           type: object
           additionalProperties:
             type: string
+        priorFraction:
+          type: number
+          minimum: 0
+          maximum: 1
       required:
         - id
         - name

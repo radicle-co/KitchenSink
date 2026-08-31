@@ -415,3 +415,24 @@ export const foodCategoryAssignment = pgTable(
 export type FoodCategoryAssignmentRow = InferSelectModel<typeof foodCategoryAssignment>;
 /** A `food_category_assignment` row for insert. */
 export type NewFoodCategoryAssignmentRow = InferInsertModel<typeof foodCategoryAssignment>;
+
+/**
+ * The FNDDS/WWEIA consumption prior (plan U5, migration 0012). ⛔ A SIBLING table, never a `food` column
+ * — golden scalars are merge-engine-owned. One writer: the operator-run `seed:fndds-prior` command; the
+ * search ranking LEFT JOINs it (absent row = prior of zero).
+ */
+export const foodPopularity = pgTable('food_popularity', {
+    foodId: text('food_id')
+        .primaryKey()
+        .references(() => food.id, { onDelete: 'cascade' }),
+    /** Raw survey-weighted consumption weight (audit + re-normalization). */
+    consumptionWeight: numeric('consumption_weight').notNull(),
+    /** The fused fraction, normalized into [0, 1] at seed time. */
+    priorFraction: numeric('prior_fraction').notNull(),
+    /** The vintage/cycle the seed derived from. */
+    source: text('source').notNull(),
+    seededAt: timestamp('seeded_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type FoodPopularityRow = InferSelectModel<typeof foodPopularity>;
+export type NewFoodPopularityRow = InferInsertModel<typeof foodPopularity>;

@@ -208,7 +208,15 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal tiered ranking (integration)', 
                 await pool.query('DELETE FROM ingredients');
 
                 for (const row of rows) {
-                    await dal.createFreeform(makeCanonicalName(row.name));
+                    const created = await dal.createFreeform(makeCanonicalName(row.name));
+
+                    if (row.priorFraction !== undefined) {
+                        // U5: seed the CAPTURED prior column the local rendering reads (0038).
+                        await pool.query('UPDATE ingredients SET prior_fraction = $1 WHERE id = $2', [
+                            row.priorFraction,
+                            created.id,
+                        ]);
+                    }
                 }
             },
             search: async (query: string): Promise<readonly ConformanceRow[]> => {

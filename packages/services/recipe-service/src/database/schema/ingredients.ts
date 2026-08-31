@@ -96,6 +96,8 @@ export const ingredients = pgTable(
         rankHead: text('rank_head').generatedAlwaysAs(
             sql`CASE WHEN position(',' in name) > 0 AND cardinality(rank_tokens_of(split_part(name, ',', 1))) > 1 THEN (rank_tokens_of(split_part(name, ',', 1)))[cardinality(rank_tokens_of(split_part(name, ',', 1)))] ELSE (rank_tokens_of(name))[1] END`,
         ),
+        /** U5 (0038): the FNDDS consumption-prior fraction captured from food-service. NULL = no prior. */
+        priorFraction: numeric('prior_fraction'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [

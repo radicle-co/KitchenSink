@@ -167,6 +167,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             rank_tokens: { type: 'text[]', notNull: false },
             // U1 (migration 0034): the head term, comma-segment rule included — supersedes rank_tokens[1].
             rank_head: { type: 'text', notNull: false },
+            // U5 (0038): the captured FNDDS consumption-prior fraction; NULL = no prior.
+            prior_fraction: { type: 'numeric', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
         });
     });

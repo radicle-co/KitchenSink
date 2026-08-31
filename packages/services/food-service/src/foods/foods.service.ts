@@ -556,6 +556,8 @@ export class FoodsService {
                 source: sourceOf(portion.sourceId),
             })),
             provenance,
+            // Absent (never null, never 0) when the food has no measured consumption — see the schema.
+            ...(record.priorFraction === null ? {} : { priorFraction: record.priorFraction }),
         };
     }
 }

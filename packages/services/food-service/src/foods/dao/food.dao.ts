@@ -15,6 +15,7 @@ import {
     food,
     foodFieldProvenance,
     foodNutrientView,
+    foodPopularity,
     foodNutrients,
     foodOriginEnum,
     foodPortions,
@@ -104,6 +105,8 @@ export interface GoldenFoodRecord {
     nutrients: GoldenNutrient[];
     portions: GoldenPortion[];
     fieldProvenance: GoldenFieldProvenance[];
+    /** U5: the FNDDS consumption-prior fraction in [0, 1], or `null` when the food has none. */
+    priorFraction: number | null;
 }
 
 /**
@@ -476,7 +479,7 @@ export class FoodDao {
             return null;
         }
 
-        const [sources, nutrients, portions, fieldProvenance] = await Promise.all([
+        const [sources, nutrients, portions, fieldProvenance, popularity] = await Promise.all([
             this.db
                 .select({
                     id: foodSources.id,
@@ -514,6 +517,13 @@ export class FoodDao {
                 .select({ field: foodFieldProvenance.field, sourceId: foodFieldProvenance.sourceId })
                 .from(foodFieldProvenance)
                 .where(eq(foodFieldProvenance.foodId, id)),
+            // U5: the consumption prior (sibling table, KTD-G) — carried on the golden record so the one
+            // consumer that CAPTURES it (recipe-service's ingredient cache) reads it from the same
+            // aggregate it already reads, with no extra endpoint.
+            this.db
+                .select({ priorFraction: foodPopularity.priorFraction })
+                .from(foodPopularity)
+                .where(eq(foodPopularity.foodId, id)),
         ]);
 
         return {
@@ -539,6 +549,7 @@ export class FoodDao {
             nutrients,
             portions,
             fieldProvenance,
+            priorFraction: popularity[0]?.priorFraction === undefined ? null : Number(popularity[0].priorFraction),
         };
     }
 

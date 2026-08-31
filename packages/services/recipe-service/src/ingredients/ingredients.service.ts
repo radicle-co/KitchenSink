@@ -337,12 +337,16 @@ export class IngredientsService {
             );
         }
 
+        // U5: the golden record's consumption prior, captured into the local cache (ADR-0006 forbids a
+        // cross-database join at rank time). Spread, not assigned: absent stays absent.
+        const prior = status.food?.priorFraction === undefined ? {} : { priorFraction: status.food.priorFraction };
         const row =
             existing ??
             (await this.dal.createFoodBacked({
                 name,
                 foodId: id,
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                ...prior,
             }));
         // Status + name — nutrition is no longer copied into this table (U10). The name matters even when the
         // row already existed: the pick may be landing on a row the importer minted under prose, and leaving
@@ -350,6 +354,7 @@ export class IngredientsService {
         const backfilled = await this.dal.updateResolution(row.id, {
             foodResolutionStatus: FoodResolutionStatus.RESOLVED,
             canonicalName: name,
+            ...prior,
         });
 
         return backfilled ?? row;
@@ -660,6 +665,9 @@ export class IngredientsService {
             const updated = await this.dal.updateResolution(id, {
                 foodResolutionStatus: toResolutionStatus(status.status),
                 ...(canonicalName !== undefined ? { canonicalName } : {}),
+                // U5: the refresh IS the prior's staleness contract — a food-side prior update reaches
+                // the local rank column on exactly this write. Absent leaves the stored value.
+                ...(status.food?.priorFraction === undefined ? {} : { priorFraction: status.food.priorFraction }),
             });
 
             return updated ?? ingredient;

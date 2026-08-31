@@ -355,3 +355,42 @@ are excluded from **nothing else** — they are fully searchable and readable li
   touches the shared `nutrient` dictionary, so concurrency would buy contention, not throughput.
 - Peak memory is bounded by the **selected** set, not the file size: `food.csv` is filtered first, then the
   nutrient/portion files are streamed and retained only for the selected `fdc_id`s.
+
+## FNDDS/WWEIA consumption prior (`seed:fndds-prior`, plan U5)
+
+Seeds `food_popularity` — the consumption prior the search ranking max-fuses within a rung. Three
+operator-obtained artifacts; **nothing deployed fetches USDA or CDC**:
+
+1. **FNDDS survey foods** (FDC): `FoodData_Central_survey_food_csv_2024-10-31.zip` from
+   `https://fdc.nal.usda.gov/download-datasets` → extract; needs `survey_fndds_food.csv` + `input_food.csv`.
+2. **SR Legacy** (the NDB→fdc_id crosswalk): the same frozen 2018-04 zip the bulk seed uses; needs
+   `sr_legacy_food.csv`.
+3. **NHANES day-1 intake frequencies**: download the cycle's `DR1IFF_*.xpt` (e.g.
+   `https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/DR1IFF_L.xpt`) and derive the per-food-code
+   CSV. XPT is a SAS transport format with no maintained Node reader, so this is a documented pandas step:
+
+    ```bash
+    python3 - <<'PY'
+    import pandas as pd
+    df = pd.read_sas('DR1IFF_L.xpt', format='xport')
+    df.groupby('DR1IFDCD').agg(weighted=('WTDRD1', 'sum')).to_csv('wweia_day1_frequencies.csv')
+    PY
+    ```
+
+Then:
+
+```bash
+DATABASE_URL=postgres://… npm run seed:fndds-prior --workspace=packages/services/food-service -- \
+    --survey-dir …/FoodData_Central_survey_food_csv_2024-10-31 \
+    --sr-dir …/FoodData_Central_sr_legacy_food_csv_2018-04 \
+    --intake-csv …/wweia_day1_frequencies.csv \
+    --source 'fndds-2021-2023+nhanes-2021-2023-day1'
+```
+
+The run reports the SR-Legacy match rate (95.3% of intake weight on the 2021-2023 cycle) and **fails
+loudly** if any coverable row of the 14-query staple set received no prior. Three staples are NAMED
+structural exceptions (`fnddsPrior.ts` `STAPLE_EXPECTATIONS`): vanilla extract and mace never appear as
+FNDDS ingredients, and olive oil decomposes only to post-SR-Legacy NDBs. Idempotent — re-running upserts.
+
+⚠️ ADR-0006 sandbox note: seed the SANDBOX BASE database before per-PR clones are cut, so previews
+inherit the prior; a preview cloned earlier simply ranks without one until re-cloned.

@@ -334,8 +334,9 @@ describe.skipIf(!DATABASE_URL)('batched nutrition read (integration)', () => {
 
             expect(batchedStatements).toBe(3);
             // The baseline is asserted too, so this test still means something if `readGoldenRecord` is ever
-            // itself batched: 100 ids x (1 food row + 4 aggregate reads).
-            expect(perIdStatements).toBe(500);
+            // itself batched: 100 ids x (1 food row + 5 aggregate reads — the fifth is U5's consumption
+            // prior, carried on the golden record for recipe-service's capture).
+            expect(perIdStatements).toBe(600);
         });
     });
 

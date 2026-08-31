@@ -48,13 +48,26 @@ interface RankingFixtureRow {
 }
 
 /** Insert `RESOLVED` catalog rows — search only surfaces golden records. */
-async function seedFoods(pool: pg.Pool, rows: readonly RankingFixtureRow[]): Promise<void> {
+async function seedFoods(
+    pool: pg.Pool,
+    rows: readonly (RankingFixtureRow & { readonly priorFraction?: number })[],
+): Promise<void> {
     for (const row of rows) {
         await pool.query(
             `INSERT INTO food (id, name, normalized_name, description, status)
              VALUES ($1, $2, lower($2), $2, 'RESOLVED')`,
             [row.id, row.name],
         );
+
+        if (row.priorFraction !== undefined) {
+            // U5: the conformance corpus's prior-carrying rows exercise the ladder guarantee against the
+            // REAL popularity join.
+            await pool.query(
+                `INSERT INTO food_popularity (food_id, consumption_weight, prior_fraction, source)
+                 VALUES ($1, 0, $2, 'conformance-fixture')`,
+                [row.id, row.priorFraction],
+            );
+        }
     }
 }
 
@@ -240,6 +253,50 @@ describe.skipIf(!DATABASE_URL)('catalog tiered ranking (integration)', () => {
             // `che` — which is itself the point: at three characters retrieval discriminates.)
             expect(await rank('che')).toEqual(['Cheddar cheese']);
             expect(await rank('chi')).toEqual(['Chicken, broilers or fryers, breast']);
+        });
+    });
+
+    describe('the FNDDS consumption prior — the within-rung tiebreak (plan U5)', () => {
+        it('the canonical staple beats a same-rung sibling once it carries the prior — the max-fusion case', async () => {
+            // The REAL extreme pair, unfudged: on this database `Rye flour, dark` scores base 0.40 for
+            // `flour` while the full canonical name scores 0.14 — a 0.26 gap NO ladder-safe additive bonus
+            // could close (that was measured, and is why the fusion is a max). With max-fusion the
+            // canonical row's captured fraction (0.80, its real log-normalized weight) stands in for its
+            // length-penalized similarity and wins the rung.
+            await seedFoods(pool, [
+                { id: 'f-rye', name: 'Rye flour, dark' },
+                {
+                    id: 'f-ap',
+                    name: 'Wheat flour, white, all-purpose, enriched, bleached',
+                    priorFraction: 0.8,
+                },
+            ]);
+
+            const ranked = await rank('flour');
+
+            expect(ranked[0]).toBe('Wheat flour, white, all-purpose, enriched, bleached');
+        });
+
+        it('⛔ a FULL prior still cannot cross a rung — the ladder guarantee, against the real join', async () => {
+            await seedFoods(pool, [
+                { id: 'f-attractor', name: 'Cookies, butter, commercially prepared', priorFraction: 1 },
+                { id: 'f-butter', name: 'Butter, salted' },
+            ]);
+
+            const ranked = await rank('butter');
+
+            expect(ranked[0]).toBe('Butter, salted');
+        });
+
+        it('foods without a prior rank exactly as before — absent joins as zero, never as a penalty', async () => {
+            await seedFoods(pool, [
+                { id: 'f-carob', name: 'Carob flour' },
+                { id: 'f-wheat', name: 'Flour, wheat, all-purpose, enriched, bleached' },
+            ]);
+
+            const ranked = await rank('flour');
+
+            expect(ranked[0]).toBe('Flour, wheat, all-purpose, enriched, bleached');
         });
     });
 

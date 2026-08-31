@@ -130,3 +130,19 @@ describe('catalogTieredSortKey — a query with nothing searchable', () => {
         expect(render(empty).text).not.toContain('THEN');
     });
 });
+
+describe('catalogTieredSortKey — the FNDDS prior max-fusion (plan U5)', () => {
+    it('fuses the clamped prior with the clamped base through GREATEST — the max, in SQL', () => {
+        const withPrior = render(catalogTieredSortKey('brown sugar', BASE_METRIC, sql`COALESCE(fp.prior_fraction, 0)`));
+
+        expect(withPrior.text).toContain('prior_fraction');
+        // The MAX of two clamped signals — a bad stored fraction cannot cross a gap, and a strong base
+        // still wins over a weak prior.
+        expect(withPrior.text).toMatch(/GREATEST\(LEAST\(GREATEST\(/);
+        expect(withPrior.text).toMatch(/LEAST\(GREATEST\(COALESCE\(fp\.prior_fraction, 0\)/);
+    });
+
+    it('renders EXACTLY as before when no prior expression is supplied — absent means zero', () => {
+        expect(render(catalogTieredSortKey('brown sugar', BASE_METRIC)).text).toBe(SCORE.text);
+    });
+});

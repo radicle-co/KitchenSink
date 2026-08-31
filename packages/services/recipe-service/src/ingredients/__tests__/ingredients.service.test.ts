@@ -428,3 +428,45 @@ describe('IngredientsService', () => {
  * interpreting food's data. Their coverage now lives — expanded, and with the kcal/kJ and per-serving traps
  * pinned — in `packages/services/food-service/src/foods/nutrition/__tests__/`.
  */
+
+describe('addByFoodId — the U5 prior CAPTURE (ADR-0006 forbids a cross-database join)', () => {
+    it("copies the golden record's priorFraction into BOTH cache writes", async () => {
+        const { dal, mocks } = makeDal();
+        mocks['createFoodBacked'].mockResolvedValue(makeIngredient({ foodId: 'F-PRIOR' }));
+        mocks['updateResolution'].mockResolvedValue(makeIngredient({ foodId: 'F-PRIOR' }));
+        const { clients, mocks: client } = makeFoodClients();
+        client.getStatus.mockResolvedValue(
+            makeStatusResult({
+                id: 'F-PRIOR',
+                status: 'RESOLVED',
+                food: makeFoodView({ name: 'Wheat flour', priorFraction: 0.42 }),
+            }),
+        );
+        const service = new IngredientsService(dal, clients, {} as never);
+
+        await service.addByFoodId(CALLER, 'F-PRIOR');
+
+        expect(mocks['createFoodBacked']).toHaveBeenCalledWith(expect.objectContaining({ priorFraction: 0.42 }));
+        expect(mocks['updateResolution']).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ priorFraction: 0.42 }),
+        );
+    });
+
+    it('an absent prior writes NOTHING for it — absent must not clobber a captured value with null', async () => {
+        const { dal, mocks } = makeDal();
+        mocks['createFoodBacked'].mockResolvedValue(makeIngredient({ foodId: 'F-NOPRIOR' }));
+        mocks['updateResolution'].mockResolvedValue(makeIngredient({ foodId: 'F-NOPRIOR' }));
+        const { clients, mocks: client } = makeFoodClients();
+        client.getStatus.mockResolvedValue(
+            makeStatusResult({ id: 'F-NOPRIOR', status: 'RESOLVED', food: makeFoodView({ name: 'Obscure herb' }) }),
+        );
+        const service = new IngredientsService(dal, clients, {} as never);
+
+        await service.addByFoodId(CALLER, 'F-NOPRIOR');
+
+        expect(mocks['createFoodBacked']).toHaveBeenCalledWith(
+            expect.not.objectContaining({ priorFraction: expect.anything() }),
+        );
+    });
+});

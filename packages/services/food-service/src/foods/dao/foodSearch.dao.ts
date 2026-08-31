@@ -217,7 +217,9 @@ export class FoodSearchDao {
                        ts_rank(aliases_search_vector, plainto_tsquery('english', ${query})),
                        similarity(name, ${query})
                    )`;
-        const score = catalogTieredSortKey(query, baseMetric);
+        // U5: the consumption prior rides a LEFT JOIN — an absent row IS a prior of zero, so foods
+        // without measured consumption rank exactly as before.
+        const score = catalogTieredSortKey(query, baseMetric, sql`COALESCE(fp.prior_fraction, 0::float8)`);
 
         // ⛔ HEAD-TERM RETRIEVAL. U6 widened retrieval with a head-term branch and put it on the recipe-LOCAL
         // table (`IngredientsDal.search`); its plan entry names two files, both in recipe-service. The
@@ -239,8 +241,9 @@ export class FoodSearchDao {
         const headTerm = head === undefined ? sql`` : sql` OR rank_tokens @> ARRAY[${head}]::text[]`;
 
         return sql`
-            SELECT id, name, ${score} AS score
+            SELECT food.id, food.name, ${score} AS score
             FROM food
+            LEFT JOIN food_popularity fp ON fp.food_id = food.id
             WHERE status = 'RESOLVED'
               AND name IS NOT NULL
               AND (

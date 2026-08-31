@@ -25,6 +25,7 @@ export {
     foodFieldProvenance,
     foodCategory,
     foodCategoryAssignment,
+    foodPopularity,
 } from './food.js';
 
 // Operational tables (queue + per-source limiter + sync metadata).

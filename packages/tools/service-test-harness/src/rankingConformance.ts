@@ -45,6 +45,13 @@ export interface ConformanceRow {
     readonly id: string;
     /** The display name the ranking is computed against. */
     readonly name: string;
+    /**
+     * The FNDDS consumption-prior fraction to seed for this row (plan U5), or absent for none. The
+     * contract's use of it is the LADDER GUARANTEE: a row carrying a FULL prior must still never outrank a
+     * row one rung above it — the intra-rung effect is each surface's own integration case, because the
+     * base metric that decides within a rung is exactly what this module refuses to model.
+     */
+    readonly priorFraction?: number;
 }
 
 /**
@@ -78,6 +85,7 @@ export interface RankedSurface {
 interface CorpusEntry {
     readonly id: string;
     readonly name: string;
+    readonly priorFraction?: number;
     readonly why: string;
 }
 
@@ -104,6 +112,12 @@ const CORPUS: readonly CorpusEntry[] = [
     { id: 'r16', name: 'Butter, salted', why: 'head rung for `butter`' },
     { id: 'r17', name: 'Peanut butter, smooth', why: 'the butter attractor' },
     { id: 'r18', name: 'Molasses', why: 'a word the plural rule over-folds — identically on both sides' },
+    {
+        id: 'r19',
+        name: 'Cookies, butter, commercially prepared',
+        priorFraction: 1,
+        why: 'U5: an attractor carrying a FULL prior — must still sit below the head rung for `butter`',
+    },
 ];
 
 /**

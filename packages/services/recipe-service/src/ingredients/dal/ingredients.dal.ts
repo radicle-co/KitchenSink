@@ -61,6 +61,8 @@ export interface CreateFoodBackedInput {
      * forbids writing one to this shared, ownerless row — the type is what makes that unwritable.
      */
     readonly foodResolutionStatus: CatalogFoodResolutionStatus;
+    /** U5: the FNDDS consumption-prior fraction captured from food's golden record. Omit when none. */
+    readonly priorFraction?: number;
 }
 
 /** Input to {@link IngredientsDal.updateResolution}. */
@@ -75,6 +77,11 @@ export interface UpdateResolutionInput {
      * the only label the row has. The decision is not made here; it is made once, by `canonicalNameFrom`.
      */
     readonly canonicalName?: CanonicalIngredientName;
+    /**
+     * U5: the captured consumption prior. Omit to LEAVE the stored value — an absent prior on one refresh
+     * must not clobber a fraction an earlier refresh captured.
+     */
+    readonly priorFraction?: number;
 }
 
 /**
@@ -196,7 +203,14 @@ export class IngredientsDal {
         }
 
         const pattern = `%${query}%`;
-        const score = localTieredSortKey(strategy, sql`word_similarity(${query}, ingredients.name)`);
+        // U5: the CAPTURED consumption prior — the recipe-local mirror of food's `food_popularity` join
+        // (ADR-0006 forbids reading that table across the service boundary; 0038 captures the fraction at
+        // ingredient-cache time). COALESCE: NULL means "no prior", which ranks exactly as before.
+        const score = localTieredSortKey(
+            strategy,
+            sql`word_similarity(${query}, ingredients.name)`,
+            sql`COALESCE(prior_fraction, 0::float8)`,
+        );
         // The head-term branch, or nothing. A single-token query's predicate stays byte-identical to the
         // pre-U6 one — `plainto_tsquery` on one lexeme already IS the head-term retrieval, so OR'ing it in
         // would be a duplicate branch for the planner to cost.
@@ -381,9 +395,10 @@ export class IngredientsDal {
         // food_id between our SELECT and INSERT, the unique index (0006) rejects our row and RETURNING is
         // empty — we then re-read the winner's row instead of creating a duplicate catalog entry.
         const result = await this.db.execute<RawIngredientRow>(sql`
-            INSERT INTO ingredients (name, food_id, food_resolution_status, is_user_entered, search_vector)
+            INSERT INTO ingredients (name, food_id, food_resolution_status, is_user_entered, search_vector,
+                                     prior_fraction)
             VALUES (${input.name}, ${input.foodId}, ${input.foodResolutionStatus}, false,
-                    to_tsvector('english', ${input.name}))
+                    to_tsvector('english', ${input.name}), ${input.priorFraction ?? null})
             ON CONFLICT DO NOTHING
             RETURNING ${RETURNING}
         `);
@@ -440,7 +455,10 @@ export class IngredientsDal {
             UPDATE ingredients SET
                 food_resolution_status = ${input.foodResolutionStatus},
                 name          = COALESCE(${canonicalName}::text, name),
-                search_vector = to_tsvector('english', COALESCE(${canonicalName}::text, name))
+                search_vector = to_tsvector('english', COALESCE(${canonicalName}::text, name)),
+                -- U5: absent input LEAVES the stored fraction — one refresh without a prior must not
+                -- clobber what an earlier refresh captured.
+                prior_fraction = COALESCE(${input.priorFraction ?? null}::numeric, prior_fraction)
             WHERE id = ${id}
             RETURNING ${RETURNING}
         `);

@@ -199,3 +199,46 @@ describe('RANKER_VERSION — the band-authority version key (plan U3, R15)', () 
         expect(RANKER_VERSION).toBe('ladder-v2-comma-head');
     });
 });
+
+describe('the FNDDS consumption-prior fusion — max(base, prior), MEASURED (plan U5, KTD-G)', () => {
+    const score = (tier: 'base' | 'covered' | 'head', baseMetric: number, priorFraction?: number) =>
+        tieredRelevanceScore({
+            tier,
+            baseMetric,
+            rawAffinity: false,
+            ...(priorFraction === undefined ? {} : { priorFraction }),
+        });
+
+    it('the prior STANDS IN for a length-penalized base metric — the staple case, measured live', () => {
+        // `flour`: all-purpose at base 0.14 with prior 0.80 must beat soy flour at base 0.35 with a small
+        // prior — the additive-bonus form could not do this (0.2+ base gaps vs a <0.5-bounded bonus), which
+        // is why the fusion is a max. See the pure module's note.
+        expect(score('head', 0.14, 0.8)).toBeGreaterThan(score('head', 0.35, 0.18));
+    });
+
+    it('within a rung, the better of the two signals decides — a strong base still beats a weak prior', () => {
+        expect(score('covered', 0.6, 0.3)).toBe(score('covered', 0.6));
+    });
+
+    it('⛔ a full prior can NEVER promote across rungs — the ladder guarantee holds', () => {
+        expect(
+            tieredRelevanceScore({ tier: 'covered', baseMetric: 1, rawAffinity: true, priorFraction: 1 }),
+        ).toBeLessThan(tieredRelevanceScore({ tier: 'head', baseMetric: 0, rawAffinity: false }));
+    });
+
+    it('a row without a prior scores exactly as today — absent and zero are the same rank', () => {
+        expect(score('head', 0.4)).toBe(score('head', 0.4, 0));
+        expect(score('head', 0.4)).toBe(tieredRelevanceScore({ tier: 'head', baseMetric: 0.4, rawAffinity: false }));
+    });
+
+    it('clamps a wild prior into [0, 1] — a bad fraction must not cross a tier gap', () => {
+        expect(score('covered', 0.3, 99)).toBe(score('covered', 0.3, 1));
+        expect(score('covered', 0.3, -1)).toBe(score('covered', 0.3, 0));
+    });
+
+    it('the score stays in [0, 1) at the extreme — the barcode crosswalk pin at exactly 1 still leads', () => {
+        expect(
+            tieredRelevanceScore({ tier: 'exact', baseMetric: 1, rawAffinity: true, priorFraction: 1 }),
+        ).toBeLessThan(1);
+    });
+});

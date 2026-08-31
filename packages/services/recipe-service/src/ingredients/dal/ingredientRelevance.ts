@@ -135,10 +135,21 @@ function rawAffinitySql(strategy: IngredientMatchStrategy): SQL | undefined {
  * @param baseMetric - This statement's base metric expression (`word_similarity(query, name)`).
  * @returns The score to select and order by. Pure.
  */
-export function localTieredSortKey(strategy: Exclude<IngredientMatchStrategy, { kind: 'none' }>, baseMetric: SQL): SQL {
+export function localTieredSortKey(
+    strategy: Exclude<IngredientMatchStrategy, { kind: 'none' }>,
+    baseMetric: SQL,
+    priorFraction?: SQL,
+): SQL {
     const rawAffinity = rawAffinitySql(strategy);
+    const clampedBase = sql`LEAST(GREATEST(${baseMetric}, 0::float8), ${BASE_METRIC_MAX}::float8)`;
+    // U5: max-fusion — the local mirror of `foodRelevance.ts`'s, clamped in SQL for the same reason the
+    // base metric is. A MAX and not an additive bonus, on measurement: see `rankingTiers.ts`'s note.
+    const metric =
+        priorFraction === undefined
+            ? clampedBase
+            : sql`GREATEST(${clampedBase}, LEAST(GREATEST(${priorFraction}, 0::float8), 1::float8))`;
 
     return sql`((${TIER_GAP}::float8 * ${rankTierSql(strategy.terms)}::float8
-        + LEAST(GREATEST(${baseMetric}, 0::float8), ${BASE_METRIC_MAX}::float8)${rawAffinity ?? sql``}
+        + ${metric}${rawAffinity ?? sql``}
     ) / ${SCORE_CEILING}::float8)::float8`;
 }

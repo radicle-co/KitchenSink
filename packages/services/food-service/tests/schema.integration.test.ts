@@ -10,7 +10,7 @@ import pg from 'pg';
  * applies (FU-MIGRATE) — to a clean DB and probes the hardened constraints from plan.md §2 /
  * decision-register D-* (D-PROVENANCE-FK, D-LEASE, D-CANDIDATES, DB-5, DB-6, DB-7, DB-8):
  *
- *   - all 13 canonical/operational tables + 5 controlled enum types exist;
+ *   - all 14 canonical/operational tables + 5 controlled enum types exist;
  *   - `food.normalized_name` is UNIQUE (FR-005 dedup);
  *   - the composite same-food provenance FK rejects a `food_nutrients` row whose `source_id`
  *     belongs to a DIFFERENT food (the key DB-2 / D-PROVENANCE-FK integrity test);
@@ -45,6 +45,8 @@ const EXPECTED_TABLES = [
     'fetch_requesters',
     'source_call_log',
     'source_sync_metadata',
+    // U5 (0012): the FNDDS consumption prior — a SIBLING of `food` (KTD-G), operator-seeded.
+    'food_popularity',
 ] as const;
 
 /**
@@ -115,8 +117,8 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
         await pool?.end();
     });
 
-    describe('table + enum topology (D-CANDIDATES — 13 tables)', () => {
-        it('creates all 13 canonical + operational tables', async () => {
+    describe('table + enum topology (D-CANDIDATES — 14 tables)', () => {
+        it('creates all 14 canonical + operational tables', async () => {
             const { rows } = await pool.query<{ table_name: string }>(
                 `SELECT table_name FROM information_schema.tables
                   WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,

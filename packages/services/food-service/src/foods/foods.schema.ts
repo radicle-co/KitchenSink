@@ -273,6 +273,12 @@ export const foodResponseSchema = z.object({
     portions: z.array(portionViewSchema),
     /** Scalar-field provenance — `{ field: source }` (FR-029). */
     provenance: z.record(z.string(), z.string()),
+    /**
+     * U5: the FNDDS consumption-prior fraction in [0, 1]. Absent when the food has no measured
+     * consumption — absent means "no prior", never zero. Recipe-service CAPTURES this into its local
+     * ingredients cache at admission/refresh time (ADR-0006 forbids a cross-database join).
+     */
+    priorFraction: z.number().min(0).max(1).optional(),
 });
 
 export type FoodResponse = z.infer<typeof foodResponseSchema>;

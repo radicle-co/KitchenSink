@@ -450,3 +450,14 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
         });
     });
 });
+
+describe('the FNDDS consumption prior rides the statement (plan U5)', () => {
+    it('LEFT JOINs food_popularity and folds the clamped fraction into the score', async () => {
+        const statement = await soleStatementFor('flour');
+
+        // LEFT, never INNER: an absent popularity row IS a prior of zero, and an inner join would silently
+        // drop every food without measured consumption from the results entirely.
+        expect(statement.text).toMatch(/LEFT JOIN food_popularity fp ON fp\.food_id = food\.id/);
+        expect(statement.text).toContain('COALESCE(fp.prior_fraction, 0::float8)');
+    });
+});

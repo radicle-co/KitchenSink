@@ -146,3 +146,29 @@ describe('localTieredSortKey — the `raw` affinity (U6)', () => {
         expect(RAW_AFFINITY_BONUS + 1).toBeLessThan(TIER_GAP);
     });
 });
+
+describe('localTieredSortKey — the FNDDS prior fusion (plan U5)', () => {
+    const strategy = selectIngredientMatchStrategy('flour');
+
+    if (strategy.kind === 'none') {
+        throw new Error('fixture bug');
+    }
+
+    it('fuses the clamped prior with the clamped base through GREATEST — the max, in SQL', () => {
+        const rendered = render(
+            localTieredSortKey(
+                strategy,
+                sql`word_similarity('flour', ingredients.name)`,
+                sql`COALESCE(prior_fraction, 0::float8)`,
+            ),
+        );
+
+        expect(rendered.text).toContain('prior_fraction');
+        expect(rendered.text).toMatch(/GREATEST\(LEAST\(GREATEST\(/);
+        expect(rendered.text).toMatch(/LEAST\(GREATEST\(COALESCE\(prior_fraction, 0::float8\)/);
+    });
+
+    it('renders EXACTLY as before when no prior expression is supplied', () => {
+        expect(keyFor('flour').text).not.toContain('prior_fraction');
+    });
+});

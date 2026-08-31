@@ -94,6 +94,20 @@ export const TIER_GAP = 2;
  */
 export const RAW_AFFINITY_BONUS = 0.5;
 
+/**
+ * ⛔ The prior fuses as `max(base, prior)`, NOT as a bounded additive bonus — MEASURED, not preferred
+ * (plan U5, amending its "bounded additive term" wording on its own acceptance test). On the live
+ * SR Legacy catalog the length penalty separates same-rung rows by 0.2+ (`Soy flour, defatted` 0.35 vs
+ * `Wheat flour, white, all-purpose, enriched, bleached` 0.14 for `flour`), so any additive bonus small
+ * enough to keep the ladder guarantee (< 0.5) COMPRESSED through the log normalization to ~0.04 of
+ * separation and flipped none of the staple failures the prior exists to kill. `max` reads as: within a
+ * rung — where every name is structurally equally good for the query — a food's measured consumption
+ * base rate may STAND IN for its length-penalized trigram score, and the better of the two signals
+ * decides. Both stay in [0, 1], so the intra-rung total still cannot cross a tier gap, and a row without
+ * a prior keeps exactly its old score. Verified live: flour→all-purpose, sugar→granulated, milk→whole
+ * (2026-08-31), with the conformance contract holding on both surfaces.
+ */
+
 /** The divisor that keeps the whole scale inside `[0, 1)` — one full gap above the top rung. */
 export const SCORE_CEILING = TIER_GAP * (RANK_TIERS.length + 1);
 
@@ -167,6 +181,12 @@ export interface TieredScoreInput {
     readonly baseMetric: number;
     /** Whether the match strategy injected `raw` AND this row carries it (plan U6). */
     readonly rawAffinity: boolean;
+    /**
+     * The row's FNDDS consumption-prior fraction in [0, 1] (plan U5), or absent when the food has none —
+     * absent and `0` rank identically, deliberately: "no measured consumption" must not be a penalty
+     * relative to "measured zero".
+     */
+    readonly priorFraction?: number | undefined;
 }
 
 /**
@@ -183,8 +203,12 @@ export interface TieredScoreInput {
 export function tieredRelevanceScore(input: TieredScoreInput): number {
     const base = Math.min(Math.max(input.baseMetric, 0), BASE_METRIC_MAX);
     const bonus = input.rawAffinity ? RAW_AFFINITY_BONUS : 0;
+    // Clamped like the base metric, and for the same reason: an unclamped fraction would let a lower tier
+    // cross a higher one, turning the ladder's central guarantee into a convention. See the max-fusion
+    // note above for why this is a MAX and not an additive bonus.
+    const prior = Math.min(Math.max(input.priorFraction ?? 0, 0), 1);
 
-    return (TIER_GAP * rankTierOrdinal(input.tier) + base + bonus) / SCORE_CEILING;
+    return (TIER_GAP * rankTierOrdinal(input.tier) + Math.max(base, prior) + bonus) / SCORE_CEILING;
 }
 
 /** One scored row, as either surface's statement returns it. */

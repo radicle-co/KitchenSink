@@ -148,6 +148,39 @@ than polluting the catalog.
 5. **Verification pricing is a non-issue**: ~$0.02 for 720 judgements. The binding constraint is the
    $100/month pool shared with the parse leg ($1.48/book), not the gate.
 
+## Owner rulings (2026-08-31, interactive review of the proposals above)
+
+All four open proposals were ruled on the same day. These are the decisions of record; the proposals
+above are kept as written for the reasoning trail.
+
+1. **Blend capture → PROMOTE, don't suppress.** When the catalog holds an exact or head-noun match for
+   the query, that catalog row is promoted into the familiar section ABOVE a local row whose only claim
+   is a shared non-head token ("Lentils … without salt" for `salt`). The weak local row stays visible —
+   suppression was rejected because it silently removes a real choice; head-gating local retrieval
+   entirely was rejected because it kills legitimate qualifier queries (`all-purpose`). The existing
+   promotion machinery in `blendIngredientSuggestions` is the vehicle.
+2. **Provenance proposal 2 is WITHDRAWN — `ingredient_resolutions` stays MACHINE-ONLY.** A suggest-pick
+   is a HUMAN assertion, not a machine judgement; recording picks would let bands earn autonomy from
+   near-ground-truth human decisions they never demonstrated. Bands populate as the cascade earns real
+   traffic (memos after ruling 3, curated corrections, future auto-resolution). Ranking quality is
+   measured instead as (a) pick-position/capture-rate figures in the importer's own report — the
+   operator-side instrument, no product change — and (b) a NEW client analytics track (an events
+   pipeline plus web/mobile emission), explicitly greenlit to start now and scoped as its own
+   brainstorm/plan; it also serves 015's recorded telemetry gap.
+3. **Memo grain → RE-KEY to the parsed ingredient name, DELETE the line-grain rows.** The write key must
+   be produced by the same `normalizedIngredientKey` the cascade queries with, pinned by an integration
+   test; the full phrase continues to be stored in `source_phrase`. The 289 line-grain rows exist only
+   in the local measurement database — no deployed environment has ever written a memo — so the delete
+   is a correctness backstop, not data loss.
+4. **Contradicted verdicts → SURFACE FOR HUMAN RE-PICK, never auto-unbind.** The gate gains per-aspect
+   verdicts (prompt + response schema + verdict row), and a high-certainty IDENTITY contradiction joins
+   the U13 ambiguity-review surface, where nothing changes until the recipe's owner re-picks. This
+   applies "corroboration triggers, a human publishes" one layer down and leaves U11's wrong-DISAGREE
+   ruling intact. Auto-unbind and auto-correct were rejected.
+
+Sequencing note: ruling 1 removes the main contradiction factory, so ruling 4's surface should expect
+low volume once 1 ships; a corpus re-measure after ruling 1 sizes the residual.
+
 ## Caveats and residuals
 
 - One book, one cuisine, 1919 prose; every rate above is a single-corpus estimate.

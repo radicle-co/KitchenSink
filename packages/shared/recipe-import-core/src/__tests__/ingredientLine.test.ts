@@ -469,6 +469,9 @@ const CORRUPTS_STATED_VALUE = {
     instruction_text_dropped: false,
     // U7: the validator's terminal not-a-food is an absence record — no stated number was altered.
     not_a_food: false,
+    // U7 (amended 2026-08-31): the values kept are exactly what the parse read; the judge's dispute is a
+    // suspicion for a human, and membership would convert a measured-false DISAGREE into a food loss.
+    measurement_unverified: false,
 } as const satisfies Record<IngredientReviewReason, boolean>;
 
 describe('corruptsStatedValue', () => {

@@ -67,14 +67,16 @@ export interface ParseLineDeps {
     readonly parseModelId: string;
 }
 
-/** How one line's landing is classified. */
-function landingOf(parsed: ParsedLine | null): { status: string; proposal: ParsedLine | null } {
+/** How one line's landing is classified. Exported for the landing-split tests — pure. */
+export function landingOf(parsed: ParsedLine | null): { status: string; proposal: ParsedLine | null } {
     if (parsed === null) {
         return { status: 'failed_retryable', proposal: null };
     }
 
-    if (parsed.reviewReasons.includes('not_a_food')) {
-        // R6's recorded terminal state — the proposal is kept (foods are already empty; nothing binds).
+    if (parsed.foods.length === 0 && parsed.reviewReasons.includes('not_a_food')) {
+        // R6's recorded terminal state — the proposal is kept, nothing binds. ⚠️ BOTH conjuncts (amended
+        // 2026-08-31): mixed exhaustion now keeps the foods the foodness judge PASSED while `not_a_food`
+        // records only the dropped ones, so the reason alone no longer means "nothing usable here".
         return { status: 'unparseable', proposal: parsed };
     }
 

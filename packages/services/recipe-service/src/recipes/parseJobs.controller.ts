@@ -34,7 +34,8 @@ import {
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { ParseJobsService } from './parseJobs.service.js';
-import { CreateParseJobDto, EditParseJobLineDto } from './dto/parseJob.dto.js';
+import { CreateParseJobDto } from './dto/createParseJob.dto.js';
+import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
 import type { ParseJobResponse } from './parseJobs.schema.js';
 import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';

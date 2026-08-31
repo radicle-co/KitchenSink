@@ -134,6 +134,48 @@ export function createValidatedLlmEngine(deps: ValidatedEngineDeps): ParseEngine
         };
     }
 
+    /**
+     * The terminal state when the retries ran out — decided by WHICH validator was still objecting
+     * (amended 2026-08-31, from the U7 corpus diff).
+     *
+     * ⛔ The original exhaustion collapsed every failure kind into {@link unParseable}, which DELETED
+     * foods no validator had disputed: 'one-fourth teaspoon of salt' and 'two teaspoons of sugar' landed
+     * `foods: []` under `not_a_food` because the MEASURE judge kept disagreeing — a false DISAGREE
+     * converted into a food loss, the direction U11 ranks unacceptable. So exhaustion now keeps every
+     * food the foodness judge passed and every measure value the parse read:
+     *
+     *  - measurement-only objection → the attempt survives WHOLE, flagged `measurement_unverified`;
+     *  - some foods disputed → the PASSED foods survive, the disputed ones are dropped, `not_a_food`
+     *    records the drop (plus `measurement_unverified` when that judge also objected);
+     *  - every food disputed and nothing else to keep → {@link unParseable}, exactly as before (the
+     *    equipment/heading case R6 describes).
+     *
+     * Pure.
+     */
+    function exhaust(raw: string, attempt: ParsedLine, failures: readonly RetryFailure[]): ParsedLine {
+        const disputedNames = new Set(
+            failures.filter((failure) => failure.kind === 'not-a-food').map((failure) => failure.name),
+        );
+        const keptFoods = attempt.foods.filter((food) => !disputedNames.has(food.name));
+        const measureDisputed = failures.some((failure) => failure.kind === 'measurement');
+
+        if (keptFoods.length === 0 && disputedNames.size > 0) {
+            return unParseable(raw);
+        }
+
+        const reasons = [...attempt.reviewReasons];
+
+        if (disputedNames.size > 0 && !reasons.includes('not_a_food')) {
+            reasons.push('not_a_food');
+        }
+
+        if (measureDisputed && !reasons.includes('measurement_unverified')) {
+            reasons.push('measurement_unverified');
+        }
+
+        return { ...attempt, foods: keptFoods, reviewReasons: reasons, llmAttempts: MAX_PARSE_ATTEMPTS };
+    }
+
     async function runLoop(raw: string, first: EngineAnswer): Promise<EngineAnswer> {
         if (isUnavailable(first)) {
             return first;
@@ -149,7 +191,7 @@ export function createValidatedLlmEngine(deps: ValidatedEngineDeps): ParseEngine
             }
 
             if (count === MAX_PARSE_ATTEMPTS) {
-                return unParseable(raw);
+                return exhaust(raw, attempt, failures);
             }
 
             const next = await deps.retry.parse(raw, failures);

@@ -9,7 +9,7 @@ import { lineDigest as realLineDigest } from '@kitchensink/recipe-core/parsing/p
 
 import type { EngineAnswer, ParsedLine, ParseEnginePort } from '@kitchensink/recipe-import-core';
 
-import { processParseLine, type ParseLineDeps } from '../parseLine.js';
+import { landingOf, processParseLine, type ParseLineDeps } from '../parseLine.js';
 
 const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
 const LINE = '2 cups all-purpose flour';
@@ -138,6 +138,44 @@ describe('R17 — the digest guard', () => {
 function computeRealDigest(): string {
     return realLineDigest(LINE, digest);
 }
+
+describe('the exhaustion landing split (amended 2026-08-31)', () => {
+    const base = {
+        raw: LINE,
+        statedMeasure: '2 cups',
+        quantity: { kind: 'exact', value: 2 },
+        unit: 'cup',
+        provenance: { statedMeasure: 'llm', quantity: 'llm', unit: 'llm', foods: 'llm' },
+        llmAttempts: 4,
+    } as const;
+
+    it("a MIXED-exhaustion line — kept foods beside a not_a_food record — lands 'parsed', not 'unparseable'", () => {
+        const landing = landingOf({
+            ...base,
+            foods: [{ name: 'flour', prep: null }],
+            reviewReasons: ['not_a_food'],
+        });
+
+        expect(landing.status).toBe('parsed');
+    });
+
+    it("an all-foods-refused exhaustion still lands 'unparseable' (R6)", () => {
+        const landing = landingOf({ ...base, foods: [], reviewReasons: ['not_a_food'] });
+
+        expect(landing.status).toBe('unparseable');
+    });
+
+    it("a measurement-only exhaustion lands 'parsed' with its review flag riding in the proposal", () => {
+        const landing = landingOf({
+            ...base,
+            foods: [{ name: 'salt', prep: null }],
+            reviewReasons: ['measurement_unverified'],
+        });
+
+        expect(landing.status).toBe('parsed');
+        expect(landing.proposal?.reviewReasons).toContain('measurement_unverified');
+    });
+});
 
 describe('the transient/terminal split', () => {
     it('⛔ a gated-leg throw re-throws AFTER the run, BEFORE any landing — the message redelivers', async () => {

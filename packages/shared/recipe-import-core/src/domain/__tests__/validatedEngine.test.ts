@@ -126,6 +126,52 @@ describe('the retry loop (origin D5: max 3 retries, failure context feeds the pa
         });
     });
 
+    it('⛔ MEASUREMENT-ONLY exhaustion keeps the undisputed foods and measure — a disputed number is a review flag, never a deletion', async () => {
+        // Measured 2026-08-31 (U7 corpus diff): 'one-fourth teaspoon of salt' and 'two teaspoons of sugar'
+        // were landed foods:[] + not_a_food after the measure judge disputed every round — deleting foods
+        // NO validator ever disputed. U11's own ranking (a wrong DISAGREE is the unacceptable direction)
+        // decides the terminal state: keep what the model read, flag it for a human.
+        const measurement = vi.fn().mockResolvedValue('fail');
+        const { engine } = build({
+            measurement,
+            retryAnswers: [line(['salt']), line(['salt']), line(['salt'])],
+            firstAnswers: [line(['salt'])],
+        });
+
+        const [answer] = await engine.parse(['one-fourth teaspoon of salt']);
+
+        expect(answer).toMatchObject({
+            foods: [{ name: 'salt' }],
+            quantity: { kind: 'exact', value: 1 },
+            unit: 'cup',
+            llmAttempts: MAX_PARSE_ATTEMPTS,
+        });
+        expect((answer as ParsedLine).reviewReasons).toContain('measurement_unverified');
+        expect((answer as ParsedLine).reviewReasons).not.toContain('not_a_food');
+    });
+
+    it('MIXED exhaustion keeps the PASSED foods, drops only the disputed ones, and flags both reasons', async () => {
+        const foodness = vi
+            .fn()
+            .mockImplementation((name: string) =>
+                Promise.resolve(name === 'cloth' ? judged(false, 'equipment') : judged(true, 'staple')),
+            );
+        const measurement = vi.fn().mockResolvedValue('fail');
+        const { engine } = build({
+            foodness,
+            measurement,
+            firstAnswers: [line(['onion', 'cloth'])],
+            retryAnswers: [line(['onion', 'cloth']), line(['onion', 'cloth']), line(['onion', 'cloth'])],
+        });
+
+        const [answer] = await engine.parse(['an onion in a cloth']);
+
+        expect(answer).toMatchObject({ foods: [{ name: 'onion' }], llmAttempts: MAX_PARSE_ATTEMPTS });
+        expect((answer as ParsedLine).reviewReasons).toEqual(
+            expect.arrayContaining(['not_a_food', 'measurement_unverified']),
+        );
+    });
+
     it('⛔ could-not-judge does NOT retry and does not count an attempt — absence, never a verdict (R25)', async () => {
         const foodness = vi.fn().mockResolvedValue(CANT);
         const { engine, retry } = build({ firstAnswers: [line(['blorvik'])], foodness });

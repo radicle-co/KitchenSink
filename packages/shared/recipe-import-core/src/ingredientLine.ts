@@ -132,7 +132,16 @@ export type IngredientReviewReason =
      * reason is the terminal `un-parseable` record. ⚠️ Not value-corrupting: no stated number was altered;
      * the absence of a bound food is the honest reading.
      */
-    | 'not_a_food';
+    | 'not_a_food'
+    /**
+     * The measurement judge disputed the parsed measure through every retry, and the loop exhausted with
+     * NO food ever disputed (plan U7, amended 2026-08-31). The foods and the parsed measure are KEPT —
+     * measured on the 1919 corpus, the judge's dispute was wrong on plainly-correct lines ('two teaspoons
+     * of sugar', 'one-fourth teaspoon of salt'), and U11 ranks a wrong DISAGREE as the unacceptable
+     * direction. The earlier terminal state (foods emptied under `not_a_food`) deleted foods no validator
+     * had questioned; this reason records the dispute for a human instead.
+     */
+    | 'measurement_unverified';
 
 /**
  * Reasons meaning "the value we would persist is not the value the source stated" (R39).
@@ -171,6 +180,12 @@ const VALUE_CORRUPTING_REVIEW_REASONS: ReadonlySet<IngredientReviewReason> = new
     // REFUSES the cut whenever the tail states a food of its own, so this reason can never accompany a
     // dropped amount. The consequence decides it once more: membership would make `cookbook-import`
     // discard the very lines U22a exists to clean up.
+    //
+    // ⛔ `measurement_unverified` is deliberately NOT here (2026-08-31). It is a SUSPICION, not a known
+    // misstatement: the persisted values are exactly what the parse read, and the judge disputing them was
+    // measured to be wrong on plainly-correct lines. The consequence decides it a FOURTH time — membership
+    // would make `cookbook-import` discard every line the judge wrongly disputes, converting a false
+    // DISAGREE into a food loss, which is the exact direction U11 ranks unacceptable.
     //
     // ⚠️ Adding a member to `IngredientReviewReason` produces NO compile error here — this is a Set, not
     // an exhaustive map — so a new reason defaults to "harmless" silently. `ingredientLine.test.ts`

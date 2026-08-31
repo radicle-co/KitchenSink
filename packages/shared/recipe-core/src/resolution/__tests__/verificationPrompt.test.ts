@@ -59,6 +59,15 @@ describe('the two turns', () => {
         expect(system).toContain('abstain');
     });
 
+    it('asks for the per-aspect verdicts object (owner ruling 2026-08-31)', () => {
+        // The joint verdict conflates identity with quantity, and U13's re-pick surface acts only on an
+        // identity dispute — so the shape line names the aspects object, keyed by the asked-about aspects.
+        const { system } = buildVerificationPrompt(REQUEST);
+
+        expect(system).toContain('"aspects"');
+        expect(system).toMatch(/aspects.*asked about/su);
+    });
+
     it('asks only about the aspects it was given', () => {
         const identityOnly = buildVerificationPrompt({ ...REQUEST, aspects: ['quantity'] });
 

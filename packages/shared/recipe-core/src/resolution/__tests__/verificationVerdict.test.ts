@@ -63,6 +63,52 @@ describe('a well-formed answer', () => {
 
         expect(reading.kind === 'read' && Object.hasOwn(reading.outcome, 'score')).toBe(false);
     });
+
+    /**
+     * Per-aspect verdicts (owner ruling 2026-08-31, U15 report "Owner rulings" §4): the joint verdict
+     * conflates identity with quantity — "a small piece of butter" → Butter, salted lands `disagree` on an
+     * unparseable amount while the identity is right — so the model now also says WHICH aspect it disputes.
+     * The overall verdict stays authoritative for banding; the aspects object refines it, and the U13
+     * surface acts only on an identity disagreement.
+     */
+    describe('per-aspect verdicts ride the same document', () => {
+        it('reads the aspects object when the model supplies one', () => {
+            const reading = read(
+                '{"verdict":"disagree","certainty":"high","aspects":{"identity":"agree","quantity":"disagree"}}',
+            );
+
+            expect(reading.kind === 'read' && reading.outcome.aspects).toEqual({
+                identity: 'agree',
+                quantity: 'disagree',
+            });
+        });
+
+        it('still reads an answer WITHOUT aspects — an older prompt, or a model that omitted them', () => {
+            const reading = read('{"verdict":"disagree","certainty":"high"}');
+
+            expect(reading.kind === 'read' && reading.outcome.aspects).toBeUndefined();
+        });
+
+        it('reads a single-aspect object — the shape a one-aspect ask produces', () => {
+            const reading = read('{"verdict":"agree","certainty":"medium","aspects":{"quantity":"agree"}}');
+
+            expect(reading.kind === 'read' && reading.outcome.aspects).toEqual({ quantity: 'agree' });
+        });
+
+        it('REFUSES an aspects object with a value outside the verdict enum', () => {
+            const reading = read('{"verdict":"agree","certainty":"high","aspects":{"identity":"maybe"}}');
+
+            expect(reading.kind).toBe('unreadable');
+        });
+
+        it('REFUSES an aspects object with an unknown aspect key', () => {
+            // A key nothing asked about is a shape the prompt never requested — the same strictness the
+            // whole-document rule applies one level down.
+            const reading = read('{"verdict":"agree","certainty":"high","aspects":{"flavour":"agree"}}');
+
+            expect(reading.kind).toBe('unreadable');
+        });
+    });
 });
 
 describe('an answer that must NOT read as agreement', () => {

@@ -61,6 +61,15 @@ export interface VerdictRow {
     readonly band: string;
     /** Which aspects were actually asked about. Reading a verdict without this over-claims what was checked. */
     readonly aspects: readonly string[];
+    /**
+     * The model's verdict on IDENTITY alone, when it itemized (migration 0042, owner ruling 2026-08-31).
+     * `undefined` for an answer that carried no aspects object — an older prompt, or a model that omitted
+     * it. U13's re-pick surface reads this: a joint `disagree` with an unparseable amount says nothing
+     * about the food, and only an identity dispute belongs in front of a human.
+     */
+    readonly identityVerdict?: string | undefined;
+    /** The model's verdict on QUANTITY alone, under the same rules. */
+    readonly quantityVerdict?: string | undefined;
     /** R21 — the model that produced the verdict. */
     readonly modelId: string;
     readonly foodId: string;
@@ -115,16 +124,20 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
             // silently dropped — the same rule `ingredient_resolution_memos` follows for the same reason.
             await db.execute(sql`
                 INSERT INTO recipe_ingredient_verifications
-                    (verification_key, verdict, certainty, band, aspects, model_id, food_id)
+                    (verification_key, verdict, certainty, band, aspects, identity_verdict, quantity_verdict,
+                     model_id, food_id)
                 VALUES (
                     ${row.verificationKey}, ${row.verdict}, ${row.certainty}, ${row.band},
-                    ${textArray(row.aspects)}, ${row.modelId}, ${row.foodId}
+                    ${textArray(row.aspects)}, ${row.identityVerdict ?? null}, ${row.quantityVerdict ?? null},
+                    ${row.modelId}, ${row.foodId}
                 )
                 ON CONFLICT (verification_key) DO UPDATE
                    SET verdict     = EXCLUDED.verdict,
                        certainty   = EXCLUDED.certainty,
                        band        = EXCLUDED.band,
                        aspects     = EXCLUDED.aspects,
+                       identity_verdict = EXCLUDED.identity_verdict,
+                       quantity_verdict = EXCLUDED.quantity_verdict,
                        model_id    = EXCLUDED.model_id,
                        verified_at = now()
             `);

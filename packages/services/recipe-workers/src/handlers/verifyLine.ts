@@ -497,10 +497,12 @@ export async function processVerification(deps: VerificationDeps, message: Verif
     }
 
     const band: ConfidenceBand = bandFor(reading.outcome);
-    await recordQuietly(
-        deps,
-        verdictRow(message, plan, decision.aspects, reading.outcome.verdict, reading.outcome.certainty, band, key),
-    );
+    await recordQuietly(deps, {
+        ...verdictRow(message, plan, decision.aspects, reading.outcome.verdict, reading.outcome.certainty, band, key),
+        // Migration 0042 — the model's per-aspect answers, when it itemized. See aspectVerdictColumns
+        // for why absence is never backfilled from the joint verdict.
+        ...aspectVerdictColumns(reading.outcome),
+    });
 
     if (!excludedFromBands(message)) {
         await reportBandQuietly(deps, {
@@ -598,6 +600,23 @@ function verdictRow(
         aspects,
         modelId: plan.modelId,
         foodId: message.foodId,
+    };
+}
+
+/**
+ * The per-aspect halves of the row, spread-if-present (migration 0042, owner ruling 2026-08-31).
+ *
+ * Absence is a statement — the answer carried no aspects object (an older prompt, or a model that omitted
+ * it) — and it must stay `undefined` rather than a fabricated copy of the joint verdict: U13's re-pick
+ * surface acts on `identity_verdict = 'disagree'`, and copying a joint `disagree` there would surface every
+ * quantity-only dispute, which is exactly the conflation the ruling removes.
+ */
+function aspectVerdictColumns(outcome: {
+    readonly aspects?: { readonly identity?: string | undefined; readonly quantity?: string | undefined };
+}): Pick<Parameters<VerdictStore['recordVerdict']>[0], 'identityVerdict' | 'quantityVerdict'> {
+    return {
+        ...(outcome.aspects?.identity === undefined ? {} : { identityVerdict: outcome.aspects.identity }),
+        ...(outcome.aspects?.quantity === undefined ? {} : { quantityVerdict: outcome.aspects.quantity }),
     };
 }
 

@@ -140,6 +140,39 @@ describe('the happy path', () => {
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.modelId).toBe('amazon.nova-micro-v1:0');
     });
 
+    /**
+     * Per-aspect verdicts (owner ruling 2026-08-31, U15 report "Owner rulings" §4): the joint verdict
+     * conflates identity with quantity, so the model's per-aspect answers ride the verdict row — U13's
+     * re-pick surface reads them, acting only on a high-certainty IDENTITY disagreement.
+     */
+    it('stores the per-aspect verdicts on the row when the model itemized', async () => {
+        const d = deps({
+            bedrock: {
+                converse: vi.fn().mockResolvedValue({
+                    ...ANSWERED,
+                    text: '{"verdict":"disagree","certainty":"high","aspects":{"identity":"agree","quantity":"disagree"}}',
+                }),
+            },
+        });
+        await processVerification(d, MESSAGE);
+
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]).toMatchObject({
+            verdict: 'disagree',
+            identityVerdict: 'agree',
+            quantityVerdict: 'disagree',
+        });
+    });
+
+    it('stores NO per-aspect verdicts for an answer without them — the pre-ruling shape', async () => {
+        const d = deps();
+        await processVerification(d, MESSAGE);
+
+        const row = d.spies.recordVerdict.mock.calls[0]?.[0];
+
+        expect(row?.identityVerdict).toBeUndefined();
+        expect(row?.quantityVerdict).toBeUndefined();
+    });
+
     it('emits the dollar metric', async () => {
         const d = deps();
         await processVerification(d, MESSAGE);

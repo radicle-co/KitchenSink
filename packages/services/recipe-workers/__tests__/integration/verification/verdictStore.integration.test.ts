@@ -89,6 +89,54 @@ describe.skipIf(!canRun)('createVerdictStore (integration)', () => {
         expect(rows[0]?.aspects).toEqual(['identity']);
     });
 
+    it('lands the per-aspect verdicts (migration 0042), and NULL when the answer carried none', async () => {
+        await store.recordVerdict({
+            verificationKey: `${KEY_PREFIX}-aspects`,
+            verdict: 'disagree',
+            certainty: 'high',
+            band: 'contradicted',
+            aspects: ['identity', 'quantity'],
+            identityVerdict: 'agree',
+            quantityVerdict: 'disagree',
+            modelId: 'amazon.nova-micro-v1:0',
+            foodId: '01M13XKKV183RCVG7NB8T0NFKF',
+        });
+        await store.recordVerdict({
+            verificationKey: `${KEY_PREFIX}-no-aspects`,
+            verdict: 'agree',
+            certainty: 'high',
+            band: 'verified',
+            aspects: ['identity', 'quantity'],
+            modelId: 'amazon.nova-micro-v1:0',
+            foodId: '01M13XKKV183RCVG7NB8T0NFKF',
+        });
+
+        const { rows } = await pool.query(
+            `SELECT verification_key, identity_verdict, quantity_verdict FROM recipe_ingredient_verifications
+              WHERE verification_key LIKE '${KEY_PREFIX}%' ORDER BY verification_key`,
+        );
+
+        expect(rows).toEqual([
+            { verification_key: `${KEY_PREFIX}-aspects`, identity_verdict: 'agree', quantity_verdict: 'disagree' },
+            { verification_key: `${KEY_PREFIX}-no-aspects`, identity_verdict: null, quantity_verdict: null },
+        ]);
+    });
+
+    it('the CHECK refuses a per-aspect value outside the verdict enum', async () => {
+        await expect(
+            store.recordVerdict({
+                verificationKey: `${KEY_PREFIX}-bad-aspect`,
+                verdict: 'agree',
+                certainty: 'high',
+                band: 'verified',
+                aspects: ['identity'],
+                identityVerdict: 'maybe',
+                modelId: 'amazon.nova-micro-v1:0',
+                foodId: '01M13XKKV183RCVG7NB8T0NFKF',
+            }),
+        ).rejects.toThrow();
+    });
+
     it('upserts on the verification key: a re-verification supersedes rather than erroring or duplicating', async () => {
         const row = {
             verificationKey: `${KEY_PREFIX}-upsert`,

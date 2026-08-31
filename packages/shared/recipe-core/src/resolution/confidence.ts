@@ -65,10 +65,26 @@ export type VerificationCertainty = (typeof CERTAINTY_ORDER)[number];
  */
 export type ConfidenceBand = 'verified' | 'contradicted' | 'inconclusive';
 
+/**
+ * Per-aspect verdicts (owner ruling 2026-08-31, U15 report "Owner rulings" §4).
+ *
+ * The joint verdict conflates identity with quantity — a correct food with an unparseable amount lands
+ * `disagree` — so the model also says which aspect it disputes. ⛔ The OVERALL verdict stays authoritative
+ * for banding (`bandFor` reads nothing here); this refines it, and its one consumer rule is U13's: a line
+ * surfaces for human re-pick only when the overall verdict is `disagree` AND `identity` here is
+ * `disagree`, so a self-contradictory answer (overall agree, identity disagree) surfaces nothing.
+ */
+export interface AspectVerdicts {
+    readonly identity?: VerificationVerdict | undefined;
+    readonly quantity?: VerificationVerdict | undefined;
+}
+
 /** A verdict as the model gave it. */
 export interface VerificationOutcome {
     readonly verdict: VerificationVerdict;
     readonly certainty: VerificationCertainty;
+    /** Which aspect the verdict is about, when the model itemized (absent from an older prompt's answer). */
+    readonly aspects?: AspectVerdicts | undefined;
     /** Model-authored diagnostic text. Never shown to a user, never the verdict. */
     readonly reason?: string | undefined;
 }
@@ -93,6 +109,18 @@ export const MAX_VERDICT_REASON_LENGTH = 500;
 export const verificationOutcomeSchema = z.object({
     verdict: z.enum(VERIFICATION_VERDICTS),
     certainty: z.enum(CERTAINTY_ORDER),
+    /**
+     * ⛔ `strictObject`, unlike the envelope: an unknown ASPECT key is refused, not stripped. The envelope
+     * strips invented keys because a model that adds `confidence_score` has still answered; an aspects
+     * object naming an aspect nothing asked about is an answer to a DIFFERENT question, and U13 acts on
+     * what this object says.
+     */
+    aspects: z
+        .strictObject({
+            identity: z.enum(VERIFICATION_VERDICTS).optional(),
+            quantity: z.enum(VERIFICATION_VERDICTS).optional(),
+        })
+        .optional(),
     reason: z.string().max(MAX_VERDICT_REASON_LENGTH).optional(),
 });
 

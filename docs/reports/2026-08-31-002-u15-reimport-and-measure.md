@@ -181,6 +181,33 @@ above are kept as written for the reasoning trail.
 Sequencing note: ruling 1 removes the main contradiction factory, so ruling 4's surface should expect
 low volume once 1 ships; a corpus re-measure after ruling 1 sizes the residual.
 
+## Re-measure after rulings 1–3 shipped (2026-08-31, same day)
+
+The corpus was re-imported through the same harness once the blend hoist (`ed953e35`), the memo re-grain
+(`add0cc94`) and the report's ranking census (`3dd0766e`) landed. Same clean-database method, same book,
+same spend (~$1.47 parse + ~$0.02 verification).
+
+| Measure                            |                Before rulings |                                 After rulings |
+| ---------------------------------- | ----------------------------: | --------------------------------------------: |
+| Weak token-only local leads        |     (dominant; census by SQL) | **55 / 724 (7.6%)** of suggest-resolved lines |
+| Worst attractor's captured queries | 18 ("Lentils … without salt") |                             **1** (same food) |
+| Gate verdicts — verified           |                   281 (50.2%) |                               **320 (56.3%)** |
+| Gate verdicts — contradicted       |                   219 (39.1%) |                               **184 (32.4%)** |
+| Gate verdicts — inconclusive       |                    60 (10.7%) |                                    64 (11.3%) |
+| Memos written                      |  289, line-grain, 0 reachable |          **110, phrase-grain, all reachable** |
+
+- **The hoist collapsed the capture.** The great attractors are gone (Lentils 18→1 captured queries,
+  almond milk 20→1); the residual 55 weak leads are a long tail of one-offs where no catalog exact or
+  head-noun match exists to hoist — mostly genuine coverage gaps, not ranking error.
+- **Memos are live.** The 110 rows are keyed on exactly what a picker queries (`butter`, `water`,
+  `celery`, `molasses`), written by the gate through the same normalizer the cascade reads with.
+- **The residual contradiction class is CATALOG COVERAGE, not ranking.** Sampled: every `soup stock`
+  line binds "Soup, stock, **fish**, home-prepared" — the head-match is the only stock the catalog holds,
+  and the model rightly disputes the identity. Neither the hoist nor memos can repair a food that does
+  not exist; this lands exactly where ruling 4 sends it — the human re-pick surface (or, eventually, an
+  authored/curated generic stock). The verdict split also still conflates identity with quantity, so
+  32.4% remains an upper bound on identity error until ruling 4's per-aspect verdicts ship.
+
 ## Caveats and residuals
 
 - One book, one cuisine, 1919 prose; every rate above is a single-corpus estimate.

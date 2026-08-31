@@ -116,13 +116,14 @@ describe.skipIf(!hasDatabaseUrl)('U14 — a verification verdict reaches the coo
      *
      * @sideEffect Upserts `recipe_ingredient_verifications`.
      */
-    async function recordVerdict(band: string): Promise<void> {
+    async function recordVerdict(band: string, identityVerdict: string | null = null): Promise<void> {
         await pool.query(
             `INSERT INTO recipe_ingredient_verifications
-                 (verification_key, verdict, certainty, band, aspects, model_id, food_id)
-             VALUES ($1, $2, 'high', $3, ARRAY['identity','quantity'], 'test.model', $4)
-             ON CONFLICT (verification_key) DO UPDATE SET band = EXCLUDED.band`,
-            [VERDICT_KEY, band === 'contradicted' ? 'disagree' : 'agree', band, FOOD_ID],
+                 (verification_key, verdict, certainty, band, aspects, identity_verdict, model_id, food_id)
+             VALUES ($1, $2, 'high', $3, ARRAY['identity','quantity'], $5, 'test.model', $4)
+             ON CONFLICT (verification_key) DO UPDATE
+                 SET band = EXCLUDED.band, identity_verdict = EXCLUDED.identity_verdict`,
+            [VERDICT_KEY, band === 'contradicted' ? 'disagree' : 'agree', band, FOOD_ID, identityVerdict],
         );
     }
 
@@ -264,6 +265,32 @@ describe.skipIf(!hasDatabaseUrl)('U14 — a verification verdict reaches the coo
         const line = (await askDetail()).ingredients.find((entry) => entry.ingredientId === CATALOG_ID);
 
         expect(line?.resolutionStatus).toBe('NEEDS_REVIEW');
+    });
+
+    /**
+     * The re-pick arm (owner ruling 2026-08-31, U15 report "Owner rulings" §4): a HIGH-certainty IDENTITY
+     * contradiction joins the U13 ambiguity-review surface — the same AMBIGUOUS wire member, so both
+     * shipped clients pick it up with no change — while nutrition stays withheld. A verdict with no
+     * itemized identity (the whole pre-0042 population) keeps the passive NEEDS_REVIEW badge, asserted
+     * above, so nothing that existed moves.
+     */
+    it('⛔ badges an IDENTITY-contradicted line AMBIGUOUS — the re-pick door — and still withholds', async () => {
+        await recordVerdict('contradicted', 'disagree');
+
+        const line = (await askDetail()).ingredients[0];
+
+        expect(line?.resolutionStatus).toBe('AMBIGUOUS');
+        expect((await askBatch()).nutrition[RECIPE_ID]).toStrictEqual({
+            state: 'unaccounted',
+            reason: 'verification_disagreement',
+        });
+    });
+
+    it('keeps NEEDS_REVIEW for a contradiction whose itemized dispute is QUANTITY-ONLY', async () => {
+        // identity agreed; a food re-pick cannot fix an amount, so the pick affordance stays shut.
+        await recordVerdict('contradicted', 'agree');
+
+        expect((await askDetail()).ingredients[0]?.resolutionStatus).toBe('NEEDS_REVIEW');
     });
 
     it('reports the CATALOG mirror status on a line the gate did not contradict', async () => {

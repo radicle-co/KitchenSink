@@ -226,6 +226,12 @@ export function resolveLineStatus(
      * keep the pre-U13 behaviour (the 015 `hasAvailablePrivateSlot` posture).
      */
     ambiguous: boolean,
+    /**
+     * The re-pick arm (owner ruling 2026-08-31, U15 report "Owner rulings" §4): whether this line's
+     * verdict is a HIGH-certainty IDENTITY contradiction — {@link identityContradictedOf}'s answer.
+     * ⛔ REQUIRED, never defaulted, for exactly `ambiguous`'s reason one parameter up.
+     */
+    identityContradicted: boolean,
 ): LineResolutionStatus | undefined {
     if (band === undefined) {
         // KTD-A (plan U4c): a zero-authority lexical bind is visibly PENDING until the gate agrees, and
@@ -244,7 +250,11 @@ export function resolveLineStatus(
 
     switch (band) {
         case 'contradicted':
-            return FoodResolutionStatus.NEEDS_REVIEW;
+            // Owner ruling 2026-08-31 (§4): a high-certainty IDENTITY contradiction joins the U13
+            // ambiguity-review surface — the pick affordance — instead of the passive badge. Nothing moves
+            // automatically: nutrition stays withheld (`isWithheld` reads the BAND, not the status), and a
+            // quantity-only dispute keeps NEEDS_REVIEW, because a food re-pick cannot fix an amount.
+            return identityContradicted ? FoodResolutionStatus.AMBIGUOUS : FoodResolutionStatus.NEEDS_REVIEW;
         case 'verified':
             return catalogStatus;
         case 'inconclusive':
@@ -366,6 +376,30 @@ export function ambiguousStateOf(
     }
 
     return nutrientAgreementOf(shortlist, PROVISIONAL_VERIFICATION_THRESHOLDS.nutrientAgreementFraction) === 'disagree';
+}
+
+/**
+ * The re-pick door (owner ruling 2026-08-31, U15 report "Owner rulings" §4): whether one stored verdict is
+ * a HIGH-certainty IDENTITY contradiction — the only verdict shape that invites a human to re-pick the
+ * FOOD. Everything else keeps its existing treatment:
+ *
+ *  - a joint `disagree` with NO itemized identity is the pre-0042 population, unreadable further — copying
+ *    the joint verdict into the identity slot would surface every quantity dispute, the exact conflation
+ *    the ruling removes;
+ *  - `identityVerdict: 'agree'` beside a joint `disagree` IS the quantity-only case ("a small piece of
+ *    butter" → Butter, salted), and a food re-pick cannot fix an amount;
+ *  - anything below `high` certainty stays a badge — U11 ranks a wrong DISAGREE as the unacceptable
+ *    direction, so the affordance that asks a human to act opens only on the model's strongest claim.
+ *
+ * @param row - The stored verdict's band, certainty, and itemized identity verdict (`null` = not itemized).
+ * @returns Whether the re-pick arm opens. Pure.
+ */
+export function identityContradictedOf(row: {
+    readonly band: VerificationBand;
+    readonly certainty: string;
+    readonly identityVerdict: string | null;
+}): boolean {
+    return row.band === 'contradicted' && row.certainty === 'high' && row.identityVerdict === 'disagree';
 }
 
 /**

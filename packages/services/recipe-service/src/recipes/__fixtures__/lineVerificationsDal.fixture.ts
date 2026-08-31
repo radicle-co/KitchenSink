@@ -27,10 +27,17 @@ export function fakeLineVerificationsDal(
     bands: ReadonlyMap<string, VerificationBand> = new Map(),
 ): LineVerificationsDal {
     return {
-        findBandsByKeys: vi
-            .fn()
-            .mockImplementation((keys: readonly string[]) =>
-                Promise.resolve(new Map([...bands].filter(([key]) => keys.includes(key)))),
+        findBandsByKeys: vi.fn().mockImplementation((keys: readonly string[]) =>
+            Promise.resolve(
+                new Map(
+                    [...bands]
+                        .filter(([key]) => keys.includes(key))
+                        // Migration 0042: the DAL answers full rows. Callers of this fixture speak in
+                        // bands; the row's per-aspect halves default to the pre-0042 population (null),
+                        // which keeps every existing treatment.
+                        .map(([key, band]) => [key, { band, certainty: 'high', identityVerdict: null }]),
+                ),
             ),
+        ),
     } as unknown as LineVerificationsDal;
 }

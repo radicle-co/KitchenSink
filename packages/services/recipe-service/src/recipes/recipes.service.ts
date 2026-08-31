@@ -48,12 +48,12 @@ import {
     pendingStateOf,
     type PendingState,
     ambiguousStateOf,
+    identityContradictedOf,
     resolveLineStatus,
     viewerLineStatus,
     verifiedLineIdentity,
-    type VerificationBand,
 } from './domain/lineVerification.js';
-import { LineVerificationsDal } from './dal/lineVerifications.dal.js';
+import { LineVerificationsDal, type LineVerdictRow } from './dal/lineVerifications.dal.js';
 import { sha256Hex } from '../common/sha256.js';
 import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
@@ -468,7 +468,7 @@ interface LineCatalog {
  * standing rule for an asynchronous gate. An empty map is therefore the correct, common answer, not a
  * degraded one.
  */
-type LineVerdicts = ReadonlyMap<string, VerificationBand>;
+type LineVerdicts = ReadonlyMap<string, LineVerdictRow>;
 
 /**
  * Merge a set of line measures with a loaded catalog through the single {@link toNutritionLine}
@@ -489,7 +489,7 @@ function assembleLines(
     return measures.map(({ ingredientId, lineId, sourceLine: _sourceLine, ...measure }) =>
         toNutritionLine(
             measure,
-            isWithheldLine(verdicts.get(lineId), pending.get(lineId) ?? 'none')
+            isWithheldLine(verdicts.get(lineId)?.band, pending.get(lineId) ?? 'none')
                 ? undefined
                 : catalog.byIngredientId.get(ingredientId),
         ),
@@ -539,7 +539,7 @@ function countWithheldContributions(
         // ⛔ CONTRADICTIONS ONLY, deliberately not KTD-A's pending withholds — those are counted (and
         // classified) separately, because "we disagreed" and "we have not checked yet" tell the reader two
         // different things with two different fixes. See `countPendingContributions`.
-        if (!isWithheld(verdicts.get(lineId))) {
+        if (!isWithheld(verdicts.get(lineId)?.band)) {
             return false;
         }
 
@@ -769,17 +769,20 @@ export class RecipesService {
             // U13 (D7/R9): material spread over the SAME parsed shortlist the producer's evidence uses —
             // one boundary parse, one agreement rule, so the gate and the badge cannot disagree.
             const ambiguous = ambiguousStateOf(
-                verdict,
+                verdict?.band,
                 parseStoredShortlist(resolutions.get(measure.ingredientId)?.shortlist),
             );
             // U13 (R20): the viewer overlay LAST — a stranger to a private food gets name-only
             // RESOLVED_UNAVAILABLE whatever the underlying state was, never a pick affordance.
             const status = viewerLineStatus(
                 resolveLineStatus(
-                    verdict,
+                    verdict?.band,
                     catalog.statusByIngredientId.get(measure.ingredientId),
                     pending.get(measure.lineId) ?? 'none',
                     ambiguous,
+                    // Owner ruling 2026-08-31 (§4): a high-certainty identity contradiction opens the
+                    // re-pick door; a pre-0042 verdict (identityVerdict null) keeps the passive badge.
+                    verdict !== undefined && identityContradictedOf(verdict),
                 ),
                 privateOwners.get(measure.ingredientId),
                 viewerId,
@@ -874,7 +877,7 @@ export class RecipesService {
             pending.set(
                 measure.lineId,
                 pendingStateOf(
-                    verdicts.get(measure.lineId),
+                    verdicts.get(measure.lineId)?.band,
                     event === undefined
                         ? undefined
                         : { tier: event.tier, bandEpoch: event.bandEpoch, resolvedAt: event.createdAt },
@@ -990,13 +993,13 @@ export class RecipesService {
         }
 
         const bands = await this.lineVerificationsDal.findBandsByKeys([...keyByLineId.values()]);
-        const byLineId = new Map<string, VerificationBand>();
+        const byLineId = new Map<string, LineVerdictRow>();
 
         for (const [lineId, key] of keyByLineId) {
-            const band = bands.get(key);
+            const row = bands.get(key);
 
-            if (band !== undefined) {
-                byLineId.set(lineId, band);
+            if (row !== undefined) {
+                byLineId.set(lineId, row);
             }
         }
 

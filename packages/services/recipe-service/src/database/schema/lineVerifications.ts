@@ -46,6 +46,15 @@ export const recipeIngredientVerifications = pgTable(
          * margin established it, so an `agree` says nothing about identity unless `'identity'` appears here.
          */
         aspects: text('aspects').array().notNull(),
+        /**
+         * The model's verdict on IDENTITY alone, when it itemized (migration 0042, owner ruling
+         * 2026-08-31). `NULL` = the answer carried no aspects object (pre-0042, or the model omitted it) —
+         * ⛔ never backfilled from the joint verdict, which would surface every quantity dispute as a food
+         * re-pick. The read side's `identityContradictedOf` opens the U13 re-pick door on this.
+         */
+        identityVerdict: text('identity_verdict'),
+        /** The model's verdict on QUANTITY alone, under the same rules. */
+        quantityVerdict: text('quantity_verdict'),
         /** R21 / KTD-4 — the model that produced this verdict. A verdict with no author cannot be rebaselined. */
         modelId: text('model_id').notNull(),
         /** The opaque food-service id the verdict was about. May DANGLE after U12's reseed; readers fall through. */

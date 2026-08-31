@@ -59,7 +59,7 @@ export class LineVerificationsDal {
      * @returns Verdict key → band, for the keys that have a row this build understands.
      * @sideEffect One `recipe_ingredient_verifications` read.
      */
-    public async findBandsByKeys(keys: readonly string[]): Promise<Map<string, VerificationBand>> {
+    public async findBandsByKeys(keys: readonly string[]): Promise<Map<string, LineVerdictRow>> {
         const unique = [...new Set(keys)];
 
         if (unique.length === 0) {
@@ -71,18 +71,37 @@ export class LineVerificationsDal {
             .select({
                 verificationKey: recipeIngredientVerifications.verificationKey,
                 band: recipeIngredientVerifications.band,
+                certainty: recipeIngredientVerifications.certainty,
+                identityVerdict: recipeIngredientVerifications.identityVerdict,
             })
             .from(recipeIngredientVerifications)
             .where(inArray(recipeIngredientVerifications.verificationKey, unique));
 
-        const bands = new Map<string, VerificationBand>();
+        const bands = new Map<string, LineVerdictRow>();
 
         for (const row of rows) {
             if (isKnownBand(row.band)) {
-                bands.set(row.verificationKey, row.band);
+                bands.set(row.verificationKey, {
+                    band: row.band,
+                    certainty: row.certainty,
+                    identityVerdict: row.identityVerdict,
+                });
             }
         }
 
         return bands;
     }
+}
+
+/**
+ * One stored verdict, as the read side consumes it (migration 0042, owner ruling 2026-08-31).
+ *
+ * The band is the publish decision, exactly as before; `certainty` and `identityVerdict` exist for ONE
+ * consumer — `identityContradictedOf`, the U13 re-pick door — and `identityVerdict: null` is the pre-0042
+ * population, which keeps its NEEDS_REVIEW treatment.
+ */
+export interface LineVerdictRow {
+    readonly band: VerificationBand;
+    readonly certainty: string;
+    readonly identityVerdict: string | null;
 }

@@ -25,6 +25,7 @@ import {
     isWithheldLine,
     pendingStateOf,
     ambiguousStateOf,
+    identityContradictedOf,
     resolveLineStatus,
     viewerLineStatus,
     verifiedLineIdentity,
@@ -218,41 +219,93 @@ describe('verifiedLineIdentity — what a verdict about this line would be keyed
 
 describe('resolveLineStatus — which status one recipe line reports', () => {
     it('reports NEEDS_REVIEW when the gate CONTRADICTED the line, overriding the catalog mirror', () => {
-        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', false, false)).toBe(
             FoodResolutionStatus.NEEDS_REVIEW,
         );
     });
 
     it('reports NEEDS_REVIEW even when the catalog knows nothing about the food', () => {
-        expect(resolveLineStatus('contradicted', undefined, 'none', false)).toBe(FoodResolutionStatus.NEEDS_REVIEW);
+        expect(resolveLineStatus('contradicted', undefined, 'none', false, false)).toBe(
+            FoodResolutionStatus.NEEDS_REVIEW,
+        );
     });
 
     it('⛔ passes a VERIFIED line through unchanged — a verdict that agreed changes nothing', () => {
-        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', false, false)).toBe(
             FoodResolutionStatus.RESOLVED,
         );
     });
 
     it('⛔ passes an INCONCLUSIVE line through unchanged — abstention is not disagreement', () => {
-        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.PENDING, 'none', false)).toBe(
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.PENDING, 'none', false, false)).toBe(
             FoodResolutionStatus.PENDING,
         );
     });
 
     it('⛔ ABSENCE OF A VERDICT MEANS PUBLISH — the line reports its catalog status alone (0023)', () => {
-        expect(resolveLineStatus(undefined, FoodResolutionStatus.PENDING, 'none', false)).toBe(
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.PENDING, 'none', false, false)).toBe(
             FoodResolutionStatus.PENDING,
         );
     });
 
     it('reports nothing at all for an unjudged line with no catalog status', () => {
-        expect(resolveLineStatus(undefined, undefined, 'none', false)).toBeUndefined();
+        expect(resolveLineStatus(undefined, undefined, 'none', false, false)).toBeUndefined();
     });
 
     it('is TOTAL over every band migration 0023 admits', () => {
         for (const band of VERIFICATION_BANDS) {
-            expect(resolveLineStatus(band, FoodResolutionStatus.RESOLVED, 'none', false)).toBeDefined();
+            expect(resolveLineStatus(band, FoodResolutionStatus.RESOLVED, 'none', false, false)).toBeDefined();
         }
+    });
+});
+
+/**
+ * The re-pick arm (owner ruling 2026-08-31, U15 report "Owner rulings" §4): a HIGH-certainty IDENTITY
+ * contradiction joins the U13 ambiguity-review surface — the pick affordance — instead of the passive
+ * NEEDS_REVIEW badge. Nothing changes automatically: nutrition stays withheld (`isWithheld` reads the
+ * band, not the status), and the owner re-picks or leaves it. A quantity-only dispute keeps the badge:
+ * surfacing it for a food re-pick would ask a human to fix the wrong field.
+ */
+describe('resolveLineStatus — an identity contradiction invites the re-pick', () => {
+    it('reports AMBIGUOUS for a contradicted line whose identity the model itemized as the dispute', () => {
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', false, true)).toBe(
+            FoodResolutionStatus.AMBIGUOUS,
+        );
+    });
+
+    it('keeps NEEDS_REVIEW for a contradicted line with NO identity itemization — the pre-0042 population', () => {
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', false, false)).toBe(
+            FoodResolutionStatus.NEEDS_REVIEW,
+        );
+    });
+
+    it('⛔ the flag reaches ONLY the contradicted arm — a verified line stays verified whatever it says', () => {
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', false, true)).toBe(
+            FoodResolutionStatus.RESOLVED,
+        );
+    });
+});
+
+describe('identityContradictedOf — which verdicts open the re-pick door', () => {
+    it('fires ONLY on a contradicted band with a high-certainty identity disagreement', () => {
+        expect(identityContradictedOf({ band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' })).toBe(
+            true,
+        );
+    });
+
+    it.each([
+        ['the band is not contradicted', { band: 'verified', certainty: 'high', identityVerdict: 'disagree' }],
+        ['certainty is only medium', { band: 'contradicted', certainty: 'medium', identityVerdict: 'disagree' }],
+        [
+            'identity itself agreed — a quantity-only dispute',
+            { band: 'contradicted', certainty: 'high', identityVerdict: 'agree' },
+        ],
+        [
+            'identity was never itemized (pre-0042 verdict)',
+            { band: 'contradicted', certainty: 'high', identityVerdict: null },
+        ],
+    ])('does NOT fire when %s', (_label, row) => {
+        expect(identityContradictedOf(row as Parameters<typeof identityContradictedOf>[0])).toBe(false);
     });
 });
 
@@ -314,22 +367,22 @@ describe('isWithheldLine — pending and aged withhold macros exactly like a con
 
 describe('resolveLineStatus — the pending members (plan U4c)', () => {
     it('a PENDING line reports PENDING_VERIFICATION, whatever the catalog says', () => {
-        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'pending', false)).toBe(
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'pending', false, false)).toBe(
             FoodResolutionStatus.PENDING_VERIFICATION,
         );
     });
 
     it('an AGED line adopts the actionable NEEDS_REVIEW treatment', () => {
-        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'aged', false)).toBe(
+        expect(resolveLineStatus(undefined, FoodResolutionStatus.RESOLVED, 'aged', false, false)).toBe(
             FoodResolutionStatus.NEEDS_REVIEW,
         );
     });
 
     it('a verdict outranks pending inputs — the switch is on the verdict first', () => {
-        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', false, false)).toBe(
             FoodResolutionStatus.RESOLVED,
         );
-        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', false, false)).toBe(
             FoodResolutionStatus.NEEDS_REVIEW,
         );
     });
@@ -402,17 +455,17 @@ describe('ambiguousStateOf — D7/R9: the gate abstained over materially-differe
     });
 
     it('resolveLineStatus layers it into the inconclusive arm', () => {
-        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, 'none', true)).toBe(
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, 'none', true, false)).toBe(
             FoodResolutionStatus.AMBIGUOUS,
         );
-        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, 'none', false)).toBe(
+        expect(resolveLineStatus('inconclusive', FoodResolutionStatus.RESOLVED, 'none', false, false)).toBe(
             FoodResolutionStatus.RESOLVED,
         );
         // ⛔ Only the INCONCLUSIVE arm: a contradiction outranks ambiguity, a verified line is settled.
-        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', true)).toBe(
+        expect(resolveLineStatus('contradicted', FoodResolutionStatus.RESOLVED, 'none', true, false)).toBe(
             FoodResolutionStatus.NEEDS_REVIEW,
         );
-        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', true)).toBe(
+        expect(resolveLineStatus('verified', FoodResolutionStatus.RESOLVED, 'none', true, false)).toBe(
             FoodResolutionStatus.RESOLVED,
         );
     });

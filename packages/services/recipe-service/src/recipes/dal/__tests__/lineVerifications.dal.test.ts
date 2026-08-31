@@ -69,14 +69,16 @@ describe('LineVerificationsDal.findBandsByKeys', () => {
     it('projects the rows into a key → band map', async () => {
         const control = createFakeDb();
         control.enqueue([
-            { verificationKey: KEY_A, band: 'contradicted' },
-            { verificationKey: KEY_B, band: 'verified' },
+            { verificationKey: KEY_A, band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' },
+            { verificationKey: KEY_B, band: 'verified', certainty: 'medium', identityVerdict: null },
         ]);
 
         const bands = await new LineVerificationsDal(control.db).findBandsByKeys([KEY_A, KEY_B]);
 
-        expect(bands.get(KEY_A)).toBe('contradicted');
-        expect(bands.get(KEY_B)).toBe('verified');
+        // Migration 0042: the row carries the per-aspect identity verdict beside the band, because the
+        // U13 re-pick door (`identityContradictedOf`) reads all three fields off one row.
+        expect(bands.get(KEY_A)).toEqual({ band: 'contradicted', certainty: 'high', identityVerdict: 'disagree' });
+        expect(bands.get(KEY_B)).toEqual({ band: 'verified', certainty: 'medium', identityVerdict: null });
     });
 
     it('⛔ issues NO query for an empty key set', async () => {

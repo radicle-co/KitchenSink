@@ -247,32 +247,79 @@ order fails 1.
 - The ~$11.13/month of sandbox RDS gp3 storage remains, as does this ADR's note that shrinking it needs a
   deliberate instance replacement (`6056779c` reverted an attempt that wedged the data stack).
 
-## The log-group edge — the actual blocker, and the design that removes it
+## The log-group edge — the blocker, and the fix that shipped (option C)
 
-The reclaim cannot complete while a PERSISTENT stack imports from an EPHEMERAL one. That direction is the
-defect, not the symptom: `WebhooksStack` (which stays) reaches into `IdentityServiceStack` (which now comes
-and goes) for `IdentityServiceLogGroupName`.
+The reclaim could not complete while a PERSISTENT stack imported from an EPHEMERAL one. That direction was
+the defect, not the symptom: `WebhooksStack` (which stays) reached into `IdentityServiceStack` (which now
+comes and goes) for `IdentityServiceLogGroupName`.
 
-Three ways out, and the ranking is not close:
+Three ways out were weighed:
 
-|     | Approach                                                                                                                 | Verdict                                                                                                                                                     |
-| --- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A   | Invert the import: the identity stack creates the `SubscriptionFilter`, importing the forwarder Lambda ARN from webhooks | ⛔ Reverses the prod deploy order of two stacks. ADR-0022 is explicit that reordering that pipeline trades schema skew for message-contract skew. Rejected. |
-| B   | Reference the log group by a shared literal NAME instead of `Fn.importValue`                                             | Removes the CFN edge, but the group is still DELETED with the identity stack, so the surviving subscription filter points at nothing. Half a fix.           |
-| C   | **A persistent stack owns the log group**; both the identity service and webhooks import it                              | ✅ Recommended.                                                                                                                                             |
+|     | Approach                                                                                                                 | Verdict                                                                                                                                                                                |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Invert the import: the identity stack creates the `SubscriptionFilter`, importing the forwarder Lambda ARN from webhooks | ⛔ Reverses the prod deploy order of two stacks. ADR-0022 is explicit that reordering that pipeline trades schema skew for message-contract skew. Rejected.                            |
+| B   | Reference the log group by a shared literal NAME instead of `Fn.importValue`                                             | ⛔ Removes the CFN edge, but the group is still DELETED with the identity stack, so the surviving filter points at nothing and the drain dies silently after the first reap. Rejected. |
+| C   | **A persistent stack owns the log group; both consumers import it**                                                      | ✅ Shipped.                                                                                                                                                                            |
 
-**C is recommended** because it fixes the direction rather than the symptom. A stack that already deploys
-before both — `kitchensink-global-{stage}` — creates `/kitchensink/identity-service/{stage}` and exports it;
-the identity service imports it for ECS task logging and the webhooks stack imports it for the drain.
-Deleting the identity service then removes neither the group nor the filter, the existing deploy order is
-untouched, and log history SURVIVES across sandboxes — which also retires the "log history no longer
-survives" consequence recorded above.
+### What shipped
 
-⚠️ C is not free: it changes three stacks including two that serve prod, and it migrates ownership of an
-existing log group (the current one is owned by `IdentityServiceStack`, so the move needs `RETAIN` on the old
-resource plus an import, or an accepted recreation). That is a larger change than the one this amendment
-scoped, and it is why the reclaim ships wired-but-blocked rather than silently disabled.
+`ServiceLogsStack` (`kitchensink-service-logs-{stage}`) is a new child of `GlobalStack`, which already
+deploys before both consumers — so **no deploy order changed**. It owns
+`/kitchensink/identity-service/{stage}` with the same one-month retention the old group had.
 
-⛔ **Do not merge the reclaim step before C lands.** The step is correct and fails loudly, which is the right
-behaviour — but on `main` the reconciler runs hourly, so merging it as-is buys an hourly red run until C is
-done. Either land C first, or remove the reclaim step from `sandbox-reconcile.yml` and re-add it with C.
+An explicit name matters twice: a CDK-generated name embeds the creating stack's logical id, which is the
+coupling being removed; and a stable path means **log history now survives a sandbox teardown**, retiring the
+"log history no longer survives" consequence recorded above.
+
+### ⚠️ It ships as an EXPAND step, and the vestigial resource is deliberate
+
+`WebhooksStack` still imports `kitchensink-identity-service-{stage}:IdentityServiceLogGroupName` at the
+moment the identity stack deploys, because prod-deploy runs identity BEFORE webhooks. CloudFormation refuses
+both to **delete** an export in use and to **change its value** while in use. So in this release the identity
+stack keeps the old log group and keeps the export pointing at it, unchanged, while its container logging
+moves to the imported group. After webhooks deploys later in the same run, the export has no importers and
+the stack is deletable.
+
+The contracting release — deleting `IdentityServiceLogGroup` and its `CfnOutput` — ships LATER, which is
+ADR-0022's expand-first rule applied to an export instead of a column. `stacks.test.ts` asserts the remnant
+is still there, so "tidying" it away early fails a test instead of failing the identity deploy.
+
+### The guard that would have caught this
+
+`reclaimableStackImports.test.ts` asserts the DIRECTION from CDK source: no stack under
+`packages/infra/global/lib` or `identity-webhooks/infra/lib` may pass a `kitchensink-identity-service-*` or
+`kitchensink-alb-*` export to `Fn.importValue`. Its prefix list is checked against
+`sandbox-shared-tier.sh`'s own allowlist so the two cannot drift.
+
+⛔ It **parses** rather than greps, and the first draft of it grepped — which flagged the very comment in
+`WebhooksStack` documenting the fix. `natEgressConsumers.test.ts` records that exact trap ("parsing means
+comments are comments"); the same parser is reused, and a test now asserts a comment quoting a reclaimable
+export name is ignored.
+
+⚠️ The negative alone is not enough: a guard that only forbids the old import would pass just as happily if
+the drain were deleted outright. `WebhooksStack.test.ts` therefore also asserts the POSITIVE — three
+subscription filters still exist, and the imported one names `kitchensink-service-logs-`. Both directions
+mutation-checked: pointing the drain back at the identity service fails 1 synth assertion and 2 source ones.
+
+### Consequences of C
+
+- **Prod templates change** on three stacks, deliberately. Keeping prod on a different shape is how ADR-0007's
+  cost problem came to hide in the exempted half; the cdk-nag byte-parity proof was extended to the new stack
+  rather than excused, and `cdkNagTemplateParity` now pins eight platform stacks plus cost guardrails.
+- The identity task definition gets a new revision on the next prod deploy — routine, but a real deploy
+  rather than a config flag.
+- `prScope.test.ts` gains `kitchensink-service-logs-{prod,sandbox}` to its never-claim list.
+
+### Residual risk
+
+- ⚠️ **The reclaim is unblocked in CODE but not yet PROVEN end-to-end.** The blocking import is gone and the
+  guards hold, but the sequence "deploy the three stacks, then delete" has not been executed. The first run
+  of the reclaim is still the test — which is exactly how the log-group edge was found, so this note is not
+  a formality.
+- **The reclaim must not run between merging and the first deploy of these three stacks.** Until
+  `kitchensink-service-logs-{stage}` exists and webhooks has repointed, the old import is still live and the
+  delete still fails — loudly, and the hourly pass retries, so the cost is a red run rather than damage.
+- The contracting release is owed. Until it ships, the identity stack carries an unused log group and an
+  unimported export.
+- The ~$11.13/month of sandbox RDS gp3 storage remains, as does the note that shrinking it needs a deliberate
+  instance replacement (`6056779c` reverted an attempt that wedged the data stack).

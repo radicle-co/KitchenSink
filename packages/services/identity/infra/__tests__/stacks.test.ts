@@ -964,3 +964,41 @@ describe('the in-deploy schema-migration gate (identity must not serve before th
         expect(JSON.stringify(runner.Properties.VpcConfig?.SecurityGroupIds)).toContain('LambdaSecurityGroupId');
     });
 });
+
+// ── ADR-0028 (2026-08-30): the ECS log group is imported, not owned ────────────────────────────────
+/**
+ * ADDED 2026-08-30, after a real failure rather than a review.
+ *
+ * This stack became RECLAIMABLE — deleted when the last sandbox expires so the shared ALB it pins can be
+ * released — while `WebhooksStack`, which must survive, imported its exported log-group name to hang a
+ * drain on. CloudFormation refused the first real reclaim:
+ *
+ *     Delete canceled. Cannot delete export
+ *       kitchensink-identity-service-sandbox:IdentityServiceLogGroupName
+ *     as it is in use by kitchensink-identity-webhooks-sandbox.
+ *
+ * The group now lives in `kitchensink-service-logs-{stage}`, which outlives both consumers and already
+ * deploys before them, so nothing about the deploy order moved.
+ *
+ * ⚠️ The second assertion looks like it contradicts the first, and does not. `WebhooksStack` still imports
+ * this stack's `IdentityServiceLogGroupName` export at the moment THIS stack deploys, because prod-deploy
+ * runs identity BEFORE webhooks — and CloudFormation refuses both to delete an export in use and to change
+ * its value while in use. So the old group and its export must survive this release untouched even though
+ * nothing writes to them: the expand step of ADR-0022's expand-first rule. The contracting release that
+ * removes them ships LATER. Deleting them here fails the identity deploy outright, which is exactly the
+ * mistake this test exists to stop someone "tidying" into place.
+ */
+describe('ECS log group ownership (ADR-0028, amended 2026-08-30)', () => {
+    it('sends container logs to the group imported from the persistent service-logs stack', () => {
+        const taskDefs = Object.values(serviceTemplate.findResources('AWS::ECS::TaskDefinition'));
+        const rendered = JSON.stringify(taskDefs[0]?.Properties?.ContainerDefinitions ?? []);
+
+        expect(rendered).toContain('kitchensink-service-logs-');
+        expect(rendered).toContain('Fn::ImportValue');
+    });
+
+    it('keeps the retired log group and its export for one more release (ADR-0022 expand-first)', () => {
+        serviceTemplate.resourceCountIs('AWS::Logs::LogGroup', 1);
+        expect(Object.keys(serviceTemplate.toJSON().Outputs ?? {})).toContain('IdentityServiceLogGroupName');
+    });
+});

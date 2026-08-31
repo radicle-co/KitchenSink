@@ -6,6 +6,7 @@ import { DomainStack } from './DomainStack.js';
 import { MessageSubstrateStack } from './MessageSubstrateStack.js';
 import { NetworkStack } from './NetworkStack.js';
 import { SandboxSchedulerStack } from './SandboxSchedulerStack.js';
+import { ServiceLogsStack } from './ServiceLogsStack.js';
 import { SharedAlbStack } from './SharedAlbStack.js';
 
 export interface GlobalStackProps extends StackProps {
@@ -29,6 +30,8 @@ export class GlobalStack extends Stack {
     public readonly alb: SharedAlbStack;
     /** The message substrate — BASE stages only; a `pr-{N}` table lives in the producer's own stack (U5). */
     public readonly messaging: MessageSubstrateStack;
+    /** Log groups that outlive the reclaimable stacks writing to them (ADR-0028, 2026-08-30). */
+    public readonly serviceLogs: ServiceLogsStack;
     /** The sandbox nightly-shutdown scheduler — created ONLY for `stage === 'sandbox'` (ADR-0007). */
     public readonly sandboxScheduler?: SandboxSchedulerStack;
     public readonly stage: string;
@@ -65,6 +68,16 @@ export class GlobalStack extends Stack {
             stackName: `kitchensink-alb-${stage}`,
             network: this.network,
             domain: this.domain,
+            stage,
+        });
+
+        // ADR-0028 (2026-08-30): the identity service's ECS log group lives HERE, not in the identity
+        // service stack, because that stack is now reclaimable and `WebhooksStack` — which must survive —
+        // drains this group. A persistent stack may not import from a reclaimable one; CloudFormation
+        // refuses the delete outright. Asserted by `reclaimableStackImports.test.ts`.
+        this.serviceLogs = new ServiceLogsStack(this, `ServiceLogs-${stage}`, {
+            env: props.env,
+            stackName: `kitchensink-service-logs-${stage}`,
             stage,
         });
 

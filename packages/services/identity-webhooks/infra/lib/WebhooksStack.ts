@@ -612,14 +612,27 @@ export class WebhooksStack extends Stack {
         const drainTargets: Array<{ id: string; logGroup: logs.ILogGroup }> = [
             { id: 'WebhooksLogDrain', logGroup: webhooksLogGroup },
             { id: 'WebhooksApiLogDrain', logGroup: apiLogGroup },
-            // ECS container log group lives in the identity-service stack, which deploys before this
-            // one (prod-deploy order), so importing it by name here keeps producer-before-consumer.
+            // ⛔ IMPORTED FROM `kitchensink-service-logs-{stage}`, NOT from the identity service — and the
+            // difference is load-bearing, not cosmetic. ADR-0028 (2026-08-30) made
+            // `kitchensink-identity-service-{stage}` RECLAIMABLE so the shared sandbox ALB it pins can be
+            // released; this stack must SURVIVE, because `e2e-web`'s Clerk fixture blocks on its webhook.
+            //
+            // This line previously read `Fn.importValue('kitchensink-identity-service-…')`, which made a
+            // persistent stack import from a reclaimable one. CloudFormation refuses that outright:
+            //
+            //     Delete canceled. Cannot delete export
+            //       kitchensink-identity-service-sandbox:IdentityServiceLogGroupName
+            //     as it is in use by kitchensink-identity-webhooks-sandbox.
+            //
+            // The group now lives in a stack that outlives both of us and still deploys first, so
+            // producer-before-consumer is preserved without pinning a stack that has to be deletable.
+            // `reclaimableStackImports.test.ts` fails if this is ever pointed back.
             {
                 id: 'EcsServiceLogDrain',
                 logGroup: logs.LogGroup.fromLogGroupName(
                     this,
                     'ImportedEcsServiceLogGroup',
-                    Fn.importValue(`kitchensink-identity-service-${deployStage}:IdentityServiceLogGroupName`),
+                    Fn.importValue(`kitchensink-service-logs-${deployStage}:IdentityServiceLogGroupName`),
                 ),
             },
         ];

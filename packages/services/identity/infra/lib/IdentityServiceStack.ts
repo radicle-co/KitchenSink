@@ -235,7 +235,36 @@ export class IdentityServiceStack extends Stack {
         // @kitchensink/infra-security.
         acceptNagFindings(taskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
 
-        const logGroup = new logs.LogGroup(this, 'IdentityServiceLogGroup', {
+        // ⛔ THIS STACK NO LONGER OWNS ITS LOG GROUP — ADR-0028 (2026-08-30).
+        //
+        // This stack is RECLAIMABLE: the sandbox reconciler deletes it when the last preview expires, so the
+        // shared ALB it pins can be released. `WebhooksStack`, which must SURVIVE, drains the container log
+        // group to the log forwarder. A persistent stack importing from a reclaimable one is refused by
+        // CloudFormation outright, and was — on the first real reclaim:
+        //
+        //     Delete canceled. Cannot delete export
+        //       kitchensink-identity-service-sandbox:IdentityServiceLogGroupName
+        //     as it is in use by kitchensink-identity-webhooks-sandbox.
+        //
+        // The group therefore lives in `kitchensink-service-logs-{stage}`, which outlives both consumers and
+        // already deploys before them, so no deploy order changes. Its name is stable
+        // (`/kitchensink/identity-service/{stage}`) rather than CDK-generated, so log history now survives a
+        // sandbox teardown.
+        const logGroup = logs.LogGroup.fromLogGroupName(
+            this,
+            'ImportedIdentityServiceLogGroup',
+            Fn.importValue(`kitchensink-service-logs-${stage}:IdentityServiceLogGroupName`),
+        );
+
+        // ⚠️ EXPAND STEP, and the vestigial resource below is deliberate (ADR-0022's expand-first rule).
+        //
+        // `IdentityServiceLogGroupName` (exported near the bottom of this file) is still imported by
+        // `WebhooksStack` at the moment THIS stack deploys, because prod-deploy runs identity BEFORE
+        // webhooks. CloudFormation refuses both to delete an export in use AND to change its value while in
+        // use — so the old group and its export must survive this release unchanged, even though nothing
+        // writes to them any more. The contracting release, which deletes both, ships LATER than the
+        // release that stopped reading them. Removing this early fails the identity deploy outright.
+        const retiredLogGroup = new logs.LogGroup(this, 'IdentityServiceLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
         });
 
@@ -703,8 +732,12 @@ export class IdentityServiceStack extends Stack {
             value: targetGroup.targetGroupArn,
             exportName: `${this.stackName}:IdentityAlbTargetGroupArn`,
         });
+        // ⚠️ RETIRED, and deliberately still here — see the expand-step note beside `retiredLogGroup`.
+        // Its VALUE must not change either: `WebhooksStack` still imports this export at the moment this
+        // stack deploys, and CloudFormation refuses to update an export that is in use. So it keeps naming
+        // the old group. The contracting release deletes this output and the group together.
         new CfnOutput(this, 'IdentityServiceLogGroupName', {
-            value: logGroup.logGroupName,
+            value: retiredLogGroup.logGroupName,
             exportName: `${this.stackName}:IdentityServiceLogGroupName`,
         });
         // The safety-net invocation in `prod-deploy.yml` / `sandbox-identity-deploy.yml` resolves the runner

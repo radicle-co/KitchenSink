@@ -436,4 +436,38 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
             });
         });
     });
+    // ── ADR-0028 (2026-08-30): the ECS log drain imports from the PERSISTENT stack ──────────────────
+    /**
+     * ADDED 2026-08-30, after a real failure rather than a review.
+     *
+     * ADR-0028 made `kitchensink-identity-service-{stage}` reclaimable so the shared sandbox ALB it pins
+     * could be released. This stack must SURVIVE — `e2e-web`'s Clerk fixture blocks on its webhook — and it
+     * was importing the ECS log group name from the very stack that now has to be deletable. CloudFormation
+     * refused the first real reclaim outright:
+     *
+     *     Delete canceled. Cannot delete export
+     *       kitchensink-identity-service-sandbox:IdentityServiceLogGroupName
+     *     as it is in use by kitchensink-identity-webhooks-sandbox.
+     *
+     * `reclaimableStackImports.test.ts` asserts the NEGATIVE across every persistent stack — that no such
+     * import exists anywhere. What this adds is the POSITIVE for this stack: the drain still happens, and it
+     * happens against the shared log-group stack. A guard that only forbids the old import would pass just
+     * as happily if the drain were deleted outright.
+     */
+    describe('ECS log drain (ADR-0028 — imports from kitchensink-service-logs, never the identity service)', () => {
+        it('still drains three log groups — removing the ECS drain must not be how this guard is satisfied', () => {
+            template.resourceCountIs('AWS::Logs::SubscriptionFilter', 3);
+        });
+
+        it('resolves the ECS log group from the persistent service-logs stack', () => {
+            const filters = Object.values(template.findResources('AWS::Logs::SubscriptionFilter'));
+            const imported = filters
+                .map((filter) => JSON.stringify(filter.Properties?.LogGroupName ?? ''))
+                .filter((rendered) => rendered.includes('Fn::ImportValue'));
+
+            expect(imported).toHaveLength(1);
+            expect(imported[0]).toContain('kitchensink-service-logs-');
+            expect(imported[0]).not.toContain('kitchensink-identity-service-');
+        });
+    });
 });

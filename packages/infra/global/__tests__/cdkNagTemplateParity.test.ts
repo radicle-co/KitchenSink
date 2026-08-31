@@ -152,11 +152,12 @@ describe('cdk-nag leaves synthesized templates byte-identical (ADR-0002 / ADR-00
         expect(sandboxNagged).toEqual(sandboxPlain);
     });
 
-    it('covers the stacks it claims to (prod: seven platform stacks plus cost guardrails)', () => {
-        // `kitchensink-messaging-prod` joined the platform with plan U5 (the message substrate) and
-        // `kitchensink-edge-prod` with U16 (the CloudFront edge). The list is exhaustive on purpose: a new
-        // platform stack that skipped the parity proof would be the one place cdk-nag could silently change
-        // a prod template.
+    it('covers the stacks it claims to (prod: eight platform stacks plus cost guardrails)', () => {
+        // `kitchensink-messaging-prod` joined the platform with plan U5 (the message substrate),
+        // `kitchensink-edge-prod` with U16 (the CloudFront edge), and `kitchensink-service-logs-prod` with
+        // ADR-0028's 2026-08-30 amendment — it owns the log groups that must outlive the reclaimable
+        // identity service stack. The list is exhaustive on purpose: a new platform stack that skipped the
+        // parity proof would be the one place cdk-nag could silently change a prod template.
         expect(Object.keys(prodPlain).sort()).toEqual([
             'kitchensink-alb-prod',
             'kitchensink-cost-guardrails',
@@ -166,6 +167,7 @@ describe('cdk-nag leaves synthesized templates byte-identical (ADR-0002 / ADR-00
             'kitchensink-global-prod',
             'kitchensink-messaging-prod',
             'kitchensink-network-prod',
+            'kitchensink-service-logs-prod',
         ]);
     });
 });

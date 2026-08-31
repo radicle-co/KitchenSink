@@ -35,6 +35,8 @@ const GLOBAL_NAMES = [
     'kitchensink-network-sandbox',
     'kitchensink-network-prod',
     'kitchensink-alb-sandbox',
+    'kitchensink-service-logs-sandbox',
+    'kitchensink-service-logs-prod',
     'kitchensink-alb-prod',
     'kitchensink-domain-sandbox',
     'kitchensink-global-sandbox',

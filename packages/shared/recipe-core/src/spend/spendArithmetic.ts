@@ -125,7 +125,12 @@ export const DEFAULT_MONTHLY_CEILING_MICROS = 100 * MICROS_PER_DOLLAR;
  * the property `food-service`'s `source-rolling-window-count` lost by carrying `source` with no `stage`, so
  * that prod and every preview co-mingle into one series and no call can be attributed at all.
  */
-export const SPEND_CALL_SITES = ['verification-gate', 'ingredient-parse', 'foodness-validator'] as const;
+export const SPEND_CALL_SITES = [
+    'verification-gate',
+    'ingredient-parse',
+    'foodness-validator',
+    'measurement-validator',
+] as const;
 
 /** One claimant on ADR-0024's single spend pool. */
 export type SpendCallSite = (typeof SPEND_CALL_SITES)[number];
@@ -147,10 +152,21 @@ export const INGREDIENT_PARSE_CALL_SITE: SpendCallSite = 'ingredient-parse';
  *
  * ⚠️ It fires up to twice per PARSE ATTEMPT (once per attempt's judged name, and the retry loop allows up
  * to 4 attempts per line — KTD-F's recomputed worst case), so its per-line worst case is a multiple of
- * the parse leg's. Measurement validation is deliberately NOT a call site: it reuses the gate's quantity
- * machinery as a LIBRARY (plan U7, origin R7) and spends nothing.
+ * the parse leg's.
  */
 export const FOODNESS_VALIDATOR_CALL_SITE: SpendCallSite = 'foodness-validator';
+
+/**
+ * The MEASUREMENT VALIDATOR (plan U7, origin R7; attribution corrected under U14/ADR-0024's 2026-08-31
+ * update) — the pool's fourth consumer.
+ *
+ * ⛔ This corrects a documented FALSEHOOD: this constant's neighbour used to claim measurement validation
+ * "reuses the gate's quantity machinery as a LIBRARY and spends nothing", while the implementation
+ * reserved, called Bedrock and settled on every judgement — billed under the FOODNESS dimension, so the
+ * one metric that decomposes the pool lied about which validator was burning it. Attribution only, never
+ * partitioning: the pool stays ONE ceiling (ADR-0024's owner ruling).
+ */
+export const MEASUREMENT_VALIDATOR_CALL_SITE: SpendCallSite = 'measurement-validator';
 
 /**
  * Where a decision to route this model's inference beyond the calling region is written down.

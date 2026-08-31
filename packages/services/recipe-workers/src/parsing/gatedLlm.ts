@@ -45,6 +45,7 @@ import {
 import { readVerdict } from '@kitchensink/recipe-core/resolution/verification-verdict';
 import {
     FOODNESS_VALIDATOR_CALL_SITE,
+    MEASUREMENT_VALIDATOR_CALL_SITE,
     INGREDIENT_PARSE_CALL_SITE,
     planReservation,
     actualCostMicros,
@@ -329,7 +330,7 @@ export function createGatedMeasurementValidator(deps: GatedLlmDeps, modelId: str
             }
 
             const outcome = await gatedConverse(deps, {
-                callSite: FOODNESS_VALIDATOR_CALL_SITE,
+                callSite: MEASUREMENT_VALIDATOR_CALL_SITE,
                 modelId,
                 request: {
                     systemPrompt: prompt.system,

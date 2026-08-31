@@ -1105,3 +1105,25 @@ and published `ABSENT_QUANTITY` for numbers the phrase plainly stated.
   note the interaction with §3: a CRF leg that fails to import surfaces as `single-engine` on **every** line,
   which is correct behaviour and quiet behaviour at the same time. Watch the `single-engine` rate after the
   first deploy, not just the error rate.
+
+## Update (2026-08-31) — the retry carve-out's boundary, restated as a rule
+
+Plan 001's U7/U8 implementation settled a boundary this ADR's "absence is not dissent" rule implied but
+never spelled: **which failures RETRY, and which land as facts about the line.**
+
+- **Transient, and therefore RETRIED** (the message redelivers under `maxReceiveCount` and dead-letters
+  after it): an ADR-0024 ceiling denial, an unreadable spend counter, a Bedrock transport failure, and a
+  CRF invocation failure. None of these is evidence about the ingredient; recording any of them as an
+  outcome would turn an outage into a permanent fact about a line (§3's single-engine ≠ differ, one level
+  up). The parse CACHE is what makes redelivery affordable — a retried job re-pays only for the lines
+  that never landed (KTD-F).
+- **Terminal, and therefore a LANDING, never a retry**: the exhaustion split (amended 2026-08-31 in
+  `validatedEngine.ts`) — a measurement-only dispute keeps the attempt whole under
+  `measurement_unverified` (a measured-false DISAGREE must not become a food loss, per U11's ranking of
+  wrong-DISAGREE as the unacceptable direction); a partial not-a-food keeps the passed foods; only
+  all-disputed lands `unParseable`. A model REFUSAL is a refusal — never an empty `ParsedLine` — and a
+  deterministic over-cap line is rejected, not truncated (§ the prompt rules), because retrying a
+  deterministic outcome five times only fills the DLQ slower.
+
+The rule in one line: **retry what the world did to the call; land what the validators concluded about
+the line.** `parseLine.test.ts`'s transient/terminal split suite is the pin.

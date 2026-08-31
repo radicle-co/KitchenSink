@@ -264,6 +264,11 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     'homeRecentRecipeTap',
     'recipes/source-tabs',
     'recipes/ingredient-correction',
+    // U13: the batched review story needs a recipe carrying a gate-AMBIGUOUS line, and that state is
+    // produced by the verification worker over a stored inconclusive verdict + a spread shortlist — not
+    // constructible from the app. A CI seeding step for the fixture recipe is owed before this promotes
+    // into the plan; the surface's states are covered by ambiguityReviewSurface.native.test.tsx meanwhile.
+    'recipes/ambiguity-review',
 ];
 
 // ---------------------------------------------------------------------------------------------------------

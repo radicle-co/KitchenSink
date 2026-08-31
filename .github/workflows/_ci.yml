@@ -2226,14 +2226,13 @@ jobs:
     # gate: without it this job would report success over a broken suite.
     e2e-web-report:
         name: E2E (web — Playwright) · merged report
-        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): this job reaches REMOTE services (sandbox
-        # Clerk / stage secrets / upstream APIs), which are unavailable right now, so it can only fail.
-        # Re-enable by deleting this `if: false` once the sandbox remote services are reachable again.
-        if: ${{ false }}
         timeout-minutes: 15
         runs-on: ubuntu-latest
         needs: e2e-web
-        if: ${{ !cancelled() }}
+        # ⛔ TEMPORARILY DISABLED (owner directive 2026-08-31): the shard job it reports on reaches the
+        # sandbox Clerk instance, which is unavailable right now. Restore `${{ !cancelled() }}` alone (drop
+        # the `false &&`) once the sandbox remote services are reachable again.
+        if: ${{ false && !cancelled() }}
         permissions:
             # Checkout only — this job merges blob artifacts and uploads to Argos; it writes nothing to the repo.
             contents: read

@@ -398,6 +398,14 @@ function resolveAtom(atom: string, scenario: Scenario): Truth {
         return asTruth(scenario.event === 'pull_request' && filterMatches(outputName, scenario.changedFiles ?? []));
     }
 
+    if (atom === 'false') {
+        // The TEMPORARY kill switch (owner directive 2026-08-31): the sandbox remote services both heavy
+        // tiers depend on are unreachable, so heavy-e2e.yml's gate is `false && (…)`. Modelled as the
+        // literal it is; the scenario suite asserts the disable below, so REMOVING the switch is also a
+        // deliberate act here rather than a silent gate change.
+        return asTruth(false);
+    }
+
     const dispatchInput = /^github\.event\.inputs\.([\w-]+)\s*==\s*'([^']*)'$/.exec(atom);
 
     if (dispatchInput !== null) {
@@ -451,10 +459,21 @@ function gatedJobRuns(scenario: Scenario): boolean {
         return true;
     }
 
+    // ⛔ The TEMPORARY kill switch (owner directive 2026-08-31) is STRIPPED before evaluation, on purpose:
+    // the scenario suite's job is to keep the UNDERLYING gate logic from rotting while the switch is in —
+    // the day the `false &&` comes out, these scenarios must still hold, or its removal ships a broken
+    // gate. The switch itself is pinned by its own dated test below, so the disable is verified too.
     return definite(
-        evaluateCondition(gate.if, (atom) => resolveAtom(atom, scenario)),
+        evaluateCondition(stripKillSwitch(gate.if), (atom) => resolveAtom(atom, scenario)),
         `${CALLER_FILE}::${GATED_JOB}.if`,
     );
+}
+
+/** Strip the `false && (…)` kill-switch wrapper, returning the underlying gate expression. Pure. */
+function stripKillSwitch(expression: string): string {
+    const match = /^\s*false\s*&&\s*\(([\s\S]*)\)\s*$/.exec(expression.trim());
+
+    return match?.[1] ?? expression;
 }
 
 /** One of the caller's `with:` values, evaluated under the scenario — i.e. the callee's `inputs.<name>`. */
@@ -838,5 +857,22 @@ describe('heavy-e2e load tier — Maestro stays off the automatic path', () => {
 
         expect(loadTierRuns(scenario)).toBe(true);
         expect(maestroRuns(scenario)).toBe(false);
+    });
+});
+
+describe('the temporary heavy-tier kill switch (owner directive 2026-08-31)', () => {
+    it('is present, as `false && (…)` wrapping the whole gate — and its removal re-runs the scenarios above', () => {
+        const gate = jobOf(caller, CALLER_FILE, GATED_JOB);
+
+        // Both heavy tiers reach REMOTE sandbox services (Clerk from the emulator, k6 against sandbox
+        // hosts), which are unreachable right now. Delete the `false &&` (and this test) to re-enable —
+        // the scenario suite evaluates the UNDERLYING expression either way, so re-enabling cannot ship a
+        // gate that rotted while it was off.
+        expect(
+            gate.if
+                ?.trim()
+                .replace(/^\$\{\{\s*/u, '')
+                .startsWith('false &&'),
+        ).toBe(true);
     });
 });

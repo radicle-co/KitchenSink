@@ -656,3 +656,29 @@ never to establish a fact.
   IS settled: $0.035/1M input and $0.14/1M output in us-east-1, read from the Pricing API on 2026-08-20,
   which reproduces the $0.27/month figure exactly.
 - Nova Micro's prompt-cache minimum token threshold.
+
+## Update (2026-08-31) — four call sites, one attribution falsehood corrected, still ONE pool
+
+The pool's consumer roster is now FOUR call sites on the one $100 ceiling — attribution, never
+partitioning, exactly as §4c's deprecation note demanded:
+
+- `verification-gate` — the original consumer, unchanged.
+- `ingredient-parse` — the revived parse leg (plan U8), inside the verification gate's role per §4b's
+  single-grantee rule.
+- `foodness-validator` — the in-loop foodness judge (plan U6, KTD-E/KTD-F); fires up to twice per parse
+  attempt, four attempts per line.
+- `measurement-validator` — **new, and it corrects a documented falsehood.** The measurement validator's
+  own docstring claimed it "reuses the gate's quantity machinery as a LIBRARY and spends nothing", while
+  the implementation reserved, called Bedrock and settled on every judgement — billed under the FOODNESS
+  dimension, so the one metric that decomposes this pool lied about which validator was burning it. It
+  now bills under its own name (`gatedMeasurementCallSite.test.ts` pins the dimension).
+
+Recomputed per-LINE worst case under the retry loop (KTD-F's four attempts): 1 parse call + up to 2
+foodness judgements and 1 measurement judgement per attempt ⇒ ≤ 1 + 4×3 = 13 gated calls per imported
+line, plus 1 verification-gate call per resolved line at save. The ceiling arithmetic is unchanged — the
+reserve-then-settle counter bounds all of them together, and the parse CACHE bounds redelivery
+amplification.
+
+Non-consumers, stated so the roster cannot rot the way §4c's did: plan U12's promotion funnel and U19's
+corroborated-completion trigger added NO Bedrock consumers — both are pure service/database flows — and
+layer 4b's single `bedrock:InvokeModel` grantee is unchanged (`llmSpendGuards.test.ts`).

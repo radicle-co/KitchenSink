@@ -272,6 +272,7 @@ export class IngredientsService {
 
         return {
             suggestions: blendIngredientSuggestions({
+                query: trimmed,
                 local,
                 promoted,
                 catalogHits: catalog.hits,

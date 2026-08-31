@@ -19,14 +19,28 @@ function makeCatalogHit(overrides: Partial<CatalogHit> = {}): CatalogHit {
 
 describe('blendIngredientSuggestions', () => {
     it('returns nothing when there is nothing to blend', () => {
-        expect(blendIngredientSuggestions({ local: [], promoted: [], catalogHits: [], limit: 10 })).toEqual([]);
+        expect(
+            blendIngredientSuggestions({
+                query: 'unrelated query',
+                local: [],
+                promoted: [],
+                catalogHits: [],
+                limit: 10,
+            }),
+        ).toEqual([]);
     });
 
     it('sections local before catalog and never interleaves them (no reorder jank)', () => {
         const local = [makeIngredient({ id: 'ing-1', name: 'Zucchini' })];
         const catalogHits = [makeCatalogHit({ foodId: 'food-1', name: 'Apple', score: 0.99 })];
 
-        const blended = blendIngredientSuggestions({ local, promoted: [], catalogHits, limit: 10 });
+        const blended = blendIngredientSuggestions({
+            query: 'unrelated query',
+            local,
+            promoted: [],
+            catalogHits,
+            limit: 10,
+        });
 
         // The catalog hit outscores the local row alphabetically AND by score, yet local still comes first.
         expect(blended).toEqual([
@@ -38,7 +52,13 @@ describe('blendIngredientSuggestions', () => {
     it('preserves the local section order it was given (the DAL/ranking decided it)', () => {
         const local = [makeIngredient({ id: 'ing-b', name: 'Bravo' }), makeIngredient({ id: 'ing-a', name: 'Alpha' })];
 
-        const blended = blendIngredientSuggestions({ local, promoted: [], catalogHits: [], limit: 10 });
+        const blended = blendIngredientSuggestions({
+            query: 'unrelated query',
+            local,
+            promoted: [],
+            catalogHits: [],
+            limit: 10,
+        });
 
         expect(blended.map((s) => (s.provenance === 'local' ? s.ingredient.id : s.foodId))).toEqual(['ing-b', 'ing-a']);
     });
@@ -49,7 +69,13 @@ describe('blendIngredientSuggestions', () => {
             makeCatalogHit({ foodId: 'food-lo', score: 0.1 }),
         ];
 
-        const blended = blendIngredientSuggestions({ local: [], promoted: [], catalogHits, limit: 10 });
+        const blended = blendIngredientSuggestions({
+            query: 'unrelated query',
+            local: [],
+            promoted: [],
+            catalogHits,
+            limit: 10,
+        });
 
         expect(blended.map((s) => (s.provenance === 'catalog' ? s.foodId : null))).toEqual(['food-hi', 'food-lo']);
     });
@@ -59,7 +85,13 @@ describe('blendIngredientSuggestions', () => {
             const local = [makeIngredient({ id: 'ing-1', name: 'Chicken breast', foodId: 'food-1' })];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1', name: 'Chicken breast, raw' })];
 
-            const blended = blendIngredientSuggestions({ local, promoted: [], catalogHits, limit: 10 });
+            const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
+                local,
+                promoted: [],
+                catalogHits,
+                limit: 10,
+            });
 
             expect(blended).toHaveLength(1);
             expect(blended[0]).toEqual({ provenance: 'local', ingredient: local[0] });
@@ -80,7 +112,13 @@ describe('blendIngredientSuggestions', () => {
             ];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1' })];
 
-            const blended = blendIngredientSuggestions({ local: [], promoted, catalogHits, limit: 10 });
+            const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
+                local: [],
+                promoted,
+                catalogHits,
+                limit: 10,
+            });
 
             expect(blended).toEqual([{ provenance: 'local', ingredient: promoted[0] }]);
         });
@@ -90,7 +128,13 @@ describe('blendIngredientSuggestions', () => {
             const promoted = [makeIngredient({ id: 'ing-9', name: 'Aaa promoted', foodId: 'food-1' })];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1' })];
 
-            const blended = blendIngredientSuggestions({ local, promoted, catalogHits, limit: 10 });
+            const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
+                local,
+                promoted,
+                catalogHits,
+                limit: 10,
+            });
 
             expect(blended.map((s) => (s.provenance === 'local' ? s.ingredient.id : s.foodId))).toEqual([
                 'ing-1',
@@ -108,7 +152,13 @@ describe('blendIngredientSuggestions', () => {
                 makeCatalogHit({ foodId: 'food-lo', score: 0.1 }),
             ];
 
-            const blended = blendIngredientSuggestions({ local: [], promoted, catalogHits, limit: 10 });
+            const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
+                local: [],
+                promoted,
+                catalogHits,
+                limit: 10,
+            });
 
             expect(blended.map((s) => (s.provenance === 'local' ? s.ingredient.id : s.foodId))).toEqual([
                 'ing-hi',
@@ -120,6 +170,7 @@ describe('blendIngredientSuggestions', () => {
             const row = makeIngredient({ id: 'ing-1', name: 'Chicken breast', foodId: 'food-1' });
 
             const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
                 local: [row],
                 promoted: [row],
                 catalogHits: [makeCatalogHit({ foodId: 'food-1' })],
@@ -148,7 +199,13 @@ describe('blendIngredientSuggestions', () => {
             const local = [makeIngredient({ id: 'ing-1', name: 'Chicken breast', isUserEntered: true })];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1', name: 'Chicken breast' })];
 
-            const blended = blendIngredientSuggestions({ local, promoted: [], catalogHits, limit: 10 });
+            const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
+                local,
+                promoted: [],
+                catalogHits,
+                limit: 10,
+            });
 
             expect(blended).toHaveLength(1);
             expect(blended.map((s) => s.provenance)).toEqual(['catalog']);
@@ -160,7 +217,9 @@ describe('blendIngredientSuggestions', () => {
             const local = [makeIngredient({ id: 'ing-1', name: 'Freeform' })];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1' })];
 
-            expect(blendIngredientSuggestions({ local, promoted: [], catalogHits, limit: 10 })).toHaveLength(2);
+            expect(
+                blendIngredientSuggestions({ query: 'unrelated query', local, promoted: [], catalogHits, limit: 10 }),
+            ).toHaveLength(2);
         });
     });
 
@@ -168,7 +227,13 @@ describe('blendIngredientSuggestions', () => {
         it('caps the local section at the limit', () => {
             const local = [1, 2, 3].map((n) => makeIngredient({ id: `ing-${n}`, name: `Local ${n}` }));
 
-            const blended = blendIngredientSuggestions({ local, promoted: [], catalogHits: [], limit: 2 });
+            const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
+                local,
+                promoted: [],
+                catalogHits: [],
+                limit: 2,
+            });
 
             expect(blended).toHaveLength(2);
         });
@@ -177,7 +242,13 @@ describe('blendIngredientSuggestions', () => {
             const local = [makeIngredient({ id: 'ing-1' })];
             const catalogHits = [1, 2, 3].map((n) => makeCatalogHit({ foodId: `food-${n}`, name: `Catalog ${n}` }));
 
-            const blended = blendIngredientSuggestions({ local, promoted: [], catalogHits, limit: 2 });
+            const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
+                local,
+                promoted: [],
+                catalogHits,
+                limit: 2,
+            });
 
             // 1 local (under its own cap) + 2 catalog (capped) — the sections are capped separately so a
             // full local section can never squeeze the catalog section out of existence.
@@ -197,7 +268,13 @@ describe('blendIngredientSuggestions', () => {
             const promoted = [makeIngredient({ id: 'ing-9', name: 'Oat flour', foodId: 'food-1' })];
             const catalogHits = [makeCatalogHit({ foodId: 'food-1' })];
 
-            const blended = blendIngredientSuggestions({ local, promoted, catalogHits, limit: 2 });
+            const blended = blendIngredientSuggestions({
+                query: 'unrelated query',
+                local,
+                promoted,
+                catalogHits,
+                limit: 2,
+            });
 
             // The promoted row is squeezed out by the cap — and its catalog hit stays suppressed, so the
             // food does not reappear under a different provenance. Bounded, never duplicated.
@@ -212,7 +289,9 @@ describe('blendIngredientSuggestions', () => {
             const local = [makeIngredient({ id: 'ing-1' })];
             const catalogHits = [makeCatalogHit()];
 
-            expect(blendIngredientSuggestions({ local, promoted: [], catalogHits, limit: 0 })).toEqual([]);
+            expect(
+                blendIngredientSuggestions({ query: 'unrelated query', local, promoted: [], catalogHits, limit: 0 }),
+            ).toEqual([]);
         });
     });
 
@@ -222,7 +301,7 @@ describe('blendIngredientSuggestions', () => {
         const localBefore = [...local];
         const hitsBefore = [...catalogHits];
 
-        blendIngredientSuggestions({ local, promoted: [], catalogHits, limit: 10 });
+        blendIngredientSuggestions({ query: 'unrelated query', local, promoted: [], catalogHits, limit: 10 });
 
         expect(local).toEqual(localBefore);
         expect(catalogHits).toEqual(hitsBefore);
@@ -262,6 +341,7 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
     it('⛔ suppresses the freeform row when a catalog hit carries the same name', () => {
         // The measured case: 138 recipe lines took this branch and got no nutrition.
         const result = blendIngredientSuggestions({
+            query: 'unrelated query',
             local: [makeIngredient({ id: 'ing-freeform', name: 'Butter', foodId: undefined })],
             promoted: [],
             catalogHits: [{ foodId: 'food-butter', name: 'Butter', score: 9 }],
@@ -276,6 +356,7 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
 
     it('matches on a normalized name — case and surrounding whitespace do not rescue the shadow', () => {
         const result = blendIngredientSuggestions({
+            query: 'unrelated query',
             local: [makeIngredient({ id: 'ing-freeform', name: '  BUTTER ', foodId: undefined })],
             promoted: [],
             catalogHits: [{ foodId: 'food-butter', name: 'Butter', score: 9 }],
@@ -288,6 +369,7 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
     it('keeps a freeform row whose name is genuinely different', () => {
         // Suppression must be a name COLLISION, not "a catalog hit exists". A cook's own blend is not butter.
         const result = blendIngredientSuggestions({
+            query: 'unrelated query',
             local: [makeIngredient({ id: 'ing-blend', name: "Grandma's browned butter blend", foodId: undefined })],
             promoted: [],
             catalogHits: [{ foodId: 'food-butter', name: 'Butter', score: 9 }],
@@ -304,6 +386,7 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
         // shadowed everything afterwards — permanently. Observed live three seconds apart in a 448-recipe
         // run: `Honey` resolved for one recipe and went freeform for the next.
         const result = blendIngredientSuggestions({
+            query: 'unrelated query',
             local: [
                 makeIngredient({ id: 'ing-freeform', name: 'Honey', foodId: undefined }),
                 makeIngredient({ id: 'ing-linked', name: 'Honey', foodId: 'food-honey' }),
@@ -324,6 +407,7 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
         // Here the twin sits past `limit` and its catalog hit is filtered out as already-linked, so
         // suppressing would leave the reader with NEITHER — worse than the shadowing being fixed.
         const result = blendIngredientSuggestions({
+            query: 'unrelated query',
             local: [
                 makeIngredient({ id: 'ing-a', name: 'Alpha', foodId: 'food-a' }),
                 makeIngredient({ id: 'ing-freeform', name: 'Honey', foodId: undefined }),
@@ -341,6 +425,7 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
         // limit 1 renders one catalog hit; the butter hit is second and never appears, so suppressing the
         // freeform row against it would remove the only usable option.
         const result = blendIngredientSuggestions({
+            query: 'unrelated query',
             local: [makeIngredient({ id: 'ing-freeform', name: 'Butter', foodId: undefined })],
             promoted: [],
             catalogHits: [
@@ -357,6 +442,7 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
         // The pre-existing rule: a local row that already links the food suppresses the catalog hit, not the
         // other way round. Picking it needs no admission round-trip, so it is the better option.
         const result = blendIngredientSuggestions({
+            query: 'unrelated query',
             local: [makeIngredient({ id: 'ing-linked', name: 'Butter', foodId: 'food-butter' })],
             promoted: [],
             catalogHits: [{ foodId: 'food-butter', name: 'Butter', score: 9 }],
@@ -365,5 +451,137 @@ describe('blendIngredientSuggestions — a catalog match beats a freeform row of
 
         expect(result).toHaveLength(1);
         expect(result[0]?.provenance).toBe('local');
+    });
+});
+
+/**
+ * FIRST-MOVER CAPTURE (owner ruling 2026-08-31, U15 report "Owner rulings" §1). Measured live: an early
+ * lentils line created a local entity named "Lentils, mature seeds, cooked, boiled, without salt", whose
+ * `salt` token then outranked the catalog's exact "Salt, table" for every later `salt` query — 18 distinct
+ * phrases across 48 lines bound to lentils, because the local section leads the list and word_similarity
+ * scores the best matching word extent (a weak token match ties an exact one).
+ *
+ * The ruling: when the catalog holds an exact or HEAD-NOUN match for the query and the list would
+ * otherwise LEAD with a local row whose only claim is a shared non-head token, that catalog hit is HOISTED
+ * to the front of the blended list. The weak local row stays visible (suppression was rejected — it
+ * silently removes a real choice), and head-gating local retrieval was rejected too (it kills legitimate
+ * qualifier queries like `all-purpose`). Sectioned CLIENTS are unaffected — they filter by provenance —
+ * while order-sensitive consumers (the importer's first-suggestion-wins ladder, any future
+ * auto-resolution) read the front of the list, which is exactly where the capture lived.
+ */
+describe('the capture hoist — a catalog head match outranks a weak token-only local leader', () => {
+    /** The measured capture shape: query `salt`, a lentils attractor local, the real salt in the catalog. */
+    const lentils = () =>
+        makeIngredient({
+            id: 'ing-lentils',
+            name: 'Lentils, mature seeds, cooked, boiled, without salt',
+            foodId: 'food-lentils',
+        });
+    const saltHit = () => makeCatalogHit({ foodId: 'food-salt', name: 'Salt, table', score: 0.4 });
+
+    it('⛔ hoists the catalog head match to the FRONT when a weak token-only local row would lead', () => {
+        const blended = blendIngredientSuggestions({
+            query: 'salt',
+            local: [lentils()],
+            promoted: [],
+            catalogHits: [saltHit()],
+            limit: 10,
+        });
+
+        expect(blended[0]).toEqual({ provenance: 'catalog', foodId: 'food-salt', name: 'Salt, table', score: 0.4 });
+    });
+
+    it('keeps the weak local row VISIBLE below the hoisted hit — suppression was rejected', () => {
+        const blended = blendIngredientSuggestions({
+            query: 'salt',
+            local: [lentils()],
+            promoted: [],
+            catalogHits: [saltHit()],
+            limit: 10,
+        });
+
+        expect(blended.map((s) => (s.provenance === 'local' ? s.ingredient.id : s.foodId))).toEqual([
+            'food-salt',
+            'ing-lentils',
+        ]);
+    });
+
+    it('does NOT hoist past a local row whose HEAD matches the query — reuse stays first', () => {
+        // "Onions, raw" for the query `onion` is a strong local match: picking it needs no admission
+        // round-trip, and the ladder already ranked it. The hoist exists for weak leaders only.
+        const blended = blendIngredientSuggestions({
+            query: 'onion',
+            local: [makeIngredient({ id: 'ing-onion', name: 'Onions, raw', foodId: 'food-onion' })],
+            promoted: [],
+            catalogHits: [makeCatalogHit({ foodId: 'food-spring', name: 'Onions, spring or scallions', score: 0.5 })],
+            limit: 10,
+        });
+
+        expect(blended[0]).toEqual({ provenance: 'local', ingredient: expect.objectContaining({ id: 'ing-onion' }) });
+    });
+
+    it('does NOT hoist a catalog hit that is itself only a token match — no better than the local row', () => {
+        // Query `white wine`: "Rice, white, long-grain" shares the token `white` but its head is `rice`.
+        // Hoisting it would swap one wrong leader for another; without a head match the order stands.
+        const blended = blendIngredientSuggestions({
+            query: 'white wine',
+            local: [makeIngredient({ id: 'ing-rice', name: 'Rice, white, long-grain, regular', foodId: 'food-rice' })],
+            promoted: [],
+            catalogHits: [
+                makeCatalogHit({ foodId: 'food-flour', name: 'Wheat flour, white, all-purpose', score: 0.5 }),
+            ],
+            limit: 10,
+        });
+
+        expect(blended[0]?.provenance).toBe('local');
+    });
+
+    it('hoists for a MULTI-WORD query on the head noun — `all-purpose flour` finds the flour', () => {
+        const blended = blendIngredientSuggestions({
+            query: 'all-purpose flour',
+            local: [
+                makeIngredient({
+                    id: 'ing-cracker',
+                    name: 'Crackers, whole-wheat, all purpose',
+                    foodId: 'food-cracker',
+                }),
+            ],
+            promoted: [],
+            catalogHits: [
+                makeCatalogHit({ foodId: 'food-flour', name: 'Wheat flour, white, all-purpose, enriched', score: 0.6 }),
+            ],
+            limit: 10,
+        });
+
+        expect(blended[0]).toEqual(expect.objectContaining({ provenance: 'catalog', foodId: 'food-flour' }));
+    });
+
+    it('leaves an all-catalog list alone — with no local leader there is nothing to hoist past', () => {
+        const blended = blendIngredientSuggestions({
+            query: 'salt',
+            local: [],
+            promoted: [],
+            catalogHits: [
+                makeCatalogHit({ foodId: 'food-other', name: 'Pasta, without added salt', score: 0.9 }),
+                saltHit(),
+            ],
+            limit: 10,
+        });
+
+        // The gateway's own ranking stands; the hoist is a cross-SECTION repair, not a re-ranking.
+        expect(blended[0]?.provenance).toBe('catalog');
+        expect(blended.map((s) => (s.provenance === 'catalog' ? s.foodId : null))).toEqual(['food-other', 'food-salt']);
+    });
+
+    it('a freeform local leader with a shared token is hoisted past too — no food_id required to be weak', () => {
+        const blended = blendIngredientSuggestions({
+            query: 'salt',
+            local: [makeIngredient({ id: 'ing-free', name: 'salted lemon rinds', foodId: undefined })],
+            promoted: [],
+            catalogHits: [saltHit()],
+            limit: 10,
+        });
+
+        expect(blended[0]).toEqual(expect.objectContaining({ provenance: 'catalog', foodId: 'food-salt' }));
     });
 });

@@ -32,6 +32,7 @@
  * @implements FR-007 FR-007a
  */
 import type { Ingredient } from '@kitchensink/recipe-core';
+import { describeRankingName, describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
 
 export type {
     CatalogAvailability,
@@ -66,6 +67,15 @@ export interface CatalogHit {
 
 /** The facts {@link blendIngredientSuggestions} reduces into one sectioned, deduped suggestion list. */
 export interface BlendSuggestionsInput {
+    /**
+     * The trimmed user query the two searches ran for — the capture hoist's input (owner ruling
+     * 2026-08-31, U15 report "Owner rulings" §1).
+     *
+     * ⛔ REQUIRED, not defaulted: a default is a position silently asserted for every caller that had not
+     * thought about it (the `segmentClause` precedent), and this position decides which suggestion leads
+     * the list for every order-sensitive consumer.
+     */
+    readonly query: string;
     /** The recipe-local DAL search hits, in the order the DAL/ranking chose. */
     readonly local: readonly Ingredient[];
     /**
@@ -121,8 +131,67 @@ function normalizeSuggestionName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+/**
+ * THE CAPTURE HOIST (owner ruling 2026-08-31, U15 report "Owner rulings" §1) — whether the blended list
+ * may not lead with its local section this once.
+ *
+ * Measured live in U15: an early bind created a local entity ("Lentils, …, without salt") whose `salt`
+ * token then outranked the catalog's exact "Salt, table" for every later `salt` query, because
+ * `word_similarity` scores the best matching word EXTENT (a weak token match ties an exact one) and the
+ * local section leads the list — 18 distinct phrases across 48 lines captured by one attractor. The U5
+ * ladder already orders rows WITHIN the local section by head rung; this is the same judgement applied
+ * across the section boundary, and only at the boundary: it moves exactly one catalog hit, only to the
+ * FRONT, and only when the list would otherwise lead with a row whose only claim is a non-head token.
+ *
+ * ⚠️ NOT a weakening of "section, don't blend". That rule is the anti-jank LAYOUT guarantee, and both
+ * shipped pickers derive their sections by FILTERING on provenance, so their layout cannot observe this
+ * order at all. What observes it is every order-sensitive consumer — the importer's
+ * first-suggestion-wins ladder, and any future auto-resolution — which is exactly where the capture
+ * lived.
+ *
+ * @param query - The trimmed user query.
+ * @param localSection - The local section about to be emitted (post-suppression, post-cap).
+ * @param catalogSection - The catalog section about to be emitted.
+ * @returns The index into `catalogSection` of the hit to hoist, or `undefined` to leave the order alone.
+ */
+function captureHoistIndex(
+    query: string,
+    localSection: readonly IngredientSuggestion[],
+    catalogSection: readonly IngredientSuggestion[],
+): number | undefined {
+    const leader = localSection[0];
+
+    if (leader === undefined || leader.provenance !== 'local') {
+        return undefined;
+    }
+
+    const queryTerms = describeRankingQuery(query);
+    const leaderHead = describeRankingName(leader.ingredient.name).head;
+
+    // A leader whose HEAD the query names is a strong identity match — reuse stays first, always.
+    if (leaderHead !== undefined && queryTerms.tokens.includes(leaderHead)) {
+        return undefined;
+    }
+
+    const index = catalogSection.findIndex((suggestion) => {
+        if (suggestion.provenance !== 'catalog') {
+            return false;
+        }
+
+        const hitTerms = describeRankingName(suggestion.name);
+
+        // Exact or head-noun match ONLY. A catalog hit that itself matched on a stray token would swap one
+        // wrong leader for another ("Rice, white, …" for `white wine`), so anything less keeps its place.
+        return (
+            hitTerms.folded === queryTerms.folded || (hitTerms.head !== undefined && hitTerms.head === queryTerms.head)
+        );
+    });
+
+    return index === -1 ? undefined : index;
+}
+
 export function blendIngredientSuggestions(input: BlendSuggestionsInput): IngredientSuggestion[] {
-    const { local, promoted, catalogHits, limit } = input;
+    const { query, local, promoted, catalogHits, limit } = input;
 
     if (limit <= 0) {
         return [];
@@ -216,5 +285,17 @@ export function blendIngredientSuggestions(input: BlendSuggestionsInput): Ingred
         .slice(0, limit)
         .map((ingredient) => ({ provenance: 'local', ingredient }));
 
-    return [...localSection, ...catalogSection];
+    // The capture hoist (see its docstring): at most ONE catalog hit moves, only to the front, and only
+    // when the list would otherwise lead with a weak token-only local row.
+    const hoist = captureHoistIndex(query, localSection, catalogSection);
+
+    if (hoist === undefined) {
+        return [...localSection, ...catalogSection];
+    }
+
+    const hoisted = catalogSection[hoist];
+
+    return hoisted === undefined
+        ? [...localSection, ...catalogSection]
+        : [hoisted, ...localSection, ...catalogSection.filter((_, index) => index !== hoist)];
 }

@@ -32,9 +32,25 @@
  * write the same verdict twice without an error. Both statements are therefore upserts, and the verdict's key
  * is the content of the judgement rather than a row id.
  */
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
+
+/**
+ * Render a string array as a PostgreSQL `text[]` expression with each element parameterised.
+ *
+ * ⛔ NOT `${values}` directly: drizzle's `sql` template expands a bare array into a parameter LIST —
+ * `($1, $2)`, a record — so every real INSERT into a `text[]` column failed with "column is of type text[]
+ * but expression is of type record" while the unit suite's fake store proved only that the method was called.
+ * Found live 2026-08-31, twelve billed verdicts into the first full-corpus drain; pinned by
+ * `verdictStore.integration.test.ts`.
+ */
+function textArray(values: readonly string[]): SQL {
+    return sql`ARRAY[${sql.join(
+        values.map((value) => sql`${value}`),
+        sql`, `,
+    )}]::text[]`;
+}
 
 /** One line verdict, ready to store. */
 export interface VerdictRow {
@@ -95,7 +111,7 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
                     (verification_key, verdict, certainty, band, aspects, model_id, food_id)
                 VALUES (
                     ${row.verificationKey}, ${row.verdict}, ${row.certainty}, ${row.band},
-                    ${[...row.aspects]}, ${row.modelId}, ${row.foodId}
+                    ${textArray(row.aspects)}, ${row.modelId}, ${row.foodId}
                 )
                 ON CONFLICT (verification_key) DO UPDATE
                    SET verdict     = EXCLUDED.verdict,

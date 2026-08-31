@@ -22,6 +22,7 @@ import {
     batchAddFoodRequestSchema,
     batchResponseSchema,
     candidatesResponseSchema,
+    corroboratedResponseSchema,
     createAuthoredFoodRequestSchema,
     foodErrorSchema,
     foodResponseSchema,
@@ -53,6 +54,7 @@ import {
 } from './errors.js';
 import type {
     AddResult,
+    CorroboratedResult,
     CreateAuthoredFoodInput,
     CreateAuthoredFoodResult,
     BatchResult,
@@ -249,6 +251,21 @@ export class FoodServiceClient {
         }
 
         throw this.toError(res, '');
+    }
+
+    /**
+     * `POST /api/v1/foods/{id}/corroborated` (plan U19, R10) — the recipe side's corroboration-promotion
+     * trigger. A PENDING food completes and leaves the sync queue; every other status no-ops and answers
+     * the current status.
+     *
+     * @param id - The food id.
+     * @returns The food's (possibly unchanged) status.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async corroborateFood(id: string): Promise<CorroboratedResult> {
+        const res = await this.send('POST', `/api/v1/foods/${encodeURIComponent(id)}/corroborated`);
+
+        return this.expect<CorroboratedResult>(res, 200, corroboratedResponseSchema, id);
     }
 
     /**

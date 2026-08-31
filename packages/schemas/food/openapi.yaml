@@ -661,6 +661,49 @@ paths:
           description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
           schema:
             type: string
+  /api/v1/foods/{id}/corroborated:
+    post:
+      operationId: corroborateFood
+      summary: Mark a PENDING food complete on corroborated identity (U19).
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The (possibly unchanged) status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CorroboratedResponse"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: "No such food — `code: FOOD_NOT_FOUND`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "The recipe side's corroboration-promotion trigger (R10): a PENDING food completes and leaves the sync
+        queue — the community agreement IS the identity source for a novel name the upstream source will never carry.
+        Every other status no-ops, answering the current status: the trigger is an async quality signal, never a
+        command."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
   /api/v1/foods/{id}/refetch:
     post:
       operationId: refetchFood
@@ -1997,6 +2040,23 @@ components:
           type: string
           enum:
             - PENDING
+      required:
+        - id
+        - status
+    CorroboratedResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - UNRESOLVED
+            - RESOLVED
+            - NOT_FOUND
+            - FAILED
+            - AWAITING_RETRY
       required:
         - id
         - status

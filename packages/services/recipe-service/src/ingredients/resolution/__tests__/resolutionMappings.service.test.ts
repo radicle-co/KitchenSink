@@ -20,6 +20,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Principal } from '../../../auth/principal.js';
 import { CURATOR_MAPPING_SCOPE } from '../../domain/mappingScopePolicy.js';
+import type { FoodServiceClients } from '../../FoodServiceClients.factory.js';
 import type { MappingPromotionAudit } from '../mappingPromotionAudit.js';
 import type { ResolutionMappingsDal } from '../resolutionMappings.dal.js';
 import { ResolutionMappingsService } from '../resolutionMappings.service.js';
@@ -58,7 +59,18 @@ function build(
     const dal = { findWriteFacts, applyWrite, runInTransaction } as unknown as ResolutionMappingsDal;
     const audit = { recordPromotion } as unknown as MappingPromotionAudit;
 
-    return { service: new ResolutionMappingsService(dal, audit), findWriteFacts, applyWrite, recordPromotion };
+    const corroborateFood = vi.fn().mockResolvedValue({ id: FOOD_A, status: 'RESOLVED' });
+    const standard = vi.fn(() => ({ corroborateFood }));
+    const foodClients = { standard } as unknown as FoodServiceClients;
+
+    return {
+        service: new ResolutionMappingsService(dal, audit, foodClients),
+        findWriteFacts,
+        applyWrite,
+        recordPromotion,
+        corroborateFood,
+        standard,
+    };
 }
 
 describe('ResolutionMappingsService — the grant is scopes ∪ permissions', () => {
@@ -204,5 +216,65 @@ describe('ResolutionMappingsService — the audit fires exactly on a real promot
         });
 
         expect(recordPromotion).not.toHaveBeenCalled();
+    });
+});
+
+describe('ResolutionMappingsService — the U19 corroborated-completion trigger', () => {
+    const PROMOTED = {
+        written: true as const,
+        mappingId: 'row-new',
+        promotion: { mappingId: 'row-binding', citesExisting: 'row-them', citesNew: 'row-new' },
+    };
+    const PROMOTING_FACTS = { ...NO_HISTORY, corroboratorsForSameFood: [{ id: 'row-them', userId: CORROBORATOR }] };
+
+    it('a PROMOTION fires the food-service trigger, under the CALLER credential, with the corrected food', async () => {
+        const { service, corroborateFood, standard } = build({ facts: PROMOTING_FACTS, result: PROMOTED });
+        const caller = { present: true } as never;
+
+        await service.recordCorrection({
+            principal: principal(),
+            phrase: 'Plain Flour',
+            foodId: FOOD_A,
+            surfacing: 'picker_correction',
+            caller,
+        });
+
+        // Give the fire-and-forget microtask a tick to run.
+        await Promise.resolve();
+
+        expect(standard).toHaveBeenCalledWith(caller);
+        expect(corroborateFood).toHaveBeenCalledWith(FOOD_A);
+    });
+
+    it('an ordinary (non-promoting) correction fires NOTHING — corroboration is the trigger', async () => {
+        const { service, corroborateFood } = build();
+
+        await service.recordCorrection({
+            principal: principal(),
+            phrase: 'Plain Flour',
+            foodId: FOOD_A,
+            surfacing: 'picker_correction',
+            caller: { present: true } as never,
+        });
+        await Promise.resolve();
+
+        expect(corroborateFood).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a FAILED trigger never fails the correction — the write already committed', async () => {
+        const { service, corroborateFood } = build({ facts: PROMOTING_FACTS, result: PROMOTED });
+
+        corroborateFood.mockRejectedValue(new Error('food down'));
+
+        const result = await service.recordCorrection({
+            principal: principal(),
+            phrase: 'Plain Flour',
+            foodId: FOOD_A,
+            surfacing: 'picker_correction',
+            caller: { present: true } as never,
+        });
+        await Promise.resolve();
+
+        expect(result.written).toBe(true);
     });
 });

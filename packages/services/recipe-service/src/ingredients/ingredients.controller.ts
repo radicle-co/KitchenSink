@@ -479,6 +479,7 @@ export class IngredientsController {
     @WriteRateLimit()
     public async recordCorrection(
         @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Body() body: RecordCorrectionDto,
     ): Promise<RecordCorrectionResponse> {
         const result = await this.corrections.recordCorrection({
@@ -486,6 +487,8 @@ export class IngredientsController {
             phrase: body.phrase,
             foodId: body.foodId,
             surfacing: body.surfacing,
+            // U19: forwarded so a corroboration promotion can fire the food-side completion trigger.
+            caller,
         });
 
         if (result.written) {

@@ -17,7 +17,14 @@ import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 import { AdmissionService } from './admission.service.js';
-import { CandidateStore, FoodDao, FoodSourcesDao, type FoodStatus, type GoldenFoodRecord } from './dao/index.js';
+import {
+    CandidateStore,
+    FoodDao,
+    FoodSourcesDao,
+    type FoodStatus,
+    type GoldenFoodRecord,
+    FetchQueueDao,
+} from './dao/index.js';
 import { FoodSearchDao } from './dao/foodSearch.dao.js';
 import { EnqueueEmitter } from './enqueue.emitter.js';
 import {
@@ -136,7 +143,60 @@ export class FoodsService {
          * no detection, never an error.
          */
         @Optional() @Inject(PROMOTIONS_SERVICE) private readonly promotions?: PromotionsService,
+        /**
+         * U19: the sync queue, for corroborated completion. `@Optional` for unit fixtures only — the
+         * module always provides it, and {@link FoodsService.corroborateFood} REFUSES rather than
+         * half-completes without it (a completed food still in the scan would re-sync and clobber).
+         */
+        @Optional() private readonly fetchQueue?: FetchQueueDao,
     ) {}
+
+    /**
+     * `POST /api/v1/foods/{id}/corroborated` (plan U19, R10's second clause) — a PENDING catalog food
+     * whose identity was CORROBORATED by independent corrections is marked complete and LEAVES the sync
+     * queue: the community's agreement IS the identity source for a novel name USDA will never carry, and
+     * keeping it in the scan burns the shared source budget on a fetch that cannot land.
+     *
+     * ⛔ PENDING only, and a NO-OP everywhere else: the trigger is an ASYNC quality signal fired by the
+     * recipe side's corroboration promotion, not a command — an already-synced food, a food awaiting
+     * disambiguation, or a terminal one is answered with its CURRENT status and left exactly as it was.
+     * (`UNRESOLVED` in particular must not complete: it means "several candidates, a human must pick",
+     * and corroboration of the PHRASE says nothing about which candidate.)
+     *
+     * ⚠️ Residual, stated rather than hidden: the route trusts the CALLER's assertion that a promotion
+     * happened — the promotion lives in the recipe database this service cannot read (ADR-0006). The
+     * blast radius is one PENDING food completing dataless (its nutrition stays honestly absent), and
+     * the operator `requeue` route is the repair. A signed cross-service attestation is the upgrade if
+     * abuse appears.
+     *
+     * @param id - The food id.
+     * @returns The food's (possibly unchanged) status.
+     * @throws {FoodNotFoundError} when no such food exists.
+     * @sideEffect May transition `food.status` and clear the food's `fetch_queue`/`fetch_requesters` rows.
+     */
+    public async corroborateFood(id: string): Promise<{ id: string; status: Exclude<FoodStatus, 'DELETING'> }> {
+        const record = await this.foodDao.readGoldenRecord(id);
+
+        if (record === null || record.status === 'DELETING') {
+            // DELETING never reaches the wire (U18's 404 branch, mirrored): a mid-erasure food IS gone.
+            throw new FoodNotFoundError(id);
+        }
+
+        if (record.status !== 'PENDING') {
+            return { id, status: record.status };
+        }
+
+        if (this.fetchQueue === undefined) {
+            throw new Error('corroborateFood requires the fetch queue; refusing a half-completion.');
+        }
+
+        // Status FIRST (the recovery service's ordering rule, mirrored): if the queue clear ran first and
+        // this threw, the food would have left the scan while still reading PENDING to every caller.
+        await this.foodDao.setStatus({ id, status: 'RESOLVED' });
+        await this.fetchQueue.resolve(id);
+
+        return { id, status: 'RESOLVED' };
+    }
 
     /**
      * `GET /api/v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004).

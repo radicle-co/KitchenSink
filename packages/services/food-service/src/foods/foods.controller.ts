@@ -93,6 +93,7 @@ import type {
     ResolveResponse,
     SearchResponse,
     StatusResponse,
+    CorroboratedResponse,
 } from './foods.schema.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
@@ -245,6 +246,20 @@ export class FoodsController {
         this.requireId(id);
 
         return this.foodsService.getCandidates(id);
+    }
+
+    /**
+     * `POST /api/v1/foods/{id}/corroborated` (plan U19, R10) — the recipe side's corroboration-promotion
+     * trigger: a PENDING food completes and leaves the sync queue; every other status no-ops with the
+     * current status. Open to any authenticated caller — see `FoodsService.corroborateFood`'s residual
+     * note for why this is a quality signal rather than a guarded command.
+     */
+    @Post(':id/corroborated')
+    @HttpCode(HttpStatus.OK)
+    public async corroborated(@Param('id') id: string): Promise<CorroboratedResponse> {
+        this.requireId(id);
+
+        return this.foodsService.corroborateFood(id);
     }
 
     /** `POST /api/v1/foods/{id}/refetch` — admin-scoped manual re-enqueue; `403` without scope (FR-039). */

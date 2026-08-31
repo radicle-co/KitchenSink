@@ -309,9 +309,11 @@ describe('IngredientsController', () => {
                 promotedToGlobal: false,
             });
 
-            await controller.recordCorrection(principal(), body());
+            await controller.recordCorrection(principal(), TOKEN, body());
 
             expect(recordCorrection).toHaveBeenCalledWith({
+                // U19: the caller bearer rides along so a promotion can fire the food-side trigger.
+                caller: TOKEN,
                 principal: expect.objectContaining({ userId: CALLER }),
                 phrase: PHRASE,
                 foodId: FOOD_ID,
@@ -330,7 +332,7 @@ describe('IngredientsController', () => {
                 promotedToGlobal: false,
             });
 
-            await controller.recordCorrection(principal({ scopes: [CURATOR_MAPPING_SCOPE] }), body());
+            await controller.recordCorrection(principal({ scopes: [CURATOR_MAPPING_SCOPE] }), TOKEN, body());
 
             const forwarded = recordCorrection.mock.calls[0]?.[0] as { principal: Principal };
 
@@ -345,7 +347,7 @@ describe('IngredientsController', () => {
                 promotedToGlobal: true,
             });
 
-            await expect(controller.recordCorrection(principal(), body())).resolves.toEqual({
+            await expect(controller.recordCorrection(principal(), TOKEN, body())).resolves.toEqual({
                 recorded: true,
                 mappingId: MAPPING_ID,
                 scope: 'global',
@@ -359,7 +361,7 @@ describe('IngredientsController', () => {
             async (outcome) => {
                 recordCorrection.mockResolvedValue({ written: false, outcome, reason: 'because' });
 
-                await expect(controller.recordCorrection(principal(), body())).resolves.toEqual({
+                await expect(controller.recordCorrection(principal(), TOKEN, body())).resolves.toEqual({
                     recorded: false,
                     outcome,
                 });
@@ -373,7 +375,7 @@ describe('IngredientsController', () => {
         it('⛔ answers 400 for a phrase that carries no visible content, not a silent no-op', async () => {
             recordCorrection.mockResolvedValue({ written: false, outcome: 'phrase_not_usable', reason: 'no content' });
 
-            await expect(controller.recordCorrection(principal(), body({ phrase: ZWSP }))).rejects.toThrow();
+            await expect(controller.recordCorrection(principal(), TOKEN, body({ phrase: ZWSP }))).rejects.toThrow();
         });
 
         it('never leaks the policy’s internal reason prose onto the wire', async () => {
@@ -383,7 +385,7 @@ describe('IngredientsController', () => {
                 reason: 'The caller already holds this exact mapping.',
             });
 
-            const response = await controller.recordCorrection(principal(), body());
+            const response = await controller.recordCorrection(principal(), TOKEN, body());
 
             expect(JSON.stringify(response)).not.toContain('The caller already holds');
         });

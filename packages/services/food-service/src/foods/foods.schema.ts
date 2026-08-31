@@ -535,6 +535,19 @@ export type ResolveFoodRequest = z.infer<typeof resolveFoodRequestSchema>;
  * because escaping at validation time would corrupt the full-text and trigram branches, which receive the same
  * string as a VALUE and where a backslash is a character to match.
  */
+/**
+ * Response of `POST /api/v1/foods/{id}/corroborated` (plan U19, R10): the food's status AFTER the
+ * trigger — `RESOLVED` when a PENDING food completed, the unchanged current status on the no-op paths.
+ */
+export const corroboratedResponseSchema = z.object({
+    /** The food id. */
+    id: z.string(),
+    /** The (possibly unchanged) lifecycle status. */
+    status: foodStatusSchema,
+});
+
+export type CorroboratedResponse = z.infer<typeof corroboratedResponseSchema>;
+
 // ── Authored foods (plan U10, D8/D9a — owner rulings 2026-08-30 Q3a-c) ───────────────────────────
 
 /** Longest authored-portion label; matches what the catalog's own portion labels run to. */

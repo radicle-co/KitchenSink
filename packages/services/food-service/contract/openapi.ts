@@ -49,6 +49,7 @@ import {
     searchResponseSchema,
     searchResultViewSchema,
     statusResponseSchema,
+    corroboratedResponseSchema,
 } from '../src/foods/foods.schema.js';
 import {
     backlogMetricsSchema,
@@ -114,6 +115,7 @@ export const openApiComponents = {
     SourceWindowMetrics: sourceWindowMetricsSchema,
     OperationalMetrics: operationalMetricsSchema,
     RequeueResponse: requeueResponseSchema,
+    CorroboratedResponse: corroboratedResponseSchema,
     PendingPromotionsResponse: pendingPromotionsResponseSchema,
     ApprovePromotionResponse: approvePromotionResponseSchema,
     RejectPromotionResponse: rejectPromotionResponseSchema,
@@ -543,6 +545,24 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                 parameters: [idParameter],
                 responses: {
                     '200': { description: 'The candidate set, possibly empty.', schema: 'CandidatesResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
+                },
+            },
+        },
+        '/api/v1/foods/{id}/corroborated': {
+            post: {
+                operationId: 'corroborateFood',
+                summary: 'Mark a PENDING food complete on corroborated identity (U19).',
+                description:
+                    "The recipe side's corroboration-promotion trigger (R10): a PENDING food completes and " +
+                    'leaves the sync queue — the community agreement IS the identity source for a novel name ' +
+                    'the upstream source will never carry. Every other status no-ops, answering the current ' +
+                    'status: the trigger is an async quality signal, never a command.',
+                parameters: [idParameter],
+                responses: {
+                    '200': { description: 'The (possibly unchanged) status.', schema: 'CorroboratedResponse' },
                     '400': badRequest,
                     '401': unauthorized,
                     '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },

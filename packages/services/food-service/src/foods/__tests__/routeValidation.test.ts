@@ -135,8 +135,9 @@ describe('route input validation — the closed inventory', () => {
         // REUSING `FoodNutritionQueryDto`, one shape for one meaning). The live search reuses
         // `SearchFoodQueryDto` the same way.
         expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(4);
-        // Ten params: the eight `:id` food routes plus U12's two promotion decisions (UUID-guarded).
-        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(10);
+        // Eleven params: the nine `:id` food routes (U19's corroborated trigger included) plus U12's two
+        // promotion decisions (UUID-guarded).
+        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(11);
         // Nothing reads a caller-supplied HEADER. §15.4(1) puts headers under the pipe too, so a new one has to
         // arrive as a zod DTO — and this assertion is what makes adding one a decision rather than an accident.
         expect(ALL_INPUTS.filter((input) => input.kind === 'headers')).toStrictEqual([]);
@@ -179,6 +180,8 @@ describe('route input validation — the closed inventory', () => {
             // U9's operator requeue. Guarded by the same `isFoodId` check as every other `:id` route.
             'FoodsAdminController.requeueFood(@param id): String',
             // U18's authored-food DELETE. Same `requireId` → `isFoodId` validation as every `:id` route.
+            // U19's corroborated-completion trigger. Same `requireId` → `isFoodId` validation.
+            'FoodsController.corroborated(@param id): String',
             'FoodsController.deleteAuthored(@param id): String',
             'FoodsController.getCandidates(@param id): String',
             'FoodsController.getFood(@param id): String',

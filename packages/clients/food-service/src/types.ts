@@ -58,6 +58,7 @@ import type {
     AddResponse,
     BatchResponse,
     CandidatesResponse,
+    CorroboratedResponse,
     CreateAuthoredFoodRequest,
     FoodResponse,
     ResolveResponse,
@@ -127,3 +128,6 @@ export type CreateAuthoredFoodInput = CreateAuthoredFoodRequest;
 export type CreateAuthoredFoodResult =
     | { readonly kind: 'created'; readonly food: FoodResponse }
     | { readonly kind: 'duplicate'; readonly existingId: string };
+
+/** Outcome of `corroborateFood` (plan U19) — the food's (possibly unchanged) status after the trigger. */
+export type CorroboratedResult = CorroboratedResponse;

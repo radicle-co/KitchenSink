@@ -235,6 +235,36 @@ describe('FoodServiceClient.createAuthoredFood (plan U16)', () => {
     });
 });
 
+describe('FoodServiceClient.corroborateFood (plan U19)', () => {
+    it('POSTs the corroboration trigger and returns the (possibly unchanged) status', async () => {
+        const fetchMock = stubFetch(200, { id: 'food_1', status: 'RESOLVED' });
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        const result = await client.corroborateFood('food_1');
+
+        expect(result).toEqual({ id: 'food_1', status: 'RESOLVED' });
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, { method: string }];
+
+        expect(url).toBe(`${BASE}/api/v1/foods/food_1/corroborated`);
+        expect(init.method).toBe('POST');
+    });
+
+    it('maps failures through the shared ladder', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: stubFetch(404, {
+                code: 'FOOD_NOT_FOUND',
+                message: 'gone',
+                details: { id: 'x', status: 'NOT_FOUND' },
+            }),
+        });
+
+        await expect(client.corroborateFood('x')).rejects.toBeInstanceOf(NotFoundError);
+    });
+});
+
 describe('FoodServiceClient — status → typed error mapping', () => {
     it('401 → UnauthorizedError', async () => {
         const client = new FoodServiceClient({

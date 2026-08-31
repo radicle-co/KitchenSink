@@ -22,10 +22,12 @@
  * unchanged: the controller parses and authenticates, this service holds the Unit of Work, the pure policy
  * decides, the DAL writes.
  */
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 
+import type { CallerToken } from '../../auth/CallerToken.js';
 import type { Principal } from '../../auth/principal.js';
+import { FoodServiceClients } from '../FoodServiceClients.factory.js';
 import { evaluateMappingWrite, type MappingScope } from '../domain/mappingScopePolicy.js';
 import type { MappingWriteNoOutcome } from './resolutionMappings.dal.js';
 import { MappingPromotionAudit } from './mappingPromotionAudit.js';
@@ -41,6 +43,11 @@ export interface RecordCorrectionInput {
     readonly foodId: string;
     /** Which affordance produced the correction (R20). */
     readonly surfacing: string;
+    /**
+     * U19: the correcting user's own bearer, forwarded to the food service on a corroboration promotion.
+     * Optional — an unattended path fires no trigger.
+     */
+    readonly caller?: CallerToken;
 }
 
 /**
@@ -85,7 +92,15 @@ export class ResolutionMappingsService {
     public constructor(
         private readonly dal: ResolutionMappingsDal,
         private readonly audit: MappingPromotionAudit,
+        /**
+         * U19: the corroborated-completion trigger's transport. `@Optional` for unit fixtures and the
+         * pre-U19 wiring — absent means no trigger fires, which is the shipped behaviour, never an error.
+         */
+        @Optional() private readonly foodClients?: FoodServiceClients,
     ) {}
+
+    /** One logger for the U19 trigger — a food-service outage must be visible, never silent. */
+    private readonly logger = new Logger(ResolutionMappingsService.name);
 
     /**
      * Record a user's correction of what an ingredient phrase means.
@@ -167,6 +182,13 @@ export class ResolutionMappingsService {
                 corroboratingAuthorIds: [...corroboratingAuthorIds, userId],
                 normalizedKey,
             });
+
+            // U19 (R10's second clause): a corroboration promotion is the trigger that lets a PENDING
+            // catalog food complete and leave the USDA sync queue — the community's agreement IS the
+            // identity source for a novel name. FIRE-AND-FORGET under the CALLER's own forwarded
+            // credential (issue #120): the correction already committed, so a food-service outage must
+            // cost nothing here, and the route no-ops on every non-PENDING status by design.
+            this.notifyCorroborated(input.caller, input.foodId);
         }
 
         const promotedToGlobal = result.promotion !== undefined;
@@ -182,5 +204,28 @@ export class ResolutionMappingsService {
             scope: promotedToGlobal ? 'global' : (decidedScope ?? 'author'),
             promotedToGlobal,
         };
+    }
+    /**
+     * Fire the U19 corroborated-completion trigger, swallowing every failure.
+     *
+     * @param caller - The correcting user's forwarded bearer, or `undefined` (unattended paths fire nothing
+     *   — the trigger needs a credential food will accept, and the next corroborating user retries it free).
+     * @param foodId - The corrected (now corroborated) food.
+     * @sideEffect One food-service call; logs on failure. Never throws.
+     */
+    private notifyCorroborated(caller: CallerToken | undefined, foodId: string): void {
+        if (this.foodClients === undefined || caller === undefined) {
+            return;
+        }
+
+        void this.foodClients
+            .standard(caller)
+            .corroborateFood(foodId)
+            .catch((error: unknown) => {
+                this.logger.warn(
+                    'Corroborated-completion trigger failed; the promotion stands and the food stays queued.',
+                    error instanceof Error ? error.stack : String(error),
+                );
+            });
     }
 }

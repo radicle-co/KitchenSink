@@ -353,17 +353,23 @@ describe('openapi coverage', () => {
         expect(openApiComponents.AddFoodRequest.safeParse({ name: '   ' }).success).toBe(false);
     });
 
-    // The erasure route is machine-to-machine: it must NOT accept a Clerk user session, because its whole
-    // authorization model is a signed token whose bound claim IS the target owner.
-    it('requires the service token — not a user session — on the erasure route', () => {
+    // The erasure routes are machine-to-machine: they must NOT accept a Clerk user session, because their
+    // whole authorization model is a signed token whose bound claim IS the target owner.
+    it('requires the service token — not a user session — on both erasure routes', () => {
         const paths = foodOpenApiDocument.document['paths'] as Record<
             string,
-            Record<string, { security: Record<string, unknown>[]; requestBody?: unknown }>
+            Record<string, { security: Record<string, unknown>[]; requestBody?: { required?: boolean } }>
         >;
         const erasure = paths['/api/v1/internal/account/erasure']?.['post'];
+        const begin = paths['/api/v1/internal/account/erasure/begin']?.['post'];
 
         expect(erasure?.security).toStrictEqual([{ serviceToken: [] }]);
-        // No request body: there is no `ownerId` to smuggle past the token's bound claim.
-        expect(erasure?.requestBody).toBeUndefined();
+        expect(begin?.security).toStrictEqual([{ serviceToken: [] }]);
+        // ⚠️ Amended for U18: the body exists but is OPTIONAL and carries NO authority — it names which of
+        // the owner's foods the worker's reference check found referenced (Q3b's orphan arm). The owner
+        // still comes only from the token; the published request schema has no owner field at all, which
+        // the strictness assertion over `FoodServiceErasureRequest` pins.
+        expect(erasure?.requestBody?.required).toBe(false);
+        expect(begin?.requestBody).toBeUndefined();
     });
 });

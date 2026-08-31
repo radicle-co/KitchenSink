@@ -417,3 +417,21 @@ export const accountExportSchema = z
 
 /** The complete account-export document. */
 export type AccountExport = z.infer<typeof accountExportSchema>;
+
+/**
+ * Body of `POST /api/v1/internal/account/food-references` (plan U18) — the deletion worker asks which of
+ * the erased owner's authored food ids live recipes still reference (Q3b's orphan arm). The list carries
+ * NO authority (the owner is the verified token's bound claim); it is only the query's subject.
+ */
+export const serviceFoodReferencesRequestSchema = z.strictObject({
+    foodIds: z.array(z.string().min(1)).max(10_000),
+});
+
+export type ServiceFoodReferencesRequest = z.infer<typeof serviceFoodReferencesRequestSchema>;
+
+/** Response of `POST /api/v1/internal/account/food-references`: the subset still referenced by live recipes. */
+export const serviceFoodReferencesResponseSchema = z.object({
+    referencedFoodIds: z.array(z.string()),
+});
+
+export type ServiceFoodReferencesResponse = z.infer<typeof serviceFoodReferencesResponseSchema>;

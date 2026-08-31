@@ -653,6 +653,10 @@ export const foodErrorCodeSchema = z.enum([
     'NOT_EDITABLE',
     /** The caller already authored a food with this normalized name (`409`, U10/KTD-H's per-author unique). */
     'DUPLICATE_AUTHORED_NAME',
+    /** The authored food is referenced by live recipes, so the voluntary delete refuses (`409`, U18/R22). */
+    'FOOD_REFERENCED',
+    /** The delete's cross-service reference check could not run, so the delete fails CLOSED (`503`, U18). */
+    'REFERENCE_CHECK_UNAVAILABLE',
     /** Backpressure / flood-shed / resolve cap — a `503` + `Retry-After`, NEVER a per-user `429` (FR-046). */
     'FETCH_UNAVAILABLE',
     /** An upstream food-data source did not answer a live search — a `502`, distinct from our own `503` (U29). */
@@ -751,6 +755,15 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
                 .loose(),
         })
         .loose(),
+    z
+        .object({
+            code: z.literal('FOOD_REFERENCED'),
+            message: z.string(),
+            /** The count spans all users; the ids are the CALLER's own referencing recipes only (R22). */
+            details: z.object({ referencingRecipeCount: z.number().int(), ownRecipeIds: z.array(z.string()) }).loose(),
+        })
+        .loose(),
+    z.object({ code: z.literal('REFERENCE_CHECK_UNAVAILABLE'), message: z.string() }).loose(),
     z
         .object({
             code: z.literal('NOT_EDITABLE'),

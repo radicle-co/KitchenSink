@@ -69,6 +69,8 @@ import {
 } from '@kitchensink/recipe-core';
 
 import {
+    serviceFoodReferencesRequestSchema,
+    serviceFoodReferencesResponseSchema,
     accountExportSchema,
     erasureRequestAcceptedResponseSchema,
     erasureRequestSchema,
@@ -91,6 +93,7 @@ import {
 import { apiErrorSchema, recipeApiErrorSchema } from '../src/common/apiError.schema.js';
 import { healthStatusSchema } from '../src/health/health.schema.js';
 import {
+    foodReferencesResponseSchema,
     addIngredientByFoodRequestSchema,
     createIngredientRequestSchema,
     ingredientCandidatesResponseSchema,
@@ -169,6 +172,9 @@ export const openApiComponents = {
     // Plan U9 — the async parse-job resource. The proposal is published as its OWN component: it is the
     // shape the review UI iterates, and R19's "no food id here, by construction" is easiest to see (and
     // diff) on a named type.
+    FoodReferences: foodReferencesResponseSchema,
+    ServiceFoodReferencesRequest: serviceFoodReferencesRequestSchema,
+    ServiceFoodReferencesResponse: serviceFoodReferencesResponseSchema,
     CreateParseJobRequest: createParseJobRequestSchema,
     EditParseJobLineRequest: editParseJobLineRequestSchema,
     ParseJob: parseJobResponseSchema,
@@ -859,6 +865,28 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             },
         },
     },
+    '/api/v1/ingredients/food-references/{foodId}': {
+        get: {
+            operationId: 'getFoodReferences',
+            summary: "How many live recipes reference this food, plus the caller's own referencing recipe ids.",
+            parameters: [
+                {
+                    name: 'foodId',
+                    in: 'path',
+                    required: true,
+                    description: 'The opaque food id.',
+                    schema: z.string(),
+                },
+            ],
+            responses: {
+                '200': {
+                    description: "The count across all users; ids are the caller's own recipes only.",
+                    schema: 'FoodReferences',
+                },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
     '/api/v1/ingredients': {
         post: {
             operationId: 'createIngredient',
@@ -1192,6 +1220,31 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
                 },
                 '401': { description: 'Missing, invalid, or expired service token.', schema: 'ErrorResponse' },
                 '500': { description: 'Unexpected server error.', schema: 'ErrorResponse' },
+            },
+        },
+    },
+    '/api/v1/internal/account/food-references': {
+        post: {
+            operationId: 'getServiceFoodReferences',
+            summary: "Which of the erased owner's authored food ids live recipes still reference (U18).",
+            description:
+                "The deletion worker calls this BETWEEN the food service's erasure begin (tombstone) and its " +
+                "completing erasure, deciding Q3b's delete-or-orphan. Machine-token authenticated like the " +
+                "erasure route above; the body carries the query's SUBJECT only — the authorization is the " +
+                'verified single-target token, and the published schema has no owner field at all.',
+            security: [SERVICE_TOKEN],
+            requestBody: {
+                description: "The erased owner's authored food ids to check.",
+                required: true,
+                schema: 'ServiceFoodReferencesRequest',
+            },
+            responses: {
+                '200': {
+                    description: 'The subset still referenced by live recipes.',
+                    schema: 'ServiceFoodReferencesResponse',
+                },
+                '401': { description: 'Missing, invalid, or expired service token.', schema: 'ErrorResponse' },
+                ...sharedErrorResponses(),
             },
         },
     },

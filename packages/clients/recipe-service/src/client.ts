@@ -88,6 +88,8 @@ import type {
 // not describe, at the call site that built it. It also NORMALIZES: zod strips unknown keys, so a stray field
 // never reaches the wire.
 import {
+    foodReferencesResponseSchema,
+    type FoodReferencesResponse,
     addIngredientByFoodRequestSchema,
     addRecipeToCollectionRequestSchema,
     apiErrorSchema,
@@ -708,6 +710,22 @@ export class RecipeServiceClient {
      * @throws {NotFoundError} when the ingredient is absent; {@link UnauthorizedError} on auth failure.
      * @sideEffect Performs an authenticated HTTP request.
      */
+    /**
+     * `GET /api/v1/ingredients/food-references/{foodId}` (plan U18, R22) — how many live recipes reference
+     * this food, plus the CALLER's own referencing recipe ids. The count spans all users; the ids never
+     * do. Consumed by the food service's authored DELETE flow (with the caller's forwarded bearer) before
+     * it honours or refuses the delete.
+     *
+     * @param foodId - The opaque food id.
+     * @returns The reference count and the caller's own referencing recipe ids.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getFoodReferences(foodId: string): Promise<FoodReferencesResponse> {
+        const res = await this.send('GET', `/api/v1/ingredients/food-references/${encodeURIComponent(foodId)}`);
+
+        return this.expect(res, 200, foodReferencesResponseSchema);
+    }
+
     public async getIngredientStatus(id: string): Promise<Ingredient> {
         const res = await this.send('GET', `/api/v1/ingredients/${encodeURIComponent(id)}/status`);
 

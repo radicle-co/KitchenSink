@@ -64,7 +64,12 @@ describe.skipIf(!DATABASE_URL)('user-erasure (integration, T-056/FR-044)', () =>
 
         const result = await erasure.eraseUser('user_doomed');
 
-        expect(result).toEqual({ requesterId: 'user_doomed', deletedRequesterRows: 2 });
+        expect(result).toEqual({
+            requesterId: 'user_doomed',
+            deletedRequesterRows: 2,
+            deletedAuthoredFoods: 0,
+            keptAuthoredFoods: 0,
+        });
 
         // The deleted user is gone everywhere; the surviving user's rows remain.
         const remaining = await db.execute<{ requester_id: string }>(
@@ -96,5 +101,51 @@ describe.skipIf(!DATABASE_URL)('user-erasure (integration, T-056/FR-044)', () =>
             `SELECT relname FROM pg_class WHERE relname IN ('user_fetch_quota', 'global_fetch_quota')`,
         );
         expect(rows).toHaveLength(0);
+    });
+
+    it('U18: begin tombstones; erase deletes unreferenced authored foods, keeps referenced ones as pseudonymous orphans, and NULLs version attribution', async () => {
+        const AUTHOR = 'user_authored_owner';
+
+        for (const [id, name] of [
+            ['f-orph-kept', 'kept blend'],
+            ['f-orph-gone', 'gone blend'],
+        ] as const) {
+            await pool.query(
+                `INSERT INTO food (id, name, normalized_name, status, user_id, visibility)
+                 VALUES ($1, $2, $2, 'RESOLVED', $3, 'promoted')`,
+                [id, name, AUTHOR],
+            );
+            await pool.query(
+                `INSERT INTO food_versions (food_id, version_number, snapshot, created_by)
+                 VALUES ($1, 1, '{}'::jsonb, $2)`,
+                [id, AUTHOR],
+            );
+        }
+
+        const begun = await erasure.beginErasure(AUTHOR);
+
+        expect([...begun.authoredFoodIds].sort()).toEqual(['f-orph-gone', 'f-orph-kept']);
+
+        const tombstoned = await pool.query(`SELECT status FROM food WHERE id = 'f-orph-kept'`);
+
+        expect(tombstoned.rows[0]).toEqual({ status: 'DELETING' });
+
+        const result = await erasure.eraseUser(AUTHOR, ['f-orph-kept']);
+
+        expect(result).toMatchObject({ deletedAuthoredFoods: 1, keptAuthoredFoods: 1 });
+
+        // The kept orphan: back to RESOLVED, pseudonymous user_id RETAINED (the recipes/owner_id
+        // precedent — the row holds no cleartext), version SNAPSHOT kept, attribution gone.
+        const kept = await pool.query(`SELECT status, user_id FROM food WHERE id = 'f-orph-kept'`);
+
+        expect(kept.rows[0]).toEqual({ status: 'RESOLVED', user_id: AUTHOR });
+
+        const versions = await pool.query(`SELECT created_by FROM food_versions WHERE food_id = 'f-orph-kept'`);
+
+        expect(versions.rows).toEqual([{ created_by: null }]);
+
+        // The unreferenced one is gone, versions cascaded with it.
+        expect((await pool.query(`SELECT 1 FROM food WHERE id = 'f-orph-gone'`)).rows).toHaveLength(0);
+        expect((await pool.query(`SELECT 1 FROM food_versions WHERE food_id = 'f-orph-gone'`)).rows).toHaveLength(0);
     });
 });

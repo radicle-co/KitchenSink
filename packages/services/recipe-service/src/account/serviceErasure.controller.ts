@@ -18,7 +18,8 @@
  * idempotent no-op success (`status: 'completed'`), not a `410` — the deletion-worker caller only needs
  * "the erasure is handled".
  */
-import { Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards, UsePipes } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 import { ErasureService } from './erasure.service.js';
 import { SkipErasureLock } from './skipErasureLock.decorator.js';
@@ -26,6 +27,9 @@ import { ServiceErasureGuard } from '../auth/serviceErasure.guard.js';
 import { ServiceErasurePrincipal } from '../auth/servicePrincipal.decorator.js';
 import type { ServicePrincipal } from '../auth/servicePrincipal.js';
 import type { ServiceErasureAcceptedResponse } from './dto/serviceErasure.dto.js';
+import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
+import { ServiceFoodReferencesDto } from './dto/serviceFoodReferences.dto.js';
+import type { ServiceFoodReferencesResponse } from './account.schema.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
@@ -33,8 +37,16 @@ import type { ServiceErasureAcceptedResponse } from './dto/serviceErasure.dto.js
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/internal/account', 'v1/internal/account'])
 @UseGuards(ServiceErasureGuard)
+// ⚠️ Required since U18 gave this controller its first @Body() (the food-references query): the DTO is a
+// `createZodDto` class, which validates ONLY under nestjs-zod's pipe — Nest's own ValidationPipe would
+// validate NOTHING while looking wired. The erasure route itself still takes no body.
+@UsePipes(ZodValidationPipe)
 export class ServiceErasureController {
-    public constructor(private readonly erasure: ErasureService) {}
+    public constructor(
+        private readonly erasure: ErasureService,
+        // U18 — its OWN IngredientsDal instance (the embedded-DAL pattern) for the reference query.
+        private readonly ingredientsDal: IngredientsDal,
+    ) {}
 
     /**
      * `POST /api/v1/internal/account/erasure` — trigger erasure of the token-bound target account on behalf of
@@ -53,5 +65,22 @@ export class ServiceErasureController {
         @ServiceErasurePrincipal() principal: ServicePrincipal,
     ): Promise<ServiceErasureAcceptedResponse> {
         return this.erasure.requestServiceErasure(principal);
+    }
+    /**
+     * `POST /api/v1/internal/account/food-references` (plan U18) — which of the token-bound owner's
+     * authored food ids live recipes still reference (Q3b's orphan arm). The worker calls this BETWEEN
+     * food's erasure `begin` (tombstone) and its completing erasure; the recipe leg has already run, so
+     * the survivors counted here are other users' recipes and the owner's kept pseudonymized ones.
+     *
+     * The body carries the query's SUBJECT only — the authorization is the verified single-target token,
+     * exactly as on the erasure route above.
+     */
+    @Post('food-references')
+    @HttpCode(HttpStatus.OK)
+    public async foodReferences(
+        @ServiceErasurePrincipal() _principal: ServicePrincipal,
+        @Body() body: ServiceFoodReferencesDto,
+    ): Promise<ServiceFoodReferencesResponse> {
+        return { referencedFoodIds: await this.ingredientsDal.referencedFoodIdsAmong(body.foodIds) };
     }
 }

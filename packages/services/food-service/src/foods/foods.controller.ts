@@ -33,7 +33,10 @@
 import {
     Body,
     Controller,
+    Delete,
     Get,
+    Header,
+    HttpCode,
     HttpStatus,
     Param,
     Patch,
@@ -200,6 +203,26 @@ export class FoodsController {
      *
      * The response must not vary by caller; the edge keys it on the URL alone.
      */
+    /**
+     * `GET /api/v1/foods/authored-nutrition?ids=…` — the AUTHENTICATED, per-caller half of ADR-0020's
+     * cache split (plan U18): nutrition for the caller's OWN authored foods.
+     *
+     * ⛔ The path deliberately avoids the `/nutrition*` prefix — that is the edge's shared-cache pattern,
+     * and a per-caller body under it would be cached URL-only and served across callers. `no-store`
+     * belt-and-braces on top; the real protection is the path.
+     */
+    @Get('authored-nutrition')
+    @Header('Cache-Control', 'private, no-store')
+    public async getAuthoredNutritionBatch(
+        @Query() query: FoodNutritionQueryDto,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<FoodNutritionBatchResponse> {
+        return this.foodsService.getAuthoredNutritionBatch(
+            this.requireNutritionIds(query.ids),
+            this.requireUserUlid(req),
+        );
+    }
+
     @Get('nutrition')
     public async getNutritionBatch(@Query() query: FoodNutritionQueryDto): Promise<FoodNutritionBatchResponse> {
         return this.foodsService.getNutritionBatch(this.requireNutritionIds(query.ids));
@@ -284,6 +307,18 @@ export class FoodsController {
         return this.foodsService.updateAuthored(this.requireUserUlid(req), id, body);
     }
 
+    /**
+     * `DELETE /api/v1/foods/{id}` — voluntary delete of an AUTHORED food (plan U18, R22). Tombstone-first
+     * with the cross-service reference check; referenced → `409 FOOD_REFERENCED` with the count and the
+     * caller's OWN referencing recipe ids; check unavailable → `503`, failed CLOSED.
+     */
+    @Delete(':id')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    public async deleteAuthored(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<void> {
+        this.requireId(id);
+        await this.foodsService.deleteAuthored(this.requireUserUlid(req), id, this.requireBearer(req));
+    }
+
     @Get(':id')
     public async getFood(
         @Param('id') id: string,
@@ -360,6 +395,22 @@ export class FoodsController {
         }
 
         return requesterId;
+    }
+
+    /**
+     * The caller's own raw bearer, for FORWARDING to the recipe service's reference check (plan U18) —
+     * the same forwarded-caller-authority pattern recipe uses toward food. The guard already verified it;
+     * absence here is a defensive 401.
+     */
+    private requireBearer(req: AuthenticatedRequest): string {
+        const header = (req.headers['authorization'] ?? '') as string;
+        const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
+
+        if (token === '') {
+            throw apiError('UNAUTHORIZED', 'Missing bearer token.');
+        }
+
+        return token;
     }
 
     /** Narrow the guard-populated principal, failing closed with `401` if somehow absent. */

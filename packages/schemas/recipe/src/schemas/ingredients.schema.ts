@@ -204,6 +204,23 @@ export const createIngredientRequestSchema = z.strictObject({
 /** Request body for creating or admitting an ingredient by name. */
 export type CreateIngredientRequest = z.infer<typeof createIngredientRequestSchema>;
 
+/**
+ * Response of `GET /api/v1/ingredients/food-references/{foodId}` (plan U18, R22) — what the food service
+ * consults before honouring a voluntary authored-food DELETE (and what its 409 reports back).
+ *
+ * ⛔ THE CALLER'S OWN RECIPES ONLY are ever listed by id. `total` counts every live referencing recipe —
+ * a promoted food is public knowledge and the count says only "people use this" — but another user's
+ * recipe id (possibly a PRIVATE recipe's) is never enumerated to the food's author.
+ */
+export const foodReferencesResponseSchema = z.object({
+    /** Live (non-deleted) recipes referencing the food, across ALL users. */
+    total: z.number().int().min(0),
+    /** The CALLER's own referencing recipe ids — the ones they can act on. */
+    ownRecipeIds: z.array(z.uuid()),
+});
+
+export type FoodReferencesResponse = z.infer<typeof foodReferencesResponseSchema>;
+
 /** Body of `POST /api/v1/ingredients/by-food`. */
 export const addIngredientByFoodRequestSchema = z.strictObject({
     /** The opaque food id taken from a `catalog` suggestion. */

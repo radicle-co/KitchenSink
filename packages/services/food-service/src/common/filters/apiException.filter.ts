@@ -9,10 +9,12 @@ import {
     isSearchQueryTooShortError,
     isSourceUnavailableError,
     isDuplicateAuthoredNameError,
+    isFoodReferencedError,
     isFoodNotFoundError,
     isFoodPendingError,
     isNotEditableError,
     isNotFoodAuthorError,
+    isReferenceCheckUnavailableError,
     isNotResolvableError,
 } from '../../foods/foods.errors.js';
 import { foodErrorCodeSchema, type FoodErrorCode } from '../../foods/foods.schema.js';
@@ -111,6 +113,21 @@ function classifyFoodError(exception: unknown): ClassifiedEnvelope | undefined {
             message: exception.message,
             details: { fields: [`query: at least ${exception.minimum} characters`] },
         };
+    }
+
+    if (isFoodReferencedError(exception)) {
+        return {
+            code: CODE.FOOD_REFERENCED,
+            message: exception.message,
+            details: {
+                referencingRecipeCount: exception.referencingRecipeCount,
+                ownRecipeIds: [...exception.ownRecipeIds],
+            },
+        };
+    }
+
+    if (isReferenceCheckUnavailableError(exception)) {
+        return { code: CODE.REFERENCE_CHECK_UNAVAILABLE, message: exception.message };
     }
 
     if (isNotEditableError(exception)) {

@@ -195,6 +195,52 @@ export class IngredientsDal {
      * @returns Ranked ingredient hits, or an empty array when nothing matches.
      * @sideEffect Reads `ingredients`.
      */
+    /**
+     * Every LIVE recipe referencing the given food, with its owner (plan U18, R22) — the cross-service
+     * reference check's data half. One grouped read over the `recipes ← recipe_ingredients → ingredients`
+     * join; soft-deleted recipes are out (their reference dies with them).
+     *
+     * @param foodId - The opaque food id.
+     * @returns One row per referencing recipe. @sideEffect Reads three tables.
+     */
+    /**
+     * Which of the given food ids ANY live recipe still references (plan U18's erasure protocol — the
+     * worker's cross-service check). One `= ANY` read; the recipe leg of the fan-out has already run, so
+     * survivors are other users' recipes and the erased owner's KEPT (pseudonymized public) ones.
+     *
+     * @sideEffect Reads three tables.
+     */
+    public async referencedFoodIdsAmong(foodIds: readonly string[]): Promise<string[]> {
+        if (foodIds.length === 0) {
+            return [];
+        }
+
+        const result = await this.db.execute<{ food_id: string }>(sql`
+            SELECT DISTINCT i.food_id
+              FROM recipes r
+              JOIN recipe_ingredients ri ON ri.recipe_id = r.id
+              JOIN ingredients i ON i.id = ri.ingredient_id
+             WHERE i.food_id = ANY(${sql.param([...foodIds])})
+               AND r.deleted_at IS NULL
+        `);
+
+        return result.rows.map((row) => row.food_id);
+    }
+
+    public async recipesReferencingFood(foodId: string): Promise<{ recipeId: string; ownerId: string }[]> {
+        const result = await this.db.execute<{ recipe_id: string; owner_id: string }>(sql`
+            SELECT r.id AS recipe_id, r.owner_id
+              FROM recipes r
+              JOIN recipe_ingredients ri ON ri.recipe_id = r.id
+              JOIN ingredients i ON i.id = ri.ingredient_id
+             WHERE i.food_id = ${foodId}
+               AND r.deleted_at IS NULL
+             GROUP BY r.id, r.owner_id
+        `);
+
+        return result.rows.map((row) => ({ recipeId: row.recipe_id, ownerId: row.owner_id }));
+    }
+
     public async search(query: string, limit?: number): Promise<Ingredient[]> {
         const strategy = selectIngredientMatchStrategy(query);
 

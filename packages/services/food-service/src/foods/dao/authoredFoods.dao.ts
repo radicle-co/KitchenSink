@@ -31,7 +31,7 @@ import type { FoodDrizzle } from '../../database/database.module.js';
 
 /** The transaction view of {@link FoodDrizzle} — the `mergeAndPersist.service.ts` alias, restated locally. */
 type FoodTransaction = Parameters<Parameters<FoodDrizzle['transaction']>[0]>[0];
-import { food, foodNutrients, foodPortions } from '../../db/schema/index.js';
+import { food, foodNutrients, foodPortions, foodVersions } from '../../db/schema/index.js';
 import { newFoodId } from '../../db/ulid.js';
 import { NutrientDao } from './nutrient.dao.js';
 import { isUniqueViolation } from './dao.errors.js';
@@ -82,6 +82,16 @@ const MACRO_LABELS = [
     { key: 'fatG' as const, identity: LABEL_NUTRIENT_MAP.fat },
 ];
 
+/** One version row's content — what the food SAYS at this version (R21's recourse shape). Pure. */
+function snapshotOf(input: CreateAuthoredInput): Record<string, unknown> {
+    return {
+        name: input.name,
+        description: input.description,
+        macros: input.macros,
+        portions: input.portions,
+    };
+}
+
 export class AuthoredFoodsDao {
     public constructor(private readonly db: FoodDrizzle) {}
 
@@ -107,6 +117,14 @@ export class AuthoredFoodsDao {
                     visibility: 'private',
                 });
                 await this.writeValues(tx, id, input.macros, input.portions);
+                // R21/KTD-I: version 1 IS the created content — the history starts at birth, so the
+                // recourse trail has no gap between "created" and "first edited".
+                await tx.insert(foodVersions).values({
+                    foodId: id,
+                    versionNumber: 1,
+                    snapshot: snapshotOf(input),
+                    createdBy: input.userId,
+                });
 
                 return { kind: 'created', id };
             });
@@ -170,6 +188,17 @@ export class AuthoredFoodsDao {
                     .delete(foodPortions)
                     .where(and(eq(foodPortions.foodId, input.id), isNull(foodPortions.sourceId)));
                 await this.writeValues(tx, input.id, input.macros, input.portions);
+                // R21: EVERY edit versions — a promoted food's included (the ruling's whole point). The
+                // next number is read under the row lock the UPDATE above already took, so two racing
+                // edits serialize rather than colliding on the unique.
+                await tx.execute(sql`
+                    INSERT INTO food_versions (food_id, version_number, snapshot, created_by)
+                    SELECT ${input.id},
+                           COALESCE(MAX(version_number), 0) + 1,
+                           ${JSON.stringify(snapshotOf(input))}::jsonb,
+                           ${input.userId}
+                      FROM food_versions WHERE food_id = ${input.id}
+                `);
 
                 return { kind: 'replaced' };
             });
@@ -212,6 +241,16 @@ export class AuthoredFoodsDao {
         }
 
         return { userId: row.userId, visibility: row.visibility };
+    }
+
+    /**
+     * Physically delete an authored food (the CASCADE removes its values and versions). Owner-scoped —
+     * zero rows means a raced delete/erasure already took it, which the caller treats as done.
+     *
+     * @sideEffect Deletes the food row.
+     */
+    public async deleteAuthoredRow(id: string, userId: string): Promise<void> {
+        await this.db.delete(food).where(and(eq(food.id, id), eq(food.userId, userId)));
     }
 
     /** The macro + portion writes shared by create and replace. @sideEffect Writes value rows. */

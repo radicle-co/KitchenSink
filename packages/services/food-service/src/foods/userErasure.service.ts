@@ -25,7 +25,7 @@
  */
 import { Inject, Injectable } from '@nestjs/common';
 
-import { eraseFoodRows } from './eraseFoodRows.js';
+import { beginFoodErasure, eraseFoodRows } from './eraseFoodRows.js';
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
 
 /** The outcome of erasing one user. */
@@ -34,6 +34,10 @@ export interface EraseUserResult {
     readonly requesterId: string;
     /** The number of `fetch_requesters` rows removed. */
     readonly deletedRequesterRows: number;
+    /** Authored foods deleted outright (unreferenced — Q3b's first arm). */
+    readonly deletedAuthoredFoods: number;
+    /** Authored foods KEPT as pseudonymous orphans (referenced — Q3b's second arm). */
+    readonly keptAuthoredFoods: number;
 }
 
 @Injectable()
@@ -48,12 +52,24 @@ export class UserErasureService {
      * @returns The erased requester id and the number of removed requester rows.
      * @sideEffect Deletes from `fetch_requesters`.
      */
-    public async eraseUser(requesterId: string): Promise<EraseUserResult> {
+    public async eraseUser(requesterId: string, referencedFoodIds: readonly string[] = []): Promise<EraseUserResult> {
         // ⛔ Delegated to `eraseFoodRows` — the ONE raw-SQL sweep the erasure-coverage gate audits (plan
         // U17). Do not re-inline a builder call here: the gate cannot read one, and the sweep would go
         // back to being correct-but-unauditable.
-        const { deletedRequesterRows } = await eraseFoodRows(this.db, requesterId);
+        const outcome = await eraseFoodRows(this.db, requesterId, referencedFoodIds);
 
-        return { requesterId, deletedRequesterRows };
+        return { requesterId, ...outcome };
+    }
+
+    /**
+     * The erasure protocol's BEGIN step (plan U18): tombstone the owner's authored foods (the
+     * `by-food`-refusal window) and hand the worker the ids its cross-service reference check needs.
+     *
+     * @param requesterId - The target owner's app-user ULID.
+     * @returns The owner's authored food ids (tombstoned).
+     * @sideEffect Flips authored foods to DELETING.
+     */
+    public async beginErasure(requesterId: string): Promise<{ authoredFoodIds: string[] }> {
+        return beginFoodErasure(this.db, requesterId);
     }
 }

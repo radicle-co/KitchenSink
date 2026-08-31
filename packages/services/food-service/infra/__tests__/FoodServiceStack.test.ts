@@ -321,6 +321,21 @@ describe('Food worker + service wiring', () => {
         expect(withErasureKey.length).toBeGreaterThanOrEqual(1);
     });
 
+    it('injects RECIPE_SERVICE_URL at THIS stage, from the shared origin authority (plan U18)', () => {
+        // The authored-food delete's reference check calls the recipe service with the caller's own
+        // bearer; the URL is deterministic per stage, so the recipe service need not be UP at food's
+        // deploy time — only the shape must agree with recipe's own DNS record, which is what the shared
+        // `publicServiceOriginForStage` guarantees.
+        const template = synthFoodTemplate('pr-73', 'sandbox');
+        const withRecipeUrl = Object.values(template.findResources('AWS::ECS::TaskDefinition'))
+            .flatMap((resource: any) => resource.Properties.ContainerDefinitions as any[])
+            .flatMap((container) => (container.Environment ?? []) as { Name: string; Value: unknown }[])
+            .filter((entry) => entry.Name === 'RECIPE_SERVICE_URL');
+
+        expect(withRecipeUrl.length).toBeGreaterThanOrEqual(1);
+        expect(withRecipeUrl[0]!.Value).toBe('https://recipe-pr-73.example.com');
+    });
+
     it('non-prod wires Clerk auth env with the azp PATTERN + preview mode (not the exact-match list)', () => {
         // Without CLERK_JWT_KEY the FoodAuthGuard fail-closes and every /api/v1/foods/* request is 401.
         // Non-prod (sandbox / pr-{N}) runs the self-owned preview pattern in transition mode (ADR-0001).

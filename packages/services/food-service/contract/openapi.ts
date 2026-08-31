@@ -25,6 +25,7 @@ import { z } from 'zod';
 
 import { apiErrorSchema } from '../src/common/apiError.schema.js';
 import {
+    foodNutritionBatchResponseSchema,
     addFoodRequestSchema,
     authoredMacrosSchema,
     authoredPortionInputSchema,
@@ -56,7 +57,11 @@ import {
     sourceWindowMetricsSchema,
 } from '../src/foods/admin/adminMetrics.schema.js';
 import { requeueResponseSchema } from '../src/foods/admin/foodRecovery.schema.js';
-import { foodServiceErasureAcceptedResponseSchema } from '../src/foods/dto/serviceErasure.schema.js';
+import {
+    foodServiceErasureBeginResponseSchema,
+    foodServiceErasureRequestSchema,
+    foodServiceErasureAcceptedResponseSchema,
+} from '../src/foods/dto/serviceErasure.schema.js';
 import { healthStatusSchema } from '../src/health/health.schema.js';
 
 /**
@@ -77,6 +82,9 @@ export const openApiComponents = {
     NutrientView: nutrientViewSchema,
     PortionView: portionViewSchema,
     FoodResponse: foodResponseSchema,
+    // U8's batch projection — documented late (U18): the shared route predates the doc-parity habit, and
+    // the authored variant needed the component, so both routes are documented together now.
+    FoodNutritionBatchResponse: foodNutritionBatchResponseSchema,
     PendingResponse: pendingResponseSchema,
     StatusResponse: statusResponseSchema,
     CandidateView: candidateViewSchema,
@@ -102,6 +110,8 @@ export const openApiComponents = {
     OperationalMetrics: operationalMetricsSchema,
     RequeueResponse: requeueResponseSchema,
     FoodServiceErasureAcceptedResponse: foodServiceErasureAcceptedResponseSchema,
+    FoodServiceErasureBeginResponse: foodServiceErasureBeginResponseSchema,
+    FoodServiceErasureRequest: foodServiceErasureRequestSchema,
     HealthStatus: healthStatusSchema,
 } as const;
 
@@ -325,7 +335,93 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                 },
             },
         },
+        '/api/v1/foods/nutrition': {
+            get: {
+                operationId: 'getNutritionBatch',
+                summary: 'Batch per-100g nutrition + normalized portions (edge-cached)',
+                description:
+                    'Caller-INDEPENDENT by standing invariant (ADR-0020): the edge caches this on the URL ' +
+                    'alone, so nothing derived from the requester may enter the response — which is exactly ' +
+                    'why private authored foods land in `unknownIds` here and are served by ' +
+                    '`/authored-nutrition` instead. The `ids` list is canonicalized server-side.',
+                parameters: [
+                    {
+                        name: 'ids',
+                        in: 'query',
+                        required: true,
+                        description: 'Comma-separated food ids (canonicalized server-side).',
+                        schema: z.string(),
+                    },
+                ],
+                responses: {
+                    '200': {
+                        description: 'One entry per known id, in the given order.',
+                        schema: 'FoodNutritionBatchResponse',
+                    },
+                    '400': badRequest,
+                    '401': unauthorized,
+                },
+            },
+        },
+        '/api/v1/foods/authored-nutrition': {
+            get: {
+                operationId: 'getAuthoredNutritionBatch',
+                summary: "Batch nutrition for the caller's OWN authored foods (U18's cache split)",
+                description:
+                    'The authenticated, per-caller half of the nutrition read: private authored foods are ' +
+                    'excluded from the edge-cached `/nutrition` route by construction, so their author reads ' +
+                    'them here. Same shape; an id the caller does not own lands in `unknownIds`. Never cached.',
+                parameters: [
+                    {
+                        name: 'ids',
+                        in: 'query',
+                        required: true,
+                        description: 'Comma-separated food ids (canonicalized server-side).',
+                        schema: z.string(),
+                    },
+                ],
+                responses: {
+                    '200': { description: 'One entry per owned id.', schema: 'FoodNutritionBatchResponse' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                },
+            },
+        },
         '/api/v1/foods/{id}': {
+            delete: {
+                operationId: 'deleteAuthoredFood',
+                summary: 'Delete a user-authored food (tombstone-first, reference-checked)',
+                description:
+                    'R22: the food flips to an internal DELETING state (admission refuses to bind it), the ' +
+                    "cross-service reference check runs with the caller's own authority, and only an " +
+                    'unreferenced food deletes. Referenced → `409 FOOD_REFERENCED` with the live count and ' +
+                    "the caller's OWN referencing recipe ids. Check unavailable → `503`, failed closed. " +
+                    'Orphaning is erasure-only; this route never orphans.',
+                parameters: [idParameter],
+                responses: {
+                    '204': { description: 'Deleted.' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': {
+                        description: 'A stranger deleting a PROMOTED food, or a `svc_*` principal.',
+                        schema: 'ApiError',
+                    },
+                    '404': {
+                        description: 'No such food — or a PRIVATE authored food the caller does not own.',
+                        schema: 'ApiError',
+                    },
+                    '409': {
+                        description:
+                            'Referenced (`code: FOOD_REFERENCED`, count + own recipe ids in `details`), or a ' +
+                            'pipeline food (`code: NOT_EDITABLE`).',
+                        schema: 'ApiError',
+                    },
+                    '503': {
+                        description: 'The reference check could not run (`code: REFERENCE_CHECK_UNAVAILABLE`).',
+                        schema: 'ApiError',
+                    },
+                },
+            },
             put: {
                 operationId: 'updateAuthoredFood',
                 summary: 'Replace a user-authored food',
@@ -513,7 +609,14 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                     'Called by the identity deletion-worker / erasure-reconciliation on a `user.deleted` or ' +
                     'account-closure event. Synchronous and idempotent: an owner with no footprint erases 0 ' +
                     "rows and still succeeds. The target owner comes ONLY from the verified token's bound " +
-                    'claim — there is no request body (CR-002/U4b/R11).',
+                    "claim. The optional body (U18) carries NO authority: it names which of the owner's " +
+                    "authored foods the worker's reference check found still referenced — those are KEPT as " +
+                    'pseudonymous orphans (Q3b); everything else deletes.',
+                requestBody: {
+                    description: "The worker's referenced-food list (optional).",
+                    required: false,
+                    schema: 'FoodServiceErasureRequest',
+                },
                 security: ['serviceToken'],
                 responses: {
                     '200': {
@@ -524,6 +627,27 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                         description:
                             'The service token is absent, malformed, or not bound to the food audience — ' +
                             '`code: UNAUTHORIZED`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/internal/account/erasure/begin': {
+            post: {
+                operationId: 'beginAccountErasure',
+                summary: "Tombstone the token-bound owner's authored foods (erasure protocol step 1, U18)",
+                description:
+                    'Flips every authored food to an internal DELETING state — admission refuses to bind them ' +
+                    'while the worker runs the cross-service reference check — and returns their ids for that ' +
+                    'check. Idempotent on redelivery.',
+                security: ['serviceToken'],
+                responses: {
+                    '200': {
+                        description: 'The tombstoned authored food ids.',
+                        schema: 'FoodServiceErasureBeginResponse',
+                    },
+                    '401': {
+                        description: 'The service token is absent, malformed, or not food-audience-bound.',
                         schema: 'ApiError',
                     },
                 },

@@ -20,7 +20,38 @@ export const foodServiceErasureAcceptedResponseSchema = z.object({
     requesterId: z.string(),
     /** The number of `fetch_requesters` rows removed (0 when there was no footprint / already erased). */
     deletedRequesterRows: z.number(),
+    /** U18: authored foods deleted outright (Q3b's unreferenced arm). Absent pre-U18 responses parse fine. */
+    deletedAuthoredFoods: z.number().int().min(0).optional(),
+    /** U18: authored foods kept as pseudonymous orphans (Q3b's referenced arm). */
+    keptAuthoredFoods: z.number().int().min(0).optional(),
 });
 
 /** Body for `POST /api/v1/internal/account/erasure`. */
 export type FoodServiceErasureAcceptedResponse = z.infer<typeof foodServiceErasureAcceptedResponseSchema>;
+
+/**
+ * Response of `POST /api/v1/internal/account/erasure/begin` (plan U18): the tombstoned authored food ids
+ * the deletion worker feeds to recipe-service's reference check.
+ */
+export const foodServiceErasureBeginResponseSchema = z.object({
+    authoredFoodIds: z.array(z.string()),
+});
+
+export type FoodServiceErasureBeginResponse = z.infer<typeof foodServiceErasureBeginResponseSchema>;
+
+/**
+ * Body of `POST /api/v1/internal/account/erasure` (plan U18) — OPTIONAL, and carrying NO authority: the
+ * owner still comes only from the verified token; this list only says which of the owner's foods the
+ * worker found still referenced (Q3b's orphan arm). Absent/empty ⇒ everything deletes.
+ */
+export const foodServiceErasureRequestSchema = z.preprocess(
+    // The deletion worker's PRE-U18 caller sends NO body at all; Nest hands the pipe `undefined` for a
+    // body-less POST, and a bare object schema refuses that with a 400 — which is a wire break for the
+    // deployed worker. An absent body IS the empty request.
+    (value) => value ?? {},
+    z.object({
+        referencedFoodIds: z.array(z.string()).max(10_000).optional(),
+    }),
+);
+
+export type FoodServiceErasureRequest = z.infer<typeof foodServiceErasureRequestSchema>;

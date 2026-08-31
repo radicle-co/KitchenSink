@@ -38,6 +38,8 @@ import { ServiceErasureController } from './serviceErasure.controller.js';
 import { GoldenRecordMergeEngine } from './merge/mergeEngine.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
+import { createRecipeReferenceCheck } from './recipeReferences.client.js';
+import { FOOD_REFERENCE_CHECK } from './foods.service.js';
 import { UserErasureService } from './userErasure.service.js';
 import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
 
@@ -72,6 +74,13 @@ import { ConsoleWorkerLogger } from '../worker/ConsoleWorkerLogger.js';
         { provide: FoodDao, inject: [DrizzleProvider], useFactory: (db: FoodDrizzle): FoodDao => new FoodDao(db) },
         // U10 — the authored-foods write path, its own repository (the single-writer disciplines must not
         // share a class; see the DAO's docstring).
+        {
+            // U18 — the delete flow's reference check, from `RECIPE_SERVICE_URL` (absent ⇒ undefined,
+            // and `FoodsService.deleteAuthored` fails CLOSED with 503).
+            provide: FOOD_REFERENCE_CHECK,
+            useFactory: (): ReturnType<typeof createRecipeReferenceCheck> =>
+                createRecipeReferenceCheck(process.env['RECIPE_SERVICE_URL']),
+        },
         {
             provide: AuthoredFoodsDao,
             inject: [DrizzleProvider],

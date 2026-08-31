@@ -18,6 +18,8 @@ import {
     customType,
     foreignKey,
     index,
+    integer,
+    jsonb,
     numeric,
     pgEnum,
     pgTable,
@@ -26,6 +28,7 @@ import {
     timestamp,
     unique,
     uniqueIndex,
+    uuid,
     varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -53,6 +56,8 @@ export const foodStatusEnum = pgEnum('food_status', [
     // the whole point of putting the state on the wire. Terminal only after the five-attempt budget, at
     // which point the food becomes FAILED.
     'AWAITING_RETRY',
+    // U18's tombstone-first refusal window — see 0014.
+    'DELETING',
 ]);
 
 /** Generic vs branded food (FR-IDN-3; replaces the USDA data-type enum). */
@@ -465,3 +470,34 @@ export const foodPopularity = pgTable('food_popularity', {
 
 export type FoodPopularityRow = InferSelectModel<typeof foodPopularity>;
 export type NewFoodPopularityRow = InferInsertModel<typeof foodPopularity>;
+
+/**
+ * U18 (0014): the authored-food version history — the recipe versioning pattern's TABLE half only (the
+ * S3 archive half is deliberately deferred; see the migration header). `created_by` is NULLABLE because
+ * the erasure sweep NULLs it on KEPT foods — the history survives as other users' recourse, the
+ * attribution does not.
+ */
+export const foodVersions = pgTable(
+    'food_versions',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        foodId: text('food_id')
+            .notNull()
+            .references(() => food.id, { onDelete: 'cascade' }),
+        versionNumber: integer('version_number').notNull(),
+        /** That version's content: { name, description, macros, portions }. */
+        snapshot: jsonb('snapshot').notNull(),
+        createdBy: varchar('created_by', { length: 255 }),
+        createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    },
+    (table) => [
+        unique('food_versions_food_version_unique').on(table.foodId, table.versionNumber),
+        index('idx_food_versions_food').on(table.foodId),
+        index('idx_food_versions_created_by')
+            .on(table.createdBy)
+            .where(sql`${table.createdBy} IS NOT NULL`),
+    ],
+);
+
+export type FoodVersionRow = InferSelectModel<typeof foodVersions>;
+export type NewFoodVersionRow = InferInsertModel<typeof foodVersions>;

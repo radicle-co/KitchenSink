@@ -246,13 +246,16 @@ const LEGAL_PRIORS: Record<FoodStatus, readonly FoodStatus[]> = {
     // it from any of these would make the first failure a dead end — the food would be stuck retrying with
     // no legal transition out, and `setStatus` rejects an illegal move by matching no row, silently.
     PENDING: ['FAILED', 'NOT_FOUND', 'AWAITING_RETRY'],
-    RESOLVED: ['PENDING', 'UNRESOLVED', 'AWAITING_RETRY'],
+    RESOLVED: ['PENDING', 'UNRESOLVED', 'AWAITING_RETRY', 'DELETING'],
     UNRESOLVED: ['PENDING', 'AWAITING_RETRY'],
     NOT_FOUND: ['PENDING', 'AWAITING_RETRY'],
     FAILED: ['PENDING', 'AWAITING_RETRY'],
     // Reached on a real source failure that has NOT exhausted the budget — from a first attempt
     // (`PENDING`) or from a previous retry (itself).
     AWAITING_RETRY: ['PENDING', 'AWAITING_RETRY'],
+    // U18's tombstone-first refusal window (Q3b/R22): only a live golden record can begin deleting, and
+    // the ONLY way back is RESOLVED (the referenced/kept outcome) — every other exit is a physical DELETE.
+    DELETING: ['RESOLVED'],
 };
 
 export class FoodDao {
@@ -617,6 +620,80 @@ export class FoodDao {
             })
             .from(foodNutrientView)
             .where(sql`${foodNutrientView.foodId} = ANY(${sql.param([...ids])})`);
+    }
+
+    /**
+     * The AUTHORED variant of {@link readNutritionBatch} (plan U18's cache split): the same three-read
+     * shape, scoped to `user_id = requester` — the caller's own authored foods and NOBODY else's, which
+     * is what makes the authenticated `authored-nutrition` route safe to serve uncached per caller while
+     * the shared route stays caller-independent for the edge (ADR-0020).
+     *
+     * @sideEffect Three reads.
+     */
+    public async readAuthoredNutritionBatch(ids: readonly string[], requesterId: string): Promise<NutritionRecord[]> {
+        const statuses = await this.db
+            .select({ id: food.id, status: food.status })
+            .from(food)
+            .where(sql`${food.id} = ANY(${sql.param(ids)}) AND ${food.userId} = ${requesterId}`);
+        const ownedIds = statuses.map((row) => row.id);
+
+        if (ownedIds.length === 0) {
+            return [];
+        }
+
+        const [nutrients, portions] = await Promise.all([
+            this.db
+                .select({
+                    foodId: foodNutrientView.foodId,
+                    nutrient: foodNutrientView.nutrient,
+                    unit: foodNutrientView.unit,
+                    basis: foodNutrientView.basis,
+                    amount: foodNutrientView.amount,
+                })
+                .from(foodNutrientView)
+                .where(sql`${foodNutrientView.foodId} = ANY(${sql.param(ownedIds)})`),
+            this.db
+                .select({
+                    foodId: foodPortions.foodId,
+                    label: foodPortions.label,
+                    gramWeight: foodPortions.gramWeight,
+                })
+                .from(foodPortions)
+                .where(sql`${foodPortions.foodId} = ANY(${sql.param(ownedIds)})`)
+                .orderBy(foodPortions.id),
+        ]);
+        const nutrientsByFood = new Map<string, StoredNutrientAmount[]>();
+
+        for (const row of nutrients) {
+            const bucket = nutrientsByFood.get(row.foodId);
+            const value = { nutrient: row.nutrient, unit: row.unit, basis: row.basis, amount: row.amount };
+
+            if (bucket === undefined) {
+                nutrientsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        const portionsByFood = new Map<string, StoredPortionWeight[]>();
+
+        for (const row of portions) {
+            const bucket = portionsByFood.get(row.foodId);
+            const value = { label: row.label, gramWeight: row.gramWeight };
+
+            if (bucket === undefined) {
+                portionsByFood.set(row.foodId, [value]);
+            } else {
+                bucket.push(value);
+            }
+        }
+
+        return statuses.map((row) => ({
+            id: row.id,
+            status: row.status,
+            nutrients: nutrientsByFood.get(row.id) ?? [],
+            portions: portionsByFood.get(row.id) ?? [],
+        }));
     }
 
     public async readNutritionBatch(ids: readonly string[]): Promise<NutritionRecord[]> {

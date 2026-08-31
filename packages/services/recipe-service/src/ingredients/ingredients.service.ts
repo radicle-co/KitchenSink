@@ -50,6 +50,7 @@
  */
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { FoodResolutionStatus, RecipeErrorCode } from '@kitchensink/recipe-core';
+import type { FoodReferencesResponse } from './ingredients.schema.js';
 import type { Ingredient } from '@kitchensink/recipe-core';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
@@ -140,6 +141,27 @@ export class IngredientsService {
         // Optional for the same reason again: without it, ranked events simply record no band epoch.
         private readonly bands?: Pick<ResolutionBandsDal, 'authorityFor'>,
     ) {}
+
+    /**
+     * `GET /api/v1/ingredients/food-references/{foodId}` (plan U18, R22) — who references this food.
+     *
+     * Serves the food service's delete flow (consulted with the CALLER's own forwarded bearer) and the
+     * 409 body it reports back. `total` spans all users; ids are the CALLER's own recipes only — another
+     * user's (possibly private) recipe id is never enumerated to the food's author.
+     *
+     * @param callerId - The authenticated caller's app-user ULID.
+     * @param foodId - The opaque food id.
+     * @returns The reference count and the caller's own referencing recipe ids.
+     * @sideEffect One grouped read.
+     */
+    public async foodReferences(callerId: string, foodId: string): Promise<FoodReferencesResponse> {
+        const references = await this.dal.recipesReferencingFood(foodId);
+
+        return {
+            total: references.length,
+            ownRecipeIds: references.filter((row) => row.ownerId === callerId).map((row) => row.recipeId),
+        };
+    }
 
     /**
      * Local catalog search (fuzzy `pg_trgm` + tsvector FTS) for the `GET /api/v1/ingredients/search`

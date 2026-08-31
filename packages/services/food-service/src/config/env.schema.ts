@@ -111,6 +111,14 @@ const AuthConfigSchema = z.object({
 /** Process/runtime configuration shared across NestJS and the Fargate worker. */
 const AppConfigSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    /**
+     * U18: the recipe service's public origin, for the authored-food delete's reference check (R22).
+     * OPTIONAL — deliberately unlike recipe's REQUIRED `FOOD_SERVICE_URL`, because absence here degrades
+     * LOUDLY on one route (the delete is refused 503 naming the missing config) rather than silently:
+     * every deploy sets it from the shared origin authority, and an ad-hoc environment without it loses
+     * exactly one capability, visibly.
+     */
+    RECIPE_SERVICE_URL: z.string().url().optional(),
     PORT: z.string().transform(Number).pipe(z.number().int().positive()).default(3002),
     // Permissive: deploy stages include `prod` and `sandbox-*`/`mr-*`/`pr-*`, which a fixed enum would reject.
     STAGE: z.string().min(1).default('dev'),

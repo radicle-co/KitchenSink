@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
 import {
+    publicSubdomainForStage,
     cutOverServicesFromEnv,
     edgeOriginHeaderFor,
     internalOriginForStage,
@@ -53,7 +54,8 @@ import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-na
  * @returns The subdomain label to prefix onto the apex domain.
  */
 export function recipeSubdomainForStage(stage: string): string {
-    return stage === 'prod' ? 'recipe' : `recipe-${stage}`;
+    // Delegated to the SHARED authority (plan U18) — see `@kitchensink/infra-alb`'s publicOriginHost.
+    return publicSubdomainForStage('recipe', stage);
 }
 
 /** Props for {@link RecipeServiceStack}. */

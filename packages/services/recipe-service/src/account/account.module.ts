@@ -19,6 +19,9 @@
  */
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
+import { DrizzleProvider } from '../database/database.module.js';
+import type { RecipeDrizzle } from '../database/client.js';
 
 import { DEFAULT_AWS_REGION } from '../config/config.types.js';
 import { AuthModule } from '../auth/auth.module.js';
@@ -41,6 +44,12 @@ import { createSqsErasureQueue, ERASURE_QUEUE, type ErasureQueuePort } from './e
         // Provided via a factory (not a bare class) because the emitter is a plain class with defaulted
         // constructor args and no `@Injectable()` — a factory instantiates it unambiguously (defaults: stage
         // from env, sink = console.log) rather than relying on Nest reflecting an empty dependency list.
+        {
+            // U18 — the internal food-references route's read (embedded-DAL pattern; no module import).
+            provide: IngredientsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): IngredientsDal => new IngredientsDal(db),
+        },
         {
             provide: ServicePrincipalErasureMetrics,
             useFactory: (): ServicePrincipalErasureMetrics => new ServicePrincipalErasureMetrics(),

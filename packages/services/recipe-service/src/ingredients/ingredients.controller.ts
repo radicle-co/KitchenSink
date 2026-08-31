@@ -86,6 +86,7 @@ import { apiError } from '../common/apiError.js';
 import { canonicalIngredientName, type CanonicalIngredientName } from './domain/ingredientName.js';
 import { IngredientsService } from './ingredients.service.js';
 import type { IngredientSuggestions } from './ingredientSuggestion.js';
+import type { FoodReferencesResponse } from './ingredients.schema.js';
 import type {
     IngredientCandidate,
     LiveIngredientSearchResponse,
@@ -339,6 +340,21 @@ export class IngredientsController {
      * @returns The refreshed ingredient (with its current `foodResolutionStatus`).
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      */
+    /**
+     * `GET /api/v1/ingredients/food-references/:foodId` (plan U18, R22) — how many live recipes reference
+     * this food, plus the CALLER's own referencing recipe ids. Consumed by the food service's authored
+     * DELETE flow with the caller's forwarded bearer; the count spans all users, the ids never do.
+     *
+     * ⚠️ Declared BEFORE the `:id/*` routes — Nest matches in declaration order.
+     */
+    @Get('food-references/:foodId')
+    public async foodReferences(
+        @OwnerId() ownerId: string,
+        @Param('foodId') foodId: string,
+    ): Promise<FoodReferencesResponse> {
+        return this.ingredients.foodReferences(ownerId, foodId);
+    }
+
     @Get(':id/status')
     public async status(
         @OwnerId() _ownerId: string,

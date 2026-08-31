@@ -17,13 +17,17 @@
  * data is `fetch_requesters`, so there is no async job to hand off). An owner with no footprint erases 0
  * rows (idempotent no-op success).
  */
-import { Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 
 import { FoodServiceErasureGuard } from '../auth/foodServiceErasure.guard.js';
 import { ServiceErasurePrincipal } from '../auth/servicePrincipal.decorator.js';
 import type { ServicePrincipal } from '../auth/servicePrincipal.js';
 import { UserErasureService } from './userErasure.service.js';
-import type { FoodServiceErasureAcceptedResponse } from './dto/serviceErasure.schema.js';
+import type {
+    FoodServiceErasureAcceptedResponse,
+    FoodServiceErasureBeginResponse,
+} from './dto/serviceErasure.schema.js';
+import { FoodServiceErasureBodyDto } from './dto/foods.dto.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
@@ -50,9 +54,30 @@ export class ServiceErasureController {
     @HttpCode(HttpStatus.OK)
     public async eraseAccount(
         @ServiceErasurePrincipal() principal: ServicePrincipal,
+        @Body() body: FoodServiceErasureBodyDto,
     ): Promise<FoodServiceErasureAcceptedResponse> {
-        const result = await this.erasure.eraseUser(principal.ownerId);
+        // The body carries NO authority (the owner is the token's bound claim); it only names which of
+        // the owner's foods the worker's reference check found still referenced — Q3b's orphan arm.
+        const result = await this.erasure.eraseUser(principal.ownerId, body?.referencedFoodIds ?? []);
 
-        return { requesterId: result.requesterId, deletedRequesterRows: result.deletedRequesterRows };
+        return {
+            requesterId: result.requesterId,
+            deletedRequesterRows: result.deletedRequesterRows,
+            deletedAuthoredFoods: result.deletedAuthoredFoods,
+            keptAuthoredFoods: result.keptAuthoredFoods,
+        };
+    }
+
+    /**
+     * `POST /api/v1/internal/account/erasure/begin` (plan U18) — the protocol's first step: tombstone the
+     * token-bound owner's authored foods (closing the bind window) and return their ids for the worker's
+     * cross-service reference check. Idempotent on redelivery.
+     */
+    @Post('erasure/begin')
+    @HttpCode(HttpStatus.OK)
+    public async beginErasure(
+        @ServiceErasurePrincipal() principal: ServicePrincipal,
+    ): Promise<FoodServiceErasureBeginResponse> {
+        return this.erasure.beginErasure(principal.ownerId);
     }
 }

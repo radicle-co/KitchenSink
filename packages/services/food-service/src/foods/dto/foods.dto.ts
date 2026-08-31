@@ -26,6 +26,7 @@ import {
     searchFoodQuerySchema,
     updateAuthoredFoodRequestSchema,
 } from '../foods.schema.js';
+import { foodServiceErasureRequestSchema } from './serviceErasure.schema.js';
 
 /** Body of `POST /api/v1/foods` — add by name (FR-005/FR-006). */
 export class AddFoodBodyDto extends createZodDto(addFoodRequestSchema) {}
@@ -54,3 +55,6 @@ export class CreateAuthoredFoodBodyDto extends createZodDto(createAuthoredFoodRe
 
 /** Body of `PUT /api/v1/foods/{id}` — full replacement of an authored food (plan U10). */
 export class UpdateAuthoredFoodBodyDto extends createZodDto(updateAuthoredFoodRequestSchema) {}
+
+/** Body of `POST /api/v1/internal/account/erasure` (plan U18) — the worker's referenced-food list; no authority. */
+export class FoodServiceErasureBodyDto extends createZodDto(foodServiceErasureRequestSchema) {}

@@ -331,6 +331,13 @@ export class BulkSeedService {
 
                 return 'seeded';
 
+            // U18's tombstone. Unreachable for the bulk seeder by construction — only AUTHORED foods are
+            // ever tombstoned, the seeder touches catalog rows, and the dedup lookup that produced this
+            // status is catalog-scoped — so observing it here is a defect worth throwing on, exactly like
+            // the default arm below.
+            case 'DELETING':
+                throw new Error(`bulk seed observed DELETING on '${foodId}' — a catalog row cannot be tombstoned`);
+
             default: {
                 const unreachable: never = status;
 

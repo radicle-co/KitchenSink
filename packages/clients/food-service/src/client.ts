@@ -318,6 +318,19 @@ export class FoodServiceClient {
      * @throws {BadRequestError} when the list is empty or exceeds the service's per-request cap.
      * @sideEffect Performs an authenticated HTTP request.
      */
+    /**
+     * `GET /api/v1/foods/authored-nutrition?ids=…` (plan U18) — the AUTHENTICATED, per-caller half of the
+     * nutrition read: the caller's OWN authored foods. Same response shape as {@link getNutrition}; an id
+     * the caller does not own lands in `unknownIds`. Never edge-cached (per-caller by construction).
+     *
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getAuthoredNutrition(ids: readonly string[]): Promise<FoodNutritionBatchResult> {
+        const res = await this.send('GET', `/api/v1/foods/authored-nutrition?${canonicalNutritionQuery(ids)}`);
+
+        return this.expect<FoodNutritionBatchResult>(res, 200, foodNutritionBatchResponseSchema);
+    }
+
     public async getNutrition(ids: readonly string[]): Promise<FoodNutritionBatchResult> {
         const res = await this.send('GET', `/api/v1/foods/nutrition?${canonicalNutritionQuery(ids)}`);
 
@@ -565,6 +578,7 @@ export class FoodServiceClient {
             case 'NOT_REQUEUEABLE':
             case 'NOT_EDITABLE': // U10: a pipeline food refusing edits — same 409 treatment; `code` carries the distinction.
             case 'DUPLICATE_AUTHORED_NAME': // U10: the per-author name collision; `details.existingId` names the row.
+            case 'FOOD_REFERENCED': // U18: live recipes reference the food; `details` carries the count + own ids.
                 return new ConflictError(body.message);
             case 'FETCH_UNAVAILABLE':
                 // The header is the transport-level contract and wins; the body repeats it for a consumer that
@@ -575,6 +589,10 @@ export class FoodServiceClient {
             // picker renders them as two different sentences, so conflating them here would mislead a cook.
             case 'SOURCE_UNAVAILABLE':
                 return new SourceUnavailableError(body.message);
+            // U18: the delete's reference check could not run — a 503 that is neither our budget
+            // (FETCH_UNAVAILABLE) nor an upstream food source (SOURCE_UNAVAILABLE); surface it plainly.
+            case 'REFERENCE_CHECK_UNAVAILABLE':
+                return new UnexpectedResponseError(res.status, body.message);
             // A `202` or a `500` reaching the error path means the service answered with something this call
             // cannot represent. Surfacing it loudly is the honest outcome; swallowing it is how a contract break
             // becomes a mystery `undefined` three layers into a caller.

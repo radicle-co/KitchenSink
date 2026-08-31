@@ -26,6 +26,7 @@ export {
     foodCategory,
     foodCategoryAssignment,
     foodPopularity,
+    foodVersions,
 } from './food.js';
 
 // Operational tables (queue + per-source limiter + sync metadata).
@@ -56,6 +57,8 @@ export type {
     NewFoodCategoryRow,
     FoodCategoryAssignmentRow,
     NewFoodCategoryAssignmentRow,
+    FoodVersionRow,
+    NewFoodVersionRow,
 } from './food.js';
 
 // Row types — operational.

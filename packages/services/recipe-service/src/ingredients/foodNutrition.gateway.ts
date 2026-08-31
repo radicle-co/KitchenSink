@@ -232,6 +232,38 @@ export class FoodNutritionGateway {
             }
         }
 
+        // U18's cache split, second phase: ids the SHARED route disowned may be the caller's own PRIVATE
+        // authored foods (excluded from the caller-independent edge-cacheable response by construction).
+        // Ask the authenticated per-caller route for exactly those. ⛔ Deliberately NOT written to the
+        // in-process cache: it is keyed by food id alone and shared across callers, so caching a private
+        // food's macros here would serve one user's private data to the next request that asks.
+        const missing = wanted.filter((id) => !byFoodId.has(id) && !failedIds.includes(id));
+
+        if (missing.length > 0) {
+            try {
+                const authored = await client.getAuthoredNutrition(missing);
+
+                for (const food of authored.foods) {
+                    byFoodId.set(food.id, {
+                        ...(food.caloriesPer100g !== undefined ? { caloriesPer100g: food.caloriesPer100g } : {}),
+                        ...(food.proteinGPer100g !== undefined ? { proteinGPer100g: food.proteinGPer100g } : {}),
+                        ...(food.carbsGPer100g !== undefined ? { carbsGPer100g: food.carbsGPer100g } : {}),
+                        ...(food.fatGPer100g !== undefined ? { fatGPer100g: food.fatGPer100g } : {}),
+                        portions: food.portions,
+                        freshness: 'fresh',
+                    });
+                }
+            } catch (error) {
+                // Absent, never zero — the same degradation as a failed shared chunk, without the cache
+                // fallback (there deliberately is none for private data).
+                degraded = true;
+                this.logger.warn('authored nutrition phase failed', {
+                    reason: error instanceof Error ? error.message : 'unknown error',
+                    ids: missing.length,
+                });
+            }
+        }
+
         return { byFoodId, degraded };
     }
 

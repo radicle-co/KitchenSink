@@ -12,7 +12,7 @@
  *
  * @implements FR-002 FR-003 FR-004 FR-005 FR-007 FR-008 FR-012 FR-013 FR-028a FR-045 FR-RES-1 FR-RES-2
  */
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
@@ -31,7 +31,13 @@ import { normalizeName } from './foodName.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { normalizePortions } from './nutrition/portionNormalization.js';
 import { evaluateAuthorship } from './domain/authorshipPolicy.js';
-import { DuplicateAuthoredNameError, NotEditableError, NotFoodAuthorError } from './foods.errors.js';
+import {
+    DuplicateAuthoredNameError,
+    FoodReferencedError,
+    NotEditableError,
+    NotFoodAuthorError,
+    ReferenceCheckUnavailableError,
+} from './foods.errors.js';
 import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
 import { projectNutrition } from './nutrition/nutrientSelection.js';
 import type {
@@ -60,6 +66,45 @@ const ESTIMATED_WAIT_SECONDS = 30;
 /** Retry-After (seconds) when a `PATCH`-resolve cannot draw from the rolling-window budget (DSN-6). */
 const RESOLVE_RETRY_AFTER_SECONDS = 30;
 
+/**
+ * The reference-check seam (plan U18, R22): who references this food, asked ON BEHALF of the deleting
+ * caller (their own forwarded bearer). Implemented by `recipeReferences.client.ts` over
+ * `@kitchensink/recipe-service-client`; injected so the delete flow's ordering — tombstone, check,
+ * decide — is unit-testable without a network.
+ */
+/** DI token for {@link FoodReferenceCheck} — provided by `FoodsModule` from `RECIPE_SERVICE_URL`. */
+export const FOOD_REFERENCE_CHECK = 'FOOD_REFERENCE_CHECK';
+
+export interface FoodReferenceCheck {
+    /**
+     * @param foodId - The food being deleted.
+     * @param callerBearer - The deleting caller's own bearer token, forwarded.
+     * @returns The live reference count and the caller's own referencing recipe ids.
+     * @throws When the check cannot run — the caller fails CLOSED.
+     */
+    references(
+        foodId: string,
+        callerBearer: string,
+    ): Promise<{ readonly total: number; readonly ownRecipeIds: readonly string[] }>;
+}
+
+/**
+ * Narrow a stored lifecycle status to the PUBLISHED wire enum (plan U18).
+ *
+ * `DELETING` is a store-internal tombstone that never reaches the wire: an already-shipped client's
+ * `foodStatusSchema` would REFUSE the unknown member, so the read paths that can observe it answer 404
+ * instead (`getFood`/`getStatus`). The three sites that call THIS helper — add-by-name, batch add, and
+ * the nutrition batch — cannot observe it by construction (all three read CATALOG rows only, and only
+ * AUTHORED foods are ever tombstoned), so here it is a thrown defect, not a mapping. Pure.
+ */
+function publishableStatusOf(status: FoodStatus): Exclude<FoodStatus, 'DELETING'> {
+    if (status === 'DELETING') {
+        throw new Error('DELETING is store-internal and must not reach the wire (U18)');
+    }
+
+    return status;
+}
+
 @Injectable()
 export class FoodsService {
     public constructor(
@@ -75,6 +120,12 @@ export class FoodsService {
         private readonly metrics: FoodMetrics,
         /** The authored-foods write path (plan U10). */
         private readonly authored: AuthoredFoodsDao,
+        /**
+         * The delete flow's reference check (plan U18); absent ⇒ the check fails CLOSED. ⚠️ `@Optional`
+         * + token: an interface erases to `Object` in `design:paramtypes`, which is the exact DI
+         * boot-abort the `FoodRecoveryService` note in `foods.module.ts` records.
+         */
+        @Optional() @Inject(FOOD_REFERENCE_CHECK) private readonly referenceCheck?: FoodReferenceCheck,
     ) {}
 
     /**
@@ -126,6 +177,13 @@ export class FoodsService {
             );
         }
 
+        if (record.status === 'DELETING') {
+            // U18's tombstone window: mid-delete is not a state the wire publishes — an old client's enum
+            // would refuse it, and the honest external fact is "this food is going away". A plain 404,
+            // with NO status detail (unlike the terminal pair below, whose statuses ARE retrievable facts).
+            throw new FoodNotFoundError(id);
+        }
+
         // NOT_FOUND / FAILED — status still retrievable (FR-004).
         throw new FoodNotFoundError(id, record.status);
     }
@@ -172,7 +230,7 @@ export class FoodsService {
             // — this endpoint does not decide on their behalf by withholding the row.
             foods.push({
                 id,
-                status: record.status,
+                status: publishableStatusOf(record.status),
                 // Mapped at the seam rather than widening the projection's input type. Stored amounts are
                 // STRINGS on purpose (arbitrary precision, no float drift — SC-008); the projection works in
                 // numbers because the wire contract does, and this is the one place that conversion happens.
@@ -216,6 +274,11 @@ export class FoodsService {
 
         if (record.status === 'PENDING') {
             return { id, status: record.status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
+        }
+
+        if (record.status === 'DELETING') {
+            // U18: the tombstone window never reaches the wire enum — see `getFood`'s branch.
+            throw new FoodNotFoundError(id);
         }
 
         return { id, status: record.status };
@@ -374,10 +437,10 @@ export class FoodsService {
             await this.admission.admit(requesterId);
             await this.enqueue.publishFoodRequested({ id: result.id, requestedBy: requesterId, reactivate: true });
 
-            return { id: result.id, status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
+            return { id: result.id, status: publishableStatusOf(status), estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
         }
 
-        return { id: result.id, status };
+        return { id: result.id, status: publishableStatusOf(status) };
     }
 
     /**
@@ -423,7 +486,7 @@ export class FoodsService {
             } else {
                 items.push({
                     id: result.id,
-                    status: food?.status ?? 'PENDING',
+                    status: publishableStatusOf(food?.status ?? 'PENDING'),
                     estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS,
                 });
             }
@@ -542,7 +605,7 @@ export class FoodsService {
 
         await this.enqueue.publishFoodRequested({ id, requestedBy: requesterId, reactivate: true });
 
-        return { id, status: food.status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
+        return { id, status: publishableStatusOf(food.status), estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
     }
 
     /**
@@ -633,6 +696,129 @@ export class FoodsService {
         return this.getFood(id, callerId);
     }
 
+    /**
+     * `GET /api/v1/foods/authored-nutrition?ids=…` — the AUTHENTICATED half of ADR-0020's cache split
+     * (plan U18): the caller's own authored foods' nutrition, per-caller and NEVER edge-cached.
+     *
+     * ⛔ The path deliberately does NOT begin `/api/v1/foods/nutrition` — the edge's shared-cache pattern
+     * is `/api/v1/foods/nutrition*`, and a caller-scoped response matching it would be cached URL-only
+     * and served across callers. Same projection, same response shape; an id the caller does not own
+     * lands in `unknownIds`, indistinguishable from a food that does not exist.
+     *
+     * @param ids - The canonical id list.
+     * @param requesterId - The caller's app-user ULID.
+     * @sideEffect Three reads.
+     */
+    public async getAuthoredNutritionBatch(
+        ids: readonly string[],
+        requesterId: string,
+    ): Promise<FoodNutritionBatchResponse> {
+        const records = await this.foodDao.readAuthoredNutritionBatch(ids, requesterId);
+        const byId = new Map(records.map((record) => [record.id, record]));
+        const foods: FoodNutrition[] = [];
+        const unknownIds: string[] = [];
+
+        for (const id of ids) {
+            const record = byId.get(id);
+
+            if (record === undefined) {
+                unknownIds.push(id);
+                continue;
+            }
+
+            foods.push({
+                id,
+                status: publishableStatusOf(record.status),
+                ...projectNutrition(
+                    record.nutrients.map((nutrient) => ({
+                        nutrient: nutrient.nutrient,
+                        amount: Number(nutrient.amount),
+                        unit: nutrient.unit,
+                        basis: nutrient.basis,
+                    })),
+                ),
+                portions: normalizePortions(
+                    record.portions.map((portion) => ({
+                        label: portion.label,
+                        gramWeight: Number(portion.gramWeight),
+                    })),
+                ),
+            });
+        }
+
+        return { foods, unknownIds };
+    }
+
+    /**
+     * `DELETE /api/v1/foods/{id}` — voluntary delete of an AUTHORED food (plan U18, R22), TOMBSTONE-FIRST:
+     *
+     *  1. authorship policy (the same verdict map as PUT — authz before anything observes the row);
+     *  2. flip `RESOLVED → DELETING`, so `by-food` admission (which refuses anything not RESOLVED via the
+     *     golden-record read) cannot bind the food while the check runs — the refusal window that closes
+     *     the check-then-delete TOCTOU race;
+     *  3. the cross-service reference check, with the CALLER's own forwarded bearer;
+     *  4. referenced → revert to RESOLVED and refuse `409 FOOD_REFERENCED`; unreferenced → physical
+     *     DELETE (the CASCADE takes macros, portions and versions with it).
+     *
+     * ⛔ An unavailable check FAILS CLOSED (`503`, reverted): deleting blind would strand other users'
+     * recipe lines — the outcome R22 exists to prevent. Orphaning is ERASURE-only; this route never
+     * orphans.
+     *
+     * @param callerId - The verified caller's app-user ULID.
+     * @param id - The food id.
+     * @param callerBearer - The caller's own bearer, forwarded to the reference check.
+     * @sideEffect Status flips, one cross-service read, and possibly a row delete.
+     */
+    public async deleteAuthored(callerId: string, id: string, callerBearer: string): Promise<void> {
+        const facts = await this.authored.readAuthorshipFacts(id);
+
+        if (facts === undefined) {
+            throw new FoodNotFoundError(id);
+        }
+
+        const verdict = evaluateAuthorship({ callerId, food: facts, action: 'delete' });
+
+        if (verdict.kind === 'not-found') {
+            throw new FoodNotFoundError(id);
+        }
+
+        if (verdict.kind === 'not-editable') {
+            throw new NotEditableError(id);
+        }
+
+        if (verdict.kind === 'forbidden') {
+            throw new NotFoodAuthorError(id);
+        }
+
+        // Tombstone FIRST. A raced state (already DELETING, or not RESOLVED) surfaces as the guarded
+        // transition matching no row — the truthful answer is 404: the food is mid-erasure or mid-delete.
+        try {
+            await this.foodDao.setStatus({ id, status: 'DELETING' });
+        } catch {
+            throw new FoodNotFoundError(id);
+        }
+
+        let references: { readonly total: number; readonly ownRecipeIds: readonly string[] };
+
+        try {
+            if (this.referenceCheck === undefined) {
+                throw new Error('RECIPE_SERVICE_URL is not configured');
+            }
+
+            references = await this.referenceCheck.references(id, callerBearer);
+        } catch (error) {
+            await this.foodDao.setStatus({ id, status: 'RESOLVED' });
+            throw new ReferenceCheckUnavailableError(error instanceof Error ? error.message : String(error));
+        }
+
+        if (references.total > 0) {
+            await this.foodDao.setStatus({ id, status: 'RESOLVED' });
+            throw new FoodReferencedError(references.total, references.ownRecipeIds);
+        }
+
+        await this.authored.deleteAuthoredRow(id, callerId);
+    }
+
     /** Map a {@link GoldenFoodRecord} to the public {@link FoodResponse} (source-tagged, no `fdcId`). */
     private toFoodResponse(record: GoldenFoodRecord): FoodResponse {
         const sourceById = new Map(record.sources.map((source) => [source.id, source.source]));
@@ -652,7 +838,7 @@ export class FoodsService {
             name: record.name,
             description: record.description,
             kind: record.kind,
-            status: record.status,
+            status: publishableStatusOf(record.status),
             nutrients: record.nutrients.map((nutrient) => ({
                 nutrient: nutrient.name,
                 amount: Number(nutrient.amount),

@@ -33,12 +33,32 @@ import {
     terminalFoodStatusSchema,
 } from '../foods.schema.js';
 
+/**
+ * Lifecycle values that exist in the DATABASE enum and are deliberately NOT published on the wire.
+ *
+ * ⛔ `DELETING` (0014, plan U18) is the tombstone-first refusal window: both delete flows flip a food
+ * here before the cross-service reference check, and every read path that can observe it answers `404`
+ * instead of emitting it (`getFood`/`getStatus` branches; `publishableStatusOf` THROWS at the sites that
+ * cannot observe it by construction). It stays off the wire because an already-shipped client's
+ * `foodStatusSchema` z.enum REJECTS an unknown member — publishing a new value is a breaking change for
+ * every released binary, and this one is a seconds-long internal window nobody could act on.
+ */
+const STORE_INTERNAL_STATUSES = ['DELETING'] as const;
+
 describe('foodStatusSchema', () => {
-    // The load-bearing assertion of this file. If a migration adds a lifecycle value and the wire schema is not
-    // updated, the service can persist a status it cannot describe — and every client's exhaustive switch over
-    // `FoodStatus` silently stops being exhaustive.
-    it('carries EXACTLY the values of the food_status database enum', () => {
-        expect([...foodStatusSchema.options].sort()).toStrictEqual([...foodStatusEnum.enumValues].sort());
+    // The load-bearing assertion of this file. If a migration adds a lifecycle value and neither the wire
+    // schema nor the documented internal set is updated, the service can persist a status it cannot
+    // describe — and every client's exhaustive switch over `FoodStatus` silently stops being exhaustive.
+    it('carries EXACTLY the database enum minus the documented store-internal set', () => {
+        expect([...foodStatusSchema.options, ...STORE_INTERNAL_STATUSES].sort()).toStrictEqual(
+            [...foodStatusEnum.enumValues].sort(),
+        );
+    });
+
+    it('⛔ every store-internal status is refused by the wire schema — the carve-out cannot go stale', () => {
+        for (const value of STORE_INTERNAL_STATUSES) {
+            expect(foodStatusSchema.safeParse(value).success).toBe(false);
+        }
     });
 
     it('rejects a value the database enum does not have', () => {
@@ -46,9 +66,11 @@ describe('foodStatusSchema', () => {
         expect(foodStatusSchema.safeParse('resolved').success).toBe(false);
     });
 
-    it('accepts every value the database enum has', () => {
+    it('accepts every value the database enum has, store-internal ones excepted', () => {
         for (const value of foodStatusEnum.enumValues) {
-            expect(foodStatusSchema.safeParse(value).success).toBe(true);
+            expect(foodStatusSchema.safeParse(value).success).toBe(
+                !(STORE_INTERNAL_STATUSES as readonly string[]).includes(value),
+            );
         }
     });
 });
@@ -196,6 +218,15 @@ describe('foodErrorSchema', () => {
             code: 'DUPLICATE_AUTHORED_NAME',
             message: 'You already authored a food with this name',
             details: { existingId: 'f1' },
+        },
+        FOOD_REFERENCED: {
+            code: 'FOOD_REFERENCED',
+            message: 'Recipes reference this food',
+            details: { referencingRecipeCount: 3, ownRecipeIds: ['r1'] },
+        },
+        REFERENCE_CHECK_UNAVAILABLE: {
+            code: 'REFERENCE_CHECK_UNAVAILABLE',
+            message: 'The reference check could not run; the delete is refused',
         },
     };
 

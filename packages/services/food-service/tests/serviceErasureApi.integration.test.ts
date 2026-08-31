@@ -108,7 +108,12 @@ describe.skipIf(!DATABASE_URL)('POST /api/v1/internal/account/erasure (booted Ne
         const res = await post(token);
 
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({ requesterId: OWNER, deletedRequesterRows: 2 });
+        expect(res.body).toEqual({
+            requesterId: OWNER,
+            deletedRequesterRows: 2,
+            deletedAuthoredFoods: 0,
+            keptAuthoredFoods: 0,
+        });
         expect(await requesterRows(OWNER)).toBe(0);
         expect(await requesterRows(OTHER)).toBe(1);
     });
@@ -117,10 +122,20 @@ describe.skipIf(!DATABASE_URL)('POST /api/v1/internal/account/erasure (booted Ne
         await seedRequester('apple', OWNER);
         const token = await signServiceErasureToken(keys.privateKeyPem, { ownerId: OWNER });
 
-        expect((await post(token)).body).toEqual({ requesterId: OWNER, deletedRequesterRows: 1 });
+        expect((await post(token)).body).toEqual({
+            requesterId: OWNER,
+            deletedRequesterRows: 1,
+            deletedAuthoredFoods: 0,
+            keptAuthoredFoods: 0,
+        });
         // A fresh token (single-use) for the same owner.
         const token2 = await signServiceErasureToken(keys.privateKeyPem, { ownerId: OWNER });
-        expect((await post(token2)).body).toEqual({ requesterId: OWNER, deletedRequesterRows: 0 });
+        expect((await post(token2)).body).toEqual({
+            requesterId: OWNER,
+            deletedRequesterRows: 0,
+            deletedAuthoredFoods: 0,
+            keptAuthoredFoods: 0,
+        });
     });
 
     it('rejects a request with NO bearer (401) — no data touched', async () => {

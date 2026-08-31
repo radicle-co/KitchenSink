@@ -15,6 +15,7 @@
         "@kitchensink/messaging": "*",
         "@kitchensink/nest-error-envelope": "*",
         "@kitchensink/recipe-core": "*",
+        "@kitchensink/recipe-service-client": "*",
         "@kitchensink/schema-food": "*",
         "@kitchensink/usda-client": "*",
         "@nestjs/common": "^11.1.27",

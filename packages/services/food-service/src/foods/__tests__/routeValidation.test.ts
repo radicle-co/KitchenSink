@@ -128,13 +128,14 @@ describe('route input validation — the closed inventory', () => {
     // pass over an empty list. These figures are the tripwire.
     it('reads Nest route metadata at all (guards every other case in this file from vacuity)', () => {
         expect(ALL_INPUTS.length).toBeGreaterThanOrEqual(7);
-        // Five bodies since U10's authored create + PUT joined the original three.
-        expect(ALL_INPUTS.filter((input) => input.kind === 'body')).toHaveLength(5);
-        // Three queries now: `GET /foods/search`, `GET /foods/search/live` (plan U29) and
-        // `GET /foods/nutrition` (plan U8) — all three zod DTOs, and the live one deliberately REUSES
-        // `SearchFoodQueryDto` rather than declaring a second identical shape.
-        expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(3);
-        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(7);
+        // Six bodies: the original three, U10's authored create + PUT, and U18's erasure body.
+        expect(ALL_INPUTS.filter((input) => input.kind === 'body')).toHaveLength(6);
+        // Four queries: `GET /foods/search`, `GET /foods/search/live` (plan U29),
+        // `GET /foods/nutrition` (plan U8), and `GET /foods/authored-nutrition` (plan U18 — deliberately
+        // REUSING `FoodNutritionQueryDto`, one shape for one meaning). The live search reuses
+        // `SearchFoodQueryDto` the same way.
+        expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(4);
+        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(8);
         // Nothing reads a caller-supplied HEADER. §15.4(1) puts headers under the pipe too, so a new one has to
         // arrive as a zod DTO — and this assertion is what makes adding one a decision rather than an accident.
         expect(ALL_INPUTS.filter((input) => input.kind === 'headers')).toStrictEqual([]);
@@ -172,6 +173,8 @@ describe('route input validation — the closed inventory', () => {
         expect(raw).toStrictEqual([
             // U9's operator requeue. Guarded by the same `isFoodId` check as every other `:id` route.
             'FoodsAdminController.requeueFood(@param id): String',
+            // U18's authored-food DELETE. Same `requireId` → `isFoodId` validation as every `:id` route.
+            'FoodsController.deleteAuthored(@param id): String',
             'FoodsController.getCandidates(@param id): String',
             'FoodsController.getFood(@param id): String',
             'FoodsController.getStatus(@param id): String',

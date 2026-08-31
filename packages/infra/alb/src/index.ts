@@ -50,3 +50,4 @@ export {
     edgeOriginHeaderFor,
     type EdgeOriginHeader,
 } from './edgeOriginHeader.js';
+export { publicServiceOriginForStage, publicSubdomainForStage } from './publicOriginHost.js';

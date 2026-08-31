@@ -36,6 +36,12 @@ COPY packages/shared/recipe-core/dist ./packages/shared/recipe-core/dist
 # first line of the boot path: without its dist in the image the process crash-loops before it can report why.
 COPY packages/schemas/food/prod.package.json ./packages/schemas/food/package.json
 COPY packages/schemas/food/dist ./packages/schemas/food/dist
+# U18: the authored-food delete's reference check calls the recipe service through its typed client, which
+# composes @kitchensink/schema-recipe (which in turn composes @kitchensink/recipe-core, already above).
+COPY packages/clients/recipe-service/prod.package.json ./packages/clients/recipe-service/package.json
+COPY packages/clients/recipe-service/dist ./packages/clients/recipe-service/dist
+COPY packages/schemas/recipe/prod.package.json ./packages/schemas/recipe/package.json
+COPY packages/schemas/recipe/dist ./packages/schemas/recipe/dist
 
 # Shared @kitchensink/nest-error-envelope — the ONE Nest->{ code, message, details? } normalization every
 # service's ApiExceptionFilter runs (it replaced ~100 lines copied into each of the three). Same pattern as the

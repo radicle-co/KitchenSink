@@ -270,3 +270,45 @@ export class NotFoodAuthorError extends Error {
 export function isNotFoodAuthorError(error: unknown): error is NotFoodAuthorError {
     return error instanceof NotFoodAuthorError;
 }
+
+/**
+ * The authored food is referenced by live recipes → `409 FOOD_REFERENCED` (plan U18, R22). The count
+ * spans all users; the enumerated ids are the CALLER's own referencing recipes only — another user's
+ * (possibly private) recipe id is never handed to the food's author.
+ */
+export class FoodReferencedError extends Error {
+    public readonly referencingRecipeCount: number;
+    public readonly ownRecipeIds: readonly string[];
+
+    public constructor(referencingRecipeCount: number, ownRecipeIds: readonly string[]) {
+        super(`${String(referencingRecipeCount)} recipe(s) reference this food; remove those lines first`);
+        this.name = 'FoodReferencedError';
+        this.referencingRecipeCount = referencingRecipeCount;
+        this.ownRecipeIds = ownRecipeIds;
+        Object.setPrototypeOf(this, FoodReferencedError.prototype);
+    }
+}
+
+/** Type guard for {@link FoodReferencedError}. */
+export function isFoodReferencedError(error: unknown): error is FoodReferencedError {
+    return error instanceof FoodReferencedError;
+}
+
+/**
+ * The delete's cross-service reference check could not run → `503 REFERENCE_CHECK_UNAVAILABLE` (plan
+ * U18). ⛔ FAIL CLOSED, always: deleting without knowing who references the food would strand other
+ * users' recipe lines — the one outcome R22 exists to prevent — so an unreachable recipe service (or an
+ * unconfigured `RECIPE_SERVICE_URL`) refuses the delete rather than guessing.
+ */
+export class ReferenceCheckUnavailableError extends Error {
+    public constructor(reason: string) {
+        super(`The reference check could not run (${reason}); the delete is refused`);
+        this.name = 'ReferenceCheckUnavailableError';
+        Object.setPrototypeOf(this, ReferenceCheckUnavailableError.prototype);
+    }
+}
+
+/** Type guard for {@link ReferenceCheckUnavailableError}. */
+export function isReferenceCheckUnavailableError(error: unknown): error is ReferenceCheckUnavailableError {
+    return error instanceof ReferenceCheckUnavailableError;
+}

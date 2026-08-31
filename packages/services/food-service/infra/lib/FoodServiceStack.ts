@@ -36,6 +36,8 @@ import {
     internalOriginForStage,
     listenerPriorityForStage,
     publicRecordOwnerFor,
+    publicServiceOriginForStage,
+    publicSubdomainForStage,
 } from '@kitchensink/infra-alb';
 import {
     messageTableArnParameter,
@@ -132,7 +134,9 @@ export function foodDatabaseNameForStage(stage: string, baseStage: string, impor
  * @returns The subdomain label to prefix onto the apex domain.
  */
 export function foodSubdomainForStage(stage: string): string {
-    return stage === 'prod' ? 'food' : `food-${stage}`;
+    // Delegated to the SHARED authority (plan U18) — the shape lives once in `@kitchensink/alb`, beside
+    // the listener priorities and the internal-origin host, for the drift reason both of those moved.
+    return publicSubdomainForStage('food', stage);
 }
 
 /**
@@ -369,6 +373,12 @@ export class FoodServiceStack extends Stack {
             // `food_app` authenticates via RDS IAM (no password) — see src/database/poolConfig.ts.
             DB_USERNAME: 'food_app',
             FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
+            // U18: the recipe service's PUBLIC origin at THIS stage — the authored-food delete flow's
+            // reference check calls `GET /api/v1/ingredients/food-references/{id}` with the caller's own
+            // forwarded bearer. Deterministic from the shared origin authority; the recipe service need
+            // not be UP at food's deploy time (per-PR food deploys FIRST), only resolvable when a delete
+            // actually runs — absence at runtime fails CLOSED (the delete is refused, loudly).
+            RECIPE_SERVICE_URL: publicServiceOriginForStage('recipe', stage, props.domainName),
             // The substrate the worker's FoodEventEmitter publishes to (U6). Absent locally → ConsolePublisher.
             MESSAGE_TABLE_NAME: messageTableName,
             // Clerk session-token verification (FoodAuthGuard → verifyClerkToken). The JWT *public* key

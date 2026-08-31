@@ -61,6 +61,7 @@ function makeService(overrides: { record?: GoldenFoodRecord | null; authored?: P
         createAuthored: vi.fn().mockResolvedValue({ kind: 'created', id: FOOD_ID }),
         replaceAuthored: vi.fn().mockResolvedValue({ kind: 'replaced' }),
         readAuthorshipFacts: vi.fn().mockResolvedValue({ userId: AUTHOR, visibility: 'private' }),
+        deleteAuthoredRow: vi.fn().mockResolvedValue(undefined),
         ...overrides.authored,
     };
     const service = new FoodsService(

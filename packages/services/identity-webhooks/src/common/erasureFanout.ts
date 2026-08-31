@@ -9,9 +9,18 @@
  *     election-bearing job exists before the Clerk `user.deleted` echo can land (R9). Recipe enforces
  *     R9 authoritatively via its `idx_erasure_jobs_active_owner` partial-unique index, so a second call
  *     for the same owner is an idempotent no-op — this gateway simply calls it.
- *  2. **food** — `POST {foodBaseUrl}/api/v1/internal/account/erasure` (R11). Removes the user's
- *     `fetch_requesters` rows (`eraseUser`), keyed by the same app ULID (U1's re-key). Idempotent
- *     (deleting already-gone rows removes 0).
+ *  2. **food** — a THREE-STEP protocol since plan U18 (Q3b's delete-or-orphan):
+ *     `POST …/internal/account/erasure/begin` tombstones the owner's authored foods (DELETING — the
+ *     `by-food` refusal window that closes the check-then-delete race) and returns their ids; the worker
+ *     asks recipe `POST …/internal/account/food-references` which of those ids live recipes still
+ *     reference (recipe-audience token — the recipe leg has already run, so survivors are other users'
+ *     recipes and the owner's kept pseudonymized ones); then `POST …/internal/account/erasure` completes —
+ *     `fetch_requesters` delete, unreferenced authored foods deleted, referenced ones reverted to
+ *     RESOLVED as pseudonymous orphans, `food_versions.created_by` NULLed. Every step is idempotent, so a
+ *     crash anywhere redelivers cleanly; foods stranded in DELETING by a crashed run are re-begun (no-op)
+ *     and completed on the retry. ⚠️ A message that exhausts `maxReceiveCount` mid-protocol leaves the
+ *     owner's authored foods tombstoned (unbindable) until the DLQ is drained — an erasure stuck in the
+ *     DLQ is already an ops incident, and unbindable-but-present is the SAFE side of that residual.
  *
  * Each leg presents a short-lived, single-target EdDSA bearer minted by {@link mintServiceErasureToken}
  * with the target service's pinned audience — so a token captured on one leg cannot be replayed against
@@ -68,6 +77,10 @@ export interface ErasureLegResult {
     readonly jobStatus?: string;
     /** food: the number of `fetch_requesters` rows removed — the reconciliation residue signal. */
     readonly deletedRequesterRows?: number;
+    /** food (U18): authored foods deleted outright. */
+    readonly deletedAuthoredFoods?: number;
+    /** food (U18): authored foods kept as pseudonymous orphans. */
+    readonly keptAuthoredFoods?: number;
 }
 
 /** The result of a full fan-out: both legs, always present. */
@@ -109,16 +122,136 @@ export async function runErasureFanout(
         config,
         fetchImpl,
     );
-    const food = await callLeg(
-        'food',
+    const food = await runFoodLeg(target, config, fetchImpl);
+
+    return { recipe, food };
+}
+
+/**
+ * The food leg's three-step protocol (plan U18) — begin (tombstone) → recipe reference check → complete.
+ * Reduced to ONE {@link ErasureLegResult}: the first failing step is the leg's failure, and the caller's
+ * redelivery re-runs the whole protocol (every step idempotent).
+ *
+ * @sideEffect Mints up to three JWTs and performs up to three HTTP POSTs.
+ */
+async function runFoodLeg(
+    target: ErasureFanoutTarget,
+    config: ErasureFanoutConfig,
+    fetchImpl: FetchLike,
+): Promise<ErasureLegResult> {
+    const begin = await postLeg(
         config.foodBaseUrl,
+        `${INTERNAL_ERASURE_PATH}/begin`,
         SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD,
         target,
         config,
         fetchImpl,
+        undefined,
     );
 
-    return { recipe, food };
+    if (!begin.ok) {
+        return { service: 'food', ok: false, httpStatus: begin.httpStatus, detail: `begin: ${begin.detail ?? ''}` };
+    }
+
+    const authoredFoodIds = asStringArray(begin.body['authoredFoodIds']);
+    let referencedFoodIds: string[] = [];
+
+    if (authoredFoodIds.length > 0) {
+        const references = await postLeg(
+            config.recipeBaseUrl,
+            `${INTERNAL_ERASURE_PATH.replace('/erasure', '/food-references')}`,
+            SERVICE_ERASURE_TOKEN_AUDIENCE,
+            target,
+            config,
+            fetchImpl,
+            { foodIds: authoredFoodIds },
+        );
+
+        if (!references.ok) {
+            return {
+                service: 'food',
+                ok: false,
+                httpStatus: references.httpStatus,
+                detail: `food-references: ${references.detail ?? ''}`,
+            };
+        }
+
+        referencedFoodIds = asStringArray(references.body['referencedFoodIds']);
+    }
+
+    const complete = await postLeg(
+        config.foodBaseUrl,
+        INTERNAL_ERASURE_PATH,
+        SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD,
+        target,
+        config,
+        fetchImpl,
+        { referencedFoodIds },
+    );
+
+    if (!complete.ok) {
+        return {
+            service: 'food',
+            ok: false,
+            httpStatus: complete.httpStatus,
+            detail: `erasure: ${complete.detail ?? ''}`,
+        };
+    }
+
+    return {
+        service: 'food',
+        ok: true,
+        httpStatus: complete.httpStatus,
+        deletedRequesterRows: asNumber(complete.body['deletedRequesterRows']),
+        deletedAuthoredFoods: asNumber(complete.body['deletedAuthoredFoods']),
+        keptAuthoredFoods: asNumber(complete.body['keptAuthoredFoods']),
+    };
+}
+
+/** One raw POST step: mint the audience-bound token, send, parse. Never throws. @sideEffect One HTTP POST. */
+async function postLeg(
+    baseUrl: string,
+    path: string,
+    audience: string,
+    target: ErasureFanoutTarget,
+    config: ErasureFanoutConfig,
+    fetchImpl: FetchLike,
+    body: Record<string, unknown> | undefined,
+): Promise<{ ok: boolean; httpStatus?: number; detail?: string; body: Record<string, unknown> }> {
+    try {
+        const token = await mintServiceErasureToken({
+            privateKeyPem: config.signingKeyPem,
+            audience,
+            ownerId: target.userId,
+            eventId: target.eventId,
+            actor: target.actor,
+        });
+        const response = await fetchImpl(`${baseUrl}${path}`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/json',
+                ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+            },
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+
+        if (!response.ok) {
+            return { ok: false, httpStatus: response.status, detail: await safeSnippet(response), body: {} };
+        }
+
+        const parsed = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+
+        return { ok: true, httpStatus: response.status, body: parsed };
+    } catch (error) {
+        return { ok: false, detail: error instanceof Error ? error.message : String(error), body: {} };
+    }
+}
+
+/** Narrow an unknown JSON field to a string array (non-strings dropped). Pure. */
+function asStringArray(value: unknown): string[] {
+    return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
 /**

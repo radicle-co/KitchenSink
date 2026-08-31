@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { ServiceErasureController } from '../serviceErasure.controller.js';
+import type { IngredientsDal } from '../../ingredients/dal/ingredients.dal.js';
 import type { ErasureService } from '../erasure.service.js';
 import type { ServicePrincipal } from '../../auth/servicePrincipal.js';
 import type { ServiceErasureAcceptedResponse } from '../dto/serviceErasure.dto.js';
@@ -30,9 +31,23 @@ type ServiceMock = { requestServiceErasure: ReturnType<typeof vi.fn> };
 let erasure: ServiceMock;
 let controller: ServiceErasureController;
 
+const ingredientsDal = { referencedFoodIdsAmong: vi.fn().mockResolvedValue(['f-kept']) };
+
 beforeEach(() => {
     erasure = { requestServiceErasure: vi.fn().mockResolvedValue(ACCEPTED) };
-    controller = new ServiceErasureController(erasure as unknown as ErasureService);
+    controller = new ServiceErasureController(
+        erasure as unknown as ErasureService,
+        ingredientsDal as unknown as IngredientsDal,
+    );
+});
+
+describe('POST /api/v1/internal/account/food-references (U18)', () => {
+    it('answers the referenced subset for the supplied ids — the token authorizes, the body only queries', async () => {
+        const result = await controller.foodReferences(PRINCIPAL, { foodIds: ['f-kept', 'f-gone'] });
+
+        expect(ingredientsDal.referencedFoodIdsAmong).toHaveBeenCalledWith(['f-kept', 'f-gone']);
+        expect(result).toEqual({ referencedFoodIds: ['f-kept'] });
+    });
 });
 
 describe('POST /api/v1/internal/account/erasure', () => {

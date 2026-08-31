@@ -274,7 +274,136 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/BatchAddFoodRequest"
+  /api/v1/foods/nutrition:
+    get:
+      operationId: getNutritionBatch
+      summary: Batch per-100g nutrition + normalized portions (edge-cached)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: One entry per known id, in the given order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodNutritionBatchResponse"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "Caller-INDEPENDENT by standing invariant (ADR-0020): the edge caches this on the URL alone, so nothing
+        derived from the requester may enter the response — which is exactly why private authored foods land in
+        `unknownIds` here and are served by `/authored-nutrition` instead. The `ids` list is canonicalized server-side."
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: Comma-separated food ids (canonicalized server-side).
+          schema:
+            type: string
+  /api/v1/foods/authored-nutrition:
+    get:
+      operationId: getAuthoredNutritionBatch
+      summary: Batch nutrition for the caller's OWN authored foods (U18's cache split)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: One entry per owned id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodNutritionBatchResponse"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "The authenticated, per-caller half of the nutrition read: private authored foods are excluded from the
+        edge-cached `/nutrition` route by construction, so their author reads them here. Same shape; an id the caller
+        does not own lands in `unknownIds`. Never cached."
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: Comma-separated food ids (canonicalized server-side).
+          schema:
+            type: string
   /api/v1/foods/{id}:
+    delete:
+      operationId: deleteAuthoredFood
+      summary: Delete a user-authored food (tombstone-first, reference-checked)
+      security:
+        - clerkSession: []
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: A stranger deleting a PROMOTED food, or a `svc_*` principal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such food — or a PRIVATE authored food the caller does not own.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "Referenced (`code: FOOD_REFERENCED`, count + own recipe ids in `details`), or a pipeline food (`code:
+            NOT_EDITABLE`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: "The reference check could not run (`code: REFERENCE_CHECK_UNAVAILABLE`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "R22: the food flips to an internal DELETING state (admission refuses to bind it), the cross-service
+        reference check runs with the caller's own authority, and only an unreferenced food deletes. Referenced → `409
+        FOOD_REFERENCED` with the live count and the caller's OWN referencing recipe ids. Check unavailable → `503`,
+        failed closed. Orphaning is erasure-only; this route never orphans."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
     put:
       operationId: updateAuthoredFood
       summary: Replace a user-authored food
@@ -725,7 +854,37 @@ paths:
                 $ref: "#/components/schemas/ApiError"
       description: "Called by the identity deletion-worker / erasure-reconciliation on a `user.deleted` or account-closure
         event. Synchronous and idempotent: an owner with no footprint erases 0 rows and still succeeds. The target owner
-        comes ONLY from the verified token's bound claim — there is no request body (CR-002/U4b/R11)."
+        comes ONLY from the verified token's bound claim. The optional body (U18) carries NO authority: it names which
+        of the owner's authored foods the worker's reference check found still referenced — those are KEPT as
+        pseudonymous orphans (Q3b); everything else deletes."
+      requestBody:
+        description: The worker's referenced-food list (optional).
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodServiceErasureRequest"
+  /api/v1/internal/account/erasure/begin:
+    post:
+      operationId: beginAccountErasure
+      summary: Tombstone the token-bound owner's authored foods (erasure protocol step 1, U18)
+      security:
+        - serviceToken: []
+      responses:
+        "200":
+          description: The tombstoned authored food ids.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodServiceErasureBeginResponse"
+        "401":
+          description: The service token is absent, malformed, or not food-audience-bound.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Flips every authored food to an internal DELETING state — admission refuses to bind them while the worker
+        runs the cross-service reference check — and returns their ids for that check. Idempotent on redelivery.
   /health:
     get:
       operationId: getHealth
@@ -997,6 +1156,44 @@ components:
             code:
               type: string
               enum:
+                - FOOD_REFERENCED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                referencingRecipeCount:
+                  type: integer
+                ownRecipeIds:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - referencingRecipeCount
+                - ownRecipeIds
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - REFERENCE_CHECK_UNAVAILABLE
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - NOT_EDITABLE
             message:
               type: string
@@ -1194,6 +1391,58 @@ components:
         - nutrients
         - portions
         - provenance
+    FoodNutritionBatchResponse:
+      type: object
+      properties:
+        foods:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              status:
+                type: string
+                enum:
+                  - PENDING
+                  - UNRESOLVED
+                  - RESOLVED
+                  - NOT_FOUND
+                  - FAILED
+                  - AWAITING_RETRY
+              caloriesPer100g:
+                type: number
+              proteinGPer100g:
+                type: number
+              carbsGPer100g:
+                type: number
+              fatGPer100g:
+                type: number
+              portions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    unit:
+                      type: string
+                    gramsPerUnit:
+                      type: number
+                      minimum: 0
+                      exclusiveMinimum: true
+                  required:
+                    - unit
+                    - gramsPerUnit
+            required:
+              - id
+              - status
+              - portions
+        unknownIds:
+          type: array
+          items:
+            type: string
+      required:
+        - foods
+        - unknownIds
     PendingResponse:
       type: object
       properties:
@@ -1580,9 +1829,32 @@ components:
           type: string
         deletedRequesterRows:
           type: number
+        deletedAuthoredFoods:
+          type: integer
+          minimum: 0
+        keptAuthoredFoods:
+          type: integer
+          minimum: 0
       required:
         - requesterId
         - deletedRequesterRows
+    FoodServiceErasureBeginResponse:
+      type: object
+      properties:
+        authoredFoodIds:
+          type: array
+          items:
+            type: string
+      required:
+        - authoredFoodIds
+    FoodServiceErasureRequest:
+      type: object
+      properties:
+        referencedFoodIds:
+          maxItems: 10000
+          type: array
+          items:
+            type: string
     HealthStatus:
       type: object
       properties:

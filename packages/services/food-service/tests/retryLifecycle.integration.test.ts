@@ -106,6 +106,7 @@ describe.skipIf(!DATABASE_URL)('placeholder retry lifecycle (U9, integration)', 
 
             expect(rows.map((row) => row.enumlabel).sort()).toStrictEqual([
                 'AWAITING_RETRY',
+                'DELETING',
                 'FAILED',
                 'NOT_FOUND',
                 'PENDING',

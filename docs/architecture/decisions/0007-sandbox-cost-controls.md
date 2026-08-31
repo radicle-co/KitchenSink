@@ -190,3 +190,53 @@ typo away is not cheap.
 **Residual risk.** Nothing here addresses the other two growth lines — ECS ($21 → $40 → $119) and VPC
 ($16 → $41 → $74) — which together still exceed the `kitchensink-monthly-cost` $300 budget (August actual
 $483.61, forecast $560.84). This change recovers ~$101/mo of a ~$260/mo overage.
+
+## Update (2026-08-30) — the residual was ALL prod, nothing reads it, and the tier becomes a constant
+
+The 2026-08-27 amendment took prod from ENHANCED to STANDARD and disabled `pr-{N}` entirely. It worked:
+CloudWatch fell from ~$13.07/day (10 Aug) to ~$4.15/day (11 Aug onward), then to ~$1.58/day once ADR-0028's
+reaper removed the per-PR clusters.
+
+**What that left is the finding.** Of the ~136 still-billable `ECS/ContainerInsights` series, measured on
+2026-08-30, **every one was a prod cluster** — an idle sandbox cluster returned **zero** datapoints over 24
+hours and was billing nothing. So the whole $40.80/month residual (136 × $0.30) sat in the half this ADR had
+twice declined to touch, for the second time.
+
+### Decision
+
+**Container Insights is DISABLED on every ECS cluster, in every stage.** `containerInsightsForStage(stage)`
+collapses to the constant `CONTAINER_INSIGHTS_TIER` in `@kitchensink/infra-security`.
+
+⛔ **The reason is not "prod is unobserved" — that would be a bad reason and it is not this one.** It is that
+**nothing anywhere consumes the namespace**, verified before the change rather than assumed:
+
+| Consumer checked                                            | Reads                                         |
+| ----------------------------------------------------------- | --------------------------------------------- |
+| Every ECS alarm + both target-tracking autoscaling policies | `AWS/ECS` `CPUUtilization` (free tier)        |
+| ALB 5xx + crash-loop alarms                                 | `AWS/ApplicationELB`                          |
+| The one CloudWatch dashboard (`food-data`)                  | neither namespace                             |
+| Repository source                                           | no query anywhere; only ADR prose mentions it |
+
+That reason does not vary by stage, which is why the **stage parameter was removed rather than defaulted**. A
+function that ignores its argument still advertises a decision it is no longer making, and the next reader
+has to run the experiment to discover that.
+
+### Consequences
+
+- **Realised saving ~$40.80/month**, applied live via `aws ecs update-cluster-settings` on all four clusters
+  the same day, so the CDK change and reality are already in sync — this needs no prod deploy to take effect,
+  which matters because prod's stacks are hundreds of commits behind this branch (ADR-0022 migration
+  Triggers). Verified after the flip: `identity.commise.app/health` → 200, all five prod tasks still running.
+- **Lost:** per-service network/storage/task-count series and the Container Insights console view.
+  **Not lost:** alarms, autoscaling, deploy health — none of which ever read this namespace.
+- ⚠️ **`AwsSolutions-ECS4` now reports on every cluster.** The finding is ACCURATE and is deliberately left
+  **REPORTING, not suppressed**: a cdk-nag suppression writes `Metadata.cdk_nag.rules_to_suppress` into the
+  CloudFormation resource (ADR-0013), and prod template stability is what ADR-0002 and ADR-0008 stake data
+  safety on. Same posture as ADR-0025's `AwsSolutions-L1`.
+- Re-enabling for a debugging session is a one-line edit to one constant — which is the point of it living in
+  one place.
+
+**Residual risk.** The three prod clusters keep publishing `AWS/ECS` service metrics, so a regression in
+autoscaling or alarms would still be visible; a regression in per-service _network or storage_ behaviour now
+would not be, and would have to be found in logs. Nothing today alarms on either, so this removes no signal
+anyone is watching — but it does remove one nobody has needed **yet**.

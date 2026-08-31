@@ -1,55 +1,47 @@
-// ⚠️ DELIBERATE — see docs/architecture/decisions/0007-sandbox-cost-controls.md (amended 2026-08-27).
+// ⚠️ DELIBERATE — see docs/architecture/decisions/0007-sandbox-cost-controls.md (amended 2026-08-27, and
+// again 2026-08-30).
 //
 // THE Container Insights tier every ECS cluster in this repository runs. One value, one place.
 //
-// ## Why this is a cost control, and why prod is no longer exempt
+// ## Why this is a constant and not a per-stage decision
 //
-// ADR-0007 dropped NON-PROD from ENHANCED to STANDARD and deliberately left prod untouched, to keep the prod
-// template diff-free. The cost then concentrated in the half it did not touch. Measured 2026-08-27:
-// `ECS/ContainerInsights` was 2,526 metric series and CloudWatch was $155 of a $484 monthly bill — 94% of it
-// custom-metric storage, NOT logs — and 2,048 of those series (81%) existed only because the three prod
-// clusters were ENHANCED.
+// ADR-0007 dropped NON-PROD from ENHANCED to STANDARD and deliberately left prod untouched, to keep the
+// prod template diff-free. The cost then concentrated in the half it did not touch, so the 2026-08-27
+// amendment took prod to STANDARD as well and disabled `pr-{N}` outright.
 //
-// The ENHANCED tier adds `TaskId` and `ContainerName` dimensions. `TaskId` is UNBOUNDED cardinality: each
-// task launch mints ~23 brand-new billable custom metrics which never merge with the ones the previous task
-// created. `food-service-prod` shows what that costs in practice — `FoodChangeRefresh` runs on
-// `rate(6 hours)`, so 56 of the 70 task IDs seen in a two-week window came from one scheduled batch job, and
-// that single cluster accounted for 1,812 of the 2,048 enhanced-only series.
+// What survived that was ~136 billable series — **all of them prod**. Measured 2026-08-30: an idle sandbox
+// cluster published ZERO datapoints in 24 hours and therefore cost nothing, while the three prod clusters
+// published continuously at 4.6 metric-months/day, i.e. $40.80/month (136 × $0.30) of a $296 bill.
 //
-// ## Why `pr-{N}` gets NOTHING rather than STANDARD
+// ⛔ The reason it is now off in prod is NOT "prod is unobserved" — that would be a bad reason, and it is
+// not the one. It is that **nothing anywhere consumes these metrics**:
 //
-// A preview environment is observed by its own CI smoke test and by a human reading the PR, neither of which
-// queries ECS cluster metrics. STANDARD still costs ~111 billable series per open PR (food + recipe), which
-// on 2026-08-02 meant seven PRs spinning up fourteen clusters within nine hours and taking daily CloudWatch
-// spend from $1.75 to $13.07 until they were torn down.
+//   - every ECS alarm and every target-tracking autoscaling policy reads the FREE `AWS/ECS` namespace
+//     (`CPUUtilization`), not this one;
+//   - the ALB 5xx and crash-loop alarms read `AWS/ApplicationELB`;
+//   - the sole CloudWatch dashboard (`food-data`) references neither namespace;
+//   - no code in this repository queries `ECS/ContainerInsights` — the only hits are ADR prose.
 //
-// ## Why ENHANCED is unreachable rather than left behind a flag
+// That reason does not vary by stage, which is why the stage parameter is gone rather than defaulted. A
+// function that ignores its argument still claims to be making a decision, and the next reader has to run
+// the experiment to find out that it isn't.
 //
-// A knob no caller sets is a presumptive feature (YAGNI). Nothing here needs per-container metrics today and
-// re-enabling the tier for a debugging session is a one-line edit; what is NOT cheap is leaving a ~$100/mo
-// default one typo away. So the tier is simply not offered.
+// ## What this costs, stated plainly
+//
+// Lost: per-service network/storage/task-count series and the Container Insights console view. NOT lost:
+// alarms, autoscaling, deploy health, or anything on the free namespaces. Re-enabling for a debugging
+// session is a one-line edit here — which is the whole point of the value living in one place.
+//
+// ⚠️ `AwsSolutions-ECS4` ("cluster has Container Insights enabled") now reports on every cluster. That
+// finding is ACCURATE and is deliberately left REPORTING, not suppressed: a cdk-nag suppression writes
+// `Metadata.cdk_nag.rules_to_suppress` INTO the CloudFormation resource (ADR-0013), and prod template
+// stability is what ADR-0002 and ADR-0008 stake data safety on. Same posture as ADR-0025's `L1`.
 import { ContainerInsights } from 'aws-cdk-lib/aws-ecs';
 
 /**
- * Matches an EPHEMERAL per-PR stage, using ADR-0005's delimiter-aware rule.
+ * The Container Insights tier every ECS cluster in this repository is built with.
  *
- * Deliberately the same shape as `.github/scripts/pr-scope.sh` — `pr-{N}` exactly, or `pr-{N}-…` — so that
- * "gets no Container Insights" and "is deleted when the PR closes" cannot disagree about which stages are
- * ephemeral. The delimiter is what keeps `pr-1` from matching `pr-15`, and the anchor is what keeps a named
- * stage like `preview` or `production` from reading as a PR.
+ * Pass as `containerInsightsV2` on every `ecs.Cluster`. Deliberately not a function of stage — see the
+ * module comment for the measurement and the reasoning.
  */
-const EPHEMERAL_PR_STAGE = /^pr-[1-9]\d*(?:-|$)/u;
-
-/**
- * The Container Insights tier a cluster gets, derived from its deployment stage.
- *
- * `pr-{N}` → DISABLED (ephemeral, unobserved); every named stage including **prod** → ENABLED, the STANDARD
- * tier, which keeps cluster- and service-level metrics and drops the per-task/per-container cardinality that
- * ENHANCED bills for. No stage resolves to ENHANCED.
- *
- * @param stage - Deployment stage, e.g. `prod`, `sandbox`, `pr-91`.
- * @returns The tier to pass as `containerInsightsV2`. Pure.
- */
-export function containerInsightsForStage(stage: string): ContainerInsights {
-    return EPHEMERAL_PR_STAGE.test(stage) ? ContainerInsights.DISABLED : ContainerInsights.ENABLED;
-}
+export const CONTAINER_INSIGHTS_TIER: ContainerInsights = ContainerInsights.DISABLED;

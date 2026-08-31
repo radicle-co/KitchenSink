@@ -334,11 +334,13 @@ describe('Per-stage Fargate Spot (ADR-0008)', () => {
 });
 
 /**
- * REWRITTEN 2026-08-27 — the prod case asserted `enhanced` and now asserts `enabled`. See the note on the
- * matching block in FoodServiceStack.test.ts: ADR-0007 exempted prod from the ENHANCED→STANDARD drop, and
- * that exemption became 81% of a $155/mo CloudWatch bill via the unbounded `TaskId` dimension.
+ * REWRITTEN 2026-08-30 — both cases asserted `enabled` and now assert `disabled`. See the note on the
+ * matching block in FoodServiceStack.test.ts: after the 2026-08-27 amendment the whole residual
+ * ($40.80/month, ~136 series) was the three prod clusters, and nothing anywhere reads the namespace — the
+ * ECS alarms and autoscaling use the free `AWS/ECS` metrics. The tier is now the stage-independent
+ * constant `CONTAINER_INSIGHTS_TIER`; what these assertions add is that it reaches THIS cluster.
  */
-describe('Per-stage Container Insights (ADR-0007, amended 2026-08-27)', () => {
+describe('Container Insights is off on every cluster (ADR-0007, amended 2026-08-30)', () => {
     const insightsValue = (template: Template): string => {
         const clusters = Object.values(template.findResources('AWS::ECS::Cluster'));
         const setting = (clusters[0] as any).Properties.ClusterSettings.find(
@@ -348,11 +350,11 @@ describe('Per-stage Container Insights (ADR-0007, amended 2026-08-27)', () => {
         return setting.Value;
     };
 
-    it('keeps the non-prod (test) identity cluster on STANDARD', () => {
-        expect(insightsValue(serviceTemplate)).toBe('enabled');
+    it('disables Container Insights on the non-prod (test) identity cluster', () => {
+        expect(insightsValue(serviceTemplate)).toBe('disabled');
     });
 
-    it('runs prod on the STANDARD tier, never ENHANCED', () => {
+    it('disables Container Insights on the prod cluster too, with no stage exempt', () => {
         const app = new App({
             context: {
                 'vpc-provider:account=123456789012:filter.vpc-id=vpc-12345678:region=us-east-1:returnAsymmetricSubnets=true':
@@ -399,7 +401,7 @@ describe('Per-stage Container Insights (ADR-0007, amended 2026-08-27)', () => {
             vpcId: 'vpc-12345678',
         });
 
-        expect(insightsValue(Template.fromStack(prodService))).toBe('enabled');
+        expect(insightsValue(Template.fromStack(prodService))).toBe('disabled');
     });
 });
 

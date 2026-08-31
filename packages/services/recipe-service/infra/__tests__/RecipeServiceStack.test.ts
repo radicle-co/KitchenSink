@@ -878,31 +878,37 @@ describe('the in-deploy schema-migration gate (ECS must not serve before the sch
 
 // ── ADR-0007: per-stage Container Insights ───────────────────────────────────────────────────────
 /**
- * ADDED 2026-08-27. This stack had NO Container Insights coverage while its sibling stacks (food, identity)
- * both did — and it silently carried the same `stage === 'prod' ? ENHANCED : ENABLED` ternary, so its prod
- * cluster contributed 118 of the 2,048 enhanced-only `ECS/ContainerInsights` series that made CloudWatch 32%
- * of the August 2026 bill.
+ * REWRITTEN 2026-08-30. Previously asserted `enabled` for prod and for named non-prod stages; now asserts
+ * `disabled` for EVERY stage.
  *
- * That gap is the point: the tier decision was triplicated across three stacks and asserted in two, so a
- * copy could drift without any test noticing. The decision now lives once in `containerInsightsForStage`
- * (@kitchensink/infra-security); these assertions prove the resolved tier reaches THIS stack's cluster.
+ * This is a behaviour change proving a new decision, not a weakened assertion. The 2026-08-27 amendment
+ * left ~136 billable `ECS/ContainerInsights` series, and measurement on 2026-08-30 showed all of them were
+ * the three prod clusters: an idle sandbox cluster published zero datapoints in 24h. The residual was
+ * $40.80/month for metrics NOTHING reads — every ECS alarm and autoscaling policy uses the free `AWS/ECS`
+ * namespace, the ALB alarms use `AWS/ApplicationELB`, the one dashboard references neither, and no code
+ * queries `ECS/ContainerInsights`.
+ *
+ * Because that reason is stage-independent, `containerInsightsForStage` collapsed to the constant
+ * `CONTAINER_INSIGHTS_TIER`. What these assertions still add over that constant's own suite is that the
+ * value actually REACHES `ClusterSettings` on this stack's cluster — a synth-level fact a unit test on the
+ * constant cannot observe, and the gap that let this stack drift before.
  */
-describe('Per-stage Container Insights (ADR-0007, amended 2026-08-27)', () => {
+describe('Container Insights is off on every cluster (ADR-0007, amended 2026-08-30)', () => {
     const insightsOf = (template: Template, value: string): void => {
         template.hasResourceProperties('AWS::ECS::Cluster', {
             ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: value })]),
         });
     };
 
-    it('runs the prod cluster on the STANDARD tier, never ENHANCED', () => {
-        insightsOf(synthTemplate('prod', 'prod'), 'enabled');
+    it('disables Container Insights on the prod cluster — the $40.80/month this change reclaims', () => {
+        insightsOf(synthTemplate('prod', 'prod'), 'disabled');
     });
 
-    it('disables Container Insights entirely for an ephemeral pr-{N} cluster', () => {
+    it('disables Container Insights for an ephemeral pr-{N} cluster', () => {
         insightsOf(synthTemplate('pr-7', 'sandbox'), 'disabled');
     });
 
-    it('keeps the STANDARD tier for a named non-prod stage', () => {
-        insightsOf(synthTemplate('sandbox', 'sandbox'), 'enabled');
+    it('disables Container Insights for a named non-prod stage too, with no stage exempt', () => {
+        insightsOf(synthTemplate('sandbox', 'sandbox'), 'disabled');
     });
 });

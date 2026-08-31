@@ -34,7 +34,7 @@ import {
     AcceptedNagFindings,
     NODE_LAMBDA_RUNTIME,
     acceptNagFindings,
-    containerInsightsForStage,
+    CONTAINER_INSIGHTS_TIER,
 } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
@@ -194,7 +194,7 @@ export class RecipeServiceStack extends Stack {
             // service stacks — prod and named non-prod run the STANDARD tier, `pr-{N}` runs none, and NO stage
             // resolves to ENHANCED any more. ENHANCED's unbounded `TaskId` dimension was 81% of a $155/mo
             // CloudWatch bill; see containerInsights.ts for the measurement.
-            containerInsightsV2: containerInsightsForStage(stage),
+            containerInsightsV2: CONTAINER_INSIGHTS_TIER,
             enableFargateCapacityProviders: useSpot,
         });
 

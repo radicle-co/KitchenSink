@@ -13,23 +13,23 @@
         },
         {
             "rulePriority": 2,
-            "description": "Keep the newest 200 sandbox-* preview images",
+            "description": "Keep the newest 50 sandbox-* preview images",
             "selection": {
                 "tagStatus": "tagged",
                 "tagPrefixList": ["sandbox-"],
                 "countType": "imageCountMoreThan",
-                "countNumber": 200
+                "countNumber": 50
             },
             "action": { "type": "expire" }
         },
         {
             "rulePriority": 3,
-            "description": "Keep the newest 200 pr-* preview images",
+            "description": "Keep the newest 50 pr-* preview images",
             "selection": {
                 "tagStatus": "tagged",
                 "tagPrefixList": ["pr-"],
                 "countType": "imageCountMoreThan",
-                "countNumber": 200
+                "countNumber": 50
             },
             "action": { "type": "expire" }
         }

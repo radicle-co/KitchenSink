@@ -2,7 +2,7 @@ export { AcceptedNagFindings, acceptNagFindings, type AcceptedNagFinding } from 
 export { AdvisoryAnnotationLogger } from './AdvisoryAnnotationLogger.js';
 export { AdvisoryAwsSolutionsChecks } from './AdvisoryAwsSolutionsChecks.js';
 export { attachSecurityChecks } from './attachSecurityChecks.js';
-export { containerInsightsForStage } from './containerInsights.js';
+export { CONTAINER_INSIGHTS_TIER } from './containerInsights.js';
 export { subscribeAlarmEmail } from './alarmSubscription.js';
 export { NODE_LAMBDA_RUNTIME, latestNodeRuntimeKnownToCdk } from './lambdaRuntime.js';
 export {

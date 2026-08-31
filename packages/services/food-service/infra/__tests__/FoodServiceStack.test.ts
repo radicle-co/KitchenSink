@@ -761,36 +761,38 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
 
 // ── ADR-0007: per-stage Container Insights ───────────────────────────────────────────────────────
 /**
- * REWRITTEN 2026-08-27. The prod case previously asserted `enhanced`; it now asserts `enabled`, and a
- * `disabled` case was added for `pr-{N}`.
+ * REWRITTEN 2026-08-30. Previously asserted `enabled` for prod and for named non-prod stages; now asserts
+ * `disabled` for EVERY stage.
  *
- * This is a behaviour change, not a weakened assertion. ADR-0007 left prod on the ENHANCED tier to keep the
- * prod template diff-free, and the cost it was chasing moved into that exemption: by 2026-08 the three prod
- * clusters accounted for 2,048 of 2,526 `ECS/ContainerInsights` series (81%), because ENHANCED adds the
- * unbounded-cardinality `TaskId` dimension. 1,812 of those were `food-service-prod` alone, where
- * `FoodChangeRefresh` mints a fresh task — and therefore ~23 fresh billable custom metrics — every 6 hours.
+ * This is a behaviour change proving a new decision, not a weakened assertion. The 2026-08-27 amendment
+ * left ~136 billable `ECS/ContainerInsights` series, and measurement on 2026-08-30 showed all of them were
+ * the three prod clusters: an idle sandbox cluster published zero datapoints in 24h. The residual was
+ * $40.80/month for metrics NOTHING reads — every ECS alarm and autoscaling policy uses the free `AWS/ECS`
+ * namespace, the ALB alarms use `AWS/ApplicationELB`, the one dashboard references neither, and no code
+ * queries `ECS/ContainerInsights`.
  *
- * The tier decision now lives in ONE place, `containerInsightsForStage` (@kitchensink/infra-security), whose
- * own suite proves the mapping. What these assertions add is that the resolved tier actually REACHES
- * `ClusterSettings` on this stack's cluster — a synth-level fact the resolver's unit test cannot observe.
+ * Because that reason is stage-independent, `containerInsightsForStage` collapsed to the constant
+ * `CONTAINER_INSIGHTS_TIER`. What these assertions still add over that constant's own suite is that the
+ * value actually REACHES `ClusterSettings` on this stack's cluster — a synth-level fact a unit test on the
+ * constant cannot observe, and the gap that let this stack drift before.
  */
-describe('Per-stage Container Insights (ADR-0007, amended 2026-08-27)', () => {
+describe('Container Insights is off on every cluster (ADR-0007, amended 2026-08-30)', () => {
     const insightsOf = (template: Template, value: string): void => {
         template.hasResourceProperties('AWS::ECS::Cluster', {
             ClusterSettings: Match.arrayWith([Match.objectLike({ Name: 'containerInsights', Value: value })]),
         });
     };
 
-    it('runs the prod cluster on the STANDARD tier, never ENHANCED', () => {
-        insightsOf(synthFoodTemplate('prod', 'prod'), 'enabled');
+    it('disables Container Insights on the prod cluster — the $40.80/month this change reclaims', () => {
+        insightsOf(synthFoodTemplate('prod', 'prod'), 'disabled');
     });
 
-    it('disables Container Insights entirely for an ephemeral pr-{N} cluster', () => {
+    it('disables Container Insights for an ephemeral pr-{N} cluster', () => {
         insightsOf(synthFoodTemplate('pr-7', 'sandbox'), 'disabled');
     });
 
-    it('keeps the STANDARD tier for a named non-prod stage', () => {
-        insightsOf(synthFoodTemplate('sandbox', 'sandbox'), 'enabled');
+    it('disables Container Insights for a named non-prod stage too, with no stage exempt', () => {
+        insightsOf(synthFoodTemplate('sandbox', 'sandbox'), 'disabled');
     });
 });
 

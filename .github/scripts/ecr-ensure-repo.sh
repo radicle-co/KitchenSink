@@ -18,6 +18,13 @@
 # Verify any change with `aws ecr start-lifecycle-policy-preview` before applying it. The preview reports
 # exactly which images a policy would expire, and it is the only way to know a retention number is safe.
 #
+# AMENDED 2026-08-30 — retention 200 -> 50. Re-measured by preview against the live repositories before
+# applying: 450 images and 272 GB selected (150 per repository), ECR $38.64 -> $11.40/month, and ZERO
+# prod-shaped tags among them — the running releases (`kitchensink-identity:1422c4b8…`,
+# `kitchensink-{food,recipes}:67f56925…`) were absent from all three expiry sets. keep-200 was chosen when
+# the repositories held 716 GB and the safe floor was unknown; the structural exclusion is what makes 50 as
+# safe as 200, which `packages/infra/global/__tests__/ecrRetentionPolicy.test.ts` now asserts directly.
+#
 #   ecr-ensure-repo.sh <repositoryName>
 set -euo pipefail
 

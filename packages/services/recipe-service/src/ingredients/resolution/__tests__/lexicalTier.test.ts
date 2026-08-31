@@ -106,7 +106,7 @@ describe('createLexicalTier — the adapter', () => {
         );
 
         expect(outcome).toMatchObject({ kind: 'resolved', foodId: 'F-FLOUR' });
-        expect(search).toHaveBeenCalledWith(CALLER, 'flour', expect.any(Number));
+        expect(search).toHaveBeenCalledWith(CALLER, 'flour', expect.any(Number), { withNutrition: true });
     });
 
     it('retries ONCE through the synonym map on an empty first pass, and says so in the evidence', async () => {

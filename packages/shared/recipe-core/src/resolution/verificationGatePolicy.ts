@@ -52,6 +52,7 @@
  * attractors were sets that agreed with each other and were all wrong. Inter-candidate agreement is not
  * correctness.
  */
+import { shouldSkipVerification, type BandAuthority } from './bandPolicy.js';
 
 /** What the model is asked about. */
 export const VERIFICATION_ASPECTS = ['identity', 'quantity'] as const;
@@ -218,6 +219,17 @@ export interface VerificationGateInput {
     readonly evidence: IdentityEvidence;
     /** The bands, injected. */
     readonly thresholds: VerificationThresholds;
+    /**
+     * The earned authority of the band this line's ranked resolution was made in, or `undefined` when
+     * there is none — no lexical resolution, an unread band table, or a band that never crossed a
+     * threshold (plan U3/U4, KTD-A).
+     *
+     * ⛔ A REQUIRED key carrying `undefined`, the `sourceLine` discipline: every caller must decide what it
+     * knows about authority, because an omitted field would silently mean "no band gating" — the exact
+     * pre-KTD-A behavior this input exists to retire. A SHADOW-sampled line passes `undefined` on purpose:
+     * the coin's whole job is to make the gate ask identity anyway.
+     */
+    readonly bandAuthority: BandAuthority | undefined;
 }
 
 /** Whether the shortlist's candidates agree on energy and the macronutrients per 100 g. */
@@ -379,8 +391,12 @@ function identityEstablished(
     evidence: IdentityEvidence,
     thresholds: VerificationThresholds,
     nutrientAgreement: NutrientAgreement,
+    bandAuthority: BandAuthority | undefined,
 ): boolean {
     if (evidence.kind === 'curated-exact') {
+        // A human asserted this phrase means this food. Bands govern the LEXICAL door only — curated
+        // evidence needs no earned authority, and gating it would let a machine's measured record outrank
+        // a human's ruling (R19 inverted).
         return true;
     }
 
@@ -391,7 +407,16 @@ function identityEstablished(
     // full tier (measured 2026-08-29). Requiring agreement as the second conjunct bounds the damage of any
     // false catch to candidates within the nutrient tolerance of each other — and an `unknown` agreement
     // fails toward verify, because missing data cannot affirm anything.
-    return margin !== undefined && margin >= thresholds.wideMarginScore && nutrientAgreement === 'agree';
+    // ⛔ AND, since plan U4 (KTD-A), the THIRD conjunct: an AUTHORIZED band. The floors above are
+    // eligibility, not authority — nothing is excused until the band this confidence shape belongs to has
+    // EARNED >= 99.5% measured gate agreement over >= 200 observations (bandPolicy.ts). Day one every band
+    // is unknown, so every ranked line verifies identity: earned autonomy starts at zero.
+    return (
+        margin !== undefined &&
+        margin >= thresholds.wideMarginScore &&
+        nutrientAgreement === 'agree' &&
+        shouldSkipVerification(bandAuthority)
+    );
 }
 
 /**
@@ -446,6 +471,7 @@ export function decideVerification(input: VerificationGateInput): VerificationDe
         input.evidence,
         input.thresholds,
         observations.nutrientAgreement,
+        input.bandAuthority,
     )
         ? ['quantity']
         : ['identity', 'quantity'];

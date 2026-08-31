@@ -50,8 +50,16 @@ const input = (overrides: Partial<VerificationGateInput> = {}): VerificationGate
     sourceLine: LINE,
     evidence: rankedEvidence([candidate(0.9), candidate(0.2)]),
     thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
+    bandAuthority: undefined,
     ...overrides,
 });
+
+/**
+ * An authorized band, for cases isolating the OTHER conjuncts (margin, nutrient agreement). Under KTD-A
+ * (plan U4) the ranked skip needs floors AND authority, so a test probing one conjunct must satisfy the
+ * rest — otherwise it passes for the wrong reason and the conjunct under test is unexercised.
+ */
+const AUTHORIZED = { state: 'authorized', epoch: 1 } as const;
 
 /** The aspects a decision asks about, or `[]` when it does not verify. */
 function aspectsOf(decision: ReturnType<typeof decideVerification>): readonly string[] {
@@ -82,8 +90,16 @@ describe('identity is skipped only on identity evidence', () => {
         expect(aspectsOf(decision)).toEqual(['quantity']);
     });
 
-    it('is skipped for a wide margin over TWO OR MORE scored candidates', () => {
-        const decision = decideVerification(input({ evidence: rankedEvidence([candidate(0.95), candidate(0.1)]) }));
+    it('is skipped for a wide margin over TWO OR MORE scored candidates — once a band has EARNED it', () => {
+        // ⚠️ REWRITTEN for plan U4 (KTD-A): this case used to pass with no band at all, which was the
+        // pre-earned-autonomy behavior. The floors (margin + nutrient agreement) are now ELIGIBILITY, and
+        // an authorized band is the third conjunct — the no-band variant is asserted in the KTD-A block.
+        const decision = decideVerification(
+            input({
+                evidence: rankedEvidence([candidate(0.95), candidate(0.1)]),
+                bandAuthority: { state: 'authorized', epoch: 1 },
+            }),
+        );
 
         expect(aspectsOf(decision)).toEqual(['quantity']);
     });
@@ -171,7 +187,9 @@ describe('identity is skipped only on identity evidence', () => {
         // margin 0 — a genuine tie, which is the least trustworthy shortlist of all
         [0.5, 0.5, 'identity verified'],
     ])('top %s against next %s ⇒ %s', (top, next, expected) => {
-        const decision = decideVerification(input({ evidence: rankedEvidence([candidate(top), candidate(next)]) }));
+        const decision = decideVerification(
+            input({ evidence: rankedEvidence([candidate(top), candidate(next)]), bandAuthority: AUTHORIZED }),
+        );
 
         expect(aspectsOf(decision).includes('identity') ? 'identity verified' : 'identity skipped').toBe(expected);
     });
@@ -185,7 +203,11 @@ describe('identity is skipped only on identity evidence', () => {
         // might not have needed. Contrast the spend counter, which is integer micro-dollars precisely because
         // there the same slop would accumulate against a dollar threshold.
         const decide = (top: number, next: number): readonly string[] =>
-            aspectsOf(decideVerification(input({ evidence: rankedEvidence([candidate(top), candidate(next)]) })));
+            aspectsOf(
+                decideVerification(
+                    input({ evidence: rankedEvidence([candidate(top), candidate(next)]), bandAuthority: AUTHORIZED }),
+                ),
+            );
 
         expect(decide(1.0, 0.8)).toContain('identity');
         expect(decide(0.4, 0.2)).not.toContain('identity');
@@ -240,7 +262,10 @@ describe('nutrient equivalence is the SECOND CONJUNCT of the identity skip (plan
     });
 
     it('wide margin WITH agreement still skips identity — the conjunction, positive arm', () => {
-        const decision = decideVerification(input({ evidence: rankedEvidence([candidate(1), candidate(0)]) }));
+        // Under an AUTHORIZED band (KTD-A's third conjunct) — this case isolates the first two.
+        const decision = decideVerification(
+            input({ evidence: rankedEvidence([candidate(1), candidate(0)]), bandAuthority: AUTHORIZED }),
+        );
 
         expect(aspectsOf(decision)).not.toContain('identity');
         expect(aspectsOf(decision)).toContain('quantity');
@@ -398,5 +423,45 @@ describe('the decision as a value', () => {
 
     it('publishes its provisional thresholds as UNCALIBRATED', () => {
         expect(PROVISIONAL_VERIFICATION_THRESHOLDS.calibrated).toBe(false);
+    });
+});
+
+describe('KTD-A — the ranked skip branch is GATED on band authority (plan U4)', () => {
+    const WIDE = rankedEvidence([candidate(0.95), candidate(0.1)]);
+
+    it('⛔ a wide-margin, nutrient-agreeing shortlist with NO band authority verifies identity anyway', () => {
+        // Day-one behavior of earned autonomy: nothing is excused until a band has EARNED it. The salt and
+        // vanilla-class wide-margin rows verify too — no bands earned yet.
+        const decision = decideVerification(input({ evidence: WIDE, bandAuthority: undefined }));
+
+        expect(aspectsOf(decision)).toEqual(['identity', 'quantity']);
+    });
+
+    it('an AUTHORIZED band together with the KTD-3 floors excuses identity — and only identity', () => {
+        const decision = decideVerification(
+            input({ evidence: WIDE, bandAuthority: { state: 'authorized', epoch: 1 } }),
+        );
+
+        expect(aspectsOf(decision)).toEqual(['quantity']);
+    });
+
+    it('⛔ an authorized band WITHOUT the floors excuses nothing — authority is not a bypass of D4a', () => {
+        const decision = decideVerification(
+            input({ evidence: rankedEvidence([candidate(1)]), bandAuthority: { state: 'authorized', epoch: 1 } }),
+        );
+
+        expect(aspectsOf(decision)).toEqual(['identity', 'quantity']);
+    });
+
+    it('a revoked band verifies identity — revocation wins races', () => {
+        const decision = decideVerification(input({ evidence: WIDE, bandAuthority: { state: 'revoked', epoch: 1 } }));
+
+        expect(aspectsOf(decision)).toEqual(['identity', 'quantity']);
+    });
+
+    it('curated evidence stays excused with no band at all — bands govern the LEXICAL door only', () => {
+        const decision = decideVerification(input({ evidence: curatedExactEvidence(), bandAuthority: undefined }));
+
+        expect(aspectsOf(decision)).toEqual(['quantity']);
     });
 });

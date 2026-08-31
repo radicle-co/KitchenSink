@@ -248,6 +248,32 @@ async function recordQuietly(deps: VerificationDeps, row: Parameters<VerdictStor
 }
 
 /**
+ * Read band authority, degrading any failure to `undefined`.
+ *
+ * The production implementation already degrades internally, but KTD-B's stale-read rule belongs to the
+ * HANDLER: no injected implementation may be able to fail a message over an authority read whose safe
+ * answer — verify identity — is always available.
+ *
+ * @param deps - The handler's collaborators.
+ * @param foodId - The line's food.
+ * @returns The authority, or `undefined`. @sideEffect Reads the band tables.
+ */
+async function authorityQuietly(
+    deps: VerificationDeps,
+    foodId: string,
+): Promise<Awaited<ReturnType<BandFeedback['authorityForFood']>>> {
+    try {
+        return await deps.bands.authorityForFood(foodId);
+    } catch (error) {
+        logger.warn('band-authority read failed; the line verifies identity', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+
+        return undefined;
+    }
+}
+
+/**
  * Report a terminal verdict to the band store, swallowing any failure.
  *
  * The production implementation already swallows internally, but the guarantee belongs to the HANDLER: by
@@ -278,10 +304,14 @@ async function reportBandQuietly(deps: VerificationDeps, input: Parameters<BandF
  */
 export async function processVerification(deps: VerificationDeps, message: VerifyIngredientLineMessage): Promise<void> {
     // 1. Re-run the pure policy. ⛔ The message carries INPUTS, never conclusions: a producer bug, an older
-    //    producer release or a replayed message must not be able to skip an identity check silently.
+    //    producer release or a replayed message must not be able to skip an identity check silently. Band
+    //    authority follows the same rule (KTD-A): the worker reads its OWN — a shadow-sampled message
+    //    deliberately reads none, because the coin's whole job is to ask identity anyway.
+    const bandAuthority = message.shadowSample === true ? undefined : await authorityQuietly(deps, message.foodId);
     const decision = decideVerification({
         sourceLine: message.sourceLine,
         evidence: evidenceFrom(message),
+        bandAuthority,
         thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
     });
 
@@ -438,7 +468,12 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         // so a model that cannot answer leaves the line exactly as the gate found it.
         logger.warn('verification answer was unreadable', { reason: reading.reason });
         await recordQuietly(deps, verdictRow(message, plan, decision.aspects, 'abstain', 'low', 'inconclusive', key));
-        await reportBandQuietly(deps, { foodId: message.foodId, band: 'inconclusive', aspects: decision.aspects });
+        await reportBandQuietly(deps, {
+            foodId: message.foodId,
+            band: 'inconclusive',
+            aspects: decision.aspects,
+            shadowSample: message.shadowSample === true,
+        });
 
         return;
     }
@@ -448,7 +483,12 @@ export async function processVerification(deps: VerificationDeps, message: Verif
         deps,
         verdictRow(message, plan, decision.aspects, reading.outcome.verdict, reading.outcome.certainty, band, key),
     );
-    await reportBandQuietly(deps, { foodId: message.foodId, band, aspects: decision.aspects });
+    await reportBandQuietly(deps, {
+        foodId: message.foodId,
+        band,
+        aspects: decision.aspects,
+        shadowSample: message.shadowSample === true,
+    });
 
     // ⛔ A MEMO ONLY WHEN IDENTITY WAS ACTUALLY CHECKED. `ingredient_resolution_memos` records that a MODEL
     // agreed this phrase means this food, and it then answers for every future cook. An `agree` from a run

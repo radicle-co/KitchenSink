@@ -48,6 +48,15 @@ export interface CatalogHit {
     readonly name: string;
     /** food-service's relevance score (higher is better). */
     readonly score: number;
+    /**
+     * Per-100g macros, present only on an enriched search (`withNutrition` — plan U4b, the lexical tier's
+     * path) and only where the catalog stores a qualifying row. Absent means UNKNOWN, never zero. Named in
+     * `ScoredCandidate`'s spelling so the tier's projection is a field-for-field copy.
+     */
+    readonly energyKcalPer100g?: number | undefined;
+    readonly proteinGPer100g?: number | undefined;
+    readonly fatGPer100g?: number | undefined;
+    readonly carbohydrateGPer100g?: number | undefined;
 }
 
 /** The facts {@link blendIngredientSuggestions} reduces into one sectioned, deduped suggestion list. */

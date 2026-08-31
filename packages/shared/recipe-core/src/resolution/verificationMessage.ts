@@ -96,7 +96,7 @@ export const MAX_VERIFICATION_FOOD_NAME_LENGTH = 300;
 export const MAX_VERIFICATION_SHORTLIST = 25;
 
 /** One scored candidate as the lexical tier ranked it. Mirrors `ScoredCandidate` in `@kitchensink/recipe-core`. */
-const scoredCandidateSchema = z.object({
+export const scoredCandidateSchema = z.object({
     foodId: z.string().min(1).max(64),
     /**
      * The tier's own ordinal score.
@@ -239,6 +239,13 @@ export const verifyIngredientLineMessageSchema = z.object({
     shortlist: z.array(scoredCandidateSchema).max(MAX_VERIFICATION_SHORTLIST),
     /** ISO 8601 timestamp of when verification was requested (observational). */
     requestedAt: isoInstant(),
+    /**
+     * Whether this line was SHADOW-SAMPLED (plan U3/U4): its band held authority, and the producer's coin
+     * chose to ask identity anyway so the band's measured record keeps accruing. The worker reads it for
+     * exactly two things — it treats authority as absent when re-running the gate policy, and it records
+     * the resulting observation under source `shadow` rather than `gate`. Absent means an ordinary send.
+     */
+    shadowSample: z.boolean().optional(),
 });
 
 /** The verification gate's message contract. */

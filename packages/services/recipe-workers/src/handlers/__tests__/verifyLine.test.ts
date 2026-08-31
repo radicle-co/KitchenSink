@@ -55,6 +55,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         recordVerdict: ReturnType<typeof vi.fn>;
         rememberAgreement: ReturnType<typeof vi.fn>;
         bandRecord: ReturnType<typeof vi.fn>;
+        bandAuthority: ReturnType<typeof vi.fn>;
         emit: ReturnType<typeof vi.fn>;
     };
 } {
@@ -65,6 +66,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         recordVerdict: vi.fn().mockResolvedValue(undefined),
         rememberAgreement: vi.fn().mockResolvedValue(undefined),
         bandRecord: vi.fn().mockResolvedValue(undefined),
+        bandAuthority: vi.fn().mockResolvedValue(undefined),
         emit: vi.fn(),
     };
 
@@ -75,7 +77,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         ledger: { reserve: spies.reserve, settle: spies.settle },
         bedrock: { converse: spies.converse },
         store: { recordVerdict: spies.recordVerdict, rememberAgreement: spies.rememberAgreement },
-        bands: { record: spies.bandRecord },
+        bands: { record: spies.bandRecord, authorityForFood: spies.bandAuthority },
         emit: spies.emit,
         now: () => new Date('2026-08-21T10:00:01.000Z'),
         ...overrides,
@@ -635,11 +637,13 @@ describe('band feedback (plan U3)', () => {
         const d = deps();
         await processVerification(d, MESSAGE);
 
-        expect(d.spies.bandRecord).toHaveBeenCalledWith({
-            foodId: MESSAGE.foodId,
-            band: 'verified',
-            aspects: expect.arrayContaining(['identity']),
-        });
+        expect(d.spies.bandRecord).toHaveBeenCalledWith(
+            expect.objectContaining({
+                foodId: MESSAGE.foodId,
+                band: 'verified',
+                aspects: expect.arrayContaining(['identity']),
+            }),
+        );
         expect(d.spies.bandRecord.mock.invocationCallOrder[0]!).toBeGreaterThan(
             d.spies.recordVerdict.mock.invocationCallOrder[0]!,
         );
@@ -663,5 +667,66 @@ describe('band feedback (plan U3)', () => {
         await processVerification(d, MESSAGE);
 
         expect(d.spies.bandRecord).toHaveBeenCalledWith(expect.objectContaining({ band: 'inconclusive' }));
+    });
+});
+
+describe('band authority at the worker (plan U4b, KTD-A)', () => {
+    const AGREEING = [
+        {
+            foodId: '01JFOOD000000000000000000',
+            score: 0.9,
+            energyKcalPer100g: 364,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+            carbohydrateGPer100g: 76,
+        },
+        {
+            foodId: '01JFOOD000000000000000001',
+            score: 0.2,
+            energyKcalPer100g: 364,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+            carbohydrateGPer100g: 76,
+        },
+    ];
+
+    it('reads its OWN authority — never the message — and an authorized band narrows to quantity', async () => {
+        const d = deps();
+        d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
+        await processVerification(d, { ...MESSAGE, shortlist: AGREEING });
+
+        expect(d.spies.bandAuthority).toHaveBeenCalledWith(MESSAGE.foodId);
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['quantity']);
+    });
+
+    it('day one — no authority — a ranked line asks identity and quantity', async () => {
+        const d = deps();
+        await processVerification(d, { ...MESSAGE, shortlist: AGREEING });
+
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
+            expect.arrayContaining(['identity', 'quantity']),
+        );
+    });
+
+    it('⛔ a SHADOW-sampled message never consults authority — the coin already decided to ask', async () => {
+        const d = deps();
+        d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
+        await processVerification(d, { ...MESSAGE, shortlist: AGREEING, shadowSample: true });
+
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
+            expect.arrayContaining(['identity', 'quantity']),
+        );
+        expect(d.spies.bandRecord).toHaveBeenCalledWith(expect.objectContaining({ shadowSample: true }));
+    });
+
+    it('⚠️ an authority-read failure verifies identity — the stale-read direction is fixed', async () => {
+        const d = deps();
+        d.spies.bandAuthority.mockRejectedValue(new Error('band table unreachable'));
+
+        await expect(processVerification(d, { ...MESSAGE, shortlist: AGREEING })).resolves.toBeUndefined();
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
+            expect.arrayContaining(['identity', 'quantity']),
+        );
     });
 });

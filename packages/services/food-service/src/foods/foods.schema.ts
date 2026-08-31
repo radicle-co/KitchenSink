@@ -336,6 +336,15 @@ export const searchResultViewSchema = z.object({
     name: z.string().nullable(),
     /** Relevance score (trigram similarity; `1` for a barcode/external-key crosswalk hit). */
     score: z.number(),
+    /**
+     * Per-100g macros, present only when the caller asked (`withNutrition=true`) AND the food has a
+     * qualifying stored row — absent is "unknown", never zero (plan U4b: recipe-service's verification
+     * gate compares candidates' nutrients before an identity skip can be earned).
+     */
+    caloriesPer100g: z.number().finite().optional(),
+    proteinGPer100g: z.number().finite().optional(),
+    carbsGPer100g: z.number().finite().optional(),
+    fatGPer100g: z.number().finite().optional(),
 });
 
 export type SearchResultView = z.infer<typeof searchResultViewSchema>;
@@ -510,6 +519,8 @@ export type ResolveFoodRequest = z.infer<typeof resolveFoodRequestSchema>;
  */
 export const searchFoodQuerySchema = z.strictObject({
     query: z.string().max(MAX_FOOD_NAME_LENGTH).trim().min(1),
+    /** Opt-in per-100g macro enrichment (plan U4b). A query param, so the value is the string 'true'. */
+    withNutrition: z.literal('true').optional(),
 });
 
 export type SearchFoodQuery = z.infer<typeof searchFoodQuerySchema>;

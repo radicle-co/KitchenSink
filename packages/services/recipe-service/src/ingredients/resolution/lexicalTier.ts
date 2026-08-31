@@ -133,9 +133,16 @@ export function decideLexicalTier(phrase: string, hits: readonly CatalogHit[]): 
     const runnerUp = hits[1];
     const margin = runnerUp === undefined ? undefined : top.score - runnerUp.score;
     const rung = rungOf(phrase, top);
-    const shortlist: ScoredCandidate[] = hits
-        .slice(0, LEXICAL_SHORTLIST_LIMIT)
-        .map((hit) => ({ foodId: hit.foodId, score: hit.score }));
+    const shortlist: ScoredCandidate[] = hits.slice(0, LEXICAL_SHORTLIST_LIMIT).map((hit) => ({
+        foodId: hit.foodId,
+        score: hit.score,
+        // Absent stays absent — the gate reads a missing macro as UNKNOWN agreement, which fails toward
+        // verify (D4a's second conjunct can only ever be satisfied by real stored values).
+        ...(hit.energyKcalPer100g === undefined ? {} : { energyKcalPer100g: hit.energyKcalPer100g }),
+        ...(hit.proteinGPer100g === undefined ? {} : { proteinGPer100g: hit.proteinGPer100g }),
+        ...(hit.fatGPer100g === undefined ? {} : { fatGPer100g: hit.fatGPer100g }),
+        ...(hit.carbohydrateGPer100g === undefined ? {} : { carbohydrateGPer100g: hit.carbohydrateGPer100g }),
+    }));
 
     return {
         kind: 'resolved',
@@ -167,7 +174,9 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
          * @sideEffect One or two authenticated, short-timeout food-service search requests.
          */
         resolve: async (query, context) => {
-            const first = await gateway.search(context.caller, query.phrase, LEXICAL_SHORTLIST_LIMIT);
+            const first = await gateway.search(context.caller, query.phrase, LEXICAL_SHORTLIST_LIMIT, {
+                withNutrition: true,
+            });
 
             if (first.availability === 'disabled') {
                 return { kind: 'pass', tier: 'lexical', reason: 'The catalog blend is disabled by the operator.' };
@@ -187,7 +196,9 @@ export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
                 return decideLexicalTier(query.phrase, first.hits);
             }
 
-            const second = await gateway.search(context.caller, reformulated, LEXICAL_SHORTLIST_LIMIT);
+            const second = await gateway.search(context.caller, reformulated, LEXICAL_SHORTLIST_LIMIT, {
+                withNutrition: true,
+            });
 
             if (second.availability !== 'ok' || second.hits.length === 0) {
                 // The retry is best-effort: a degraded or empty second pass falls back to whatever the

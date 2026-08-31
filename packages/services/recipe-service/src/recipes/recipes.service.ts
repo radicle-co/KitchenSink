@@ -11,7 +11,7 @@
  *
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
-import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import { deriveDisplayName } from '@kitchensink/identity-core';
 import {
     computeRecipeNutrition,
@@ -69,9 +69,17 @@ import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/createRecipe.dto.js';
 import type { CreateRecipeIngredientInput } from './recipes.schema.js';
 import { carryForwardTranscription } from './domain/transcriptionCarryForward.js';
-import { buildVerificationRequests, type VerifiableLine } from './domain/verificationRequests.js';
+import {
+    buildVerificationRequests,
+    type VerifiableLine,
+    bandKeyOf,
+    type BandConsultation,
+} from './domain/verificationRequests.js';
 import { IngredientResolutionsDal } from '../ingredients/resolution/ingredientResolutions.dal.js';
-import type { ResolutionTierId } from '../ingredients/resolution/resolutionCascade.js';
+import type { LatestResolution } from '../ingredients/resolution/ingredientResolutions.dal.js';
+import { ResolutionBandsDal } from '../ingredients/resolution/resolutionBands.dal.js';
+import { bandKeyText } from '@kitchensink/recipe-core/resolution/band-authority-store';
+import { shadowRateFor } from '@kitchensink/recipe-core/resolution/band-policy';
 import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
@@ -131,7 +139,7 @@ interface ResolvedIngredientLines {
 function storedLineToVerifiable(
     row: RecipeIngredientRow,
     catalog: ReadonlyMap<string, Ingredient>,
-    tiers: ReadonlyMap<string, ResolutionTierId>,
+    resolutions: ReadonlyMap<string, LatestResolution>,
 ): VerifiableLine {
     const ingredient = catalog.get(row.ingredientId);
 
@@ -150,11 +158,14 @@ function storedLineToVerifiable(
         // line whose source said `one gill` — a false DISAGREE against a line we parsed correctly — AND would
         // key the resulting verdict the pre-0027 way, so the corrected line could never find it.
         statedMeasure: statedMeasureFromColumns(row),
-        // U2: the latest recorded cascade tier for this line's ingredient — absence means no resolution
-        // event exists, which the producer maps to `unattributed`.
-        resolutionTier: tiers.get(row.ingredientId),
+        // U2/U4: the latest recorded resolution EVENT for this line's ingredient — absence means none
+        // exists, which the producer maps to `unattributed`.
+        resolution: resolutions.get(row.ingredientId),
     };
 }
+
+/** DI token for the shadow coin's RNG — injected so the band shadow sampling is testable. */
+export const RECIPES_SHADOW_RNG = 'RECIPES_SHADOW_RNG';
 
 /** DI token for the recipes vertical's own `PhotosDal` instance (embeds a recipe's photos in the detail). */
 export const RECIPE_PHOTOS_DAL = 'RECIPE_PHOTOS_DAL';
@@ -652,6 +663,15 @@ export class RecipesService {
         // U2, LAST and OPTIONAL like IngredientsService's tiers: a service constructed without the store
         // (unit fixtures) degrades to `unattributed` evidence — the pre-U2 behaviour, never an error.
         private readonly ingredientResolutions?: IngredientResolutionsDal,
+        // U4, optional for the same reason: without it no authority is consulted and no skip is recorded.
+        // ⚠️ @Optional + a VALUE import: this class is registered by reflection, so the param type must be
+        // a runtime class Nest can resolve (a type-only import emits `Object` into design:paramtypes and
+        // the app fails to BOOT — observed, not theorized).
+        @Optional() private readonly resolutionBands?: ResolutionBandsDal,
+        // Injected so the shadow coin is testable; production falls back to Math.random — the coin needs
+        // no cryptographic strength, only an unbiased rate. ⚠️ Token-injected: a bare `() => number`
+        // param emits `Function` into design:paramtypes, which Nest cannot resolve.
+        @Optional() @Inject(RECIPES_SHADOW_RNG) private readonly rng?: () => number,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
@@ -1184,12 +1204,12 @@ export class RecipesService {
         catalog: ReadonlyMap<string, Ingredient>,
         previous: readonly RecipeIngredientRow[],
     ): Promise<void> {
-        // U2: the latest resolution event per ingredient, batched over every line this call names. Inside
-        // the same never-throws boundary as the enqueue — a failed read degrades to `unattributed`.
-        const tiers = await (
+        // U2/U4: the latest resolution event per ingredient, batched over every line this call names.
+        // Inside the same never-throws boundary as the enqueue — a failed read degrades to `unattributed`.
+        const resolutions = await (
             this.ingredientResolutions === undefined
-                ? Promise.resolve(new Map<string, ResolutionTierId>())
-                : this.ingredientResolutions.latestTiersByIngredientIds(
+                ? Promise.resolve(new Map<string, LatestResolution>())
+                : this.ingredientResolutions.latestResolutionsByIngredientIds(
                       [...lines, ...previous].map((row) => row.ingredientId),
                   )
         ).catch((error: unknown) => {
@@ -1198,16 +1218,18 @@ export class RecipesService {
                 error instanceof Error ? error.stack : String(error),
             );
 
-            return new Map<string, ResolutionTierId>();
+            return new Map<string, LatestResolution>();
         });
 
-        const { requests, unasked } = buildVerificationRequests({
+        const plan = buildVerificationRequests({
             recipeId,
-            lines: lines.map((row) => storedLineToVerifiable(row, catalog, tiers)),
-            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, catalog, tiers)),
+            lines: lines.map((row) => storedLineToVerifiable(row, catalog, resolutions)),
+            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, catalog, resolutions)),
             thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
             requestedAt: new Date().toISOString(),
+            bands: await this.consultBands(resolutions),
         });
+        const { requests, unasked } = plan;
 
         // ⛔ An over-cap line is the ONE unasked reason worth a log line. `authored` and
         // `no-catalog-identity` are the normal, dominant cases and would drown it; `over-cap` means the
@@ -1241,6 +1263,75 @@ export class RecipesService {
                 error instanceof Error ? error.stack : String(error),
             );
         }
+
+        // KTD-A: identity settlements granted by band authority this save, persisted so revocation can
+        // re-verify them (R14). Quietly — a lost skip row costs one re-verification, never a save.
+        for (const skip of plan.bandSkips) {
+            try {
+                await this.resolutionBands?.recordSkip(skip.band, skip.epoch, skip.message);
+            } catch (error) {
+                this.logger.warn(
+                    'band-skip record failed; the settlement is unlogged for the drain',
+                    error instanceof Error ? error.stack : String(error),
+                );
+            }
+        }
+    }
+
+    /**
+     * Load band authority (and roll the shadow coin) for every complete band key among this save's
+     * resolution events.
+     *
+     * ⚠️ Quiet and total: with no bands DAL, or on any read failure, the map is simply missing entries —
+     * and an absent consultation verifies identity, the safe direction (KTD-B's stale-read rule).
+     *
+     * @param resolutions - The latest events, by ingredient id.
+     * @returns Consultations by `bandKeyText`. @sideEffect Band-authority reads; one RNG roll per
+     *   authorized band.
+     */
+    private async consultBands(
+        resolutions: ReadonlyMap<string, LatestResolution>,
+    ): Promise<ReadonlyMap<string, BandConsultation>> {
+        const consultations = new Map<string, BandConsultation>();
+
+        if (this.resolutionBands === undefined) {
+            return consultations;
+        }
+
+        for (const resolution of resolutions.values()) {
+            const key = bandKeyOf(resolution);
+
+            if (key === undefined) {
+                continue;
+            }
+
+            const text = bandKeyText(key);
+
+            if (consultations.has(text)) {
+                continue;
+            }
+
+            try {
+                const authority = await this.resolutionBands.authorityFor(key);
+                let shadow = false;
+
+                if (authority?.state === 'authorized') {
+                    // The ramped shadow rate: 50% during the burn-in after a grant, 5% steady — what keeps
+                    // an authorized band's measured record accruing (plan U3).
+                    const observed = await this.resolutionBands.observationsSinceGrant(key);
+                    shadow = (this.rng ?? Math.random)() < shadowRateFor(observed);
+                }
+
+                consultations.set(text, { authority, shadow });
+            } catch (error) {
+                this.logger.warn(
+                    'band-authority read failed; the affected lines verify identity',
+                    error instanceof Error ? error.stack : String(error),
+                );
+            }
+        }
+
+        return consultations;
     }
 
     /**

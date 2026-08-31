@@ -113,6 +113,19 @@ describe.skipIf(!hasDatabaseUrl)('ResolutionBandsDal (migration 0036)', () => {
         expect(await dal.authorityFor(BAND)).toStrictEqual({ state: 'revoked', epoch: 1 });
     });
 
+    it('counts observations SINCE the current grant only — the shadow ramp input', async () => {
+        // Two observations before any grant: they must not count toward the burn-in.
+        await dal.recordObservation(BAND, 'agree', 'gate');
+        await dal.recordObservation(BAND, 'agree', 'gate');
+        await dal.applyTransition(BAND, 'authorize');
+        await dal.recordObservation(BAND, 'agree', 'shadow');
+
+        expect(await dal.observationsSinceGrant(BAND)).toBe(1);
+        // A band with no grant at all counts zero, whatever it has observed.
+        await dal.recordObservation(OTHER_BAND, 'agree', 'gate');
+        expect(await dal.observationsSinceGrant(OTHER_BAND)).toBe(0);
+    });
+
     it('the drain respects its batch limit', async () => {
         await dal.applyTransition(BAND, 'authorize');
         await dal.recordSkip(BAND, 1, { verificationKey: 'a' });

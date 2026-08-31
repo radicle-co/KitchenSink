@@ -1112,6 +1112,14 @@ components:
           type: string
         score:
           type: number
+        caloriesPer100g:
+          type: number
+        proteinGPer100g:
+          type: number
+        carbsGPer100g:
+          type: number
+        fatGPer100g:
+          type: number
       required:
         - id
         - name

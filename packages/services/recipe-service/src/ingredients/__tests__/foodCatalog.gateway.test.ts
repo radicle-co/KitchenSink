@@ -169,7 +169,7 @@ describe('FoodCatalogGateway', () => {
             await gateway.search(CALLER, 'chicken breast', 10);
 
             expect(search).toHaveBeenCalledTimes(1);
-            expect(search).toHaveBeenCalledWith('chicken breast');
+            expect(search).toHaveBeenCalledWith('chicken breast', false);
         });
 
         it('reports `ok` with no hits when food-service has no local match', async () => {

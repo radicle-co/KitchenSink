@@ -187,7 +187,7 @@ describe('FoodsController.getStatus / getCandidates / search', () => {
 
         await ctx.controller.search({ query: 'chicken' });
 
-        expect(ctx.service.search).toHaveBeenCalledWith('chicken');
+        expect(ctx.service.search).toHaveBeenCalledWith('chicken', false);
     });
 });
 

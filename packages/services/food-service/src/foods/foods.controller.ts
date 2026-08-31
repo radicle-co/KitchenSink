@@ -110,7 +110,7 @@ export class FoodsController {
      */
     @Get('search')
     public async search(@Query() query: SearchFoodQueryDto): Promise<SearchResponse> {
-        return this.foodsService.search(query.query);
+        return this.foodsService.search(query.query, query.withNutrition === 'true');
     }
 
     /**

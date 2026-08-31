@@ -120,7 +120,17 @@ function toCatalogHit(row: SearchResultView): CatalogHit | null {
         return null;
     }
 
-    return { foodId: row.id, name, score: typeof row.score === 'number' ? row.score : 0 };
+    return {
+        foodId: row.id,
+        name,
+        score: typeof row.score === 'number' ? row.score : 0,
+        // Present only on an enriched search; the boundary renames food's projection fields into
+        // `ScoredCandidate`'s spelling (energy/carbohydrate) so nothing downstream translates again.
+        ...(typeof row.caloriesPer100g === 'number' ? { energyKcalPer100g: row.caloriesPer100g } : {}),
+        ...(typeof row.proteinGPer100g === 'number' ? { proteinGPer100g: row.proteinGPer100g } : {}),
+        ...(typeof row.fatGPer100g === 'number' ? { fatGPer100g: row.fatGPer100g } : {}),
+        ...(typeof row.carbsGPer100g === 'number' ? { carbohydrateGPer100g: row.carbsGPer100g } : {}),
+    };
 }
 
 export class FoodCatalogGateway {
@@ -153,7 +163,12 @@ export class FoodCatalogGateway {
      * @returns The ranked hits plus whether the catalog contributed. Never throws.
      * @sideEffect Performs one authenticated, short-timeout food-service HTTP request (unless short-circuited).
      */
-    public async search(caller: CallerToken | undefined, query: string, limit: number): Promise<CatalogSearchOutcome> {
+    public async search(
+        caller: CallerToken | undefined,
+        query: string,
+        limit: number,
+        options: { readonly withNutrition?: boolean } = {},
+    ): Promise<CatalogSearchOutcome> {
         if (!this.options.enabled) {
             return { hits: [], availability: 'disabled' };
         }
@@ -172,7 +187,7 @@ export class FoodCatalogGateway {
         }
 
         try {
-            const result = await this.clients.typeahead(caller).search(trimmed);
+            const result = await this.clients.typeahead(caller).search(trimmed, options.withNutrition === true);
 
             if (!Array.isArray(result?.results)) {
                 throw new TypeError('food-service search returned no `results` array');

@@ -54,19 +54,28 @@
  * is keyed on. Two implementations of that rule would drift, and the drift would be invisible: it would show
  * up only as a bill.
  */
+import { z } from 'zod';
+
 import type { IngredientQuantity, StatedMeasure } from '@kitchensink/recipe-core';
 import {
     curatedExactEvidence,
     decideVerification,
+    rankedEvidence,
     rememberedEvidence,
     unattributedEvidence,
     type IdentityEvidence,
     type VerificationThresholds,
 } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
-
-import type { ResolutionTierId } from '../../ingredients/resolution/resolutionCascade.js';
+import { bandKeyText, type BandKey } from '@kitchensink/recipe-core/resolution/band-authority-store';
+import { marginBandOf, type BandAuthority } from '@kitchensink/recipe-core/resolution/band-policy';
 import { verificationKeyPreimage } from '@kitchensink/recipe-core/resolution/verification-key';
-import type { VerifyIngredientLineMessage } from '@kitchensink/recipe-core/resolution/verification-message';
+import {
+    MAX_VERIFICATION_SHORTLIST,
+    scoredCandidateSchema,
+    type VerifyIngredientLineMessage,
+} from '@kitchensink/recipe-core/resolution/verification-message';
+
+import type { LatestResolution } from '../../ingredients/resolution/ingredientResolutions.dal.js';
 
 import { verifiedLineIdentity } from './lineVerification.js';
 
@@ -112,11 +121,13 @@ export interface VerifiableLine {
      */
     readonly statedMeasure: StatedMeasure | undefined;
     /**
-     * Which cascade tier resolved this line's ingredient, or `undefined` when no resolution event is
-     * recorded (plan U2). A REQUIRED key carrying `undefined`, like {@link sourceLine} — every projection
-     * site must decide, and absence is a statement ("nothing attributed"), never missing data.
+     * The latest recorded resolution EVENT for this line's ingredient, or `undefined` when none is
+     * recorded (plan U2/U4). A REQUIRED key carrying `undefined`, like {@link sourceLine} — every
+     * projection site must decide, and absence is a statement ("nothing attributed"), never missing data.
+     * The full event, not the tier name alone: the stored shortlist is what an honest `ranked` claim
+     * requires, and the band fields are what authority is consulted under.
      */
-    readonly resolutionTier: ResolutionTierId | undefined;
+    readonly resolution: LatestResolution | undefined;
 }
 
 /**
@@ -147,9 +158,24 @@ export interface UnaskedLine {
     readonly observedChars?: number;
 }
 
+/** One identity settlement granted by band authority, recorded for revocation's drain (plan U3, R14). */
+export interface BandSkipRecord {
+    readonly band: BandKey;
+    /** The authority epoch the settlement happened under. */
+    readonly epoch: number;
+    /** The message as SENT, verbatim — what the drain re-sends if the band is revoked. */
+    readonly message: VerifyIngredientLineMessage;
+}
+
 /** What the producer decided: the messages to send, and every line it will never ask about. */
 export interface VerificationRequestPlan {
     readonly requests: readonly VerifyIngredientLineMessage[];
+    /**
+     * Identity settlements granted by band authority this save (⚠️ these lines' messages are STILL in
+     * {@link requests} — quantity is never skippable). The impure half persists each into
+     * `resolution_band_skips`; revocation's drain re-sends from there.
+     */
+    readonly bandSkips: readonly BandSkipRecord[];
     /**
      * Lines that will never be verified.
      *
@@ -157,6 +183,12 @@ export interface VerificationRequestPlan {
      * one entry that means "we permanently gave up on a line a cook can see", is not invisible.
      */
     readonly unasked: readonly UnaskedLine[];
+}
+
+/** One band's loaded authority plus the shadow coin's outcome, as the impure half supplies them. */
+export interface BandConsultation {
+    readonly authority: BandAuthority | undefined;
+    readonly shadow: boolean;
 }
 
 /** Everything the plan needs. Total: every input produces a plan, and nothing here throws. */
@@ -188,6 +220,13 @@ export interface VerificationRequestInput {
     readonly alreadyRequested: readonly VerifiableLine[];
     /** The gate's bands, injected — R17 makes them measured, so calibration is a value change. */
     readonly thresholds: VerificationThresholds;
+    /**
+     * Band consultations by {@link bandKeyText}, loaded by the impure half for the bands this save's
+     * ranked lines fall in. An absent entry means NO authority — the day-one state, in which every ranked
+     * line verifies identity. `shadow: true` is the impure half's coin: ask identity anyway and flag the
+     * message so the worker records the observation under `shadow`.
+     */
+    readonly bands: ReadonlyMap<string, BandConsultation>;
     /** ISO-8601 instant of this request. Injected so this module has no clock. */
     readonly requestedAt: string;
 }
@@ -228,26 +267,63 @@ function judgementIdentity(line: VerifiableLine): string | undefined {
  * @returns The messages to enqueue in the author's line order, deduplicated by judgement, and every line
  *   that will never be asked about. Pure.
  */
+/** The wire's own bound applied to the STORED snapshot — a row nothing validates cannot claim `ranked`. */
+const storedShortlistSchema = z.array(scoredCandidateSchema).max(MAX_VERIFICATION_SHORTLIST);
+
 /**
- * The identity evidence a persisted resolution tier honestly supports (plan U2).
+ * The identity evidence a persisted resolution event honestly supports (plan U2/U4).
  *
- * ⛔ `lexical` maps to UNATTRIBUTED until U4 ships: `ranked` evidence requires the structured shortlist
- * the lexical tier will persist, and a bare tier name cannot claim it — `curated-exact` here would
- * suppress an identity check nothing established. `llm` likewise (no tier ships it yet).
+ * ⛔ `lexical` claims `ranked` ONLY through a shortlist the wire schema accepts: the stored jsonb is
+ * zod-parsed here, and a legacy or mangled row degrades to `unattributed` — which opens no skip door and
+ * verifies both aspects, the safe direction. `llm` stays unattributed (no tier ships it yet).
  *
- * @param tier - The recorded tier, or `undefined` when no resolution event exists.
+ * @param resolution - The recorded event, or `undefined` when none exists.
  * @returns The evidence the gate policy may act on. Pure.
  */
-function evidenceFor(tier: ResolutionTierId | undefined): IdentityEvidence {
-    if (tier === 'curated') {
+function evidenceFor(resolution: LatestResolution | undefined): IdentityEvidence {
+    if (resolution?.tier === 'curated') {
         return curatedExactEvidence();
     }
 
-    if (tier === 'memo') {
+    if (resolution?.tier === 'memo') {
         return rememberedEvidence();
     }
 
+    if (resolution?.tier === 'lexical') {
+        const parsed = storedShortlistSchema.safeParse(resolution.shortlist);
+
+        if (parsed.success) {
+            return rankedEvidence(parsed.data);
+        }
+    }
+
     return unattributedEvidence();
+}
+
+/**
+ * The band a ranked resolution's confidence shape belongs to, or `undefined` when the event does not
+ * carry a complete key (non-ranking tiers, and legacy rows).
+ *
+ * @param resolution - The recorded event.
+ * @returns The full band key, or `undefined`. Pure.
+ */
+export function bandKeyOf(resolution: LatestResolution | undefined): BandKey | undefined {
+    if (
+        resolution === undefined ||
+        resolution.tier !== 'lexical' ||
+        resolution.rung === null ||
+        resolution.queryShape === null ||
+        resolution.rankerVersion === null
+    ) {
+        return undefined;
+    }
+
+    return {
+        rung: resolution.rung,
+        marginBand: marginBandOf(resolution.margin ?? undefined),
+        queryShape: resolution.queryShape,
+        rankerVersion: resolution.rankerVersion,
+    };
 }
 
 export function buildVerificationRequests(input: VerificationRequestInput): VerificationRequestPlan {
@@ -263,6 +339,7 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
     const requests: VerifyIngredientLineMessage[] = [];
     const unasked: UnaskedLine[] = [];
+    const bandSkips: BandSkipRecord[] = [];
 
     for (const line of input.lines) {
         const { sourceLine, foodId } = line;
@@ -284,11 +361,17 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
         // ⛔ ADR-0024 layer 0. The pure policy decides whether there is anything to ask BEFORE anything is
         // sent — `skip` for a blank line, `reject` for an over-cap one (which is never truncated).
-        const evidence = evidenceFor(line.resolutionTier);
+        const evidence = evidenceFor(line.resolution);
+        const bandKey = bandKeyOf(line.resolution);
+        const consultation = bandKey === undefined ? undefined : input.bands.get(bandKeyText(bandKey));
+        // A shadow-sampled line hides its authority from the policy ON PURPOSE — the coin's whole job is
+        // to make the gate ask identity anyway, so the band's measured record keeps accruing.
+        const shadow = consultation?.shadow === true;
         const decision = decideVerification({
             sourceLine,
             evidence,
             thresholds: input.thresholds,
+            bandAuthority: shadow ? undefined : consultation?.authority,
         });
 
         if (decision.kind === 'skip') {
@@ -320,7 +403,7 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
 
         seen.add(identity);
 
-        requests.push({
+        const message: VerifyIngredientLineMessage = {
             recipeId: input.recipeId,
             sourceLine,
             foodId,
@@ -337,12 +420,27 @@ export function buildVerificationRequests(input: VerificationRequestInput): Veri
             // U2: the PERSISTED tier, mapped through `evidenceFor` — the same evidence the decision above
             // was made from, so the worker's re-run judges what this producer judged.
             evidenceKind: evidence.kind,
-            // No lexical tier has shipped, and this path never ranked anything even when one does — the
-            // shortlist belongs to whoever ranked, which is not this caller.
-            shortlist: [],
+            // U4: the SAME validated shortlist the evidence was built from — never re-read from the row.
+            shortlist: evidence.kind === 'ranked' ? [...evidence.shortlist] : [],
             requestedAt: input.requestedAt,
-        });
+            ...(shadow ? { shadowSample: true } : {}),
+        };
+
+        requests.push(message);
+
+        // KTD-A: an AUTHORIZED band whose line also met the floors settled identity — the decision above
+        // excused the aspect. Record the settlement with the message VERBATIM: the drain re-sends exactly
+        // this if the band is ever revoked, and the content-keyed verdict store makes the re-ask cheap.
+        if (
+            bandKey !== undefined &&
+            consultation?.authority?.state === 'authorized' &&
+            !shadow &&
+            decision.kind === 'verify' &&
+            !decision.aspects.includes('identity')
+        ) {
+            bandSkips.push({ band: bandKey, epoch: consultation.authority.epoch, message });
+        }
     }
 
-    return { requests, unasked };
+    return { requests, unasked, bandSkips };
 }

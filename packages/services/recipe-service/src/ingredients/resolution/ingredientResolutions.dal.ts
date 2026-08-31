@@ -56,17 +56,19 @@ export class IngredientResolutionsDal {
     }
 
     /**
-     * The most recent event's tier for each of `ingredientIds`.
+     * The most recent FULL event for each of `ingredientIds` (plan U4 — the producer needs the whole
+     * confidence shape, not the tier name alone: the shortlist becomes `ranked` evidence, and the band
+     * fields are what authority is consulted under).
      *
      * An ingredient with no event is simply absent from the map — the producer reads absence as
      * `unattributed`, which is a statement, not an error.
      *
      * @param ingredientIds - The lines' ingredient ids, deduplication not required.
-     * @returns Tier by ingredient id. @sideEffect One SELECT.
+     * @returns Latest event by ingredient id. @sideEffect One SELECT.
      */
-    public async latestTiersByIngredientIds(
+    public async latestResolutionsByIngredientIds(
         ingredientIds: readonly string[],
-    ): Promise<ReadonlyMap<string, ResolutionTierId>> {
+    ): Promise<ReadonlyMap<string, LatestResolution>> {
         if (ingredientIds.length === 0) {
             return new Map();
         }
@@ -75,11 +77,42 @@ export class IngredientResolutionsDal {
             .selectDistinctOn([ingredientResolutions.ingredientId], {
                 ingredientId: ingredientResolutions.ingredientId,
                 tier: ingredientResolutions.tier,
+                rung: ingredientResolutions.rung,
+                margin: ingredientResolutions.margin,
+                shortlist: ingredientResolutions.shortlist,
+                queryShape: ingredientResolutions.queryShape,
+                rankerVersion: ingredientResolutions.rankerVersion,
+                bandEpoch: ingredientResolutions.bandEpoch,
             })
             .from(ingredientResolutions)
             .where(inArray(ingredientResolutions.ingredientId, [...new Set(ingredientIds)]))
             .orderBy(ingredientResolutions.ingredientId, sql`${ingredientResolutions.createdAt} DESC`);
 
-        return new Map(rows.map((row) => [row.ingredientId, row.tier as ResolutionTierId]));
+        return new Map(
+            rows.map((row) => [
+                row.ingredientId,
+                {
+                    tier: row.tier as ResolutionTierId,
+                    rung: row.rung,
+                    margin: row.margin === null ? null : Number(row.margin),
+                    shortlist: row.shortlist,
+                    queryShape: row.queryShape,
+                    rankerVersion: row.rankerVersion,
+                    bandEpoch: row.bandEpoch,
+                },
+            ]),
+        );
     }
+}
+
+/** The latest recorded resolution event, as the verification producer consumes it. */
+export interface LatestResolution {
+    readonly tier: ResolutionTierId;
+    readonly rung: string | null;
+    readonly margin: number | null;
+    /** The stored `ScoredCandidate[]` snapshot, unvalidated — the producer zod-parses at the boundary. */
+    readonly shortlist: unknown;
+    readonly queryShape: string | null;
+    readonly rankerVersion: string | null;
+    readonly bandEpoch: string | null;
 }

@@ -61,6 +61,17 @@ export interface BandSkip {
     readonly message: unknown;
 }
 
+/**
+ * A band key's canonical text form — the Map key both halves of the producer agree on (the impure half
+ * loads authorities under it, the pure builder looks consultations up by it).
+ *
+ * @param band - The full band key.
+ * @returns The joined text. Pure.
+ */
+export function bandKeyText(band: BandKey): string {
+    return [band.rung, band.marginBand, band.queryShape, band.rankerVersion].join('|');
+}
+
 /** The four key params in the column order every statement uses. */
 function keyParams(band: BandKey): readonly unknown[] {
     return [band.rung, band.marginBand, band.queryShape, band.rankerVersion];
@@ -193,6 +204,31 @@ export class BandAuthorityStore {
         await this.applyTransition(band, transition);
 
         return transition;
+    }
+
+    /**
+     * How many observations have landed since the band's CURRENT grant — the shadow ramp's input
+     * (`shadowRateFor`): 50% during the burn-in, 5% steady after.
+     *
+     * @param band - The full band key.
+     * @returns The post-grant observation count (0 when the band has no grant). @sideEffect One SELECT.
+     */
+    public async observationsSinceGrant(band: BandKey): Promise<number> {
+        const rows = await this.run(
+            `SELECT count(*) AS observed
+               FROM resolution_band_observations o
+               JOIN resolution_band_authority a
+                 ON a.rung = o.rung
+                AND a.margin_band = o.margin_band
+                AND a.query_shape = o.query_shape
+                AND a.ranker_version = o.ranker_version
+              WHERE o.rung = $1 AND o.margin_band = $2 AND o.query_shape = $3 AND o.ranker_version = $4
+                AND a.granted_at IS NOT NULL
+                AND o.created_at >= a.granted_at`,
+            keyParams(band),
+        );
+
+        return Number(rows[0]?.['observed'] ?? 0);
     }
 
     /**

@@ -254,7 +254,7 @@ export class FoodsService {
      * @returns Ranked results; an empty set on no local match, and an empty set with NO read at all when the
      *   query is below `MIN_SEARCH_QUERY_LENGTH` (FR-010a).
      */
-    public async search(rawQuery: string): Promise<SearchResponse> {
+    public async search(rawQuery: string, withNutrition = false): Promise<SearchResponse> {
         const query = rawQuery.trim();
 
         if (!meetsSearchMinimum(query)) {
@@ -262,7 +262,11 @@ export class FoodsService {
         }
 
         const hits = await this.searchDao.search(query);
-        const results = hits.map((hit) => ({ id: hit.id, name: hit.name, score: hit.score }));
+        const results: SearchResponse['results'] = hits.map((hit) => ({
+            id: hit.id,
+            name: hit.name,
+            score: hit.score,
+        }));
 
         // Crosswalk: a query that is a known barcode or source external_key resolves directly to an id.
         const crosswalkId =
@@ -274,7 +278,42 @@ export class FoodsService {
             results.unshift({ id: crosswalkId, name: food?.name ?? null, score: 1 });
         }
 
-        return { results };
+        if (!withNutrition || results.length === 0) {
+            // ⛔ Enrichment is strictly OPT-IN (plan U4b): the default caller is the per-keystroke typeahead,
+            // whose 600ms budget must not carry a nutrient-view scan it never reads. The one caller that
+            // asks is recipe-service's lexical tier, whose verification gate needs inter-candidate nutrient
+            // agreement (D4a's second conjunct) before any identity skip can ever be earned.
+            return { results };
+        }
+
+        const rows = await this.foodDao.nutrientRowsFor(results.map((result) => result.id));
+        const rowsByFood = new Map<string, { nutrient: string; unit: string; basis: string; amount: number }[]>();
+
+        for (const row of rows) {
+            const bucket = rowsByFood.get(row.foodId) ?? [];
+            // The one seam that converts the driver's `numeric` string (see StoredNutrientAmount).
+            bucket.push({ nutrient: row.nutrient, unit: row.unit, basis: row.basis, amount: Number(row.amount) });
+            rowsByFood.set(row.foodId, bucket);
+        }
+
+        return {
+            results: results.map((result) => {
+                const projection = projectNutrition(rowsByFood.get(result.id) ?? []);
+
+                // Absent stays ABSENT — a macro with no qualifying row must never read as zero.
+                return {
+                    ...result,
+                    ...(projection.caloriesPer100g === undefined
+                        ? {}
+                        : { caloriesPer100g: projection.caloriesPer100g }),
+                    ...(projection.proteinGPer100g === undefined
+                        ? {}
+                        : { proteinGPer100g: projection.proteinGPer100g }),
+                    ...(projection.carbsGPer100g === undefined ? {} : { carbsGPer100g: projection.carbsGPer100g }),
+                    ...(projection.fatGPer100g === undefined ? {} : { fatGPer100g: projection.fatGPer100g }),
+                };
+            }),
+        };
     }
 
     /**

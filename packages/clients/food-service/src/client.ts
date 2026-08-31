@@ -248,18 +248,26 @@ export class FoodServiceClient {
      * `GET /api/v1/foods/search?query=` — local fuzzy/crosswalk search (never calls a source).
      *
      * @param query - The search query.
+     * @param withNutrition - Opt-in per-100g macro enrichment (plan U4b). Leave unset on a typeahead path —
+     *   the flag adds a nutrient-view scan the keystroke budget must not carry.
      * @returns Ranked results, or an empty set on no local match.
      * @throws {UnauthorizedError}/{@link ForbiddenError} on auth failure.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async search(query: string): Promise<SearchResult> {
+    public async search(query: string, withNutrition = false): Promise<SearchResult> {
         // The QUERY is validated too, against the same `searchFoodQuerySchema` the service parses it with, so a
         // term this client cannot legally send never costs a round trip. `?? ''` is not a defensive shrug: the
         // published field is `.optional()` and its own doc says an absent query "is treated as empty, which
         // yields an empty result set", so the empty string IS the contract's meaning for absent — and this
         // method's signature requires a `string` anyway, making the branch unreachable in practice.
-        const { query: validated } = this.request('search', searchFoodQuerySchema, { query });
-        const res = await this.send('GET', `/api/v1/foods/search?query=${encodeURIComponent(validated ?? '')}`);
+        const { query: validated } = this.request('search', searchFoodQuerySchema, {
+            query,
+            ...(withNutrition ? { withNutrition: 'true' as const } : {}),
+        });
+        const res = await this.send(
+            'GET',
+            `/api/v1/foods/search?query=${encodeURIComponent(validated ?? '')}${withNutrition ? '&withNutrition=true' : ''}`,
+        );
 
         return this.expect<SearchResult>(res, 200, searchResponseSchema);
     }

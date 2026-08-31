@@ -187,6 +187,12 @@ function resolutionTiers(mappings: ResolutionMappingsDal, catalog: FoodCatalogGa
                 new IngredientsService(dal, clients, catalog, resolutionTiers(mappings, catalog), resolutions, bands),
         },
     ],
-    exports: [IngredientsService, FoodNutritionGateway, ResolutionMappingsService, IngredientResolutionsDal],
+    exports: [
+        IngredientsService,
+        FoodNutritionGateway,
+        ResolutionMappingsService,
+        IngredientResolutionsDal,
+        ResolutionBandsDal,
+    ],
 })
 export class IngredientsModule {}

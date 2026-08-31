@@ -139,16 +139,18 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
     function makeSearchService(): {
         service: FoodsService;
         searchDao: { search: ReturnType<typeof vi.fn> };
+        foodDao: { nutrientRowsFor: ReturnType<typeof vi.fn> };
         sources: { findFoodIdByBarcode: ReturnType<typeof vi.fn>; findFoodIdByExternalKey: ReturnType<typeof vi.fn> };
     } {
         const searchDao = { search: vi.fn().mockResolvedValue([]) };
+        const foodDao = { nutrientRowsFor: vi.fn().mockResolvedValue([]) };
         const sources = {
             findFoodIdByBarcode: vi.fn().mockResolvedValue(undefined),
             findFoodIdByExternalKey: vi.fn().mockResolvedValue(undefined),
         };
         const unused = undefined as unknown as never;
         const service = new FoodsService(
-            unused,
+            foodDao as unknown as FoodDao,
             unused,
             sources as unknown as FoodSourcesDao,
             searchDao as unknown as FoodSearchDao,
@@ -160,7 +162,7 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
             new FoodMetrics(vi.fn()),
         );
 
-        return { service, searchDao, sources };
+        return { service, searchDao, foodDao, sources };
     }
 
     describe('below the minimum, NOTHING is read', () => {
@@ -184,6 +186,47 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
             await service.search('a'.repeat(MIN_SEARCH_QUERY_LENGTH - 1));
 
             expect(searchDao.search).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("withNutrition — the lexical tier's enrichment flag (plan U4b)", () => {
+        const HITS = [
+            { id: 'F-1', name: 'Flour, wheat', score: 0.9 },
+            { id: 'F-2', name: 'Carob flour', score: 0.6 },
+        ];
+        const ROWS = [
+            { foodId: 'F-1', nutrient: 'Energy', unit: 'kcal', basis: 'per_100g', amount: 364 },
+            { foodId: 'F-1', nutrient: 'Protein', unit: 'g', basis: 'per_100g', amount: 10 },
+        ];
+
+        it('enriches each hit with its per-100g projection through the ONE selection rule', async () => {
+            const { service, searchDao, foodDao } = makeSearchService();
+            searchDao.search.mockResolvedValue([...HITS]);
+            foodDao.nutrientRowsFor.mockResolvedValue([...ROWS]);
+
+            const response = await service.search('flour', true);
+
+            expect(foodDao.nutrientRowsFor).toHaveBeenCalledWith(['F-1', 'F-2']);
+            expect(response.results[0]).toMatchObject({ id: 'F-1', caloriesPer100g: 364, proteinGPer100g: 10 });
+            // A food with no qualifying rows carries NO macro fields — absent, never zero.
+            expect(response.results[1]).not.toHaveProperty('caloriesPer100g');
+        });
+
+        it('⛔ reads NOTHING extra on the default keystroke path — enrichment is strictly opt-in', async () => {
+            const { service, searchDao, foodDao } = makeSearchService();
+            searchDao.search.mockResolvedValue([...HITS]);
+
+            await service.search('flour');
+
+            expect(foodDao.nutrientRowsFor).not.toHaveBeenCalled();
+        });
+
+        it('an empty hit set never issues the nutrient read', async () => {
+            const { service, foodDao } = makeSearchService();
+
+            await service.search('flour', true);
+
+            expect(foodDao.nutrientRowsFor).not.toHaveBeenCalled();
         });
     });
 

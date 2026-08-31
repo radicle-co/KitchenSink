@@ -563,6 +563,28 @@ export class FoodDao {
      * @returns One record per id that exists, in no guaranteed order.
      * @sideEffect Reads `food`, `food_nutrient_view` (`food_nutrients` + `nutrient`), `food_portions`.
      */
+    /**
+     * The stored nutrient rows for a set of foods — the narrow read behind search's opt-in nutrition
+     * enrichment (plan U4b). One batched view scan; the per-100g SELECTION stays in
+     * `nutrition/nutrientSelection.ts`, never here.
+     *
+     * @param ids - The internal food ids.
+     * @returns One row per stored nutrient value, `amount` still the driver's string.
+     * @sideEffect Reads `food_nutrient_view`.
+     */
+    public async nutrientRowsFor(ids: readonly string[]): Promise<(StoredNutrientAmount & { foodId: string })[]> {
+        return this.db
+            .select({
+                foodId: foodNutrientView.foodId,
+                nutrient: foodNutrientView.nutrient,
+                unit: foodNutrientView.unit,
+                basis: foodNutrientView.basis,
+                amount: foodNutrientView.amount,
+            })
+            .from(foodNutrientView)
+            .where(sql`${foodNutrientView.foodId} = ANY(${sql.param([...ids])})`);
+    }
+
     public async readNutritionBatch(ids: readonly string[]): Promise<NutritionRecord[]> {
         const [statuses, nutrients, portions] = await Promise.all([
             this.db

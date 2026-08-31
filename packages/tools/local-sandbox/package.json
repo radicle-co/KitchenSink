@@ -16,7 +16,12 @@
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
+        "@kitchensink/vitest": "*",
         "@types/node": "^24.13.3",
-        "vitest": "^4.0.0"
+        "vitest": "^4.0.0",
+        "yaml": "^2.8.1"
+    },
+    "dependencies": {
+        "glob": "^13.0.6"
     }
 }

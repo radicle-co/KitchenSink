@@ -151,5 +151,14 @@ export type {
     ActiveErasureJobStatus,
 } from './account.js';
 
+// ── analytics_events + recipe_impact_signals (analytics plan U1, migration 0043) ──────────────────
+export { analyticsEvents, recipeImpactSignals, ANALYTICS_EVENT_TYPES } from './analyticsEvents.js';
+export type {
+    AnalyticsEventType,
+    AnalyticsEventRow,
+    NewAnalyticsEventRow,
+    RecipeImpactSignalRow,
+} from './analyticsEvents.js';
+
 // ── convenience re-exports ────────────────────────────────────────────────────────────────────────
 export type { InferInsertModel, InferSelectModel } from 'drizzle-orm';

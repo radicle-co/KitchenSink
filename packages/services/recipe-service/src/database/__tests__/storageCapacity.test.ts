@@ -295,6 +295,29 @@ const accounts: readonly ColumnAccount[] = [
         column: 'epoch',
         why: 'Copied from the authority row at skip time by the producer; no wire field sets it.',
     },
+
+    // ── analytics events + impact signals (analytics plan U1, 0043) ───────────────────────────────
+    {
+        table: 'analytics_events',
+        column: 'id',
+        why: 'GENERATED ALWAYS AS IDENTITY — Postgres refuses a client value outright; no wire field exists.',
+    },
+    { table: 'analytics_events', column: 'user_id', why: PRINCIPAL_DERIVED },
+    {
+        table: 'recipe_impact_signals',
+        column: 'save_count',
+        why: 'Maintained ONLY by the analytics_events_fold_on_insert delta trigger; never written by application code (0043 pins the table COMMENT saying so).',
+    },
+    {
+        table: 'recipe_impact_signals',
+        column: 'view_count',
+        why: 'Maintained ONLY by the analytics_events_fold_on_insert delta trigger; never written by application code.',
+    },
+    {
+        table: 'recipe_impact_signals',
+        column: 'cook_count',
+        why: 'Provisioned for 015 (KTD2); no writer exists at all in v1 — the fold trigger does not touch it.',
+    },
 ];
 
 describe('storage capacity — every wire bound fits the column it writes', () => {

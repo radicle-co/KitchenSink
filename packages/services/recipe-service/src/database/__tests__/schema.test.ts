@@ -36,6 +36,9 @@ import {
     RECIPE_COLLECTION_ADDED_VIA,
     PENDING_ARCHIVE_STATUSES,
     ERASURE_JOB_STATUSES,
+    analyticsEvents,
+    recipeImpactSignals,
+    ANALYTICS_EVENT_TYPES,
 } from '../schema/index.js';
 import type {
     RecipeRow,
@@ -410,6 +413,48 @@ describe('recipe-service schema — value sets are tied to @kitchensink/recipe-c
     });
     it('PENDING_ARCHIVE_STATUSES set-equals recipe-core RecipeVersionArchiveStatus', () => {
         expectSetEqual(PENDING_ARCHIVE_STATUSES, Object.values(RecipeCoreVersionArchiveStatus));
+    });
+});
+
+describe('recipe-service schema — analytics_events + recipe_impact_signals (analytics plan U1, 0043)', () => {
+    it('analytics_events (append-only fact table; anonymize-on-erase nullability)', () => {
+        expect(getTableName(analyticsEvents)).toBe('analytics_events');
+        expectColumns(analyticsEvents, {
+            id: { type: 'bigint', notNull: true },
+            event_id: { type: 'uuid', notNull: false },
+            event_type: { type: 'text', notNull: true },
+            user_id: { type: 'varchar(255)', notNull: false },
+            recipe_id: { type: 'uuid', notNull: false },
+            query_text: { type: 'text', notNull: false },
+            payload: { type: 'jsonb', notNull: true },
+            occurred_at: { type: 'timestamp with time zone', notNull: true },
+            created_at: { type: 'timestamp with time zone', notNull: true },
+        });
+    });
+
+    it("recipe_impact_signals (KTD2: 015's future home — bigint lifetime counts, cook_count provisioned)", () => {
+        expect(getTableName(recipeImpactSignals)).toBe('recipe_impact_signals');
+        expectColumns(recipeImpactSignals, {
+            recipe_id: { type: 'uuid', notNull: true },
+            save_count: { type: 'bigint', notNull: true },
+            view_count: { type: 'bigint', notNull: true },
+            cook_count: { type: 'bigint', notNull: true },
+            updated_at: { type: 'timestamp with time zone', notNull: true },
+        });
+    });
+
+    it('⛔ recipe_impact_signals is VIEWER-LESS — 012-FR-024: no viewer/user column may ever exist here', () => {
+        // expectColumns above already pins the whole set; this names the rule so a future "viewer_id"
+        // or "user_id" column fails a test that SAYS why, not just a set diff.
+        const names = Object.values(getTableColumns(recipeImpactSignals)).map((c) => (c as PgColumn).name);
+
+        for (const name of names) {
+            expect(name).not.toMatch(/viewer|user/);
+        }
+    });
+
+    it('the closed v1 event vocabulary (extension is additive, per origin R8)', () => {
+        expect(ANALYTICS_EVENT_TYPES).toEqual(['recipe_saved', 'recipe_viewed', 'query_outcome']);
     });
 });
 

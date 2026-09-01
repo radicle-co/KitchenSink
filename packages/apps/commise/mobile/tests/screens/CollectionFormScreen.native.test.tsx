@@ -12,6 +12,8 @@ import { useCreateCollection, useUpdateCollection } from '@kitchensink/recipe-se
 import { CollectionFormScreen } from '../../src/screens/CollectionFormScreen.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useCreateCollection: vi.fn(),
     useUpdateCollection: vi.fn(),
 }));

@@ -28,6 +28,7 @@ import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/sea
 
 const {
     useSuggestIngredientsMock,
+    emitAnalyticsEventsMock,
     useAddIngredientByNameMock,
     useAddIngredientByFoodMock,
     useCreateIngredientMock,
@@ -44,6 +45,7 @@ const {
     useResolveIngredientMock: vi.fn(),
     useSearchIngredientsLiveMock: vi.fn(),
     useCreateAuthoredFoodViaPickerMock: vi.fn(),
+    emitAnalyticsEventsMock: vi.fn(),
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
@@ -55,6 +57,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useResolveIngredient: useResolveIngredientMock,
     useSearchIngredientsLive: useSearchIngredientsLiveMock,
     useCreateAuthoredFoodViaPicker: useCreateAuthoredFoodViaPickerMock,
+    // U5 — the analytics emitter reads the client from context; one mocked method is its whole surface.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: emitAnalyticsEventsMock }),
 }));
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '../ingredientResolver.model.js';
@@ -120,6 +124,8 @@ beforeEach(() => {
     useSearchIngredientsLiveMock.mockReturnValue(mutation(null, { data: undefined, error: undefined }));
     // U16 — the create-your-own-food mutation. Idle by default.
     useCreateAuthoredFoodViaPickerMock.mockReturnValue(mutation(null));
+    // U5 — the analytics transport. Resolves by default; individual tests make it reject.
+    emitAnalyticsEventsMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -1021,5 +1027,146 @@ describe('useIngredientResolver — the U16 create-your-own-food sub-machine', (
             expect(result.current.createFood.state.submitFailed).toBe(true);
             expect(result.current.createFood.state.draft.calories).toBe('100');
         }
+    });
+});
+
+// ── U5: query-outcome emission (analytics plan U5; KTD5/KTD6; AE1/AE2) ───────────────────────────
+
+describe('useIngredientResolver — analytics query-outcome emission (U5)', () => {
+    /** Drive a settled two-section served list for `query`. */
+    function settleServedList(
+        result: { current: ReturnType<typeof useIngredientResolver> },
+        query: string,
+        suggestions: readonly IngredientSuggestion[],
+    ): void {
+        useSuggestIngredientsMock.mockReturnValue(settledSuggest(suggestions));
+        act(() => {
+            result.current.setQuery(query);
+        });
+        settleDebounce();
+    }
+
+    /** The emitted batches, flattened to events. */
+    function emittedEvents(): { outcome: { kind: string }; query: string; eventId: string }[] {
+        return emitAnalyticsEventsMock.mock.calls.flatMap(
+            (call) => (call[0] as { events: { outcome: { kind: string }; query: string; eventId: string }[] }).events,
+        );
+    }
+
+    it('AE1: a pick emits ONE pick event with group + position-in-group, and resolver behaviour is unchanged', () => {
+        const own = makeIngredient({ id: 'i-salt', name: 'Salt', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        const suggestions = [localSuggestion(own), catalogSuggestion('food-1', 'Salt, table')];
+        const onResolved = vi.fn();
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+        settleServedList(result, 'salt', suggestions);
+
+        act(() => {
+            result.current.selectSuggestion(suggestions[1] as IngredientSuggestion);
+        });
+
+        // Wait: the catalog pick admits via by-food (mocked null => no resolve) — but the PICK event
+        // fires at tap time regardless of the admit round-trip's fate.
+        const events = emittedEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({
+            query: 'salt',
+            outcome: { kind: 'pick', group: 'catalog', positionInGroup: 1, foodId: 'food-1' },
+        });
+    });
+
+    it('KTD6 keystroke table: refinement continues the session — a pick after two settles emits ONE event', () => {
+        const own = makeIngredient({ id: 'i-b', name: 'Butter', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        const suggestions = [localSuggestion(own)];
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+        settleServedList(result, 'bu', suggestions);
+        settleServedList(result, 'buck', suggestions);
+
+        act(() => {
+            result.current.selectSuggestion(suggestions[0] as IngredientSuggestion);
+        });
+
+        const events = emittedEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]?.outcome.kind).toBe('pick');
+        expect(events[0]?.query).toBe('buck');
+    });
+
+    it('AE2: clearing the query to empty emits ONE no-pick with the final settled query + list', () => {
+        const own = makeIngredient({ id: 'i-h', name: 'Honey', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+        settleServedList(result, 'buckwheat honey', [localSuggestion(own)]);
+
+        act(() => {
+            result.current.setQuery('');
+        });
+
+        const events = emittedEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({ query: 'buckwheat honey', outcome: { kind: 'no_pick' } });
+    });
+
+    it('a NON-SUGGESTION resolution (freeform create-after-search) emits a no-pick — the served list failed', () => {
+        const own = makeIngredient({ id: 'i-x', name: 'Xanthan', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        const created = makeIngredient({
+            id: 'i-new',
+            name: 'my custom mix',
+            foodResolutionStatus: FoodResolutionStatus.NOT_FOUND,
+        });
+        useCreateIngredientMock.mockReturnValue(mutation(created));
+        const onResolved = vi.fn();
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+        settleServedList(result, 'my custom mix', [localSuggestion(own)]);
+
+        act(() => {
+            result.current.addFreeform();
+        });
+
+        expect(onResolved).toHaveBeenCalledTimes(1);
+        const events = emittedEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]?.outcome.kind).toBe('no_pick');
+    });
+
+    it('unmount cleanup emits the pending no-pick (the leave-the-screen moment)', () => {
+        const own = makeIngredient({ id: 'i-t', name: 'Thyme', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        const { result, unmount } = renderHook(() => useIngredientResolver(vi.fn()));
+        settleServedList(result, 'thyme', [localSuggestion(own)]);
+
+        unmount();
+
+        const events = emittedEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({ query: 'thyme', outcome: { kind: 'no_pick' } });
+    });
+
+    it('nothing emits with no settled served list — below the minimum there is no session at all', () => {
+        const { result, unmount } = renderHook(() => useIngredientResolver(vi.fn()));
+
+        act(() => {
+            result.current.setQuery('sa');
+        });
+        settleDebounce();
+        act(() => {
+            result.current.setQuery('');
+        });
+        unmount();
+
+        expect(emitAnalyticsEventsMock).not.toHaveBeenCalled();
+    });
+
+    it('an emitter failure is swallowed — the resolver resolves and resets exactly as before', () => {
+        emitAnalyticsEventsMock.mockRejectedValue(new Error('ingest down'));
+        const own = makeIngredient({ id: 'i-s', name: 'Salt', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        const suggestions = [localSuggestion(own)];
+        const onResolved = vi.fn();
+        const { result } = renderHook(() => useIngredientResolver(onResolved));
+        settleServedList(result, 'salt', suggestions);
+
+        act(() => {
+            result.current.selectSuggestion(suggestions[0] as IngredientSuggestion);
+        });
+
+        expect(onResolved).toHaveBeenCalledTimes(1);
+        expect(result.current.query).toBe('');
     });
 });

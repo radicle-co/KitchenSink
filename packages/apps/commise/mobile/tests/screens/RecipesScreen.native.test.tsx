@@ -36,6 +36,8 @@ import {
 } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipes: vi.fn(),
     // U33 — the create screen now composes the real photo surface (a pick lands in the draft and flushes
     // once the recipe has an id), so its hooks must exist even though this suite never picks a file.

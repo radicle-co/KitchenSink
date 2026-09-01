@@ -39,6 +39,8 @@ import { IngredientPicker } from '../../src/components/IngredientPicker.js';
 import { makeIngredient } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useSuggestIngredients: vi.fn(),
     useAddIngredientByName: vi.fn(),
     useAddIngredientByFood: vi.fn(),

@@ -19,6 +19,8 @@ const { useCreatePhotoUploadUrlMock, useConfirmPhotoUploadMock } = vi.hoisted(()
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useCreatePhotoUploadUrl: useCreatePhotoUploadUrlMock,
     useConfirmPhotoUpload: useConfirmPhotoUploadMock,
 }));

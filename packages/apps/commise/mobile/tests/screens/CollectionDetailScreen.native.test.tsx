@@ -27,6 +27,8 @@ import { mobileMessages } from '../../src/i18n/messages.js';
 import { makeCollection, makeCollectionWithRecipes, makeRecipe } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useCollection: vi.fn(),
     useDeleteCollection: vi.fn(),
     useRemoveRecipeFromCollection: vi.fn(),

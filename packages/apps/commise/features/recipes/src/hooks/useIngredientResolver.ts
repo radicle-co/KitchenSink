@@ -63,7 +63,7 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import type { IngredientSuggestion, LiveIngredientHit } from '@kitchensink/recipe-service-client';
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { ResolvedRecipeFormIngredient } from '../form/props.js';
 
@@ -77,6 +77,9 @@ import type { IngredientResolverViewState, MutationView } from './ingredientReso
 import { draftFromQuery, validateAuthoredFoodDraft } from './authoredFoodCreate.model.js';
 import type { AuthoredFoodCreateState, AuthoredFoodDraft } from './authoredFoodCreate.model.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
+import { abandonOutcome, observeServedList, pickOutcome } from '../analytics/queryOutcome.model.js';
+import type { SearchSession } from '../analytics/queryOutcome.model.js';
+import { useAnalyticsEmitter } from '../analytics/useAnalyticsEmitter.js';
 import { useOnDemandIngredientSearch } from './useOnDemandIngredientSearch.js';
 import type { UseOnDemandIngredientSearchResult } from './useOnDemandIngredientSearch.js';
 
@@ -189,7 +192,7 @@ type CreateFoodPhase =
 export function useIngredientResolver(
     onResolved: (line: ResolvedRecipeFormIngredient) => void,
 ): UseIngredientResolverResult {
-    const [query, setQuery] = useState('');
+    const [query, setQueryRaw] = useState('');
     const [disambiguating, setDisambiguating] = useState<Ingredient | null>(null);
     const trimmed = query.trim();
     // REQ-057: debounce the search-triggering query ~300ms behind keystrokes, and never search below the
@@ -200,9 +203,52 @@ export function useIngredientResolver(
     // Search Stage 2: the BLENDED read (local `ingredients` + the food-service golden catalog), not the
     // local-only `/search` — that one stays the recipe-SEARCH filter's read, where a not-yet-admitted food
     // would be a meaningless filter value.
+    const searchEnabled = disambiguating === null && meetsSearchMinimum(debouncedTrimmed);
     const search = useSuggestIngredients(debouncedTrimmed, undefined, {
-        enabled: disambiguating === null && meetsSearchMinimum(debouncedTrimmed),
+        enabled: searchEnabled,
     });
+    // ── U5: query-outcome session tracking (analytics plan U5; KTD5/KTD6) ────────────────────────
+    // A ref, not state, DELIBERATELY: the session is invisible to render (no UI reads it), and holding
+    // it in state would re-render the whole picker on every debounce settle for nothing. This is the
+    // sanctioned ref shape — wrapping a non-declarative side-channel (analytics emission, including the
+    // unmount flush below) that React's render model has no seat for.
+    const emitAnalytics = useAnalyticsEmitter();
+    const sessionRef = useRef<SearchSession | null>(null);
+
+    /** End the session, emitting its outcome (if any) fire-and-forget. */
+    const settleSession = (outcome: ReturnType<typeof abandonOutcome>): void => {
+        sessionRef.current = null;
+
+        if (outcome !== null) {
+            emitAnalytics(outcome);
+        }
+    };
+
+    useEffect(() => {
+        // A served list settled for the debounced query: begin or CONTINUE the session (KTD6 — a
+        // refined prefix never counts as an abandonment). Gated on the search actually being enabled so
+        // stale data below the minimum (or during disambiguation) observes nothing.
+        if (searchEnabled && search.isSuccess && search.data !== undefined) {
+            sessionRef.current = observeServedList(sessionRef.current, debouncedTrimmed, search.data.suggestions, () =>
+                crypto.randomUUID(),
+            );
+        }
+    }, [searchEnabled, search.isSuccess, search.data, debouncedTrimmed]);
+
+    useEffect(() => {
+        return (): void => {
+            // The leave-the-screen moment: an open session unmounting is a no-pick (KTD6c); the web
+            // transport's keepalive lets this flush survive the navigation that caused it (KTD4b).
+            const pending = abandonOutcome(sessionRef.current);
+            sessionRef.current = null;
+
+            if (pending !== null) {
+                emitAnalytics(pending);
+            }
+        };
+        // Mount-only on purpose: the emitter is context-stable, and re-running this effect on any
+        // dependency change would flush open sessions spuriously mid-search.
+    }, []);
     const addIngredientByName = useAddIngredientByName();
     const addIngredientByFood = useAddIngredientByFood();
     const createIngredient = useCreateIngredient();
@@ -224,8 +270,13 @@ export function useIngredientResolver(
 
     /** Append a resolved line and reset the picker back to a blank search (drift #2 — see module doc). */
     const resolveLine = (ingredient: Ingredient): void => {
+        // U5: any resolution reaching here with the session still open came through a NON-SUGGESTION
+        // route (addByName, candidate, freeform — create-after-search included, live hit, terminal
+        // selectMatch): the served list did not produce the line, so the session ends as a no-pick.
+        // A suggestion pick already settled the session at `selectSuggestion`, making this a no-op.
+        settleSession(abandonOutcome(sessionRef.current));
         onResolved(toIngredientLine(ingredient));
-        setQuery('');
+        setQueryRaw('');
         setDisambiguating(null);
         addIngredientByName.reset();
         addIngredientByFood.reset();
@@ -256,6 +307,12 @@ export function useIngredientResolver(
      *    silently landing a nutrition-less line. On failure the freeform fallback stays available.
      */
     const selectSuggestion = (suggestion: IngredientSuggestion): void => {
+        // U5 (AE1): the pick is recorded AT THE TAP — the only moment provenance and the served-list
+        // position both exist (KTD6: the pick seam is here, never `resolveLine`, which converges eight
+        // non-pick paths). Recorded before the admit round-trip: the cook picked regardless of how the
+        // admission fares.
+        settleSession(pickOutcome(sessionRef.current, suggestion));
+
         if (suggestion.provenance === 'local') {
             selectMatch(suggestion.ingredient);
 
@@ -473,7 +530,15 @@ export function useIngredientResolver(
 
     return {
         query,
-        setQuery,
+        setQuery: (next: string): void => {
+            // U5 (AE2/KTD6a): clearing to EMPTY without resolving abandons the session — one no-pick
+            // carrying the final settled query + served list. A non-empty edit continues the session.
+            if (next.trim() === '' && sessionRef.current !== null) {
+                settleSession(abandonOutcome(sessionRef.current));
+            }
+
+            setQueryRaw(next);
+        },
         trimmed,
         viewState,
         addByNameStatus: { isPending: addIngredientByName.isPending, isError: addIngredientByName.isError },

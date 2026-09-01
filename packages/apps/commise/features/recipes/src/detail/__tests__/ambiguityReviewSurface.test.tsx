@@ -21,6 +21,8 @@ const { useSuggestIngredientsMock, useRecordIngredientCorrectionMock } = vi.hois
 }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useSuggestIngredients: useSuggestIngredientsMock,
     useRecordIngredientCorrection: useRecordIngredientCorrectionMock,
 }));

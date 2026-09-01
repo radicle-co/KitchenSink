@@ -238,6 +238,49 @@ describe('RecipeServiceClient — request build + token attach', () => {
     });
 });
 
+describe('RecipeServiceClient — analytics ingest door (analytics plan U5)', () => {
+    const batch = {
+        events: [
+            {
+                type: 'query_outcome' as const,
+                eventId: '99999999-9999-4999-8999-000000000a01',
+                occurredAt: '2026-09-01T12:00:00.000Z',
+                query: 'salt',
+                served: [{ group: 'catalog' as const, label: 'Salt, table', foodId: 'food-1' }],
+                outcome: { kind: 'no_pick' as const },
+            },
+        ],
+    };
+
+    it('POSTs the batch to /ingest/v1/events with the bearer and keepalive (the leave-the-screen moment)', async () => {
+        const fetchMock = stubFetch(202, { accepted: 1, landed: 1 });
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok-123', fetch: fetchMock });
+
+        await client.emitAnalyticsEvents(batch);
+
+        const req = requestAt(fetchMock);
+        expect(req.url).toBe(`${BASE}/ingest/v1/events`);
+        expect(req.method).toBe('POST');
+        expect(req.headers.get('authorization')).toBe('Bearer tok-123');
+        expect(req.headers.get('content-type')).toBe('application/json');
+        expect(JSON.parse(req.body as string)).toEqual(batch);
+        // The keepalive flag is what lets a web flush survive navigation (KTD4b). RN ignores it — recorded
+        // in the emitter's docstring, and harmless here. Read off the Request itself: the client builds
+        // one so the double's `callsOf` recognizes the call.
+        const rawRequest = callsOf(fetchMock)[0]?.[0];
+        expect(rawRequest?.keepalive).toBe(true);
+    });
+
+    it('throws on a non-2xx so the CALLER decides to swallow — the transport never hides an outcome', async () => {
+        const fetchMock = stubFetch(429, { code: 'RATE_LIMITED', message: 'slow down' });
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok-123', fetch: fetchMock });
+
+        await expect(client.emitAnalyticsEvents(batch)).rejects.toThrow();
+        // At-most-once (origin R11): exactly one attempt, no retry machinery.
+        expect(callsOf(fetchMock)).toHaveLength(1);
+    });
+});
+
 describe('RecipeServiceClient — status → typed error mapping', () => {
     it('400 → BadRequestError carrying the domain code', async () => {
         const client = new RecipeServiceClient({

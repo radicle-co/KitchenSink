@@ -57,6 +57,8 @@ vi.mock('@/components/auth/useEraseAccount', () => ({
 // The election consumes the FULL owner list (paged to completion) — see useAllOwnerRecipes. A capped
 // single-page hook would silently omit (and then erasure would destroy) owner-only recipes past the cap.
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useAllOwnerRecipes: () => recipesState.current,
     useRequestAccountErasure: () => ({ mutate: erasureMutate, ...erasureState.current }),
 }));

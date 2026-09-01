@@ -57,8 +57,27 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
         await expect(page.getByRole('button', { name: /custom ingredient$/ })).toHaveCount(0);
 
         // At three characters the (debounced) search settles and the catalog match appears.
+        // U5 (analytics): the pick must fire ONE fire-and-forget POST to the ingest door carrying a
+        // pick outcome. Intercepted (never a real backend here) and awaited via waitForRequest — the
+        // emission is async after the tap, so the click and the wait race together.
+        await page.route('**/ingest/v1/events', async (intercepted) => {
+            await intercepted.fulfill({
+                status: 202,
+                contentType: 'application/json',
+                body: JSON.stringify({ accepted: 1, landed: 1 }),
+            });
+        });
         await search.fill('sal');
+        const ingestRequest = page.waitForRequest(
+            (request) => request.url().includes('/ingest/v1/events') && request.method() === 'POST',
+        );
         await page.getByRole('button', { name: 'Salt', exact: true }).click();
+        const ingest = await ingestRequest;
+        const ingestBody = ingest.postDataJSON() as {
+            events: { outcome: { kind: string }; query: string }[];
+        };
+        expect(ingestBody.events).toHaveLength(1);
+        expect(ingestBody.events[0]?.outcome.kind).toBe('pick');
 
         // Add a second, freeform ingredient (REQ-032a/b — not backed by the food database) — this is what
         // gates the REQ-034 disclosure notice on.

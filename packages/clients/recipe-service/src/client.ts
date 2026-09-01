@@ -35,6 +35,7 @@ import type {
     RecipeVersion,
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
+import type { AnalyticsEventBatch } from '@kitchensink/recipe-core/analytics/event-payload';
 import ky, { HTTPError, TimeoutError } from 'ky';
 import type { KyInstance, Options } from 'ky';
 
@@ -1243,6 +1244,43 @@ export class RecipeServiceClient {
         );
 
         return this.expect(res, 202, erasureRequestAcceptedResponseSchema);
+    }
+
+    /**
+     * Emit one analytics batch to the ingest door — `POST /ingest/v1/events` (analytics plan U5).
+     *
+     * ⛔ DELIBERATELY OFF this client's ky pipeline: the route is off the domain contract (its schema is
+     * the `@kitchensink/recipe-core` `analytics/event-payload` subpath, never `@kitchensink/schema-recipe`),
+     * delivery is AT-MOST-ONCE (origin R11 — no retry, no 401 replay: a re-minted send is what the
+     * event id's dedup exists for, and analytics is never worth a second token round-trip), and the
+     * request sets `keepalive` so a web flush survives navigation (KTD4b; React Native ignores the flag).
+     * A raw `Request` through the injected fetch keeps all of that explicit — and throws on any non-2xx,
+     * because the TRANSPORT never hides an outcome; the emitting hook is what swallows.
+     *
+     * @param batch - The validated event batch (the caller builds it from the shared payload module).
+     * @throws {Error} On any non-2xx response or transport failure — callers fire-and-forget.
+     * @sideEffect Performs one authenticated HTTP request, exactly once.
+     */
+    public async emitAnalyticsEvents(batch: AnalyticsEventBatch): Promise<void> {
+        const token = await this.resolveToken(false);
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+
+        if (token !== undefined) {
+            headers['authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await this.probeFetch(
+            new Request(`${this.baseUrl}/ingest/v1/events`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(batch),
+                keepalive: true,
+            }),
+        );
+
+        if (!response.ok) {
+            throw new Error(`Analytics ingest answered ${response.status}.`);
+        }
     }
 
     // ─── Transport ──────────────────────────────────────────────────────────────────────────────

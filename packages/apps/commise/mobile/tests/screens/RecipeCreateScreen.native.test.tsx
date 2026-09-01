@@ -21,6 +21,8 @@ import { RecipeCreateScreen } from '../../src/screens/RecipeCreateScreen.js';
 import { makeIngredient, makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     // U16: the create-your-own-food mutation the picker now reads — inert idle default.
     useCreateAuthoredFoodViaPicker: () => ({
         mutate: () => undefined,

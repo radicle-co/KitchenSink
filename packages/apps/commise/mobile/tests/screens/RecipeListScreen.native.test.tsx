@@ -16,6 +16,8 @@ import { RecipeListScreen } from '../../src/screens/RecipeListScreen.js';
 import { makeRecipe, makeRecipePage } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
+    // U5 — the analytics emitter's context read; a resolved stub keeps emission inert in leaf tests.
+    useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
     useRecipes: vi.fn(),
     useRecipe: vi.fn(),
 }));

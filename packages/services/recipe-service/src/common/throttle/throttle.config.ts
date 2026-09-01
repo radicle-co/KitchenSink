@@ -70,6 +70,13 @@ export const searchLimit = throttleLimitFromEnv('RATE_LIMIT_SEARCH', 60);
 export const exportLimit = throttleLimitFromEnv('RATE_LIMIT_EXPORT', 10);
 
 /**
+ * The analytics ingest door (`POST /ingest/v1/events`). Batched client emission settles per search
+ * session, so a real user produces a handful per minute; the cap bounds a misbehaving or hostile
+ * client's write pressure on the events store (R13). `RATE_LIMIT_ANALYTICS` req/min (default 60).
+ */
+export const analyticsLimit = throttleLimitFromEnv('RATE_LIMIT_ANALYTICS', 60);
+
+/**
  * The `ThrottlerModule.forRoot(...)` registration: a single throttler whose limit is the generous read
  * default. Category-specific tighter limits are applied per route via the `@Throttle` overrides in
  * `throttle.decorators.ts`. See {@link DEFAULT_THROTTLER_NAME} for why this is one throttler, not many.

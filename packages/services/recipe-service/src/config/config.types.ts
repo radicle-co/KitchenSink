@@ -376,6 +376,9 @@ export const rateLimitConfigSchema = z.object({
      * without impeding a genuine "download my data" request.
      */
     RATE_LIMIT_EXPORT: z.coerce.number().int().positive().default(10),
+
+    /** Analytics ingest door requests/min per user (plan U4, R13). */
+    RATE_LIMIT_ANALYTICS: z.coerce.number().int().positive().default(60),
 });
 
 /** Typed rate limiting configuration. */

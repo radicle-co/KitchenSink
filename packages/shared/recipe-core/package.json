@@ -27,6 +27,7 @@
         "./parsing/foodness-answer": "./src/parsing/foodnessAnswer.ts",
         "./parsing/parse-job-message": "./src/parsing/parseJobMessage.ts",
         "./parsing/parse-job-text": "./src/parsing/parseJobText.ts",
+        "./analytics/event-payload": "./src/analytics/eventPayload.ts",
         "./parsing/parse-job-aggregate": "./src/parsing/parseJobAggregate.ts",
         "./parsing/parse-key": "./src/parsing/parseKey.ts",
         "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",

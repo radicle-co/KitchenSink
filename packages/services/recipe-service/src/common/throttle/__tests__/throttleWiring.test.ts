@@ -5,9 +5,17 @@ import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ThrottlerException, ThrottlerGuard, ThrottlerStorageService } from '@nestjs/throttler';
 
-import { photoLimit, readLimit, searchLimit, throttlerModuleOptions, writeLimit } from '../throttle.config.js';
+import {
+    analyticsLimit,
+    photoLimit,
+    readLimit,
+    searchLimit,
+    throttlerModuleOptions,
+    writeLimit,
+} from '../throttle.config.js';
 import { UserThrottlerGuard } from '../userThrottler.guard.js';
 import { AccountController } from '../../../account/account.controller.js';
+import { AnalyticsIngestController } from '../../../analytics/ingest.controller.js';
 import { CollectionsController } from '../../../collections/collections.controller.js';
 import { HealthController } from '../../../health/health.controller.js';
 import { IngredientsController } from '../../../ingredients/ingredients.controller.js';
@@ -138,6 +146,14 @@ describe('throttle wiring — effective per-route limits enforced by the real Th
         // Search.
         ['ingredients.search (search)', IngredientsController, IngredientsController.prototype.search, searchLimit],
         ['search.searchRecipes (search)', SearchController, SearchController.prototype.searchRecipes, searchLimit],
+
+        // The analytics ingest door (plan U4, R13).
+        [
+            'analytics.ingest (analytics)',
+            AnalyticsIngestController,
+            AnalyticsIngestController.prototype.ingest,
+            analyticsLimit,
+        ],
     ];
 
     it.each(cases)(

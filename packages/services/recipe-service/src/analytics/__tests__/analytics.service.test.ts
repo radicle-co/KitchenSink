@@ -240,4 +240,81 @@ describe('AnalyticsService.capture (U3 — fire-and-forget, two-tier shed)', () 
         vi.useRealTimers();
         await fake.settle();
     });
+
+    // ── U4: the AWAITED ingest-door batch landing ────────────────────────────────────────────────
+
+    it('ingestBatch lands a multi-row INSERT spelling the PARTIAL ON CONFLICT predicate, and counts RETURNING', async () => {
+        const batch = [
+            {
+                type: 'query_outcome' as const,
+                eventId: '99999999-9999-4999-8999-000000000d01',
+                occurredAt: '2026-09-01T12:00:00.000Z',
+                query: 'salt',
+                served: [{ group: 'catalog' as const, label: 'Salt, table' }],
+                outcome: { kind: 'no_pick' as const },
+            },
+            {
+                type: 'query_outcome' as const,
+                eventId: '99999999-9999-4999-8999-000000000d02',
+                occurredAt: '2026-09-01T12:00:01.000Z',
+                query: 'buckwheat honey',
+                served: [],
+                outcome: { kind: 'no_pick' as const },
+            },
+        ];
+
+        const result = await service.ingestBatch(OWNER, batch);
+
+        const statements = fake.statements();
+        expect(statements).toHaveLength(1);
+        const insert = statements[0];
+
+        if (insert === undefined) {
+            throw new Error('unreachable: length asserted above');
+        }
+
+        expect(insert.text).toMatch(/^insert into analytics_events/i);
+        // ⛔ The idempotency index is PARTIAL, so the landing must repeat its predicate — a bare
+        // ON CONFLICT (event_id) has no arbiter to infer and errors at runtime (0043's header).
+        expect(insert.text).toMatch(/on conflict \(event_id\) where event_id is not null do nothing/i);
+        expect(insert.text).toMatch(/returning/i);
+        expect(insert.params).toContain('99999999-9999-4999-8999-000000000d01');
+        expect(insert.params).toContain('99999999-9999-4999-8999-000000000d02');
+        expect(insert.params).toContain(OWNER);
+        // The fake resolves zero rows, so landed reflects RETURNING — 0 here, not the batch size.
+        expect(result).toEqual({ landed: 0, shed: false });
+    });
+
+    it('ingestBatch SHEDS the whole batch at the client-door threshold — the ingest door is client-door load', async () => {
+        fake.holdOpen();
+
+        for (let index = 0; index < ANALYTICS_CLIENT_SHED_AT; index += 1) {
+            service.capture({ type: 'recipe_viewed', userId: OWNER, recipeId: RECIPE });
+        }
+
+        const saturated = fake.statements().length;
+        const result = await service.ingestBatch(OWNER, [
+            {
+                type: 'query_outcome' as const,
+                eventId: '99999999-9999-4999-8999-000000000d03',
+                occurredAt: '2026-09-01T12:00:00.000Z',
+                query: 'salt',
+                served: [],
+                outcome: { kind: 'no_pick' as const },
+            },
+        ]);
+
+        expect(result).toEqual({ landed: 0, shed: true });
+        expect(fake.statements()).toHaveLength(saturated);
+
+        fake.release();
+        await fake.settle();
+    });
+
+    it('ingestBatch answers 0 for an empty batch without touching the database', async () => {
+        const result = await service.ingestBatch(OWNER, []);
+
+        expect(result).toEqual({ landed: 0, shed: false });
+        expect(fake.statements()).toHaveLength(0);
+    });
 });

@@ -31,7 +31,8 @@
  * id and skip the clause entirely.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
+import type { QueryOutcomeEvent } from '@kitchensink/recipe-core/analytics/event-payload';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
 import type { AnalyticsEventType } from '../database/schema/analyticsEvents.js';
@@ -134,6 +135,60 @@ export class AnalyticsService {
                     ${event.queryText ?? null}, ${payload}::jsonb, ${occurredAt})
             ON CONFLICT (event_id) WHERE event_id IS NOT NULL DO NOTHING
         `);
+    }
+
+    /**
+     * Land one validated ingest-door batch (plan U4), AWAITED — the ingest route needs the landed count
+     * for KTD5's dedup-rate signal, so this is the one deliberate exception to fire-and-forget. The
+     * batch counts as ONE in-flight slot and sheds at the CLIENT threshold: the ingest door is
+     * client-door load by definition, so under pressure it drops before any server-door capture does.
+     *
+     * ⛔ The landing spells `ON CONFLICT (event_id) WHERE event_id IS NOT NULL DO NOTHING` — 0043's
+     * idempotency index is PARTIAL and a bare `ON CONFLICT (event_id)` errors at runtime. `RETURNING`
+     * counts the rows that actually landed; duplicates (client retries) are simply absent from it.
+     *
+     * @param userId - The VERIFIED principal every event in the batch is attributed to.
+     * @param events - Schema-validated client events (the controller already dropped invalid ones).
+     * @returns How many rows landed, and whether the batch was shed instead of attempted.
+     * @sideEffect One multi-row analytics INSERT. Throws on database failure (the route answers 5xx
+     *   honestly; the client emitter swallows it — this is the analytics action itself, not a byproduct
+     *   of a user-facing one).
+     */
+    public async ingestBatch(
+        userId: string,
+        events: readonly QueryOutcomeEvent[],
+    ): Promise<{ landed: number; shed: boolean }> {
+        if (events.length === 0) {
+            return { landed: 0, shed: false };
+        }
+
+        if (this.inFlight >= ANALYTICS_CLIENT_SHED_AT) {
+            this.droppedSinceFlush += events.length - 1;
+            this.countDrop();
+
+            return { landed: 0, shed: true };
+        }
+
+        this.inFlight += 1;
+
+        try {
+            const rows: SQL[] = events.map(
+                (event) =>
+                    sql`(${event.eventId}, ${event.type}, ${userId}, ${event.query},
+                        ${JSON.stringify({ served: event.served, outcome: event.outcome })}::jsonb,
+                        ${new Date(event.occurredAt)})`,
+            );
+            const result = await this.db.execute(sql`
+                INSERT INTO analytics_events (event_id, event_type, user_id, query_text, payload, occurred_at)
+                VALUES ${sql.join(rows, sql`, `)}
+                ON CONFLICT (event_id) WHERE event_id IS NOT NULL DO NOTHING
+                RETURNING id
+            `);
+
+            return { landed: result.rows.length, shed: false };
+        } finally {
+            this.inFlight -= 1;
+        }
     }
 
     /** Count one shed event; flush the aggregate as a single warn line at most once per interval. */

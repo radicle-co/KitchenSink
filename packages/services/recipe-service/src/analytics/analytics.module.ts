@@ -9,8 +9,10 @@
 import { Module } from '@nestjs/common';
 
 import { AnalyticsService } from './analytics.service.js';
+import { AnalyticsIngestController } from './ingest.controller.js';
 
 @Module({
+    controllers: [AnalyticsIngestController],
     providers: [AnalyticsService],
     exports: [AnalyticsService],
 })

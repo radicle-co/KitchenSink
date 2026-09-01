@@ -223,6 +223,15 @@ const PACKAGE_INTERNALS_PATTERN = {
         // service's contract corpus.
         '!@kitchensink/*/parsing',
         '!@kitchensink/*/parsing/parse-key',
+        // `analytics/event-payload` (analytics plan U4 / KTD3) — the client
+        // analytics door's ONE shared payload contract. TWO ends validate it (the
+        // web/mobile emitters and the recipe service's ingest controller), and it
+        // must stay OUT of the barrel because the barrel is inside the recipe
+        // service's contract corpus while this route is OFF the domain contract
+        // by design — a barrel export would put an off-contract wire shape inside
+        // the contract's demanded-symbol reach.
+        '!@kitchensink/*/analytics',
+        '!@kitchensink/*/analytics/event-payload',
         // `spend/spend-arithmetic` (ADR-0024 §2) — the rate table, worst case,
         // headroom, period key and settle delta. Arithmetic over MONEY with no I/O
         // in it, i.e. exactly the kind of thing that gets quietly re-derived at a

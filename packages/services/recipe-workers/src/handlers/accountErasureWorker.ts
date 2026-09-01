@@ -583,6 +583,22 @@ export const eraseRecipeRows = async (
         //    DISTINCT-USER COUNTER and an authorization predicate rather than an erasure predicate. See the
         //    function docstring above before adding a fourth sweep to this transaction.
 
+        // 14. Analytics events (analytics plan U2, migration 0043) — ANONYMIZED, never deleted (origin
+        //     KD4/AE4). The rows and every folded lifetime count in `recipe_impact_signals` survive; the
+        //     person is removed by nulling the actor id AND blanking the typed query text — deliberately
+        //     STRICTER than ADR-0027's keep-the-phrase ruling, by decision: the search query is the
+        //     user's own words, not a recipe's ingredient phrase. 0043's pair CHECK
+        //     (`query_text IS NULL OR user_id IS NOT NULL`) makes that pairing structural, and 0043
+        //     ships NO UPDATE trigger, so this statement provably moves no counts (KD6 — counts never
+        //     decrement; the recipe-service integration suite is the tripwire). ⛔ Do NOT "fix" this
+        //     into a DELETE: it would erase the history SC2 promises 015 and look correct in any test
+        //     that only checks for a remaining user id.
+        await tx.execute(sql`
+            UPDATE analytics_events
+            SET user_id = NULL, query_text = NULL
+            WHERE user_id = ${ownerId}
+        `);
+
         return { removedRecipeIds };
     });
 };

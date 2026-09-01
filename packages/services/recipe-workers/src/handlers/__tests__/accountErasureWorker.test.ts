@@ -633,6 +633,42 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(touching[0]?.params).toContain(OWNER);
     });
 
+    it('anonymizes analytics events — ONE UPDATE nulling user_id AND query_text, never a DELETE (analytics U2)', async () => {
+        // Origin KD4/AE4: erasure ANONYMIZES the events store. The rows and every folded count survive —
+        // a DELETE here would erase history 015 is promised (SC2) and, worse, look correct in every test
+        // that only checks "no user id remains". Stricter than ADR-0027 by RULING, not drift: the typed
+        // query text is blanked alongside the id (the pair CHECK in 0043 makes the pairing structural).
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const touching = control.statements().filter((statement) => /analytics_events/i.test(statement.text));
+
+        expect(touching).toHaveLength(1);
+        const sweep = touching[0];
+
+        if (sweep === undefined) {
+            throw new Error('unreachable: length asserted above');
+        }
+
+        expect(sweep.text).toMatch(/^update analytics_events/i);
+        expect(sweep.text).toMatch(/set user_id = null, query_text = null/i);
+        expect(sweep.text).toMatch(/where user_id = \$\d/i);
+        expect(sweep.params).toContain(OWNER);
+    });
+
+    it('issues NO statement against recipe_impact_signals — counts never decrement on erasure (KD6)', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        for (const statement of control.statements()) {
+            expect(statement.text).not.toMatch(/recipe_impact_signals/i);
+        }
+    });
+
     it('does not hand-delete rows the FK cascade already removes', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);

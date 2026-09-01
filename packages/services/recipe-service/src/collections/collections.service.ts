@@ -16,6 +16,7 @@ import { RecipeCollectionAddedVia, recipeVisibilitySchema, type RecipeVisibility
 import { toPageEnvelope } from '../common/pagination.js';
 import type { CollectionRow } from '../database/schema/collections.js';
 import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
+import { AnalyticsService } from '../analytics/analytics.service.js';
 import { CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
 import { recipeRowToDomain } from '../recipes/mappers/recipeRowToDomain.js';
@@ -79,6 +80,9 @@ export class CollectionsService {
     public constructor(
         @Inject(CollectionsDal) private readonly dal: CollectionsDal,
         @Inject(AuthorHandlesDal) private readonly authorHandles: AuthorHandlesDal,
+        // Required, not optional: every construction site must decide what analytics receives (the
+        // 015 plan's compile-error philosophy for load-bearing new collaborators).
+        @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
     ) {}
 
     /**
@@ -200,7 +204,18 @@ export class CollectionsService {
             throw recipeNotFoundError(recipeId);
         }
 
-        const membership = await this.dal.addRecipe(collectionId, recipeId, RecipeCollectionAddedVia.MANUAL);
+        const { row: membership, created } = await this.dal.addRecipe(
+            collectionId,
+            recipeId,
+            RecipeCollectionAddedVia.MANUAL,
+        );
+
+        // U3 save capture — only a genuinely NEW membership is a save event. A replayed add minting
+        // credit would diverge save_count from this table permanently (R11) and let a user farm 015's
+        // recognition by re-adding the same recipe. Pull/clone paths correctly don't pass through here.
+        if (created) {
+            this.analytics.capture({ type: 'recipe_saved', userId: ownerId, recipeId });
+        }
 
         return {
             collectionId: membership.collectionId,

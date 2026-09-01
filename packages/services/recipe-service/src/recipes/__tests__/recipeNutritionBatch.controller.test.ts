@@ -23,6 +23,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { RecipesController } from '../recipes.controller.js';
 import type { RecipesService } from '../recipes.service.js';
+import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import type { RecipeNutritionRequestDto } from '../dto/recipeNutrition.dto.js';
 import { SKIP_ERASURE_LOCK } from '../../account/skipErasureLock.decorator.js';
 
@@ -76,7 +77,10 @@ describe('RecipesController.getNutritionBatch', () => {
     it('delegates the owner key, the requested ids and the caller bearer, and returns the result verbatim', async () => {
         const response = { nutrition: {} };
         const getNutritionForRecipes = vi.fn().mockResolvedValue(response);
-        const controller = new RecipesController({ getNutritionForRecipes } as unknown as RecipesService);
+        const controller = new RecipesController(
+            { getNutritionForRecipes } as unknown as RecipesService,
+            { capture: vi.fn() } as unknown as AnalyticsService,
+        );
         const body = { recipeIds: ['00000000-0000-4000-8000-000000000001'] } as RecipeNutritionRequestDto;
 
         const result = await controller.getNutritionBatch(OWNER, CALLER, body);

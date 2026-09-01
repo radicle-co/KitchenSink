@@ -253,15 +253,19 @@ export class CollectionsDal {
 
     /**
      * Add a recipe to a collection (idempotent). Returns the membership row whether it was newly
-     * inserted or already present. Many-to-many: the same recipe can live in any number of collections.
-     * Pass `tx` (from {@link transaction}) to enlist this in a caller-managed Unit-of-Work.
+     * inserted or already present, with `created` saying WHICH — the distinction is load-bearing for
+     * analytics plan U3: a `recipe_saved` event fires only on a genuinely new membership, because a
+     * replayed add minting save credit would permanently diverge `save_count` from this table (R11's
+     * reconcilability promise) and let one user farm 015's recognition by re-adding the same recipe.
+     * Many-to-many: the same recipe can live in any number of collections. Pass `tx` (from
+     * {@link transaction}) to enlist this in a caller-managed Unit-of-Work.
      */
     public async addRecipe(
         collectionId: string,
         recipeId: string,
         addedVia: RecipeCollectionAddedVia = 'manual',
         tx: Writer = this.db,
-    ): Promise<RecipeCollectionRow> {
+    ): Promise<{ row: RecipeCollectionRow; created: boolean }> {
         const inserted = await tx
             .insert(recipeCollections)
             .values({ collectionId, recipeId, addedVia })
@@ -271,7 +275,7 @@ export class CollectionsDal {
         const row = inserted[0];
 
         if (row) {
-            return row;
+            return { row, created: true };
         }
 
         const existing = await this.findMembership(collectionId, recipeId, tx);
@@ -280,7 +284,7 @@ export class CollectionsDal {
             throw new Error('Membership insert conflicted but no existing row was found.');
         }
 
-        return existing;
+        return { row: existing, created: false };
     }
 
     /**

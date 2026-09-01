@@ -30,6 +30,7 @@ import { collectionSchema, recipeVisibilitySchema } from '@kitchensink/recipe-co
 import { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
 import { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
+import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
 import {
     collectionListResponseSchema,
@@ -80,6 +81,7 @@ function makeService(dal: DalMock): CollectionsService {
             findHandle: vi.fn().mockResolvedValue('chef-anon'),
             applyRename: vi.fn(),
         } as unknown as AuthorHandlesDal,
+        { capture: vi.fn() } as unknown as AnalyticsService,
     );
 }
 
@@ -167,7 +169,7 @@ describe('the published collection body is TRUE of what CollectionsService emits
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow());
         dal.findActiveRecipe.mockResolvedValue(makeRecipeRow());
-        dal.addRecipe.mockResolvedValue(makeMembershipRow());
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow(), created: true });
 
         const result = await makeService(dal).addRecipe(OWNER, COLLECTION_ID, RECIPE_ID);
 

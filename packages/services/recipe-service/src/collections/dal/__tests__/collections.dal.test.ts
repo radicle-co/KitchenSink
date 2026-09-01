@@ -246,7 +246,10 @@ describe('CollectionsDal.findActiveRecipe', () => {
 });
 
 describe('CollectionsDal.addRecipe', () => {
-    it('returns the newly inserted membership row (idempotent insert)', async () => {
+    // REWRITTEN for analytics plan U3: the return gained `created`, because the service must fire a
+    // `recipe_saved` event ONLY for a genuinely new membership — a replayed add minting save credit
+    // would diverge save_count from this table permanently (R11's reconcilability).
+    it('returns the newly inserted membership row with created: true (idempotent insert)', async () => {
         const fake = createFakeDb();
         const membership = makeMembershipRow();
         fake.enqueue([membership]);
@@ -254,12 +257,13 @@ describe('CollectionsDal.addRecipe', () => {
 
         const result = await dal.addRecipe(membership.collectionId, membership.recipeId);
 
-        expect(result).toBe(membership);
+        expect(result.row).toBe(membership);
+        expect(result.created).toBe(true);
         expect(methodsOf(fake)).toEqual(['insert', 'values', 'onConflictDoNothing', 'returning']);
         expect(fake.calls[1]?.args[0]).toMatchObject({ addedVia: 'manual' });
     });
 
-    it('falls back to the existing row when the insert conflicted', async () => {
+    it('falls back to the existing row with created: false when the insert conflicted', async () => {
         const fake = createFakeDb();
         const existing = makeMembershipRow();
         fake.enqueue([]); // insert ... returning -> nothing (conflict)
@@ -268,7 +272,8 @@ describe('CollectionsDal.addRecipe', () => {
 
         const result = await dal.addRecipe(existing.collectionId, existing.recipeId);
 
-        expect(result).toBe(existing);
+        expect(result.row).toBe(existing);
+        expect(result.created).toBe(false);
         expect(methodsOf(fake)).toEqual([
             'insert',
             'values',

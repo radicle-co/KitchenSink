@@ -13,6 +13,7 @@ import { IngredientsModule } from './ingredients/ingredients.module.js';
 import { VersionsModule } from './versions/versions.module.js';
 import { PhotosModule } from './photos/photos.module.js';
 import { CollectionsModule } from './collections/collections.module.js';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { SearchModule } from './search/search.module.js';
 import { AccountModule } from './account/account.module.js';
 import { AuthMiddleware } from './auth/auth.middleware.js';
@@ -43,6 +44,7 @@ import { ErasureLockGuard } from './account/erasureLock.guard.js';
         VersionsModule,
         PhotosModule,
         CollectionsModule,
+        AnalyticsModule,
         SearchModule,
         AccountModule,
     ],

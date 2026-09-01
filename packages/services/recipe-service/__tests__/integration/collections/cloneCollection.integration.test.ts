@@ -30,6 +30,7 @@ import { recipes } from '../../../src/database/schema/recipes.js';
 import { authorHandles } from '../../../src/database/schema/authorHandles.js';
 import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
 import { CollectionsService } from '../../../src/collections/collections.service.js';
+import { AnalyticsService } from '../../../src/analytics/analytics.service.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -245,7 +246,7 @@ describe.skipIf(!hasDatabaseUrl)('CollectionsService.cloneCollection atomicity (
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         db = createRecipeDrizzle(pool);
         dal = new CollectionsDal(db);
-        service = new CollectionsService(dal, new AuthorHandlesDal(db));
+        service = new CollectionsService(dal, new AuthorHandlesDal(db), new AnalyticsService(db));
 
         const [source] = await db
             .insert(collections)

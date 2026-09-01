@@ -24,6 +24,7 @@ import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
+import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = {
@@ -71,7 +72,11 @@ function makeAuthorHandlesDal(overrides: Partial<AuthorHandlesMock> = {}): Autho
 }
 
 function makeService(dal: DalMock, authorHandles: AuthorHandlesMock = makeAuthorHandlesDal()): CollectionsService {
-    return new CollectionsService(dal as unknown as CollectionsDal, authorHandles as unknown as AuthorHandlesDal);
+    return new CollectionsService(
+        dal as unknown as CollectionsDal,
+        authorHandles as unknown as AuthorHandlesDal,
+        { capture: vi.fn() } as unknown as AnalyticsService,
+    );
 }
 
 /** The user performing the clone (NOT the source's owner). */

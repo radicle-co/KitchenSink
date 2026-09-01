@@ -6,6 +6,7 @@ import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { CollectionsController } from './collections.controller.js';
 import { CollectionsService } from './collections.service.js';
 import { CollectionsDal } from './dal/collections.dal.js';
+import { AnalyticsModule } from '../analytics/analytics.module.js';
 
 /**
  * Collections module (T041). Owns user recipe collections and their membership: CRUD, the visibility
@@ -17,6 +18,7 @@ import { CollectionsDal } from './dal/collections.dal.js';
  * source owner's CURRENT display handle to freeze onto the clone, WITHOUT importing an AuthorsModule.
  */
 @Module({
+    imports: [AnalyticsModule],
     controllers: [CollectionsController],
     providers: [
         CollectionsService,

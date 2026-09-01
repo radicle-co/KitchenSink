@@ -46,6 +46,7 @@ import type { Principal } from '../auth/principal.js';
 import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
+import { AnalyticsService } from '../analytics/analytics.service.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
@@ -54,7 +55,10 @@ import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 @Controller(['api/v1/recipes', 'v1/recipes'])
 @UsePipes(ZodValidationPipe)
 export class RecipesController {
-    public constructor(private readonly recipesService: RecipesService) {}
+    public constructor(
+        private readonly recipesService: RecipesService,
+        private readonly analytics: AnalyticsService,
+    ) {}
 
     /** `POST /api/v1/recipes` — create a recipe owned by the caller. */
     @Post()
@@ -124,7 +128,16 @@ export class RecipesController {
         // degrades every recipe to nutrition-absent, which is indistinguishable from a food outage.
         @CallerBearerToken() caller: CallerToken | undefined,
     ): Promise<RecipeResponse> {
-        return this.recipesService.getById(ownerId, id, caller);
+        const response = await this.recipesService.getById(ownerId, id, caller);
+
+        // ⛔ View capture lives at THIS handler, deliberately not in `RecipesService.getById` (analytics
+        // plan U3): the service method doubles as an internal authorization helper with six non-view
+        // call sites (photos ×2, versions ×3, ratings ×1) — capturing there would count every photo
+        // upload and version restore as a view, permanently inflating the lifetime counts 015 consumes.
+        // After the await, so a refused read (404/403) is never a view. Fire-and-forget: never awaited.
+        this.analytics.capture({ type: 'recipe_viewed', userId: ownerId, recipeId: id });
+
+        return response;
     }
 
     /** `PATCH /api/v1/recipes/{id}` — update a recipe the caller owns (optimistic concurrency). */

@@ -26,6 +26,7 @@ import type { CollectionsDal } from '../dal/collections.dal.js';
 import { CollectionsService } from '../collections.service.js';
 import { isRecipeDomainError, RecipeDomainError } from '../../recipes/recipe.error.js';
 import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
+import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import { makeCollectionRow, makeMembershipRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = {
@@ -70,6 +71,7 @@ function makeService(dal: DalMock): CollectionsService {
     return new CollectionsService(
         dal as unknown as CollectionsDal,
         makeAuthorHandlesDal() as unknown as AuthorHandlesDal,
+        { capture: vi.fn() } as unknown as AnalyticsService,
     );
 }
 

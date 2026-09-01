@@ -22,6 +22,7 @@ import { IngredientsDal } from '../ingredients/dal/ingredients.dal.js';
 import { LineVerificationsDal } from './dal/lineVerifications.dal.js';
 import { VersionsModule } from '../versions/versions.module.js';
 import { IngredientsModule } from '../ingredients/ingredients.module.js';
+import { AnalyticsModule } from '../analytics/analytics.module.js';
 import { createSqsVerificationQueue, VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
 import { createSqsParseJobQueue, PARSE_JOB_QUEUE, type ParseJobQueuePort } from './parseJob.queue.js';
 import { ParseJobsController } from './parseJobs.controller.js';
@@ -46,7 +47,7 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
 @Module({
     // forwardRef: RecipesService records versions on every write; VersionsService drives a recipe write
     // on restore. The two modules depend on each other by design (see VersionsModule's matching ref).
-    imports: [forwardRef(() => VersionsModule), IngredientsModule],
+    imports: [forwardRef(() => VersionsModule), IngredientsModule, AnalyticsModule],
     controllers: [RecipesController, ParseJobsController],
     providers: [
         {

@@ -15,6 +15,7 @@ import { CollectionsService, MAX_COLLECTIONS_PER_OWNER } from '../collections.se
 import { collectionLimitReachedError } from '../collections.errors.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import type { AuthorHandlesDal } from '../../authors/dal/authorHandles.dal.js';
+import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../__fixtures__/collections.fixtures.js';
 
 type DalMock = {
@@ -50,10 +51,19 @@ function makeAuthorHandlesDal(): { [K in keyof AuthorHandlesDal]: ReturnType<typ
     return { findHandle: vi.fn().mockResolvedValue(undefined), applyRename: vi.fn() };
 }
 
-function makeService(dal: DalMock): CollectionsService {
+/** U3: the save-capture collaborator — `capture` is sync-void fire-and-forget, so one mock suffices. */
+function makeAnalytics(): { capture: ReturnType<typeof vi.fn> } {
+    return { capture: vi.fn() };
+}
+
+function makeService(
+    dal: DalMock,
+    analytics: { capture: ReturnType<typeof vi.fn> } = makeAnalytics(),
+): CollectionsService {
     return new CollectionsService(
         dal as unknown as CollectionsDal,
         makeAuthorHandlesDal() as unknown as AuthorHandlesDal,
+        analytics as unknown as AnalyticsService,
     );
 }
 
@@ -286,7 +296,7 @@ describe('CollectionsService.addRecipe', () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1' }));
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: true });
         const service = makeService(dal);
 
         const result = await service.addRecipe(OWNER, 'c1', 'r1');
@@ -336,7 +346,7 @@ describe('CollectionsService.addRecipe', () => {
         dal.findActiveRecipe.mockResolvedValue(
             makeRecipeRow({ id: 'r1', ownerId: 'someone-else', visibility: 'public' }),
         );
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: true });
         const service = makeService(dal);
 
         await service.addRecipe(OWNER, 'c1', 'r1');
@@ -348,12 +358,56 @@ describe('CollectionsService.addRecipe', () => {
         const dal = makeDal();
         dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
         dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1', ownerId: OWNER, visibility: 'private' }));
-        dal.addRecipe.mockResolvedValue(makeMembershipRow({ recipeId: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: true });
         const service = makeService(dal);
 
         await service.addRecipe(OWNER, 'c1', 'r1');
 
         expect(dal.addRecipe).toHaveBeenCalledWith('c1', 'r1', 'manual');
+    });
+
+    // ── U3: save capture — a NEW membership is a save event; an idempotent replay is NOT ──────────
+    // 015's recognition credit reads save_count, and R11 promises the count stays reconcilable against
+    // recipe_collections. Capturing on replay would let one user mint unbounded credit by re-adding the
+    // same recipe — the count would diverge from the membership table permanently.
+
+    it('captures ONE recipe_saved event when the membership is NEW (U3)', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: true });
+        const analytics = makeAnalytics();
+        const service = makeService(dal, analytics);
+
+        await service.addRecipe(OWNER, 'c1', 'r1');
+
+        expect(analytics.capture).toHaveBeenCalledTimes(1);
+        expect(analytics.capture).toHaveBeenCalledWith({ type: 'recipe_saved', userId: OWNER, recipeId: 'r1' });
+    });
+
+    it('captures NOTHING on an idempotent replay of an existing membership', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(makeRecipeRow({ id: 'r1' }));
+        dal.addRecipe.mockResolvedValue({ row: makeMembershipRow({ recipeId: 'r1' }), created: false });
+        const analytics = makeAnalytics();
+        const service = makeService(dal, analytics);
+
+        await service.addRecipe(OWNER, 'c1', 'r1');
+
+        expect(analytics.capture).not.toHaveBeenCalled();
+    });
+
+    it('captures NOTHING when the add is refused — no membership, no save', async () => {
+        const dal = makeDal();
+        dal.findById.mockResolvedValue(makeCollectionRow({ ownerId: OWNER }));
+        dal.findActiveRecipe.mockResolvedValue(undefined);
+        const analytics = makeAnalytics();
+        const service = makeService(dal, analytics);
+
+        await expect(service.addRecipe(OWNER, 'c1', 'gone')).rejects.toThrow();
+
+        expect(analytics.capture).not.toHaveBeenCalled();
     });
 });
 

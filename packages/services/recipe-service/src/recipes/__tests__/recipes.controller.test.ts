@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { RecipesController } from '../recipes.controller.js';
 import type { RecipesService } from '../recipes.service.js';
+import type { AnalyticsService } from '../../analytics/analytics.service.js';
 import type { Principal } from '../../auth/principal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
@@ -41,10 +42,22 @@ function fakeService(overrides: Partial<RecipesService> = {}): RecipesService {
 
 const RESPONSE = { id: 'r-1', ownerId: OWNER } as unknown as RecipeResponse;
 
+/** U3: the view-capture collaborator — `capture` is sync-void fire-and-forget, so one mock suffices. */
+function fakeAnalytics(): { capture: ReturnType<typeof vi.fn> } {
+    return { capture: vi.fn() };
+}
+
+function makeController(
+    service: RecipesService,
+    analytics: { capture: ReturnType<typeof vi.fn> } = fakeAnalytics(),
+): RecipesController {
+    return new RecipesController(service, analytics as unknown as AnalyticsService);
+}
+
 describe('RecipesController', () => {
     it('create delegates the full principal + body and returns the service result', async () => {
         const create = vi.fn().mockResolvedValue(RESPONSE);
-        const controller = new RecipesController(fakeService({ create }));
+        const controller = makeController(fakeService({ create }));
         const body = { title: 'Soup' } as CreateRecipeDto;
 
         // Create needs the whole principal (not just the owner key) so the service can derive premium
@@ -59,7 +72,7 @@ describe('RecipesController', () => {
 
     it('list delegates the owner key + query', async () => {
         const list = vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 20, hasMore: false });
-        const controller = new RecipesController(fakeService({ list }));
+        const controller = makeController(fakeService({ list }));
         const query = { page: 1, pageSize: 20, sortBy: 'updatedAt' } as ListRecipesQueryDto;
 
         await controller.list(OWNER, query);
@@ -69,7 +82,7 @@ describe('RecipesController', () => {
 
     it('getById delegates the owner key + id', async () => {
         const getById = vi.fn().mockResolvedValue(RESPONSE);
-        const controller = new RecipesController(fakeService({ getById }));
+        const controller = makeController(fakeService({ getById }));
 
         const result = await controller.getById(OWNER, 'r-1', CALLER);
 
@@ -79,7 +92,7 @@ describe('RecipesController', () => {
 
     it('update delegates the verified principal, id, and body', async () => {
         const update = vi.fn().mockResolvedValue(RESPONSE);
-        const controller = new RecipesController(fakeService({ update }));
+        const controller = makeController(fakeService({ update }));
         const body = { expectedVersion: 1, title: 'Renamed' } as UpdateRecipeDto;
 
         // Update needs the whole principal (not just the owner key) so the service can derive the editor
@@ -91,7 +104,7 @@ describe('RecipesController', () => {
 
     it('remove delegates the owner key + id and resolves void', async () => {
         const deleteFn = vi.fn().mockResolvedValue(undefined);
-        const controller = new RecipesController(fakeService({ delete: deleteFn }));
+        const controller = makeController(fakeService({ delete: deleteFn }));
 
         await expect(controller.remove(OWNER, 'r-1')).resolves.toBeUndefined();
         expect(deleteFn).toHaveBeenCalledWith(OWNER, 'r-1');
@@ -99,7 +112,7 @@ describe('RecipesController', () => {
 
     it('clone delegates the verified principal + id and returns the service result', async () => {
         const clone = vi.fn().mockResolvedValue(RESPONSE);
-        const controller = new RecipesController(fakeService({ clone }));
+        const controller = makeController(fakeService({ clone }));
 
         const result = await controller.clone(PRINCIPAL, 'r-1', {} as CloneRecipeDto);
 
@@ -109,11 +122,59 @@ describe('RecipesController', () => {
 
     it('setVisibility delegates the principal, id, and requested visibility', async () => {
         const setVisibility = vi.fn().mockResolvedValue(RESPONSE);
-        const controller = new RecipesController(fakeService({ setVisibility }));
+        const controller = makeController(fakeService({ setVisibility }));
 
         const result = await controller.setVisibility(PRINCIPAL, 'r-1', { visibility: 'private' } as SetVisibilityDto);
 
         expect(setVisibility).toHaveBeenCalledWith(PRINCIPAL, 'r-1', 'private');
         expect(result).toBe(RESPONSE);
+    });
+
+    // ── U3: view capture at the DETAIL handler, deliberately not RecipesService.getById ──────────
+    // The service method is also an internal authorization helper (photos ×2, versions ×3, ratings ×1);
+    // capturing there would count every photo upload and version restore as a view, permanently
+    // inflating the lifetime counts 015 will consume. The controller handler observes exactly the
+    // detail READS — so capture lives here, and the integration suite's zero-view scenarios pin the
+    // other routes.
+
+    it('getById captures ONE recipe_viewed event for the verified caller after a successful read (U3)', async () => {
+        const getById = vi.fn().mockResolvedValue(RESPONSE);
+        const analytics = fakeAnalytics();
+        const controller = makeController(fakeService({ getById }), analytics);
+
+        await controller.getById(OWNER, 'r-1', CALLER);
+
+        expect(analytics.capture).toHaveBeenCalledTimes(1);
+        expect(analytics.capture).toHaveBeenCalledWith({ type: 'recipe_viewed', userId: OWNER, recipeId: 'r-1' });
+    });
+
+    it('getById captures NOTHING when the read fails — a 404/403 is not a view', async () => {
+        const getById = vi.fn().mockRejectedValue(new Error('RECIPE_NOT_FOUND'));
+        const analytics = fakeAnalytics();
+        const controller = makeController(fakeService({ getById }), analytics);
+
+        await expect(controller.getById(OWNER, 'gone', CALLER)).rejects.toThrow();
+
+        expect(analytics.capture).not.toHaveBeenCalled();
+    });
+
+    it('no OTHER handler captures a view — create, list, update, delete, clone are not reads of a detail', async () => {
+        const analytics = fakeAnalytics();
+        const service = fakeService({
+            create: vi.fn().mockResolvedValue(RESPONSE),
+            list: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 20, hasMore: false }),
+            update: vi.fn().mockResolvedValue(RESPONSE),
+            delete: vi.fn().mockResolvedValue(undefined),
+            clone: vi.fn().mockResolvedValue(RESPONSE),
+        });
+        const controller = makeController(service, analytics);
+
+        await controller.create(PRINCIPAL, CALLER, { title: 'Soup' } as CreateRecipeDto);
+        await controller.list(OWNER, { page: 1, pageSize: 20, sortBy: 'updatedAt' } as ListRecipesQueryDto);
+        await controller.update(PRINCIPAL, 'r-1', { expectedVersion: 1 } as UpdateRecipeDto);
+        await controller.remove(OWNER, 'r-1');
+        await controller.clone(PRINCIPAL, 'r-1', {} as CloneRecipeDto);
+
+        expect(analytics.capture).not.toHaveBeenCalled();
     });
 });

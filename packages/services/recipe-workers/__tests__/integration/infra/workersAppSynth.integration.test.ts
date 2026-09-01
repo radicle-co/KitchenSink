@@ -213,7 +213,10 @@ describe('recipe-workers CDK app — deploy input contract', () => {
         // TEN since the band-authority drain (plan U3, `BandDrainFunction`) and the parse leg (plan U8,
         // `RecipeParseLineFunction`) landed — both write this same preview database (band epochs / the
         // parse cache and job aggregates), so both are inside the #119 guarantee for the same reason.
-        expect(dbNames).toHaveLength(10);
+        // The analytics retention sweeper (analytics plan U6) is the eleventh: it deletes this
+        // preview's own aged analytics_events, so a base-database sweeper would age out another
+        // stage's rows on schedule.
+        expect(dbNames).toHaveLength(11);
         expect(new Set(dbNames)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 

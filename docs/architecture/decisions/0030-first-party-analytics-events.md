@@ -96,6 +96,29 @@ resolution (create-after-search included), or unmount cleanup. The ingest route 
 landed and logs the divergence: a dedup rate persistently above retry noise is the
 id-minted-at-mount-bug alarm.
 
+Two boundary semantics, made explicit after the staff-architect REVIEW (2026-09-01) so the record
+matches the code:
+
+- **Continuation is CONTINUED INTERACTION, not text similarity.** Any non-empty list settling while a
+  session is open continues it — including a wholesale retype ("butter" backspaced through the
+  minimum, then "sugar"). The session's unit is one uninterrupted engagement with the picker for one
+  ingredient line: a rephrase that ends in a pick is a SUCCESS of that engagement, not an abandonment
+  of the first phrasing, and counting intra-line rephrases as no-picks would re-import the
+  typing-cadence bias the session exists to remove. The landed row carries the FINAL query and served
+  list. ⚠️ Owner-overridable: if rephrase-as-abandonment is ever wanted as a signal, that is a model
+  change (prefix test + new id per rephrase), not a reinterpretation.
+- **An unlocatable pick emits NOTHING — no pick, no no-pick.** When the tapped suggestion cannot be
+  found in the served digest (a stale render, or an entry truncated past the 20-entry digest cap),
+  asserting a position that was never served would be worse than silence, so the session evaporates.
+  This slightly understates the denominator for the long-list case; accepted, and recorded here so the
+  capture-rate reader knows the bias direction.
+
+- **The event-id minter is a platform seam** (`mintEventId.ts` / `mintEventId.native.ts`): Hermes
+  ships no `crypto` global, so the native leaf delegates to `expo-crypto`; the shared hook never
+  touches the bare global (guarded at source by
+  `packages/infra/global/__tests__/analyticsMintEventIdSeam.test.ts`). ⚠️ Residual: the native leaf
+  has run under vitest stubs only — the on-device/Maestro pass is the outstanding confirmation.
+
 ### 7. Retention: 6 months, fold-before-delete by construction
 
 A daily recipe-workers Lambda deletes rows older than 6 months (owner, 2026-09-01), keyed on

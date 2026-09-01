@@ -78,6 +78,7 @@ import { draftFromQuery, validateAuthoredFoodDraft } from './authoredFoodCreate.
 import type { AuthoredFoodCreateState, AuthoredFoodDraft } from './authoredFoodCreate.model.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
 import { abandonOutcome, observeServedList, pickOutcome } from '../analytics/queryOutcome.model.js';
+import { mintEventId } from '../analytics/mintEventId.js';
 import type { SearchSession } from '../analytics/queryOutcome.model.js';
 import { useAnalyticsEmitter } from '../analytics/useAnalyticsEmitter.js';
 import { useOnDemandIngredientSearch } from './useOnDemandIngredientSearch.js';
@@ -229,8 +230,11 @@ export function useIngredientResolver(
         // refined prefix never counts as an abandonment). Gated on the search actually being enabled so
         // stale data below the minimum (or during disambiguation) observes nothing.
         if (searchEnabled && search.isSuccess && search.data !== undefined) {
-            sessionRef.current = observeServedList(sessionRef.current, debouncedTrimmed, search.data.suggestions, () =>
-                crypto.randomUUID(),
+            sessionRef.current = observeServedList(
+                sessionRef.current,
+                debouncedTrimmed,
+                search.data.suggestions,
+                mintEventId,
             );
         }
     }, [searchEnabled, search.isSuccess, search.data, debouncedTrimmed]);

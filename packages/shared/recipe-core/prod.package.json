@@ -99,6 +99,10 @@
         "./parsing/parse-answer": {
             "types": "./dist/parsing/parseAnswer.d.ts",
             "default": "./dist/parsing/parseAnswer.js"
+        },
+        "./analytics/event-payload": {
+            "types": "./dist/analytics/eventPayload.d.ts",
+            "default": "./dist/analytics/eventPayload.js"
         }
     },
     "dependencies": {

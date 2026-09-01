@@ -155,7 +155,9 @@ describe('recipe database-name parity — API vs workers', () => {
         // otherwise leave this comparison silently — and #119 was exactly a worker addressing a different
         // database than the API believed it was.
         // NINE since plan U8's parse leg (2026-08-31).
-        expect(workerNames).toHaveLength(9);
+        // TEN since the analytics retention sweeper (analytics plan U6, 2026-09-01) — a sweeper reading a
+        // different database than the API writes would delete another stage's event rows on schedule.
+        expect(workerNames).toHaveLength(10);
         expect(new Set(workerNames)).toEqual(new Set([apiName]));
 
         // And that the shared value is the ADR-0006 suffix form, not merely "equal to each other" — two

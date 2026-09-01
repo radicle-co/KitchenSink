@@ -469,7 +469,9 @@ describe('RecipeWorkersStack', () => {
         // runner. It reads the band tables and the spend counter, so it is database-bound by construction.
         // ⚠️ AND AGAIN when plan U8's parse leg landed: nine workers plus the runner — it reads the parse
         // cache, the corrections tier and the job tables.
-        expect([...bound.keys()], 'the nine workers plus the in-deploy migration runner').toHaveLength(10);
+        // ⚠️ AND AGAIN (2026-09-01) when the analytics retention sweeper landed (analytics plan U6): ten
+        // workers plus the runner — it deletes aged analytics_events rows, database-bound by construction.
+        expect([...bound.keys()], 'the ten workers plus the in-deploy migration runner').toHaveLength(11);
 
         const functions = template.findResources('AWS::Lambda::Function');
         const unbound = Object.keys(functions).filter((name) => !bound.has(name));
@@ -716,7 +718,9 @@ describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
         // preview and deny them all once any of them exhausted it. The band drain (plan U3) is the eighth:
         // it reads the preview's own band tables and spend counter, for exactly the same isolation reason.
         // The parse leg (plan U8) is the ninth — its cache, corrections and job tables are all per-preview.
-        expect(names).toHaveLength(10);
+        // The analytics retention sweeper (analytics plan U6) is the tenth: a sweeper reading the shared
+        // base database would delete another preview's (or the base's) event rows on its own schedule.
+        expect(names).toHaveLength(11);
         expect(new Set(names)).toEqual(new Set(['kitchensink_recipes_pr_73']));
     });
 

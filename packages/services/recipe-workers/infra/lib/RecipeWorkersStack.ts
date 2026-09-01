@@ -542,6 +542,15 @@ export class RecipeWorkersStack extends Stack {
         // `grantDelete`, whose `s3:DeleteObject*` wildcard and bucket-wide object ARN it does not need.)
         grantRecipeObjectErasure(orphanSweeperRole, [archiveBucket, mediaBucket]);
 
+        // analytics retention sweeper (analytics plan U6, origin R10): deletes analytics_events rows past
+        // the 6-month window, daily. Database only — no S3, no SQS, no CDN: least-privilege is RDS-IAM
+        // and nothing else (ARCH-IT-7).
+        const retentionSweeperRole = makeRole(
+            'AnalyticsRetentionSweeperRole',
+            'Least-privilege role for the analytics retention sweeper Lambda',
+        );
+        grantRdsIam(retentionSweeperRole);
+
         // ── functions ──────────────────────────────────────────────────────────────────────────────
         const runtime = NODE_LAMBDA_RUNTIME;
         const architecture = lambda.Architecture.ARM_64;
@@ -768,6 +777,37 @@ export class RecipeWorkersStack extends Stack {
             ruleName: `kitchensink-recipe-erasure-orphan-sweep-${props.stage}`,
             schedule: events.Schedule.rate(Duration.hours(1)),
             targets: [new events_targets.LambdaFunction(orphanSweeperFn)],
+        });
+
+        // Analytics retention (analytics plan U6, origin R10/AE5): ages raw analytics_events past the
+        // 6-month window out of the store, provably after folding — counts fold at INSERT and 0043 ships
+        // no DELETE trigger, so this sweep moves no lifetime count (the recipe-service and worker
+        // integration suites both pin it). Batched + bounded per tick; see retentionSweeper.ts.
+        const retentionSweeperFn = new lambda.Function(this, 'AnalyticsRetentionSweeperFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/retentionSweeper.handler',
+            code: lambda.Code.fromAsset(DIST_PATH),
+            role: retentionSweeperRole,
+            vpc,
+            vpcSubnets,
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(60),
+            memorySize: 256,
+            environment: {
+                ...commonDbEnv,
+                STAGE: props.stage,
+            },
+            logGroup,
+        });
+
+        // DAILY, not hourly: retention has a six-MONTH horizon, so the tightest freshness anyone can
+        // observe is "rows disappear within a day of aging out" — more ticks buy nothing, and the
+        // batch-bounded sweep drains any backlog across successive days regardless.
+        new events.Rule(this, 'AnalyticsRetentionSweepSchedule', {
+            ruleName: `kitchensink-recipe-analytics-retention-${props.stage}`,
+            schedule: events.Schedule.rate(Duration.days(1)),
+            targets: [new events_targets.LambdaFunction(retentionSweeperFn)],
         });
 
         // ── verification gate: queue + DLQ + the ONE Bedrock caller (plan U11, ADR-0024) ────────────

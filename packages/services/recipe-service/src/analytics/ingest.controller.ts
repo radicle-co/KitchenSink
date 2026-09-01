@@ -33,16 +33,14 @@
  * unverifiable — acceptable while these numbers feed only internal SQL analysis; an integrity/anomaly
  * bar is owed before any automated ranking or user-visible use.
  */
-import { BadRequestException, Body, Controller, HttpCode, HttpStatus, Logger, Post } from '@nestjs/common';
-import {
-    MAX_EVENTS_PER_BATCH,
-    queryOutcomeEventSchema,
-    type QueryOutcomeEvent,
-} from '@kitchensink/recipe-core/analytics/event-payload';
+import { Body, Controller, HttpCode, HttpStatus, Logger, Post, UsePipes } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
+import { queryOutcomeEventSchema, type QueryOutcomeEvent } from '@kitchensink/recipe-core/analytics/event-payload';
 
 import { OwnerId } from '../auth/currentPrincipal.decorator.js';
 import { AnalyticsIngestRateLimit } from '../common/throttle/throttle.decorators.js';
 import { AnalyticsService } from './analytics.service.js';
+import { IngestBatchDto } from './dto/ingestBatch.dto.js';
 
 /** The ingest door's response: how many events passed validation, and how many actually landed. */
 export interface IngestResponse {
@@ -51,6 +49,7 @@ export interface IngestResponse {
 }
 
 @Controller('ingest/v1/events')
+@UsePipes(ZodValidationPipe)
 export class AnalyticsIngestController {
     private readonly logger = new Logger(AnalyticsIngestController.name);
 
@@ -60,20 +59,19 @@ export class AnalyticsIngestController {
      * `POST /ingest/v1/events` — land a small batch of settled query outcomes.
      *
      * @param ownerId - The verified caller — the ONLY actor any event is attributed to.
-     * @param body - The raw request body; the envelope is validated here, each event individually.
+     * @param body - The envelope, validated by the class-level pipe (a non-batch or over-cap request is
+     *   its 400); each event inside is validated individually below with drop-and-log semantics.
      * @returns Accepted vs landed counts (202 — the store is eventually consistent with the response).
-     * @throws {BadRequestException} When the envelope is not a batch at all, or exceeds the batch cap.
      * @sideEffect Lands analytics rows; logs dropped events and dedup divergence.
      */
     @Post()
     @HttpCode(HttpStatus.ACCEPTED)
     @AnalyticsIngestRateLimit()
-    public async ingest(@OwnerId() ownerId: string, @Body() body: unknown): Promise<IngestResponse> {
-        const envelope = this.readEnvelope(body);
+    public async ingest(@OwnerId() ownerId: string, @Body() body: IngestBatchDto): Promise<IngestResponse> {
         const accepted: QueryOutcomeEvent[] = [];
         let dropped = 0;
 
-        for (const candidate of envelope) {
+        for (const candidate of body.events) {
             const parsed = queryOutcomeEventSchema.safeParse(candidate);
 
             if (parsed.success) {
@@ -103,20 +101,5 @@ export class AnalyticsIngestController {
         }
 
         return { accepted: accepted.length, landed };
-    }
-
-    /** Validate the ENVELOPE shape only — a non-batch or over-cap request is the caller's error (400). */
-    private readEnvelope(body: unknown): readonly unknown[] {
-        if (typeof body !== 'object' || body === null || !Array.isArray((body as { events?: unknown }).events)) {
-            throw new BadRequestException('Expected a body of shape { events: [...] }.');
-        }
-
-        const events = (body as { events: unknown[] }).events;
-
-        if (events.length === 0 || events.length > MAX_EVENTS_PER_BATCH) {
-            throw new BadRequestException(`Expected 1..${MAX_EVENTS_PER_BATCH} events per batch.`);
-        }
-
-        return events;
     }
 }

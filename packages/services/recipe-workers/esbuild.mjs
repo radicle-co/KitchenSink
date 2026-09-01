@@ -49,6 +49,7 @@ const entryPoints = [
     'src/handlers/verifyLine.ts',
     'src/handlers/bandDrain.ts',
     'src/handlers/parseLine.ts',
+    'src/handlers/retentionSweeper.ts',
 ];
 
 /**

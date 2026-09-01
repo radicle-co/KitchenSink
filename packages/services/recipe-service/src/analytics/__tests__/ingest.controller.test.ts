@@ -19,9 +19,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
 
 import { AnalyticsIngestController } from '../ingest.controller.js';
+import { ingestBatchEnvelopeSchema } from '../dto/ingestBatch.dto.js';
 import type { AnalyticsService } from '../analytics.service.js';
 
 const OWNER = '01JU4INGESTCONTROLLERUSER0';
@@ -52,7 +52,7 @@ describe('AnalyticsIngestController (U4)', () => {
         const analytics = fakeAnalytics(1);
         const controller = makeController(analytics);
 
-        const result = await controller.ingest(OWNER, { events: [pickEvent()] });
+        const result = await controller.ingest(OWNER, { events: [pickEvent()] } as never);
 
         expect(analytics.ingestBatch).toHaveBeenCalledTimes(1);
         const [userId, events] = analytics.ingestBatch.mock.calls[0] as [string, unknown[]];
@@ -70,7 +70,7 @@ describe('AnalyticsIngestController (U4)', () => {
                 pickEvent({ eventId: '99999999-9999-4999-8999-000000000f02' }),
                 pickEvent({ type: 'recipe_saved' }),
             ],
-        });
+        } as never);
 
         const [, events] = analytics.ingestBatch.mock.calls[0] as [string, unknown[]];
         expect(events).toHaveLength(1);
@@ -81,26 +81,24 @@ describe('AnalyticsIngestController (U4)', () => {
         const analytics = fakeAnalytics(0);
         const controller = makeController(analytics);
 
-        const result = await controller.ingest(OWNER, { events: [pickEvent({ userId: 'someone-else' })] });
+        const result = await controller.ingest(OWNER, { events: [pickEvent({ userId: 'someone-else' })] } as never);
 
         expect(analytics.ingestBatch).not.toHaveBeenCalled();
         expect(result).toEqual({ accepted: 0, landed: 0 });
     });
 
-    it('refuses a malformed envelope with 400 — not a batch at all', async () => {
-        const controller = makeController(fakeAnalytics());
+    it('the envelope DTO refuses a non-batch and an over-cap batch — the pipe answers 400 (G2/G5, R13)', () => {
+        // The 400s come from the class-level ZodValidationPipe validating this DTO schema; the HTTP-level
+        // proof (real pipe, real 400) lives in the ingest-route integration suite.
+        expect(ingestBatchEnvelopeSchema.safeParse({ nonsense: true }).success).toBe(false);
+        expect(ingestBatchEnvelopeSchema.safeParse('not-an-object').success).toBe(false);
+        expect(ingestBatchEnvelopeSchema.safeParse({ events: [] }).success).toBe(false);
 
-        await expect(controller.ingest(OWNER, { nonsense: true })).rejects.toThrow(BadRequestException);
-        await expect(controller.ingest(OWNER, 'not-an-object')).rejects.toThrow(BadRequestException);
-    });
-
-    it('refuses an over-cap batch with 400 (R13 payload bound)', async () => {
-        const controller = makeController(fakeAnalytics());
         const events = Array.from({ length: 9 }, (_unused, index) =>
             pickEvent({ eventId: `99999999-9999-4999-8999-00000000000${index}` }),
         );
-
-        await expect(controller.ingest(OWNER, { events })).rejects.toThrow(BadRequestException);
+        expect(ingestBatchEnvelopeSchema.safeParse({ events }).success).toBe(false);
+        expect(ingestBatchEnvelopeSchema.safeParse({ events: events.slice(0, 8) }).success).toBe(true);
     });
 
     it('⛔ KTD3: no *.schema.ts file exists under src/analytics — the route stays off the domain contract', () => {

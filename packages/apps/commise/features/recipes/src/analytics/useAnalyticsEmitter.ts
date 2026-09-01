@@ -2,7 +2,7 @@
  * Analytics plan U5 — the dumb transport half of client emission (origin R7's client half, R11).
  *
  * Fire-and-forget by contract: `emit` returns void synchronously, sends one single-event batch through
- * {@link RecipeServiceClient.emitAnalyticsEvents}, and SWALLOWS every failure — a 4xx (including the
+ * `RecipeServiceClient.emitAnalyticsEvents`, and SWALLOWS every failure — a 4xx (including the
  * designed 423 during an in-flight erasure, KTD9), a 5xx, a rate cap, a dead network. Analytics must
  * never surface an error, spinner, or delay into the picker (origin R7); at-most-once is the accepted
  * delivery semantic and the event id makes any retry the TRANSPORT layer performs collapse at the door.

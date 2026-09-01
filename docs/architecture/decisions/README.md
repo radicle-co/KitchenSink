@@ -45,3 +45,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0026 — An ingredient line is parsed by two engines that cannot see each other, and a comparator adjudicates](0026-two-engine-ingredient-parse-pipeline.md)
 - [0027 — An ingredient phrase is not personal data; the user id beside it is a distinct-user counter](0027-ingredient-phrase-is-not-personal-data.md)
 - [0029 — Authored foods: the substances-only amendment to the single-writer rule](0029-authored-foods-substances-only.md)
+- [0030 — First-party analytics events: one store, two doors, lifetime counts](0030-first-party-analytics-events.md)

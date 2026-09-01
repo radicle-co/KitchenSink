@@ -351,6 +351,22 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
                         vs `engine.schema.ts` "NORMALISED"), which is why the promotion adapters take `raw` as a PARAMETER rather
                         than trusting either.
 
+- **ADR-0030 — first-party analytics events: one store, two doors, lifetime counts (2026-09-01).**
+  `analytics_events` (recipe DB, migration 0043) + `recipe_impact_signals`, folded by a DELTA-upsert on
+  EXACTLY one INSERT-only trigger — ⛔ never 0010's recompute (retention would corrupt lifetime counts) and
+  ⛔ no UPDATE/DELETE trigger ever (erasure and retention must fire nothing; absence is pinned). Erasure
+  ANONYMIZES (`user_id` nulled AND `query_text` blanked — stricter than ADR-0027 by ruling; never a
+  DELETE); counts never decrement. Credit families (`recipe_saved`/`recipe_viewed`) are SERVER-door only —
+  the client door (`POST /ingest/v1/events`, off the domain contract by mount, payload = recipe-core's
+  `analytics/event-payload` SUBPATH, never the barrel, no `*.schema.ts` under `src/analytics/`) carries
+  only `query_outcome`, has NO actor field structurally, and dedups on a client-minted event id whose
+  landing must spell `ON CONFLICT (event_id) WHERE event_id IS NOT NULL`. View capture lives at the
+  CONTROLLER detail handler (the service's `getById` has six non-view call sites); saves fire only on a
+  NEW membership. Capture is fire-and-forget behind a per-instance two-tier shed (client door drops
+  first). The no-pick unit is a SEARCH SESSION (refinement continues it; pick seam = `selectSuggestion`).
+  Retention: daily sweeper, 6 months, keyed `created_at` only. ⚠️ Pick data is CLIENT-ASSERTED: an
+  integrity/anomaly bar is owed before it ever feeds an automated ranking signal or user-visible metric.
+  See `docs/architecture/decisions/0030-first-party-analytics-events.md`.
 - **ADR-0029 — authored foods: the single-writer rule is about SUBSTANCES, not writers (amends T150,
   2026-08-31).** A user may author their OWN food (macros-only) through the sibling
   `POST /api/v1/foods/authored` door: provenance is the ROUTE (no wire `source` field, no `food_sources`

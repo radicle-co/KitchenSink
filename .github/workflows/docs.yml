@@ -1,0 +1,97 @@
+# Proves the engineering documentation site BUILDS. It does not deploy it.
+#
+# ⛔ DO NOT ADD A DEPLOY JOB HERE. Where this site is hosted is an open owner decision with cost
+# implications; nothing about it has been chosen, and a deploy step added "while we're here" would
+# make that choice silently.
+#
+# ⚠️ WHY THIS IS A SEPARATE WORKFLOW, AND WHY IT IS PATH-FILTERED. The site pulls in Docusaurus,
+# which is ~1,100 packages, and a full build takes ~15s on top of a cold `npm ci`. Wiring it into
+# `_ci.yml` would spend that on every pull request, including the ones that touch neither the
+# documentation nor the site. So it is its own workflow, gated on the paths that can actually break
+# it, and its build script is deliberately named `docs:build` rather than `build` — the name keeps it
+# out of `turbo run build`, so `npm run build` at the repo root is exactly as fast as it was before
+# this package existed.
+#
+# ⚠️ RESIDUAL RISK, stated rather than hidden: the site's Markdown may link into `specs/` or
+# `.specify/`, and those paths are NOT in the filter below (they change on nearly every pull request,
+# and including them would defeat the whole point of the filter). Deleting a file that a published
+# ADR links to therefore fails this workflow on the NEXT run that touches a filtered path, not on the
+# pull request that deleted it.
+#
+# What the build proves, beyond "webpack finished":
+#   * `onBrokenLinks: 'throw'` — a documentation link that resolves to nothing fails here rather than
+#     serving a 404 nobody sees.
+#   * `contentRegistry.test.ts` (run by `_ci.yml`, not here) — every declared content source still
+#     reaches real files, so a renamed directory cannot silently shrink the site.
+#   * The section check below — the build emitted the routes the registry declares, so a build that
+#     succeeds while mounting nothing is still a failure.
+
+name: Docs site
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - 'docs/**'
+            - 'packages/tools/docs-site/**'
+            - 'package-lock.json'
+            - '.github/workflows/docs.yml'
+    pull_request:
+        branches: [main]
+        paths:
+            - 'docs/**'
+            - 'packages/tools/docs-site/**'
+            - 'package-lock.json'
+            - '.github/workflows/docs.yml'
+
+# Declared rather than inherited: with no `permissions:` block a workflow gets the repository's
+# DEFAULT token scope, which is set OUTSIDE this file, so the pipeline's privilege could change
+# without a diff here. This workflow reads the repository and nothing else — it publishes nowhere,
+# writes no comment, and touches no cloud account, so it needs no other grant and holds no secret.
+permissions:
+    contents: read
+
+concurrency:
+    group: docs-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build:
+        name: Build the documentation site
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # The job never pushes; leaving the token in `.git/config` would only widen what a
+                  # later step (or a compromised dependency) could reach.
+                  persist-credentials: false
+
+            - name: Set up Node
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build the documentation site
+              run: npm run docs:build --workspace=@kitchensink/docs-site
+
+            - name: Check every declared section was emitted
+              # A green webpack run is not the same as a site with pages in it: a mis-resolved content
+              # path yields a section with a navbar entry and no routes, and Docusaurus does not treat
+              # that as an error. `-e` is on by default for `run:` steps, and no status here is
+              # suppressed, so any missing section fails the job.
+              run: |
+                  set -euo pipefail
+                  cd packages/tools/docs-site/build
+                  for section in handbook infrastructure components design; do
+                      if [ ! -f "${section}/index.html" ] && [ -z "$(find "${section}" -name index.html -print -quit 2>/dev/null)" ]; then
+                          echo "::error::the site built but emitted no pages under /${section}"
+                          exit 1
+                      fi
+                  done
+                  echo "every declared section emitted at least one page"

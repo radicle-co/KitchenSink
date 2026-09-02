@@ -1,0 +1,42 @@
+{
+    "name": "@kitchensink/docs-site",
+    "version": "0.0.0",
+    "private": true,
+    "//": "⛔ NO \"type\": \"module\". Docusaurus emits a CommonJS server bundle and evaluates it during SSR; with \"type\": \"module\" that bundle is parsed as ESM and the build dies on `require.resolveWeak is not a function` AFTER webpack reports both compilations green — measured, not guessed. This is why eslint.config.mjs carries its extension, and why vitest warns that its config uses ESM syntax in a CommonJS file (cosmetic: vitest transpiles it; the file must stay `vitest.config.ts` because vitestTempRoot.test.ts globs `vitest*.config.ts` and would go blind on any other extension).",
+    "scripts": {
+        "docs:dev": "docusaurus start",
+        "docs:build": "docusaurus build",
+        "docs:serve": "docusaurus serve",
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "dependencies": {
+        "@docusaurus/core": "^3.10.2",
+        "@docusaurus/plugin-content-docs": "^3.10.2",
+        "@docusaurus/preset-classic": "^3.10.2",
+        "@mdx-js/react": "^3.1.0",
+        "prism-react-renderer": "^2.4.1",
+        "react": "^19.0.0",
+        "react-dom": "^19.2.7"
+    },
+    "devDependencies": {
+        "@docusaurus/module-type-aliases": "^3.10.2",
+        "@docusaurus/types": "^3.10.2",
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "@types/react": "^19.0.0",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^6.0.3",
+        "vitest": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

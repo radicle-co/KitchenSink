@@ -665,6 +665,27 @@ export const recipeNutritionSchema = z.object({
     rangeDerivedBound: z.enum(['low', 'high']).optional(),
 });
 
+/**
+ * The recipe's folded lifetime action counts (ADR-0030 §8's count-serving arm; owner instruction
+ * 2026-09-01) — read from `recipe_impact_signals`, the delta-fold projection 015's recognition will
+ * also consume. LIFETIME and never-decrementing by construction (KD6): not on unsave, not on account
+ * erasure, not on retention. Author self-actions COUNT (KD6 as written; OQ2's revision path, if ever
+ * wanted, is capture-time filtering — the folded table is deliberately actor-blind, 012-FR-024).
+ * `cookCount` is deliberately absent until 015 ships the affordance — a new field then is additive.
+ */
+export interface RecipeImpact {
+    /** Distinct new collection memberships, lifetime (the created-flag rule: replays never count). */
+    saveCount: number;
+    /** Detail reads, lifetime (server-observed at the detail handler only). */
+    viewCount: number;
+}
+
+/** Runtime validator for {@link RecipeImpact}. */
+export const recipeImpactSchema = z.object({
+    saveCount: nonNegativeIntSchema,
+    viewCount: nonNegativeIntSchema,
+});
+
 export interface RecipeDetail extends Recipe {
     ingredients: RecipeIngredientView[];
     steps: RecipeStepView[];
@@ -691,6 +712,13 @@ export interface RecipeDetail extends Recipe {
      * clone that unbound nothing.
      */
     cloneUnboundLineCount?: number;
+    /**
+     * The folded lifetime counts (ADR-0030 §8) — DETAIL reads only. ABSENT means UNKNOWN (an analytics
+     * read failure, degraded rather than failing the detail; or a pre-counts server) — a fresh recipe
+     * is `{ saveCount: 0, viewCount: 0 }`, never an absent field. ⚠️ The served figure typically
+     * excludes the very view that fetched it: view capture is fire-and-forget AFTER the read.
+     */
+    impact?: RecipeImpact;
 }
 
 // NB: `recipeDetailSchema` is defined AFTER `recipePhotoSchema` (below) — it references it, and a `const`
@@ -944,6 +972,8 @@ export const recipeDetailSchema = recipeSchema.extend({
     viewerRating: z.number().int().min(1).max(5).optional(),
     // U13 — see the interface docstring. Non-strict schema: without this line a client would STRIP it.
     cloneUnboundLineCount: nonNegativeIntSchema.optional(),
+    // ADR-0030 §8 — same stripping hazard as the two lines above; absent = UNKNOWN, zeros = never.
+    impact: recipeImpactSchema.optional(),
 });
 
 /**

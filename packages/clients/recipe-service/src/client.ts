@@ -338,14 +338,14 @@ export class RecipeServiceClient {
     /** The configured ky transport: base URL, token attach, JSON body/parse, and typed error throwing. */
     private readonly http: KyInstance;
     /**
-     * The resolved `fetch`, kept for the drift-layer-3 skew probe (§15.2.5).
-     *
-     * The probe deliberately does NOT go through `this.http`: ky's `beforeRequest` hook would attach the
-     * caller's bearer token, and `/health` is unauthenticated ON PURPOSE — a consumer checking for skew must be
-     * able to ask before it holds a credential, and a background diagnostic has no business minting or spending
-     * the viewer's token. Same instance as ky's, so an injected test double still sees the probe.
+     * The resolved raw `fetch` — the two off-pipeline paths ride it (renamed from `probeFetch` when the
+     * second one arrived, REVIEW F5): the drift-layer-3 skew probe (§15.2.5) and the analytics ingest
+     * emit. Both deliberately do NOT go through `this.http`: ky's `beforeRequest` hook would attach the
+     * caller's bearer to the unauthenticated `/health` probe (a background diagnostic has no business
+     * minting the viewer's token), and the analytics emit needs `keepalive` + at-most-once with no retry
+     * pipeline. Same instance as ky's, so an injected test double still sees both.
      */
-    private readonly probeFetch: typeof fetch;
+    private readonly rawFetch: typeof fetch;
     /** Where a skew warning goes; `console.warn` unless the consumer supplied a sink. */
     private readonly onContractSkew: (message: string) => void;
 
@@ -357,7 +357,7 @@ export class RecipeServiceClient {
         this.identitySyncBackoffMs = options.identitySyncBackoffMs ?? [250, 500, 1000];
         this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
         this.timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-        this.probeFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+        this.rawFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
         this.onContractSkew =
             options.onContractSkew ??
             ((message: string): void => {
@@ -375,7 +375,7 @@ export class RecipeServiceClient {
             // `TypeError: Illegal invocation` in the browser (window.fetch must be called with `window` as
             // its receiver) — breaking every real browser request. Binding fixes it on web and is a no-op
             // in Node/RN. (Test doubles are plain functions and need no binding.)
-            fetch: this.probeFetch,
+            fetch: this.rawFetch,
             // Identity-sync retries are owned by `send()` (they inspect the body + re-mint the token), and
             // no other status is retried — so ky's own retry is disabled to preserve behavior.
             retry: 0,
@@ -1269,7 +1269,7 @@ export class RecipeServiceClient {
             headers['authorization'] = `Bearer ${token}`;
         }
 
-        const response = await this.probeFetch(
+        const response = await this.rawFetch(
             new Request(`${this.baseUrl}/ingest/v1/events`, {
                 method: 'POST',
                 headers,
@@ -1338,7 +1338,7 @@ export class RecipeServiceClient {
         // awaited: it must add no latency, change no response, and never throw. Placed after the retry loops so
         // one logical call produces at most one probe attempt, and once per ORIGIN per process rather than per
         // client instance (a client may be constructed per server-rendered request). See `./contractSkew.ts`.
-        reportContractSkewOnce({ baseUrl: this.baseUrl, fetch: this.probeFetch, warn: this.onContractSkew });
+        reportContractSkewOnce({ baseUrl: this.baseUrl, fetch: this.rawFetch, warn: this.onContractSkew });
 
         return res;
     }

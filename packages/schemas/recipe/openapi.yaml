@@ -4928,6 +4928,18 @@ components:
         cloneUnboundLineCount:
           type: integer
           minimum: 0
+        impact:
+          type: object
+          properties:
+            saveCount:
+              type: integer
+              minimum: 0
+            viewCount:
+              type: integer
+              minimum: 0
+          required:
+            - saveCount
+            - viewCount
       required:
         - id
         - ownerId

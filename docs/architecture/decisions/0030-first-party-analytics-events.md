@@ -128,13 +128,33 @@ runtime check; AE5 is asserted against a real database anyway. The store's shape
 export door open (R9): an export step would land before the delete in the same handler, no redesign.
 The sweeper is a NAT-ledger consumer (ADR-0004 marker block; ~zero actual traffic).
 
-### 8. What is deliberately NOT built
+### 8. The count-serving contract — v1 SHIPPED (owner instruction 2026-09-01), and what still is not
 
-The request-path count-serving contract (deferred to 015's resumption — any future count read must
-apply the recipe's own visibility boundary), the save-count reconciliation job (the seam is the
-collections table), the vendor projection, dashboards, and the S3 archival tier. Operator queries run
-plain SQL on the request-path instance; if they ever contend, the levers are a read replica or the
-export tier — not a new store.
+**`RecipeDetail.impact` (`{ saveCount, viewCount }`) now rides the detail read** — an additive
+optional field on `recipeDetailSchema`, composed at the CONTROLLER detail handler (the same seam as
+view capture, for the same reason: the service's `getById` is an internal authorization helper with
+six non-view call sites that must not pay — or serve — analytics). Three rules hold it up:
+
+- **The visibility boundary is INHERITED, never re-derived**: the counts merge only onto a response
+  the domain read authorized; a 404/403 read serves nothing.
+- **Absent means UNKNOWN, zeros mean NEVER.** `AnalyticsService.readImpactSignals` answers zeros for
+  a recipe with no signals row, and `undefined` — the field omitted — on a read failure OR a read
+  exceeding its `IMPACT_READ_TIMEOUT_MS` budget. ⛔ The budget exists because this read is AWAITED on
+  the hottest read in the service, unlike every fire-and-forget capture — SC4's hanging-db
+  fault-injection scenario caught exactly that regression when the read first shipped unbounded.
+- **OQ2 resolves to KD6's default**: author self-actions COUNT. The folded table is actor-blind by
+  design (viewer-less, 012-FR-024), so exclusion could only ever be capture-time filtering going
+  forward — a future revision path, never a retroactive one. `cookCount` is deliberately not served
+  until 015 writes it; adding it then is additive.
+
+The served figure typically excludes the very view that fetched it (capture is fire-and-forget after
+the read), and view counts are inherently soft (any signed-in refresh increments). Both server-door
+families, so ADR-0030's accepted-risk guardrail (client-asserted pick data) is not implicated.
+
+Still deliberately NOT built: the save-count reconciliation job (the seam is the collections table),
+the recognition PRODUCT surface (badges/copy — 015's work), the vendor projection, dashboards, and
+the S3 archival tier. Operator queries run plain SQL on the request-path instance; if they ever
+contend, the levers are a read replica or the export tier — not a new store.
 
 ## ⚠️ The accepted-risk guardrail (binding on future work)
 

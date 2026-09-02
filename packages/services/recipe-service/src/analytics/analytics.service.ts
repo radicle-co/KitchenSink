@@ -46,6 +46,15 @@ export const ANALYTICS_CLIENT_SHED_AT = 16;
 /** Minimum spacing between aggregated drop-count warn lines. */
 export const ANALYTICS_DROP_FLUSH_INTERVAL_MS = 60_000;
 
+/**
+ * The impact read's answer budget. Unlike every capture (fire-and-forget),
+ * `AnalyticsService.readImpactSignals` is AWAITED on the recipe detail read — the hottest read in the
+ * service — so a hung analytics table must degrade to "unknown" inside this budget rather than stall
+ * the response (SC4's hanging-db scenario caught exactly that regression). Generous against a PK
+ * point lookup's real cost (single-digit ms) and tight against a human noticing.
+ */
+export const IMPACT_READ_TIMEOUT_MS = 250;
+
 /** The families the client ingestion door may deliver — first to shed, rejected nowhere else. */
 const CLIENT_DOOR_FAMILIES: ReadonlySet<AnalyticsEventType> = new Set(['query_outcome']);
 
@@ -71,6 +80,9 @@ export class AnalyticsService {
     private droppedSinceFlush = 0;
 
     private lastDropFlushAt = 0;
+
+    /** The F4 tail-flush one-shot: pending iff drops accumulated inside the current interval. */
+    private dropFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
     public constructor(@Inject(DrizzleProvider) private readonly db: RecipeDrizzle) {}
 
@@ -191,17 +203,105 @@ export class AnalyticsService {
         }
     }
 
-    /** Count one shed event; flush the aggregate as a single warn line at most once per interval. */
+    /**
+     * The count-serving read (ADR-0030 §8's v1 arm): a recipe's folded lifetime counts, for the detail
+     * response's `impact` field. One PK point lookup.
+     *
+     * ⛔ Three answers, three meanings — do not collapse them: a ROW answers its counts; NO ROW answers
+     * ZEROS (a recipe never saved or viewed — a fact, not an absence); a READ FAILURE answers
+     * `undefined` (UNKNOWN — the caller omits the field), because the hottest read in the service must
+     * never 500 for garnish. `cookCount` is deliberately not served until 015 writes it.
+     *
+     * @param recipeId - The recipe whose counts are read.
+     * @returns The counts, zeros when no row exists, or `undefined` when the read failed.
+     * @sideEffect One analytics SELECT; warn-logs on failure. Never rejects.
+     */
+    public async readImpactSignals(recipeId: string): Promise<{ saveCount: number; viewCount: number } | undefined> {
+        try {
+            // Raced against IMPACT_READ_TIMEOUT_MS: this read is AWAITED on the detail hot path (unlike
+            // every capture), so a hung analytics table answers "unknown" inside the budget instead of
+            // stalling the response. The losing query is contained (caught below via the race's own
+            // rejection path, or swallowed here once abandoned) — it is a PK select, harmless to finish.
+            const query = this.db.execute<{ save_count: string; view_count: string }>(sql`
+                SELECT save_count, view_count FROM recipe_impact_signals WHERE recipe_id = ${recipeId}
+            `);
+            const result = await Promise.race([
+                query,
+                new Promise<undefined>((resolve) => {
+                    const timer = setTimeout(resolve, IMPACT_READ_TIMEOUT_MS, undefined);
+                    // Never hold the event loop open for the loser's sake (harmless under Node timers).
+                    timer.unref?.();
+                }),
+            ]);
+
+            if (result === undefined) {
+                // The abandoned query must not surface as an unhandled rejection when it eventually dies.
+                query.catch(() => undefined);
+                this.logger.warn(
+                    'Impact-signals read timed out; the detail response degrades to an absent impact field.',
+                );
+
+                return undefined;
+            }
+
+            const row = result.rows[0];
+
+            if (row === undefined) {
+                return { saveCount: 0, viewCount: 0 };
+            }
+
+            return { saveCount: Number(row.save_count), viewCount: Number(row.view_count) };
+        } catch (error) {
+            this.logger.warn(
+                'Impact-signals read failed; the detail response degrades to an absent impact field.',
+                error instanceof Error ? error.stack : String(error),
+            );
+
+            return undefined;
+        }
+    }
+
+    /**
+     * Count one shed event; flush the aggregate as a single warn line at most once per interval. The
+     * first drop after a quiet period flushes immediately (the signal must not wait a whole interval);
+     * a burst inside the interval accumulates silently and its TAIL flushes on a one-shot timer when
+     * the interval elapses (REVIEW F4) — quiet traffic after a burst must not withhold the burst's
+     * count indefinitely, or surface it hours later attributed to the wrong moment. The timer is
+     * `unref`'d so it never holds the process open.
+     */
     private countDrop(): void {
         this.droppedSinceFlush += 1;
         const now = Date.now();
 
         if (now - this.lastDropFlushAt >= ANALYTICS_DROP_FLUSH_INTERVAL_MS) {
-            this.logger.warn(
-                `Analytics shed ${this.droppedSinceFlush} event(s) since the last flush — per-instance in-flight cap reached (client door sheds first).`,
-            );
-            this.droppedSinceFlush = 0;
-            this.lastDropFlushAt = now;
+            this.flushDrops(now);
+
+            return;
         }
+
+        if (this.dropFlushTimer === null) {
+            this.dropFlushTimer = setTimeout(() => {
+                this.dropFlushTimer = null;
+
+                if (this.droppedSinceFlush > 0) {
+                    this.flushDrops(Date.now());
+                }
+            }, ANALYTICS_DROP_FLUSH_INTERVAL_MS);
+            this.dropFlushTimer.unref?.();
+        }
+    }
+
+    /** Emit the aggregated drop line and reset the window (cancelling any pending tail flush). */
+    private flushDrops(now: number): void {
+        if (this.dropFlushTimer !== null) {
+            clearTimeout(this.dropFlushTimer);
+            this.dropFlushTimer = null;
+        }
+
+        this.logger.warn(
+            `Analytics shed ${this.droppedSinceFlush} event(s) since the last flush — per-instance in-flight cap reached (client door sheds first).`,
+        );
+        this.droppedSinceFlush = 0;
+        this.lastDropFlushAt = now;
     }
 }

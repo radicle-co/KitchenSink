@@ -19,6 +19,7 @@ import {
     ANALYTICS_HARD_CAP,
     ANALYTICS_CLIENT_SHED_AT,
     ANALYTICS_DROP_FLUSH_INTERVAL_MS,
+    IMPACT_READ_TIMEOUT_MS,
 } from '../analytics.service.js';
 import type { RecipeDrizzle } from '../../database/client.js';
 
@@ -212,6 +213,9 @@ describe('AnalyticsService.capture (U3 — fire-and-forget, two-tier shed)', () 
     });
 
     it('counts drops and flushes ONE aggregated line per interval — never a line per drop', async () => {
+        // REWRITTEN for REVIEW F4: the original shape flushed the tail only on the NEXT drop after the
+        // interval, so a burst followed by quiet traffic withheld its count indefinitely (and surfaced
+        // it attributed to the wrong moment). The tail now flushes on an unref'd one-shot timer.
         vi.useFakeTimers();
         fake.holdOpen();
 
@@ -222,6 +226,7 @@ describe('AnalyticsService.capture (U3 — fire-and-forget, two-tier shed)', () 
         // First over-cap drop flushes immediately (the signal must not be delayed a whole interval)…
         service.capture({ type: 'recipe_saved', userId: OWNER, recipeId: RECIPE });
         expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0]?.[0])).toMatch(/shed 1 /);
 
         // …then a storm of drops inside the interval accumulates SILENTLY.
         for (let index = 0; index < 50; index += 1) {
@@ -230,11 +235,15 @@ describe('AnalyticsService.capture (U3 — fire-and-forget, two-tier shed)', () 
 
         expect(warn).toHaveBeenCalledTimes(1);
 
-        // After the interval elapses, the next drop flushes one line carrying the accumulated count.
+        // ⛔ F4: the TAIL flushes when the interval elapses — with NO further drop required. Quiet
+        // traffic after a burst must not withhold the burst's count indefinitely.
         vi.advanceTimersByTime(ANALYTICS_DROP_FLUSH_INTERVAL_MS + 1);
-        service.capture({ type: 'recipe_saved', userId: OWNER, recipeId: RECIPE });
         expect(warn).toHaveBeenCalledTimes(2);
-        expect(String(warn.mock.calls[1]?.[0])).toMatch(/51/);
+        expect(String(warn.mock.calls[1]?.[0])).toMatch(/shed 50 /);
+
+        // And a fully-flushed quiet period schedules nothing further.
+        vi.advanceTimersByTime(ANALYTICS_DROP_FLUSH_INTERVAL_MS + 1);
+        expect(warn).toHaveBeenCalledTimes(2);
 
         fake.release();
         vi.useRealTimers();
@@ -316,5 +325,49 @@ describe('AnalyticsService.capture (U3 — fire-and-forget, two-tier shed)', () 
 
         expect(result).toEqual({ landed: 0, shed: false });
         expect(fake.statements()).toHaveLength(0);
+    });
+
+    // ── count-serving read (ADR-0030 §8's v1 arm; owner instruction 2026-09-01) ──────────────────
+
+    it('readImpactSignals answers the folded counts for a recipe with a signals row', async () => {
+        // bigint columns arrive as strings from pg — the read must coerce them to numbers.
+        const rowDb = {
+            execute: () => Promise.resolve({ rows: [{ save_count: '3', view_count: '7' }] }),
+        } as unknown as RecipeDrizzle;
+        const rowService = new AnalyticsService(rowDb);
+
+        await expect(rowService.readImpactSignals(RECIPE)).resolves.toEqual({ saveCount: 3, viewCount: 7 });
+    });
+
+    it('readImpactSignals answers ZEROS for a recipe with no signals row — zero means NEVER, not unknown', async () => {
+        await expect(service.readImpactSignals(RECIPE)).resolves.toEqual({ saveCount: 0, viewCount: 0 });
+
+        const statements = fake.statements();
+        expect(statements).toHaveLength(1);
+        expect(statements[0]?.text).toMatch(/select .*save_count.*view_count.* from recipe_impact_signals/i);
+        expect(statements[0]?.params).toContain(RECIPE);
+    });
+
+    it('⛔ readImpactSignals answers UNDEFINED within its budget when the db HANGS — the detail read is awaited, so a hung analytics table must never stall it (SC4)', async () => {
+        // The regression the IT's hanging-db scenario caught: the count read rides Promise.all on the
+        // hottest read in the service, so unlike fire-and-forget capture it needs its OWN bound.
+        fake.holdOpen();
+
+        const started = Date.now();
+        const result = await service.readImpactSignals(RECIPE);
+        const elapsed = Date.now() - started;
+
+        expect(result).toBeUndefined();
+        expect(elapsed).toBeLessThan(IMPACT_READ_TIMEOUT_MS + 200);
+
+        fake.release();
+        await fake.settle();
+    });
+
+    it('readImpactSignals answers UNDEFINED on a read failure — the detail read degrades, never 500s for garnish', async () => {
+        fake.rejectWith(new Error('signals table unreachable'));
+
+        await expect(service.readImpactSignals(RECIPE)).resolves.toBeUndefined();
+        expect(warn).toHaveBeenCalledTimes(1);
     });
 });

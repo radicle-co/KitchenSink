@@ -238,6 +238,30 @@ describe('RecipeServiceClient — request build + token attach', () => {
     });
 });
 
+describe('RecipeServiceClient — the served impact counts survive the client parse (ADR-0030 §8)', () => {
+    it('getRecipeById PRESERVES impact — the non-strict detail schema must not strip the new field', async () => {
+        // The exact regression class viewerRating suffered: a schema without the field's line would
+        // parse successfully and SILENTLY strip the counts the server served.
+        const detail = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' });
+        const served = { ...detail, impact: { saveCount: 3, viewCount: 7 } };
+        const fetchMock = stubFetch(200, served);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok-123', fetch: fetchMock });
+
+        const result = await client.getRecipeById('rec_1');
+
+        expect(result.impact).toEqual({ saveCount: 3, viewCount: 7 });
+    });
+
+    it('tolerates an ABSENT impact — old servers and the degrade path omit it', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' }));
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok-123', fetch: fetchMock });
+
+        const result = await client.getRecipeById('rec_1');
+
+        expect(result.impact).toBeUndefined();
+    });
+});
+
 describe('RecipeServiceClient — analytics ingest door (analytics plan U5)', () => {
     const batch = {
         events: [

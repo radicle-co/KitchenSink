@@ -9,6 +9,7 @@
  * ISO 8601 strings, and `version` is the row's `currentVersion`.
  */
 import type {
+    RecipeImpact,
     IngredientQuantity,
     RecipeDifficulty,
     RecipeNutrition,
@@ -128,6 +129,12 @@ export interface RecipeResponse {
     photos?: RecipePhoto[];
     /** Estimated per-serving nutrition (FR-007). Present on the DETAIL reads; absent on list/search. */
     nutrition?: RecipeNutrition;
+    /**
+     * The folded lifetime counts (ADR-0030 §8) — DETAIL reads only, composed by the controller from
+     * `recipe_impact_signals`. ABSENT means UNKNOWN (the analytics read degraded); a never-saved,
+     * never-viewed recipe is `{ saveCount: 0, viewCount: 0 }`.
+     */
+    impact?: RecipeImpact;
 }
 
 /** A paginated list of recipes (`PaginatedResponse<Recipe>` in the contract). */

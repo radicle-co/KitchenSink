@@ -128,7 +128,16 @@ export class RecipesController {
         // degrades every recipe to nutrition-absent, which is indistinguishable from a food outage.
         @CallerBearerToken() caller: CallerToken | undefined,
     ): Promise<RecipeResponse> {
-        const response = await this.recipesService.getById(ownerId, id, caller);
+        // The impact read rides in parallel with the domain read (the `viewerRating` shape one layer
+        // up): a Promise.all rejection is the domain read's own 404/403, and the counts merge only
+        // onto a response the caller was authorized to receive — so the visibility boundary is
+        // inherited, never re-derived. Composed HERE, not in `RecipesService.getById`, for the same
+        // reason capture is (below): the service method is also an internal authorization helper with
+        // six non-view call sites that must not pay — or serve — analytics.
+        const [response, impact] = await Promise.all([
+            this.recipesService.getById(ownerId, id, caller),
+            this.analytics.readImpactSignals(id),
+        ]);
 
         // ⛔ View capture lives at THIS handler, deliberately not in `RecipesService.getById` (analytics
         // plan U3): the service method doubles as an internal authorization helper with six non-view
@@ -137,7 +146,8 @@ export class RecipesController {
         // After the await, so a refused read (404/403) is never a view. Fire-and-forget: never awaited.
         this.analytics.capture({ type: 'recipe_viewed', userId: ownerId, recipeId: id });
 
-        return response;
+        // Absent impact means UNKNOWN (the read degraded) — the field is omitted, never zeroed.
+        return impact === undefined ? response : { ...response, impact };
     }
 
     /** `PATCH /api/v1/recipes/{id}` — update a recipe the caller owns (optimistic concurrency). */

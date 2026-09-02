@@ -171,6 +171,33 @@ describe.skipIf(!hasDatabaseUrl)('U3 server-door capture (integration, booted ap
         expect(Number(signal.rows[0]?.view_count)).toBe(1);
     });
 
+    it('ADR-0030 §8: the detail response SERVES the folded counts — zeros for fresh, live after actions', async () => {
+        const recipeId = await createRecipe();
+        const collectionId = await createCollection();
+
+        // A fresh recipe serves ZEROS — a fact ("never"), not an absent field ("unknown").
+        const fresh = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}`);
+        expect(fresh.status).toBe(200);
+        const freshBody = (await fresh.json()) as { impact?: { saveCount: number; viewCount: number } };
+        expect(freshBody.impact).toEqual({ saveCount: 0, viewCount: 0 });
+
+        // Save it, let the fire-and-forget view from the read above land, then read again: the served
+        // counts reflect the folded rows. (The view that fetches a response is captured AFTER it, so
+        // the second read sees the FIRST read's view.)
+        const add = await fetch(`${baseUrl}/api/v1/collections/${collectionId}/recipes`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ recipeId }),
+        });
+        expect(add.status).toBe(201);
+        expect(await waitForEvents('recipe_saved', 1)).toBe(1);
+        expect(await waitForEvents('recipe_viewed', 1)).toBe(1);
+
+        const second = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}`);
+        const secondBody = (await second.json()) as { impact?: { saveCount: number; viewCount: number } };
+        expect(secondBody.impact).toEqual({ saveCount: 1, viewCount: 1 });
+    });
+
     it('a collection add lands ONE recipe_saved; the idempotent replay lands NOTHING (created-flag rule)', async () => {
         const recipeId = await createRecipe();
         const collectionId = await createCollection();

@@ -42,14 +42,20 @@ function fakeService(overrides: Partial<RecipesService> = {}): RecipesService {
 
 const RESPONSE = { id: 'r-1', ownerId: OWNER } as unknown as RecipeResponse;
 
-/** U3: the view-capture collaborator — `capture` is sync-void fire-and-forget, so one mock suffices. */
-function fakeAnalytics(): { capture: ReturnType<typeof vi.fn> } {
-    return { capture: vi.fn() };
+/**
+ * U3/ADR-0030 §8: the analytics collaborator — sync-void `capture` (view events) plus the awaited
+ * `readImpactSignals` count read the detail handler composes onto the response.
+ */
+function fakeAnalytics(impact?: { saveCount: number; viewCount: number }): {
+    capture: ReturnType<typeof vi.fn>;
+    readImpactSignals: ReturnType<typeof vi.fn>;
+} {
+    return { capture: vi.fn(), readImpactSignals: vi.fn().mockResolvedValue(impact) };
 }
 
 function makeController(
     service: RecipesService,
-    analytics: { capture: ReturnType<typeof vi.fn> } = fakeAnalytics(),
+    analytics: ReturnType<typeof fakeAnalytics> = fakeAnalytics(),
 ): RecipesController {
     return new RecipesController(service, analytics as unknown as AnalyticsService);
 }
@@ -146,6 +152,28 @@ describe('RecipesController', () => {
 
         expect(analytics.capture).toHaveBeenCalledTimes(1);
         expect(analytics.capture).toHaveBeenCalledWith({ type: 'recipe_viewed', userId: OWNER, recipeId: 'r-1' });
+    });
+
+    it('getById merges the folded counts onto the detail response (ADR-0030 §8)', async () => {
+        const getById = vi.fn().mockResolvedValue(RESPONSE);
+        const analytics = fakeAnalytics({ saveCount: 3, viewCount: 7 });
+        const controller = makeController(fakeService({ getById }), analytics);
+
+        const result = await controller.getById(OWNER, 'r-1', CALLER);
+
+        expect(analytics.readImpactSignals).toHaveBeenCalledWith('r-1');
+        expect(result).toEqual({ ...RESPONSE, impact: { saveCount: 3, viewCount: 7 } });
+    });
+
+    it('getById OMITS impact when the analytics read degraded — absent means unknown, never zeros', async () => {
+        const getById = vi.fn().mockResolvedValue(RESPONSE);
+        const analytics = fakeAnalytics(undefined);
+        const controller = makeController(fakeService({ getById }), analytics);
+
+        const result = await controller.getById(OWNER, 'r-1', CALLER);
+
+        expect(result).toBe(RESPONSE);
+        expect('impact' in (result as unknown as Record<string, unknown>)).toBe(false);
     });
 
     it('getById captures NOTHING when the read fails — a 404/403 is not a view', async () => {

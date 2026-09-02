@@ -774,6 +774,7 @@ jobs:
                       recipe:
                           - 'packages/services/recipe-service/**'
                           - 'packages/services/recipe-workers/**'
+                          - 'packages/services/ingredient-parser/**'
                           - 'packages/shared/recipe-core/**'
             # Node + deps + credentials are UNCONDITIONAL — the ensure-exists gate (ADR-0010) needs the AWS
             # CLI and `npx tsx`, and the post-deploy smoke below now runs on EVERY event so a preview that
@@ -791,10 +792,18 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
-            # THE gate (ADR-0010). BOTH recipe stacks must be present and the service must be serving, or the
-            # job deploys even with nothing changed — that is how a docs-only PR ends up with a complete
-            # ecosystem, and how a reaped or half-rolled-back preview self-heals. Do NOT put
+            # THE gate (ADR-0010). ALL THREE recipe stacks must be present and the service must be serving,
+            # or the job deploys even with nothing changed — that is how a docs-only PR ends up with a
+            # complete ecosystem, and how a reaped or half-rolled-back preview self-heals. Do NOT put
             # `steps.changes.outputs.recipe == 'true'` back on the steps below.
+            #
+            # ⚠️ The ingredient-parser stack (ADR-0025's Python CRF Lambda) is the THIRD stack on purpose.
+            # It was absent from this list — and from every deploy step — while `RecipeParseLineFunction`
+            # shipped into each stage carrying `CRF_FUNCTION_NAME=kitchensink-ingredient-parser-{stage}`
+            # and an IAM grant to that ARN. `crfInvoke.ts` maps a failed invoke to `unavailable` per line
+            # and the pipeline reads that as `single-engine llm`, so the two-engine parse degraded to one
+            # engine with no error surface: ADR-0010's own founding failure, one service over. An absent
+            # parser must therefore force a redeploy exactly as an absent workers stack does.
             - name: Ensure this PR has a recipe tier (ensure-exists gate)
               id: gate
               env:
@@ -812,6 +821,7 @@ jobs:
                   .github/scripts/deploy-gate.sh evaluate "$INTENT" recipe "$CHANGED" "$FORCED" \
                     "${RECIPE_ORIGIN}/health" \
                     "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-ingredient-parser-${STAGE}" \
                     "kitchensink-recipe-workers-${STAGE}" \
                     "kitchensink-recipe-service-${STAGE}"
             # ⛔ ADR-0007 × ADR-0022 — the composition that wedges stacks. The SHARED sandbox RDS instance
@@ -971,6 +981,30 @@ jobs:
             # which exports `./dist`. It has not failed only because an earlier step in this job happens to
             # build it — an accident of ordering, not a guarantee. `cdkEntrypointBuildOrder.test.ts` found
             # this while pinning the two resolver steps.
+            # Pass 0 — the CRF ENGINE, before the worker that invokes it. There is no CloudFormation edge
+            # between the two: `RecipeWorkersStack` formats the parser's ARN by hand precisely because the
+            # function lives in another CDK app (ADR-0025), so nothing but this ordering stops `parseLine`
+            # from going live pointed at a function that does not exist yet. Its asset is ~102 MB of arm64
+            # CPython 3.13 wheels staged by pip, so this step is the slow one; it runs first so a failure
+            # here costs nothing downstream.
+            #
+            # ⚠️ `bundle:lambda` shells out to the RUNNER's `python3 -m pip` with `--platform` /
+            # `--python-version` / `--only-binary=:all:` — it cross-stages for arm64 and never executes the
+            # wheels, so the runner's own Python major is irrelevant. It also refuses to produce a broken
+            # asset: `buildAsset.ts` runs the same predicate the guard suite fires at fakes and exits
+            # non-zero on any finding, so an incomplete asset fails HERE rather than on a cold start.
+            - name: Build the workspace packages the ingredient-parser app imports
+              if: steps.gate.outputs.deploy == 'true'
+              run: npx turbo run build --filter='@kitchensink/ingredient-parser^...'
+            - name: Stage the CRF Lambda asset (pip, arm64 / CPython 3.13)
+              if: steps.gate.outputs.deploy == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/ingredient-parser
+            - name: CDK Deploy — ingredient parser (the CRF engine parseLine invokes)
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  npx cdk deploy \
+                    --app "npx tsx packages/services/ingredient-parser/infra/bin/app.ts" \
+                    --all --require-approval never
             - name: Build the workspace packages the recipe-workers app imports
               if: steps.gate.outputs.deploy == 'true'
               run: npx turbo run build --filter='@kitchensink/recipe-workers^...'

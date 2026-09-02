@@ -226,16 +226,23 @@ export function useIngredientResolver(
     };
 
     useEffect(() => {
-        // A served list settled for the debounced query: begin or CONTINUE the session (KTD6 — a
-        // refined prefix never counts as an abandonment). Gated on the search actually being enabled so
-        // stale data below the minimum (or during disambiguation) observes nothing.
+        // A served list settled for the debounced query: begin, CONTINUE (KTD6 — a refined prefix
+        // never counts as an abandonment), or REPLACE the session — a wholesale retype settles the old
+        // phrasing as a no-pick and begins a new session (owner ruling 2026-09-01, REVIEW F2). Gated on
+        // the search actually being enabled so stale data below the minimum (or during disambiguation)
+        // observes nothing.
         if (searchEnabled && search.isSuccess && search.data !== undefined) {
-            sessionRef.current = observeServedList(
+            const observed = observeServedList(
                 sessionRef.current,
                 debouncedTrimmed,
                 search.data.suggestions,
                 mintEventId,
             );
+            sessionRef.current = observed.session;
+
+            if (observed.abandoned !== null) {
+                emitAnalytics(observed.abandoned);
+            }
         }
     }, [searchEnabled, search.isSuccess, search.data, debouncedTrimmed]);
 

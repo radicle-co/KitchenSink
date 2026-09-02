@@ -1091,6 +1091,24 @@ describe('useIngredientResolver — analytics query-outcome emission (U5)', () =
         expect(events[0]?.query).toBe('buck');
     });
 
+    it('⛔ a WHOLESALE RETYPE emits the old phrasing as a no-pick, and the pick lands under a NEW id (F2 ruling)', () => {
+        const own = makeIngredient({ id: 'i-s', name: 'Sugar', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
+        const suggestions = [localSuggestion(own)];
+        const { result } = renderHook(() => useIngredientResolver(vi.fn()));
+        settleServedList(result, 'butter', suggestions);
+        settleServedList(result, 'sugar', suggestions);
+
+        act(() => {
+            result.current.selectSuggestion(suggestions[0] as IngredientSuggestion);
+        });
+
+        const events = emittedEvents();
+        expect(events).toHaveLength(2);
+        expect(events[0]).toMatchObject({ query: 'butter', outcome: { kind: 'no_pick' } });
+        expect(events[1]).toMatchObject({ query: 'sugar', outcome: { kind: 'pick' } });
+        expect(events[0]?.eventId).not.toBe(events[1]?.eventId);
+    });
+
     it('AE2: clearing the query to empty emits ONE no-pick with the final settled query + list', () => {
         const own = makeIngredient({ id: 'i-h', name: 'Honey', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
         const { result } = renderHook(() => useIngredientResolver(vi.fn()));

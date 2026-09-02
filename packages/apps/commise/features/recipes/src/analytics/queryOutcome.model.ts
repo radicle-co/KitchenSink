@@ -7,10 +7,14 @@
  * abandonment would make the capture-rate denominator a function of typing cadence. So:
  *
  *  - a session BEGINS when a non-empty suggestion list settles (an empty list begins nothing);
- *  - extension/refinement CONTINUES it — same event id, updated query + served list;
- *  - it ENDS exactly once, as a pick ({@link pickOutcome}) or a no-pick ({@link abandonOutcome} — on
- *    clear-to-empty, a non-suggestion resolution including create-after-search, or unmount cleanup),
- *    carrying the FINAL settled query and served list.
+ *  - extension/refinement — either settled text starting with the other, i.e. typing more or
+ *    backspacing — CONTINUES it: same event id, updated query + served list;
+ *  - a WHOLESALE RETYPE is an ABANDONMENT of the first phrasing (owner ruling 2026-09-01, REVIEW F2):
+ *    the open session settles as a no-pick carrying ITS query + served list, and the replacement
+ *    begins a NEW session with a new id — two logical search intents, two events;
+ *  - it otherwise ENDS exactly once, as a pick ({@link pickOutcome}) or a no-pick
+ *    ({@link abandonOutcome} — on clear-to-empty, a non-suggestion resolution including
+ *    create-after-search, or unmount cleanup), carrying the FINAL settled query and served list.
  *
  * The event id is minted when the session begins — the "logical event occurs" moment (KTD5) — and is
  * reused across continuation and any transport retry, so the ingest door's dedup can collapse
@@ -53,29 +57,56 @@ export function digestSuggestions(suggestions: readonly IngredientSuggestion[]):
 }
 
 /**
- * A served list settled for `query`: begin a session (non-empty list, none open) or CONTINUE the open
- * one — same event id, updated query and served list. An empty list with no session begins nothing.
+ * Whether `next` refines `previous` (or vice versa): one settled text starts with the other, which is
+ * what typing more — or backspacing — looks like across debounce settles. Case-insensitive, because
+ * retyping a word with different casing is not a new search intent.
+ */
+function isRefinement(previous: string, next: string): boolean {
+    const a = previous.toLowerCase();
+    const b = next.toLowerCase();
+
+    return a.startsWith(b) || b.startsWith(a);
+}
+
+/** What one served-list settle produced: the session to hold, and any abandonment to emit. */
+export interface ObservedServedList {
+    readonly session: SearchSession | null;
+    /** The OLD session's no-pick, when the new text was a wholesale retype (owner ruling, REVIEW F2). */
+    readonly abandoned: QueryOutcomeEvent | null;
+}
+
+/**
+ * A served list settled for `query`: begin a session (non-empty list, none open), CONTINUE the open
+ * one (extension/refinement — same event id, updated query and served list), or REPLACE it (a
+ * wholesale retype abandons the open session as a no-pick and begins a new one with a new id). An
+ * empty list begins nothing — but a retype that settles empty still abandons the old session.
  *
  * @param session - The open session, or `null`.
  * @param query - The settled (debounced, trimmed) query the list answers.
  * @param suggestions - The list the server answered with.
  * @param mintId - The id source (a UUID minter in production; deterministic in tests).
- * @returns The session to hold — possibly the same identity continued with new content.
+ * @returns The session to hold, plus the abandoned old session's no-pick when the text was replaced.
  */
 export function observeServedList(
     session: SearchSession | null,
     query: string,
     suggestions: readonly IngredientSuggestion[],
     mintId: () => string,
-): SearchSession | null {
-    if (session === null && suggestions.length === 0) {
-        return null;
+): ObservedServedList {
+    const continues = session !== null && isRefinement(session.query, query);
+    const abandoned = session !== null && !continues ? abandonOutcome(session) : null;
+
+    if (suggestions.length === 0 && !continues) {
+        return { session: null, abandoned };
     }
 
     return {
-        eventId: session?.eventId ?? mintId(),
-        query,
-        served: digestSuggestions(suggestions),
+        session: {
+            eventId: continues ? session.eventId : mintId(),
+            query,
+            served: digestSuggestions(suggestions),
+        },
+        abandoned,
     };
 }
 

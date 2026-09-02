@@ -99,14 +99,14 @@ id-minted-at-mount-bug alarm.
 Two boundary semantics, made explicit after the staff-architect REVIEW (2026-09-01) so the record
 matches the code:
 
-- **Continuation is CONTINUED INTERACTION, not text similarity.** Any non-empty list settling while a
-  session is open continues it — including a wholesale retype ("butter" backspaced through the
-  minimum, then "sugar"). The session's unit is one uninterrupted engagement with the picker for one
-  ingredient line: a rephrase that ends in a pick is a SUCCESS of that engagement, not an abandonment
-  of the first phrasing, and counting intra-line rephrases as no-picks would re-import the
-  typing-cadence bias the session exists to remove. The landed row carries the FINAL query and served
-  list. ⚠️ Owner-overridable: if rephrase-as-abandonment is ever wanted as a signal, that is a model
-  change (prefix test + new id per rephrase), not a reinterpretation.
+- **Continuation is TEXT REFINEMENT; a wholesale retype is an ABANDONMENT (owner ruling
+  2026-09-01).** One settled text starting with the other — typing more, or backspacing — continues
+  the session (same event id, updated query + served list); a replacement ("butter" retyped to
+  "sugar") settles the old session as a no-pick carrying ITS query and served list, and the new text
+  begins a NEW session with a new id — two logical search intents, two events. The prefix test runs
+  against the LAST SETTLED query, so a retype whose intermediate backspace states settle still
+  registers as a replacement at the first non-refining settle. This supersedes the
+  continued-interaction reading an earlier draft of this section recorded.
 - **An unlocatable pick emits NOTHING — no pick, no no-pick.** When the tapped suggestion cannot be
   found in the served digest (a stale render, or an entry truncated past the 20-entry digest cap),
   asserting a position that was never served would be worse than silence, so the session evaporates.

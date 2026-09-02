@@ -18,6 +18,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import { useState, type FC } from 'react';
 import userEvent from '@testing-library/user-event';
 
 import type { ParseJobLineView, ParseJobResponse, ParseProposal } from '@kitchensink/recipe-service-client';
@@ -287,6 +288,86 @@ describe('ParseJobReview (web) — editing one line', () => {
 
         expect((screen.getByRole('button', { name: 'Edit line 1' }) as HTMLButtonElement).disabled).toBe(false);
         expect((screen.getByRole('button', { name: 'Edit line 2' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('⚠️ KEEPS the typed correction when the edit fails — a cook must not retype it', async () => {
+        // The editor used to close the moment the request left, discarding the draft on every failure. That
+        // is the exact loss the paste form goes out of its way to prevent one component over.
+        const user = userEvent.setup();
+        renderReview(withJob('ready', editable), {
+            edit: { submit: vi.fn(), busyLineIndex: undefined, notice: messages.lineEditFailed },
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Edit line 4' }));
+        await user.clear(screen.getByLabelText(messages.lineEditLabel));
+        await user.type(screen.getByLabelText(messages.lineEditLabel), '2 cups flour');
+        await user.click(screen.getByRole('button', { name: messages.lineEditSubmit }));
+
+        expect(screen.getByLabelText(messages.lineEditLabel)).toHaveProperty('value', '2 cups flour');
+        expect(screen.getByRole('alert').textContent).toContain(messages.lineEditFailed);
+    });
+
+    it('⛔ refuses a SECOND submit while the first is still in flight', async () => {
+        // The editor now stays open across the request (see the test above), which is what makes a double
+        // submit reachable at all — before that it closed itself and the question could not arise. Driven
+        // through `rerender` because the busy flag arrives from the parent AFTER the editor is open.
+        const user = userEvent.setup();
+        const submit = vi.fn();
+        const props = (busyLineIndex: number | undefined): ParseJobReviewProps => ({
+            state: withJob('ready', editable),
+            retry: { run: vi.fn(), busy: false, notice: undefined },
+            edit: { submit, busyLineIndex, notice: undefined },
+            onStartOver: vi.fn(),
+        });
+
+        const { rerender } = render(<ParseJobReview {...props(undefined)} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit line 4' }));
+        await user.clear(screen.getByLabelText(messages.lineEditLabel));
+        await user.type(screen.getByLabelText(messages.lineEditLabel), '2 cups flour');
+        await user.click(screen.getByRole('button', { name: messages.lineEditSubmit }));
+        expect(submit).toHaveBeenCalledTimes(1);
+
+        rerender(<ParseJobReview {...props(3)} />);
+
+        const control = screen.getByRole('button', { name: messages.lineEditSubmit });
+        expect((control as HTMLButtonElement).disabled).toBe(true);
+        await user.click(control);
+        expect(submit).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes the editor once the STORED line reads back what was sent', async () => {
+        // Success is not "the request left" — it is the job view carrying the corrected text. Driven through
+        // a real controlled owner, because a frozen `state` prop could never show the close.
+        const user = userEvent.setup();
+
+        const Harness: FC = () => {
+            const [lines, setLines] = useState<readonly ParseJobLineView[]>(editable);
+
+            return (
+                <ParseJobReview
+                    state={withJob('ready', lines)}
+                    retry={{ run: vi.fn(), busy: false, notice: undefined }}
+                    edit={{
+                        submit: (lineIndex, sourceLine) =>
+                            setLines([line({ lineIndex, sourceLine: sourceLine.trim(), status: 'pending' })]),
+                        busyLineIndex: undefined,
+                        notice: undefined,
+                    }}
+                    onStartOver={vi.fn()}
+                />
+            );
+        };
+
+        render(<Harness />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit line 4' }));
+        await user.clear(screen.getByLabelText(messages.lineEditLabel));
+        await user.type(screen.getByLabelText(messages.lineEditLabel), '2 cups flour');
+        await user.click(screen.getByRole('button', { name: messages.lineEditSubmit }));
+
+        expect(screen.queryByLabelText(messages.lineEditLabel)).toBeNull();
+        expect(screen.getByRole('listitem', { name: 'Line 4' }).textContent).toContain('2 cups flour');
     });
 
     it('surfaces an edit refusal as an alert', () => {

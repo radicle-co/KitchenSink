@@ -54,7 +54,20 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
     const locale = useLocale();
     const model = toParseLineModel(line, messages, locale);
     const [draft, setDraft] = useState<string | undefined>(undefined);
+    const [pendingText, setPendingText] = useState<string | undefined>(undefined);
     const busy = edit.busyLineIndex === line.lineIndex;
+
+    // ⛔ THE EDITOR CLOSES ON SUCCESS, NOT ON SUBMIT. Closing it the moment the request left discarded the
+    // cook's typed correction whenever that request failed — the exact loss the paste form goes out of its
+    // way to prevent one component over, and inconsistency there is worse than either choice alone. The
+    // stored line reading back what was sent IS the server's acceptance, so that is what dismisses it.
+    //
+    // React's documented "adjust state while rendering" pattern rather than an effect: an effect would
+    // paint the stale editor for a frame first.
+    if (pendingText !== undefined && line.sourceLine === pendingText) {
+        setPendingText(undefined);
+        setDraft(undefined);
+    }
 
     return (
         <li aria-label={model.label} className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
@@ -120,13 +133,21 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
                             type="button"
                             // ⛔ THE WIRE INDEX, never the number in the label. The row reads "line 4" and
                             // the API takes `3`; sending the human number edits a different line silently.
+                            disabled={busy}
+                            aria-busy={busy}
                             onClick={() => {
-                                if (draft.trim() === '') {
+                                const next = draft.trim();
+
+                                // An edit is not a delete — a blank replacement is refused, exactly as the
+                                // service's own schema refuses it.
+                                if (next === '' || busy) {
                                     return;
                                 }
 
+                                // `.trim()`: the service stores the trimmed line, so this is the text the
+                                // row will read back on success.
+                                setPendingText(next);
                                 edit.submit(line.lineIndex, draft);
-                                setDraft(undefined);
                             }}
                             className="rounded-full bg-seafoam px-3 py-1 text-caption font-semibold text-ocean-dark"
                         >
@@ -134,7 +155,10 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
                         </button>
                         <button
                             type="button"
-                            onClick={() => setDraft(undefined)}
+                            onClick={() => {
+                                setPendingText(undefined);
+                                setDraft(undefined);
+                            }}
                             className="rounded-full bg-card px-3 py-1 text-caption font-medium text-slate"
                         >
                             {messages.lineEditCancel}

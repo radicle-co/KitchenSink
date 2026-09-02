@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Text } from 'react-native';
+import { useState, type JSX } from 'react';
 
 import type { ParseJobLineView, ParseJobResponse, ParseProposal } from '@kitchensink/recipe-service-client';
 
@@ -275,6 +276,81 @@ describe('ParseJobReview (native) — editing one line', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Edit line 1' }));
         expect(screen.getByLabelText(messages.lineEditLabel)).toBeTruthy();
+    });
+
+    it('⚠️ KEEPS the typed correction when the edit fails — a cook must not retype it', async () => {
+        // The editor used to close the moment the request left, discarding the draft on every failure —
+        // the exact loss the paste form goes out of its way to prevent one component over.
+        const user = userEvent.setup();
+        renderReview(withJob('ready', editable), {
+            edit: { submit: vi.fn(), busyLineIndex: undefined, notice: messages.lineEditFailed },
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Edit line 4' }));
+        await user.clear(screen.getByLabelText(messages.lineEditLabel));
+        await user.type(screen.getByLabelText(messages.lineEditLabel), '2 cups flour');
+        await user.click(screen.getByRole('button', { name: messages.lineEditSubmit }));
+
+        expect(screen.getByLabelText(messages.lineEditLabel)).toHaveProperty('value', '2 cups flour');
+        expect(screen.getByText(messages.lineEditFailed)).toBeTruthy();
+    });
+
+    it('⛔ refuses a SECOND submit while the first is still in flight', async () => {
+        const user = userEvent.setup();
+        const submit = vi.fn();
+        const props = (busyLineIndex: number | undefined): ParseJobReviewProps => ({
+            state: withJob('ready', editable),
+            retry: { run: vi.fn(), busy: false, notice: undefined },
+            edit: { submit, busyLineIndex, notice: undefined },
+            onStartOver: vi.fn(),
+        });
+
+        const { rerender } = render(<ParseJobReview {...props(undefined)} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit line 4' }));
+        await user.clear(screen.getByLabelText(messages.lineEditLabel));
+        await user.type(screen.getByLabelText(messages.lineEditLabel), '2 cups flour');
+        await user.click(screen.getByRole('button', { name: messages.lineEditSubmit }));
+        expect(submit).toHaveBeenCalledTimes(1);
+
+        rerender(<ParseJobReview {...props(3)} />);
+
+        expect(screen.getByRole('button', { name: messages.lineEditSubmit }).getAttribute('aria-disabled')).toBe(
+            'true',
+        );
+    });
+
+    it('closes the editor once the STORED line reads back what was sent', async () => {
+        // Success is not "the request left" — it is the job view carrying the corrected text.
+        const user = userEvent.setup();
+
+        function Harness(): JSX.Element {
+            const [lines, setLines] = useState<readonly ParseJobLineView[]>(editable);
+
+            return (
+                <ParseJobReview
+                    state={withJob('ready', lines)}
+                    retry={{ run: vi.fn(), busy: false, notice: undefined }}
+                    edit={{
+                        submit: (lineIndex, sourceLine) =>
+                            setLines([line({ lineIndex, sourceLine: sourceLine.trim(), status: 'pending' })]),
+                        busyLineIndex: undefined,
+                        notice: undefined,
+                    }}
+                    onStartOver={vi.fn()}
+                />
+            );
+        }
+
+        render(<Harness />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit line 4' }));
+        await user.clear(screen.getByLabelText(messages.lineEditLabel));
+        await user.type(screen.getByLabelText(messages.lineEditLabel), '2 cups flour');
+        await user.click(screen.getByRole('button', { name: messages.lineEditSubmit }));
+
+        expect(screen.queryByLabelText(messages.lineEditLabel)).toBeNull();
+        expect(screen.getByText('2 cups flour')).toBeTruthy();
     });
 
     it('surfaces an edit refusal', () => {

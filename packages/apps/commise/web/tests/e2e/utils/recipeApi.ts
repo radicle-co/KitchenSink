@@ -888,11 +888,22 @@ export async function mockRecipeApi(
     const parseJobScript = options.parseJob ?? {};
     const parseJobs = new Map<string, ParseJobResponse>();
     const parseJobPollsLeft = new Map<string, number>();
+    /**
+     * Jobs whose SCRIPTED terminal state has already been served — after which they settle `complete`.
+     *
+     * ⛔ ONE-SHOT, and without this the `partial` script is unusable: a retry that re-settled `partial`
+     * would model a transient enqueue failure that recurs identically forever, so the spec asserting a
+     * retry RECOVERS the job could never pass. One-shot is also the truthful model — `retry` re-drives
+     * exactly the lines that did not go through, and the failure it re-drives them past was transient by
+     * definition (`unparseable` is the terminal one, and no retry touches it).
+     */
+    const parseJobScriptSpent = new Set<string>();
     let nextParseJobId = 1;
 
-    /** Settle a job's lines into the scripted terminal shape. */
+    /** Settle a job's lines into the scripted terminal shape (once) or into `complete` (thereafter). */
     const settleParseJob = (job: ParseJobResponse): ParseJobResponse => {
-        const settlesAs = parseJobScript.settlesAs ?? 'complete';
+        const settlesAs = parseJobScriptSpent.has(job.id) ? 'complete' : (parseJobScript.settlesAs ?? 'complete');
+        parseJobScriptSpent.add(job.id);
 
         if (settlesAs === 'expired') {
             return { ...job, status: 'expired' };
@@ -2056,6 +2067,15 @@ export async function mockRecipeApi(
 
                 if (job === undefined) {
                     return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                // ⛔ A job that has already settled is served AS IS. Without this, a second `GET` on a
+                // settled job would re-enter `settleParseJob` and — the script now being spent — resurrect
+                // an `expired` job as `complete`. Polling stops on a terminal state so this is rare, but a
+                // reload issues a fresh read, and a mock that quietly un-expires a job would make the one
+                // assertion the URL-addressed route exists for unfalsifiable.
+                if (job.status !== 'running') {
+                    return route.fulfill({ json: job });
                 }
 
                 const left = parseJobPollsLeft.get(job.id) ?? 0;

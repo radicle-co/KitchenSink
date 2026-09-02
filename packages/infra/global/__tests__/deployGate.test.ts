@@ -37,6 +37,12 @@ const SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/deploy-gate.sh
 /** One decision, as the script prints it. */
 interface Decision {
     readonly deploy: boolean;
+    /**
+     * Whether a preview EXISTS to talk to, independent of whether this run deploys to it. The two
+     * `deploy=false` outcomes mean opposite things and the workflow has to tell them apart — see the
+     * `live` describe block below.
+     */
+    readonly live: boolean;
     readonly reason: string;
     readonly status: number;
 }
@@ -57,9 +63,10 @@ const decide = (...args: readonly string[]): Decision => {
 
     const stdout = result.stdout ?? '';
     const deploy = /^deploy=(.*)$/m.exec(stdout)?.[1] ?? '';
+    const live = /^live=(.*)$/m.exec(stdout)?.[1] ?? '';
     const reason = /^reason=(.*)$/m.exec(stdout)?.[1] ?? '';
 
-    return { deploy: deploy === 'true', reason, status: result.status ?? -1 };
+    return { deploy: deploy === 'true', live: live === 'true', reason, status: result.status ?? -1 };
 };
 
 /** Statuses CloudFormation reports for a stack that is deployed and usable as-is. */
@@ -223,6 +230,57 @@ describe('deploy_gate_decide — misuse fails loudly instead of guessing', () =>
         const result = spawnSync('bash', [SCRIPT, 'nonsense'], { encoding: 'utf8' });
 
         expect(result.status).toBe(2);
+    });
+
+    // ── `live` — the two "deploy=false" outcomes mean OPPOSITE things ────────────────────────────
+    describe('live — is there a preview to talk to at all', () => {
+        /**
+         * ⛔ WHY A SECOND OUTPUT. `deploy=false` is emitted for two reasons that could not be more
+         * different: "unchanged and already serving" (a healthy preview is RIGHT THERE) and
+         * "intent is not live" (nothing exists — the stacks were reaped). The recipe job's post-gate
+         * steps need the distinction: resolving this stage's food origin, reading the running task
+         * definition and smoke-testing all presuppose that SOMETHING is deployed, while the build/push
+         * steps presuppose that THIS RUN deploys.
+         *
+         * Without it, those steps were simply left unguarded so they would still run on an
+         * unchanged-but-serving preview — which is deliberate (the smoke catches a half-wired preview
+         * "even by a push that deployed nothing"). But with nothing deployed at all they cannot work:
+         * `Sandbox Deploy` went red on every push to PR #91 for the whole time its stacks were reaped
+         * (2026-08-27 onward), failing on `No food service is deployed at stage pr-91` — a permanently
+         * red check whose meaning was "there is nothing to do". Red-over-nothing trains people to ignore
+         * the check exactly as reliably as green-over-nothing does.
+         */
+        it('is FALSE only when intent is not live — nothing is deployed to talk to', () => {
+            const verdict = decide('false', 'true', 'false', '000', 'kitchensink-food-service-pr-73=ABSENT');
+
+            expect(verdict.deploy).toBe(false);
+            expect(verdict.live).toBe(false);
+        });
+
+        it('is TRUE on the other skip — unchanged and already serving, so the preview is right there', () => {
+            const verdict = decide('true', 'false', 'false', '200', 'a=UPDATE_COMPLETE');
+
+            expect(verdict.deploy).toBe(false);
+            expect(verdict.live).toBe(true);
+        });
+
+        it('is TRUE for every deploy verdict — a run that deploys has a preview by the end of it', () => {
+            for (const verdict of [
+                decide('true', 'true', 'false', '200', 'a=UPDATE_COMPLETE'), // changed
+                decide('true', 'false', 'false', '200', 'a=ABSENT'), // ensure-exists
+                decide('true', 'false', 'false', '000', 'a=UPDATE_COMPLETE'), // ensure-serving
+                decide('false', 'false', 'true', '000', 'a=ABSENT'), // forced dispatch, intent dark
+            ]) {
+                expect(verdict.deploy).toBe(true);
+                expect(verdict.live).toBe(true);
+            }
+        });
+
+        it('a FORCED dispatch is live even with intent dark — the button is how a preview gets rebuilt', () => {
+            const verdict = decide('false', 'false', 'true', '000', 'a=ABSENT');
+
+            expect(verdict.live).toBe(true);
+        });
     });
 
     // ── The on-demand amendment ──────────────────────────────────────────────────────────────────

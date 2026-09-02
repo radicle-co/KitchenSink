@@ -901,22 +901,36 @@ jobs:
             # `infra-alb/dist/index.js`, breaking every sandbox food deploy. A hand-maintained list of
             # dist-exporting dependencies is a second representation of the dependency graph; `^...` asks
             # turbo for the real one, so the next such package needs no edit here.
+            # ⛔ GUARDED ON `live`, NOT `deploy` (2026-09-02). These two talk to the PREVIEW, so they must
+            # run whenever one exists — including the unchanged-and-serving skip, which is what lets the
+            # smoke below catch a half-wired preview "even by a push that deployed nothing". They must NOT
+            # run when nothing is deployed at all: `deploy=false, live=false` is the reaped-sandbox case,
+            # where this step's stack check failed the whole workflow for "there is nothing to do".
             - name: Build the workspace packages this resolver imports
+              if: steps.gate.outputs.live == 'true'
               run: npx turbo run build --filter='@kitchensink/food-service^...'
             - name: Resolve the food service origin for this stage
               id: food
+              if: steps.gate.outputs.live == 'true'
               run: |
                   set -euo pipefail
                   food_url=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts \
                     "${STAGE}" "${DOMAIN_NAME}")
                   echo "url=${food_url}" >> "$GITHUB_OUTPUT"
                   echo "recipe will call food at ${food_url}"
-                  # This used to be a ::warning:: describing an accepted degradation. It is now an ERROR,
-                  # because ensure-exists (ADR-0010) means `deploy-food` runs on every PR event and either
-                  # creates this stack or fails the run — so reaching here without it means the ecosystem is
-                  # genuinely incomplete, and baking an unresolvable host into RECIPE_FOOD_SERVICE_URL would
-                  # ship a preview whose ingredient typeahead can only ever report
-                  # `catalogAvailability: 'unavailable'`. Fail loudly instead of degrading quietly (#124).
+                  # This used to be a ::warning:: describing an accepted degradation. It is an ERROR because
+                  # baking an unresolvable host into RECIPE_FOOD_SERVICE_URL would ship a preview whose
+                  # ingredient typeahead can only ever report `catalogAvailability: 'unavailable'` — fail
+                  # loudly instead of degrading quietly (#124).
+                  #
+                  # ⚠️ ITS PREMISE WAS AMENDED (2026-09-02). It read "ensure-exists (ADR-0010) means
+                  # `deploy-food` runs on every PR event and either creates this stack or fails the run".
+                  # The ON-DEMAND gate added a THIRD outcome that sentence does not allow for: with
+                  # `intent=false` — a preview deliberately torn down, or never started — `deploy-food`
+                  # SKIPS and succeeds without creating anything. This step then failed every push to such
+                  # a PR, so `Sandbox Deploy` was permanently red for "there is nothing to do" (observed on
+                  # every commit of PR #91, whose stacks were reaped 2026-08-27). The `if:` above restores
+                  # the intended reading: this check speaks only when a deploy is actually happening.
                   if ! aws cloudformation describe-stacks --region "${DEFAULT_AWS_REGION}" \
                       --stack-name "kitchensink-food-service-${STAGE}" >/dev/null 2>&1; then
                     echo "::error::No food service is deployed at stage ${STAGE}, so ${food_url} cannot resolve and this preview's ingredient catalog would be dead. On a pull_request the deploy-food job should have created kitchensink-food-service-${STAGE} — check that job. On a workflow_dispatch, dispatch service=food at this stage first."
@@ -1017,8 +1031,13 @@ jobs:
             # Unconditional: when the gate skipped the deploy, the stacks exist and the service is serving,
             # so this resolves fine — and the smoke below then still re-proves the ecosystem is wired on a
             # push that deployed nothing.
+            # ⛔ GUARDED ON `live` (2026-09-02), for the same reason as the resolver pair above: it reads a
+            # RUNNING task definition, which exists whenever the preview does — deployed by this run or a
+            # previous one. `deploy` would have been wrong here: it would stop the smoke from ever
+            # re-checking an unchanged preview, which is the half-wiring case it was written for.
             - name: Resolve the running task's image tag and food origin
               id: running
+              if: steps.gate.outputs.live == 'true'
               run: |
                   set -euo pipefail
                   cluster=$(aws ecs list-clusters --query 'clusterArns[]' --output text \
@@ -1050,10 +1069,14 @@ jobs:
             # ECOSYSTEM is wired. The last two flags add that (issue #124): the running task must be
             # configured for THIS PR's food service, and that host must answer. `food-pr-{N}/api/v1/foods/search`
             # answers 401 BY DESIGN (it needs a Clerk token), and the smoke treats that 401 as the PASS —
-            # only a transport failure or the shared ALB's default 404 is a failure. Runs on EVERY event, so
-            # a preview left half-wired is reported even by a push that deployed nothing; the image-currency
-            # flag is passed only when this run actually deployed.
+            # only a transport failure or the shared ALB's default 404 is a failure. Runs on every event
+            # that HAS a preview (`live`, not `deploy`), so a preview left half-wired is reported even by a
+            # push that deployed nothing; the image-currency flag is passed only when this run actually
+            # deployed. ⚠️ The one event it does NOT run on is the reaped sandbox (`live=false`): there is
+            # no origin, no task and no food stack, so it could only fail — which is exactly what it did on
+            # every push to PR #91 while its stacks were down.
             - name: Smoke test — the deployed recipe service is live, browser-reachable, CURRENT and WIRED to food
+              if: steps.gate.outputs.live == 'true'
               env:
                   DEPLOYED: ${{ steps.gate.outputs.deploy }}
                   RUNNING_IMAGE_TAG: ${{ steps.running.outputs.image_tag }}

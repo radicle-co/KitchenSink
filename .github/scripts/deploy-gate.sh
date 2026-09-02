@@ -132,8 +132,11 @@ deploy_gate_decide() {
     # reason to deploy, because each of those reasons — changed, absent, unhealthy — is equally true of an
     # environment that was deliberately torn down last midnight.
     if [ "$intent" = 'false' ]; then
+        # The ONE arm that is not live: nothing is deployed and this run will not deploy it, so every
+        # post-gate step that talks to the preview must skip rather than fail against thin air.
         deploy_gate_emit false \
-            'no live sandbox for this PR (it was torn down, or never started) — press Run workflow to start one'
+            'no live sandbox for this PR (it was torn down, or never started) — press Run workflow to start one' \
+            false
 
         return 0
     fi
@@ -179,7 +182,14 @@ deploy_gate_decide() {
 #
 # Print the two-line verdict. Kept separate so the decision reads as a table of cases.
 deploy_gate_emit() {
-    printf 'deploy=%s\nreason=%s\n' "${1}" "${2}"
+    # `live` (3rd, default true) answers a DIFFERENT question from `deploy`: is there a preview to talk
+    # to at all, by the end of this run. Every arm but the intent gate below has one — either because it
+    # deploys, or because it skipped precisely on the grounds that the thing is already serving. The
+    # workflow needs both: build/push steps key on `deploy`, while resolving this stage's food origin,
+    # reading the running task definition and smoke-testing key on `live` (they presuppose something is
+    # deployed, not that THIS run deployed it — which is what lets the smoke catch a half-wired preview
+    # on a push that deployed nothing).
+    printf 'deploy=%s\nlive=%s\nreason=%s\n' "${1}" "${3:-true}" "${2}"
 }
 
 # deploy_gate_stack_status <region> <stackName>

@@ -30,7 +30,7 @@
  * near-twin's catalog search nearly always returns something.
  *
  * So the precedence is re-derived from what the evidence IS, and recorded as
- * {@link RESOLUTION_TIER_EVIDENCE} so it can be checked rather than merely asserted:
+ * `RESOLUTION_TIER_EVIDENCE` so it can be checked rather than merely asserted:
  *
  *  1. **curated** — `curated-mapping`. A person said what this phrase means (R19).
  *  2. **memo** — `remembered-verification`. A row recording that the verification gate AGREED an identity;

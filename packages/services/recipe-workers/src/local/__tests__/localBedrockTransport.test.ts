@@ -3,7 +3,7 @@
  *
  * ⛔ THE CLIENT IS NOT MOCKED HERE, AND THAT IS THE POINT. `localSupport.ts` says of Bedrock that "the LLM
  * parse leg must call the real API or be stubbed at the port"; the port it means is
- * {@link ConverseTransport}, the one seam `createBedrockConverseClient` is a pure function of. Substituting
+ * `ConverseTransport`, the one seam `createBedrockConverseClient` is a pure function of. Substituting
  * one layer higher — a fake `BedrockConverseClient` — would take the envelope schema, the `usage` reader,
  * the `stopReason` rule and the whole error taxonomy off the local path, and a local run would then pass for
  * reasons the deployed path does not have.

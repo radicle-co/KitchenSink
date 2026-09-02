@@ -20,7 +20,10 @@ import type { RecipeDetail, RecipeVisibility } from '@kitchensink/recipe-core';
 // The two recipe WRITE envelopes, from the contract the service authors. They were `recipe-core`'s
 // `CreateRecipeInput` / `UpdateRecipeInput` — hand-written twins of these schemas (§15 rule 4 / ADR-0014).
 import type {
+    CreateParseJobRequest,
     CreateRecipeRequest,
+    EditParseJobLineRequest,
+    ParseJobResponse,
     RecipeSearchQuery,
     RecordCorrectionRequest,
     SetRatingRequest,
@@ -31,8 +34,10 @@ import type {
 import { RecipeServiceClient } from './client.js';
 import {
     DEFAULT_INGREDIENT_POLL_INTERVAL_MS,
+    DEFAULT_PARSE_JOB_POLL_INTERVAL_MS,
     collectionQueries,
     ingredientQueries,
+    parseJobQueries,
     recipeProjections,
     recipeQueries,
     recipeServiceKeys,
@@ -52,7 +57,7 @@ import type {
 // Re-exported so every existing `import { recipeServiceKeys } from '../hooks.js'` (and the public
 // `@kitchensink/recipe-service-client/hooks` subpath) keeps resolving unchanged — P5 moved the factory's
 // SOURCE to `./queries.js` (the module the read-seam factories below build on), not its public location.
-export { DEFAULT_INGREDIENT_POLL_INTERVAL_MS, recipeServiceKeys };
+export { DEFAULT_INGREDIENT_POLL_INTERVAL_MS, DEFAULT_PARSE_JOB_POLL_INTERVAL_MS, recipeServiceKeys };
 
 // ─── Provider / context ───────────────────────────────────────────────────────────────────────────
 
@@ -841,6 +846,126 @@ export function useRecordIngredientCorrection() {
     return useMutation({
         mutationFn: (correction: RecordCorrectionRequest) => client.recordIngredientCorrection(correction),
     });
+}
+
+// ─── Parse-job query + mutations ──────────────────────────────────────────────────────────────────
+//
+// DESIGN PATTERN: **Command**, already satisfied by the TanStack mutations these wrap, over the P5 read
+// seam in `queries.ts`. What the three mutations add is one shared decision:
+//
+// ⛔ WRITE-THROUGH, NOT INVALIDATE (DA3 — the `useUpdateRecipe` precedent). All three answer the FULL,
+// freshly-persisted job view, which is byte-for-byte the shape the poll reads. Invalidating would throw
+// that response away and refetch data already in hand — and on `create` there would be nothing to
+// invalidate at all, so the poll would start from an empty cache and show a spinner over a job whose
+// first view had already arrived.
+//
+// ⛔ AND THEY STALE NOTHING ELSE. R19: a parse binds nothing. No recipe row, no collection membership and
+// no search row changes, so an invalidation of `recipes`/`collections`/`recipeSearches` here would refetch
+// a cook's whole library on every line edit — while they are typing.
+
+/** Enable gate + poll cadence for {@link useParseJob}. */
+export interface ParseJobOptions extends QueryEnableOptions {
+    /** Poll cadence (ms) while the job is `running`. Defaults to {@link DEFAULT_PARSE_JOB_POLL_INTERVAL_MS}. */
+    readonly pollIntervalMs?: number;
+}
+
+/**
+ * `GET /api/v1/recipe-parse-jobs/{id}` — poll one parse job until it settles.
+ *
+ * Self-limiting: the cadence comes from {@link parseJobQueries}`.detail`, which polls ONLY while the job is
+ * `running` and stops on `partial`, `complete` and `expired` alike (see that factory for why each is
+ * terminal for this purpose). Gate it on an id actually existing — `''` before a create has landed disables
+ * the query rather than firing a request for a job that does not exist.
+ *
+ * ⚠️ EXPIRY ARRIVES HERE AS DATA, not as an error: the service answers an expired job's read `200` with
+ * `status: 'expired'`. Only a mutation raises `ParseJobExpiredError`.
+ *
+ * @param id - The job id (the query is disabled for an empty id).
+ * @param options - Enable gate + poll cadence.
+ */
+export function useParseJob(id: string, options: ParseJobOptions = {}) {
+    const client = useRecipeServiceClient();
+    const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_PARSE_JOB_POLL_INTERVAL_MS;
+
+    return useQuery({
+        ...parseJobQueries(client).detail(id, pollIntervalMs),
+        enabled: (options.enabled ?? true) && id.length > 0,
+    });
+}
+
+/**
+ * `POST /api/v1/recipe-parse-jobs` — submit a pasted ingredient block (`202`).
+ *
+ * The accepted view is written through to the NEW job's own key, so the poll {@link useParseJob} starts
+ * against the server's first answer instead of an empty cache.
+ */
+export function useCreateParseJob() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (input: CreateParseJobRequest) => client.createParseJob(input),
+        onSuccess: (job) => {
+            writeParseJobThrough(queryClient, job);
+        },
+    });
+}
+
+/** `POST /api/v1/recipe-parse-jobs/{id}/retry` — re-drive the `failed_retryable` lines (`202`). */
+export function useRetryParseJob() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) => client.retryParseJob(id),
+        onSuccess: async (job) => {
+            await cancelParseJobPoll(queryClient, job.id);
+            writeParseJobThrough(queryClient, job);
+        },
+    });
+}
+
+/** `PATCH /api/v1/recipe-parse-jobs/{id}/lines/{lineIndex}` — replace one line and re-drive its parse (`202`). */
+export function useEditParseJobLine() {
+    const client = useRecipeServiceClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (vars: { id: string; lineIndex: number; input: EditParseJobLineRequest }) =>
+            client.editParseJobLine(vars.id, vars.lineIndex, vars.input),
+        onSuccess: async (job) => {
+            await cancelParseJobPoll(queryClient, job.id);
+            writeParseJobThrough(queryClient, job);
+        },
+    });
+}
+
+/**
+ * Cancel any in-flight poll for a job before writing a mutation's response through.
+ *
+ * ⛔ NOT BELT-AND-BRACES, and the race is live rather than theoretical: `useParseJob` polls on a timer while
+ * the job is `running`, so a `GET` issued a moment before a retry/edit lands can settle AFTER it and clobber
+ * the fresh view with the pre-mutation one — putting the edited line back to its old text on screen. Same
+ * cancel `useUpdateRecipe` performs for the same reason. `create` needs none: there is no query for a job
+ * that did not exist.
+ *
+ * @param queryClient - The cache to cancel against.
+ * @param jobId - The job whose poll to cancel.
+ * @sideEffect Cancels in-flight queries for that key.
+ */
+async function cancelParseJobPoll(queryClient: ReturnType<typeof useQueryClient>, jobId: string): Promise<void> {
+    await queryClient.cancelQueries({ queryKey: recipeServiceKeys.parseJob(jobId) });
+}
+
+/**
+ * Write a job view straight into its own cache entry (DA3 write-through).
+ *
+ * @param queryClient - The cache to write.
+ * @param job - The freshly-persisted view every parse-job endpoint answers with.
+ * @sideEffect Writes one cache entry.
+ */
+function writeParseJobThrough(queryClient: ReturnType<typeof useQueryClient>, job: ParseJobResponse): void {
+    queryClient.setQueryData(recipeServiceKeys.parseJob(job.id), job);
 }
 
 // ─── Photo mutations ──────────────────────────────────────────────────────────────────────────────

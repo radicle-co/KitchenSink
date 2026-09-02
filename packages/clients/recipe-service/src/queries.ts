@@ -45,7 +45,7 @@ import type { QueryKey } from '@tanstack/react-query';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
-import type { RecipeSearchQuery } from '@kitchensink/schema-recipe';
+import type { ParseJobResponse, RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import type { RecipeServiceClient } from './client.js';
 import type { ListCollectionsParams, ListRecipesParams } from './types.js';
@@ -112,6 +112,18 @@ export const recipeServiceKeys = {
     ingredientStatus: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'status'] as const,
     /** One ingredient's disambiguation candidate set (`GET /api/v1/ingredients/{id}/candidates`). */
     ingredientCandidates: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'candidates'] as const,
+    /**
+     * One async ingredient-parse job (`GET /api/v1/recipe-parse-jobs/{id}`).
+     *
+     * ⛔ ITS OWN NAMESPACE, deliberately NOT under the `recipes` prefix. R19: a parse binds nothing — the
+     * reviewed draft goes through the ordinary `POST /api/v1/recipes` — so a recipe write changes no parse
+     * job and a parse job changes no recipe. Nesting it under `recipes` would make every recipe write
+     * refetch every open job (and, once a review creates a recipe, do it at the worst possible moment).
+     *
+     * There is deliberately NO list prefix: a job is addressed by the id its own create returned, the
+     * service publishes no list endpoint, and a prefix nothing invalidates would be a key nobody can use.
+     */
+    parseJob: (id: string) => ['recipe-service', 'parse-jobs', 'detail', id] as const,
 } as const;
 
 // ─── Cache policy (per-domain staleTime — see the module doc for the rationale behind each value) ──
@@ -124,6 +136,35 @@ const INGREDIENT_SEARCH_STALE_TIME_MS = 15_000;
 
 /** Default poll cadence (ms) for {@link ingredientQueries}`.status` — spaced so a `PENDING` food does not hammer. */
 export const DEFAULT_INGREDIENT_POLL_INTERVAL_MS = 2500;
+
+/**
+ * Default poll cadence (ms) for a RUNNING parse job — work is in progress and the count is climbing.
+ *
+ * Deliberately NOT the ingredient poll's 2.5s: that number watches ONE food resolve. This watches a job
+ * that fans out one SQS message and one worker invocation PER LINE (up to `MAX_PARSE_JOB_LINES` = 200),
+ * each going through a CRF Lambda. The cook is watching a progress count settle, not waiting on a single
+ * figure, so a coarser cadence costs nothing legible and cuts the request count most on the longest jobs —
+ * which are exactly the ones that stay `running` longest.
+ */
+export const DEFAULT_PARSE_JOB_POLL_INTERVAL_MS = 4000;
+
+/**
+ * Poll cadence (ms) for a SETTLING (`partial`) parse job — and the reason this state polls at all.
+ *
+ * ⛔ `partial` IS NOT TERMINAL, which is the opposite of how it reads. It is reached when
+ * `ParseJobsService.enqueueOrMark` catches a `SendMessageBatch` failure and marks every line in that call
+ * `failed_retryable` — and `sqsBatchQueue` collects failures across ALL batches and throws once at the end,
+ * so lines whose messages really did send are marked too (the service's own docstring: "may re-enqueue a
+ * line whose message did send: harmless by construction"). Those messages then land, and the worker's
+ * landing `UPDATE` is guarded on `job_id AND line_index AND line_digest` with NO status predicate — so a
+ * `failed_retryable` line flips straight to `parsed`, the aggregate re-runs (`WHERE job.status IN
+ * ('running','partial')` admits it), and the job walks itself to `complete` with no retry pressed.
+ *
+ * Stopping here would strand a cook in front of "10 lines failed, press Retry" for a job that had already
+ * finished. So it polls — but SLOWER than `running`, because a settling job is waiting on messages already
+ * in flight rather than on work that has yet to begin, and the tail can be long.
+ */
+export const PARSE_JOB_SETTLING_POLL_INTERVAL_MS = 20_000;
 
 /**
  * ⛔ THE OVERALL DEADLINE for one deferred-nutrition read, and the reason the client's own timeout is not
@@ -389,6 +430,83 @@ export function ingredientQueries(client: RecipeServiceClient) {
             queryOptions({
                 queryKey: recipeServiceKeys.ingredientCandidates(id),
                 queryFn: () => client.getIngredientCandidates(id),
+            }),
+    };
+}
+
+// ─── Parse-job queries ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Whether a job's review deadline is still ahead — the ONE reading of `expiresAt` this package makes.
+ *
+ * Exported because the query's poll rule and a surface's view model must agree on it: if the poll stopped
+ * on a deadline the UI still treated as live, the cook would sit in front of a frozen `running` job. Pure.
+ *
+ * @param job - The job view.
+ * @param now - Epoch milliseconds to judge against — a PARAMETER, never `Date.now()` inside, so a caller's
+ *   projection stays pure and the boundary is table-testable.
+ * @returns `false` once the deadline has passed, and `false` for a deadline that cannot be read at all —
+ *   fail CLOSED, because `Date.parse` answers `NaN` and `NaN <= now` is `false`, so a bare comparison would
+ *   treat an unreadable timestamp as infinitely far away.
+ */
+export function parseJobIsLive(job: Pick<ParseJobResponse, 'expiresAt'>, now: number): boolean {
+    const expiresAt = Date.parse(job.expiresAt);
+
+    return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+/**
+ * `queryOptions` factory for the async ingredient-parse job's ONE read (plan U9).
+ *
+ * @param client - The configured client the factory's fetcher calls through.
+ * @returns The job-detail builder.
+ */
+export function parseJobQueries(client: RecipeServiceClient) {
+    return {
+        /**
+         * `GET /api/v1/recipe-parse-jobs/{id}` — poll one job until nothing more can be learned.
+         *
+         * The poll is SELF-LIMITING, and it runs while the job can still MOVE — `running` (work in
+         * progress) and `partial` (see {@link PARSE_JOB_SETTLING_POLL_INTERVAL_MS} for why that one is not
+         * terminal). It stops on `complete`, on `expired`, before the first response has landed, and —
+         * the case a status-only rule misses — once `expiresAt` has passed.
+         *
+         * ⛔ EXPIRY IS THE TIMESTAMP, NOT THE STATUS. The TTL sweep rides a 15-minute tick while
+         * `ParseJobsDal.gateMutation` refuses a mutation the instant `expires_at <= now()`, so for up to a
+         * quarter of an hour `GET` answers `running` on a job whose `retry` and `editLine` both `409`.
+         * The sweep's own docstring says the `202` carries `expiresAt` "so the client knows the review
+         * deadline"; this is the client knowing it. A surface must ALSO derive the expired state from the
+         * same timestamp, or it will keep offering controls the server refuses.
+         *
+         * ⚠️ An unreadable `expiresAt` fails CLOSED (no poll), because `Date.parse` answers `NaN` and every
+         * comparison against `NaN` is false — a bare `parsed <= now` would fall through and poll forever.
+         *
+         * `staleTime` is deliberately left at the library default, exactly as `ingredientQueries.status`
+         * leaves it: this mechanism, not a staleness window, governs when the query re-fetches.
+         *
+         * @param id - The job id.
+         * @param pollIntervalMs - Cadence (ms) while `running`. Defaults to
+         *   {@link DEFAULT_PARSE_JOB_POLL_INTERVAL_MS}. Deliberately does NOT move the settling cadence:
+         *   the override names how often to watch work in progress, and folding the two would let a fast
+         *   override turn a long settling tail into a request storm.
+         */
+        detail: (id: string, pollIntervalMs: number = DEFAULT_PARSE_JOB_POLL_INTERVAL_MS) =>
+            queryOptions({
+                queryKey: recipeServiceKeys.parseJob(id),
+                queryFn: () => client.getParseJob(id),
+                refetchInterval: (query) => {
+                    const data = query.state.data as ParseJobResponse | undefined;
+
+                    if (data === undefined || !parseJobIsLive(data, Date.now())) {
+                        return false;
+                    }
+
+                    if (data.status === 'running') {
+                        return pollIntervalMs;
+                    }
+
+                    return data.status === 'partial' ? PARSE_JOB_SETTLING_POLL_INTERVAL_MS : false;
+                },
             }),
     };
 }

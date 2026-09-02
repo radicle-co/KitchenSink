@@ -68,3 +68,5 @@ export { useBrowseRails } from './useBrowseRails.js';
 export type { BrowseRailQuery, UseBrowseRailsResult } from './useBrowseRails.js';
 export { useRecentSearches } from './useRecentSearches.js';
 export type { UseRecentSearchesResult } from './useRecentSearches.js';
+export { useParseJobReview } from './useParseJobReview.js';
+export type { ParseJobReviewController } from './useParseJobReview.js';

@@ -46,6 +46,7 @@ import {
 } from '@kitchensink/infra-messaging';
 import {
     AcceptedNagFindings,
+    clerkAuthEnvironment,
     NODE_LAMBDA_RUNTIME,
     acceptNagFindings,
     CONTAINER_INSIGHTS_TIER,
@@ -386,10 +387,12 @@ export class FoodServiceStack extends Stack {
             // wiring as the identity service. Without these the guard fail-closes and every `/api/v1/foods/*`
             // request is 401. Prod reads prod params; every other stage (incl. `pr-{N}`) reads the shared
             // sandbox (dev-instance) params, matching `baseStage`.
-            CLERK_JWT_KEY: ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/${baseStage}/clerk/jwt-public-key`,
-            ),
+            // ⛔ Clerk auth env — the ONE definition lives in `@kitchensink/infra-security`
+            // (`clerkAuthEnvironment`): the JWT public key, EXACTLY ONE azp mode (prod = exact-match list,
+            // non-prod = anchored preview pattern + preview mode), and the every-stage native-admission gate.
+            // Extracted 2026-09-02 after this same rule, written by hand in three stacks, had to be corrected
+            // in three places — the shape that already cost this repo the ALB priority collision.
+            ...clerkAuthEnvironment(this, baseStage),
             // CR-002 / U4b / R11 — the PUBLIC EdDSA verification key for the internal service-principal
             // erasure route (`FoodServiceErasureAuthService`). Non-secret, resolved from SSM at deploy (same
             // wiring as CLERK_JWT_KEY). The matching PRIVATE key is held only by the identity deletion-worker
@@ -405,35 +408,6 @@ export class FoodServiceStack extends Stack {
         // Non-prod (sandbox / pr-{N}, baseStage=sandbox): the self-owned preview pattern for per-PR
         // subdomains, with the preview MODE (strict|transition) from SSM so the cutover + rollback is an
         // SSM change + task restart, not a code deploy. These are mutually exclusive per the food config.
-        if (baseStage === 'prod') {
-            foodDbEnvironment['CLERK_AUTHORIZED_PARTIES'] = ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/prod/clerk/authorized-parties`,
-            );
-        } else {
-            foodDbEnvironment['CLERK_AZP_PATTERN'] = ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/sandbox/clerk/azp-pattern`,
-            );
-            foodDbEnvironment['CLERK_AZP_PREVIEW_MODE'] = ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/sandbox/clerk/azp-preview-mode`,
-            );
-            // (The azp MODE is stage-gated; the native gate below is not — see the note at its assignment.)
-        }
-
-        // ⛔ EVERY STAGE, deliberately OUTSIDE the branch above (owner ruling 2026-09-02). Native
-        // (@clerk/expo) tokens carry NO `azp`, and BOTH enforcement modes now reject an azp-less token
-        // without this positive gate. It used to be non-prod only, on the premise that "prod runs list
-        // mode, which skips the azp check on absent azp" — true of `@clerk/backend` 1.34, FALSE since the
-        // 3.x bump (`bb9a7de9`), whose `assertAuthorizedPartiesClaim` throws whenever a party list is
-        // configured and `azp` is missing. That upgrade was verified in a real browser — the one client
-        // shape that always HAS an `azp` — so the native shape broke silently; a live device token 401'd
-        // on every call (2026-09-02). ⚠️ The gate admits only a POSITIVE `client_type: 'native'` claim,
-        // minted solely by the `commise-native` Clerk JWT template, never azp-absence alone — so this
-        // widens nothing for a browser token. The template must exist on the stage's Clerk instance or
-        // the flag is inert.
-        foodDbEnvironment['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
 
         // Optional load-test overrides (see packages/tools/loadtest): a preview can lower the USDA cap +
         // rolling window via CDK context (`-c foodSourceRateLimitPerHour=15 -c foodSourceWindowSeconds=60`)

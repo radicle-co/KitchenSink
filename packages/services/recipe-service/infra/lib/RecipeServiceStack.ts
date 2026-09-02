@@ -35,6 +35,7 @@ import {
     AcceptedNagFindings,
     NODE_LAMBDA_RUNTIME,
     acceptNagFindings,
+    clerkAuthEnvironment,
     CONTAINER_INSIGHTS_TIER,
 } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
@@ -228,11 +229,12 @@ export class RecipeServiceStack extends Stack {
             // No CloudFront distribution exists yet; a placeholder keeps config valid so the service boots
             // and serves recipe CRUD. Photo-via-CDN serving lands with a real distribution later.
             CLOUDFRONT_URL: cloudfrontUrl,
-            // Clerk session-token verification (networkless; public key + azp allowlist from SSM at deploy).
-            CLERK_JWT_KEY: ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/${baseStage}/clerk/jwt-public-key`,
-            ),
+            // ⛔ Clerk auth env — the ONE definition lives in `@kitchensink/infra-security`
+            // (`clerkAuthEnvironment`): the JWT public key, EXACTLY ONE azp mode (prod = exact-match list,
+            // non-prod = anchored preview pattern + preview mode), and the every-stage native-admission gate.
+            // Extracted 2026-09-02 after this same rule, written by hand in three stacks, had to be corrected
+            // in three places — the shape that already cost this repo the ALB priority collision.
+            ...clerkAuthEnvironment(this, baseStage),
             // CR-002 / U4a — the PUBLIC EdDSA verification key for the internal service-principal erasure
             // route (`ServiceErasureAuthService`, `POST /api/v1/internal/account/erasure`). Non-secret, resolved
             // from SSM at deploy (same wiring as CLERK_JWT_KEY above); the matching PRIVATE key is held only
@@ -295,36 +297,6 @@ export class RecipeServiceStack extends Stack {
         if (props.cloudfrontDistributionId !== undefined) {
             recipeDbEnvironment['CLOUDFRONT_DISTRIBUTION_ID'] = props.cloudfrontDistributionId;
         }
-
-        // Stage-gated azp enforcement (ADR-0001), mirroring identity + food.
-        if (baseStage === 'prod') {
-            recipeDbEnvironment['CLERK_AUTHORIZED_PARTIES'] = ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/prod/clerk/authorized-parties`,
-            );
-        } else {
-            recipeDbEnvironment['CLERK_AZP_PATTERN'] = ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/sandbox/clerk/azp-pattern`,
-            );
-            recipeDbEnvironment['CLERK_AZP_PREVIEW_MODE'] = ssm.StringParameter.valueForStringParameter(
-                this,
-                `/kitchensink/sandbox/clerk/azp-preview-mode`,
-            );
-        }
-
-        // ⛔ EVERY STAGE, deliberately OUTSIDE the branch above (owner ruling 2026-09-02). Native
-        // (@clerk/expo) tokens carry NO `azp`, and BOTH enforcement modes now reject an azp-less token
-        // without this positive gate. It used to be non-prod only, on the premise that "prod runs list
-        // mode, which skips the azp check on absent azp" — true of `@clerk/backend` 1.34, FALSE since the
-        // 3.x bump (`bb9a7de9`), whose `assertAuthorizedPartiesClaim` throws whenever a party list is
-        // configured and `azp` is missing. That upgrade was verified in a real browser — the one client
-        // shape that always HAS an `azp` — so the native shape broke silently; a live device token 401'd
-        // on every call (2026-09-02). ⚠️ The gate admits only a POSITIVE `client_type: 'native'` claim,
-        // minted solely by the `commise-native` Clerk JWT template, never azp-absence alone — so this
-        // widens nothing for a browser token. The template must exist on the stage's Clerk instance or
-        // the flag is inert.
-        recipeDbEnvironment['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
 
         // ── API service (ECS/Fargate behind the shared ALB) ─────────────────────────────────────
         const apiTaskRole = new iam.Role(this, 'RecipeApiTaskRole', {

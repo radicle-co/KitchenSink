@@ -37,6 +37,7 @@ import {
 } from '@kitchensink/infra-alb';
 import {
     AcceptedNagFindings,
+    clerkAuthEnvironment,
     NODE_LAMBDA_RUNTIME,
     acceptNagFindings,
     CONTAINER_INSIGHTS_TIER,
@@ -300,49 +301,15 @@ export class IdentityServiceStack extends Stack {
                 ),
                 SENTRY_TRACES_SAMPLE_RATE: stage === 'prod' ? '0.1' : '1.0',
                 SENTRY_RELEASE: imageTag,
-                // Clerk session-token verification (read-through auth, U1/U2). The JWT *public* key
-                // and the authorized-parties allowlist are non-secret, resolved from SSM at deploy.
-                // Prod reads prod params; every other stage reads the shared sandbox (dev-instance)
-                // params. These SSM params must exist before deploy (operational prerequisite).
-                CLERK_JWT_KEY: ssm.StringParameter.valueForStringParameter(
-                    this,
-                    `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/jwt-public-key`,
-                ),
-                // Stage-gated azp enforcement (ADR-0001). PROD: exact-match list. NON-PROD (sandbox): the
-                // self-owned anchored pattern for per-PR preview subdomains, with the preview MODE
-                // (`strict` | `transition`) resolved from SSM so the cutover + rollback is an SSM change +
-                // task restart, not a code deploy. Exactly one mode per stage (config contract), so prod
-                // gets ONLY the list and non-prod ONLY the pattern pair. Params must exist before deploy.
-                ...(stage === 'prod'
-                    ? {
-                          CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
-                              this,
-                              `/kitchensink/prod/clerk/authorized-parties`,
-                          ),
-                      }
-                    : {
-                          CLERK_AZP_PATTERN: ssm.StringParameter.valueForStringParameter(
-                              this,
-                              `/kitchensink/sandbox/clerk/azp-pattern`,
-                          ),
-                          CLERK_AZP_PREVIEW_MODE: ssm.StringParameter.valueForStringParameter(
-                              this,
-                              `/kitchensink/sandbox/clerk/azp-preview-mode`,
-                          ),
-                      }),
-                // ⛔ EVERY STAGE, deliberately OUTSIDE the mode spread above (owner ruling 2026-09-02).
-                // Native (@clerk/expo) tokens carry NO `azp`, and BOTH enforcement modes now reject an
-                // azp-less token without this positive gate. It used to be non-prod only, on the premise
-                // that "prod runs list mode, which skips the azp check on absent azp" — true of
-                // `@clerk/backend` 1.34, FALSE since the 3.x bump (`bb9a7de9`), whose
-                // `assertAuthorizedPartiesClaim` throws whenever a party list is configured and `azp` is
-                // missing. That upgrade was verified in a real browser — the one client shape that always
-                // HAS an `azp` — so the native shape broke silently; a live device token 401'd on every
-                // call (2026-09-02). ⚠️ The gate admits only a POSITIVE `client_type: 'native'` claim,
-                // minted solely by the `commise-native` Clerk JWT template, never azp-absence alone — so
-                // this widens nothing for a browser token. The template must exist on the stage's Clerk
-                // instance or the flag is inert.
-                CLERK_ADMIT_NATIVE_CLIENT: 'true',
+                // ⛔ Clerk auth env — the ONE definition lives in `@kitchensink/infra-security`
+                // (`clerkAuthEnvironment`): the JWT public key, EXACTLY ONE azp mode (prod = exact-match
+                // list, non-prod = anchored preview pattern + preview mode), and the every-stage
+                // native-admission gate. Extracted 2026-09-02 after this same rule, written by hand in
+                // three stacks, had to be corrected in three places — the shape that already cost this
+                // repo the ALB priority collision. ⚠️ This stack used to key the parameter tree on
+                // `stage === 'prod' ? 'prod' : 'sandbox'` while food and recipe used `baseStage`: the same
+                // rule in two spellings, which is how the drift starts. The helper takes `baseStage`.
+                ...clerkAuthEnvironment(this, stage === 'prod' ? 'prod' : 'sandbox'),
             },
             secrets: {
                 DB_USERNAME: ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'username'),

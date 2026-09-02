@@ -359,8 +359,13 @@ describe('Food worker + service wiring', () => {
                 envNames.includes('CLERK_AUTHORIZED_PARTIES') &&
                 !envNames.includes('CLERK_AZP_PATTERN') &&
                 !envNames.includes('CLERK_AZP_PREVIEW_MODE') &&
-                // Prod runs list mode (Clerk skips the azp check on absent azp) → no native gate, unchanged.
-                !envNames.includes('CLERK_ADMIT_NATIVE_CLIENT'),
+                // ⚠️ FLIPPED (2026-09-02): prod carries the native gate too — the native gate is STAGE-INDEPENDENT since @clerk/backend 3.x (2026-09-02).
+                // It used to be non-prod only, justified by "prod runs list mode, which skips the azp check on absent
+                // azp" — true of 1.34, FALSE of 3.16.12, whose `assertAuthorizedPartiesClaim` throws on an absent `azp`
+                // whenever a party list is configured (read from the installed source; measured against a live device
+                // token). Without the flag, prod would 401 every azp-less @clerk/expo token. Admission still requires
+                // the POSITIVE `client_type: 'native'` claim, never azp-absence alone, so this widens nothing else.
+                envNames.includes('CLERK_ADMIT_NATIVE_CLIENT'),
         );
 
         expect(withClerk).toHaveLength(3);

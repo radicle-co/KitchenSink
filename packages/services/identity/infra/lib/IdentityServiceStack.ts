@@ -329,21 +329,20 @@ export class IdentityServiceStack extends Stack {
                               this,
                               `/kitchensink/sandbox/clerk/azp-preview-mode`,
                           ),
-                          // Non-prod runs pattern mode, which rejects azp-less native (@clerk/expo) tokens
-                          // unless the native-admission gate is on. The mobile app authenticates against the
-                          // shared sandbox identity, so admit its `client_type: 'native'` tokens.
-                          //
-                          // ⚠️ THE PROD HALF IS NOT SET HERE, AND ITS OLD JUSTIFICATION IS DEAD (measured 2026-09-02).
-                          // This used to read "prod stays list mode, which already skips the azp check on
-                          // absent azp — so prod needs no flag". `@clerk/backend` 3.16.12 REJECTS an absent
-                          // `azp` against a party list instead ("Invalid JWT Authorized party claim (azp)
-                          // undefined"), proven against a live device token, so LIST mode now needs the same
-                          // positive `client_type: 'native'` gate pattern mode always did. Non-prod is
-                          // covered by the flag below; PROD mobile auth needs it too — an owner decision,
-                          // because it also requires the `commise-native` JWT template on the prod Clerk
-                          // instance. Left unset here deliberately rather than flipped silently.
-                          CLERK_ADMIT_NATIVE_CLIENT: 'true',
                       }),
+                // ⛔ EVERY STAGE, deliberately OUTSIDE the mode spread above (owner ruling 2026-09-02).
+                // Native (@clerk/expo) tokens carry NO `azp`, and BOTH enforcement modes now reject an
+                // azp-less token without this positive gate. It used to be non-prod only, on the premise
+                // that "prod runs list mode, which skips the azp check on absent azp" — true of
+                // `@clerk/backend` 1.34, FALSE since the 3.x bump (`bb9a7de9`), whose
+                // `assertAuthorizedPartiesClaim` throws whenever a party list is configured and `azp` is
+                // missing. That upgrade was verified in a real browser — the one client shape that always
+                // HAS an `azp` — so the native shape broke silently; a live device token 401'd on every
+                // call (2026-09-02). ⚠️ The gate admits only a POSITIVE `client_type: 'native'` claim,
+                // minted solely by the `commise-native` Clerk JWT template, never azp-absence alone — so
+                // this widens nothing for a browser token. The template must exist on the stage's Clerk
+                // instance or the flag is inert.
+                CLERK_ADMIT_NATIVE_CLIENT: 'true',
             },
             secrets: {
                 DB_USERNAME: ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'username'),

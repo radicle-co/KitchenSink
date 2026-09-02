@@ -33,18 +33,46 @@ describe('ClerkAuthService (recipe-service)', () => {
         delete process.env['CLERK_AUTHORIZED_PARTIES'];
         delete process.env['CLERK_AZP_PATTERN'];
         delete process.env['CLERK_AZP_PREVIEW_MODE'];
+        delete process.env['CLERK_ADMIT_NATIVE_CLIENT'];
     });
 
-    it('forwards the parsed exact-match azp allowlist to verifyToken (list mode)', async () => {
+    // REWRITTEN (2026-09-02): this pinned the DELEGATION — forwarding the parsed list so `@clerk/backend`
+    // owned the azp decision in list mode. That contract is gone: 3.16.12 rejects an absent `azp` against
+    // a list (1.34 returned early), 401ing every azp-less native token, so `clerk-verify` enforces azp
+    // itself in BOTH modes now and forwards nothing. The list is still PARSED and still decides — this
+    // asserts where, plus the two outcomes that parsing exists for.
+    it('parses the exact-match azp allowlist and enforces it ITSELF (nothing forwarded to the SDK)', async () => {
         process.env['CLERK_AUTHORIZED_PARTIES'] = 'https://commise.app, https://app.commise.app';
-        mockVerifyToken.mockResolvedValueOnce({ sub: 'user_x', external_id: '01HZY0OWNERULID0000000000' });
+        mockVerifyToken.mockResolvedValueOnce({
+            sub: 'user_x',
+            azp: 'https://app.commise.app',
+            external_id: '01HZY0OWNERULID0000000000',
+        });
 
         await (await makeService()).verify('t');
 
-        expect(mockVerifyToken).toHaveBeenCalledWith('t', {
-            jwtKey: JWT_KEY,
-            authorizedParties: ['https://commise.app', 'https://app.commise.app'],
+        expect(mockVerifyToken).toHaveBeenCalledWith('t', { jwtKey: JWT_KEY, authorizedParties: undefined });
+    });
+
+    it('list mode rejects an azp outside the parsed allowlist', async () => {
+        process.env['CLERK_AUTHORIZED_PARTIES'] = 'https://commise.app, https://app.commise.app';
+        mockVerifyToken.mockResolvedValueOnce({ sub: 'user_x', azp: 'https://evil.example.com' });
+
+        await expect((await makeService()).verify('t')).rejects.toThrow();
+    });
+
+    it('list mode admits an azp-less NATIVE token when the stage sets CLERK_ADMIT_NATIVE_CLIENT', async () => {
+        // Every stage carries this gate now (owner ruling 2026-09-02) — prod included, since the mobile
+        // app calls this service directly with a token that has no `azp` at all.
+        process.env['CLERK_AUTHORIZED_PARTIES'] = 'https://commise.app';
+        process.env['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
+        mockVerifyToken.mockResolvedValueOnce({
+            sub: 'mobile_user',
+            client_type: 'native',
+            external_id: '01HZY0OWNERULID0000000000',
         });
+
+        await expect((await makeService()).verify('t')).resolves.toMatchObject({ sub: 'mobile_user' });
     });
 
     describe('azp preview-mode wiring (ADR-0001 subdomain cutover)', () => {

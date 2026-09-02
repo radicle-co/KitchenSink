@@ -144,12 +144,16 @@ describe('Identity env vars present', () => {
         expect(templateHasEnvVar(prodTemplate, 'CLERK_AZP_PREVIEW_MODE')).toBe(false);
     });
 
-    // Native (@clerk/expo) tokens are azp-less; pattern mode rejects them without the admission gate. The
-    // mobile app authenticates against the shared sandbox identity, so non-prod admits `client_type:native`.
-    // Prod runs list mode (skips the azp check on absent azp) → no flag, template byte-identical.
-    it('non-prod task admits native azp-less tokens (CLERK_ADMIT_NATIVE_CLIENT), prod does NOT', () => {
+    // Native (@clerk/expo) tokens are azp-less, and BOTH modes reject them without the admission gate —
+    // the native gate is STAGE-INDEPENDENT since @clerk/backend 3.x (2026-09-02).
+    // It used to be non-prod only, justified by "prod runs list mode, which skips the azp check on absent
+    // azp" — true of 1.34, FALSE of 3.16.12, whose `assertAuthorizedPartiesClaim` throws on an absent `azp`
+    // whenever a party list is configured (read from the installed source; measured against a live device
+    // token). Without the flag, prod would 401 every azp-less @clerk/expo token. Admission still requires
+    // the POSITIVE `client_type: 'native'` claim, never azp-absence alone, so this widens nothing else.
+    it('EVERY stage admits native azp-less tokens through the gate (CLERK_ADMIT_NATIVE_CLIENT), prod included', () => {
         expect(taskHasEnvVar('CLERK_ADMIT_NATIVE_CLIENT')).toBe(true);
-        expect(templateHasEnvVar(prodTemplate, 'CLERK_ADMIT_NATIVE_CLIENT')).toBe(false);
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_ADMIT_NATIVE_CLIENT')).toBe(true);
     });
 });
 

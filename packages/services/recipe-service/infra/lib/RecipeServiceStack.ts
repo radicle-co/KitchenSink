@@ -311,17 +311,20 @@ export class RecipeServiceStack extends Stack {
                 this,
                 `/kitchensink/sandbox/clerk/azp-preview-mode`,
             );
-            // Pattern mode rejects azp-less native (@clerk/expo) tokens unless the native-admission gate is
-            // on. The mobile app calls the recipe service directly, so admit its `client_type: 'native'`
-            // tokens.
-            //
-            // ⚠️ PROD IS NOT SET HERE, and the old reason ("prod stays list mode, which skips the azp check
-            // on absent azp") is DEAD: `@clerk/backend` 3.16.12 rejects an absent `azp` against a party list
-            // (measured against a live device token 2026-09-02), so LIST mode needs this same positive gate.
-            // Prod mobile auth therefore needs the flag too — an owner decision, since it also requires the
-            // `commise-native` JWT template on the prod Clerk instance. Not flipped silently.
-            recipeDbEnvironment['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
         }
+
+        // ⛔ EVERY STAGE, deliberately OUTSIDE the branch above (owner ruling 2026-09-02). Native
+        // (@clerk/expo) tokens carry NO `azp`, and BOTH enforcement modes now reject an azp-less token
+        // without this positive gate. It used to be non-prod only, on the premise that "prod runs list
+        // mode, which skips the azp check on absent azp" — true of `@clerk/backend` 1.34, FALSE since the
+        // 3.x bump (`bb9a7de9`), whose `assertAuthorizedPartiesClaim` throws whenever a party list is
+        // configured and `azp` is missing. That upgrade was verified in a real browser — the one client
+        // shape that always HAS an `azp` — so the native shape broke silently; a live device token 401'd
+        // on every call (2026-09-02). ⚠️ The gate admits only a POSITIVE `client_type: 'native'` claim,
+        // minted solely by the `commise-native` Clerk JWT template, never azp-absence alone — so this
+        // widens nothing for a browser token. The template must exist on the stage's Clerk instance or
+        // the flag is inert.
+        recipeDbEnvironment['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
 
         // ── API service (ECS/Fargate behind the shared ALB) ─────────────────────────────────────
         const apiTaskRole = new iam.Role(this, 'RecipeApiTaskRole', {

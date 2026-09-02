@@ -240,6 +240,26 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         // mobile app calls the recipe service directly, so non-prod admits `client_type: 'native'`.
         expect(envAll).toContain('CLERK_ADMIT_NATIVE_CLIENT');
     });
+
+    // ⚠️ THIS ASSERTION DID NOT EXIST, which is why nothing failed when prod lacked the gate —
+    // the native gate is STAGE-INDEPENDENT since @clerk/backend 3.x (2026-09-02).
+    // It used to be non-prod only, justified by "prod runs list mode, which skips the azp check on absent
+    // azp" — true of 1.34, FALSE of 3.16.12, whose `assertAuthorizedPartiesClaim` throws on an absent `azp`
+    // whenever a party list is configured (read from the installed source; measured against a live device
+    // token). Without the flag, prod would 401 every azp-less @clerk/expo token. Admission still requires
+    // the POSITIVE `client_type: 'native'` claim, never azp-absence alone, so this widens nothing else.
+    it('PROD also carries the native admission gate — list mode needs it since @clerk/backend 3.x', () => {
+        const template = synthTemplate('prod', 'prod');
+        const envAll = Object.values(template.findResources('AWS::ECS::TaskDefinition')).flatMap((t) =>
+            (
+                (t as { Properties?: { ContainerDefinitions?: { Environment?: { Name: string }[] }[] } }).Properties
+                    ?.ContainerDefinitions ?? []
+            ).flatMap((c) => (c.Environment ?? []).map((e) => e.Name)),
+        );
+
+        expect(envAll).toContain('CLERK_AUTHORIZED_PARTIES');
+        expect(envAll).toContain('CLERK_ADMIT_NATIVE_CLIENT');
+    });
 });
 
 /**

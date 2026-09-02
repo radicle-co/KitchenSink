@@ -112,11 +112,6 @@
  * sub-second budget, `search/live` is an on-demand source search, and `:id/resolve` is a user's own pick —
  * an answer, not a question. Reordering the tiers changes nothing about that; do not treat "the memo tier is
  * cheap now" as a licence to add the cascade to a read path.
- *
- * @param mappings - The knowledge-base repository the curated and memo tiers read through.
- * @param catalog - The availability-disciplined search gateway the lexical tier retrieves through (plan U4).
- * @returns The tiers, in precedence order — asserted against the evidence-class ladder by
- *   `__tests__/resolutionRegistry.test.ts`.
  */
 import type { FoodCatalogGateway } from '../foodCatalog.gateway.js';
 import { createCuratedTier } from './curatedTier.js';
@@ -125,6 +120,17 @@ import { createMemoTier } from './memoTier.js';
 import type { ResolutionMappingsDal } from './resolutionMappings.dal.js';
 import type { ResolutionTier } from './resolutionCascade.js';
 
+/**
+ * Build the cascade in precedence order.
+ *
+ * ⛔ The order in the returned array is the whole point of this module — read the file docstring before
+ * changing it, and note that `__tests__/resolutionRegistry.test.ts` checks it against the evidence-class
+ * ladder in `resolutionCascade.ts` rather than against a copy of the literal.
+ *
+ * @param mappings - The knowledge-base repository the curated and memo tiers read through.
+ * @param catalog - The availability-disciplined search gateway the lexical tier retrieves through (plan U4).
+ * @returns The tiers, in precedence order. Pure — each tier is constructed, none is consulted.
+ */
 export function createResolutionRegistry(
     mappings: ResolutionMappingsDal,
     catalog: FoodCatalogGateway,

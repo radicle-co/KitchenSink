@@ -161,6 +161,20 @@ describe('the parse leg invokes a function this repo declares', () => {
     });
 });
 
+/**
+ * ⚠️ THIS BLOCK IS NECESSARY AND NOT SUFFICIENT, and saying so is the point.
+ *
+ * It asserts that the DECLARED value equals the PINNED one. Both carry the `==` form, so it passed while the
+ * runtime comparison was broken in a way it structurally cannot see: `handler.py` reports
+ * `importlib.metadata.version(...)` — the BARE `2.3.0` — and the adapter was comparing that to the whole
+ * specifier, refusing the CRF answer on every invocation. Two agreeing copies, and the comparison that
+ * mattered disagreed.
+ *
+ * The reconciliation between the declared PIN and the engine's SELF-REPORT is asserted where the adapter that
+ * performs it lives: `packages/services/recipe-workers/src/parsing/__tests__/crfEngineVersionParity.test.ts`,
+ * which reads the version off a REAL interpreter rather than off any source file. Keep both — this one is a
+ * repo-wide invariant over CDK apps, that one is the caller's own contract with the engine.
+ */
 describe('the parse leg accepts the engine version pip installs', () => {
     it('⛔ CRF_ENGINE_VERSION equals the pin in requirements.txt', () => {
         const declared = assignedValues(ENGINE_VERSION_ENV);

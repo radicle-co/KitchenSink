@@ -1077,10 +1077,16 @@ export class RecipeWorkersStack extends Stack {
                 ...commonDbEnv,
                 STAGE: props.stage,
                 CRF_FUNCTION_NAME: `kitchensink-ingredient-parser-${props.stage}`,
-                // ⚠️ Mirrors the parser package's own `ingredient-parser-nlp` pin (ADR-0025). The adapter
-                // REFUSES a response whose reported version differs, so drift here fails safe (absence,
-                // never a mis-keyed cache row) — and now LOUDLY: a version mismatch publishes a `contract`
-                // absence on the availability series the alarm below watches.
+                // ⚠️ The parser package's own `ingredient-parser-nlp` pin (ADR-0025), as a pip REQUIREMENT
+                // SPECIFIER. The engine reports the BARE version (`importlib.metadata.version(...)`), so the
+                // adapter reconciles the two through `parseEnginePin` — it does NOT compare these strings
+                // directly, which it once did, refusing the CRF answer on every single invocation. Do not
+                // "simplify" this to a bare `2.3.0`: this value is also the port's `engineVersion` and hence
+                // part of the `ingredient_parse_cache` KEY, which `cookbook-import`'s sidecar writes in the
+                // pinned form. See `src/parsing/crfInvoke.ts` and its `crfEngineVersionParity.test.ts`.
+                //
+                // Drift still fails safe (absence, never a mis-keyed cache row) and now fails LOUDLY: a
+                // version mismatch publishes a `contract` absence on the availability series alarmed below.
                 //
                 // ⛔ BOTH of these literals are spelled a second time in ANOTHER CDK app, and nothing here
                 // can join them: this stack invokes the parser by a hand-formatted ARN because the function

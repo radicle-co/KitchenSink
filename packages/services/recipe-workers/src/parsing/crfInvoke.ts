@@ -118,13 +118,69 @@ export function isCrfEngineUnavailableError(value: unknown): value is CrfEngineU
     return value instanceof CrfEngineUnavailableError;
 }
 
+/** A pip requirement specifier, taken apart. */
+export interface EnginePin {
+    /** The distribution `importlib.metadata` is asked about — e.g. `ingredient-parser-nlp`. */
+    readonly distribution: string;
+    /** The EXACT version it is pinned to — e.g. `2.3.0`. What the engine reports about itself. */
+    readonly version: string;
+}
+
+/**
+ * Take apart the `name==version` pin the deploy declares.
+ *
+ * ⛔ EXACT PINS ONLY. `requirements.txt` pins exactly for three load-bearing reasons of its own (the CRF
+ * model artifact ships INSIDE the distribution, the measured agreement rates in
+ * `docs/reports/2026-08-23-002-…` are against THIS version, and `assetContents.ts` derives the dist-info
+ * directory it verifies the packaged asset against out of the same line). A range leaves nothing exact to
+ * compare an engine's self-report against, so it is refused here rather than degraded into a looser match.
+ *
+ * ⛔ AND THE COMPARISON THIS FEEDS IS EQUALITY, NEVER A PREFIX. `2.3.10` does not satisfy a `2.3.1` pin: a
+ * substring or `startsWith` check would accept a DIFFERENT model's parses under the pinned version's cache
+ * key, and `ingredient_parse_cache` writes `ON CONFLICT DO NOTHING`, so such a row is permanent within its
+ * generation. That is strictly worse than refusing the answer.
+ *
+ * ⚠️ `packages/services/ingredient-parser/infra/lib/assetContents.ts` performs the same split for a different
+ * purpose (naming the `.dist-info` directory). It is NOT shared: that module lives behind the parser
+ * package's `infra/` boundary, which its `exports` map does not publish, so importing it here is not
+ * possible — and the two answer different questions from the same syntax.
+ *
+ * @param pin - The requirement specifier, e.g. `ingredient-parser-nlp==2.3.0`.
+ * @returns Its distribution and exact version. Pure.
+ * @throws When it is not pinned as `name==version` — at WIRING time, so a malformed pin is one loud failure
+ *   rather than an engine that refuses every line for a reason nobody reads.
+ */
+export function parseEnginePin(pin: string): EnginePin {
+    const [distribution, version, ...rest] = pin.split('==');
+
+    if (
+        distribution === undefined ||
+        version === undefined ||
+        rest.length > 0 ||
+        distribution === '' ||
+        version === ''
+    ) {
+        throw new Error(`crfInvoke: engine pin '${pin}' is not pinned as 'name==version'`);
+    }
+
+    return { distribution, version };
+}
+
 /** What the adapter needs. */
 export interface CrfInvokeOptions {
     /** The parser Lambda's function name (env `CRF_FUNCTION_NAME`, set by the stack). */
     readonly functionName: string;
     /** The Lambda client, injected so the unit tier drives every outcome. */
     readonly client: Pick<LambdaClient, 'send'>;
-    /** The engine version the STACK declares — asserted against the response's own. */
+    /**
+     * The pip REQUIREMENT SPECIFIER the deploy pinned (env `CRF_ENGINE_VERSION`, e.g.
+     * `ingredient-parser-nlp==2.3.0`) — ADR-0025's pin, verbatim.
+     *
+     * ⛔ NOT the shape the engine reports about itself. `handler.py` answers
+     * `importlib.metadata.version(...)`, which is the BARE `2.3.0`, so the two are reconciled through
+     * {@link parseEnginePin} — see {@link createCrfInvokeEngine}, where the direction of that reconciliation
+     * is the load-bearing decision.
+     */
     readonly declaredEngineVersion: string;
     /**
      * The deploy stage.
@@ -143,19 +199,47 @@ export interface CrfInvokeOptions {
 /**
  * Build the CRF leg over the parser Lambda.
  *
- * @param options - The function name, client, declared version, stage, and metric sink.
+ * ## ⛔ THE TWO SPELLINGS OF ONE ENGINE, AND WHICH ONE WINS
+ *
+ * The deploy declares a pip requirement specifier (`ingredient-parser-nlp==2.3.0`); the engine reports
+ * `importlib.metadata.version(...)`, the bare `2.3.0`. Comparing those for equality is always false, and it
+ * WAS: the CRF answer was refused on every invocation, so the leg could not have contributed a parse even
+ * once the function was deployed.
+ *
+ * ⛔ The reconciliation goes UP — the engine's bare report is checked against the pin's version half, while
+ * the port keeps the CANONICAL `name==version` form as its {@link ParseEnginePort.engineVersion}. Doing it
+ * the other way (declaring the bare version and comparing raw) is the obvious fix and is WRONG, because that
+ * value is a component of the `ingredient_parse_cache` KEY: `cookbook-import`'s sidecar derives its own
+ * `engineVersion` as `{distribution}=={version}` — deliberately, "the same form `requirements.txt` pins" —
+ * and writes the same column. Two CRF adapters spelling one engine two ways silently partitions the cache,
+ * so every row either path wrote is a permanent miss for the other, and KTD-13's "the FULL identity, never
+ * the engine alone" would be satisfied by two identities that disagree.
+ *
+ * ⚠️ No migration is owed for the change of comparison: because every CRF answer was refused, no service-leg
+ * row was ever written under any spelling. Had there been any, a row whose version is not the port's current
+ * one is simply not a hit — the pipeline re-reads and re-parses.
+ *
+ * @param options - The function name, client, declared pin, stage, and metric sink.
  * @returns The port. Chunks to the Lambda's own `MAX_LINES` — a transport fact, owned here.
+ * @throws When `declaredEngineVersion` is not an exact `name==version` pin — at wiring time, deliberately.
  */
 export function createCrfInvokeEngine(options: CrfInvokeOptions): ParseEnginePort<'crf'> {
+    // ⛔ Parsed ONCE, here, so a malformed pin is a single loud failure at construction rather than a
+    // per-line refusal indistinguishable from a dead engine. `cookbook-import`'s sidecar takes the same
+    // posture for the same reason: it fails "at wiring time, rather than 2,000 lines into an import run".
+    const pin = parseEnginePin(options.declaredEngineVersion);
+
     return {
         engine: 'crf',
+        // The canonical identity, and the cache key — see this function's docstring on why it is the PINNED
+        // form and not the bare version the engine reports.
         engineVersion: options.declaredEngineVersion,
         async parse(lines): Promise<readonly EngineAnswer[]> {
             const answers: EngineAnswer[] = [];
 
             for (let start = 0; start < lines.length; start += MAX_LINES) {
                 const chunk = lines.slice(start, start + MAX_LINES);
-                answers.push(...(await invokeChunk(options, chunk)));
+                answers.push(...(await invokeChunk(options, pin, chunk)));
             }
 
             return answers;
@@ -205,12 +289,17 @@ function abandon(options: CrfInvokeOptions, reason: CrfUnavailableReason, detail
  * Read one chunk.
  *
  * @param options - The adapter's collaborators.
+ * @param pin - The declared pin, already taken apart.
  * @param lines - At most `MAX_LINES` lines.
  * @returns One answer per line, in order. A line the engine declined is `{ unavailable: true }`.
  * @throws {CrfEngineUnavailableError} When the invocation produced no engine answer at all.
  * @sideEffect One Lambda invocation, plus one availability datapoint.
  */
-async function invokeChunk(options: CrfInvokeOptions, lines: readonly string[]): Promise<readonly EngineAnswer[]> {
+async function invokeChunk(
+    options: CrfInvokeOptions,
+    pin: EnginePin,
+    lines: readonly string[],
+): Promise<readonly EngineAnswer[]> {
     let payload: unknown;
 
     try {
@@ -252,16 +341,15 @@ async function invokeChunk(options: CrfInvokeOptions, lines: readonly string[]):
         return abandon(options, 'contract', 'the response did not satisfy the engine schema');
     }
 
-    if (parsed.data.engineVersion !== options.declaredEngineVersion) {
+    // ⛔ AGAINST THE PIN'S VERSION HALF, because that is the shape the engine reports — see
+    // `createCrfInvokeEngine` on why the reconciliation goes this way and not the other. Exact equality:
+    // `2.3.10` does not satisfy a `2.3.1` pin.
+    if (parsed.data.engineVersion !== pin.version) {
         // ⛔ A row written under the wrong version is permanent within its generation (the cache write is
         // `DO NOTHING`), so a mismatch refuses the whole answer rather than caching it wrongly. It is also
         // deploy SKEW between two CDK apps nothing orders (ADR-0022's residual risk) — the engine being
         // unusable, not the corpus being difficult.
-        return abandon(
-            options,
-            'contract',
-            `declared ${options.declaredEngineVersion}, reported ${parsed.data.engineVersion}`,
-        );
+        return abandon(options, 'contract', `pinned ${pin.version}, engine reported ${parsed.data.engineVersion}`);
     }
 
     publishAvailability(options, false);

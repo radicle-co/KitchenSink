@@ -40,7 +40,17 @@ import {
     isCrfEngineUnavailableError,
 } from '../crfInvoke.js';
 
+/** What the DEPLOY declares — ADR-0025's pip requirement specifier, as `CRF_ENGINE_VERSION` carries it. */
 const ENGINE_VERSION = 'ingredient-parser-nlp==2.3.0';
+/**
+ * What the ENGINE reports about itself — `importlib.metadata.version(...)`, the BARE distribution version.
+ *
+ * ⛔ The two are different shapes of one fact, and every fixture below answers in THIS one because that is
+ * what `handler.py` actually returns (verified against a real interpreter by
+ * `crfEngineVersionParity.test.ts`). A fixture echoing the pin back would be testing a wire shape the engine
+ * has never produced — which is how the adapter came to compare two strings that can never be equal.
+ */
+const ENGINE_REPORTED_VERSION = '2.3.0';
 const STAGE = 'sandbox';
 const LINE = '2 cups all-purpose flour';
 
@@ -56,7 +66,7 @@ const okResult = (sentence: string) => ({
 });
 
 /** One engine response envelope. `engine` is a literal the schema requires. */
-const responseOf = (results: readonly unknown[], engineVersion = ENGINE_VERSION) => ({
+const responseOf = (results: readonly unknown[], engineVersion = ENGINE_REPORTED_VERSION) => ({
     engine: 'crf',
     engineVersion,
     results,
@@ -206,10 +216,96 @@ describe('the CRF leg broke its CONTRACT — it ran, and answered something else
         // write is DO NOTHING). What is new is that it no longer looks like a hard line: this is deploy
         // SKEW between two CDK apps nothing orders (ADR-0022's residual risk), and it is the engine being
         // unusable, not the corpus being difficult.
-        const { engine, emitted } = build(payloadOf(responseOf([okResult(LINE)], 'ingredient-parser-nlp==2.2.0')));
+        const { engine, emitted } = build(payloadOf(responseOf([okResult(LINE)], '2.2.0')));
 
         await expect(engine.parse([LINE])).rejects.toMatchObject({ reason: 'contract' });
         expect(availability(emitted).map((metric) => metric.value)).toEqual([1]);
+    });
+});
+
+/**
+ * ⛔ THE THIRD INDEPENDENT CRF FAILURE IN THIS PATH — the answer was refused even when present.
+ *
+ * The engine reports `importlib.metadata.version("ingredient-parser-nlp")`, which is the BARE distribution
+ * version (`2.3.0` — read off a real interpreter, not assumed). The stack injects `CRF_ENGINE_VERSION` as the
+ * pip REQUIREMENT SPECIFIER (`ingredient-parser-nlp==2.3.0`), because that is what ADR-0025's pin IS. The
+ * adapter compared the two for equality, so `'2.3.0' !== 'ingredient-parser-nlp==2.3.0'` was true on EVERY
+ * invocation and the CRF answer was discarded every single time. Once the parser was finally deployed it
+ * would still never have contributed a parse.
+ *
+ * ⛔ THE NORMALIZATION DIRECTION IS THE DECISION, and it is not the obvious one. Reconciling the pin DOWN to
+ * a bare version would have made `ParseEnginePort.engineVersion` — which is a component of the
+ * `ingredient_parse_cache` KEY — disagree with `cookbook-import`'s sidecar, whose `installedVersion` returns
+ * `{distribution}=={version}` precisely because that is "the same form `requirements.txt` pins". Two CRF
+ * adapters writing the SAME table under two spellings of the same engine is a silently partitioned cache:
+ * every row one path wrote is a miss for the other, forever, and KTD-13's "the FULL identity" would be
+ * satisfied by two identities that disagree. So the ENGINE'S report is normalized UP to the canonical form,
+ * and the one canonical form stays the one already in the table.
+ */
+describe('the engine reports a BARE version and the deploy declares a PIN', () => {
+    it('⛔ ACCEPTS the bare version the engine actually reports for the declared pin', async () => {
+        // The regression test for the defect itself. `ENGINE_VERSION` is `2.3.0`; `CRF_ENGINE_VERSION` is
+        // `ingredient-parser-nlp==2.3.0`; they describe the same engine and must agree.
+        const { engine, emitted } = build(payloadOf(responseOf([okResult(LINE)], ENGINE_REPORTED_VERSION)));
+        const answers = await engine.parse([LINE]);
+
+        expect(answers[0]).not.toEqual({ unavailable: true });
+        expect(availability(emitted).map((metric) => metric.value)).toEqual([0]);
+    });
+
+    it('⛔ keeps the CANONICAL `name==version` identity as the port’s engineVersion (the cache key)', () => {
+        // Not the bare version. This value goes into `ingredient_parse_cache.engine_version`, and
+        // `cookbook-import`'s sidecar writes the same column under the pinned form.
+        const { engine } = build(null);
+
+        expect(engine.engineVersion).toBe(ENGINE_VERSION);
+    });
+
+    /**
+     * ⛔ BOTH ORDERINGS, because a loose match is NOT symmetric and one direction alone proves nothing.
+     *
+     * ⚠️ Recorded because this suite got it wrong first time round: it pinned only the `2.3.1` / reports
+     * `2.3.10` pairing, and a mutation to `declared.includes(reported)` PASSED it — `'…==2.3.1'` does not
+     * contain `'2.3.10'`, so that mutant rejects for the wrong reason and looks correct. Each loose form
+     * fails on its own side and is caught only by the case that makes it wrongly ACCEPT:
+     *
+     *  - `'ingredient-parser-nlp==2.3.10'.includes('2.3.1')` → `true`  (caught by the pin-2.3.10 row)
+     *  - `'2.3.10'.startsWith('2.3.1')`                      → `true`  (caught by the pin-2.3.1 row)
+     *
+     * Accepting either would put a DIFFERENT model's parses under the pinned version's cache key, and the
+     * cache write is `ON CONFLICT DO NOTHING`, so such a row is permanent within its generation.
+     */
+    it.each([
+        ['a longer reported version', 'ingredient-parser-nlp==2.3.1', '2.3.10'],
+        ['a longer pinned version', 'ingredient-parser-nlp==2.3.10', '2.3.1'],
+    ])('⛔ REFUSES %s — the comparison is exact, never a prefix or a substring', async (_case, pin, reported) => {
+        const engine = createCrfInvokeEngine({
+            functionName: 'kitchensink-ingredient-parser-sandbox',
+            client: clientOf(payloadOf(responseOf([okResult(LINE)], reported))) as never,
+            declaredEngineVersion: pin,
+            stage: STAGE,
+            emit: () => undefined,
+        });
+
+        await expect(engine.parse([LINE])).rejects.toMatchObject({ reason: 'contract' });
+    });
+
+    it('⛔ refuses an UNPINNED requirement at WIRING time, not once per line', () => {
+        // `requirements.txt` pins exactly, for three load-bearing reasons of its own (the model ships inside
+        // the distribution; the measured agreement rates are against THIS version; `assetContents.ts`
+        // derives the dist-info directory from the pin). A range would leave nothing exact to compare
+        // against, and discovering that per-invocation would read as a total engine outage.
+        for (const bad of ['ingredient-parser-nlp>=2.3.0', 'ingredient-parser-nlp', '==2.3.0', '']) {
+            expect(() =>
+                createCrfInvokeEngine({
+                    functionName: 'f',
+                    client: clientOf(null) as never,
+                    declaredEngineVersion: bad,
+                    stage: STAGE,
+                    emit: () => undefined,
+                }),
+            ).toThrow(/name==version/u);
+        }
     });
 });
 

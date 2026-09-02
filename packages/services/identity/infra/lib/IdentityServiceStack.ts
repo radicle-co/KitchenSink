@@ -331,9 +331,17 @@ export class IdentityServiceStack extends Stack {
                           ),
                           // Non-prod runs pattern mode, which rejects azp-less native (@clerk/expo) tokens
                           // unless the native-admission gate is on. The mobile app authenticates against the
-                          // shared sandbox identity, so admit its `client_type: 'native'` tokens. Prod stays
-                          // list mode, which already skips the azp check on absent azp — so prod needs no flag
-                          // and its template stays byte-identical.
+                          // shared sandbox identity, so admit its `client_type: 'native'` tokens.
+                          //
+                          // ⚠️ THE PROD HALF IS NOT SET HERE, AND ITS OLD JUSTIFICATION IS DEAD (measured 2026-09-02).
+                          // This used to read "prod stays list mode, which already skips the azp check on
+                          // absent azp — so prod needs no flag". `@clerk/backend` 3.16.12 REJECTS an absent
+                          // `azp` against a party list instead ("Invalid JWT Authorized party claim (azp)
+                          // undefined"), proven against a live device token, so LIST mode now needs the same
+                          // positive `client_type: 'native'` gate pattern mode always did. Non-prod is
+                          // covered by the flag below; PROD mobile auth needs it too — an owner decision,
+                          // because it also requires the `commise-native` JWT template on the prod Clerk
+                          // instance. Left unset here deliberately rather than flipped silently.
                           CLERK_ADMIT_NATIVE_CLIENT: 'true',
                       }),
             },

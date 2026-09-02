@@ -184,9 +184,14 @@ export function resolveAzpEnforcement(input: {
     readonly admitAzplessToken?: (payload: Readonly<Record<string, unknown>>) => boolean;
     /**
      * Convenience for the common case: when `true` (and no explicit `admitAzplessToken` is given),
-     * wire the shared {@link isNativeClientToken} gate so pattern mode admits azp-less native-app tokens
-     * (`client_type: 'native'`). Services set this from an env flag so the security signal lives once here,
-     * not copied per service. An explicit `admitAzplessToken` still wins. Ignored in list mode.
+     * wire the shared {@link isNativeClientToken} gate so azp-less native-app tokens
+     * (`client_type: 'native'`) are admitted. Services set this from an env flag so the security signal
+     * lives once here, not copied per service. An explicit `admitAzplessToken` still wins.
+     *
+     * ⛔ Wired in BOTH modes since 2026-09-02, not only pattern mode: `@clerk/backend` 3.16.12's
+     * `verifyToken` REJECTS an absent `azp` against a party list (older versions skipped the check on
+     * absence, which list mode used to lean on), so list-mode native admission must be this explicit
+     * gate — measured against a live device token, which 401'd on every list-mode service.
      */
     readonly admitNativeClient?: boolean;
 }): Pick<ClerkVerifyConfig, 'authorizedParties' | 'authorizedPartyPattern' | 'admitAzplessToken'> {
@@ -211,7 +216,39 @@ export function resolveAzpEnforcement(input: {
         };
     }
 
-    return { authorizedParties };
+    return {
+        authorizedParties,
+        // The SAME gate in list mode (see the field's docstring): azp enforcement is self-owned in both
+        // modes now, so azp-less native admission needs the positive signal here too.
+        admitAzplessToken:
+            input.admitAzplessToken ?? (input.admitNativeClient === true ? isNativeClientToken : undefined),
+    };
+}
+
+/**
+ * Enforce the self-owned `azp` boundary in LIST mode. A present `azp` must be one of `authorizedParties`
+ * (exact match, the same rule the SDK applied when this was delegated); an absent `azp` is admitted only
+ * when `admitAzpless` returns `true` for the payload (a positive native-token signal), never on absence
+ * alone. Throws {@link ClerkVerificationError} otherwise.
+ */
+function assertAzpInList(
+    payload: Record<string, unknown>,
+    authorizedParties: readonly string[],
+    admitAzpless?: (payload: Readonly<Record<string, unknown>>) => boolean,
+): void {
+    const azp = asNonEmptyString(payload['azp']);
+
+    if (azp === undefined) {
+        if (admitAzpless?.(payload) === true) {
+            return;
+        }
+
+        throw new ClerkVerificationError();
+    }
+
+    if (!authorizedParties.includes(azp)) {
+        throw new ClerkVerificationError();
+    }
 }
 
 /**
@@ -256,18 +293,16 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
 
     let result: Awaited<ReturnType<typeof verifyToken>>;
 
-    const usePattern = config.authorizedPartyPattern !== undefined;
-
     try {
         result = await verifyToken(token, {
             jwtKey: config.jwtKey,
-            // Pattern mode enforces `azp` ourselves (below), so skip the SDK check. Otherwise pass the
-            // list — undefined when empty; Clerk treats an empty array as "reject all".
-            authorizedParties: usePattern
-                ? undefined
-                : config.authorizedParties.length > 0
-                  ? config.authorizedParties
-                  : undefined,
+            // ⛔ NEVER forwarded — `azp` enforcement is SELF-OWNED in BOTH modes (below), since
+            // 2026-09-02. It used to be delegated in list mode, relying on the SDK skipping the check
+            // when `azp` is absent; `@clerk/backend` 3.16.12 REJECTS absent `azp` against a party list
+            // instead ("Invalid JWT Authorized party claim (azp) undefined"), which 401'd every
+            // azp-less native token. Owning the check here means an SDK behavior change can never move
+            // this boundary again — the exact posture pattern mode always had.
+            authorizedParties: undefined,
         });
     } catch {
         throw new ClerkVerificationError();
@@ -290,9 +325,14 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
         throw new ClerkVerificationError();
     }
 
-    // Self-owned `azp` boundary: in pattern mode we validated nothing at the SDK layer, so enforce it here.
+    // Self-owned `azp` boundary — the SDK validated nothing (see above), so enforce the configured mode
+    // here. In both modes an ABSENT azp is admitted only through the positive `admitAzplessToken` gate
+    // (`client_type: 'native'`), never on absence alone; an empty list with no pattern keeps the
+    // long-standing no-azp-check semantics (deployed stages are guarded by hasExactlyOneAzpMode).
     if (config.authorizedPartyPattern !== undefined) {
         assertAzpMatchesPattern(payload, config.authorizedPartyPattern, config.admitAzplessToken);
+    } else if (config.authorizedParties.length > 0) {
+        assertAzpInList(payload, config.authorizedParties, config.admitAzplessToken);
     }
 
     const publicMetadata = asRecord(payload['public_metadata']);

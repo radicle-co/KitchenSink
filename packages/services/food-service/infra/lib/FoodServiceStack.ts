@@ -420,8 +420,13 @@ export class FoodServiceStack extends Stack {
                 `/kitchensink/sandbox/clerk/azp-preview-mode`,
             );
             // Pattern mode rejects azp-less native (@clerk/expo) tokens unless the native-admission gate is
-            // on. Admit the mobile app's `client_type: 'native'` tokens. Prod stays list mode (skips the azp
-            // check on absent azp) → no flag, prod template byte-identical.
+            // on. Admit the mobile app's `client_type: 'native'` tokens.
+            //
+            // ⚠️ PROD IS NOT SET HERE, and the old reason ("prod stays list mode, which skips the azp check
+            // on absent azp") is DEAD: `@clerk/backend` 3.16.12 rejects an absent `azp` against a party list
+            // (measured against a live device token 2026-09-02), so LIST mode needs this same positive gate.
+            // Prod mobile auth therefore needs the flag too — an owner decision, since it also requires the
+            // `commise-native` JWT template on the prod Clerk instance. Not flipped silently.
             foodDbEnvironment['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
         }
 

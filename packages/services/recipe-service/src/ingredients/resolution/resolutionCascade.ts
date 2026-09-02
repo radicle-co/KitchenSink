@@ -9,7 +9,9 @@
  *
  * ## ⛔ STATE OWNERSHIP, stated once because three packages straddle this seam
  *
- *  - **recipe-service owns THE CASCADE** — this module, its order, its termination rule, and tiers 1 and 3.
+ *  - **recipe-service owns THE CASCADE** — this module, its termination rule, the curated and memo tiers,
+ *    and the ORDER, which lives in `resolutionRegistry.ts` and is checked against the evidence-class ladder
+ *    declared below.
  *  - **food-service owns only the catalog-side Scoring Policy** it is queried through. The lexical tier is an
  *    adapter over a query to food-service and to this service's own `ingredients` table; the RANKING inside
  *    that query is food's and U5/U6's, never this module's.
@@ -62,15 +64,161 @@ import type { ScoredCandidate } from '@kitchensink/recipe-core/resolution/verifi
 import type { CallerToken } from '../../auth/CallerToken.js';
 
 /**
- * The four tiers R11 names, in the order R11 names them.
+ * The four tier identifiers R11 names — as a SET, in no meaningful order.
  *
- * The identifier is a value, not a position: the registry that orders them is the module wiring, so a tier
- * that has not shipped is simply absent from the array rather than a hole in it.
+ * ⛔ This array's order is NOT the consultation order and never was authoritative: it contains `llm`, which
+ * is deliberately not a tier of this chain at all, and it is also the domain of the persisted
+ * `ingredient_resolutions.tier` CHECK. It once said "in the order R11 names them", which was decorative
+ * then and is wrong now — see `resolutionRegistry.ts` for the real order and why it is not R11's literal
+ * one. The identifier is a value, not a position: the registry that orders them is
+ * {@link RESOLUTION_TIER_EVIDENCE}'s subject, so a tier that has not shipped is simply absent from the
+ * registry array rather than a hole in it.
  */
 export const RESOLUTION_TIER_IDS = ['curated', 'lexical', 'memo', 'llm'] as const;
 
 /** Which tier produced an outcome. */
 export type ResolutionTierId = (typeof RESOLUTION_TIER_IDS)[number];
+
+/**
+ * The ids that name a LINK OF THIS CHAIN.
+ *
+ * `llm` is excluded at the type level rather than by a runtime check, because the exclusion is a decision
+ * this file already argues at length: the verification gate is POST-resolution and therefore has no
+ * precedence relative to the tiers. `Exclude` keeps that decision exhaustive — a fifth member of
+ * {@link RESOLUTION_TIER_IDS} lands in {@link RESOLUTION_TIER_AUTHORITY} as a COMPILE error until somebody
+ * says where on the ladder it sits.
+ */
+export type CascadeTierId = Exclude<ResolutionTierId, 'llm'>;
+
+/**
+ * THE EVIDENCE CLASSES a tier retrieves from, in CONSULTATION-PRECEDENCE order — first is consulted first.
+ *
+ * ⛔ **THIS IS AN ORDERING KEY, NOT A TRUST LEVEL, and the distinction is load-bearing.** It answers "which
+ * tier gets asked first"; it says nothing about whether the resulting bind may be PUBLISHED. Publish-trust
+ * is KTD-A's question and it has its own home — `pendingStateOf` in `recipes/domain/lineVerification.ts`,
+ * the policy layer ADR-0023 rules on. The two were nearly conflated here, and the conflation would have
+ * made the type lie: a memo tier declared "gate-agreed" is telling the truth about its SOURCE and a lie
+ * about its NEAR-match branch, where nobody ever agreed the query phrase means that food. Naming the
+ * classes after the SOURCE keeps every branch of every tier honest.
+ *
+ * ⛔ The order is the repair for a real defect. The registry shipped as `[curated, lexical, memo]` —
+ * R11's literal order, written when R12 still gave tier 2 a confidence threshold to fall through on. KTD-A
+ * then removed that threshold (the lexical tier resolves on ANY non-empty candidate set, because a wrong
+ * top hit costs a withheld `pending-verification` line rather than a published bind), and with it the only
+ * route to the memo tier for any phrase the catalog can find. That tier was dead and nothing went red,
+ * because the order was a literal nobody could compare against its own reason.
+ *
+ * The classes, and why they are in this order:
+ *
+ *  - **`curated-mapping`** — a person said what this phrase means. R19 puts it above every other tier: no
+ *    ranking metric and no model output displaces a human ruling.
+ *  - **`remembered-verification`** — a row recording that the verification gate AGREED an identity.
+ *    `VerifiedMemo.verifiedBy` is REQUIRED precisely so such a row cannot exist without that agreement, and
+ *    the retrieval clears the tier's own `MEMO_SIMILARITY_FLOOR`. Consulting it before a fresh catalog
+ *    search is asking a question that has already been answered before paying to answer it again.
+ *  - **`catalog-ranking`** — a search result. KTD-A's own words: ZERO initial authority. It is the gate's
+ *    INPUT, not an output of it, so a tier reading it is the last one asked.
+ *
+ * ⚠️ Ordering by evidence class happens to agree with ordering by COST here (local indexed reads before
+ * cross-service searches), and that agreement is a convenience, not the justification. If the two ever
+ * disagreed, precedence would win: consulting a weaker source first is not an optimisation, it is a
+ * different answer.
+ */
+export const RESOLUTION_EVIDENCE_CLASSES = ['curated-mapping', 'remembered-verification', 'catalog-ranking'] as const;
+
+/** Where a tier's evidence comes from — the cascade's ordering key. */
+export type ResolutionEvidenceClass = (typeof RESOLUTION_EVIDENCE_CLASSES)[number];
+
+/**
+ * Which evidence class each chain tier retrieves from.
+ *
+ * ⛔ Exhaustive over {@link CascadeTierId} by type — a new tier cannot reach production without a declared
+ * place in the order, which is the only thing that keeps the registry's array checkable.
+ */
+export const RESOLUTION_TIER_EVIDENCE: Readonly<Record<CascadeTierId, ResolutionEvidenceClass>> = {
+    curated: 'curated-mapping',
+    memo: 'remembered-verification',
+    lexical: 'catalog-ranking',
+};
+
+/**
+ * How early an evidence class is consulted — lower is earlier.
+ *
+ * Derived from {@link RESOLUTION_EVIDENCE_CLASSES}' own order rather than from a second hand-written table,
+ * so inserting a class is one edit in one place and cannot leave two representations disagreeing.
+ *
+ * @param evidence - The class of source.
+ * @returns Its rank, 0 being consulted first. Pure.
+ */
+export function precedenceRankOf(evidence: ResolutionEvidenceClass): number {
+    return RESOLUTION_EVIDENCE_CLASSES.indexOf(evidence);
+}
+
+/**
+ * The evidence class a tier id retrieves from, or `undefined` when the id names something that is not a
+ * link of this chain.
+ *
+ * ⚠️ `undefined` is a VERDICT, not a lookup failure: `llm` names the verification gate, whose precedence
+ * relative to these tiers is undefined because it does not compete with them. A caller registering such an
+ * id as a tier is the defect that reads — see `resolutionRegistry.test.ts`.
+ *
+ * @param id - Any tier id, including one that is not a chain tier.
+ * @returns The evidence class, or `undefined`. Pure.
+ */
+export function evidenceClassOf(id: ResolutionTierId): ResolutionEvidenceClass | undefined {
+    // Widened rather than cast: `RESOLUTION_TIER_EVIDENCE` keeps its exhaustive type, and the lookup still
+    // answers honestly for an id that is deliberately absent from it.
+    const table: Readonly<Partial<Record<ResolutionTierId, ResolutionEvidenceClass>>> = RESOLUTION_TIER_EVIDENCE;
+
+    return table[id];
+}
+
+/** A later-precedence tier standing in front of an earlier one — the shape that kills a tier's reach. */
+export interface PrecedenceInversion {
+    /** The later-precedence tier that sits EARLIER in the order, and therefore answers first. */
+    readonly shadowing: ResolutionTierId;
+    /** The earlier-precedence tier it stands in front of. */
+    readonly shadowed: ResolutionTierId;
+}
+
+/**
+ * Find every place a consultation order puts a later-precedence source ahead of an earlier one.
+ *
+ * ⚠️ ALL pairs, not adjacent ones. Adjacent comparison is sufficient to DETECT an unsorted sequence, but it
+ * reports the wrong pair: in `[lexical, memo, curated]` the harm worth naming is a machine guess standing in
+ * front of a human ruling, which is not an adjacent pair. Equal precedence is not an inversion — order
+ * between peers is a cost decision. An id with no chain evidence class is skipped rather than given an
+ * invented rank; registering one is a separate, separately-asserted defect.
+ *
+ * @param order - The consultation order, as tier ids.
+ * @returns Every (earlier-in-order, earlier-in-precedence) pair, in consultation order. Empty means
+ *   correctly ordered. Pure.
+ */
+export function findPrecedenceInversions(order: readonly ResolutionTierId[]): readonly PrecedenceInversion[] {
+    const inversions: PrecedenceInversion[] = [];
+
+    for (const [position, shadowing] of order.entries()) {
+        const shadowingEvidence = evidenceClassOf(shadowing);
+
+        if (shadowingEvidence === undefined) {
+            continue;
+        }
+
+        for (const shadowed of order.slice(position + 1)) {
+            const shadowedEvidence = evidenceClassOf(shadowed);
+
+            if (shadowedEvidence === undefined) {
+                continue;
+            }
+
+            if (precedenceRankOf(shadowingEvidence) > precedenceRankOf(shadowedEvidence)) {
+                inversions.push({ shadowing, shadowed });
+            }
+        }
+    }
+
+    return inversions;
+}
 
 /**
  * What one tier reports.

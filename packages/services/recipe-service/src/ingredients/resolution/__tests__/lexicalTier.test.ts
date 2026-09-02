@@ -1,5 +1,5 @@
 /**
- * TIER 2 of the resolution cascade — the lexical shortlist-builder (plan U4, KTD-A).
+ * THE LEXICAL TIER of the resolution cascade — the shortlist-builder (plan U4, KTD-A).
  *
  * ⛔ The design under test is ZERO INITIAL AUTHORITY: this tier proposes its top-ranked candidate on ANY
  * non-empty candidate set — it never applies a confidence threshold of its own, because safety lives at

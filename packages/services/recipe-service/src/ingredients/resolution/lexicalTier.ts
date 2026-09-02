@@ -1,5 +1,5 @@
 /**
- * TIER 2 of the resolution cascade — the lexical shortlist-builder (plan U4 / origin R1, KTD-A).
+ * THE LAST tier of the resolution cascade — the lexical shortlist-builder (plan U4 / origin R1, KTD-A).
  *
  * DESIGN PATTERN: **Strategy**, split into a pure `decide` and an impure adapter — the `curatedTier.ts` /
  * `memoTier.ts` convention (pure `decide` + impure `evaluate`, as in `deploy-gate.sh`).
@@ -13,6 +13,13 @@
  * one gate call (~$0.000034), never a published wrong bind. Safety lives at the gate; what this tier owes
  * it is EVIDENCE: the structured shortlist, the measured margin, and the top hit's ladder rung — the band
  * key under which skips are later EARNED (plan U3), not designed in here.
+ *
+ * ⛔ **THAT IS ALSO WHY IT RUNS LAST, and why R11's literal "curated, lexical, knowledge base" order is NOT
+ * what ships.** A tier that answers on any non-empty candidate set consumes every query the catalog can
+ * match, so anything registered behind it is unreachable in practice. This tier's evidence class is
+ * `catalog-ranking` — the gate's INPUT — and it is registered after every tier whose evidence is already
+ * settled. See `resolutionRegistry.ts` for the full argument and `resolutionCascade.ts`'s evidence-class
+ * ladder for the machine-checked form of it; do not move this tier forward to "match R11".
  *
  * ## Ranking is the CATALOG's, re-derived only for the rung label
  *
@@ -164,10 +171,10 @@ export function decideLexicalTier(phrase: string, hits: readonly CatalogHit[]): 
 }
 
 /**
- * Build tier 2 over the catalog gateway.
+ * Build the lexical tier over the catalog gateway.
  *
  * @param gateway - The availability-disciplined food-service search gateway.
- * @returns The tier, ready for index 1 of the cascade's ordered registry.
+ * @returns The tier, for the LAST slot of the cascade's ordered registry.
  */
 export function createLexicalTier(gateway: FoodCatalogGateway): ResolutionTier {
     return {

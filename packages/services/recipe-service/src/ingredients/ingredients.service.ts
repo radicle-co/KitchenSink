@@ -12,8 +12,9 @@
  *     `food_id` and sectioned by provenance. This is the picker's read.
  *   - **addByFoodId (Stage 2 pick)** — {@link IngredientsService.addByFoodId} admits a catalog suggestion as a
  *     food-backed row AND backfills its golden-record nutrition in one round-trip (F1).
- *   - **addByName** — consults the RESOLUTION CASCADE first (plan U10 / R11: curated mappings, then
- *     remembered resolutions), and admits the mapped food directly on a hit. On a miss —
+ *   - **addByName** — consults the RESOLUTION CASCADE first (plan U10: curated mappings, then remembered
+ *     verifications, then the catalog ranking — `resolution/resolutionRegistry.ts` owns and justifies that
+ *     order), and admits the mapped food directly on a hit. On a miss —
  *     `foodClient.addByName` returns `202` (`PENDING` / `UNRESOLVED`); we persist a
  *     food-backed catalog row (deduped on the opaque `food_id`) and return it immediately with its
  *     non-terminal status, so the picker can render a "nutrition pending" state.
@@ -130,10 +131,12 @@ export class IngredientsService {
      * @param dal - The shared `ingredients` catalog.
      * @param foodClients - The per-caller food-service client factory.
      * @param catalog - The typeahead blend's short-timeout, no-throw gateway.
-     * @param resolutionTiers - The ORDERED resolution cascade (plan U10). The order IS the configuration
-     *   (R11), so it is injected as a registry rather than assembled here: today it holds tiers 1 and 3, U5/U6
-     *   insert the lexical tier between them, and U11 appends the LLM tier. An EMPTY array is a valid and
-     *   fully-supported state — it leaves `addByName` behaving exactly as it did before the cascade existed.
+     * @param resolutionTiers - The ORDERED resolution cascade (plan U10). The order IS the configuration —
+     *   a PRECEDENCE — so it is injected as a registry rather than assembled here, and the registry itself
+     *   (`resolution/resolutionRegistry.ts`) is where that order is stated and machine-checked against the
+     *   declared evidence-class ladder. ⛔ It is NOT R11's literal order: see that file for why. An EMPTY
+     *   array is a valid and fully-supported state — it leaves `addByName` behaving exactly as it did
+     *   before the cascade existed.
      */
     public constructor(
         private readonly dal: IngredientsDal,

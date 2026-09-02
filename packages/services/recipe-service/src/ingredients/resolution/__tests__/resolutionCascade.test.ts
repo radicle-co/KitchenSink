@@ -25,6 +25,9 @@ import type { Mock } from 'vitest';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 
 import {
+    evidenceClassOf,
+    findPrecedenceInversions,
+    precedenceRankOf,
     runResolutionCascade,
     type CascadeObservers,
     type ResolutionQuery,
@@ -222,5 +225,70 @@ describe('runResolutionCascade — a tier that FAILS is contained, and is not a 
         // Observability is not allowed to become an availability dependency: a broken sink degrades the
         // signal, never the resolution.
         expect(outcome.kind === 'resolved' && outcome.foodId).toBe('FOOD-A');
+    });
+});
+
+/**
+ * THE PRECEDENCE LADDER — the consultation ORDER's ruling, as a truth table over the pure functions carrying
+ * it.
+ *
+ * The order the cascade runs in used to be knowledge that lived in one place only: the literal array in the
+ * module wiring. Nothing could compare that array against the REASON it was in that order, which is how the
+ * lexical tier came to sit in front of the memo tier once KTD-A removed its threshold. These functions are
+ * that reason made checkable; `resolutionRegistry.test.ts` fires them at the real registry.
+ *
+ * ⚠️ Every assertion here is about WHO IS ASKED FIRST. None of it is about whether the answer may be
+ * published — that is `pendingStateOf`'s question, and keeping the two apart is why these classes are named
+ * after the evidence SOURCE rather than after a trust level.
+ */
+describe('the consultation-precedence ladder', () => {
+    it('asks a curated mapping before a remembered verification, and both before a catalog ranking', () => {
+        // The whole ruling in one assertion: a curator's word (R19) is asked before a row recording that the
+        // gate agreed, which is asked before the catalog search KTD-A gives ZERO authority and withholds on.
+        expect(precedenceRankOf('curated-mapping')).toBeLessThan(precedenceRankOf('remembered-verification'));
+        expect(precedenceRankOf('remembered-verification')).toBeLessThan(precedenceRankOf('catalog-ranking'));
+    });
+
+    it('gives every CHAIN tier an evidence class, and the verification gate none', () => {
+        expect(evidenceClassOf('curated')).toBe('curated-mapping');
+        expect(evidenceClassOf('memo')).toBe('remembered-verification');
+        expect(evidenceClassOf('lexical')).toBe('catalog-ranking');
+        // ⛔ Not an omission. `llm` names the gate, which runs AFTER a resolution exists, so it has no
+        // precedence relative to the links of this chain — and `undefined` is what makes registering it as
+        // one a detectable defect rather than a silent reordering.
+        expect(evidenceClassOf('llm')).toBeUndefined();
+    });
+
+    it('finds no inversion in a correctly ordered chain, however short', () => {
+        expect(findPrecedenceInversions([])).toEqual([]);
+        expect(findPrecedenceInversions(['lexical'])).toEqual([]);
+        expect(findPrecedenceInversions(['curated', 'memo', 'lexical'])).toEqual([]);
+        expect(findPrecedenceInversions(['curated', 'lexical'])).toEqual([]);
+    });
+
+    it('names the SHADOWING tier and the one it shadows', () => {
+        // The shipped defect, as the guard sees it.
+        expect(findPrecedenceInversions(['curated', 'lexical', 'memo'])).toEqual([
+            { shadowing: 'lexical', shadowed: 'memo' },
+        ]);
+    });
+
+    it('reports NON-ADJACENT inversions too, so a three-deep reordering cannot hide behind its neighbours', () => {
+        // Adjacent-pair checking alone would find `lexical` before `memo` here and miss `lexical` before
+        // `curated` — the worse of the two, since it is a machine guess outranking a human ruling.
+        expect(findPrecedenceInversions(['lexical', 'memo', 'curated'])).toEqual([
+            { shadowing: 'lexical', shadowed: 'memo' },
+            { shadowing: 'lexical', shadowed: 'curated' },
+            { shadowing: 'memo', shadowed: 'curated' },
+        ]);
+    });
+
+    it('treats EQUAL precedence as no inversion — order between peers is a cost decision, not a precedence one', () => {
+        expect(findPrecedenceInversions(['memo', 'memo'])).toEqual([]);
+    });
+
+    it('ignores an id with no chain evidence class rather than inventing a rank for it', () => {
+        // A registered `llm` is caught by the registry guard's own assertion, not by silently sorting it.
+        expect(findPrecedenceInversions(['lexical', 'llm'])).toEqual([]);
     });
 });

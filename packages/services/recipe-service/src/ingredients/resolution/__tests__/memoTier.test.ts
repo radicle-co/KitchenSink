@@ -1,5 +1,5 @@
 /**
- * Unit tests for TIER 3 — the remembered-resolution tier (plan U10 / R11, R14).
+ * Unit tests for THE MEMO TIER — the remembered-resolution tier (plan U10 / R11, R14).
  *
  * The tier the plan calls the knowledge base: exact key first, nearest neighbour second, and R14 is explicit
  * that "equality-only matching does not satisfy this requirement". The decision half asserted here is what

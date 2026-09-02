@@ -1,5 +1,9 @@
 /**
- * TIER 3 of the resolution cascade — the remembered resolution (plan U10 / R11, R14).
+ * THE MEMO TIER of the resolution cascade — the remembered resolution (plan U10 / R11, R14).
+ *
+ * ⚠️ Named, not numbered. It used to be "TIER 3" after R11's literal ordering; it is now consulted SECOND,
+ * ahead of the lexical tier, and a positional name here would be a second representation of an order that
+ * lives in `resolutionRegistry.ts` and is machine-checked there. A tier does not know its own index.
  *
  * DESIGN PATTERN: **Strategy**, split into a pure `decide` and an impure adapter, exactly as `curatedTier`
  * is and for the same reason.
@@ -41,7 +45,7 @@ export function decideMemoTier(hit: MemoHit | undefined): TierOutcome {
 }
 
 /**
- * Build tier 3 over the knowledge-base DAL.
+ * Build the memo tier over the knowledge-base DAL.
  *
  * @param dal - The resolution-mappings repository.
  * @returns The tier, ready to be registered in the cascade's ordered array.

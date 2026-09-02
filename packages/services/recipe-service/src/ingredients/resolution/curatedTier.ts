@@ -43,7 +43,7 @@ export function decideCuratedTier(inForce: MappingInForce | undefined): TierOutc
 }
 
 /**
- * Build tier 1 over the knowledge-base DAL.
+ * Build the curated tier over the knowledge-base DAL.
  *
  * @param dal - The resolution-mappings repository.
  * @returns The tier, ready to be registered in the cascade's ordered array.

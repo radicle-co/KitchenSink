@@ -57,15 +57,12 @@ import { FoodCatalogGateway } from './foodCatalog.gateway.js';
 import { FoodServiceClients } from './FoodServiceClients.factory.js';
 import { FoodNutritionGateway } from './foodNutrition.gateway.js';
 import { IngredientsDal } from './dal/ingredients.dal.js';
-import { createCuratedTier } from './resolution/curatedTier.js';
-import { createLexicalTier } from './resolution/lexicalTier.js';
-import { createMemoTier } from './resolution/memoTier.js';
+import { createResolutionRegistry } from './resolution/resolutionRegistry.js';
 import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
 import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
 import { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
 import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
 import { ResolutionMappingsService } from './resolution/resolutionMappings.service.js';
-import type { ResolutionTier } from './resolution/resolutionCascade.js';
 
 /**
  * Default per-keystroke bound on the catalog-blend request (ms).
@@ -77,30 +74,6 @@ import type { ResolutionTier } from './resolution/resolutionCascade.js';
  * brief wait for the catalog section, never a stalled typeahead.
  */
 const TYPEAHEAD_TIMEOUT_MS = 600;
-
-/**
- * The ordered resolution cascade (plan U10 / R11). ⛔ **THE ORDER IS THE CONFIGURATION** — it is R11's
- * precedence, not an implementation detail, which is why it lives here as an explicit registry rather than
- * being assembled inside the service.
- *
- * It holds tiers **1** (curated mappings), **2** (the lexical shortlist-builder, plan U4 — zero initial
- * authority; see `lexicalTier.ts` for why it has no tier-side threshold) and **3** (remembered
- * resolutions). The one absentee is absent for a stated reason rather than by oversight:
- *  - **Tier 4, the LLM gate, is NOT A TIER OF THIS CHAIN AT ALL** — corrected 2026-08-22, when its producer
- *    shipped. KTD-3 is "the verification gate, NOT a residual fallback": the model verifies what is about to
- *    be PUBLISHED, whereas a tier here is consulted precisely when tiers 1–3 have all passed, i.e. when there
- *    is nothing resolved to verify. The gate's producer lives on the RECIPE write path, which is the only
- *    layer holding the recipe id, the raw source line, the parsed quantity and the resolved food together —
- *    see `recipes/domain/verificationRequests.ts`. This registry stays two tiers long until U5/U6 ship the
- *    lexical one at index 1.
- *
- * @param mappings - The knowledge-base repository tiers 1 and 3 read through.
- * @param catalog - The availability-disciplined search gateway tier 2 retrieves through (plan U4).
- * @returns The tiers, in R11's order.
- */
-function resolutionTiers(mappings: ResolutionMappingsDal, catalog: FoodCatalogGateway): readonly ResolutionTier[] {
-    return [createCuratedTier(mappings), createLexicalTier(catalog), createMemoTier(mappings)];
-}
 
 @Module({
     controllers: [IngredientsController],
@@ -184,7 +157,14 @@ function resolutionTiers(mappings: ResolutionMappingsDal, catalog: FoodCatalogGa
                 resolutions: IngredientResolutionsDal,
                 bands: ResolutionBandsDal,
             ): IngredientsService =>
-                new IngredientsService(dal, clients, catalog, resolutionTiers(mappings, catalog), resolutions, bands),
+                new IngredientsService(
+                    dal,
+                    clients,
+                    catalog,
+                    createResolutionRegistry(mappings, catalog),
+                    resolutions,
+                    bands,
+                ),
         },
     ],
     exports: [

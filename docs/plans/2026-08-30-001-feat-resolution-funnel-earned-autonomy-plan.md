@@ -159,13 +159,29 @@ Origin R1–R13 carry verbatim (see origin doc). Plan-added, from flow analysis 
 
 ### The funnel (data flow)
 
+> ⛔ **AMENDED 2026-09-02 — the memo tier is consulted BEFORE the lexical tier, not after it.** This
+> diagram, U4's "consultation order asserted `['curated','lexical','memo']`" scenario, and R11's literal
+> "curated, lexical, knowledge base" order all predate KTD-A, and they were only coherent while R12 still
+> gave tier 2 a confidence threshold to fall through on. KTD-A removed that threshold — so under the shipped
+> order the memo tier was reachable ONLY when the catalog returned nothing at all, which made it dead for
+> every phrase the catalog can find and made AE8 ("a near-twin … resolves from the knowledge base **without
+> an LLM call**") unsatisfiable. Latent only because nothing writes a memo yet. The order is now
+> `[curated, memo, lexical]`, checked against a declared evidence-class ladder rather than asserted as a
+> literal. Full argument, the rejected alternatives, and three recorded consequences (the near-memo publish
+> hole, the stale-memo fall-through, and the change to the band-calibration sample) live in
+> `packages/services/recipe-service/src/ingredients/resolution/resolutionRegistry.ts`. ⚠️ **Owner ruling
+> still owed on two of them:** whether deduplicating repeat phrases out of the band sample is intended
+> calibration (R17), and confirmation of this R11 amendment itself.
+
 ```mermaid
 flowchart TD
-    A[input: name or line] --> B[corrections / caches / curated]
-    B -->|miss| C[lexical tier: retrieve + rank + prior]
+    A[input: name or line] --> B[curated tier: corrections / curated mappings]
+    B -->|miss| M[memo tier: remembered verifications]
+    M -->|miss| C[lexical tier: retrieve + rank + prior]
     C -->|resolved + ranked evidence| G{decideVerification}
     B -->|hit| BIND[bind food_id]
-    C -->|no candidates| M[memo tier] --> L[llm escalation — NOT a cascade tier: the out-of-band gate path]
+    M -->|hit| BIND
+    C -->|no candidates| L[llm escalation — NOT a cascade tier: the out-of-band gate path]
     G -->|band authorized AND floors met| BIND
     G -->|else| Q[verification queue] --> V[verifyLine gate]
     V -->|agree| BIND
@@ -291,7 +307,10 @@ through the reformulation; an unknown word still passes cleanly.
 the gate, asserted in the integration test: a zero-authority lexical resolution renders `pending-verification` and unaccounted until the verdict;
 an enqueue failure leaves the line pending — the write NEVER fails — and the sweep re-drives it; an
 agree verdict flips it to counted) · empty catalog → pass · singleton → resolves with zero margin · private food
-excluded for a stranger, included for its author · consultation order asserted `['curated','lexical','memo']`.
+excluded for a stranger, included for its author · consultation order asserted `['curated','memo','lexical']`
+(⛔ AMENDED 2026-09-02 — see the funnel diagram's note; a zero-threshold tier 2 in front of tier 3 makes
+tier 3 unreachable, so the order is now derived from a declared evidence-class ladder and machine-checked
+by `resolution/__tests__/resolutionRegistry.test.ts` rather than asserted as a literal).
 **Verification:** the 14-query set through the real cascade: staples reach the gate; salt/vanilla-class
 wide-margin rows verify too (no bands earned yet).
 

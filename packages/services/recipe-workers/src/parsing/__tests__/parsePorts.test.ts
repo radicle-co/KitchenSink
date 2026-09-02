@@ -19,7 +19,7 @@
  * `inArray(col, [])` as `in ()`, which PostgreSQL rejects as a syntax error — so for the DAL the short
  * circuit was correctness. This port sends raw SQL, where the same batch would render `= ANY('{}'::text[])`
  * and be perfectly legal. What is asserted here is therefore the PORT CONTRACT's own requirement — "an EMPTY
- * batch must not reach the database" ({@link ParseCachePort.findForLines}) — not a crash that cannot happen
+ * batch must not reach the database" (`ParseCachePort.findForLines`) — not a crash that cannot happen
  * on this statement. Do not "simplify" this away on the grounds that the empty array is harmless in SQL: the
  * pipeline consults the cache for nothing at all whenever every line was answered by the corrections tier,
  * and a pointless round trip per import is the cost the contract exists to refuse.

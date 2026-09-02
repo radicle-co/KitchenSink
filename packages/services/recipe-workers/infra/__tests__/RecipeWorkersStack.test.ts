@@ -1103,13 +1103,13 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         expect(topicLogicalId, 'the stack must own an alarm topic').toMatch(/^RecipeWorkersAlarmTopic/);
 
         const alarms = template.findResources('AWS::CloudWatch::Alarm');
-        // All ELEVEN alarms: archive backlog, archive age, archive DLQ, erasure age, erasure DLQ,
-        // orphan-deleted, and U11's five — verification spend, settle failures, throttles, verification DLQ
-        // and cache tokens. A regression that drops one, or adds a twelfth without an action, trips here.
-        // ⚠️ The verification THROTTLE alarm is the one most likely to look redundant and is not: with
-        // `reservedConcurrentExecutions: 1`, a throttled SQS delivery still burns a message's receive count,
-        // so without it an over-tight concurrency setting drains the DLQ while looking like a model failure.
-        expect(Object.keys(alarms)).toHaveLength(11);
+        // A COUNT, not a roster. It exists so a regression that silently DROPS an alarm trips here, and so a
+        // new one has to be a deliberate edit; the loop below is what actually checks each alarm can page.
+        // ⚠️ It was 11 and is now 15: the parse leg's CRF-availability, DLQ and throttle alarms, plus the
+        // handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found missing. The earlier
+        // revision of this comment named all eleven, which is the copied list this repository keeps learning
+        // not to write — so what the number guards is stated instead of which alarms make it up.
+        expect(Object.keys(alarms)).toHaveLength(15);
 
         for (const [name, alarm] of Object.entries(alarms)) {
             const actions = alarm.Properties?.AlarmActions as { Ref: string }[] | undefined;
@@ -1373,5 +1373,112 @@ describe('RecipeWorkersStack — the parse-job hand-off', () => {
         prTemplate.hasResourceProperties('AWS::SSM::Parameter', {
             Name: '/kitchensink/pr-73/recipe/parse-queue-url',
         });
+    });
+});
+
+/**
+ * ⛔ THE DETECTION HALF of the defect `cdkAppDeployCoverage.test.ts` closed the deploy half of.
+ *
+ * `kitchensink-ingredient-parser-{stage}` had never been deployed to any stage while this stack shipped
+ * `RecipeParseLineFunction` into every one of them, pointing `CRF_FUNCTION_NAME` at it with an IAM grant to
+ * its ARN. Nothing went red: the adapter mapped the failed invoke to absence, ADR-0026 §3 reads absence as
+ * `single-engine llm`, and the two-engine pipeline halved itself behind green checks — while the UNGATED
+ * `pr-{N}` LLM leg quietly absorbed the work the CRF was not doing.
+ *
+ * The deploy fix makes it deployable. These assertions make its DISAPPEARANCE loud, and they are two alarms
+ * with deliberately COMPLEMENTARY coverage rather than one:
+ *
+ *  - **the ratio alarm** is fast and cause-specific. It watches the availability series the adapter
+ *    publishes on BOTH paths (0 answered / 1 absent), so `Average == 1` means EVERY invocation in the window
+ *    failed — which is what separates "the engine is GONE" from "the engine is busy", the distinction
+ *    ADR-0026 §3 spends its whole section defending. A single throttle drops the average below 1 and pages
+ *    nobody.
+ *  - **the DLQ alarm** is the low-volume latch. The ratio alarm needs traffic to have datapoints; the DLQ
+ *    alarm needs one line, and once a line lands there it stays until a human drains it. Between them,
+ *    "sustained absence under load" and "one line failed on a quiet stage" are both covered.
+ */
+describe('RecipeWorkersStack — a vanished CRF engine is LOUD', () => {
+    const template = synth('sandbox');
+
+    it('alarms on a COUNT of absent CRF invocations, in ONE period — the only shape that can fire here', () => {
+        template.hasResourceProperties('AWS::CloudWatch::Alarm', {
+            AlarmName: 'kitchensink-recipe-parse-crf-unavailable-sandbox',
+            // ⛔ MUST EQUAL the literals `src/parsing/crfInvoke.ts` publishes. They are matched by exact
+            // string extraction on the CloudWatch side, so a divergence does not fail a deploy — it leaves
+            // this alarm watching a metric nobody writes, reporting a confident OK forever.
+            Namespace: 'Commise/RecipeParse',
+            MetricName: 'CrfEngineUnavailable',
+            // The dimension the emitter attaches unconditionally. An alarm that omits it subscribes to a
+            // series that has never had a datapoint (serviceInfraWiringInvariants W4's defect).
+            Dimensions: [{ Name: 'Stage', Value: 'sandbox' }],
+            // ⛔ Sum over ONE period, and both halves are load-bearing. `Sum` IS the failure count because
+            // the emitter publishes 0 on success, so no metric-math expression is needed — which also keeps
+            // the alarm readable by W3/W4, since a `MathExpression` resolves to no namespace and both gates
+            // skip it. And ONE period, because the CRF is asked only about lines that missed the cache: the
+            // series is gappy by construction, so a consecutive-period sustain is unfirable here. An earlier
+            // draft of this alarm was `Average >= 1` over five consecutive periods and could not have fired.
+            Statistic: 'Sum',
+            Period: 300,
+            Threshold: 1,
+            ComparisonOperator: 'GreaterThanThreshold',
+            EvaluationPeriods: 1,
+            TreatMissingData: 'notBreaching',
+        });
+    });
+
+    it('alarms on the parse leg’s own throttles, for the reason the verification gate’s does', () => {
+        // `reservedConcurrentExecutions: 1` + an SQS event source means a backlog produces THROTTLED
+        // deliveries, and a throttled delivery still burns a message's receive count. Without this, an
+        // over-tight concurrency setting drains straight to the DLQ having never run — which, now that the
+        // CRF alarm exists, would read as a CRF failure. The two have to be tellable apart.
+        template.hasResourceProperties('AWS::CloudWatch::Alarm', {
+            AlarmName: 'kitchensink-recipe-parse-throttles-sandbox',
+            MetricName: 'Throttles',
+            Namespace: 'AWS/Lambda',
+        });
+    });
+
+    it('⛔ EVERY dead-letter queue in this stack has a depth alarm — derived, never enumerated', () => {
+        // The parse DLQ shipped with NO alarm while the verification DLQ beside it had one, so a parse line
+        // that exhausted its retries disappeared in silence. A list of "the DLQs that need alarms" would
+        // have had exactly the same hole, because a copy of a list cannot detect that the list is
+        // incomplete (`handle-sync-worker`'s lesson). So both sides are DISCOVERED from the template.
+        const queues = template.findResources('AWS::SQS::Queue');
+        const alarms = template.findResources('AWS::CloudWatch::Alarm');
+
+        /** Logical ids of every queue that some other queue redrives INTO — i.e. every DLQ, by structure. */
+        const deadLetterIds = new Set(
+            Object.values(queues).flatMap((queue) => {
+                const target = (queue.Properties?.RedrivePolicy as { deadLetterTargetArn?: unknown } | undefined)
+                    ?.deadLetterTargetArn;
+                const attribute = (target as { 'Fn::GetAtt'?: [string, string] } | undefined)?.['Fn::GetAtt'];
+
+                return attribute === undefined ? [] : [attribute[0]];
+            }),
+        );
+
+        /** Logical ids of every queue an `ApproximateNumberOfMessagesVisible` alarm watches. */
+        const alarmedIds = new Set(
+            Object.values(alarms)
+                .filter((alarm) => alarm.Properties?.MetricName === 'ApproximateNumberOfMessagesVisible')
+                .flatMap((alarm) => {
+                    const dimensions = (alarm.Properties?.Dimensions ?? []) as {
+                        Name: string;
+                        Value?: { 'Fn::GetAtt'?: [string, string] };
+                    }[];
+
+                    return dimensions
+                        .filter((dimension) => dimension.Name === 'QueueName')
+                        .flatMap((dimension) => {
+                            const attribute = dimension.Value?.['Fn::GetAtt'];
+
+                            return attribute === undefined ? [] : [attribute[0]];
+                        });
+                }),
+        );
+
+        // Non-vacuity: a template that produced no DLQs would make the equality below trivially true.
+        expect(deadLetterIds.size).toBeGreaterThanOrEqual(4);
+        expect([...deadLetterIds].filter((id) => !alarmedIds.has(id))).toEqual([]);
     });
 });

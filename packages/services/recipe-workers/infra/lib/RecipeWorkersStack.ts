@@ -218,6 +218,44 @@ const ERASURE_METRIC_NAMESPACE = 'Commise/RecipeErasure';
  */
 const ORPHAN_METRIC_NAME = 'ErasureOrphansDeleted';
 
+/**
+ * The EMF namespace + metric name the parse leg's CRF adapter publishes its availability gauge under.
+ *
+ * ⛔ MUST EQUAL `PARSE_METRIC_NAMESPACE` / `CRF_UNAVAILABLE_METRIC_NAME` in `src/parsing/crfInvoke.ts`. The
+ * alarm extracts by exact namespace, dimension and metric name, so a divergence here fails nothing at deploy
+ * time — it leaves the alarm below watching a metric nobody publishes, which under
+ * `treatMissingData: NOT_BREACHING` is a permanent, confident `OK`. `serviceInfraWiringInvariants` W3 catches
+ * a metric NAME the runtime never mentions; nothing catches a namespace, so this comment is the pairing.
+ */
+const PARSE_METRIC_NAMESPACE = 'Commise/RecipeParse';
+const CRF_UNAVAILABLE_METRIC_NAME = 'CrfEngineUnavailable';
+
+/**
+ * How many absent CRF invocations inside five minutes page someone.
+ *
+ * ⛔ A COUNT, over ONE period — and both halves are corrections of an earlier draft that could not have
+ * fired. That draft alarmed on `Average >= 1` (the failure RATIO) sustained across consecutive periods, which
+ * is unfirable HERE for a reason specific to this series: `runParsePipeline` asks the CRF only about lines
+ * that MISSED the cache, so the series is gappy by construction, and a warm cache emits nothing at all. Every
+ * consecutive-period design needs each window to contain traffic; the one alarm in this stack that uses three
+ * periods watches a sweeper that emits unconditionally on a schedule. This is the never-fires class of defect
+ * the erasure-age comment above already records once.
+ *
+ * ⚠️ `Sum` is the failure COUNT precisely because the emitter publishes 0 on success — the healthy datapoints
+ * add nothing — so the ratio needs no expression and the alarm stays inside the AST that
+ * `serviceInfraWiringInvariants` W3/W4 can read (a `MathExpression` resolves to no namespace and is skipped
+ * by both gates).
+ *
+ * ⚠️ ONE is the threshold, not zero: a single self-healing invoke failure now RETRIES, and paging on it would
+ * make the alarm a report of Lambda-service weather. Two inside five minutes is not weather — the series
+ * counts only systemic absence, never a line the engine read and declined.
+ *
+ * ⚠️ ACCEPTED BLIND SPOT, stated rather than papered over: a stage whose ONLY traffic in the window is one
+ * uncached line does not reach two. That case is the DLQ alarm's, which needs no traffic at all and latches
+ * until a human drains it.
+ */
+const CRF_UNAVAILABLE_THRESHOLD = 1;
+
 export interface RecipeWorkersStackProps extends StackProps {
     /**
      * Email that receives this stack's alarms (R3.2 / plan U11). Supplied per-stage from
@@ -1041,7 +1079,14 @@ export class RecipeWorkersStack extends Stack {
                 CRF_FUNCTION_NAME: `kitchensink-ingredient-parser-${props.stage}`,
                 // ⚠️ Mirrors the parser package's own `ingredient-parser-nlp` pin (ADR-0025). The adapter
                 // REFUSES a response whose reported version differs, so drift here fails safe (absence,
-                // never a mis-keyed cache row) — and loudly, in this function's logs.
+                // never a mis-keyed cache row) — and now LOUDLY: a version mismatch publishes a `contract`
+                // absence on the availability series the alarm below watches.
+                //
+                // ⛔ BOTH of these literals are spelled a second time in ANOTHER CDK app, and nothing here
+                // can join them: this stack invokes the parser by a hand-formatted ARN because the function
+                // lives in `packages/services/ingredient-parser` (ADR-0025), so a rename or a version bump
+                // applied to one app and not the other compiles, synthesizes and deploys clean. The guard is
+                // `packages/infra/global/__tests__/crossAppParserIdentity.test.ts`, which reads both apps.
                 CRF_ENGINE_VERSION: 'ingredient-parser-nlp==2.3.0',
             },
             logGroup,
@@ -1451,6 +1496,110 @@ export class RecipeWorkersStack extends Stack {
             treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
         });
         cacheTokenAlarm.addAlarmAction(alarmAction);
+
+        // ── the parse leg's own alarms (the DETECTION half of the never-deployed CRF defect) ───────
+        //
+        // ⛔ WHAT THESE EXIST FOR. `kitchensink-ingredient-parser-{stage}` had never been deployed to any
+        // stage while this stack shipped `RecipeParseLineFunction` into every one of them, pointing
+        // `CRF_FUNCTION_NAME` at it with an IAM grant to its ARN. Nothing went red: the adapter mapped the
+        // failed invoke to per-line absence, ADR-0026 §3 reads absence as `single-engine llm`, and the
+        // two-engine pipeline halved itself behind green checks — while the UNGATED pr-{N} LLM leg quietly
+        // absorbed the work. `cdkAppDeployCoverage.test.ts` closed the deploy half; this closes detection.
+        //
+        // ⛔ AND IT IS NOT ADR-0024 LAYER 4'S SHAPE. That metric is emitted BY the gated path, so a caller
+        // who skips the gate emits nothing and layer 4 cannot see it — the ADR says so about itself. This
+        // one is emitted by the CALLER on BOTH paths (0 answered, 1 absent), so an engine that is entirely
+        // GONE produces a POSITIVE datapoint rather than an absence of datapoints. The 0s are what keep a
+        // healthy stage distinguishable from an idle one; the 1s are what make a vanished engine loud.
+        //
+        // ⛔ AND THE SERIES ALREADY CARRIES ADR-0026 §3'S DISTINCTION, so the alarm does not have to. A line
+        // the engine READ and declined publishes a 0: only systemic absence — the function is gone, the
+        // grant does not cover it, it crashed at import, it broke the engine contract — ever publishes a 1.
+        // That is why a plain count is the right shape here and a failure RATIO is not: the ratio was
+        // defending a distinction the classification had already made, and it cost the alarm its ability to
+        // fire (see CRF_UNAVAILABLE_THRESHOLD).
+        const crfUnavailableAlarm = new cloudwatch.Alarm(this, 'CrfEngineUnavailableAlarm', {
+            alarmName: `kitchensink-recipe-parse-crf-unavailable-${props.stage}`,
+            alarmDescription:
+                'CRF invocations are coming back with no engine answer, so the two-engine parse pipeline is ' +
+                'running on the LLM alone (and, in an ungated stage, paying Bedrock for it). Check that ' +
+                'kitchensink-ingredient-parser-{stage} exists, that the parse role may invoke it, that it is ' +
+                'not failing at import, and that CRF_ENGINE_VERSION matches what it reports.',
+            metric: new cloudwatch.Metric({
+                namespace: PARSE_METRIC_NAMESPACE,
+                metricName: CRF_UNAVAILABLE_METRIC_NAME,
+                dimensionsMap: { Stage: props.stage },
+                statistic: 'Sum',
+                period: Duration.minutes(5),
+            }),
+            threshold: CRF_UNAVAILABLE_THRESHOLD,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            // ⚠️ The reason this alarm is not sufficient ON ITS OWN, and why the DLQ alarm below is its
+            // partner rather than a duplicate: a count needs traffic to have datapoints, and an idle stage
+            // has none. Missing periods are not breaching (an idle parse queue must not page), so on a quiet
+            // stage the LATCH is the DLQ — one line, retried out, visible until a human drains it.
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        crfUnavailableAlarm.addAlarmAction(alarmAction);
+
+        // A message here is one line that exhausted its retries. Under the transient/terminal split
+        // (ADR-0026, 2026-08-31) an engine outage RETRIES rather than landing, so a sustained outage drains
+        // to this queue — which is ADR-0024's own phrasing for the verification DLQ, "visible as queue depth
+        // instead of as silently degraded recipes", applied to the leg that had no such alarm at all.
+        const parseDlqAlarm = new cloudwatch.Alarm(this, 'RecipeParseDlqAlarm', {
+            alarmName: `kitchensink-recipe-parse-dlq-${props.stage}`,
+            alarmDescription:
+                'Parse-job lines exhausted their retries. Check the CRF availability alarm and the parse ' +
+                'throttle alarm before assuming a model problem — an outage in either engine retries here.',
+            metric: parseDlq.metricApproximateNumberOfMessagesVisible({
+                period: Duration.minutes(5),
+                statistic: 'Maximum',
+            }),
+            threshold: 0,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        parseDlqAlarm.addAlarmAction(alarmAction);
+
+        // The parse leg carries the same `reservedConcurrentExecutions: 1` the gate does, so it inherits the
+        // same trap: a throttled SQS delivery still burns a message's receive count, and a backlog drains to
+        // the DLQ having never run. Without this, that now reads as a CRF failure — the two have to be
+        // tellable apart, which is precisely what the gate's own throttle alarm is for one function over.
+        const parseThrottleAlarm = new cloudwatch.Alarm(this, 'RecipeParseThrottlesAlarm', {
+            alarmName: `kitchensink-recipe-parse-throttles-${props.stage}`,
+            alarmDescription:
+                'The parse leg is being throttled by its own reserved concurrency. Throttled SQS deliveries ' +
+                'still burn a message’s receive count, so a sustained backlog drains to the DLQ without ever ' +
+                'executing — and emits no CRF availability datapoint while doing it.',
+            metric: parseLineFn.metricThrottles({ period: Duration.minutes(5), statistic: 'Sum' }),
+            threshold: 0,
+            evaluationPeriods: 3,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        parseThrottleAlarm.addAlarmAction(alarmAction);
+
+        // The handle-sync DLQ had no alarm either — found by the DERIVED "every DLQ has a depth alarm" guard
+        // in this stack's suite, not by anyone reading the list. A rename that dead-letters here is a
+        // denormalized author handle that never propagated: the recipe keeps serving the OLD handle, which is
+        // the erasure/pseudonymization path's own residue problem, silently.
+        const handleSyncDlqAlarm = new cloudwatch.Alarm(this, 'HandleSyncDlqAlarm', {
+            alarmName: `kitchensink-recipe-handle-sync-dlq-${props.stage}`,
+            alarmDescription:
+                'Handle-sync messages exhausted their retries, so denormalized author handles are stale on ' +
+                'every recipe those renames touched.',
+            metric: this.handleSyncDlq.metricApproximateNumberOfMessagesVisible({
+                period: Duration.minutes(5),
+                statistic: 'Maximum',
+            }),
+            threshold: 0,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        handleSyncDlqAlarm.addAlarmAction(alarmAction);
 
         // Cross-stack hand-off to recipe-service's producer, by SSM for the reason the erasure queue is:
         // an imported CfnOutput export is LOCKED while referenced, and ADR-0005's PR-close cleanup deletes a

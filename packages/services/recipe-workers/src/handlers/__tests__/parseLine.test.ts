@@ -191,6 +191,97 @@ describe('the transient/terminal split', () => {
         expect(queries.some((query) => /UPDATE recipe_parse_job_lines/.test(query.text))).toBe(false);
     });
 
+    it('⛔ a CRF INVOCATION failure is transient too — the line retries, it does not land single-engine', async () => {
+        // ADR-0026's 2026-08-31 update lists "a CRF invocation failure" in the TRANSIENT set, beside the
+        // ceiling denial and the Bedrock transport failure, on its own stated ground: none of them is
+        // evidence about the ingredient, and "recording any of them as an outcome would turn an outage into
+        // a permanent fact about a line".
+        //
+        // ⛔ The handler used to collect ONLY `tier === 'llm'`, so a line parsed during a CRF outage landed
+        // the LLM's single-engine reading as its permanent answer — the outage becoming the fact. That is
+        // the same argument this suite's gated-leg case above already makes, one engine over.
+        const { deps, queries } = build({});
+
+        (deps.crf.parse as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Function not found'));
+
+        await expect(processParseLine(deps, { ...message(), lineDigest: computeRealDigest() })).rejects.toThrow(
+            /Function not found/,
+        );
+        expect(queries.some((query) => /UPDATE recipe_parse_job_lines/.test(query.text))).toBe(false);
+    });
+
+    it('⛔ but a CRF ABSENCE that is not a failure still LANDS — ADR-0026 §3 is untouched', async () => {
+        // THE NEGATIVE CONTROL for the case above, and the one that keeps the fix from over-reaching. A port
+        // that RETURNS `{ unavailable: true }` said "I read this line and had no opinion" — the engine is
+        // healthy. That is `single-engine`, a legitimate per-line outcome, and it lands. Treating every CRF
+        // absence as transient would make every hard line retry to the DLQ, which is §3's "absence is not
+        // dissent" broken in the opposite direction.
+        const { deps, queries } = build({});
+
+        (deps.crf.parse as ReturnType<typeof vi.fn>).mockImplementation((lines: string[]) =>
+            Promise.resolve(lines.map(() => ({ unavailable: true }))),
+        );
+
+        await processParseLine(deps, { ...message(), lineDigest: computeRealDigest() });
+
+        expect(queries.some((query) => /UPDATE recipe_parse_job_lines/.test(query.text))).toBe(true);
+    });
+
+    it('a STORE tier failure is NOT transient — a broken cache costs a call, never the line', async () => {
+        // `corrections` and `cache` failures degrade into a re-parse, which is the pipeline's own rule
+        // ("failing the line because the cache would not take it would cost a correct answer in order to
+        // save a future call — exactly backwards"). Collecting every tier indiscriminately would make an
+        // unreachable cache an outage.
+        const { deps, queries, pool } = build({});
+
+        pool.query.mockImplementation((text: string) => {
+            if (/SELECT line_digest/.test(text)) {
+                return Promise.reject(new Error('cache unreachable'));
+            }
+
+            if (/UPDATE recipe_parse_job_lines/.test(text)) {
+                queries.push({ text, params: [] });
+
+                return Promise.resolve({ rows: [], rowCount: 1 });
+            }
+
+            return Promise.resolve({ rows: [], rowCount: 0 });
+        });
+
+        await processParseLine(deps, { ...message(), lineDigest: computeRealDigest() });
+
+        expect(queries.some((query) => /UPDATE recipe_parse_job_lines/.test(query.text))).toBe(true);
+    });
+
+    it('⛔ KTD-F: the surviving engine’s answer is CACHED before the re-throw', async () => {
+        // This is what makes "an engine outage retries" affordable rather than a spend amplifier against
+        // ADR-0024's one $100 pool: the redelivery re-reads whatever succeeded and re-pays only what did
+        // not. Re-throwing before the pipeline's write-back would bill a fresh Bedrock call for every
+        // redelivery of every line during a CRF outage.
+        const { deps, queries } = build({});
+
+        (deps.crf.parse as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Function not found'));
+        (deps.gated.bedrock.converse as ReturnType<typeof vi.fn>).mockResolvedValue({
+            kind: 'answered',
+            // The wire shape `modelParseAnswerSchema` accepts: a ROOT ARRAY of relational records.
+            text: JSON.stringify([
+                {
+                    food_items: ['flour'],
+                    measurement: { quantity: '2', unit: 'cups', unit_type: 'volume' },
+                    preparations: null,
+                    equipment: null,
+                },
+            ]),
+            stopReason: 'end_turn',
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        });
+
+        await expect(processParseLine(deps, { ...message(), lineDigest: computeRealDigest() })).rejects.toThrow();
+
+        // The write-back is attempted for whatever answered, and it happens BEFORE the handler re-throws.
+        expect(queries.some((query) => /INSERT INTO ingredient_parse_cache/.test(query.text))).toBe(true);
+    });
+
     it('a clean run lands `parsed` with the merged proposal', async () => {
         const { deps, queries } = build({});
 

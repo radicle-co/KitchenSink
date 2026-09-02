@@ -8,11 +8,16 @@
  *
  * ## The transient/terminal split, stated once
  *
- *  - **TRANSIENT (throw → SQS redelivery):** a ceiling denial or a Bedrock transport failure inside the
- *    gated legs. The pipeline CONTAINS tier throws (KTD-12), so the handler collects them through the
- *    observer and re-throws AFTER the run, before any landing — and KTD-F's amplification bound is the
- *    parse CACHE: the redelivered message re-reads `ingredient_parse_cache` first and re-pays only the
- *    uncached attempts (asserted in this handler's suite).
+ *  - **TRANSIENT (throw → SQS redelivery):** anything an ENGINE throws — a ceiling denial or a Bedrock
+ *    transport failure in the gated leg, and a CRF invocation that produced no engine answer at all (the
+ *    function is gone, the grant does not cover it, it crashed at import, it broke the engine contract).
+ *    ADR-0026's 2026-08-31 update names all four, on one ground: none of them is evidence about the
+ *    ingredient, and "recording any of them as an outcome would turn an outage into a permanent fact about
+ *    a line". The pipeline CONTAINS tier throws (KTD-12), so the handler collects them through the observer
+ *    and re-throws AFTER the run, before any landing — and KTD-F's amplification bound is the parse CACHE:
+ *    the redelivered message re-reads `ingredient_parse_cache` first and re-pays only the uncached attempts
+ *    (asserted in this handler's suite). ⚠️ So a CRF outage costs ONE re-invoke of the CRF per redelivery,
+ *    not a second billed Bedrock call: whichever engine answered is already remembered.
  *  - **TERMINAL (landed):** a parse (`parsed` + the proposal), the validator loop's exhaustion
  *    (`unparseable` — R6's recorded state; the line is saved, nothing binds), or both engines absent with
  *    no transient failure (`failed_retryable` — U9's per-line retry re-runs exactly these).
@@ -126,10 +131,20 @@ export async function processParseLine(deps: ParseLineDeps, message: ParseLineJo
         { userId: message.userId },
         {
             onTierFailure: (tier, error) => {
-                // The pipeline contains throws (KTD-12); the handler decides transience. Everything the
-                // gated legs THROW is transient by construction (denial, throttle, 5xx — deterministic
-                // failures return absence instead), so a captured llm failure re-throws after the run.
-                if (tier === 'llm') {
+                // The pipeline contains throws (KTD-12); the handler decides transience. Everything an
+                // ENGINE throws is transient by construction — the gated leg rejects on a denial, a throttle
+                // or a 5xx, and `crfInvoke` rejects only when the invocation produced no engine answer at
+                // all; both return absence for a deterministic per-line outcome instead. So a captured
+                // engine failure re-throws after the run.
+                //
+                // ⛔ Stated as "not a STORE tier" rather than as the pair `'crf' | 'llm'`, and that is the
+                // point: `ParsePipelineTier` is `'corrections' | 'cache' | ParseEngine`, so a future engine
+                // is transient by construction rather than by whoever remembers to extend a literal union.
+                // The CRF was missing from exactly such a list — the handler collected `tier === 'llm'`
+                // alone, so a line parsed during a CRF outage landed the LLM's single-engine reading as its
+                // PERMANENT answer, which is ADR-0026's 2026-08-31 rule ("a CRF invocation failure" is in
+                // the transient set) read backwards.
+                if (tier !== 'corrections' && tier !== 'cache') {
                     transientFailures.push(error);
                 }
 
@@ -228,6 +243,10 @@ function productionDeps(stage: string, region: string): ParseLineDeps {
             functionName: crfFunctionName,
             client: new LambdaClient({}),
             declaredEngineVersion: crfEngineVersion,
+            // The stage the availability alarm's `Stage` dimension selects, and the sink it reads. A
+            // datapoint published under the wrong stage is a datapoint no alarm sees.
+            stage,
+            emit: emitMetric,
         }),
         pool: {
             query: async (text, params) => pool.query(text, params),

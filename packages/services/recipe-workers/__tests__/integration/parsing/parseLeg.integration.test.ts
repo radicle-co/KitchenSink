@@ -6,6 +6,20 @@
  * statement's three-way predicate, and the landing's zero-row discard are all claims about the DATABASE —
  * a fake pool answers whatever it is told (`handle-sync-worker`'s lesson).
  *
+ * ## Where the deleted `ParseCacheDal`'s coverage went
+ *
+ * `recipe-service`'s `ParseCacheDal` was a second, UNCALLED implementation of these same two statements; it
+ * and its two suites were deleted rather than kept as a "reference statement shape", because a copy nothing
+ * runs and no compiler checks cannot be authoritative — `ParseCachePort` already holds that contract. Its
+ * `DO NOTHING` and redelivery claims were already proven here. Its two claims that were NOT — that the read
+ * returns EVERY engine, and that a MULTI-line batch attributes each row to its own line — moved into this
+ * file, against the live port. Both were previously asserted only against in-memory doubles and a fake pool,
+ * which is exactly what this file's own docstring says cannot prove a claim about the database.
+ *
+ * ⚠️ Its `parsedAt` ISO-8601 mapping did NOT move: the live port neither selects `parsed_at` nor carries it
+ * on `CachedParseRow`, so there is no live behaviour left to assert. The column itself is still pinned by
+ * `recipe-service`'s `parseCacheSchema.integration.test.ts`, which asserts the table's column set by equality.
+ *
  * Runs against `DATABASE_URL` (a recipe database with migrations applied); skipped without it.
  */
 import { createHash } from 'node:crypto';
@@ -62,6 +76,91 @@ describe.skipIf(!canRun)('the parse leg storage (integration)', () => {
         const firstRow = rows[0];
         expect(firstRow).toBeDefined();
         expect((firstRow?.parse as { unit: string | null } | undefined)?.unit ?? 'MISSING').not.toBe('cup');
+    });
+
+    it('⛔ returns EVERY engine stored for one line, so the comparator never adjudicates one answer against itself', async () => {
+        // ⛔ KTD-13 at the read side, against the real SELECT. `ParseCachePort.findForLines`' contract says a
+        // narrowing to one row per line would hand the comparator a single parse and it would report `agree`
+        // on every line, forever, with nothing failing. A `LIMIT 1` or `DISTINCT ON (line_digest)` added to
+        // the statement fails HERE — and only here: the pipeline's own suites assert this over in-memory
+        // doubles, which return whatever they were seeded with no matter what the SQL says.
+        const cache = createParseCachePort(queryable());
+        const digest = 'v1:u8testdigest02' as never;
+        const facts = { statedMeasure: null, quantity: { kind: 'absent' }, unit: null, foods: [] } as never;
+
+        await cache.remember({
+            parseKey: 'v1:u8testkey02crf',
+            lineDigest: digest,
+            engine: 'crf',
+            engineVersion: 'u8-test',
+            parse: facts,
+        });
+        await cache.remember({
+            parseKey: 'v1:u8testkey02llm',
+            lineDigest: digest,
+            engine: 'llm',
+            engineVersion: 'u8-test',
+            parse: facts,
+        });
+
+        const rows = await cache.findForLines([digest]);
+
+        expect(rows.map((row) => row.engine).sort()).toEqual(['crf', 'llm']);
+        // The version is a member of the KEY, not an attribute — a row projected without it could not be
+        // generation-checked by the pipeline, which discards a row whose version is not the port's current one.
+        expect(rows.map((row) => row.engineVersion)).toEqual(['u8-test', 'u8-test']);
+    });
+
+    it('reads a BATCH of digests in one call and attributes every row to its OWN line', async () => {
+        // ⛔ `= ANY($1::text[])` with a REAL multi-element array, which nothing else exercises: every other
+        // suite reads a single digest. A row mis-attributed here serves one line's parse to another — the
+        // worst cache hit available — and a positional zip in place of the carried `lineDigest` would do it.
+        //
+        // ⚠️ The pairing is asserted through each row's own PAYLOAD, not through `parse_key`: the port does
+        // not select that column and `CachedParseRow` does not carry it, so a key-based assertion would be
+        // testing the deleted DAL's shape instead of this one's. The payload is what a mis-attribution
+        // actually corrupts.
+        const cache = createParseCachePort(queryable());
+        const digestA = 'v1:u8testdigest03a' as never;
+        const digestB = 'v1:u8testdigest03b' as never;
+        const digestAbsent = 'v1:u8testdigest03f' as never;
+        const factsFor = (name: string) =>
+            ({ statedMeasure: null, quantity: { kind: 'absent' }, unit: null, foods: [{ name, prep: null }] }) as never;
+
+        await cache.remember({
+            parseKey: 'v1:u8testkey03a',
+            lineDigest: digestA,
+            engine: 'crf',
+            engineVersion: 'u8-test',
+            parse: factsFor('line-a-food'),
+        });
+        await cache.remember({
+            parseKey: 'v1:u8testkey03b',
+            lineDigest: digestB,
+            engine: 'crf',
+            engineVersion: 'u8-test',
+            parse: factsFor('line-b-food'),
+        });
+
+        // ⛔ The ABSENT digest goes FIRST, and that ordering is load-bearing. Asked in insertion order this
+        // test passes against a port that ignores `line_digest` and zips rows to the request positionally —
+        // measured: that mutation survived until the order was perturbed. A digest with no row can never be
+        // a correct label for any row, so leading with it makes a positional answer wrong whichever order
+        // PostgreSQL returns the two real rows in.
+        const rows = await cache.findForLines([digestAbsent, digestA, digestB]);
+
+        // A line nobody parsed contributes NO row — a miss, never an error and never a placeholder.
+        expect(
+            rows
+                .map((row) => [
+                    row.lineDigest,
+                    (row.parse as { foods: { name: string }[] }).foods[0]?.name ?? 'MISSING',
+                ])
+                .sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+        ).toEqual([
+            [digestA, 'line-a-food'],
+            [digestB, 'line-b-food'],
+        ]);
     });
 
     it('the corrections mirror honours scope: global visible to nobody-present, personal only to its author', async () => {

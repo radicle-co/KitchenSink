@@ -49,6 +49,7 @@ import {
     GoneError,
     InvalidRequestError,
     NotFoundError,
+    ParseJobExpiredError,
     PullDriftError,
     RecipeServiceClientError,
     UnauthorizedError,
@@ -115,6 +116,9 @@ import {
     pullDiffSchema,
     pullFromSourceRequestSchema,
     recipeApiErrorSchema,
+    createParseJobRequestSchema,
+    editParseJobLineRequestSchema,
+    parseJobResponseSchema,
     recipeNutritionRequestSchema,
     recipeNutritionResponseSchema,
     pullFromSourceResponseSchema,
@@ -131,7 +135,10 @@ import {
 } from '@kitchensink/schema-recipe';
 import type {
     ApiErrorBody,
+    CreateParseJobRequest,
     CreateRecipeRequest,
+    EditParseJobLineRequest,
+    ParseJobResponse,
     RecipeApiError,
     RecipeNutritionResponse,
     RecordCorrectionRequest,
@@ -827,6 +834,114 @@ export class RecipeServiceClient {
         );
 
         return this.expect(res, 200, recordCorrectionResponseSchema);
+    }
+
+    // ─── Parse jobs ─────────────────────────────────────────────────────────────────────────────
+    //
+    // The ASYNC ingredient-parse resource (plan U9, origin D9/R13). Four endpoints, ONE response shape:
+    // `POST` accepts a pasted block and answers `202` with the job view, `GET` polls it, and the two
+    // mutations (`retry`, `lines/{i}`) re-open asynchronous work and therefore also answer `202`.
+    //
+    // ⛔ A PARSE BINDS NOTHING (R19). The proposals this returns carry a food NAME and no id, and the
+    // reviewed draft is created through the ordinary `createRecipe` — which re-validates every food id
+    // through `by-food` admission. Nothing here writes a recipe, and no caller should treat a proposal as
+    // one.
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs` — submit a pasted ingredient block; parsing continues asynchronously
+     * (`202`).
+     *
+     * ⚠️ THE OUTBOUND PARSE IS NOT CEREMONY HERE. `createParseJobRequestSchema` refines with the SHARED
+     * `refuseParseJobLines` — the same splitter the service stores with — so an over-long line, a paste past
+     * the line cap, and a block with no non-empty lines are all refused HERE, at the call site that built
+     * the body, naming the offending index. A caller that wants to show that before the user presses submit
+     * should run `refuseParseJobLines(splitParseJobLines(text))` itself (both are `@kitchensink/recipe-core`
+     * exports); this is the backstop, not the affordance.
+     *
+     * @param input - The pasted text.
+     * @returns The accepted job view — every submitted line, in submission order, all `pending`.
+     * @throws {InvalidRequestError} when the paste is inadmissible per the published contract (no request is
+     *   sent); {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request that creates a job and enqueues one message per line.
+     */
+    public async createParseJob(input: CreateParseJobRequest): Promise<ParseJobResponse> {
+        const res = await this.send(
+            'POST',
+            '/api/v1/recipe-parse-jobs',
+            this.request('createParseJob', createParseJobRequestSchema, input),
+        );
+
+        return this.expect(res, 202, parseJobResponseSchema);
+    }
+
+    /**
+     * `GET /api/v1/recipe-parse-jobs/{id}` — poll the caller's own job (`200`).
+     *
+     * ⚠️ AN EXPIRED JOB IS A `200`, not an error: the service answers the read with `status: 'expired'`.
+     * That is deliberate — a poll must be able to OBSERVE the TTL passing rather than start throwing — so a
+     * surface renders expiry from the data here and only sees {@link ParseJobExpiredError} when it tries to
+     * mutate.
+     *
+     * @param id - The job id.
+     * @returns The job view.
+     * @throws {NotFoundError} when the job is absent OR belongs to another user — one answer on purpose, so
+     *   a stranger cannot learn the id exists; {@link UnauthorizedError} on auth failure.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getParseJob(id: string): Promise<ParseJobResponse> {
+        const res = await this.send('GET', `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}`);
+
+        return this.expect(res, 200, parseJobResponseSchema);
+    }
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs/{id}/retry` — re-drive exactly the `failed_retryable` lines (`202`).
+     *
+     * Narrower than it looks: a line the pipeline could not read is `unparseable` and TERMINAL (the
+     * validator loop exhausted), so this re-drives only the lines whose message was lost or whose parse
+     * failed transiently. Retrying a job with none of those is a no-op that still answers the current view.
+     *
+     * @param id - The job id.
+     * @returns The job view after the re-drive, with the affected lines back to `pending`.
+     * @throws {ParseJobExpiredError} when the TTL has passed (the remedy is a fresh paste, not a retry);
+     *   {@link NotFoundError} for an absent or another user's job.
+     * @sideEffect Performs an authenticated HTTP request that rewrites line statuses and enqueues messages.
+     */
+    public async retryParseJob(id: string): Promise<ParseJobResponse> {
+        const res = await this.send('POST', `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}/retry`);
+
+        return this.expect(res, 202, parseJobResponseSchema);
+    }
+
+    /**
+     * `PATCH /api/v1/recipe-parse-jobs/{id}/lines/{lineIndex}` — replace one line's text and re-drive its
+     * own parse (`202`).
+     *
+     * The stored digest moves WITH the text in one statement (R17), so a landing for the phrase the cook
+     * just replaced matches zero rows and is discarded — which is why this is a line EDIT rather than a
+     * delete-and-add, and why a whitespace-only replacement is refused (an edit is not a delete).
+     *
+     * @param id - The job id.
+     * @param lineIndex - The line's 0-based position within the job — with the job id, its identity.
+     * @param input - The replacement line.
+     * @returns The job view with that line back to `pending`.
+     * @throws {InvalidRequestError} on a blank/over-long replacement (no request is sent);
+     *   {@link ParseJobExpiredError} when the TTL has passed; {@link NotFoundError} for an absent or another
+     *   user's job.
+     * @sideEffect Performs an authenticated HTTP request that rewrites the line and enqueues its message.
+     */
+    public async editParseJobLine(
+        id: string,
+        lineIndex: number,
+        input: EditParseJobLineRequest,
+    ): Promise<ParseJobResponse> {
+        const res = await this.send(
+            'PATCH',
+            `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}/lines/${encodeURIComponent(String(lineIndex))}`,
+            this.request('editParseJobLine', editParseJobLineRequestSchema, input),
+        );
+
+        return this.expect(res, 202, parseJobResponseSchema);
     }
 
     // ─── Versions ───────────────────────────────────────────────────────────────────────────────
@@ -1625,6 +1740,18 @@ export class RecipeServiceClient {
                 return new SourceBusyError(body.details?.retryAfterSeconds, body.message);
             case 'SOURCE_UNAVAILABLE':
                 return new SourceUnavailableError(body.message);
+            // ⛔ MOVED OUT of the un-classed block below, and the reversal is deliberate. U9 shipped this
+            // code with `// Plan U9: the TTL passed — the remedy is a fresh create, not a retry` sitting on
+            // an `UnexpectedResponseError` arm, on the sound premise that NOTHING CONSUMED IT: the resource
+            // and this client's arms landed in one commit with no caller. That premise no longer holds — the
+            // paste/review surface now renders this outcome, and it renders it as its own sentence with its
+            // own control, exactly as the `SOURCE_BUSY`/`SOURCE_UNAVAILABLE` split above. Two further
+            // reasons the old placement had to move rather than merely being inconvenient:
+            // `UnexpectedResponseError` is defined as "a contract drift the caller should surface, not
+            // swallow", and a modelled TTL outcome is not drift; and leaving it there forced the app layer
+            // to string-compare `.code`, which is the knowledge `errorForCode` exists to hold exactly once.
+            case 'PARSE_JOB_EXPIRED':
+                return new ParseJobExpiredError(body.message);
             // Every remaining code has no dedicated error class, so it keeps the response's OWN status and
             // carries its code for the caller to read. The status is deliberately taken from the response rather
             // than from the service's code→status table: that table is the SERVICE's, this client must not
@@ -1637,7 +1764,6 @@ export class RecipeServiceClient {
             case 'MAX_PHOTOS_EXCEEDED':
             case 'ARCHIVE_PENDING':
             case 'COLLECTION_LIMIT_REACHED':
-            case 'PARSE_JOB_EXPIRED': // Plan U9: the TTL passed — the remedy is a fresh create, not a retry.
             case 'PHOTO_PROCESSING_FAILED':
             case 'ARCHIVE_DLQ':
             case 'ERASURE_IN_PROGRESS':

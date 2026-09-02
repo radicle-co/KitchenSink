@@ -227,6 +227,15 @@ export interface RecipeListViewProps {
     readonly onSearchChange: (value: string) => void;
     readonly onSelectRecipe: (id: string) => void;
     readonly onCreateRecipe: () => void;
+    /**
+     * Open the ingredient-paste surface (plan U9) — the dial's SECOND destination.
+     *
+     * ⛔ OPTIONAL, and its absence removes the entry rather than disabling it. U34 chose a disclosing dial
+     * precisely so "adding Scan / Import / AI when 004 and 005 ship is a change to THIS LIST"; this is the
+     * first of those, and a host that has no paste route (none exists today, but the contract must survive
+     * one) must not be forced to render a destination that goes nowhere.
+     */
+    readonly onPasteIngredients?: () => void;
     readonly onRetry: () => void;
     /** Optional My/Community source tabs (L5). Absent → no tab control (e.g. mobile uses shell tabs). */
     readonly tab?: RecipeListTabControl;

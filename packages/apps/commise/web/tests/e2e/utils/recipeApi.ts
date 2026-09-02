@@ -22,6 +22,7 @@ import type {
     CollectionMemberRecipe,
     CollectionRecipeAddedVia,
     CollectionRecipeMembership,
+    ParseJobResponse,
     PullDiff,
     PullFromSourceResponse,
     RecipeSearchFacets,
@@ -753,8 +754,29 @@ export interface EnrichedConflictSeed {
     readonly versionsAhead?: number;
 }
 
+/**
+ * How the mocked parse job behaves over successive polls (plan U9).
+ *
+ * ⚠️ SCRIPTED, not instantaneous. A job that were `complete` on its first `GET` would let a spec pass
+ * against a surface that never renders the running state at all — and the running state is where the poll,
+ * the progress readout and the whole reason this resource is asynchronous actually live.
+ */
+export interface MockParseJobScript {
+    /** How many `GET`s answer `running` before the job settles. Defaults to `1`. */
+    readonly pollsBeforeSettled?: number;
+    /**
+     * What the job settles into. `partial` leaves one line `failed_retryable` (so the retry control is
+     * reachable), `expired` answers the TTL sweep's terminal state. Defaults to `complete`.
+     */
+    readonly settlesAs?: 'complete' | 'partial' | 'expired';
+    /** When the job's review deadline falls. Defaults to 24 hours ahead, as the service's TTL sets it. */
+    readonly expiresAt?: string;
+}
+
 /** Options for {@link mockRecipeApi}. */
 export interface MockRecipeApiOptions {
+    /** Scripted parse-job behaviour (plan U9). Defaults to "one running poll, then complete". */
+    readonly parseJob?: MockParseJobScript;
     /**
      * Recipes to seed the store with (defaults to one public "Seed Recipe" owned by the viewer).
      *
@@ -858,6 +880,64 @@ export async function mockRecipeApi(
     const pendingEnrichedConflicts = new Map<string, EnrichedConflictSeed>(
         Object.entries(options.enrichedConflicts ?? {}),
     );
+    // ── Parse jobs (plan U9) ───────────────────────────────────────────────────────────────────────
+    //
+    // A small scripted store: `POST` splits the pasted text into pending lines, each `GET` decrements a
+    // per-job poll budget, and the job settles once that budget runs out. Lines are mutated in place by a
+    // line edit, so a spec observes the SAME job carrying the corrected text rather than a fresh one.
+    const parseJobScript = options.parseJob ?? {};
+    const parseJobs = new Map<string, ParseJobResponse>();
+    const parseJobPollsLeft = new Map<string, number>();
+    /**
+     * Jobs whose SCRIPTED terminal state has already been served — after which they settle `complete`.
+     *
+     * ⛔ ONE-SHOT, and without this the `partial` script is unusable: a retry that re-settled `partial`
+     * would model a transient enqueue failure that recurs identically forever, so the spec asserting a
+     * retry RECOVERS the job could never pass. One-shot is also the truthful model — `retry` re-drives
+     * exactly the lines that did not go through, and the failure it re-drives them past was transient by
+     * definition (`unparseable` is the terminal one, and no retry touches it).
+     */
+    const parseJobScriptSpent = new Set<string>();
+    let nextParseJobId = 1;
+
+    /** Settle a job's lines into the scripted terminal shape (once) or into `complete` (thereafter). */
+    const settleParseJob = (job: ParseJobResponse): ParseJobResponse => {
+        const settlesAs = parseJobScriptSpent.has(job.id) ? 'complete' : (parseJobScript.settlesAs ?? 'complete');
+        parseJobScriptSpent.add(job.id);
+
+        if (settlesAs === 'expired') {
+            return { ...job, status: 'expired' };
+        }
+
+        return {
+            ...job,
+            status: settlesAs,
+            lines: job.lines.map((line, index) =>
+                // `partial` leaves the LAST line retryable so the retry control is reachable while the rest
+                // of the job still renders its proposals.
+                settlesAs === 'partial' && index === job.lines.length - 1
+                    ? { ...line, status: 'failed_retryable', proposal: null }
+                    : {
+                          ...line,
+                          status: 'parsed',
+                          proposal: {
+                              raw: line.sourceLine,
+                              quantity: { kind: 'exact', value: 2 },
+                              unit: 'cup',
+                              statedMeasure: '2 cups',
+                              foods: [
+                                  {
+                                      name: line.sourceLine.replace(/^[\d\s./]+(cups?|tsp|tbsp)?\s*/i, '') || 'flour',
+                                      prep: null,
+                                  },
+                              ],
+                              reviewReasons: [],
+                          },
+                      },
+            ),
+        };
+    };
+
     let nextId = 1;
     let nextCollectionId = 1;
     // Freeform (user-entered) ingredient create — REQ-032b requires every freeform line to come back
@@ -1896,6 +1976,121 @@ export async function mockRecipeApi(
             };
 
             return route.fulfill({ json: response });
+        }
+
+        // ── Parse jobs (plan U9) ───────────────────────────────────────────────────────────────────
+        //
+        // Matched BEFORE the pass-through, and the ORDER within this block states the specificity: the two
+        // sub-resources (`/retry`, `/lines/{i}`) are tested ahead of the bare `/{id}` read.
+        if (path.includes('/api/v1/recipe-parse-jobs')) {
+            const retryMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/retry$/.exec(path);
+            const lineMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/lines\/(\d+)$/.exec(path);
+            const detailMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)$/.exec(path);
+
+            if (method === 'POST' && path.endsWith('/api/v1/recipe-parse-jobs')) {
+                const text = String((body() as { text?: unknown }).text ?? '');
+                const id = `00000000-0000-4000-8000-${String(nextParseJobId).padStart(12, '0')}`;
+                nextParseJobId += 1;
+                const job: ParseJobResponse = {
+                    id,
+                    status: 'running',
+                    createdAt: new Date().toISOString(),
+                    expiresAt: parseJobScript.expiresAt ?? new Date(Date.now() + 86_400_000).toISOString(),
+                    lines: text
+                        .split(/\r?\n/)
+                        .map((line) => line.trim())
+                        .filter((line) => line !== '')
+                        .map((sourceLine, lineIndex) => ({ lineIndex, sourceLine, status: 'pending', proposal: null })),
+                };
+                parseJobs.set(id, job);
+                parseJobPollsLeft.set(id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: job });
+            }
+
+            if (method === 'POST' && retryMatch) {
+                const job = parseJobs.get(retryMatch[1] as string);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                if (job.status === 'expired') {
+                    return route.fulfill({ status: 409, json: { code: 'PARSE_JOB_EXPIRED', message: 'expired' } });
+                }
+
+                // A retry re-opens the work: the retryable lines go back to pending and the job to running,
+                // exactly as `ParseJobsService.retry` does, and the poll budget restarts with it.
+                const reopened: ParseJobResponse = {
+                    ...job,
+                    status: 'running',
+                    lines: job.lines.map((line) =>
+                        line.status === 'failed_retryable' ? { ...line, status: 'pending' } : line,
+                    ),
+                };
+                parseJobs.set(job.id, reopened);
+                parseJobPollsLeft.set(job.id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: reopened });
+            }
+
+            if (method === 'PATCH' && lineMatch) {
+                const job = parseJobs.get(lineMatch[1] as string);
+                const lineIndex = Number(lineMatch[2]);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                if (job.status === 'expired') {
+                    return route.fulfill({ status: 409, json: { code: 'PARSE_JOB_EXPIRED', message: 'expired' } });
+                }
+
+                const sourceLine = String((body() as { sourceLine?: unknown }).sourceLine ?? '').trim();
+                const edited: ParseJobResponse = {
+                    ...job,
+                    status: 'running',
+                    lines: job.lines.map((line) =>
+                        line.lineIndex === lineIndex
+                            ? { ...line, sourceLine, status: 'pending', proposal: null }
+                            : line,
+                    ),
+                };
+                parseJobs.set(job.id, edited);
+                parseJobPollsLeft.set(job.id, parseJobScript.pollsBeforeSettled ?? 1);
+
+                return route.fulfill({ status: 202, json: edited });
+            }
+
+            if (method === 'GET' && detailMatch) {
+                const job = parseJobs.get(detailMatch[1] as string);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                // ⛔ A job that has already settled is served AS IS. Without this, a second `GET` on a
+                // settled job would re-enter `settleParseJob` and — the script now being spent — resurrect
+                // an `expired` job as `complete`. Polling stops on a terminal state so this is rare, but a
+                // reload issues a fresh read, and a mock that quietly un-expires a job would make the one
+                // assertion the URL-addressed route exists for unfalsifiable.
+                if (job.status !== 'running') {
+                    return route.fulfill({ json: job });
+                }
+
+                const left = parseJobPollsLeft.get(job.id) ?? 0;
+
+                if (left > 0) {
+                    parseJobPollsLeft.set(job.id, left - 1);
+
+                    return route.fulfill({ json: job });
+                }
+
+                const settled = settleParseJob(job);
+                parseJobs.set(job.id, settled);
+
+                return route.fulfill({ json: settled });
+            }
         }
 
         // Pass everything else through untouched. Only the recipe/identity endpoints matched above are

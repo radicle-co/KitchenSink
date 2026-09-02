@@ -354,6 +354,12 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                     recipeDetail: 'Recipe',
                     recipeEdit: 'Edit recipe',
                     recipeVersions: 'Version history',
+                    // Two titles, not one. The first draft shared a single id across both parse routes on
+                    // the reasoning that pasting and reviewing are one act — `appShellRoutes.test.tsx`
+                    // rejected it, and the guard was right: they are two PAGES, a cook can be on either,
+                    // and the bar naming the step is the whole point of a per-surface title.
+                    recipeParse: 'Paste ingredients',
+                    recipeParseReview: 'Review ingredients',
                     discover: 'Discover',
                     collections: 'Collections',
                     collectionNew: 'New collection',

@@ -1,0 +1,79 @@
+appId: io.commise.mobile
+---
+# U9 — the ingredient PASTE-AND-REVIEW happy path on device. The mobile mirror of the web Playwright
+# `parseIngredients.spec.ts`.
+#
+# ## What only this tier can prove
+#
+# The native component suite renders the leaves through react-native-web under jsdom with the client
+# stubbed. Three things it therefore cannot see, and each is a way this ships broken to a phone:
+#
+#   1. THE PASTE FIELD ACCEPTS A MULTI-LINE PASTE ON DEVICE. This leaf uses a `multiline` `TextInput` rather
+#      than `@commise/ui`'s `Input` (which exposes no `multiline`) — a documented platform fork. Under jsdom
+#      `multiline` is inert; on device it decides whether Return inserts a newline or dismisses the keyboard,
+#      which is the difference between a two-line paste and a one-line one.
+#   2. THE POLL ADVANCES WHILE THE APP IS FOREGROUNDED. TanStack's `focusManager` is wired to `AppState` on
+#      this platform (`src/query/connectivity.ts`), so the refetch loop is gated on something jsdom does not
+#      model at all. A job that never leaves "Reading your ingredients…" on device is invisible everywhere else.
+#   3. THE ROW CONTROLS ARE REACHABLE BY A THUMB. Every review row stacks a status, a proposal, a reason list
+#      and an edit control inside one bordered box. Under jsdom every element is "visible" and hit-testing is
+#      a fiction.
+#
+# Assumes an authenticated session (auth runs first in CI ordering) and the app pointed at a seeded recipe
+# API (EXPO_PUBLIC_RECIPE_API_URL) whose parse worker actually lands the two lines below.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+# U34's dial DISCLOSES its destinations; U9 is the second one, which is the whole reason that shape was
+# chosen over the plain button it replaced.
+- tapOn: 'New recipe'
+- tapOn: 'Paste an Ingredient List'
+
+- assertVisible: 'Paste your ingredients'
+
+# The placeholder, not the label: `ParsePasteForm.native.tsx` renders the visible label as a separate node
+# from the field, exactly as `@commise/ui`'s `Input` does — so flows tap the placeholder, as the auth flows do.
+- tapOn: '2 cups flour'
+- inputText: "2 cups flour\n1 tsp salt"
+
+# The count comes from the SHARED splitter, so this also asserts that a device paste really produced two
+# lines rather than one — see reason 1 above.
+- assertVisible: '2 lines ready'
+- tapOn: 'Read my ingredients'
+
+# ⛔ THE POLL, not a tap. Nothing between here and the settled state touches the screen, so a surface that
+# rendered only its first `202` response fails here. `extendedWaitUntil`, never a fixed sleep: a parse job
+# fans out one Lambda per line and its real duration is not a constant this flow may assume.
+- extendedWaitUntil:
+      visible: 'Your ingredients'
+      timeout: 60000
+- extendedWaitUntil:
+      visible: '2 of 2 lines read'
+      timeout: 60000
+
+# The proposals a cook came for, and the row labels assistive tech announces.
+- assertVisible: 'Line 1'
+- assertVisible: 'Line 2'
+
+# ⛔ A SETTLED job offers NO retry — the control re-drives exactly the `failed_retryable` population, so on
+# a complete job it provably does nothing. This is the assertion that catches it being rendered anyway.
+- assertNotVisible: 'Try the unfinished lines again'
+
+# The per-line edit affordance, reachable by a thumb (reason 3) and re-driving ONE line rather than the job.
+- scrollUntilVisible:
+      element: 'Edit line 1'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit line 1'
+- assertVisible: 'Corrected line'
+- tapOn: 'Cancel'
+- assertNotVisible: 'Corrected line'
+
+# Abandoning the job returns to the paste form — the one navigation this screen reports upward.
+- scrollUntilVisible:
+      element: 'Start over'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Start over'
+- assertVisible: 'Paste your ingredients'

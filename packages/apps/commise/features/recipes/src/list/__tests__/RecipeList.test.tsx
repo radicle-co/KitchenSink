@@ -110,6 +110,40 @@ describe('RecipeList (web) — chrome', () => {
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
 
+    it('offers NO paste destination when the host supplies none — absence removes it, not disables it', async () => {
+        // ⛔ A host with no paste route (none existed before plan U9, and the contract must survive one)
+        // must not render a menu entry that goes nowhere. Rendering it disabled would be worse: a control
+        // that looks reachable and is not.
+        const user = userEvent.setup();
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(screen.getByRole('menuitem', { name: 'Create from Scratch' })).toBeTruthy();
+        expect(screen.queryByRole('menuitem', { name: 'Paste an Ingredient List' })).toBeNull();
+    });
+
+    it('opens the paste surface from the dial’s SECOND destination (plan U9)', async () => {
+        const user = userEvent.setup();
+        const onPasteIngredients = vi.fn();
+        renderList({ status: 'ready', recipes: threeRecipes, onPasteIngredients });
+
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
+
+        expect(onPasteIngredients).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps "Create from Scratch" FIRST — the primary path must not move when a destination is added', async () => {
+        const user = userEvent.setup();
+        renderList({ status: 'ready', recipes: threeRecipes, onPasteIngredients: vi.fn() });
+
+        await user.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        const labels = screen.getAllByRole('menuitem').map((item) => item.textContent);
+        expect(labels).toEqual(['Create from Scratch', 'Paste an Ingredient List']);
+    });
+
     it('lands on the create surface when the dial’s destination is chosen', async () => {
         // Driven STATEFULLY rather than with a bare `vi.fn()`: a spy proves a handler ran, not that anything
         // downstream happened. Here choosing the destination actually swaps the surface, which is the thing

@@ -254,6 +254,35 @@ export function isSourceUnavailableError(error: unknown): error is SourceUnavail
 }
 
 /**
+ * The parse job's 24-hour TTL has passed — a `409 PARSE_JOB_EXPIRED` from `POST /{id}/retry` or
+ * `PATCH /{id}/lines/{lineIndex}` (plan U9).
+ *
+ * ⛔ ITS OWN TYPE, on exactly the reasoning that split {@link SourceBusyError} from
+ * {@link SourceUnavailableError}: the surfaces render different sentences and offer different controls. Every
+ * other failure on this resource is worth trying again; an expired job is not — the row is terminal (the
+ * aggregate rule's `WHERE status IN ('running','partial')` guard means a late landing cannot even reopen it),
+ * so the only remedy is pasting the block afresh. Left as a bare {@link UnexpectedResponseError}, a surface
+ * could only tell by string-comparing `.code`, which is precisely the unvalidated read `errorForCode` exists
+ * to replace.
+ *
+ * ⚠️ A `GET` NEVER raises this. The service answers an expired job's read `200` with `status: 'expired'`, so
+ * the poll observes expiry as DATA and only a mutation observes it as a refusal. A surface that handled the
+ * error alone would show a cook a live-looking job until they touched it.
+ */
+export class ParseJobExpiredError extends RecipeServiceClientError {
+    public constructor(message = 'This parse job has expired') {
+        super(message, 409, 'PARSE_JOB_EXPIRED');
+        this.name = 'ParseJobExpiredError';
+        Object.setPrototypeOf(this, ParseJobExpiredError.prototype);
+    }
+}
+
+/** Type guard for {@link ParseJobExpiredError}. */
+export function isParseJobExpiredError(error: unknown): error is ParseJobExpiredError {
+    return error instanceof ParseJobExpiredError;
+}
+
+/**
  * The body the CALLER built does not satisfy the request schema the service publishes, so the request was
  * never sent (ADR-0014, outbound half).
  *

@@ -25,10 +25,18 @@ export type { RecipeServiceClientOptions, TokenSource } from './client.js';
 export {
     collectionQueries,
     ingredientQueries,
+    parseJobIsLive,
+    parseJobQueries,
     recipeProjections,
     recipeQueries,
+    DEFAULT_PARSE_JOB_POLL_INTERVAL_MS,
+    PARSE_JOB_SETTLING_POLL_INTERVAL_MS,
     NUTRITION_BATCH_DEADLINE_MS,
 } from './queries.js';
+
+// The query-key factory. Exported from the main barrel (not only the React-only `./hooks` subpath) because a
+// key is a plain value: a non-React caller inspecting or seeding the cache needs it without pulling in hooks.
+export { recipeServiceKeys } from './queries.js';
 
 export {
     BadRequestError,
@@ -37,7 +45,13 @@ export {
     SourceUnavailableError,
     ForbiddenError,
     GoneError,
+    // ⚠️ NOT previously on the barrel, which left the one failure a caller can FIX unnameable outside this
+    // package: `InvalidRequestError` means the body this client was handed is illegal per the published
+    // contract and NO request went out — a caller bug, distinct from the server's `400`, and the only one
+    // where retrying the same body cannot work (see the three-way distinction in `errors.ts`).
+    InvalidRequestError,
     NotFoundError,
+    ParseJobExpiredError,
     PullDriftError,
     RecipeServiceClientError,
     UnauthorizedError,
@@ -49,7 +63,9 @@ export {
     isSourceUnavailableError,
     isForbiddenError,
     isGoneError,
+    isInvalidRequestError,
     isNotFoundError,
+    isParseJobExpiredError,
     isPullDriftError,
     isRecipeServiceClientError,
     isUnauthorizedError,
@@ -101,6 +117,12 @@ export type {
 // Wire shapes owned by the GENERATED contract package (authored as zod in the recipe service). Re-exported
 // under their existing names so this barrel's public surface is unchanged for its ~121 consumer files.
 export type {
+    ParseJobLineStatus,
+    ParseJobLineView,
+    ParseJobResponse,
+    ParseJobStatus,
+    ParseProposal,
+    ParseProposalFood,
     RecipeNutritionResponse,
     RecipeNutritionState,
     RecipeSearchFacets,

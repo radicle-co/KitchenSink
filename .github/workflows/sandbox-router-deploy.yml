@@ -78,8 +78,46 @@ jobs:
                           echo "Per-PR KVS routes are lost with the old store and re-register on each PR's next sync.";
                       } >> "$GITHUB_STEP_SUMMARY"
                   fi
+            # ⛔ THE STEP THAT WAS MISSING, and its absence is the third instance of a failure this repo has
+            # already paid for twice. `infra:deploy` runs the router app under `npx tsx`, and that app
+            # imports `@kitchensink/infra-security`, which exports `./dist` — deliberately, because the
+            # COMPILED CDK apps run under plain `node`, whose type-stripping resolves a `.js` specifier
+            # inside a `.ts` file literally rather than through `extensionAlias` (ADR-0013). `dist/` is
+            # gitignored and no `prepare` script builds it, so on a fresh runner `npm ci` leaves it absent
+            # and the deploy dies on `ERR_MODULE_NOT_FOUND … infra-security/dist/index.js` — the same error,
+            # verbatim, that broke every sandbox food deploy when `infra-alb` landed.
+            #
+            # ⚠️ `cdkEntrypointBuildOrder.test.ts` did not catch it, and could not: it reads ONE workflow
+            # (`sandbox-deploy.yml`) and matches a literal `npx tsx …/infra/bin/*.ts` in a `run:` block,
+            # while this job's tsx invocation lives inside `@commise/web`'s own `infra:deploy` script. That
+            # guard's scope is worth widening — but its predicate demands the `^...` spelling specifically,
+            # and prod-deploy legitimately uses `--filter=<pkg>` (turbo's `build` already `dependsOn:
+            # ["^build"]`), so widening it as-is would manufacture false findings. Recorded rather than
+            # bodged.
+            #
+            # ⛔ The filter is the DEPENDENCY CLOSURE, never a named package: a hand-written list of
+            # dist-exporting dependencies is a second representation of the dependency graph, and it is
+            # exactly what went stale last time. `^...` asks turbo for the real one.
+            - name: Build the workspace packages the router app imports
+              run: npx turbo run build --filter='@commise/web^...'
             - name: Deploy router stack (bundles the function, then cdk deploy)
               run: npm run infra:deploy --workspace=@commise/web
+            # ⛔ `cdk deploy` exiting 0 proves the stack CONVERGED, not that the router works — and this is a
+            # SINGLETON whose silent absence once left every web preview NXDOMAIN for three weeks with no
+            # signal. The drift check above catches "the stack is gone"; this catches the half-states it
+            # cannot see, which for CloudFront is the likelier failure: a distribution or a function left at
+            # its PREVIOUS revision by a rollback, so the router keeps serving the old routing table while
+            # the deploy reports success.
+            #
+            # ⚠️ Run from the repo ROOT with a repo-relative app path, unlike the deploy above, whose `--app`
+            # string lives in `@commise/web`'s manifest and is package-relative. The router app resolves its
+            # bundle from `import.meta.url`, so it is cwd-independent and both spellings synthesise the same
+            # stack. `deployVerificationCoverage.test.ts` resolves the manifest to compare them — a weaker
+            # check than the byte-identical one the other workflows get, which is why this comment says so.
+            - name: Verify the router deployment — every resource and handler
+              run: |
+                  bash .github/scripts/verify-deployment.sh verify "${AWS_REGION}" \
+                    "npx tsx packages/apps/commise/web/infra/bin/app.ts"
             - name: Seed the project-wide Vercel bypass key into KVS
               env:
                   VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}

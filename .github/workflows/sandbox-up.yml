@@ -118,6 +118,15 @@ jobs:
                     --payload '{"action":"start"}' --cli-binary-format raw-in-base64-out \
                     /tmp/sandbox-start.json >/dev/null
                   echo "result: $(cat /tmp/sandbox-start.json)"
+                  # ⛔ FIRST: did the function run at all? `aws lambda invoke` exits 0 when the FUNCTION
+                  # THREW — the failure is in the response, not in the status — so the phrase check below
+                  # would find no match in an error payload and this step would report success for a
+                  # scheduler that never started anything. Same class as the food migration invoke that
+                  # inspected nothing at all.
+                  if grep -q '"errorType"' /tmp/sandbox-start.json; then
+                      echo '::error::the sandbox scheduler threw — the shared tier was NOT started, so sign-in for this preview will fail. See the payload above.' >&2
+                      exit 1
+                  fi
                   # A service the scheduler could not restore is reported, not swallowed: `runStart` skips a
                   # service with no stored prior count rather than guessing, and that skip is exactly the
                   # state in which sign-in silently fails.

@@ -9,5 +9,11 @@
         "rootDir": "."
     },
     "include": ["bin/**/*.ts", "lib/**/*.ts", "__tests__/**/*.ts"],
-    "exclude": ["node_modules", "dist"]
+    // ⚠️ `smoke/` and its suite are excluded from THIS project, and covered by the package project
+    // (`../tsconfig.json`) instead. `infra/smoke/deployedSmoke.ts` validates the engine's answer with the
+    // package's OWN zod — `parseEngineResponse`, imported from `src/` — which is the point of it and not
+    // negotiable: a second description of that shape in the smoke would be the drift ADR-0014 and ADR-0025
+    // are both written around. `src/` sits OUTSIDE this project's `rootDir` of `infra`, so compiling it here
+    // is `TS6059`. The package project's rootDir is the package root, which contains both.
+    "exclude": ["node_modules", "dist", "smoke", "__tests__/deployedSmoke.test.ts"]
 }

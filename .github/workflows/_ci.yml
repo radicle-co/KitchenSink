@@ -478,6 +478,39 @@ jobs:
             # `set -f` disables that, while leaving the word splitting that turns one string into several
             # `--filter` arguments. Quoting `"$TEST_FILTER"` instead would pass the whole thing as a SINGLE
             # argument, which turbo reads as one malformed filter and answers with zero tasks.
+            # ⛔ THE `services` GROUP RUNS A GUARD THAT OBSERVES A REAL PYTHON INTERPRETER, AND A GUARD THAT
+            # CANNOT RUN MUST NOT REPORT GREEN.
+            #
+            # `crfEngineVersionParity.test.ts` (recipe-workers) asserts that the CRF engine version
+            # `RecipeWorkersStack` injects matches what the engine ACTUALLY reports. Its strongest assertion
+            # reads that version out of a live interpreter — an OBSERVATION of the engine rather than a claim
+            # about source text — and it skips cleanly when the engine is absent, which is the right shape
+            # for a laptop and the wrong shape for CI: with no engine installed the suite quietly degrades to
+            # comparing two strings and still passes.
+            #
+            # That is precisely how the guard it REPLACED failed. `crossAppParserIdentity.test.ts` passed for
+            # years while comparing two agreeing copies of the same wrong string: the stack injected
+            # `CRF_ENGINE_VERSION='ingredient-parser-nlp==2.3.0'` while the engine reports `'2.3.0'`, compared
+            # with strict `!==`, so the deployed CRF leg would have refused every single invocation. Source
+            # text agreed with source text; nobody had asked the engine.
+            #
+            # So absence is made LOUD here rather than invisible. The install is derived from
+            # `requirements.txt` (never a literal pin — see the cookbook-import step's note) and uses
+            # `python3 -m pip` so it lands in the interpreter the assertion then imports from.
+            - name: Install the CRF ingredient parser (the engine the parity guard observes)
+              if: matrix.group == 'services'
+              run: python3 -m pip install --user --requirement packages/services/ingredient-parser/requirements.txt
+
+            - name: Assert the CRF engine is importable — the parity guard must not silently skip
+              if: matrix.group == 'services'
+              run: |
+                  set -uo pipefail
+                  if ! version=$(python3 -c "import importlib.metadata as m; print(m.version('ingredient-parser-nlp'))" 2>&1); then
+                      echo "::error::the CRF engine is not importable on this runner (${version}). crfEngineVersionParity.test.ts would DEGRADE to comparing source text against source text and still report green — which is exactly how its predecessor missed a version mismatch that would have refused every CRF invocation. Fix the install step above; do not let this job pass without the engine." >&2
+                      exit 1
+                  fi
+                  echo "CRF engine importable: ingredient-parser-nlp ${version}"
+
             - name: Run unit tests (${{ matrix.group }})
               env:
                   TEST_FILTER: ${{ matrix.filter }}
@@ -1132,7 +1165,14 @@ jobs:
               # ⚠️ PINNED to the version the comparison was measured against. The CRF model file ships with the
               # package, so an unpinned upgrade silently changes what "the CRF parser said" means and would
               # move every agreement figure in the report without a line of our code changing.
-              run: pip install --user 'ingredient-parser-nlp==2.3.0'
+              #
+              # ⛔ The pin is DERIVED from `requirements.txt`, not restated here. ADR-0025 calls that pin
+              # load-bearing three times over and names the places it must agree; a literal copy in YAML is a
+              # fourth, kept in step by memory. `--requirement` reads the one the deployed asset is built
+              # from, so a version bump cannot leave CI measuring against the previous model.
+              #
+              # ⛔ `python3 -m pip`, not bare `pip`: this must land in the interpreter that later IMPORTS it.
+              run: python3 -m pip install --user --requirement packages/services/ingredient-parser/requirements.txt
             - name: Run cookbook-import integration tests
               run: npm run test:integration --workspace=@kitchensink/cookbook-import
             # The CRF engine's own deployable (ADR-0025). Two tiers no unit test can stand in for: the

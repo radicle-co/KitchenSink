@@ -18,10 +18,11 @@
  * much ("bare `CREATE TABLE` … so they must run against a clean schema"). The guarantee comes entirely from
  * the `schema_migrations` LEDGER: a recorded name is skipped, and the ledger insert shares the migration's
  * transaction so a partial apply can never be recorded as done. Hardening every file with `IF NOT EXISTS`
- * would be redundant noise against the real mechanism — and worse than redundant, because four historical
- * migrations carry destructive DML that is currently unreachable ONLY because a `CREATE TABLE` /
- * `ADD COLUMN` above it errors first (`migrationDestructiveDml.test.ts` in `@kitchensink/infra-global`
- * guards the two that were unqualified).
+ * would be redundant noise against the real mechanism — and worse than redundant, because a handful of
+ * historical migrations carry destructive DML that is unreachable on a re-run ONLY because a `CREATE TABLE`
+ * / `ADD COLUMN` / `RENAME COLUMN` above it errors first, so hardening the loud half UNMASKS the quiet one.
+ * The two that were unqualified whole-table wipes were scrubbed outright on the owner's ruling (2026-09-02);
+ * `migrationDestructiveDml.test.ts` in `@kitchensink/infra-global` now fails any migration carrying one.
  *
  * That makes the ledger a load-bearing claim rather than an implementation detail, so it is asserted three
  * ways here: the second run applies nothing, the schema is byte-identical across it, and REMOVING a ledger

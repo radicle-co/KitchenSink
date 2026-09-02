@@ -15,10 +15,27 @@
 -- a create-time fact, like `source_line` itself, and `NULL` means "no parse produced one": the worker
 -- writes NO memo for such a line, never one at the dead line grain.
 --
--- ⛔ THE DELETE IS THE OTHER HALF OF THE RULING, not housekeeping. Every existing memo row is keyed at the
--- line grain and is unreachable by construction; the ruling was re-grain + delete (rebuilding costs ~$0.02
--- of verification) rather than re-key-in-place (a reparse-driven migration script for rows only a local
--- measurement database holds — no deployed environment has ever written a memo).
+-- THE MEMO RESET WAS THE OTHER HALF OF THE RULING, and it is HISTORY now — see the scrub note below.
+-- Every memo row predating this migration is keyed at the line grain and unreachable by construction; the
+-- ruling was re-grain + delete (rebuilding costs ~$0.02 of verification) rather than re-key-in-place (a
+-- reparse-driven migration script for rows only a local measurement database holds — no deployed
+-- environment has ever written a memo).
+--
+-- ⛔ SCRUBBED 2026-09-02 (owner ruling — "I don't want hidden bombs in the app"). This file used to end with
+-- an UNQUALIFIED `DELETE FROM ingredient_resolution_memos;`. It was safe only by ACCIDENT: the runner skips
+-- a file whose name is in `schema_migrations`, and on a re-run with that row cleared the `ADD COLUMN` above
+-- would error first and roll the DELETE back with it. That made an otherwise-reasonable edit — adding
+-- `IF NOT EXISTS` to the ADD COLUMN — silently turn a re-run into a whole-table wipe, with the guard being
+-- a line the editor was not looking at.
+--
+-- ⚠️ Removing it is behaviour-preserving on EVERY reachable path, verified rather than assumed:
+--   * `schema_migrations` is `name TEXT PRIMARY KEY` with NO checksum (see `src/lambdas/migrate/handler.ts`)
+--     and the skip is a pure name match, so editing this body cannot reach a database that already ran it;
+--   * on a FRESH database the table is empty when this file runs — no migration inserts a memo (only the
+--     deployed application writes one, and 0021 creates the table 20 migrations earlier). MEASURED: 0 rows
+--     immediately before this file, over the full ordered set.
+-- The reset therefore ran exactly once, everywhere it was ever going to, before this edit.
+-- `migrationDestructiveDml.test.ts` now fails any migration carrying an unqualified DELETE/UPDATE.
 --
 -- PERSONAL DATA: same posture as `source_line` one column over — text a user's source stated, on
 -- `recipe_ingredients`, reached by the account-erasure worker via the recipe cascade. ADR-0027 rules the
@@ -29,5 +46,3 @@ ALTER TABLE recipe_ingredients
 
 COMMENT ON COLUMN recipe_ingredients.source_phrase IS
     'The ingredient phrase the parse lifted out of source_line — the memo tier''s key grain (0041). NULL: authored line, or created before 0041.';
-
-DELETE FROM ingredient_resolution_memos;

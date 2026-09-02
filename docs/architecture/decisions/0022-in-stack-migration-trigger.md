@@ -288,13 +288,26 @@ runners, discovered by handler path) and demonstrated by
 statement by statement, **zero** of the 68 migrations across the three services would silently double-apply
 data; 51 would error loudly and 17 are already re-runnable. The guarantee is entirely `schema_migrations`,
 never the SQL — which is why the files are deliberately bare `CREATE TABLE` and must stay that way. ⛔ Four
-files carry destructive DML that is unreachable only because a `CREATE TABLE`/`ADD COLUMN`/`RENAME COLUMN`
-above it errors first and takes it down in the same rollback; **two of those are unqualified whole-table
+files carried destructive DML that was unreachable only because a `CREATE TABLE`/`ADD COLUMN`/`RENAME COLUMN`
+above it errors first and takes it down in the same rollback; **two of those were unqualified whole-table
 `DELETE`s** (`recipe-service/…/0041_ingredient_source_phrase.sql`,
 `food-service/…/0002_fetch_requesters_rekey.sql`). Adding `IF NOT EXISTS` to the loud half does not make
-those files idempotent — it UNMASKS the wipe. Both are now recorded, with what protects them, in
-`packages/infra/global/__tests__/migrationDestructiveDml.test.ts`, which also fails any NEW migration
-carrying an unqualified `DELETE`/`UPDATE`.
+those files idempotent — it UNMASKS the wipe.
+
+⛔ **Both unqualified wipes were SCRUBBED on 2026-09-02** (owner ruling: _"I don't want hidden bombs in the
+app"_), reversing this update's first draft, which recorded them in place on the grounds that they could not
+fire today. The ruling is the better call: a guard an editor defeats by making an otherwise-reasonable change
+to a line they are not looking at is a bomb whether or not it is currently armed, and a comment does not
+disarm it. Behaviour-preserving on every reachable path, verified rather than argued — `schema_migrations` is
+`name TEXT PRIMARY KEY` with **no checksum** and the skip is a pure name match, so a body edit cannot reach a
+database that already ran the file; and on a fresh database the target tables hold **0 rows** when the file
+runs (no migration inserts into any of them). Both services' schemas dump byte-identical to their pre-scrub
+baseline. The four qualified statements are untouched.
+`packages/infra/global/__tests__/migrationDestructiveDml.test.ts` now enforces the rule with **no recorded
+exceptions at all** — it fails any migration carrying an unqualified `DELETE`/`UPDATE`, verified by
+reintroducing one into a real migration file. ⚠️ Its liveness check had to be fixed in the same change: it
+read the raw file, so the scrub notes _quoting_ the removed statements kept it green — a text gate satisfied
+by prose, the exact trap `schemaMigrationBarrier.test.ts` records. It now matches parsed statements only.
 
 **3. The audit table's counts had rotted, and the missing gate is now built.** `RecipeWorkersStack` carries
 **ten** DB-touching Lambdas, not the six recorded below — the derivation swept the four that landed since

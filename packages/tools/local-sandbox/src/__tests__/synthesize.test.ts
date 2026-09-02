@@ -21,6 +21,8 @@ const app = (name: string): CdkApp => ({
     packageDir: `packages/${name}`,
     script: 'synth',
     appCommand: 'npx tsx bin/app.ts',
+    // Nothing here is about the local-synth skip; a fixture app declares none.
+    localSynthSkip: undefined,
 });
 
 /**

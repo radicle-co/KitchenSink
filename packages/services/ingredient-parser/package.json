@@ -36,6 +36,11 @@
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
+    "kitchensink": {
+        "localSandbox": {
+            "skipSynth": "its `infra:synth` runs `bundle:lambda` first, which shells out to `python3 -m pip` for ~90 MB of arm64 wheels plus the 1.6 MB CRF model (ADR-0025). A local sandbox must not require a Python toolchain or network to START, and this stack contributes nothing a local run stands up: `awsResources.ts` creates no `AWS::Lambda::Function`, and `localCrfEngine.ts` runs `src/handler.py` directly. Set LOCAL_SANDBOX_SYNTH_ALL=1 to include it."
+        }
+    },
     "dependencies": {
         "aws-cdk-lib": "*",
         "constructs": "*",

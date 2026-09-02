@@ -111,7 +111,39 @@
 #         record is `zizmorGateFilters.test.ts`'s `DECLARED_IGNORES` ratchet, which already read 14 + 5 = 19;
 #         this prose had drifted from it. The `16` → `18` half is the PG 16 → 18 upgrade (plan U13).
 #
-# CURRENT MEASUREMENT (2026-08-11, offline, after the Environments work below): **22 findings — 18 declared
+# REGRESSION + REPAIR (2026-09-02, PR #91). The gate went RED and stayed red: **12 shown findings**, all
+#   of them in the two workflows the on-demand-sandbox work added AFTER the burn-downs above —
+#   `sandbox-up.yml` (2026-08-27) and `sandbox-reconcile.yml` — which re-introduced four classes this file
+#   records as CLOSED. That is the ledger earning its keep: every finding was a known-and-solved shape, so
+#   the repair was to apply this repo's existing conventions rather than to decide anything new.
+#     • unpinned-uses 4 → 0. Both files took `actions/checkout@v4` and
+#       `aws-actions/configure-aws-credentials@v4`; now the same SHAs every sibling uses
+#       (`d23441a4… # v6.1.0`, `7474bc46… # v4.3.1`).
+#     • artipacked 2 → 0. Both checkouts take `persist-credentials: false`. Verified the precondition the
+#       2 DECLARED exceptions above turn on: NEITHER workflow pushes, fetches or otherwise talks to
+#       `origin` (and neither runs `dorny/paths-filter`), so nothing needed the credential — these are
+#       fixes, not new declared ignores, and the declared count is unchanged.
+#     • excessive-permissions 3 → 0. Both held their WRITE grants (`pull-requests: write`, and
+#       `actions: write` in sandbox-up) at the WORKFLOW level. Moved to the single job that uses each,
+#       so a job added later cannot silently inherit them — the same resolution the 2026-08-10 persona
+#       burn-down applied to sandbox-web-preview.yml, and the reason the pedantic tier is worth running.
+#     • template-injection 3 → 0. Three `${{ … }}` interpolations sat inside `run:` bodies, restoring the
+#       exact class the 2026-08-08 burn-down drove to zero. All three now arrive through `env:`.
+#       ⚠️ `sandbox-reconcile`'s is the one to read before touching: `EXPIRED_TOKENS` is referenced
+#       UNQUOTED in its `for` loop ON PURPOSE — it is a space-separated `pr-{N}` list the discovery step
+#       builds, and it must word-split into one iteration per token.
+#   ⚠️ THE REAL LESSON IS THE GAP, NOT THE FINDINGS. This gate is a REQUIRED check that had been failing on
+#   every commit for days while work continued around it, which is the same "a check nobody can read is a
+#   check nobody reads" failure that `deployGateStepGuards.test.ts` was written for on the same day. A red
+#   gate is only a gate while someone acts on it.
+#
+# CURRENT MEASUREMENT (2026-09-02, offline, after the repair above): **38 findings — 22 declared per-site
+#   ignores, 16 suppressed, 0 shown at EVERY severity.** `--persona pedantic --min-severity informational
+#   --strict-collection .github/` exits 0. The growth from the 2026-08-11 line below is workflow growth
+#   (more `services:` containers and more checkouts), not a weakening: the declared ignores are still only
+#   `unpinned-images` + the 2 deliberate `artipacked`, and nothing new was annotated away to reach 0.
+#
+# PRIOR MEASUREMENT (2026-08-11, offline, after the Environments work below): **22 findings — 18 declared
 #   per-site ignores (16 unpinned-images + 2 artipacked), 4 suppressed, 0 shown at EVERY severity.**
 #   `--persona pedantic --min-severity informational --strict-collection` exits 0. The floor is now
 #   `informational` rather than `low`, which removes the severity filter entirely: at the pedantic persona

@@ -18,10 +18,11 @@ on:
                 required: true
                 type: string
 
+# ⚠️ Only `contents: read` is workflow-level. The two WRITE grants sit on the `start` job instead
+# (2026-09-02): at the pedantic persona zizmor flags a workflow-level write because a job added later
+# inherits it silently — the same resolution the 2026-08-10 burn-down applied to sandbox-web-preview.
 permissions:
-    contents: read
-    pull-requests: write # apply the `sandbox-up` label that carries intent
-    actions: write # dispatch the deploy
+    contents: read # checkout of this repo's workflow scripts
 
 concurrency:
     # One start at a time per PR. Two concurrent presses would race on the expiry stamp.
@@ -32,16 +33,24 @@ jobs:
     start:
         name: Start sandbox for PR #${{ inputs.pr }}
         runs-on: ubuntu-latest
+        permissions:
+            contents: read # checkout of this repo's workflow scripts
+            pull-requests: write # apply the `sandbox-up` label that carries intent
+            actions: write # dispatch the deploy
         env:
             GH_TOKEN: ${{ github.token }}
             PR: ${{ inputs.pr }}
             AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
             DEFAULT_AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No job here pushes, fetches or otherwise talks to `origin`, so the checkout credential
+                  # would only sit on disk for later steps to reach (zizmor: artipacked).
+                  persist-credentials: false
             # Needed since this workflow started waking the shared tier: resolving the scheduler function's
             # CloudFormation export and invoking it are both AWS calls.
-            - uses: aws-actions/configure-aws-credentials@v4
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -71,10 +80,12 @@ jobs:
                   .github/scripts/sandbox-lifetime.sh expires-at "$(date +%s)" >>"$GITHUB_OUTPUT"
 
             - name: Declare intent
+              env:
+                  EXPIRES_AT_ISO: ${{ steps.expiry.outputs.expiresAtIso }}
               run: |
                   set -euo pipefail
                   gh pr edit "$PR" --add-label sandbox-up
-                  echo "PR #${PR} labelled sandbox-up; sandbox expires ${{ steps.expiry.outputs.expiresAtIso }}"
+                  echo "PR #${PR} labelled sandbox-up; sandbox expires ${EXPIRES_AT_ISO}"
 
             # ⛔ WAKE THE SHARED TIER FIRST — a preview is not self-contained.
             #
@@ -171,10 +182,12 @@ jobs:
                   done
 
             - name: Summary
+              env:
+                  EXPIRES_AT_ISO: ${{ steps.expiry.outputs.expiresAtIso }}
               run: |
                   {
                       echo "### Sandbox starting for PR #${PR}"
                       echo
-                      echo "- Expires **${{ steps.expiry.outputs.expiresAtIso }}** (midnight America/New_York)"
+                      echo "- Expires **${EXPIRES_AT_ISO}** (midnight America/New_York)"
                       echo "- Press this button again to extend it or to bring it back after it is reaped."
                   } >>"$GITHUB_STEP_SUMMARY"

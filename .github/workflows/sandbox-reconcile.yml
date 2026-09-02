@@ -20,9 +20,10 @@ on:
         - cron: '17 * * * *' # hourly, off the hour — the top of the hour is GitHub's most contended slot
     workflow_dispatch:
 
+# ⚠️ Only `contents: read` is workflow-level; the write grant sits on the `reconcile` job instead
+# (2026-09-02), so a job added here later does not silently inherit the ability to edit PRs.
 permissions:
-    contents: read
-    pull-requests: write # remove the `sandbox-up` label from a reaped PR
+    contents: read # checkout of the teardown/scan scripts this workflow runs
 
 concurrency:
     group: sandbox-reconcile
@@ -32,13 +33,20 @@ jobs:
     reconcile:
         name: Converge sandboxes to their intent
         runs-on: ubuntu-latest
+        permissions:
+            contents: read # checkout of the teardown/scan scripts this workflow runs
+            pull-requests: write # remove the `sandbox-up` label from a reaped PR
         env:
             GH_TOKEN: ${{ github.token }}
             AWS_REGION: ${{ vars.DEFAULT_AWS_REGION }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: aws-actions/configure-aws-credentials@v4
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # Nothing here pushes or fetches from `origin` — the scripts only call AWS and the
+                  # GitHub API — so the checkout credential would just sit on disk (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -98,11 +106,17 @@ jobs:
             # `sandboxReclamationReachability.test.ts` analyzer 3.
             - name: Tear down expired sandboxes
               if: ${{ !cancelled() && steps.find.outputs.expired != '' }}
+              env:
+                  # Read through the environment, never interpolated into the shell body: the repo-wide
+                  # invariant is that no `${{ … }}` appears in a `run:` (zizmor: template-injection).
+                  # ⚠️ Deliberately UNQUOTED at the `for` below — this is a space-separated token list the
+                  # discovery step built, and it must word-split into one iteration per `pr-{N}`.
+                  EXPIRED_TOKENS: ${{ steps.find.outputs.expired }}
               run: |
                   set -uo pipefail
                   chmod +x .github/scripts/teardown-sandbox-pr.sh
                   failed=0
-                  for token in ${{ steps.find.outputs.expired }}; do
+                  for token in ${EXPIRED_TOKENS}; do
                       echo "::group::teardown ${token}"
                       .github/scripts/teardown-sandbox-pr.sh "$token" || { echo "::error::teardown failed for ${token}"; failed=1; }
                       pr="${token#pr-}"

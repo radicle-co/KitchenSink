@@ -29,11 +29,20 @@ function runnerReturning(answer: unknown): { run: LocalCrfEngineRunner; requests
     return { run, requests };
 }
 
-const engineFor = (run: LocalCrfEngineRunner, version = '2.3.0') =>
+// ⛔ The DECLARED value is the pinned form `name==version`, while the engine REPORTS a bare version — that
+// asymmetry is the contract (`crfInvoke` normalizes the report up to the pin, so both CRF adapters key
+// `ingredient_parse_cache` with one spelling). `parseEnginePin` rejects a bare string at construction, so a
+// bare default here would fail every case in this file for a reason that has nothing to do with transport.
+const engineFor = (run: LocalCrfEngineRunner, version = 'ingredient-parser-nlp==2.3.0') =>
     createCrfInvokeEngine({
         functionName: 'local-ingredient-parser',
         client: createLocalCrfLambdaClient(run),
         declaredEngineVersion: version,
+        // This suite is about the local TRANSPORT, not the availability signal, so the emitter is a sink.
+        // `crfInvoke`'s own suite owns the metric's behaviour; duplicating it here would assert it twice
+        // and let one copy drift.
+        stage: 'local',
+        emit: () => {},
     });
 
 describe('the local CRF transport', () => {
@@ -69,16 +78,22 @@ describe('the local CRF transport', () => {
         expect(answer).toMatchObject({ raw: '2 cups flour, sifted', unit: 'cup' });
     });
 
-    it('⛔ a runner FAILURE is absence for the whole chunk, never an invented parse', async () => {
+    it('⛔ a runner FAILURE REJECTS — it is not a per-line `unavailable`', async () => {
         const run: LocalCrfEngineRunner = async () => ({ ok: false, reason: 'python3: command not found' });
 
-        // ADR-0026 §3: an engine that could not answer is ABSENCE, and the pipeline reads that as
-        // `single-engine`. A local run on a machine with no Python must degrade to that, not to a
-        // `ParsedLine` with empty fields and not to a crash.
-        expect(await engineFor(run).parse(['2 cups flour', '1 egg'])).toEqual([
-            { unavailable: true },
-            { unavailable: true },
-        ]);
+        // ⚠️ REWRITTEN 2026-09-02 to prove the NEW behaviour. This case previously asserted
+        // `[{unavailable:true}, {unavailable:true}]`. `crfInvoke` now REJECTS when an invocation produced no
+        // engine answer at all, because the two facts it used to conflate are different: a per-line
+        // `status: 'failed'` means the engine read the line and declined it (the leg WORKS), whereas no
+        // answer at all means the leg is gone. Only the second must reach `onTierFailure`, which is the
+        // pipeline's ONLY channel for it — an adapter that swallows is reported nowhere, which is exactly
+        // how an undeployed CRF ran silently for weeks.
+        //
+        // ⛔ ADR-0026 §3 is NOT weakened: the pipeline still records this as ABSENCE for the comparator, and
+        // absence is still never dissent. What changed is that the pipeline can now SEE it. The rejection is
+        // also what makes the line transient rather than permanent, so an outage does not become a stored
+        // fact about an ingredient.
+        await expect(engineFor(run).parse(['2 cups flour', '1 egg'])).rejects.toThrow(/CRF|unavailable|engine/iu);
     });
 
     it('⛔ surfaces the failure through `FunctionError`, which is what the adapter reads', async () => {
@@ -109,21 +124,32 @@ describe('the local CRF transport', () => {
             ],
         });
 
-        expect(await engineFor(run, '2.3.0').parse(['x'])).toEqual([{ unavailable: true }]);
+        // ⚠️ REWRITTEN 2026-09-02 alongside the case above, and for the same reason. A version skew is a
+        // CONTRACT failure of the whole invocation, not a verdict about this line, so it rejects via the
+        // same `abandon` path and publishes the same availability datapoint. This is the case that was
+        // silently true in production: the stack declared `ingredient-parser-nlp==2.3.0` while the engine
+        // reported `2.3.0`, compared with strict `!==`, so EVERY answer was discarded — and the docstring
+        // claiming it would fail "loudly, in this function's logs" was itself the thing nobody heard.
+        await expect(engineFor(run, 'ingredient-parser-nlp==2.3.0').parse(['x'])).rejects.toThrow(
+            /version|contract|CRF/iu,
+        );
     });
 
     describe('the pinned engine version', () => {
-        it('is the BARE version, read from requirements.txt', () => {
-            // ⛔ `handler.py` reports `importlib.metadata.version("ingredient-parser-nlp")` — a bare
-            // `2.3.0` — while `requirements.txt` pins `ingredient-parser-nlp==2.3.0`. The pin is the source
-            // of truth for WHICH version; the bare form is what the engine reports. Deriving it here keeps
-            // one number in one place and still lets the adapter's check fail on a machine with the wrong
-            // engine installed.
-            expect(pinnedCrfEngineVersion()).toMatch(/^\d+\.\d+\.\d+$/u);
+        it('is the FULL PIN, matching what the deployed stack injects', () => {
+            // ⚠️ REWRITTEN 2026-09-02: this asserted the BARE version. `handler.py` still reports a bare
+            // `2.3.0` via `importlib.metadata.version(...)`, but `declaredEngineVersion` is now the pinned
+            // form on BOTH sides — the adapter parses its pin at construction and normalizes the engine's
+            // report up to it, so the two CRF adapters key `ingredient_parse_cache` with one identity
+            // instead of partitioning it. Local must hand the adapter the same spelling
+            // `CRF_ENGINE_VERSION` gives the deployed leg, or the local run exercises a different path.
+            expect(pinnedCrfEngineVersion()).toMatch(/^ingredient-parser-nlp==\d+\.\d+\.\d+$/u);
         });
 
         it('names the version requirements.txt actually pins', () => {
-            expect(pinnedCrfEngineVersion({ requirements: 'ingredient-parser-nlp==4.5.6\n' })).toBe('4.5.6');
+            expect(pinnedCrfEngineVersion({ requirements: 'ingredient-parser-nlp==4.5.6\n' })).toBe(
+                'ingredient-parser-nlp==4.5.6',
+            );
         });
 
         it('throws rather than guessing when the pin is gone', () => {

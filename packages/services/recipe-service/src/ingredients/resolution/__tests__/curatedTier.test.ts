@@ -1,5 +1,5 @@
 /**
- * Unit tests for TIER 1 — the curated-mapping tier (plan U10 / R11, R19, R22).
+ * Unit tests for THE CURATED TIER — the curated-mapping tier (plan U10 / R11, R19, R22).
  *
  * Split per the pure-`decide` / impure-adapter convention: `decideCuratedTier` is the judgement and is
  * exhaustible as a table; `createCuratedTier` is the adapter, and the only thing it can get wrong is WHICH

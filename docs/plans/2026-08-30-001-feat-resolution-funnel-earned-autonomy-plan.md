@@ -159,13 +159,44 @@ Origin R1–R13 carry verbatim (see origin doc). Plan-added, from flow analysis 
 
 ### The funnel (data flow)
 
+> ⛔ **AMENDED 2026-09-02 — the memo tier is consulted BEFORE the lexical tier, not after it.** This
+> diagram, U4's "consultation order asserted `['curated','lexical','memo']`" scenario, and R11's literal
+> "curated, lexical, knowledge base" order all predate KTD-A, and they were only coherent while R12 still
+> gave tier 2 a confidence threshold to fall through on. KTD-A removed that threshold — so under the shipped
+> order the memo tier was reachable ONLY when the catalog returned nothing at all, which made it dead for
+> every phrase the catalog can find and made AE8 ("a near-twin … resolves from the knowledge base **without
+> an LLM call**") unreachable in practice. ⛔ **Not latent** — `ingredient_resolution_memos` has a live
+> writer (`recipe-workers/src/handlers/verifyLine.ts` → `rememberAgreement`), so gate-agreed memos were
+> being overruled by catalog guesses in every stage where the gate had run. The order is now
+> `[curated, memo, lexical]`, checked against a declared evidence-class ladder rather than asserted as a
+> literal. Full argument, the rejected alternatives, and the recorded consequences (the stale-memo
+> fall-through and the change to the band-calibration sample) live in
+> `packages/services/recipe-service/src/ingredients/resolution/resolutionRegistry.ts`.
+>
+> ⛔ **AE8 IS DEFERRED IN THE SAME CHANGE, and this is the ruling most in need of confirmation.** `findMemo`
+> also answers on a trigram neighbour ≥ `MEMO_SIMILARITY_FLOOR`, and `verifiedBy` is a fact about the STORED
+> key — nobody agreed the QUERY phrase means that food. Because `pendingStateOf` withholds only
+> `tier === 'lexical'` and `pendingRedrives` covers only `ranked` evidence, promoting the memo tier would
+> have turned that near branch from nearly-unreachable into the common path, publishing unverified,
+> un-redriveable binds — KTD-A's own hole, one tier over. So `decideMemoTier` now answers on an EXACT key
+> only and defers the near branch to the lexical tier, whose binds are withheld until a verdict lands. R14's
+> "equality-only matching does not satisfy this requirement" still holds of the LOOKUP, which is unchanged.
+> Reverting the deferral requires persisting `MemoHit.match` on the resolution and teaching those two
+> predicates that a near memo withholds.
+>
+> ⚠️ **Owner rulings owed:** (1) AE8's deferral above; (2) whether deduplicating repeat phrases out of the
+> band sample is intended calibration (R17) — `bandKeyOf` keys only on `tier === 'lexical'`, so memo wins
+> contribute no band observation; (3) confirmation of this R11 amendment itself.
+
 ```mermaid
 flowchart TD
-    A[input: name or line] --> B[corrections / caches / curated]
-    B -->|miss| C[lexical tier: retrieve + rank + prior]
+    A[input: name or line] --> B[curated tier: corrections / curated mappings]
+    B -->|miss| M[memo tier: remembered verifications]
+    M -->|miss| C[lexical tier: retrieve + rank + prior]
     C -->|resolved + ranked evidence| G{decideVerification}
     B -->|hit| BIND[bind food_id]
-    C -->|no candidates| M[memo tier] --> L[llm escalation — NOT a cascade tier: the out-of-band gate path]
+    M -->|hit| BIND
+    C -->|no candidates| L[llm escalation — NOT a cascade tier: the out-of-band gate path]
     G -->|band authorized AND floors met| BIND
     G -->|else| Q[verification queue] --> V[verifyLine gate]
     V -->|agree| BIND
@@ -291,7 +322,10 @@ through the reformulation; an unknown word still passes cleanly.
 the gate, asserted in the integration test: a zero-authority lexical resolution renders `pending-verification` and unaccounted until the verdict;
 an enqueue failure leaves the line pending — the write NEVER fails — and the sweep re-drives it; an
 agree verdict flips it to counted) · empty catalog → pass · singleton → resolves with zero margin · private food
-excluded for a stranger, included for its author · consultation order asserted `['curated','lexical','memo']`.
+excluded for a stranger, included for its author · consultation order asserted `['curated','memo','lexical']`
+(⛔ AMENDED 2026-09-02 — see the funnel diagram's note; a zero-threshold tier 2 in front of tier 3 makes
+tier 3 unreachable, so the order is now derived from a declared evidence-class ladder and machine-checked
+by `resolution/__tests__/resolutionRegistry.test.ts` rather than asserted as a literal).
 **Verification:** the 14-query set through the real cascade: staples reach the gate; salt/vanilla-class
 wide-margin rows verify too (no bands earned yet).
 

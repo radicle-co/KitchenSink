@@ -197,7 +197,7 @@ export class ResolutionMappingsDal {
     }
 
     /**
-     * TIER 1's READ: the mapping in force for this phrase, for this caller.
+     * THE CURATED TIER'S READ: the mapping in force for this phrase, for this caller.
      *
      * Precedence is the caller's OWN mapping, then the global one — expressed as a sort key rather than two
      * queries so the answer comes from one indexed read and cannot disagree with itself. `created_at DESC`
@@ -432,7 +432,7 @@ export class ResolutionMappingsDal {
     }
 
     /**
-     * TIER 3's READ: the remembered resolution for this phrase — exact key first, nearest neighbour second.
+     * THE MEMO TIER'S READ: the remembered resolution for this phrase — exact key first, nearest neighbour second.
      *
      * R14 forbids equality-only matching, so the neighbour half is not optional. It is an INDEXED k-NN scan
      * (`ORDER BY normalized_key <-> $1` over the GiST trigram index), which is why this is a bounded read

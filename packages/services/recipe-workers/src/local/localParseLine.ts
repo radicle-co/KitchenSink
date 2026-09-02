@@ -153,6 +153,13 @@ export function createLocalParseLineDeps(config: LocalParseLineConfig, pool: Poo
             functionName: `local-ingredient-parser-${config.stage}`,
             client: createLocalCrfLambdaClient(createPythonEngineRunner({ python: config.python })),
             declaredEngineVersion: pinnedCrfEngineVersion(),
+            // The availability signal is wired locally for the same reason the gated leg's is: a local run
+            // that skipped it would exercise a different `crfInvoke` path than the deployed one, and this
+            // module exists to run the SHIPPED code. `emitMetric` writes EMF-shaped JSON to stdout here —
+            // no CloudWatch, no AWS call — so a local engine failure is visible exactly where a deployed
+            // one would be.
+            stage: config.stage,
+            emit: emitMetric,
         }),
         pool: { query: async (text, params) => pool.query(text, params) },
         digest: (value) => createHash('sha256').update(value).digest('hex'),

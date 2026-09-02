@@ -79,8 +79,17 @@ export interface PinnedVersionOptions {
  * ⚠️ The BARE version, without the `ingredient-parser-nlp==` prefix, because that is what `handler.py`
  * reports: `ENGINE_VERSION = metadata.version("ingredient-parser-nlp")`.
  *
+ * ⛔ Returns the FULL PIN (`ingredient-parser-nlp==2.3.0`), not the bare version — this is what
+ * `createCrfInvokeEngine` takes as `declaredEngineVersion`, and it is byte-identical to the
+ * `CRF_ENGINE_VERSION` the deployed stack injects. It was the bare form until 2026-09-02, when the adapter
+ * began parsing its pin at construction (`parseEnginePin`) and normalizing the engine's bare report UP to
+ * this spelling, so that both CRF adapters key `ingredient_parse_cache` with ONE identity. A bare value here
+ * now fails loudly at construction, which is the intended behaviour for a mis-wired pin — but it would fail
+ * the LOCAL runner for a reason that has nothing to do with the developer's machine, so the parity is the
+ * point. The distribution half comes from `DISTRIBUTION`, so the name is still stated once.
+ *
  * @param options - The pin file's contents, for tests.
- * @returns The pinned version, e.g. `2.3.0`.
+ * @returns The full pin, e.g. `ingredient-parser-nlp==2.3.0`.
  * @throws When the pin is missing or unpinned — never a guess, because a wrong version silently poisons
  *   `ingredient_parse_cache`, whose write is `ON CONFLICT DO NOTHING` and therefore permanent.
  * @sideEffect Reads `requirements.txt` when `options.requirements` is omitted.
@@ -96,7 +105,7 @@ export function pinnedCrfEngineVersion(options: PinnedVersionOptions = {}): stri
         );
     }
 
-    return version;
+    return `${DISTRIBUTION}==${version}`;
 }
 
 /** What {@link createPythonEngineRunner} needs. */

@@ -24,8 +24,8 @@
  *  - `cookbook-import`'s local sidecar runs ONE Python process for a whole corpus, because
  *    `ingredient-parser-nlp` loads a CRF model at import and per-line spawning "would turn a two-second job
  *    into a quarter of an hour".
- *  - `ParseCacheDal.findForLines` is already a batch read, and its own docstring calls it "the pipeline's
- *    hottest read".
+ *  - the cache's own read is already a batch read — the pipeline's hottest — so a per-line cache port would
+ *    hide a fan-out over a statement that natively takes an array of digests.
  *
  * ⛔ So a per-line `parse(line)` port would be an Adapter that adds behaviour — it would have to hide a
  * scheduler, or invoke a Lambda once per line and pay a cold start each time. **A batch port can be honestly
@@ -157,7 +157,7 @@ export interface ParseCorrectionsPort {
 
 /** One engine's stored parse of one line. */
 export interface CachedParseRow {
-    /** Which line it is about. Carried so this port can mirror the DAL, which returns rows unordered. */
+    /** Which line it is about. Carried BECAUSE the read returns rows unordered — never zip them positionally. */
     readonly lineDigest: LineDigest;
     /** Which engine produced it. A member of the KEY, not an attribute (KTD-13). */
     readonly engine: ParseEngine;
@@ -182,9 +182,15 @@ export interface RememberedParse {
 /**
  * TIER 2 — what an engine already said about these lines.
  *
- * DESIGN PATTERN: **Port**, mirroring `recipe-service`'s `ParseCacheDal` statement for statement. Its write
- * is `ON CONFLICT DO NOTHING` by design: a row is write-once within its generation, so a redelivered message
- * and two concurrent misses are both benign.
+ * DESIGN PATTERN: **Port**. ⛔ THIS INTERFACE IS THE STATEMENT CONTRACT for `ingredient_parse_cache` — there
+ * is no second bearer of it. `recipe-service` once carried a `ParseCacheDal` whose own header claimed to be
+ * "the authoritative statement shape for both sides"; it was deleted on 2026-09-02 because nothing called it,
+ * so no compiler and no test ever checked that claim against the statement it purported to govern. The sole
+ * implementation is `recipe-workers`' `createParseCachePort` (`src/parsing/parsePorts.ts`), and the rules
+ * below bind it. Do not re-create a mirror in a package that does not read this table.
+ *
+ * Its write is `ON CONFLICT DO NOTHING` by design: a row is write-once within its generation, so a
+ * redelivered message and two concurrent misses are both benign.
  */
 export interface ParseCachePort {
     /**
@@ -192,8 +198,10 @@ export interface ParseCachePort {
      *
      * ⛔ EVERY engine, and every row. Narrowing this to one row per line would hand the comparator a single
      * parse to adjudicate against itself — reporting `agree` on every line, forever, with nothing failing.
-     * The rows carry their own `lineDigest` and this module groups them, exactly as the DAL's docstring says
-     * its caller does; a positionally-indexed answer would add a zip nobody needs to get wrong.
+     * The rows carry their own `lineDigest` and this module groups them; a positionally-indexed answer would
+     * add a zip nobody needs to get wrong. Both rules are asserted against a real PostgreSQL by
+     * `recipe-workers`' `__tests__/integration/parsing/parseLeg.integration.test.ts` — and only there, because
+     * an in-memory double returns whatever it was seeded with no matter what the statement says.
      *
      * @param digests - The lines to look up. An EMPTY batch must not reach the database (`in ()` is a
      *   syntax error in PostgreSQL), and this module never sends one.

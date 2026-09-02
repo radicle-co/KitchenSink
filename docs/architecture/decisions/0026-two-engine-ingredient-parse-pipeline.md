@@ -292,6 +292,17 @@ line out — except the correction tier, which is per-line.** The direction is w
 - `ParseCacheDal.findForLines` was already a batch read, and its own docstring calls it "the pipeline's
   hottest read" — it was written for this caller before this caller existed.
 
+> **Update (2026-09-02) — the third bullet's witness is gone; the argument is not.** `ParseCacheDal`
+> (`recipe-service`) was **deleted**: it was a second implementation of the cache's two statements that
+> nothing ever called, so neither a compiler nor a test checked its header's claim to be "the authoritative
+> statement shape for both sides". The batch-shape argument now rests on `ParseCachePort`
+> (`recipe-import-core/src/domain/parsePipeline.ts`), which is the compiler-checked contract and the sole
+> bearer of that authority; `recipe-workers`' `createParseCachePort` is its only implementation. ⛔ Do not
+> re-create a mirror DAL in a package that does not READ this table — the settled rule, two for two across
+> `recipe_ingredient_verifications` (`LineVerificationsDal`) and `ingredient_parse_corrections`
+> (`ParseCorrectionsDal`), is that `recipe-service` owns a DAL over a worker-written table **iff the service
+> genuinely reads it**, and the parse cache was the one anomaly.
+
 ⛔ A per-line `parse(line)` port would therefore be an Adapter that ADDS behaviour: it would have to hide a
 scheduler, or invoke the Lambda once per line and pay a cold start each time, against a contract whose own
 docstring calls an empty batch "a caller defect (it costs a cold start to answer nothing)". **A batch port can

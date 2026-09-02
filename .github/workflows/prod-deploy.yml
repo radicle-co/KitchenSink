@@ -17,6 +17,7 @@ on:
             - 'packages/services/food-service/**'
             - 'packages/services/recipe-service/**'
             - 'packages/services/recipe-workers/**'
+            - 'packages/services/ingredient-parser/**'
             - 'packages/shared/recipe-core/**'
             - 'Dockerfile'
             - '.github/workflows/prod-deploy.yml'
@@ -118,6 +119,10 @@ jobs:
                       recipe:
                         - 'packages/services/recipe-service/**'
                         - 'packages/services/recipe-workers/**'
+                        # ADR-0025's Python CRF Lambda. It is part of the RECIPE leg rather than a leg of its
+                        # own because `parseLine` invokes it by a name this same flag deploys — splitting the
+                        # flags would let one ship without the other, which is the state this line repairs.
+                        - 'packages/services/ingredient-parser/**'
                         - 'packages/shared/recipe-core/**'
 
             - name: Compute deploy flags
@@ -238,6 +243,23 @@ jobs:
             - name: Build recipe service + workers packages
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: npx turbo run build --filter=@kitchensink/recipe-service --filter=@kitchensink/recipe-workers
+
+            # ADR-0025's Python CRF Lambda, staged HERE — above the prune, with the other builds — for the
+            # reason the block comment above gives: `bundle:lambda` runs a bare `tsx` and `^...` resolves a
+            # closure through turbo, both devDependencies, so either one on the far side of the prune exits
+            # 127. Its `cdk deploy` stays down with the other deploys; the staged asset is just a directory
+            # on the runner and survives the prune untouched.
+            #
+            # The pip install cross-stages arm64 / CPython 3.13 wheels and never executes them, so the
+            # runner's own Python major does not matter. `buildAsset.ts` verifies the tree it produced and
+            # exits non-zero on any finding, so a broken asset fails here rather than on a cold start.
+            - name: Build the workspace packages the ingredient-parser app imports
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: npx turbo run build --filter='@kitchensink/ingredient-parser^...'
+
+            - name: Stage the CRF Lambda asset (pip, arm64 / CPython 3.13)
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/ingredient-parser
 
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
@@ -599,6 +621,27 @@ jobs:
                   npm run bundle:lambda --workspace=packages/services/recipe-service
                   docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \
                     -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
+
+            # Pass 0 — the CRF ENGINE, before the worker that invokes it. No CloudFormation edge orders the
+            # two: `RecipeWorkersStack` formats the parser's ARN by hand because the function lives in
+            # another CDK app (ADR-0025), so this step's POSITION is the only thing that stops `parseLine`
+            # going live pointed at a function that does not exist. See the matching pass in
+            # sandbox-deploy.yml; `cdkAppDeployCoverage.test.ts` asserts the app has a deployer at all.
+            #
+            # ⚠️ Its BUILD half sits far above, before `npm prune --omit=dev` — `bundle:lambda` runs a bare
+            # `tsx`, a devDependency, so staging here would exit 127. Only the deploy belongs on this side.
+            #
+            # ⚠️ FIRST-EVER DEPLOY of this function. ADR-0025 §"Residual risk" records that the arm64 /
+            # CPython 3.13 wheels in the asset have never been loaded by a Python 3.13 interpreter on ARM,
+            # and that "the first real proof is a deploy". The failure mode if the wheels are wrong is a
+            # cold-start ImportError confined to this one function — `crfInvoke.ts` maps that to per-line
+            # absence, which the pipeline reads as `single-engine llm`, so it degrades the parse rather
+            # than breaking the recipe service.
+            - name: CDK Deploy (ingredient parser — the CRF engine parseLine invokes)
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  npx cdk deploy --app "npx tsx packages/services/ingredient-parser/infra/bin/app.ts" \
+                    --all --require-approval never
 
             # `STAGE` and `DOMAIN_NAME` already come from the workflow-level `env:`, so only the step
             # outputs need declaring. Same values as the old command-prefix assignments — the CDK app reads

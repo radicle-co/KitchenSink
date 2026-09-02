@@ -17,7 +17,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { discoverApps } from '../src/discoverApps.js';
+import { discoverApps, partitionForLocalSynth, type SkippedApp } from '../src/discoverApps.js';
 import { discoverResources, summarizeRequirements, type DiscoveredResource } from '../src/discoverResources.js';
 import { planCompose } from '../src/composePlan.js';
 import { discoverDatabases, discoverMigrations, discoverServiceTasks, resolveExports } from '../src/runPlan.js';
@@ -104,9 +104,23 @@ function toYaml(plan: ReturnType<typeof planCompose>): string {
 }
 
 async function main(): Promise<void> {
-    const apps = discoverApps(readManifests());
+    // ⛔ `discoverApps` matches ANY script containing `cdk synth`, which is right — and it means the parser's
+    // `infra:synth` joined the inventory the day that service got a deployer. That script runs
+    // `bundle:lambda` first (~90 MB of arm64 wheels through `python3 -m pip`, ADR-0025), and the refusal
+    // below is all-or-nothing, so a developer with no python3, no pip or no network could no longer start
+    // the local sandbox AT ALL. A DECLARED skip (`kitchensink.localSandbox.skipSynth`) is the way out; it
+    // carries a reason, it is printed under "what is NOT covered", and it changes nothing about how an
+    // UNDECLARED synth failure is treated.
+    const partition = partitionForLocalSynth(discoverApps(readManifests()), {
+        includeAll: process.env['LOCAL_SANDBOX_SYNTH_ALL'] === '1',
+    });
+    const apps = partition.synthesise;
 
     process.stdout.write(`Synthesising ${apps.length} CDK app(s) — this is the only source of truth…\n`);
+
+    for (const skip of partition.skipped) {
+        process.stdout.write(`  · not synthesised: ${skip.packageName} — ${skip.reason}\n`);
+    }
 
     const outcomes = await synthesizeAll(apps, runCdkSynth, {
         outRoot: mkdtempSync(path.join(tmpdir(), 'local-sandbox-')),
@@ -680,6 +694,16 @@ async function main(): Promise<void> {
 
     for (const entry of requirements.unsupported) {
         process.stdout.write(`  ${entry.type} — ${entry.why}\n`);
+    }
+
+    // ⛔ Reported HERE too, beside `localSupport.ts`'s `unsupported` entries, and for the same reason that
+    // file gives: a reader must be able to tell "we chose not to cover this" from "nobody thought about it".
+    // A skip printed only at the top of a long run is one a reader scrolls past.
+    for (const skip of partition.skipped as readonly SkippedApp[]) {
+        process.stdout.write(
+            `  ${skip.packageName} (not synthesised) — ${skip.reason}\n` +
+                '      Run with LOCAL_SANDBOX_SYNTH_ALL=1 to include it.\n',
+        );
     }
 
     // ⚠️ `turbo run dev` rather than something invented here: the repo ALREADY starts every service that

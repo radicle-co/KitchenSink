@@ -26,7 +26,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { discoverApps, type PackageManifest } from '../discoverApps.js';
+import { readManifests as realManifests } from '../../bin/adapters.js';
+import { discoverApps, partitionForLocalSynth, type PackageManifest } from '../discoverApps.js';
 
 const manifest = (dir: string, name: string, scripts: Record<string, string>): PackageManifest => ({
     dir,
@@ -47,6 +48,7 @@ describe('discoverApps', () => {
                 packageDir: 'packages/services/food-service',
                 script: 'infra:synth',
                 appCommand: 'npx tsx infra/bin/app.ts',
+                localSynthSkip: undefined,
             },
         ]);
     });
@@ -86,6 +88,7 @@ describe('discoverApps', () => {
                 packageDir: 'packages/services/mystery',
                 script: 'infra:synth',
                 appCommand: undefined,
+                localSynthSkip: undefined,
             },
         ]);
     });
@@ -115,5 +118,84 @@ describe('discoverApps', () => {
 
         expect(apps).toHaveLength(1);
         expect(apps[0]?.appCommand).toBe('npx tsx first.ts');
+    });
+});
+
+/**
+ * ⛔ THE ONE SANCTIONED WAY AN APP MAY LEAVE THE LOCAL INVENTORY — declared in its own manifest, carrying a
+ * reason, and REPORTED. `up.ts` refuses to start when an app does not synthesise, on the stated grounds that
+ * "a hole in the inventory is indistinguishable from 'that infrastructure does not exist'". That refusal is
+ * right and stays; what it could not express is an app whose synth needs a toolchain a local sandbox has no
+ * business requiring.
+ *
+ * `packages/services/ingredient-parser` is that app: its `infra:synth` runs `bundle:lambda` first, which
+ * shells out to `python3 -m pip` for ~90 MB of arm64 wheels. On a machine with no python3, no pip or no
+ * network — none of which a local sandbox needs — that failure took the WHOLE sandbox down, so the parser's
+ * deploy fix silently made `npm run local:up` unstartable for those developers.
+ *
+ * ⚠️ A declared skip is NOT the same as a swallowed failure, and the difference is the reason string. An app
+ * that fails to synth for any OTHER cause still refuses the run.
+ */
+describe('partitionForLocalSynth', () => {
+    const parser = manifest('packages/services/ingredient-parser', '@kitchensink/ingredient-parser', {
+        'infra:synth': "npm run bundle:lambda && cdk synth --app 'npx tsx infra/bin/app.ts'",
+    });
+    const global_ = manifest('packages/infra/global', '@kitchensink/infra-global', {
+        synth: "cdk synth --app 'npx tsx bin/app.ts'",
+    });
+    const skipping = (reason: string): PackageManifest => ({
+        ...parser,
+        json: { ...parser.json, kitchensink: { localSandbox: { skipSynth: reason } } },
+    });
+
+    it('synthesises every app that declares no skip', () => {
+        const partition = partitionForLocalSynth(discoverApps([parser, global_]), { includeAll: false });
+
+        expect(partition.synthesise.map((app) => app.packageName)).toEqual([
+            '@kitchensink/infra-global',
+            '@kitchensink/ingredient-parser',
+        ]);
+        expect(partition.skipped).toEqual([]);
+    });
+
+    it('holds back an app that declares a skip, carrying its reason', () => {
+        const partition = partitionForLocalSynth(discoverApps([skipping('its synth pip-installs 90 MB'), global_]), {
+            includeAll: false,
+        });
+
+        expect(partition.synthesise.map((app) => app.packageName)).toEqual(['@kitchensink/infra-global']);
+        expect(partition.skipped).toEqual([
+            { packageName: '@kitchensink/ingredient-parser', reason: 'its synth pip-installs 90 MB' },
+        ]);
+    });
+
+    it('⛔ REFUSES a skip with no reason — "skipped" and "forgotten" must never look the same', () => {
+        const noReason: PackageManifest = {
+            ...parser,
+            json: { ...parser.json, kitchensink: { localSandbox: { skipSynth: '   ' } } },
+        };
+
+        expect(() => partitionForLocalSynth(discoverApps([noReason]), { includeAll: false })).toThrow(/reason/iu);
+    });
+
+    it('includes everything when the caller asks for the complete inventory', () => {
+        // The developer who HAS the toolchain and wants full coverage — `LOCAL_SANDBOX_SYNTH_ALL=1`. The
+        // opt-in is what keeps the skip an ergonomic default rather than a permanent blind spot.
+        const partition = partitionForLocalSynth(discoverApps([skipping('needs pip'), global_]), {
+            includeAll: true,
+        });
+
+        expect(partition.synthesise).toHaveLength(2);
+        expect(partition.skipped).toEqual([]);
+    });
+
+    it('⛔ the WORKING TREE declares at most the parser — a skip must be argued, not accumulated', () => {
+        // Derived from the real manifests, so a second package quietly opting out of the local inventory
+        // fails here rather than being discovered as missing infrastructure months later.
+        const declared = discoverApps(realManifests())
+            .filter((app) => app.localSynthSkip !== undefined)
+            .map((app) => app.packageName);
+
+        expect(declared).toEqual(['@kitchensink/ingredient-parser']);
     });
 });

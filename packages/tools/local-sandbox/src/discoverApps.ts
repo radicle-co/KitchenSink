@@ -24,6 +24,8 @@ export interface PackageManifest {
     readonly json: {
         readonly name?: unknown;
         readonly scripts?: Readonly<Record<string, unknown>> | undefined;
+        /** This repo's per-package markers; see {@link CdkApp.localSynthSkip}. */
+        readonly kitchensink?: unknown;
     };
 }
 
@@ -42,10 +44,51 @@ export interface CdkApp {
      * never dropped: an app silently leaving the inventory is the exact defect this module replaces.
      */
     readonly appCommand: string | undefined;
+    /**
+     * The reason this app's manifest gives for leaving it out of a LOCAL synth, or `undefined`.
+     *
+     * ⛔ The ONE sanctioned way out of the local inventory, and it is a DECLARATION rather than an inference.
+     * `up.ts` refuses to start when an app does not synthesise — "a hole in the inventory is
+     * indistinguishable from 'that infrastructure does not exist'" — and that refusal must stay. What it
+     * cannot express is an app whose synth needs a toolchain a local sandbox has no business requiring:
+     * `ingredient-parser`'s `infra:synth` runs `bundle:lambda` first, which pip-installs ~90 MB of arm64
+     * wheels (ADR-0025), so a developer with no python3, no pip or no network could not start the sandbox
+     * AT ALL once that step was wired in.
+     *
+     * ⚠️ A declared skip is not a swallowed failure. Any OTHER synth failure still refuses the run, and
+     * `up.ts` prints every skip under "what is NOT covered" beside `localSupport.ts`'s `unsupported` entries
+     * — the same distinction that file draws between a stated non-coverage and a gap.
+     */
+    readonly localSynthSkip: string | undefined;
 }
 
 /** `--app '<command>'`, single- or double-quoted as the scripts in this repo spell it. */
 const APP_ARGUMENT = /--app\s+(?:'([^']+)'|"([^"]+)")/u;
+
+/**
+ * Read the local-sandbox skip a manifest declares.
+ *
+ * @param json - The parsed manifest.
+ * @returns The reason, or `undefined` when the package declares none. Pure.
+ * @throws When a skip is declared with a blank reason — "skipped" and "forgotten" must never look the same.
+ */
+function localSynthSkipOf(json: PackageManifest['json']): string | undefined {
+    const marker = (json.kitchensink as { localSandbox?: { skipSynth?: unknown } } | undefined)?.localSandbox;
+    const reason = marker?.skipSynth;
+
+    if (reason === undefined) {
+        return undefined;
+    }
+
+    if (typeof reason !== 'string' || reason.trim() === '') {
+        throw new Error(
+            `${String(json.name)}: kitchensink.localSandbox.skipSynth must carry a REASON. An app leaving the ` +
+                'local inventory without one is indistinguishable from an app nobody noticed was missing.',
+        );
+    }
+
+    return reason;
+}
 
 /**
  * Derive the CDK app inventory from package manifests.
@@ -81,8 +124,52 @@ export function discoverApps(manifests: readonly PackageManifest[]): readonly Cd
                     packageDir: manifest.dir,
                     script,
                     appCommand: matched?.[1] ?? matched?.[2],
+                    localSynthSkip: localSynthSkipOf(manifest.json),
                 },
             ];
         })
         .sort((left, right) => left.packageName.localeCompare(right.packageName));
+}
+
+/** One app held back from a local synth, with the reason its manifest gave. */
+export interface SkippedApp {
+    readonly packageName: string;
+    readonly reason: string;
+}
+
+/** The apps to synthesise locally, and the ones deliberately held back. */
+export interface LocalSynthPartition {
+    readonly synthesise: readonly CdkApp[];
+    readonly skipped: readonly SkippedApp[];
+}
+
+/** How to partition. */
+export interface LocalSynthOptions {
+    /**
+     * Synthesise everything, declared skips included — `LOCAL_SANDBOX_SYNTH_ALL=1`.
+     *
+     * ⚠️ The opt-in is what keeps a skip an ergonomic default rather than a permanent blind spot: a
+     * developer who HAS the toolchain can always ask for the complete inventory.
+     */
+    readonly includeAll: boolean;
+}
+
+/**
+ * Split the inventory into what a local run will synthesise and what it deliberately will not.
+ *
+ * @param apps - Every app the repo declares.
+ * @param options - Whether to override the declared skips.
+ * @returns The partition, both halves in the input's (package-name) order. Pure.
+ */
+export function partitionForLocalSynth(apps: readonly CdkApp[], options: LocalSynthOptions): LocalSynthPartition {
+    if (options.includeAll) {
+        return { synthesise: apps, skipped: [] };
+    }
+
+    return {
+        synthesise: apps.filter((app) => app.localSynthSkip === undefined),
+        skipped: apps.flatMap((app) =>
+            app.localSynthSkip === undefined ? [] : [{ packageName: app.packageName, reason: app.localSynthSkip }],
+        ),
+    };
 }

@@ -16,10 +16,18 @@
  *      case-insensitive `name` match against an existing freeform row — so the shared catalog does not
  *      bloat with duplicates.
  *
- * The `ingredients` table is a **shared catalog** with no `owner_id` (per-user, per-recipe overrides
- * live on `recipe_ingredients`), so no ownership predicate is applied here. Rows are returned already
- * mapped to the canonical `@kitchensink/recipe-core` `Ingredient` domain shape (numeric strings →
- * numbers, `null` → `undefined`, `created_at` → ISO-8601), never leaking the raw `search_vector`.
+ * The `ingredients` table is a **shared catalog** (per-user, per-recipe overrides live on
+ * `recipe_ingredients`). ⚠️ CORRECTED — this used to add "with no `owner_id`, so no ownership predicate is
+ * applied here". Migration `0040_private_food_scoping.sql` (plan U11 / R20) added `food_owner_id`, the
+ * admitting AUTHOR's ULID when the row points at that author's PRIVATE authored food, and
+ * {@link IngredientsDal.search} now wraps every retrieval branch in
+ * `food_owner_id IS NULL OR food_owner_id = :caller`. A catalog row is still ownerless; a row standing for
+ * somebody's private food is visible only to them.
+ *
+ * Rows are returned already mapped to the canonical `@kitchensink/recipe-core` `Ingredient` domain shape
+ * (`null` → `undefined`, `created_at` → ISO-8601), never leaking the raw `search_vector`. ⚠️ There is no
+ * numeric-string conversion left: migration 0019 dropped every numeric column this once described, and
+ * `RETURNING` carries none.
  *
  * @implements FR-007 FR-007a
  */
@@ -129,11 +137,17 @@ export function rowToIngredient(row: RawIngredientRow): Ingredient {
         id: row.id,
         name: row.name,
         foodId: row.food_id ?? undefined,
-        // ⛔ PARSED, not cast. `ingredients.food_resolution_status` is a plain `text` column with NO CHECK
-        // constraint, so an `as` here asserted a union the database never guaranteed; a value written by any
-        // future path — including a mistaken `NEEDS_REVIEW`, which 0023 forbids on this shared row — would
-        // have flowed onto the wire as a status this build cannot interpret. An unrecognised value now reads
+        // ⛔ PARSED, not cast. `ingredients.food_resolution_status` is a `text` column that Drizzle types as
+        // a bare `string`, so an `as` here asserted a union NOTHING IN THIS PROCESS guarantees; a value this
+        // build cannot interpret would have flowed straight onto the wire. An unrecognised value now reads
         // as ABSENT, which every consumer already handles (a freeform ingredient carries no status at all).
+        //
+        // ⚠️ CORRECTED — this used to justify itself with "a plain `text` column with NO CHECK constraint".
+        // `0001_initial.sql` DOES carry `ingredients_food_resolution_status_check` over exactly the five
+        // catalog values, mirrored in the drizzle schema, and no migration drops it — so the database is in
+        // fact what forbids the mistaken `NEEDS_REVIEW` 0023 rules out, not this parse. The parse still
+        // earns its place: the CHECK is invisible to `tsc`, and widening it is a migration this build would
+        // not learn about.
         ...toCatalogStatus(row.food_resolution_status),
         isUserEntered: row.is_user_entered,
         createdAt: toIsoString(row.created_at),
@@ -151,6 +165,52 @@ export function clampLimit(limit: number | undefined): number {
 
 export class IngredientsDal {
     public constructor(private readonly db: RecipeDrizzle) {}
+
+    /**
+     * Which of the given food ids ANY live recipe still references (plan U18's erasure protocol — the
+     * worker's cross-service check). One `= ANY` read; the recipe leg of the fan-out has already run, so
+     * survivors are other users' recipes and the erased owner's KEPT (pseudonymized public) ones.
+     *
+     * @sideEffect Reads three tables.
+     */
+    public async referencedFoodIdsAmong(foodIds: readonly string[]): Promise<string[]> {
+        if (foodIds.length === 0) {
+            return [];
+        }
+
+        const result = await this.db.execute<{ food_id: string }>(sql`
+            SELECT DISTINCT i.food_id
+              FROM recipes r
+              JOIN recipe_ingredients ri ON ri.recipe_id = r.id
+              JOIN ingredients i ON i.id = ri.ingredient_id
+             WHERE i.food_id = ANY(${sql.param([...foodIds])})
+               AND r.deleted_at IS NULL
+        `);
+
+        return result.rows.map((row) => row.food_id);
+    }
+
+    /**
+     * Every LIVE recipe referencing the given food, with its owner (plan U18, R22) — the cross-service
+     * reference check's data half. One grouped read over the `recipes ← recipe_ingredients → ingredients`
+     * join; soft-deleted recipes are out (their reference dies with them).
+     *
+     * @param foodId - The opaque food id.
+     * @returns One row per referencing recipe. @sideEffect Reads three tables.
+     */
+    public async recipesReferencingFood(foodId: string): Promise<{ recipeId: string; ownerId: string }[]> {
+        const result = await this.db.execute<{ recipe_id: string; owner_id: string }>(sql`
+            SELECT r.id AS recipe_id, r.owner_id
+              FROM recipes r
+              JOIN recipe_ingredients ri ON ri.recipe_id = r.id
+              JOIN ingredients i ON i.id = ri.ingredient_id
+             WHERE i.food_id = ${foodId}
+               AND r.deleted_at IS NULL
+             GROUP BY r.id, r.owner_id
+        `);
+
+        return result.rows.map((row) => ({ recipeId: row.recipe_id, ownerId: row.owner_id }));
+    }
 
     /**
      * Ranked fuzzy + full-text search over the shared ingredient catalog.
@@ -199,56 +259,12 @@ export class IngredientsDal {
      * drives it is debounced at 300ms.
      *
      * @param query - The (already trimmed) user query. An empty query returns no rows.
+     * @param callerId - The requesting cook, or `undefined`. Scopes the privacy predicate (R20/0040): a
+     *   private authored food's row is retrieved only for its own author.
      * @param limit - Max hits (clamped to `[1, MAX_SEARCH_LIMIT]`; defaults to `DEFAULT_SEARCH_LIMIT`).
      * @returns Ranked ingredient hits, or an empty array when nothing matches.
      * @sideEffect Reads `ingredients`.
      */
-    /**
-     * Every LIVE recipe referencing the given food, with its owner (plan U18, R22) — the cross-service
-     * reference check's data half. One grouped read over the `recipes ← recipe_ingredients → ingredients`
-     * join; soft-deleted recipes are out (their reference dies with them).
-     *
-     * @param foodId - The opaque food id.
-     * @returns One row per referencing recipe. @sideEffect Reads three tables.
-     */
-    /**
-     * Which of the given food ids ANY live recipe still references (plan U18's erasure protocol — the
-     * worker's cross-service check). One `= ANY` read; the recipe leg of the fan-out has already run, so
-     * survivors are other users' recipes and the erased owner's KEPT (pseudonymized public) ones.
-     *
-     * @sideEffect Reads three tables.
-     */
-    public async referencedFoodIdsAmong(foodIds: readonly string[]): Promise<string[]> {
-        if (foodIds.length === 0) {
-            return [];
-        }
-
-        const result = await this.db.execute<{ food_id: string }>(sql`
-            SELECT DISTINCT i.food_id
-              FROM recipes r
-              JOIN recipe_ingredients ri ON ri.recipe_id = r.id
-              JOIN ingredients i ON i.id = ri.ingredient_id
-             WHERE i.food_id = ANY(${sql.param([...foodIds])})
-               AND r.deleted_at IS NULL
-        `);
-
-        return result.rows.map((row) => row.food_id);
-    }
-
-    public async recipesReferencingFood(foodId: string): Promise<{ recipeId: string; ownerId: string }[]> {
-        const result = await this.db.execute<{ recipe_id: string; owner_id: string }>(sql`
-            SELECT r.id AS recipe_id, r.owner_id
-              FROM recipes r
-              JOIN recipe_ingredients ri ON ri.recipe_id = r.id
-              JOIN ingredients i ON i.id = ri.ingredient_id
-             WHERE i.food_id = ${foodId}
-               AND r.deleted_at IS NULL
-             GROUP BY r.id, r.owner_id
-        `);
-
-        return result.rows.map((row) => ({ recipeId: row.recipe_id, ownerId: row.owner_id }));
-    }
-
     public async search(query: string, callerId?: string, limit?: number): Promise<Ingredient[]> {
         const strategy = selectIngredientMatchStrategy(query);
 
@@ -311,11 +327,16 @@ export class IngredientsDal {
     }
 
     /**
-     * Batch-load ingredients by id (e.g. to gather a recipe's catalog nutrition in one query for the
-     * per-serving aggregation). Returns only the rows that exist, in no guaranteed order.
+     * Batch-load ingredients by id (e.g. to gather a recipe's `food_id` references in one query, which the
+     * per-serving aggregation then prices through `FoodNutritionGateway`). Returns only the rows that exist,
+     * in no guaranteed order.
+     *
+     * ⚠️ CORRECTED — this said the read gathered "a recipe's catalog nutrition" and returned "per-100g
+     * nutrition included when resolved". It cannot: `RETURNING` carries no nutrition column, because
+     * migration 0019 dropped them all (see that constant's own note).
      *
      * @param ids - The ingredient ids to load (deduplicated by the caller if desired).
-     * @returns The matching ingredients (per-100g nutrition included when resolved).
+     * @returns The matching ingredients — id, name, `food_id`, status, `is_user_entered`, `created_at`.
      * @sideEffect Reads `ingredients`.
      */
     public async findByIds(ids: readonly string[]): Promise<Ingredient[]> {
@@ -411,7 +432,8 @@ export class IngredientsDal {
      * orders them by catalog relevance).
      *
      * @param foodIds - The opaque food-service ids to look up (deduplicated by the caller if desired).
-     * @returns The matching food-backed ingredients (with any nutrition they already carry).
+     * @returns The matching food-backed ingredients. ⚠️ No nutrition — this said "with any nutrition they
+     *   already carry", and there is none to carry since migration 0019.
      * @sideEffect Reads `ingredients`.
      */
     public async findByFoodIds(foodIds: readonly string[]): Promise<Ingredient[]> {

@@ -30,8 +30,13 @@
  *
  * "Do two cooks assert the same parse?" is answered by `jsonb` equality — the database sorts object keys and
  * normalizes numerics, so it already owns a canonical form. {@link ParseCorrectionsDal.findWriteFacts}
- * therefore projects `corrected_facts::text` for the stored rows AND for the caller's proposal in the SAME
- * statement, and hands the policy two strings that came out of the same canonicalizer.
+ * therefore projects `corrected_facts::text` for the stored rows and renders the caller's proposal through
+ * the SAME `::jsonb::text` cast, and hands the policy two strings that came out of the same canonicalizer.
+ *
+ * ⚠️ CORRECTED — this used to say "in the SAME statement". It is the same TRANSACTION and the same cast, but
+ * four statements: the `FOR UPDATE` lock read, a standalone `SELECT :proposal::jsonb::text`, and one read
+ * each for the live global and the caller's own row. What the argument rests on is the shared CAST, not
+ * statement count.
  *
  * That is not a convenience. A TypeScript-side comparison would be a SECOND derivation of an equality the
  * unique indexes already enforce, free to disagree with them — and the symptom would be silent: corroboration
@@ -512,7 +517,11 @@ export class ParseCorrectionsDal {
      *
      * The `ON CONFLICT` target is spelled with the partial index's own predicate, which is how Postgres infers
      * a PARTIAL unique index. Getting it wrong does not fail loudly — it either matches no index (an error at
-     * runtime) or, worse, a different one — so the two targets mirror `0029`'s index definitions verbatim.
+     * runtime) or, worse, a different one — so the two targets mirror the index definitions IN FORCE
+     * verbatim: `0029`'s for the global slot, and `0029`'s author slot AS RENAMED BY `0033`
+     * (`owner_id` → `user_id`, index `idx_parse_corrections_live_owner` → `…_live_user`). ⚠️ CORRECTED —
+     * this said "mirror `0029`'s definitions verbatim", which the author target has not done since 0033;
+     * against 0029's literal text it would infer no index at all.
      *
      * @param request - The row content.
      * @param scope - The reach the decision resolved to.

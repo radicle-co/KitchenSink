@@ -44,7 +44,11 @@
  *
  * ## The score is the SORT KEY, and it stays inside `[0, 1)`
  *
- * `score = (TIER_GAP × tier + clamp(base) + rawBonus) / SCORE_CEILING`.
+ * `score = (TIER_GAP × tier + max(clamp(base), clamp(prior)) + rawBonus) / SCORE_CEILING`.
+ *
+ * ⚠️ CORRECTED — the formula used to read `clamp(base)` alone, from before plan U5's consumption prior
+ * landed. The prior FUSES as a `max` rather than an additive term, for the measured reason recorded beside
+ * {@link RAW_AFFINITY_BONUS}; both operands stay in `[0, 1]`, so the bound below is unchanged.
  *
  * ⛔ The normalization is not cosmetic. food-service assigns an exact barcode / external-key crosswalk hit a
  * score of exactly `1` and unshifts it (`foods.service.ts`), and recipe-service's `FoodCatalogGateway`
@@ -60,10 +64,6 @@ export const RANK_TIERS = ['base', 'covered', 'head', 'tokenSet', 'exact'] as co
 export type RankTier = (typeof RANK_TIERS)[number];
 
 /**
- * The largest value either surface's base metric can take. `similarity` and `word_similarity` are both
- * defined on `[0, 1]`.
- */
-/**
  * The RANKER'S VERSION — part of every band-authority key (plan U3, R15).
  *
  * ⛔ Bump this on ANY change that moves ranked results: the tier ladder, `describeRankingName`'s head
@@ -77,6 +77,10 @@ export type RankTier = (typeof RANK_TIERS)[number];
  */
 export const RANKER_VERSION = 'ladder-v2-comma-head';
 
+/**
+ * The largest value either surface's base metric can take. `similarity` and `word_similarity` are both
+ * defined on `[0, 1]`.
+ */
 export const BASE_METRIC_MAX = 1;
 
 /**

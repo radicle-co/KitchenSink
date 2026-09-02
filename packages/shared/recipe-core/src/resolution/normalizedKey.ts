@@ -19,8 +19,11 @@
  *
  * The same reason `sanitizeFoodName` does, one table further along. TWO processes write this key: the recipe
  * service (a user's correction, and the tier-1 read) and — from plan U11 — the verification gate running in
- * `recipe-workers`, whose dependencies are `@kitchensink/recipe-core`, `pg` and `zod` and which therefore
- * CANNOT import recipe-service's `src`. A second copy of a PERSISTED key derivation is the worst drift
+ * `recipe-workers`, which CANNOT import recipe-service's `src`: that service's Drizzle models live inside its
+ * own `src` and are not a shared package, so the worker holds a schema-less handle and issues raw SQL
+ * (`recipe-workers/src/common/db.ts` owns that reasoning). ⚠️ An earlier revision made the point by
+ * enumerating the worker's three dependencies; the list has since grown past a dozen, so the reason is cited
+ * rather than counted. A second copy of a PERSISTED key derivation is the worst drift
  * available in this system: a one-character divergence partitions the tables into two key-spaces that never
  * intersect, and **nothing fails** — no error, no failing test, just a knowledge base that stops hitting.
  *

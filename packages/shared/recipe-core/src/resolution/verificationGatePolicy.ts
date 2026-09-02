@@ -104,19 +104,31 @@ export type IdentityEvidence =
           readonly kind: 'remembered';
       }
     | {
-          /** The lexical tier's ranked shortlist (cascade tier 2). May be empty until U5 ships. */
+          /**
+           * The lexical tier's ranked shortlist (cascade tier 2).
+           *
+           * ⚠️ CORRECTED — this said "may be empty until U5 ships". U5 HAS shipped (`lexicalTier.ts`, and
+           * `RANKER_VERSION`/`rankingTiers.ts` beside it), and the producer sends real candidates. It may
+           * still be empty: the tier ran and offered nothing.
+           */
           readonly kind: 'ranked';
           readonly shortlist: readonly ScoredCandidate[];
       }
     | {
           /**
-           * ⛔ NO PROVENANCE WAS RECORDED — the honest state of the shipped producer, not a placeholder.
+           * ⛔ NO PROVENANCE WAS RECORDED FOR THIS LINE — not a placeholder, and no longer the ordinary
+           * case.
            *
-           * `RecipesService` enqueues from PERSISTED `recipe_ingredients` rows. The cascade outcome that
-           * first resolved the catalog row was discarded inside
-           * `IngredientsService.resolveThroughCascade` (it keeps only `foodId`), and no column anywhere
-           * records which tier answered — so by the time a line is saved against a recipe, WHICH tier
-           * established identity is simply not recoverable.
+           * ⚠️ CORRECTED. This used to read "the honest state of the shipped producer", on the premise that
+           * `IngredientsService.resolveThroughCascade` discarded the cascade outcome and "no column
+           * anywhere records which tier answered". BOTH halves have since become false: migration
+           * `0035_ingredient_resolutions.sql` added the provenance event store, `resolveThroughCascade`
+           * writes to it through `IngredientResolutionsDal.record`, and the producer's `evidenceFor`
+           * (`recipes/domain/verificationRequests.ts`) reads it back as `curated-exact`, `remembered` or
+           * `ranked`. What still lands here is a line with NO usable event: the write is deliberately
+           * best-effort (a lost event must never fail a resolution that already succeeded), a stored
+           * shortlist that fails the wire schema degrades to this, and the `llm` tier has no evidence
+           * member of its own.
            *
            * ⚠️ IT EXISTS BECAUSE THE WIRE ENUM IS A ONE-WAY DOOR, not because the two decide differently.
            * `rankedEvidence([])` decides identically TODAY and — checked, not assumed — produces a

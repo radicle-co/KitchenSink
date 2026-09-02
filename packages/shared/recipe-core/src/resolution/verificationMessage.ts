@@ -246,15 +246,18 @@ export const verifyIngredientLineMessageSchema = z.object({
      * back to a default, and both defaults are wrong: "verify everything" spends on lines that need not be
      * checked, "skip identity" publishes an unchecked resolution.
      *
-     * ⚠️ `unattributed` is what the SHIPPED producer sends, and it is not a placeholder. The recipe write
-     * path enqueues from persisted `recipe_ingredients` rows, and nothing persists which cascade tier
-     * resolved the catalog row those rows point at — so the provenance is genuinely unrecoverable there.
-     * It opens no door, which is KTD-3's own default. ⛔ It must never become a value a CLIENT can declare:
+     * ⚠️ CORRECTED — `unattributed` is no longer what the producer sends for every line. This used to say
+     * "nothing persists which cascade tier resolved the catalog row"; migration `0035_ingredient_resolutions
+     * .sql` now does, `resolveThroughCascade` writes the event, and `verificationRequests.ts`'s `evidenceFor`
+     * sends `curated-exact`, `remembered` or `ranked` off it. `unattributed` is the fallback for a line with
+     * no usable event — a best-effort write that was lost, a stored shortlist the wire schema rejects, or the
+     * `llm` tier, which has no evidence member. It is NOT a placeholder, and it opens no door, which is
+     * KTD-3's own default. ⛔ It must never become a value a CLIENT can declare:
      * `curated-exact` suppresses the identity check, which would be a conclusion wearing an input's clothes
      * — exactly what this contract's "INPUTS, NEVER CONCLUSIONS" rule forbids.
      */
     evidenceKind: z.enum(['curated-exact', 'ranked', 'remembered', 'unattributed']),
-    /** The lexical tier's ranked candidates. EMPTY until U5 ships one, which the policy handles with no special case. */
+    /** The lexical tier's ranked candidates. May be empty (the tier ran and offered nothing) — U5 has shipped. */
     shortlist: z.array(scoredCandidateSchema).max(MAX_VERIFICATION_SHORTLIST),
     /** ISO 8601 timestamp of when verification was requested (observational). */
     requestedAt: isoInstant(),

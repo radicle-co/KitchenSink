@@ -143,8 +143,8 @@ export function createMeasurementValidator(client: BedrockConverseClient, modelI
                 prompt = buildVerificationPrompt({
                     sourceLine: line,
                     // The gate's prompt wants the candidate identity; the loop judges an ATTEMPT, whose
-                    // best identity statement is its own first food name. Empty when the attempt found no
-                    // food — the quantity question still stands.
+                    // best identity statement is its own first food name. `(none)` when the attempt found
+                    // no food — the quantity question still stands.
                     candidateFoodName: parse.foods[0]?.name ?? '(none)',
                     quantityLow,
                     quantityHigh,

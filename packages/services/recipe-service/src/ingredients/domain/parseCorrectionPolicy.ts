@@ -35,7 +35,8 @@
  *
  * A parse's identity is the corrected facts, and comparing two of them needs a canonical form. That form is
  * NOT derived in TypeScript: `parseCorrections.dal.ts` projects `corrected_facts::text` for the stored rows
- * AND for the proposal in the same statement, so both come from the database's own canonicalizer. This module
+ * AND renders the proposal through the same `::jsonb::text` cast (⚠️ same transaction and same cast — this
+ * said "the same statement", which it is not), so both come from the database's own canonicalizer. This module
  * therefore sees two opaque strings, and a second derivation — free to disagree with the unique indexes that
  * actually enforce identity, silently — never exists.
  */

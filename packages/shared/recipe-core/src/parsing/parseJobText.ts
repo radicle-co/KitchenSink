@@ -24,7 +24,16 @@
  */
 export const MAX_PARSE_JOB_LINES = 200;
 
-/** Longest admissible line, in code points — MUST equal `parseLineJobMessageSchema.sourceLine`'s max. */
+/**
+ * Longest admissible line — MUST equal `parseLineJobMessageSchema.sourceLine`'s max.
+ *
+ * ⚠️ UTF-16 CODE UNITS, not code points, and the two sides AGREE on that: the splitter measures
+ * `line.length` and the wire schema `z.string().max(…)`, both of which count code units. (This said "code
+ * points"; `verificationMessage.ts` documents the same zod behaviour and `verificationGatePolicy`'s cap is
+ * the one that genuinely counts code points, with `[...value].length`.) An astral character therefore
+ * spends two of these — a conservative direction, since the bound exists to keep one job's fan-out and one
+ * SQS body bounded.
+ */
 export const PARSE_JOB_LINE_MAX_CHARS = 1_000;
 
 /**

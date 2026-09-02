@@ -18,8 +18,9 @@
  *    parse CACHE: a redelivered message re-reads `ingredient_parse_cache` before any Bedrock call, so a
  *    redelivery re-pays only uncached attempts;
  *  - settle is NEVER retried, and any outcome with no billed response refunds in full;
- *  - the dollar metric carries the call site (`ingredient-parse` / `foodness-validator`) — attribution on
- *    the METRIC only, one pool, no sub-budgets.
+ *  - the dollar metric carries the call site — `ingredient-parse` for BOTH the first attempt and the retry,
+ *    `foodness-validator`, `measurement-validator` (three of `SPEND_CALL_SITES`' four; the fourth,
+ *    `verification-gate`, is `verifyLine.ts`'s) — attribution on the METRIC only, one pool, no sub-budgets.
  */
 import {
     FOODNESS_MAX_OUTPUT_TOKENS,

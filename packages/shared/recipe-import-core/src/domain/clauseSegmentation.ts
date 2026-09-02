@@ -167,17 +167,17 @@ const CONNECTIVES: readonly string[] = [
  */
 const INSTRUCTION_BOUNDARY = new RegExp(`\\s+(?:${[...PREPOSITIONS, ...CONNECTIVES].join('|')})\\s+|[,;:(]`, 'g');
 
-/**
- * The partitive that introduces the substance a measure phrase MEASURES — `a bowl OF flour`.
- *
- * ⚠️ Not a boundary and never cut at: it is the seam that ends a measure phrase, which is what makes the
- * word-anywhere scan {@link measurePhraseOf} feeds safe. Everything before it is the measure; everything
- * after it is the food. `one pound of pot roast` therefore offers the scan `one pound` and never `pot`.
- */
+/** One whitespace character — the fence {@link partitiveOfAt} walks, a character at a time. */
 const WHITESPACE = /\s/;
 
 /**
  * The index where a partitive `of` begins — the start of the whitespace run in front of it — or `-1`.
+ *
+ * The partitive is what introduces the substance a measure phrase MEASURES — `a bowl OF flour`.
+ *
+ * ⚠️ Not a boundary and never cut at: it is the seam that ENDS a measure phrase, which is what makes the
+ * word-anywhere scan {@link measurePhraseOf} feeds safe. Everything before it is the measure; everything
+ * after it is the food. `one pound of pot roast` therefore offers the scan `one pound` and never `pot`.
  *
  * ⛔ NOT a regex, and not by preference. This shipped as `PARTITIVE_OF = /\s+of\s+/` and CodeQL flagged
  * it (`js/polynomial-redos`, 2026-08-26): two UNANCHORED `\s+` quantifiers around a literal, retried at

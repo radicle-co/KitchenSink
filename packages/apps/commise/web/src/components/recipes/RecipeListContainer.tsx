@@ -120,6 +120,9 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
             onSearchChange={setSearchValue}
             onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
             onCreateRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
+            // Plan U9's entry point. The dial was built to disclose a LIST of creation destinations
+            // precisely so a second one costs this line rather than a redesign.
+            onPasteIngredients={() => router.push(`/${locale}/recipes/parse` as Route)}
             onRetry={() => void query.refetch()}
             // L5: "My Recipes" IS this list; "Community" is the discover surface. Both destinations are handed
             // over as routes, so the shared switcher renders real links — the strip used to push `/discover`

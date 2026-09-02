@@ -60,6 +60,14 @@ export interface RecipeListMessages {
      */
     readonly createFromScratch: string;
     /**
+     * The dial's SECOND creation destination (plan U9) — paste an ingredient list and have it read.
+     *
+     * ⚠️ Names the INPUT, not the machinery. A cook knows they have a list to paste; they do not know or
+     * care that a CRF engine and a queue are behind it, and "Parse ingredients" would describe our
+     * implementation rather than their intent.
+     */
+    readonly createFromPaste: string;
+    /**
      * Accessible name of the native backdrop behind the open dial; a tap on it dismisses.
      *
      * Native-only in effect: on web everything outside the dialog content is `aria-hidden` while the dial is
@@ -477,6 +485,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             createCta: 'New recipe',
             createMenuLabel: 'Create a recipe',
             createFromScratch: 'Create from Scratch',
+            createFromPaste: 'Paste an Ingredient List',
             createMenuDismiss: 'Close the create menu',
             emptyCreateCta: 'Create your first recipe',
             tabMine: 'My Recipes',

@@ -25,6 +25,14 @@ export interface RecipeListScreenProps {
     readonly onSelectRecipe: (id: string) => void;
     /** Invoked when the create-recipe action is activated. */
     readonly onCreateRecipe?: () => void;
+    /**
+     * Invoked when the paste-ingredients destination is activated (plan U9).
+     *
+     * ⛔ Forwarded UNDEFAULTED, unlike `onCreateRecipe`'s `?? noop`: the shared list removes the dial entry
+     * when this is absent, and defaulting it to a no-op would render a destination that silently does
+     * nothing instead.
+     */
+    readonly onPasteIngredients?: () => void;
 }
 
 const noop = (): void => undefined;
@@ -35,7 +43,11 @@ const noop = (): void => undefined;
  * @param props - Selection + create callbacks the composing screen wires to navigation.
  * @returns The rendered list view.
  */
-export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListScreenProps): JSX.Element {
+export function RecipeListScreen({
+    onSelectRecipe,
+    onCreateRecipe,
+    onPasteIngredients,
+}: RecipeListScreenProps): JSX.Element {
     const [searchValue, setSearchValue] = useState('');
     const [activeFacets, setActiveFacets] = useState<readonly string[]>([]);
     const query = useRecipes();
@@ -103,6 +115,7 @@ export function RecipeListScreen({ onSelectRecipe, onCreateRecipe }: RecipeListS
             onSearchChange={setSearchValue}
             onSelectRecipe={onSelectRecipe}
             onCreateRecipe={onCreateRecipe ?? noop}
+            onPasteIngredients={onPasteIngredients}
             onRetry={() => void query.refetch()}
             // ONE promise, N slots: every card reads its own answer out of the SAME batch, so the page costs
             // one request and the figures land together. `null` means no batch covers this recipe — render

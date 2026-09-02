@@ -88,8 +88,32 @@ export interface ParseLineEditControl {
  * through the existing `CorrectionNoticeModel` (`../correction/model.ts`) since that type describes a
  * `{ tone, text }` pair and asserts nothing about any wire shape.
  *
- * TODO(parse-corrections): wire this slot once `POST /api/v1/ingredients/parse-corrections` (or whatever
- * the sibling change names it) ships. Do not invent the payload here.
+ * ## ⚠️ THE ROUTE NOW EXISTS — and the reason this is still a slot is a DEPENDENCY, not a judgement
+ *
+ * `POST /api/v1/ingredients/parse-corrections` shipped in a sibling change. It is not wired here because
+ * its zod is not reachable from this tree yet: `@kitchensink/schema-recipe` publishes no `parseCorrection*`
+ * export, and ADR-0014 forbids a client declaring a wire type it cannot import. Wiring it is therefore a
+ * follow-up that starts by regenerating that contract package, NOT a design decision left open.
+ *
+ * What the follow-up will find, recorded so it need not be rediscovered:
+ *
+ *  - The body is `{ line, parse: { statedMeasure, quantity, unit, foods }, surfacing }`, every object
+ *    STRICT (an unknown key is a `400`) and carrying NO scope/origin/user field — the reach is decided
+ *    server-side from signed grants, exactly as the resolution correction's is.
+ *  - ⛔ It is keyed on the CORRECTED facts — what the cook edited *to* — which is why this slot passes the
+ *    line rather than a payload: the parameter here is the CONTEXT, and the control the follow-up renders
+ *    owns the edited values.
+ *  - ⛔ `recorded: false` (`already_in_force` / `superseded`) IS A SUCCESS. It must render as "already
+ *    saved", never as a failure and never as a retryable error — the same rule
+ *    `../correction/messages.ts` records for the resolution correction, and the reason
+ *    {@link CorrectionNoticeModel}'s `tone` reserves `error` for one member alone.
+ *  - Import the parse types from `@kitchensink/recipe-core` once regenerated, NOT from
+ *    `recipe-import-core`: that package is outside the contract import allowlist and would drag
+ *    `sanitize-html`, `parse-ingredient` and `fraction.js` into the mobile bundle.
+ *
+ * TODO(parse-corrections): regenerate `@kitchensink/schema-recipe`, add `recordParseCorrection` to
+ * `RecipeServiceClient`, add a `useParseLineCorrection` controller mirroring `useIngredientCorrection`, and
+ * pass its rendered control in through this slot. Do not invent the payload here.
  *
  * @param line - The line the control would be about, as the job reports it.
  * @returns The control, or `null`/`undefined` to render nothing for this line.

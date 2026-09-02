@@ -25,6 +25,8 @@ import { CollectionDetailScreen } from './CollectionDetailScreen.js';
 import { CollectionFormScreen } from './CollectionFormScreen.js';
 import { CollectionRecipePickerScreen } from './CollectionRecipePickerScreen.js';
 import { CollectionsScreen } from './CollectionsScreen.js';
+import { ParseIngredientsScreen } from './ParseIngredientsScreen.js';
+import { ParseJobReviewScreen } from './ParseJobReviewScreen.js';
 import { RecipeCreateScreen } from './RecipeCreateScreen.js';
 import { RecipeDetailScreen } from './RecipeDetailScreen.js';
 import { RecipeDiscoveryScreen } from './RecipeDiscoveryScreen.js';
@@ -42,6 +44,11 @@ type Surface =
     | { readonly id: 'collections' }
     | { readonly id: 'detail'; readonly recipeId: string }
     | { readonly id: 'create' }
+    // Plan U9's two parse surfaces. TWO members, not one carrying an optional id: pasting and reviewing are
+    // different screens with different props, and an optional `jobId` would make "review with no job"
+    // representable — a state the review screen cannot render and nothing would stop a caller pushing.
+    | { readonly id: 'parse' }
+    | { readonly id: 'parseReview'; readonly jobId: string }
     | { readonly id: 'edit'; readonly recipeId: string }
     | { readonly id: 'versions'; readonly recipeId: string }
     | { readonly id: 'collectionDetail'; readonly collectionId: string }
@@ -192,6 +199,7 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                 <RecipeListScreen
                     onSelectRecipe={(recipeId) => nav.push({ id: 'detail', recipeId })}
                     onCreateRecipe={() => nav.push({ id: 'create' })}
+                    onPasteIngredients={() => nav.push({ id: 'parse' })}
                 />
             );
         case 'discovery':
@@ -229,6 +237,17 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                     onCancel={nav.back}
                 />
             );
+        case 'parse':
+            // ⛔ `reset`, not `push`: the paste form is spent once its job exists, and leaving it on the
+            // stack means a Back press lands on text that would create a SECOND job from the same paste.
+            // The web container replaces its route for exactly this reason.
+            return (
+                <ParseIngredientsScreen
+                    onCreated={(jobId) => nav.reset([{ id: 'list' }, { id: 'parseReview', jobId }])}
+                />
+            );
+        case 'parseReview':
+            return <ParseJobReviewScreen jobId={surface.jobId} onStartOver={() => nav.reset([{ id: 'parse' }])} />;
         case 'edit':
             return <RecipeEditScreen recipeId={surface.recipeId} onSaved={() => nav.back()} onCancel={nav.back} />;
         case 'versions':

@@ -151,6 +151,7 @@ collections:recipes/collections-clone
 collections:recipes/collections-pull
 recipes:recipes/speed-dial
 recipes:recipes/create
+recipes:recipes/parse-ingredients
 recipes:recipes/quantity-range
 recipes:recipes/preparation-groups
 recipes:recipes/add-ingredient-loop

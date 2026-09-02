@@ -42,6 +42,7 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     onSearchChange,
     onSelectRecipe,
     onCreateRecipe,
+    onPasteIngredients,
     onRetry,
     tab,
     filters,
@@ -223,15 +224,24 @@ export const RecipeList: FC<RecipeListViewProps> = ({
             {body}
 
             {showDial && (
-                // U34: the pinned FAB now DISCLOSES the creation destinations rather than running the only
-                // one. Adding Scan / Import / AI when 004 and 005 ship is a change to THIS LIST — which is
-                // the whole reason the owner chose the dial over the button it replaces, knowing that until a
-                // second destination is real it costs one extra tap on the primary path.
+                // U34: the pinned FAB DISCLOSES the creation destinations rather than running the only
+                // one. Plan U9 makes good on that shape's stated purpose — pasting an ingredient list is
+                // the SECOND destination, and it cost one list entry rather than a redesign. Scan / Import
+                // / AI join the same list when 004 and 005 ship.
+                //
+                // ⚠️ Built with a spread rather than a ternary over two whole arrays: `SpeedDialProps.actions`
+                // is a NON-EMPTY tuple, so the scratch entry has to stay in first position by construction
+                // for the type to hold.
                 <SpeedDial
                     triggerLabel={list.createCta}
                     menuLabel={list.createMenuLabel}
                     dismissLabel={list.createMenuDismiss}
-                    actions={[{ id: 'scratch', label: list.createFromScratch, onSelect: onCreateRecipe }]}
+                    actions={[
+                        { id: 'scratch', label: list.createFromScratch, onSelect: onCreateRecipe },
+                        ...(onPasteIngredients === undefined
+                            ? []
+                            : [{ id: 'paste', label: list.createFromPaste, onSelect: onPasteIngredients }]),
+                    ]}
                 />
             )}
         </View>

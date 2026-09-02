@@ -83,16 +83,27 @@ function prodDeploySteps(): readonly IndexedStep[] {
 }
 
 /**
- * Steps that invoke a schema-migration runner Lambda. Both conditions are required: `aws lambda invoke`
- * alone would also catch an unrelated invocation, and the migration-function output name alone would catch
- * the step that merely resolves it.
+ * How a workflow step invokes a migration runner.
+ *
+ * ⚠️ TWO spellings, and the second is the current one. The invoke used to be written inline in every
+ * workflow — four call sites, with four different amounts of rigour about the fact that `aws lambda invoke`
+ * exits 0 when the FUNCTION threw — and now goes through `.github/scripts/run-migrations.sh`, which is the
+ * one definition of "did the runner succeed". The inline spelling is kept here rather than deleted because
+ * a step that reverts to it is still a migration step, and it must still be ordered.
+ */
+const MIGRATION_INVOCATION = /aws lambda invoke|run-migrations\.sh/;
+
+/**
+ * Steps that invoke a schema-migration runner Lambda. Both conditions are required: an invocation alone
+ * would also catch an unrelated one, and the migration-function output name alone would catch the step that
+ * merely resolves it.
  *
  * @param steps - The job's steps.
  * @returns The migration-invoking steps.
  */
 function migrationSteps(steps: readonly IndexedStep[]): readonly IndexedStep[] {
     return steps.filter(
-        (step) => /aws lambda invoke/.test(step.run ?? '') && /MigrationFunctionName/.test(step.run ?? ''),
+        (step) => MIGRATION_INVOCATION.test(step.run ?? '') && /MigrationFunctionName/.test(step.run ?? ''),
     );
 }
 
@@ -379,7 +390,7 @@ describe('prod-deploy.yml — a migration runner is invoked only AFTER the deplo
         const violations = migrationSteps(steps).flatMap((step) =>
             stackTokens(step).flatMap((token) => {
                 const deploy = cdkDeployPosition(steps, ownerPackage(token) ?? token);
-                const invoke = commandPosition([step], /aws lambda invoke/);
+                const invoke = commandPosition([step], MIGRATION_INVOCATION);
 
                 return deploy === undefined || (invoke !== undefined && runsBefore(deploy, invoke) < 0)
                     ? []

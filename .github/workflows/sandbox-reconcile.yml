@@ -265,6 +265,14 @@ jobs:
                     --payload '{"action":"stop"}' --cli-binary-format raw-in-base64-out \
                     /tmp/sandbox-stop.json >/dev/null
                   echo "result: $(cat /tmp/sandbox-stop.json)"
+                  # ⛔ FIRST: did the function run at all? `aws lambda invoke` exits 0 when the FUNCTION
+                  # THREW, so the `"errors"` check below finds no match in an error payload and this step
+                  # reports success for a scheduler that stopped nothing — which is the expensive direction
+                  # here: the whole point of this job is that the sandbox tier does NOT stay up.
+                  if grep -q '"errorType"' /tmp/sandbox-stop.json; then
+                      echo '::error::the sandbox scheduler threw — the shared tier was NOT stopped and is still billing. See the payload above.' >&2
+                      exit 1
+                  fi
                   if grep -q '"errors":\[[^]]' /tmp/sandbox-stop.json; then
                       echo '::warning::the scheduler reported per-resource errors — see the payload above'
                   fi

@@ -603,10 +603,11 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // above deliberately carries no suppression, so an API outage is still loud.
     'suppressed-exit cache-prune.yml::prune::Delete cache entries for hashes nothing references ×1',
     // Health probes: curl exits non-zero on connection failure, and the retry loop needs the code (`000`) in
-    // hand rather than an aborted step. Each of these three ends in `::error::` + `exit 1` — invariant 5
+    // hand rather than an aborted step. Each of these four ends in `::error::` + `exit 1` — invariant 5
     // proves the assertion is still there.
     'suppressed-exit prod-deploy.yml::deploy::Smoke test — food service live & reachable (prod) ×1',
     'suppressed-exit prod-deploy.yml::deploy::Smoke test — identity service live & reachable (prod) ×1',
+    'suppressed-exit sandbox-deploy.yml::deploy-food::Smoke test — food service live & reachable (sandbox) ×1',
     'suppressed-exit sandbox-identity-deploy.yml::deploy::Smoke test — identity service live & reachable (sandbox) ×1',
     // The sandbox router is a separately-deployed singleton; its absence is a missing prerequisite, so the
     // step reports `::error::` and sets `found=false` for downstream steps rather than failing the PR.

@@ -676,16 +676,24 @@ jobs:
                     --all --require-approval never
             # Apply migrations into the per-PR DB. The runner CREATEs kitchensink_food_pr_{N} if absent
             # (ADR-0006) before migrating, so a fresh preview self-provisions its isolated database.
+            # ⛔ THIS STEP INSPECTED NOTHING. `aws lambda invoke` exits 0 when the FUNCTION threw — the
+            # failure is in the response, not in the status — so a migration runner that could not reach the
+            # database left this step GREEN and pass 2 below then scaled tasks up against a schema that had
+            # not moved (on a first-ever `pr-{N}` deploy, against a database that did not exist: ADR-0006
+            # has this run CREATE it). Its recipe sibling grepped the payload for `errorType` and the
+            # identity legs read `FunctionError`; three call sites, three amounts of rigour. All of them now
+            # go through `.github/scripts/run-migrations.sh`, which is the one definition.
+            #
+            # ⚠️ It KEEPS its ensure-exists guard, unlike prod's now-ungated nets, and the asymmetry is the
+            # point: `steps.gate.outputs.deploy` is TRUE whenever the stack is absent or the origin is not
+            # serving (ADR-0010), so it cannot skip the case ADR-0022 §4 keeps the net for — and it keeps
+            # this invoke ordered behind the "Wake the shared sandbox database" step, without which a run
+            # inside ADR-0007's nightly 00:00–09:00 ET window reds on a stopped instance.
             - name: Run food migrations (creates the per-PR DB if absent)
               if: steps.gate.outputs.deploy == 'true'
               run: |
-                  FN=$(aws cloudformation describe-stacks --region "${DEFAULT_AWS_REGION}" \
-                      --stack-name "kitchensink-food-service-${STAGE}" \
-                      --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" \
-                      --output text)
-                  aws lambda invoke --region "${DEFAULT_AWS_REGION}" --function-name "$FN" \
-                      --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/migrate.json
-                  cat /tmp/migrate.json
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-food-service-${STAGE}" FoodMigrationFunctionName food
             # Pass 2 — scale the API + worker up now that the image is in ECR and the per-PR DB exists, so
             # tasks boot healthy.
             #
@@ -704,6 +712,86 @@ jobs:
                   npx cdk deploy \
                     --app "node packages/services/food-service/infra/dist/bin/app.js" \
                     --all --require-approval never
+            # ⛔ `cdk deploy` exiting 0 proves the stack CONVERGED. It does not prove the things inside it
+            # arrived: a resource can rest at UPDATE_ROLLBACK_COMPLETE inside a stack ADR-0010's gate
+            # correctly calls usable, a Lambda can deploy with a code package it cannot load, an ECS service
+            # can be ACTIVE with zero running tasks, and a handler can be configured with the name of a
+            # resource no account contains — which is exactly how the CRF parser degraded the two-engine
+            # parse to one engine behind green checks (ADR-0025).
+            #
+            # The `--app` string is byte-identical to the deploy above ON PURPOSE: the verifier derives the
+            # stacks to check by SYNTHESISING that app, so a different string would report on stacks this job
+            # did not create. `deployVerificationCoverage.test.ts` asserts the equality, and the `env:` below
+            # mirrors pass 2's so the synth resolves to the same template that was just deployed.
+            - name: Verify the food deployment — every resource, handler and reference
+              if: steps.gate.outputs.deploy == 'true'
+              env:
+                  FOOD_IMAGE_TAG: sandbox-${{ github.sha }}
+                  FOOD_DESIRED_COUNT: '1'
+                  FOOD_WORKER_DESIRED_COUNT: '1'
+              run: |
+                  bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
+                    "node packages/services/food-service/infra/dist/bin/app.js"
+            # The LIVE half, and it was missing entirely: this job's only origin probe is the ensure-exists
+            # gate, which runs BEFORE the deploy — so every food deploy in a preview's life was published
+            # without anything ever asking whether the thing it just deployed serves traffic. Prod has had
+            # both halves since #152; this is the sandbox mirror of them, liveness first (the only check
+            # worth retrying, since a fresh Fargate task needs a minute or two to pass its ALB health check).
+            - name: Smoke test — food service live & reachable (sandbox)
+              if: steps.gate.outputs.deploy == 'true'
+              env:
+                  HEALTH_URL: ${{ steps.host.outputs.url }}/health
+              run: |
+                  set -uo pipefail
+                  attempts=20; delay=15; code=000
+                  for i in $(seq 1 "$attempts"); do
+                    code=$(curl -s -o /tmp/food-health.out -w '%{http_code}' --max-time 10 "$HEALTH_URL" || true)
+                    [ -z "$code" ] && code=000
+                    if [ "$code" = "200" ]; then echo "✅ food healthy on attempt $i"; exit 0; fi
+                    echo "attempt $i/$attempts: HTTP $code at $HEALTH_URL — retrying in ${delay}s"
+                    sleep "$delay"
+                  done
+                  echo "::error::food not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
+                  exit 1
+            # …and CURRENT. A food task running a weeks-old image answers the same 200, which is the shape
+            # that let a stale recipe build serve pr-73 for fifteen days. Cluster + service come from the
+            # food stack's own exports rather than an `ecs list-clusters | grep` heuristic, so a renamed
+            # cluster fails loudly instead of matching nothing.
+            #
+            # ⚠️ NO `--web-origin`, and that is DERIVED, not an oversight: `food-service/src/main.ts` has no
+            # `app.enableCors(…)` because nothing outside the cluster calls it (its only consumer is the
+            # recipe service, server-to-server). Sending it a preflight would assert a browser path that does
+            # not exist. `prodDeploySmokeDepth.test.ts` reads each service's `main.ts` and requires the flag
+            # exactly when CORS is enabled, so if food ever becomes browser-facing the build says so.
+            - name: Smoke test — food service CURRENT (sandbox)
+              if: steps.gate.outputs.deploy == 'true'
+              env:
+                  EXPECTED_IMAGE_TAG: sandbox-${{ github.sha }}
+                  FOOD_ORIGIN: ${{ steps.host.outputs.url }}
+              run: |
+                  set -euo pipefail
+                  # `>&2` on the diagnostic, NOT stdout: this runs inside `$( … )`, so an `::error::` on
+                  # stdout is captured into the variable and never reaches the log.
+                  lookup() {
+                    local name="$1" value
+                    value=$(bash .github/scripts/cfn-export.sh --optional "${name}")
+                    if [ -z "$value" ] || [ "$value" = "None" ]; then
+                      echo "::error::CloudFormation export '${name}' not found — is kitchensink-food-service-${STAGE} deployed?" >&2
+                      exit 1
+                    fi
+                    echo "$value"
+                  }
+                  cluster=$(lookup "kitchensink-food-service-${STAGE}:FoodClusterArn")
+                  service=$(lookup "kitchensink-food-service-${STAGE}:FoodApiServiceArn")
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                    --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "${FOOD_ORIGIN}" \
+                    --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
+                    --running-image-tag "${image##*:}" \
+                    || { echo "::error::the DEPLOYED FOOD service failed post-deploy verification (running image ${image##*:}, expected ${EXPECTED_IMAGE_TAG})" >&2; exit 1; }
 
     # ------------------------------------------------------------------------------------------------
     # Recipe (feature 001). This job exists because its ABSENCE was itself the defect: the recipe service
@@ -1005,6 +1093,44 @@ jobs:
                   npx cdk deploy \
                     --app "npx tsx packages/services/ingredient-parser/infra/bin/app.ts" \
                     --all --require-approval never
+            # ⛔ The FIRST thing that has ever asked whether the CRF function can actually run. ADR-0025's own
+            # residual risk is that "the arm64/CPython 3.13 wheels have never been loaded by a Python 3.13
+            # interpreter on ARM" and that "the first real proof is a deploy" — but a Lambda whose code
+            # package will not load still deploys clean and dies on its first cold start, and `crfInvoke.ts`
+            # maps that to per-line `unavailable`, which the pipeline reads as `single-engine llm`. So the
+            # failure would be a quality regression in parsed ingredients, not a red check. `State=Failed`
+            # is the signal, and this step is what reads it.
+            - name: Verify the ingredient-parser deployment (the CRF Lambda can actually load)
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
+                    "npx tsx packages/services/ingredient-parser/infra/bin/app.ts"
+            # ⛔ THE EARLIEST POSSIBLE SIGNAL, and the only one that fires at ZERO traffic. The step above
+            # asks CloudFormation and Lambda whether the function is healthy; this one RUNS it, on one plain
+            # ingredient line, and validates the answer through the package's OWN zod (`parseEngineResponse`)
+            # — never a `jq` probe, which would be a SECOND bearer of the engine's wire contract, free to
+            # drift from the zod every other consumer parses through.
+            #
+            # It is the first real proof of ADR-0025's standing residual: the asset's arm64 / CPython 3.13
+            # wheels "have never been loaded by a Python 3.13 interpreter on ARM". A code package that cannot
+            # import deploys CLEAN and dies on its first cold start, and nothing downstream reports it —
+            # `crfInvoke.ts` maps a failed invoke to `unavailable` per line and ADR-0026 §3 has the pipeline
+            # read that as `single-engine llm`, which is the RIGHT behaviour and is exactly why a permanently
+            # broken engine is invisible.
+            #
+            # ⚠️ Guarded on `live`, NOT `deploy` — exactly like the recipe smoke at the end of this job, and
+            # for the same two reasons. It must run on a push that deployed NOTHING, so a preview whose
+            # engine broke after the fact is still reported; and it must NOT run when `live=false`, the
+            # reaped-sandbox resting state, where there is no function to invoke and the step could only fail
+            # for "there is nothing to do" (the red-over-nothing `deployGateStepGuards.test.ts` was written
+            # for). It sits BEFORE the workers deploy so a failure costs nothing downstream, and after the
+            # parser deploy so it is this run's engine being probed.
+            - name: Smoke test — the deployed CRF engine loads, reads a line, and is the PINNED engine
+              if: steps.gate.outputs.live == 'true'
+              run: |
+                  npx tsx packages/services/ingredient-parser/infra/smoke/deployedSmoke.ts \
+                    --function-name "kitchensink-ingredient-parser-${STAGE}" \
+                    --region "${DEFAULT_AWS_REGION}"
             - name: Build the workspace packages the recipe-workers app imports
               if: steps.gate.outputs.deploy == 'true'
               run: npx turbo run build --filter='@kitchensink/recipe-workers^...'
@@ -1024,6 +1150,32 @@ jobs:
                   npx cdk deploy \
                     --app "npx tsx packages/services/recipe-workers/infra/bin/app.ts" \
                     --all --require-approval never
+            # ⛔ THE check whose absence is the whole reason this file changed. `RecipeWorkersStack` formats
+            # the parser's ARN BY HAND (ADR-0025: the function lives in another CDK app, so no
+            # CloudFormation edge exists between them) and hands `parseLine` a
+            # `CRF_FUNCTION_NAME=kitchensink-ingredient-parser-{stage}`. Nothing but the step ORDER above
+            # stops that from naming a function no account contains, and an order is not an assertion — the
+            # parser deploy could be skipped, fail into a rollback, or be reordered by a future edit, and
+            # every downstream signal would stay green while the two-engine parse ran on one engine.
+            #
+            # The verifier reads that variable off the DEPLOYED function and resolves it against Lambda, so
+            # the edge is asserted against the account rather than against the YAML. Same env as the deploy:
+            # the stack list is derived by synthesising this app.
+            - name: Verify the recipe-workers deployment (incl. parseLine → CRF_FUNCTION_NAME)
+              if: steps.gate.outputs.deploy == 'true'
+              env:
+                  RECIPE_VPC_ID: ${{ steps.infra.outputs.vpc_id }}
+                  RECIPE_LAMBDA_SG_ID: ${{ steps.infra.outputs.lambda_sg_id }}
+                  RECIPE_DB_ENDPOINT: ${{ steps.infra.outputs.db_endpoint }}
+                  RECIPE_DB_PORT: ${{ steps.infra.outputs.db_port }}
+                  RECIPE_DB_INSTANCE_ID: ${{ steps.infra.outputs.db_resource_id }}
+                  RECIPE_DB_BASE_NAME: ${{ steps.infra.outputs.db_base_name }}
+                  RECIPE_ARCHIVE_BUCKET: ${{ steps.infra.outputs.archive_bucket }}
+                  RECIPE_MEDIA_BUCKET: ${{ steps.infra.outputs.media_bucket }}
+                  HANDLE_SYNC_TOPIC_ARN: ${{ steps.infra.outputs.handle_sync_topic_arn }}
+              run: |
+                  bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
+                    "npx tsx packages/services/recipe-workers/infra/bin/app.ts"
             # Pass 2 — the service, which can only synth once the SSM parameters above exist.
             - name: CDK Deploy — recipe service
               if: steps.gate.outputs.deploy == 'true'
@@ -1036,27 +1188,34 @@ jobs:
                   npx cdk deploy \
                     --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
                     --all --require-approval never
+            # The service stack's own resource check. The smoke below asserts the ORIGIN — live, current,
+            # browser-reachable, wired to food — which says nothing about the stack's Lambdas (the migration
+            # runner among them, whose asset shipped as a 101-byte stub in prod for four weeks while
+            # CloudFormation reported CREATE_COMPLETE) or about its queue, topic and parameter references.
+            - name: Verify the recipe-service deployment — every resource, handler and reference
+              if: steps.gate.outputs.deploy == 'true'
+              env:
+                  RECIPE_VPC_ID: ${{ steps.infra.outputs.vpc_id }}
+                  RECIPE_IMAGE_TAG: ${{ env.IMAGE_TAG }}
+                  RECIPE_FOOD_SERVICE_URL: ${{ steps.food.outputs.url }}
+              run: |
+                  bash .github/scripts/verify-deployment.sh verify "${DEFAULT_AWS_REGION}" \
+                    "node packages/services/recipe-service/infra/dist/bin/app.js"
             # Apply migrations into the per-PR logical DB, creating `kitchensink_recipes_pr_{N}` if absent
             # (ADR-0006), so a fresh preview self-provisions its isolated database. Omitting this is NOT a
             # silent no-op: the tasks boot fine and `/health` answers 200 (it does not touch the DB), so the
             # service looks healthy while every actual query 500s — which is exactly what the first run of
             # this job produced.
+            # The payload inspection this leg already had, moved into the ONE definition — and widened with
+            # it: `run-migrations.sh` reads BOTH `FunctionError` and the payload's `errorType`, because a
+            # handled throw can report the fault in one with the other unset. Guard on `deploy` kept, for
+            # the reason on the food leg's copy above (ensure-exists cannot skip the ADR-0022 §4 case, and
+            # the ADR-0007 wake step must stay ahead of it).
             - name: Run recipe migrations (creates the per-PR DB if absent)
               if: steps.gate.outputs.deploy == 'true'
               run: |
-                  set -euo pipefail
-                  FN=$(aws cloudformation describe-stacks --region "${DEFAULT_AWS_REGION}" \
-                      --stack-name "kitchensink-recipe-service-${STAGE}" \
-                      --query "Stacks[0].Outputs[?OutputKey=='RecipeMigrationFunctionName'].OutputValue | [0]" \
-                      --output text)
-                  aws lambda invoke --region "${DEFAULT_AWS_REGION}" --function-name "$FN" \
-                      --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/recipe-migrate.json
-                  cat /tmp/recipe-migrate.json
-                  # `aws lambda invoke` exits 0 even when the FUNCTION threw, so inspect the payload.
-                  if grep -q '"errorType"' /tmp/recipe-migrate.json; then
-                    echo "::error::recipe migration lambda failed — see payload above"
-                    exit 1
-                  fi
+                  bash .github/scripts/run-migrations.sh run "${DEFAULT_AWS_REGION}" \
+                    "kitchensink-recipe-service-${STAGE}" RecipeMigrationFunctionName recipe
             # Read what the RUNNING task is actually configured with, so the smoke step can prove the
             # deployment took effect rather than trusting that `cdk deploy` said "success". Two facts come
             # from the live task definition: the image TAG (currency) and FOOD_SERVICE_URL (cross-service

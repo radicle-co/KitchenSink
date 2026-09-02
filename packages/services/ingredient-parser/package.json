@@ -29,6 +29,7 @@
         "infra:build": "tsc -p infra/tsconfig.json",
         "infra:synth": "npm run bundle:lambda && cdk synth --app 'npx tsx infra/bin/app.ts'",
         "infra:deploy": "npm run bundle:lambda && cdk deploy --app 'npx tsx infra/bin/app.ts'",
+        "smoke:deployed": "tsx infra/smoke/deployedSmoke.ts",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",

@@ -71,6 +71,15 @@ export class IdentityServiceStack extends Stack {
 
         const { stage, imageTag, desiredCount, vpcId, domainName } = props;
 
+        // The BASE platform this deploy rides, in the same vocabulary food and recipe use. ⛔ Identity
+        // takes no `baseStage` PROP the way they do, and should not grow one: it is a PERSISTENT
+        // per-base-stage service (ADR-0005 — `Environment=global`, never `pr-{N}`), so its base platform
+        // is a pure function of its stage rather than something a per-PR deploy overrides. Naming it
+        // here retires the inline `stage === 'prod' ? 'prod' : 'sandbox'` spelling that appeared at the
+        // two call sites below (the Sentry DSN path and the Clerk auth env) — the same rule written two
+        // ways across three services is how the Clerk-env drift started.
+        const baseStage = stage === 'prod' ? 'prod' : 'sandbox';
+
         // Fargate Spot for non-prod (ADR-0008). Prod runs on-demand `FARGATE` (unchanged → no prod
         // diff); every non-prod stage (sandbox) runs interruption-tolerant `FARGATE_SPOT`. The cluster
         // must advertise the FARGATE_SPOT capacity provider before a service strategy can bind to it,
@@ -297,7 +306,7 @@ export class IdentityServiceStack extends Stack {
                 // Manager (`kitchensink/{stage}/identity/keys`).
                 SENTRY_DSN: ssm.StringParameter.valueForStringParameter(
                     this,
-                    `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/sentry/identity-service-dsn`,
+                    `/kitchensink/${baseStage}/sentry/identity-service-dsn`,
                 ),
                 SENTRY_TRACES_SAMPLE_RATE: stage === 'prod' ? '0.1' : '1.0',
                 SENTRY_RELEASE: imageTag,
@@ -306,10 +315,11 @@ export class IdentityServiceStack extends Stack {
                 // list, non-prod = anchored preview pattern + preview mode), and the every-stage
                 // native-admission gate. Extracted 2026-09-02 after this same rule, written by hand in
                 // three stacks, had to be corrected in three places — the shape that already cost this
-                // repo the ALB priority collision. ⚠️ This stack used to key the parameter tree on
-                // `stage === 'prod' ? 'prod' : 'sandbox'` while food and recipe used `baseStage`: the same
-                // rule in two spellings, which is how the drift starts. The helper takes `baseStage`.
-                ...clerkAuthEnvironment(this, stage === 'prod' ? 'prod' : 'sandbox'),
+                // repo the ALB priority collision. ⚠️ This stack used to key the parameter tree on an
+                // inline `stage === 'prod' ? 'prod' : 'sandbox'` while food and recipe used `baseStage` —
+                // the same rule in two spellings, which is how the drift starts. It now derives
+                // `baseStage` once, at the top of the constructor, like its siblings.
+                ...clerkAuthEnvironment(this, baseStage),
             },
             secrets: {
                 DB_USERNAME: ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'username'),

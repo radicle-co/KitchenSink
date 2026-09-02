@@ -4,7 +4,7 @@
  * The WEB review leaf — what a cook sees while a parse job runs and once it settles (plan U9).
  *
  * DESIGN PATTERN: **discriminated union + exhaustive switch (Visitor, satisfied by the language)** over
- * {@link ParseJobViewState}. The state is decided ONCE, in `model.ts`, from the wire status, the review
+ * `ParseJobViewState`. The state is decided ONCE, in `model.ts`, from the wire status, the review
  * deadline, the elapsed wait and any error; this file only chooses a rendering for it. A member added to
  * the union is a compile error here rather than a silently blank screen.
  *

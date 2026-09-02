@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/parse — NATIVE review leaf.
  *
- * The React Native twin of `ParseJobReview.tsx`: the SAME {@link ParseJobViewState} union, switched
+ * The React Native twin of `ParseJobReview.tsx`: the SAME `ParseJobViewState` union, switched
  * exhaustively, with the same rule about where the retry control may appear. Every judgement — which state
  * the surface is in, what a line's measure reads, whether a review reason is known — comes from
  * `model.ts`, so the only thing that differs between the platforms is markup.

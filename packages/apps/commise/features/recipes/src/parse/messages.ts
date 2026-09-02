@@ -87,7 +87,7 @@ export interface RecipeParseMessages {
     readonly loading: string;
     /** Shown while lines are still being parsed. */
     readonly running: string;
-    /** The job has been running far longer than expected — see {@link PARSE_JOB_STALL_BOUND_MS}. */
+    /** The job has been running far longer than expected — see `PARSE_JOB_STALL_BOUND_MS`. */
     readonly stalled: string;
     /** ⚠️ Some lines did not go through, and may yet finish on their own. NEVER phrased as a flat failure. */
     readonly settling: string;

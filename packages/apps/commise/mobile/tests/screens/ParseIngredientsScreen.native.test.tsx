@@ -122,7 +122,14 @@ describe('ParseIngredientsScreen (native)', () => {
             createParseJob = vi.spyOn(client, 'createParseJob');
         });
 
-        await user.type(screen.getByLabelText(messages.pasteLabel), 'x'.repeat(1001));
+        // ⚠️ PASTE, not `type`. `user.type` dispatches one event PER CHARACTER, so a 1001-character
+        // boundary case fired 1001 of them and exceeded the test timeout whenever the suite ran under
+        // parallel load (green alone, red under `turbo run test`) — and its timeout then polluted the
+        // following case, which types twelve characters and had nothing wrong with it. Pasting is also what
+        // the screen is FOR: this is the over-length guard on a paste box, and no cook types a thousand
+        // characters by hand.
+        await user.click(screen.getByLabelText(messages.pasteLabel));
+        await user.paste('x'.repeat(1001));
 
         expect(screen.getByText('Line 1 is longer than 1000 characters. Shorten it and try again.')).toBeTruthy();
         expect(createParseJob).not.toHaveBeenCalled();

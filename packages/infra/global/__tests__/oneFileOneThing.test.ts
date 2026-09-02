@@ -110,13 +110,15 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'GREW 2026-08-25 (U29): the on-demand USDA lane added `SourceUnavailableError` (an outage we can say ' +
             'nothing about) and `SourceBusyError` (a rate refusal that names when to come back) as DISTINCT ' +
             'members, because the picker renders two different sentences and a cook takes two different actions; ' +
-            '`SearchQueryTooShortError` came with FR-010a. Each is a new failure the boundary can raise, which is ' +
-            'the exempted unit — not a second subject in the file.',
+            '`SearchQueryTooShortError` came with FR-010a; `ParseJobExpiredError` came with the parse-job UI, ' +
+            'and is the boundary telling a cook that the proposals they are looking at no longer exist — a ' +
+            'different sentence and a different action from every other member. Each is a new failure the ' +
+            'boundary can raise, which is the exempted unit — not a second subject in the file.',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/clients/food-service/src/errors.ts', classes: 11, components: 0 },
-            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 13, components: 0 },
+            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 14, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 2, components: 0 },

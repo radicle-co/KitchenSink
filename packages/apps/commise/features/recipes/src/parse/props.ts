@@ -115,7 +115,7 @@ export interface ParseLineEditControl {
  *  - ⛔ `recorded: false` (`already_in_force` / `superseded`) IS A SUCCESS. It must render as "already
  *    saved", never as a failure and never as a retryable error — the same rule
  *    `../correction/messages.ts` records for the resolution correction, and the reason
- *    {@link CorrectionNoticeModel}'s `tone` reserves `error` for one member alone.
+ *    `CorrectionNoticeModel`'s `tone` reserves `error` for one member alone.
  *  - Import the parse types from `@kitchensink/recipe-core` once regenerated, NOT from
  *    `recipe-import-core`: that package is outside the contract import allowlist and would drag
  *    `sanitize-html`, `parse-ingredient` and `fraction.js` into the mobile bundle.

@@ -109,14 +109,46 @@ function expectedTables(): string[] {
 }
 
 /**
+ * The session advisory-lock key this database's migration runs serialize on.
+ *
+ * ⛔ WHY THIS EXISTS. Idempotency comes from `schema_migrations`, and that ledger is CHECKED-then-APPLIED,
+ * which is not atomic: two runners starting together both read "unapplied" and both execute the file. The
+ * loser then fails on a `CREATE TABLE`/`CREATE EXTENSION` the winner just committed, and — because the
+ * runner's throw is a Lambda `FunctionError` the ADR-0022 Trigger rethrows — that failure is a RED DEPLOY,
+ * not a retry. ADR-0022 recorded it as an accepted residual risk on the grounds that "nothing in the
+ * pipelines runs two concurrently"; the owner's rule that migrations run on EVERY deploy makes concurrent
+ * invocations likelier, and the race reproduces on the first attempt (demonstrated in recipe-service's
+ * `__tests__/integration/database/migrationRunner.integration.test.ts`).
+ *
+ * ⚠️ It changes deploy behaviour: a second runner now WAITS instead of racing.
+ *
+ * Advisory locks are scoped to the DATABASE, so this constant only has to agree with other runners of the
+ * IDENTITY schema. It deliberately does not have to match food's or recipe's.
+ *
+ * The value is an arbitrary fixed 64-bit constant; the digits carry no meaning beyond being stable.
+ */
+const MIGRATION_ADVISORY_LOCK_KEY = '7412200228220022';
+
+/**
+ * How long a runner waits for the lock before failing with a Postgres lock error.
+ *
+ * Sized under the runner's own Lambda timeout on purpose: without it, a runner blocked behind a stuck peer
+ * would be killed by Lambda with no diagnostic at all.
+ */
+const MIGRATION_LOCK_TIMEOUT_MS = 240_000;
+
+/**
  * Apply the ordered migrations idempotently against a pool, then validate the result. The testable core
  * of {@link handler} (the handler only resolves credentials and builds the pool).
  *
+ * Serialized on {@link MIGRATION_ADVISORY_LOCK_KEY} for the whole apply loop, so the ledger's
+ * check-then-apply cannot interleave with another runner's.
+ *
  * @param options - The connected pool + the migrations directory.
  * @returns The applied/skipped lists + validation counts.
- * @throws {Error} when a migration's SQL fails, a discovered migration is not recorded, or an expected
- *   table is missing after the run.
- * @sideEffect Connects to PostgreSQL and executes DDL.
+ * @throws {Error} when the migration lock cannot be acquired, a migration's SQL fails, a discovered
+ *   migration is not recorded, or an expected table is missing after the run.
+ * @sideEffect Connects to PostgreSQL, takes a session advisory lock, and executes DDL.
  */
 export async function runMigrations(options: RunMigrationsOptions): Promise<MigrateResult> {
     const { pool, migrationsDir } = options;
@@ -124,8 +156,21 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<Migr
     const applied: string[] = [];
     const skipped: string[] = [];
     const client = await pool.connect();
+    let holdsLock = false;
 
     try {
+        // ⛔ BEFORE the ledger is even created, so two runners cannot both create it and both read it empty.
+        // `lock_timeout` is RESET immediately after: it is a session setting and this client goes back to a
+        // pool, so leaving it set would silently shorten every later statement's lock wait.
+        await client.query(`SET lock_timeout = ${MIGRATION_LOCK_TIMEOUT_MS}`);
+
+        try {
+            await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_ADVISORY_LOCK_KEY]);
+            holdsLock = true;
+        } finally {
+            await client.query('RESET lock_timeout');
+        }
+
         await client.query(
             'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
         );
@@ -183,6 +228,13 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<Migr
 
         return { applied, skipped, validated: { migrations: migrations.length, tables: tables.length } };
     } finally {
+        // ⛔ Released EXPLICITLY, not left to the connection dying. A session advisory lock outlives the
+        // statement that took it, and `client.release()` returns the session to the pool still holding it —
+        // which would deadlock the very next runner on a pool that outlives one call.
+        if (holdsLock) {
+            await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_ADVISORY_LOCK_KEY]);
+        }
+
         client.release();
     }
 }

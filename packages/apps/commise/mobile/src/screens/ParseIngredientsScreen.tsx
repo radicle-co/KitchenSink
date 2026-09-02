@@ -18,12 +18,23 @@ import { useState } from 'react';
 export interface ParseIngredientsScreenProps {
     /** Invoked with the accepted job's id once the paste has been submitted. */
     readonly onCreated: (jobId: string) => void;
+    /**
+     * Invoked when the cook leaves without submitting.
+     *
+     * ⛔ REQUIRED. This is a pushed surface over a stack with no chrome — no tab bar, no shell — so without
+     * it there was no exit at all on iOS, which has no hardware back either. Every sibling pushed screen
+     * (`RecipeCreateScreen.onCancel`, `RecipeVersionsScreen.onBack`, …) already takes this seam.
+     */
+    readonly onBack: () => void;
 }
 
-export function ParseIngredientsScreen({ onCreated }: ParseIngredientsScreenProps): JSX.Element {
+export function ParseIngredientsScreen({ onCreated, onBack }: ParseIngredientsScreenProps): JSX.Element {
     const messages = useMessages(recipeParseMessages);
     const [text, setText] = useState('');
-    const createJob = useCreateParseJob();
+    // ⛔ THE CALLBACK LIVES ON THE MUTATION, not on a per-call `mutate(vars, { onSuccess })` — TanStack
+    // skips those when the observer unmounts before the mutation settles, which here loses the created
+    // job's ID permanently (the service publishes no list endpoint, so nothing can address it again).
+    const createJob = useCreateParseJob({ onSuccess: (job) => onCreated(job.id) });
     const submission = toParseSubmissionModel(text, messages);
 
     return (
@@ -32,6 +43,7 @@ export function ParseIngredientsScreen({ onCreated }: ParseIngredientsScreenProp
             onChange={setText}
             submission={submission}
             submitting={createJob.isPending}
+            onBack={onBack}
             // ⚠️ The paste is NOT cleared on failure. A failed create leaves the cook's text where it was,
             // so "try again" costs one press rather than a retype — which on a phone matters more, not less.
             errorNotice={createJob.isError ? messages.pasteFailed : undefined}
@@ -42,7 +54,7 @@ export function ParseIngredientsScreen({ onCreated }: ParseIngredientsScreenProp
                     return;
                 }
 
-                createJob.mutate({ text }, { onSuccess: (job) => onCreated(job.id) });
+                createJob.mutate({ text });
             }}
         />
     );

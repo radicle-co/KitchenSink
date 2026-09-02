@@ -16,16 +16,9 @@ import { useMessages } from '@commise/i18n/react';
 import { useLocale } from '@commise/i18n/react';
 import type { FC, JSX } from 'react';
 
-import { fillTemplate } from '../list/model.js';
 import { recipeParseMessages } from './messages.js';
+import { formatParseLineCount } from './model.js';
 import type { ParsePasteFormProps } from './props.js';
-
-/** Select the singular/plural template for `count` and fill it. Pure. */
-function lineCountLabel(count: number, labels: { one: string; other: string }, locale: string): string {
-    const template = new Intl.PluralRules(locale).select(count) === 'one' ? labels.one : labels.other;
-
-    return fillTemplate(template, { count });
-}
 
 export const ParsePasteForm: FC<ParsePasteFormProps> = ({
     value,
@@ -34,6 +27,7 @@ export const ParsePasteForm: FC<ParsePasteFormProps> = ({
     onSubmit,
     submitting,
     errorNotice,
+    onBack,
 }): JSX.Element => {
     const messages = useMessages(recipeParseMessages);
     const locale = useLocale();
@@ -60,7 +54,7 @@ export const ParsePasteForm: FC<ParsePasteFormProps> = ({
             </label>
 
             <p className="text-caption text-slate">
-                {lineCountLabel(submission.lineCount, messages.pasteLineCount, locale)}
+                {formatParseLineCount(submission.lineCount, messages.pasteLineCount, locale)}
             </p>
 
             {refusals.length > 0 && (
@@ -85,15 +79,24 @@ export const ParsePasteForm: FC<ParsePasteFormProps> = ({
                 </p>
             )}
 
-            <button
-                type="button"
-                onClick={onSubmit}
-                disabled={blocked}
-                aria-busy={submitting}
-                className="self-start rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-ocean-dark disabled:opacity-60"
-            >
-                {messages.pasteSubmit}
-            </button>
+            <div className="flex gap-2">
+                <button
+                    type="button"
+                    onClick={onBack}
+                    className="rounded-full bg-card px-4 py-2 text-body-sm font-medium text-slate"
+                >
+                    {messages.backAction}
+                </button>
+                <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={blocked}
+                    aria-busy={submitting}
+                    className="self-start rounded-full bg-seafoam px-5 py-2 text-body-sm font-semibold text-ocean-dark disabled:opacity-60"
+                >
+                    {messages.pasteSubmit}
+                </button>
+            </div>
         </section>
     );
 };

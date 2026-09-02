@@ -29,7 +29,16 @@ export const ParsePasteContainer: FC<ParsePasteContainerProps> = ({ locale }) =>
     const router = useRouter();
     const messages = useMessages(recipeParseMessages);
     const [text, setText] = useState('');
-    const createJob = useCreateParseJob();
+    // ⛔ THE NAVIGATION LIVES ON THE MUTATION, not on a per-call `mutate(vars, { onSuccess })`. TanStack
+    // SKIPS per-call callbacks when the observer unmounts before the mutation settles — and here that loses
+    // the created job's ID PERMANENTLY: the job exists, but `queries.ts` records that the service publishes
+    // no list endpoint, so nothing can ever address it again until the TTL sweeps it. A narrow window with
+    // an unrecoverable outcome. The hook's own `onSuccess` (which write-throughs the cache) still runs.
+    const createJob = useCreateParseJob({
+        onSuccess: (job) => {
+            router.replace(`/${locale}/recipes/parse/${job.id}` as Route);
+        },
+    });
     const submission = toParseSubmissionModel(text, messages);
 
     return (
@@ -38,6 +47,7 @@ export const ParsePasteContainer: FC<ParsePasteContainerProps> = ({ locale }) =>
             onChange={setText}
             submission={submission}
             submitting={createJob.isPending}
+            onBack={() => router.push(`/${locale}/recipes` as Route)}
             // ⚠️ The paste is NOT cleared here. A failed create leaves the cook's text exactly where it was,
             // so "try again" costs one press rather than a retype — which for a 200-line block matters.
             errorNotice={createJob.isError ? messages.pasteFailed : undefined}
@@ -49,14 +59,7 @@ export const ParsePasteContainer: FC<ParsePasteContainerProps> = ({ locale }) =>
                     return;
                 }
 
-                createJob.mutate(
-                    { text },
-                    {
-                        onSuccess: (job) => {
-                            router.replace(`/${locale}/recipes/parse/${job.id}` as Route);
-                        },
-                    },
-                );
+                createJob.mutate({ text });
             }}
         />
     );

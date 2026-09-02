@@ -83,7 +83,7 @@ function renderScreen(ui: ReactNode, prepare: (client: RecipeServiceClient) => v
 
 describe('ParseIngredientsScreen (native)', () => {
     it('renders an empty paste surface with the control unavailable', () => {
-        renderScreen(<ParseIngredientsScreen onCreated={vi.fn()} />);
+        renderScreen(<ParseIngredientsScreen onCreated={vi.fn()} onBack={vi.fn()} />);
 
         expect(screen.getByLabelText(messages.pasteLabel)).toHaveProperty('value', '');
         expect(screen.getByRole('button', { name: messages.pasteSubmit }).getAttribute('aria-disabled')).toBe('true');
@@ -91,7 +91,7 @@ describe('ParseIngredientsScreen (native)', () => {
 
     it('holds the pasted text — typing moves the field and the admissible count follows it', async () => {
         const user = userEvent.setup();
-        renderScreen(<ParseIngredientsScreen onCreated={vi.fn()} />);
+        renderScreen(<ParseIngredientsScreen onCreated={vi.fn()} onBack={vi.fn()} />);
 
         await user.type(screen.getByLabelText(messages.pasteLabel), '2 cups flour');
 
@@ -103,7 +103,7 @@ describe('ParseIngredientsScreen (native)', () => {
         const user = userEvent.setup();
         const onCreated = vi.fn();
         let createParseJob: ReturnType<typeof vi.spyOn> | undefined;
-        renderScreen(<ParseIngredientsScreen onCreated={onCreated} />, (client) => {
+        renderScreen(<ParseIngredientsScreen onCreated={onCreated} onBack={vi.fn()} />, (client) => {
             createParseJob = vi.spyOn(client, 'createParseJob').mockResolvedValue(job({ status: 'running' }));
         });
 
@@ -118,7 +118,7 @@ describe('ParseIngredientsScreen (native)', () => {
         const user = userEvent.setup();
         const onCreated = vi.fn();
         let createParseJob: ReturnType<typeof vi.spyOn> | undefined;
-        renderScreen(<ParseIngredientsScreen onCreated={onCreated} />, (client) => {
+        renderScreen(<ParseIngredientsScreen onCreated={onCreated} onBack={vi.fn()} />, (client) => {
             createParseJob = vi.spyOn(client, 'createParseJob');
         });
 
@@ -132,7 +132,7 @@ describe('ParseIngredientsScreen (native)', () => {
     it('⚠️ keeps the pasted text when the create fails, and does not navigate', async () => {
         const user = userEvent.setup();
         const onCreated = vi.fn();
-        renderScreen(<ParseIngredientsScreen onCreated={onCreated} />, (client) => {
+        renderScreen(<ParseIngredientsScreen onCreated={onCreated} onBack={vi.fn()} />, (client) => {
             vi.spyOn(client, 'createParseJob').mockRejectedValue(new Error('boom'));
         });
 
@@ -148,7 +148,7 @@ describe('ParseIngredientsScreen (native)', () => {
 describe('ParseJobReviewScreen (native)', () => {
     it('renders the job the composing screen addressed', async () => {
         let getParseJob: ReturnType<typeof vi.spyOn> | undefined;
-        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} />, (client) => {
+        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} onBack={vi.fn()} />, (client) => {
             getParseJob = vi.spyOn(client, 'getParseJob').mockResolvedValue(job());
         });
 
@@ -158,7 +158,7 @@ describe('ParseJobReviewScreen (native)', () => {
     });
 
     it('shows the loading state while the first view is in flight', () => {
-        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} />, (client) => {
+        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} onBack={vi.fn()} />, (client) => {
             vi.spyOn(client, 'getParseJob').mockReturnValue(new Promise(() => undefined));
         });
 
@@ -166,7 +166,7 @@ describe('ParseJobReviewScreen (native)', () => {
     });
 
     it('⛔ renders an expired job, and offers NO retry — the server answers 409 to one', async () => {
-        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} />, (client) => {
+        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} onBack={vi.fn()} />, (client) => {
             vi.spyOn(client, 'getParseJob').mockResolvedValue(job({ status: 'expired' }));
         });
 
@@ -177,7 +177,7 @@ describe('ParseJobReviewScreen (native)', () => {
     it('re-drives a settling job through the retry control', async () => {
         const user = userEvent.setup();
         let retryParseJob: ReturnType<typeof vi.spyOn> | undefined;
-        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} />, (client) => {
+        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} onBack={vi.fn()} />, (client) => {
             vi.spyOn(client, 'getParseJob').mockResolvedValue(
                 job({
                     status: 'partial',
@@ -193,10 +193,30 @@ describe('ParseJobReviewScreen (native)', () => {
         await waitFor(() => expect(retryParseJob).toHaveBeenCalledWith(JOB_ID));
     });
 
+    it('⛔ reports "back" upward — the screen must not be a dead end on a stack with no chrome', async () => {
+        // This assertion is here because its ABSENCE let a real miss through: `onBack` was declared on the
+        // props and never forwarded to the leaf, and every test still passed. eslint's unused-arg rule
+        // caught it; a test should have.
+        const user = userEvent.setup();
+        const onBack = vi.fn();
+        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={vi.fn()} onBack={onBack} />, (client) => {
+            vi.spyOn(client, 'getParseJob').mockResolvedValue(job());
+        });
+
+        // ⚠️ Settle on the READY state before querying the control. The `loading` branch renders its own
+        // back button, so a `findByRole` that resolves there hands back a node React detaches a tick later
+        // when the job lands — and clicking a detached node silently does nothing. (That is exactly how the
+        // first version of this test failed, and it is worth the extra line to state.)
+        await screen.findByText('2 cups flour');
+        await user.click(screen.getByRole('button', { name: messages.backAction }));
+
+        expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
     it('reports "start over" upward so the stack — not this screen — decides where it goes', async () => {
         const user = userEvent.setup();
         const onStartOver = vi.fn();
-        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={onStartOver} />, (client) => {
+        renderScreen(<ParseJobReviewScreen jobId={JOB_ID} onStartOver={onStartOver} onBack={vi.fn()} />, (client) => {
             vi.spyOn(client, 'getParseJob').mockResolvedValue(job());
         });
 

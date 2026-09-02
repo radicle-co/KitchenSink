@@ -15,18 +15,11 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette, semantic } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { fillTemplate } from '../list/model.js';
 import { recipeParseMessages } from './messages.js';
+import { formatParseLineCount } from './model.js';
 import type { ParsePasteFormProps } from './props.js';
-
-/** Select the singular/plural template for `count` and fill it. Pure. Mirrors the web leaf exactly. */
-function lineCountLabel(count: number, labels: { one: string; other: string }, locale: string): string {
-    const template = new Intl.PluralRules(locale).select(count) === 'one' ? labels.one : labels.other;
-
-    return fillTemplate(template, { count });
-}
 
 export const ParsePasteForm: FC<ParsePasteFormProps> = ({
     value,
@@ -35,6 +28,7 @@ export const ParsePasteForm: FC<ParsePasteFormProps> = ({
     onSubmit,
     submitting,
     errorNotice,
+    onBack,
 }) => {
     const messages = useMessages(recipeParseMessages);
     const locale = useLocale();
@@ -44,7 +38,10 @@ export const ParsePasteForm: FC<ParsePasteFormProps> = ({
     const blocked = !submission.canSubmit || submitting;
 
     return (
-        <View style={styles.container}>
+        // ⛔ SCROLLABLE. The 160dp paste box plus an on-screen keyboard pushes the submit control off a
+        // phone screen, and every sibling native leaf reaches for a scroll container for the same reason.
+        // A plain `View` clipped it with no way to reach it — invisible under jsdom, which hit-tests nothing.
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
             <Text accessibilityRole="header" style={styles.heading}>
                 {messages.pasteHeading}
             </Text>
@@ -65,7 +62,9 @@ export const ParsePasteForm: FC<ParsePasteFormProps> = ({
                 />
             </View>
 
-            <Text style={styles.count}>{lineCountLabel(submission.lineCount, messages.pasteLineCount, locale)}</Text>
+            <Text style={styles.count}>
+                {formatParseLineCount(submission.lineCount, messages.pasteLineCount, locale)}
+            </Text>
 
             {refusals.map((refusal) => (
                 <Text key={refusal} role="alert" style={styles.error}>
@@ -102,7 +101,16 @@ export const ParsePasteForm: FC<ParsePasteFormProps> = ({
             >
                 <Text style={styles.submitLabel}>{messages.pasteSubmit}</Text>
             </Pressable>
-        </View>
+
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={messages.backAction}
+                onPress={onBack}
+                style={styles.back}
+            >
+                <Text style={styles.backLabel}>{messages.backAction}</Text>
+            </Pressable>
+        </ScrollView>
     );
 };
 
@@ -138,4 +146,13 @@ const styles = StyleSheet.create({
     },
     submitDisabled: { opacity: 0.6 },
     submitLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette['ocean-dark'] },
+    back: {
+        minHeight: TOUCH_TARGET_DP,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: nativeTokens.radius.full,
+        paddingHorizontal: nativeTokens.spacing[4],
+        backgroundColor: palette.pearl,
+    },
+    backLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
 });

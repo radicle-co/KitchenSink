@@ -21,7 +21,7 @@ import type { ParseJobLineView } from '@kitchensink/recipe-service-client';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeParseMessages, type RecipeParseMessages } from './messages.js';
-import { toParseLineModel, type ParseJobProgress, type ParseLineTone } from './model.js';
+import { toParseLineModel, toParseSubmissionModel, type ParseJobProgress, type ParseLineTone } from './model.js';
 import type { ParseJobReviewProps, ParseLineRowProps } from './props.js';
 
 /** Tone → the text colour that carries it. Exhaustive, so a new tone cannot render as default body text. */
@@ -56,6 +56,11 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
     const [draft, setDraft] = useState<string | undefined>(undefined);
     const [pendingText, setPendingText] = useState<string | undefined>(undefined);
     const busy = edit.busyLineIndex === line.lineIndex;
+    // ⛔ THE SAME ADMISSION THE PASTE FORM RUNS, on the one line being edited. Pressing Save on a blank or
+    // over-long replacement used to do NOTHING and say nothing — while the paste form goes to real trouble
+    // to name the offending line. Both refusals are the same shared knowledge (`refuseParseJobLines`); it
+    // was simply used on one path and not the other.
+    const draftAdmission = draft === undefined ? undefined : toParseSubmissionModel(draft, messages);
 
     // ⛔ THE EDITOR CLOSES ON SUCCESS, NOT ON SUBMIT. Closing it the moment the request left discarded the
     // cook's typed correction whenever that request failed — the exact loss the paste form goes out of its
@@ -128,19 +133,24 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }): 
                             className="rounded-md border border-border bg-card px-3 py-2 text-body-sm text-charcoal"
                         />
                     </label>
+                    {draftAdmission?.refusals.map((refusal) => (
+                        <p key={refusal} role="alert" className="text-caption text-error-dark">
+                            {refusal}
+                        </p>
+                    ))}
                     <div className="flex gap-2">
                         <button
                             type="button"
                             // ⛔ THE WIRE INDEX, never the number in the label. The row reads "line 4" and
                             // the API takes `3`; sending the human number edits a different line silently.
-                            disabled={busy}
+                            disabled={busy || draftAdmission?.canSubmit !== true}
                             aria-busy={busy}
                             onClick={() => {
                                 const next = draft.trim();
 
                                 // An edit is not a delete — a blank replacement is refused, exactly as the
                                 // service's own schema refuses it.
-                                if (next === '' || busy) {
+                                if (draftAdmission?.canSubmit !== true || busy) {
                                     return;
                                 }
 
@@ -192,9 +202,22 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
     retry,
     edit,
     onStartOver,
+    onBack,
     renderCorrection,
 }): JSX.Element => {
     const messages = useMessages(recipeParseMessages);
+
+    // ⛔ Rendered in EVERY branch below, including `running`, which offers nothing else — see
+    // `ParseJobReviewProps.onBack`.
+    const back = (
+        <button
+            type="button"
+            onClick={onBack}
+            className="self-start rounded-full bg-card px-4 py-2 text-body-sm font-medium text-slate"
+        >
+            {messages.backAction}
+        </button>
+    );
 
     const startOver = (
         <button
@@ -236,9 +259,12 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
     switch (state.kind) {
         case 'loading':
             return (
-                <p role="status" className="text-body-sm text-slate">
-                    {messages.loading}
-                </p>
+                <section aria-label={messages.reviewHeading} className="flex flex-col gap-3">
+                    <p role="status" className="text-body-sm text-slate">
+                        {messages.loading}
+                    </p>
+                    {back}
+                </section>
             );
 
         case 'missing':
@@ -248,6 +274,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
                         {messages.missing}
                     </p>
                     {startOver}
+                    {back}
                 </section>
             );
 
@@ -258,6 +285,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
                         {messages.failed}
                     </p>
                     {startOver}
+                    {back}
                 </section>
             );
 
@@ -270,6 +298,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
                         {messages.expired}
                     </p>
                     {startOver}
+                    {back}
                 </section>
             );
 
@@ -302,6 +331,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
                         </div>
                     )}
                     <ParseLineList lines={state.job.lines} edit={edit} renderCorrection={renderCorrection} />
+                    {back}
                 </section>
             );
 
@@ -313,7 +343,10 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({
                     <p className="text-body-sm text-slate">{messages.ready}</p>
                     {notices}
                     <ParseLineList lines={state.job.lines} edit={edit} renderCorrection={renderCorrection} />
-                    {startOver}
+                    <div className="flex gap-2">
+                        {startOver}
+                        {back}
+                    </div>
                 </section>
             );
     }

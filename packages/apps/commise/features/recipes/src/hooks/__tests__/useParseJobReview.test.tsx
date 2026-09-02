@@ -24,6 +24,7 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import type { ParseJobResponse } from '@kitchensink/recipe-service-client';
 
 import { recipeParseMessages } from '../../parse/messages.js';
+import { PARSE_JOB_STALL_BOUND_MS } from '../../parse/model.js';
 import { useParseJobReview } from '../useParseJobReview.js';
 
 const messages = recipeParseMessages.en;
@@ -138,6 +139,44 @@ describe('useParseJobReview — the retry command', () => {
         act(() => result.current.retry.run());
 
         await waitFor(() => expect(result.current.retry.notice).toBe(messages.retryFailed));
+    });
+});
+
+describe('useParseJobReview — the stall clock is RESET by a mutation', () => {
+    // ⛔ DELETABLE WITH EVERY OTHER TEST GREEN before this existed. The hook's own module docstring calls
+    // the reset load-bearing — "would report a job as stalled the instant a cook retried an old one" — and
+    // the suite's stated reason for not testing it (that the bound is asserted in `model.test.ts`, where
+    // time is a parameter) covers the BOUND, not the RESET, which is the hook's own rule.
+    //
+    // Fake timers, because the reset is only observable across the three-minute boundary.
+    it('leaves the stalled state after a retry re-opens the work', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+
+        try {
+            const { result, client } = renderReview((c) => {
+                vi.spyOn(c, 'getParseJob').mockResolvedValue(job({ status: 'running' }));
+            });
+            vi.spyOn(client, 'retryParseJob').mockResolvedValue(job({ status: 'running' }));
+
+            await waitFor(() => expect(result.current.state.kind).toBe('running'));
+
+            // Past the bound with no mutation: the surface tells the cook it is stuck.
+            await act(async () => {
+                vi.advanceTimersByTime(PARSE_JOB_STALL_BOUND_MS + 1_000);
+                await Promise.resolve();
+            });
+            await waitFor(() => expect(result.current.state.kind).toBe('stalled'));
+
+            // A retry re-opens the work, so the wait is measured from NOW — not from the original mount.
+            await act(async () => {
+                result.current.retry.run();
+                await Promise.resolve();
+            });
+
+            await waitFor(() => expect(result.current.state.kind).toBe('running'));
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

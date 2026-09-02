@@ -872,10 +872,17 @@ export interface ParseJobOptions extends QueryEnableOptions {
 /**
  * `GET /api/v1/recipe-parse-jobs/{id}` — poll one parse job until it settles.
  *
- * Self-limiting: the cadence comes from {@link parseJobQueries}`.detail`, which polls ONLY while the job is
- * `running` and stops on `partial`, `complete` and `expired` alike (see that factory for why each is
- * terminal for this purpose). Gate it on an id actually existing — `''` before a create has landed disables
- * the query rather than firing a request for a job that does not exist.
+ * Self-limiting: the cadence comes from {@link parseJobQueries}`.detail`, which polls while the job can
+ * still MOVE — `running` at the standard cadence and `partial` at the longer settling one — and stops on
+ * `complete`, on `expired`, and once `expiresAt` has passed. Gate it on an id actually existing — `''`
+ * before a create has landed disables the query rather than firing a request for a job that does not exist.
+ *
+ * ⛔ THIS PARAGRAPH PREVIOUSLY SAID THE OPPOSITE — "polls ONLY while `running` and stops on `partial`" —
+ * and is corrected rather than quietly rewritten, because it is the doc a future engineer reads before
+ * "fixing" the poll back. A `partial` job SELF-HEALS: an enqueue failure marks lines whose messages did
+ * send, those land anyway (the worker's landing `UPDATE` has no status predicate), and the aggregate
+ * re-derives. Stopping there strands a cook in front of "press Retry" for a job that already finished.
+ * The factory's own docstring carries the full reasoning.
  *
  * ⚠️ EXPIRY ARRIVES HERE AS DATA, not as an error: the service answers an expired job's read `200` with
  * `status: 'expired'`. Only a mutation raises `ParseJobExpiredError`.
@@ -893,20 +900,40 @@ export function useParseJob(id: string, options: ParseJobOptions = {}) {
     });
 }
 
+/** Caller hooks for {@link useCreateParseJob}. */
+export interface CreateParseJobOptions {
+    /**
+     * Run after the job is accepted and written through — typically to navigate to its review surface.
+     *
+     * ⛔ EXPOSED HERE rather than left to a per-call `mutate(vars, { onSuccess })`, and the difference is
+     * not stylistic. TanStack SKIPS per-call callbacks when the observer unmounts before the mutation
+     * settles — and on this resource that loses the created job's ID PERMANENTLY: the job exists, but the
+     * service publishes no list endpoint (see `queries.ts`'s key factory), so nothing can ever address it
+     * again until the TTL sweeps it. A mutation-level callback survives the unmount.
+     */
+    readonly onSuccess?: (job: ParseJobResponse) => void;
+}
+
 /**
  * `POST /api/v1/recipe-parse-jobs` — submit a pasted ingredient block (`202`).
  *
  * The accepted view is written through to the NEW job's own key, so the poll {@link useParseJob} starts
  * against the server's first answer instead of an empty cache.
+ *
+ * @param options - Caller hooks; see {@link CreateParseJobOptions.onSuccess} for why navigation belongs here.
  */
-export function useCreateParseJob() {
+export function useCreateParseJob(options: CreateParseJobOptions = {}) {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
+    const { onSuccess } = options;
 
     return useMutation({
         mutationFn: (input: CreateParseJobRequest) => client.createParseJob(input),
         onSuccess: (job) => {
+            // The write-through happens FIRST, so a caller navigating to the review surface finds the
+            // server's first view already in the cache rather than a spinner over data it holds.
             writeParseJobThrough(queryClient, job);
+            onSuccess?.(job);
         },
     });
 }

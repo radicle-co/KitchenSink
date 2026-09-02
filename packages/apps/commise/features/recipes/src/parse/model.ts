@@ -176,9 +176,15 @@ export function toParseJobProgress(job: ParseJobResponse): ParseJobProgress {
  * Every state the review surface can be in.
  *
  * `settling` and `stalled` are the two members a reader would not predict from the wire enum, and each has
- * its own entry in the module docstring. `expired` carries an OPTIONAL job because it is reachable two
- * ways: from a poll that observed the deadline, and from a mutation the server refused with
- * `ParseJobExpiredError` before any view was in hand.
+ * its own entry in the module docstring.
+ *
+ * ⚠️ `expired`'s job is OPTIONAL, and the docstring here previously claimed the `undefined` inhabitant was
+ * reached "from a mutation the server refused". IT IS NOT, and the correction matters more than the arm:
+ * a `GET` never raises `ParseJobExpiredError` (the service answers an expired read `200`), and the only
+ * caller feeds this projection the QUERY's error alone — mutation refusals surface as `retry.notice` /
+ * `edit.notice` instead, so the cook keeps the proposals on screen rather than losing the whole surface to
+ * an error state. The arm below is kept as the defensive reading for a caller that later folds mutation
+ * errors in, but nothing does today; treat it as unreached, not as a documented path.
  */
 export type ParseJobViewState =
     | { readonly kind: 'loading' }
@@ -235,6 +241,10 @@ export function toParseJobViewState(input: ParseJobViewStateInput): ParseJobView
                 return now - runningSince > PARSE_JOB_STALL_BOUND_MS
                     ? { kind: 'stalled', job, progress }
                     : { kind: 'running', job, progress };
+            // `expired` is handled above, so this default is reached only by a status the SERVICE has added
+            // and this build has never been taught.
+            default:
+                return unreachableStatus(job.status);
         }
     }
 
@@ -252,6 +262,53 @@ export function toParseJobViewState(input: ParseJobViewStateInput): ParseJobView
 }
 
 // ── One line ──────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The exhaustiveness gate for the wire's job-status enum.
+ *
+ * ⛔ NOT CEREMONY, and its absence was a live hole. `parseJobStatusSchema` belongs to the SERVICE, which
+ * deploys independently — so a fifth status can reach a released client. Without this, `toParseJobViewState`
+ * fell out of its `switch`, past the error check, and returned `loading`: an eternal spinner with the poll
+ * ALSO switched off (`refetchInterval` answers `false` for a status it does not know), which is precisely
+ * the "silently blank screen" this module's docstring claims a discriminated union makes impossible.
+ *
+ * Typed `never`, so adding a member to the wire enum breaks THIS FILE at `typecheck` rather than at 3am.
+ * The runtime throw is the honest second half: an older binary meeting a newer server should fail loudly at
+ * the boundary, not render a lie.
+ *
+ * @param status - The status this build cannot narrow.
+ * @throws Always. Pure apart from the throw.
+ */
+function unreachableStatus(status: never): never {
+    throw new Error(`Unknown parse job status: ${String(status)}`);
+}
+
+/** Singular/plural templates for a count, each containing `{count}`. */
+export interface ParseCountLabels {
+    readonly one: string;
+    readonly other: string;
+}
+
+/**
+ * Select the locale-correct plural template for `count` and fill it. Pure.
+ *
+ * ⛔ Lives HERE, not in each leaf. It was a byte-identical private copy inside `ParsePasteForm.tsx` and
+ * `ParsePasteForm.native.tsx` — the native one's own comment read "Mirrors the web leaf exactly", which is
+ * the drift the one-contract-two-renderers shape exists to make impossible, written down as a feature.
+ *
+ * ⚠️ Still NOT `formatRecipeCount`, whose name would lie at this call site; see `messages.ts` for the
+ * corrected occurrence count behind that judgement.
+ *
+ * @param count - The number to describe.
+ * @param labels - The singular/plural templates.
+ * @param locale - The active BCP-47 locale.
+ * @returns The filled template.
+ */
+export function formatParseLineCount(count: number, labels: ParseCountLabels, locale: Locale): string {
+    const template = new Intl.PluralRules(locale).select(count) === 'one' ? labels.one : labels.other;
+
+    return fillTemplate(template, { count });
+}
 
 /**
  * How a line's status should be presented.

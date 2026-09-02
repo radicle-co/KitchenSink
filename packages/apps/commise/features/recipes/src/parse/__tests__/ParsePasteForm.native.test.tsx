@@ -28,6 +28,7 @@ function renderForm(value: string, overrides: Partial<ParsePasteFormProps> = {})
         onSubmit: vi.fn(),
         submitting: false,
         errorNotice: undefined,
+        onBack: vi.fn(),
         ...overrides,
     };
 
@@ -117,5 +118,16 @@ describe('ParsePasteForm (native)', () => {
         expect(screen.getByRole('button', { name: messages.pasteSubmit }).getAttribute('aria-disabled')).not.toBe(
             'true',
         );
+    });
+});
+
+describe('ParsePasteForm — the way out', () => {
+    it('⛔ offers a back control even with nothing typed — the submit is disabled, this must not be', async () => {
+        const user = userEvent.setup();
+        const props = renderForm('');
+
+        await user.click(screen.getByRole('button', { name: recipeParseMessages.en.backAction }));
+
+        expect(props.onBack).toHaveBeenCalledTimes(1);
     });
 });

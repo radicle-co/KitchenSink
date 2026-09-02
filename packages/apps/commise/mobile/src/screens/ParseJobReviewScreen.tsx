@@ -26,10 +26,25 @@ export interface ParseJobReviewScreenProps {
     readonly jobId: string;
     /** Invoked when the cook abandons this job to paste a fresh list. */
     readonly onStartOver: () => void;
+    /**
+     * Invoked when the cook leaves the parse surface entirely.
+     *
+     * ⛔ REQUIRED, and NOT redundant with `onStartOver` — which goes to the paste form. It is also the only
+     * control the `running` state offers, since that branch deliberately renders no retry.
+     */
+    readonly onBack: () => void;
 }
 
-export function ParseJobReviewScreen({ jobId, onStartOver }: ParseJobReviewScreenProps): JSX.Element {
+export function ParseJobReviewScreen({ jobId, onStartOver, onBack }: ParseJobReviewScreenProps): JSX.Element {
     const review = useParseJobReview(jobId);
 
-    return <ParseJobReview state={review.state} retry={review.retry} edit={review.edit} onStartOver={onStartOver} />;
+    return (
+        <ParseJobReview
+            state={review.state}
+            retry={review.retry}
+            edit={review.edit}
+            onStartOver={onStartOver}
+            onBack={onBack}
+        />
+    );
 }

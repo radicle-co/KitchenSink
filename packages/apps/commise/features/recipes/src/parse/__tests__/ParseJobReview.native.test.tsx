@@ -62,6 +62,7 @@ function renderReview(state: ParseJobViewState, overrides: Partial<ParseJobRevie
         retry: { run: vi.fn(), busy: false, notice: undefined },
         edit: { submit: vi.fn(), busyLineIndex: undefined, notice: undefined },
         onStartOver: vi.fn(),
+        onBack: vi.fn(),
         ...overrides,
     };
 
@@ -245,13 +246,19 @@ describe('ParseJobReview (native) — editing one line', () => {
         expect(props.edit.submit).toHaveBeenCalledWith(3, '2 cups flour');
     });
 
-    it('refuses to submit a blank replacement — an edit is not a delete', async () => {
+    it('refuses a blank replacement — an edit is not a delete — and SAYS SO', async () => {
+        // REWRITTEN: the control is now unavailable rather than a silent no-op, so `userEvent` refuses to
+        // press it at all (react-native-web sets `pointer-events: none`). The stronger assertion is the one
+        // that was missing before — the cook is TOLD why, with the same shared sentence the paste form uses.
         const props = renderReview(withJob('ready', editable));
 
         await userEvent.click(screen.getByRole('button', { name: 'Edit line 4' }));
         await userEvent.clear(screen.getByLabelText(messages.lineEditLabel));
-        await userEvent.click(screen.getByRole('button', { name: messages.lineEditSubmit }));
 
+        expect(screen.getByRole('button', { name: messages.lineEditSubmit }).getAttribute('aria-disabled')).toBe(
+            'true',
+        );
+        expect(screen.getByText(messages.refusalNoLines)).toBeTruthy();
         expect(props.edit.submit).not.toHaveBeenCalled();
     });
 
@@ -303,6 +310,7 @@ describe('ParseJobReview (native) — editing one line', () => {
             retry: { run: vi.fn(), busy: false, notice: undefined },
             edit: { submit, busyLineIndex, notice: undefined },
             onStartOver: vi.fn(),
+            onBack: vi.fn(),
         });
 
         const { rerender } = render(<ParseJobReview {...props(undefined)} />);
@@ -338,6 +346,7 @@ describe('ParseJobReview (native) — editing one line', () => {
                         notice: undefined,
                     }}
                     onStartOver={vi.fn()}
+                    onBack={vi.fn()}
                 />
             );
         }
@@ -392,5 +401,31 @@ describe('ParseJobReview (native) — the correction seam', () => {
 
         expect(renderCorrection).not.toHaveBeenCalled();
         expect(screen.queryByText('Correct')).toBeNull();
+    });
+});
+
+describe('ParseJobReview (native) — every state offers a way out', () => {
+    // ⛔ THE REGRESSION GUARD FOR THE WORST DEFECT THIS SURFACE SHIPPED WITH. On mobile these screens are
+    // pushed over a stack with no chrome, so a state that renders no control is a screen a cook cannot
+    // leave — and `running` deliberately renders no retry. Asserted per state, on BOTH platforms, so the
+    // asymmetry that caused it (web has `AppShell`, mobile has nothing) cannot reopen.
+    const states: readonly (readonly [string, ParseJobViewState])[] = [
+        ['loading', { kind: 'loading' }],
+        ['missing', { kind: 'missing' }],
+        ['failed', { kind: 'failed' }],
+        ['expired', { kind: 'expired', job: undefined }],
+        ['running', withJob('running', [line()])],
+        ['stalled', withJob('stalled', [line()])],
+        ['settling', withJob('settling', [line({ status: 'failed_retryable' })])],
+        ['ready', withJob('ready', [line({ status: 'parsed', proposal: proposal() })])],
+    ];
+
+    it.each(states)('offers a back control in the %s state', async (_name, state) => {
+        const user = userEvent.setup();
+        const props = renderReview(state);
+
+        await user.click(screen.getByRole('button', { name: messages.backAction }));
+
+        expect(props.onBack).toHaveBeenCalledTimes(1);
     });
 });

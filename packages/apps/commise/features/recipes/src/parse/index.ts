@@ -17,12 +17,14 @@ export { recipeParseMessages } from './messages.js';
 export type { ParseLineCountLabels, RecipeParseMessages } from './messages.js';
 export {
     PARSE_JOB_STALL_BOUND_MS,
+    formatParseLineCount,
     toParseJobProgress,
     toParseJobViewState,
     toParseLineModel,
     toParseSubmissionModel,
 } from './model.js';
 export type {
+    ParseCountLabels,
     ParseJobProgress,
     ParseJobViewState,
     ParseJobViewStateInput,

@@ -38,6 +38,15 @@ export interface ParsePasteFormProps {
     readonly submitting: boolean;
     /** A localized failure sentence for a create that did not go through, or `undefined`. */
     readonly errorNotice: string | undefined;
+    /**
+     * ⛔ Leave the parse surface. REQUIRED, and rendered on both platforms.
+     *
+     * Optional would have been the easy choice and the wrong one: web hosts this inside `AppShell`, whose
+     * nav is always an exit, so a web-only reading says "not needed here". Mobile pushes it over a stack
+     * with no chrome, where its absence left a cook with no way off the screen but to kill the app — and an
+     * optional prop is exactly how that asymmetry gets reintroduced.
+     */
+    readonly onBack: () => void;
 }
 
 // ── The review surface ────────────────────────────────────────────────────────────────────────────
@@ -140,6 +149,14 @@ export interface ParseJobReviewProps {
     readonly edit: ParseLineEditControl;
     /** Abandon this job and return to the paste form. */
     readonly onStartOver: () => void;
+    /**
+     * ⛔ Leave the parse surface entirely — see {@link ParsePasteFormProps.onBack}.
+     *
+     * ⚠️ NOT redundant with `onStartOver`, which goes to the PASTE form. It is also the only control the
+     * `running` state offers at all: that branch deliberately renders no retry (there is nothing to
+     * re-drive yet), so before this it was a screen with zero affordances on a stack with no chrome.
+     */
+    readonly onBack: () => void;
     /** {@link ParseLineCorrectionRenderer} — absent until the correction route ships. */
     readonly renderCorrection?: ParseLineCorrectionRenderer;
 }

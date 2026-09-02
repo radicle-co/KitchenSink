@@ -24,7 +24,19 @@ import { signInWithTicket } from './utils/auth';
  *
  * ⛔ Selectors are role/label/text only, and there is no `waitForTimeout` anywhere: every wait is on the
  * settled state itself, which is also the only honest way to assert a poll.
+ *
+ * ⚠️ POST-POLL ASSERTIONS CARRY AN EXPLICIT `timeout`, and the arithmetic is why. `playwright.config.ts`
+ * sets a 60s TEST timeout but no `expect.timeout`, so each assertion inherits Playwright's 5s default —
+ * while `DEFAULT_PARSE_JOB_POLL_INTERVAL_MS` is 4000 and the mock answers `running` once before settling.
+ * The retry leg has no mount refetch to ride, so its settle lands near 8s: comfortably past the default,
+ * and the "one second of margin" on the others is not margin worth having on a CI runner.
  */
+
+/**
+ * Bound for an assertion that must outlast a poll cycle or two. Deliberately a named constant rather than
+ * a number sprinkled at each call site — it is derived from the client's poll cadence, not guessed.
+ */
+const POLL_SETTLE_TIMEOUT_MS = 20_000;
 test.describe('recipes — paste an ingredient list and review the parse (U9)', () => {
     test('pastes a list, watches it settle, and reviews the parsed lines', async ({ page }) => {
         await signInWithTicket(page);
@@ -50,8 +62,12 @@ test.describe('recipes — paste an ingredient list and review the parse (U9)', 
 
         // ⛔ THE POLL, not a click: the mock answers `running` for the first GET and settles on the next.
         // Nothing below touches the page, so a surface that only rendered its first response fails here.
-        await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible();
-        await expect(page.getByText('All done. Check anything marked below.')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible({
+            timeout: POLL_SETTLE_TIMEOUT_MS,
+        });
+        await expect(page.getByText('All done. Check anything marked below.')).toBeVisible({
+            timeout: POLL_SETTLE_TIMEOUT_MS,
+        });
         await expect(page.getByText('2 of 2 lines read')).toBeVisible();
 
         // The proposals a cook came for.
@@ -73,12 +89,16 @@ test.describe('recipes — paste an ingredient list and review the parse (U9)', 
         await page.getByLabel('Ingredient lines').fill('2 cups flour');
         await page.getByRole('button', { name: 'Read my ingredients' }).click();
 
-        await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible({
+            timeout: POLL_SETTLE_TIMEOUT_MS,
+        });
         await expect(page).toHaveURL(/\/recipes\/parse\/[0-9a-f-]{36}$/);
 
         await page.reload();
 
-        await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible({
+            timeout: POLL_SETTLE_TIMEOUT_MS,
+        });
         await expect(page.getByRole('listitem', { name: 'Line 1' })).toContainText('2 cups flour');
     });
 
@@ -95,13 +115,16 @@ test.describe('recipes — paste an ingredient list and review the parse (U9)', 
         // in-flight messages land, so most of the time this is on screen the lines are still arriving.
         await expect(
             page.getByText('Some lines haven’t come back yet. They may still finish on their own'),
-        ).toBeVisible();
+        ).toBeVisible({ timeout: POLL_SETTLE_TIMEOUT_MS });
         await expect(page.getByText('1 of 2 lines read')).toBeVisible();
 
         await page.getByRole('button', { name: 'Try the unfinished lines again' }).click();
 
-        // The retry re-opens the work and the poll carries it the rest of the way.
-        await expect(page.getByText('All done. Check anything marked below.')).toBeVisible();
+        // The retry re-opens the work and the poll carries it the rest of the way. ⚠️ This is the leg with
+        // NO mount refetch to ride — two interval ticks at 4s each — so it is the one the 5s default broke.
+        await expect(page.getByText('All done. Check anything marked below.')).toBeVisible({
+            timeout: POLL_SETTLE_TIMEOUT_MS,
+        });
         await expect(page.getByText('2 of 2 lines read')).toBeVisible();
     });
 
@@ -114,7 +137,9 @@ test.describe('recipes — paste an ingredient list and review the parse (U9)', 
         await page.getByLabel('Ingredient lines').fill('2 cps flour');
         await page.getByRole('button', { name: 'Read my ingredients' }).click();
 
-        await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible({
+            timeout: POLL_SETTLE_TIMEOUT_MS,
+        });
         const jobUrl = page.url();
 
         await page.getByRole('button', { name: 'Edit line 1' }).click();
@@ -157,7 +182,9 @@ test.describe('recipes — paste an ingredient list and review the parse (U9)', 
         await page.getByLabel('Ingredient lines').fill('2 cups flour');
         await page.getByRole('button', { name: 'Read my ingredients' }).click();
 
-        await expect(page.getByRole('alert')).toContainText('This list expired after 24 hours');
+        await expect(page.getByRole('alert')).toContainText('This list expired after 24 hours', {
+            timeout: POLL_SETTLE_TIMEOUT_MS,
+        });
         await expect(page.getByRole('button', { name: 'Try the unfinished lines again' })).toHaveCount(0);
 
         await page.getByRole('button', { name: 'Start over' }).click();

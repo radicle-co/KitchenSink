@@ -33,10 +33,16 @@ import type { LocalizedMessages } from '@commise/i18n';
 /**
  * Singular/plural templates for the paste form's line count.
  *
- * ⚠️ A SECOND occurrence of the shape `RecipeCountLabels` already has, deliberately NOT extracted. The
- * repo's own rule is to wait for the third occurrence and a proven shared reason-to-change before pulling
- * an abstraction out, and `formatRecipeCount` is named and documented for recipes — reusing it here would
- * make its name lie at the call site for the sake of three lines.
+ * ⚠️ THE ORIGINAL NOTE HERE WAS WRONG ON ITS FACTS and is corrected rather than quietly deleted, because it
+ * would have been cited as precedent. It claimed this was "a SECOND occurrence" of the
+ * `Intl.PluralRules`-select-then-`fillTemplate` shape and invoked the wait-for-the-third rule. Counted:
+ * `list/model.ts`, `rating/model.ts`, `card/model.ts` and `filters/model.ts` already carry it — so the rule
+ * had fired three occurrences earlier, not later.
+ *
+ * ⛔ Reusing `formatRecipeCount` is still refused, and for the reason that survives the recount: its name
+ * would lie at this call site. What changed is the SITE — the helper now lives once in `parse/model.ts`
+ * rather than as a private copy inside each platform leaf, which is exactly the drift the one-contract-
+ * two-renderers shape exists to make impossible.
  */
 export interface ParseLineCountLabels {
     readonly one: string;
@@ -97,6 +103,16 @@ export interface RecipeParseMessages {
     readonly retryAction: string;
     /** Label of the control that abandons this job and returns to the paste form. */
     readonly startOverAction: string;
+    /**
+     * ⛔ Label of the control that LEAVES the parse surface entirely.
+     *
+     * Required on both leaves and rendered in EVERY state, including the ones that offer nothing else.
+     * Web hosts these routes inside `AppShell`, whose nav is always an exit; mobile's stack has no chrome
+     * at all behind a pushed surface, so without this a cook on the paste screen — or on a review that is
+     * still `running` — had no way out but to kill the app. Keeping it in the SHARED contract rather than
+     * in the mobile host is what stops that drift reopening.
+     */
+    readonly backAction: string;
     /** Announced while a retry is in flight. */
     readonly retrying: string;
     /** The retry was refused because the job had already expired. */
@@ -176,6 +192,7 @@ export const recipeParseMessages: LocalizedMessages<RecipeParseMessages> = {
         failed: 'We couldn’t load that list.',
         retryAction: 'Try the unfinished lines again',
         startOverAction: 'Start over',
+        backAction: 'Back to recipes',
         retrying: 'Trying those lines again…',
         retryExpired: 'This list expired while you were away. Paste it again to carry on.',
         retryFailed: 'That didn’t go through. Try again in a moment.',

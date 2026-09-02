@@ -46,6 +46,13 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useConfirmPhotoUpload: () => ({ mutateAsync: async () => ({}), isPending: false, reset: () => undefined }),
     useDeleteRecipePhoto: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
     useReorderRecipePhotos: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
+    // Plan U9 — the parse surfaces the dial's second destination opens. Inert defaults: this suite drives
+    // NAVIGATION to and from those screens, never a parse job, so the create never fires and the poll stays
+    // disabled on an empty id.
+    useCreateParseJob: () => ({ mutate: () => undefined, isPending: false, isError: false, reset: () => undefined }),
+    useParseJob: () => ({ data: undefined, error: undefined, fetchStatus: 'idle', isLoading: false }),
+    useRetryParseJob: () => ({ mutate: () => undefined, isPending: false, error: undefined }),
+    useEditParseJobLine: () => ({ mutate: () => undefined, isPending: false, error: undefined, variables: undefined }),
     useRecipe: vi.fn(),
     useDeleteRecipe: vi.fn(),
     useSetRecipeVisibility: vi.fn(),
@@ -211,6 +218,33 @@ describe('RecipesScreen — navigation', () => {
 
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.getByText('Step 1 of 4')).toBeTruthy();
+    });
+
+    it('opens the PASTE screen from the dial’s second destination (plan U9)', () => {
+        render(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
+
+        expect(screen.getByText('Paste your ingredients')).toBeTruthy();
+    });
+
+    it('⛔ leaves the paste screen by its back control — a pushed surface has no chrome behind it', () => {
+        // THE REGRESSION GUARD FOR A REAL DEFECT. These two surfaces shipped with no back seam at all:
+        // `isTab({id:'parse'})` is false so no tab bar renders, `AppRoot` renders this screen bare, and iOS
+        // has no hardware back — so a cook who opened the paste screen could not leave it without creating
+        // a job. Every sibling pushed screen already takes this seam; these two did not, and no test in this
+        // file covered their navigation, which is why it shipped.
+        render(<RecipesScreen />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Paste an Ingredient List' }));
+        expect(screen.getByText('Paste your ingredients')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to recipes' }));
+
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+        expect(screen.queryByText('Paste your ingredients')).toBeNull();
     });
 
     it('switches to the discover tab', () => {

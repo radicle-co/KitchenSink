@@ -37,6 +37,7 @@ export const ParseJobReviewContainer: FC<ParseJobReviewContainerProps> = ({ loca
             // `push`, not `replace`: abandoning a job is a NEW act a cook may want to back out of, unlike the
             // create that got them here.
             onStartOver={() => router.push(`/${locale}/recipes/parse` as Route)}
+            onBack={() => router.push(`/${locale}/recipes` as Route)}
         />
     );
 };

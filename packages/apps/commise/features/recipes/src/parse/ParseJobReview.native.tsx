@@ -16,13 +16,13 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette, semantic } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { useState, type FC } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { ParseJobLineView } from '@kitchensink/recipe-service-client';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeParseMessages } from './messages.js';
-import { toParseLineModel, type ParseLineTone } from './model.js';
+import { toParseLineModel, toParseSubmissionModel, type ParseLineTone } from './model.js';
 import type { ParseJobReviewProps, ParseLineRowProps } from './props.js';
 
 /** Tone → the colour that carries it. Exhaustive, so a new tone cannot render as default body text. */
@@ -44,6 +44,11 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }) =
     const [draft, setDraft] = useState<string | undefined>(undefined);
     const [pendingText, setPendingText] = useState<string | undefined>(undefined);
     const busy = edit.busyLineIndex === line.lineIndex;
+    // ⛔ THE SAME ADMISSION THE PASTE FORM RUNS, on the one line being edited. Pressing Save on a blank or
+    // over-long replacement used to do NOTHING and say nothing — while the paste form goes to real trouble
+    // to name the offending line. Both refusals are the same shared knowledge (`refuseParseJobLines`); it
+    // was simply used on one path and not the other.
+    const draftAdmission = draft === undefined ? undefined : toParseSubmissionModel(draft, messages);
 
     // ⛔ THE EDITOR CLOSES ON SUCCESS, NOT ON SUBMIT. Closing it the moment the request left discarded the
     // cook's typed correction whenever that request failed — the exact loss the paste form goes out of its
@@ -58,28 +63,41 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }) =
     }
 
     return (
-        <View accessible accessibilityLabel={model.label} style={styles.row}>
-            <View style={styles.rowHeader}>
+        // ⛔ NOT `accessible` on this container. That prop collapses the whole subtree into ONE iOS
+        // accessibility element, which would make the Edit / Save / Cancel controls and the input
+        // unreachable by VoiceOver. Every sibling use of `accessible` in this package is on a genuine leaf
+        // (a placeholder image, a star readout), never around interactive children. The row's name moves to
+        // its non-interactive header instead.
+        <View style={styles.row}>
+            <View accessibilityRole="header" accessibilityLabel={model.label} style={styles.rowHeader}>
                 <Text style={styles.source}>{model.sourceLine}</Text>
                 <Text style={[styles.status, { color: TONE_COLOR[model.tone] }]}>{model.statusLabel}</Text>
             </View>
 
             {model.measure !== undefined && <Text style={styles.measure}>{model.measure}</Text>}
 
-            {model.foods?.map((food, index) => (
-                <Text key={`${food.name}-${String(index)}`} style={styles.food}>
-                    {food.prep === null ? food.name : `${food.name} · ${food.prep}`}
-                </Text>
-            ))}
+            {model.foods !== undefined && model.foods.length > 0 && (
+                <View accessibilityRole="list" accessibilityLabel={messages.lineFoodsLabel}>
+                    {model.foods.map((food, index) => (
+                        <Text key={`${food.name}-${String(index)}`} style={styles.food}>
+                            {food.prep === null ? food.name : `${food.name} · ${food.prep}`}
+                        </Text>
+                    ))}
+                </View>
+            )}
 
             {/* A line that named no foods is a FACT (a heading is a legitimate line), not a failure. */}
             {model.emptyFoodsNotice !== undefined && <Text style={styles.muted}>{model.emptyFoodsNotice}</Text>}
 
-            {model.reviewReasons.map((reason) => (
-                <Text key={reason} style={styles.reason}>
-                    {reason}
-                </Text>
-            ))}
+            {model.reviewReasons.length > 0 && (
+                <View accessibilityRole="list" accessibilityLabel={messages.reasonsLabel}>
+                    {model.reviewReasons.map((reason) => (
+                        <Text key={reason} style={styles.reason}>
+                            {reason}
+                        </Text>
+                    ))}
+                </View>
+            )}
 
             {/* ⛔ THE CORRECTION SEAM — offered only once a proposal has landed. See `props.ts`. */}
             {line.proposal !== null && renderCorrection?.(line)}
@@ -108,21 +126,26 @@ const ParseLineRow: FC<ParseLineRowProps> = ({ line, edit, renderCorrection }) =
                         onChangeText={setDraft}
                         style={styles.input}
                     />
+                    {draftAdmission?.refusals.map((refusal) => (
+                        <Text key={refusal} role="alert" style={styles.error}>
+                            {refusal}
+                        </Text>
+                    ))}
                     <View style={styles.editorActions}>
                         <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={messages.lineEditSubmit}
                             // ⛔ THE WIRE INDEX, never the number in the label. The row reads "line 4" and
                             // the API takes `3`; sending the human number edits a different line silently.
-                            accessibilityState={{ disabled: busy, busy }}
+                            accessibilityState={{ disabled: busy || draftAdmission?.canSubmit !== true, busy }}
                             aria-busy={busy}
-                            disabled={busy}
+                            disabled={busy || draftAdmission?.canSubmit !== true}
                             onPress={() => {
                                 const next = draft.trim();
 
                                 // An edit is not a delete — a blank replacement is refused, exactly as the
                                 // service's own schema refuses it.
-                                if (next === '' || busy) {
+                                if (draftAdmission?.canSubmit !== true || busy) {
                                     return;
                                 }
 
@@ -170,8 +193,28 @@ const ParseLineList: FC<{
     );
 };
 
-export const ParseJobReview: FC<ParseJobReviewProps> = ({ state, retry, edit, onStartOver, renderCorrection }) => {
+export const ParseJobReview: FC<ParseJobReviewProps> = ({
+    state,
+    retry,
+    edit,
+    onStartOver,
+    onBack,
+    renderCorrection,
+}) => {
     const messages = useMessages(recipeParseMessages);
+
+    // ⛔ Rendered in EVERY branch below, including `running`, which offers nothing else. On this stack there
+    // is no chrome behind a pushed surface, so without it the screen had no exit at all.
+    const back = (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={messages.backAction}
+            onPress={onBack}
+            style={styles.secondary}
+        >
+            <Text style={styles.secondaryLabel}>{messages.backAction}</Text>
+        </Pressable>
+    );
 
     const startOver = (
         <Pressable
@@ -216,9 +259,12 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({ state, retry, edit, on
     switch (state.kind) {
         case 'loading':
             return (
-                <Text role="status" style={styles.muted}>
-                    {messages.loading}
-                </Text>
+                <View style={styles.container}>
+                    <Text role="status" style={styles.muted}>
+                        {messages.loading}
+                    </Text>
+                    {back}
+                </View>
             );
 
         case 'missing':
@@ -228,6 +274,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({ state, retry, edit, on
                         {messages.missing}
                     </Text>
                     {startOver}
+                    {back}
                 </View>
             );
 
@@ -238,6 +285,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({ state, retry, edit, on
                         {messages.failed}
                     </Text>
                     {startOver}
+                    {back}
                 </View>
             );
 
@@ -249,6 +297,7 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({ state, retry, edit, on
                         {messages.expired}
                     </Text>
                     {startOver}
+                    {back}
                 </View>
             );
 
@@ -256,7 +305,9 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({ state, retry, edit, on
         case 'stalled':
         case 'settling':
             return (
-                <View style={styles.container}>
+                // ⛔ SCROLLABLE: a job carries up to `MAX_PARSE_JOB_LINES` (200) rows, and everything past
+                // the first screenful — including these controls — was unreachable inside a plain `View`.
+                <ScrollView contentContainerStyle={styles.container}>
                     <Text accessibilityRole="header" style={styles.heading}>
                         {messages.reviewHeading}
                     </Text>
@@ -286,12 +337,15 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({ state, retry, edit, on
                         </View>
                     )}
                     <ParseLineList lines={state.job.lines} edit={edit} renderCorrection={renderCorrection} />
-                </View>
+                    {back}
+                </ScrollView>
             );
 
         case 'ready':
             return (
-                <View style={styles.container}>
+                // ⛔ SCROLLABLE: a job carries up to `MAX_PARSE_JOB_LINES` (200) rows, and everything past
+                // the first screenful — including these controls — was unreachable inside a plain `View`.
+                <ScrollView contentContainerStyle={styles.container}>
                     <Text accessibilityRole="header" style={styles.heading}>
                         {messages.reviewHeading}
                     </Text>
@@ -304,8 +358,11 @@ export const ParseJobReview: FC<ParseJobReviewProps> = ({ state, retry, edit, on
                     <Text style={styles.muted}>{messages.ready}</Text>
                     {notices}
                     <ParseLineList lines={state.job.lines} edit={edit} renderCorrection={renderCorrection} />
-                    {startOver}
-                </View>
+                    <View style={styles.actions}>
+                        {startOver}
+                        {back}
+                    </View>
+                </ScrollView>
             );
     }
 };

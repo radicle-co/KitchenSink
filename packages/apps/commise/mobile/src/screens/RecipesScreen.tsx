@@ -244,10 +244,21 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
             return (
                 <ParseIngredientsScreen
                     onCreated={(jobId) => nav.reset([{ id: 'list' }, { id: 'parseReview', jobId }])}
+                    onBack={nav.back}
                 />
             );
         case 'parseReview':
-            return <ParseJobReviewScreen jobId={surface.jobId} onStartOver={() => nav.reset([{ id: 'parse' }])} />;
+            return (
+                <ParseJobReviewScreen
+                    jobId={surface.jobId}
+                    // ⛔ THE LIST STAYS BENEATH IT. `nav.reset([{ id: 'parse' }])` left a stack of ONE, and
+                    // the hardware-back handler above returns `false` at the root — so on Android a cook who
+                    // pressed "Start over" and then Back was dropped straight out of the app. Same rule the
+                    // seeded detail stack follows, and the same one `onCreated` one line up already applies.
+                    onStartOver={() => nav.reset([{ id: 'list' }, { id: 'parse' }])}
+                    onBack={nav.back}
+                />
+            );
         case 'edit':
             return <RecipeEditScreen recipeId={surface.recipeId} onSaved={() => nav.back()} onCancel={nav.back} />;
         case 'versions':

@@ -181,6 +181,57 @@ describe('useRetryParseJob', () => {
     });
 });
 
+describe('the write-through cancels an in-flight poll first', () => {
+    // ⛔ DELETABLE WITH EVERY OTHER TEST GREEN before this existed, which is exactly why it is here. The
+    // docstring on `cancelParseJobPoll` calls the race live rather than theoretical: `useParseJob` polls on
+    // a timer, so a `GET` issued a moment before a retry/edit lands can SETTLE AFTER it and overwrite the
+    // fresh view with the pre-mutation one — putting an edited line back to its old text on screen.
+    //
+    // Asserted as an observable cache outcome, not as "the spy was called": a deliberately SLOW read is left
+    // in flight, the mutation lands, and the read is then allowed to resolve with stale data. If the cancel
+    // is removed, that stale answer wins and the assertion fails.
+    it('leaves the mutation response in the cache even when a slower poll settles afterwards', async () => {
+        const fresh = makeParseJob({ status: 'running', lines: [makeParseJobLine({ sourceLine: 'edited' })] });
+        const stale = makeParseJob({ status: 'running', lines: [makeParseJobLine({ sourceLine: 'ORIGINAL' })] });
+        let releaseRead: (() => void) | undefined;
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getParseJob').mockImplementation(
+            async () =>
+                new Promise((resolve) => {
+                    releaseRead = () => resolve(stale);
+                }),
+        );
+        vi.spyOn(client, 'editParseJobLine').mockResolvedValue(fresh);
+
+        const queryClient = makeTestQueryClient();
+        const harness = renderRecipeHook(
+            () => ({ poll: useParseJob(FIXTURE_PARSE_JOB_UUID), edit: useEditParseJobLine() }),
+            { client, queryClient },
+        );
+
+        // The poll is in flight and will not settle until released.
+        await waitFor(() => expect(releaseRead).toBeDefined());
+
+        act(() =>
+            harness.result.current.edit.mutate({
+                id: FIXTURE_PARSE_JOB_UUID,
+                lineIndex: 0,
+                input: { sourceLine: 'edited' },
+            }),
+        );
+        await waitFor(() => expect(harness.result.current.edit.isSuccess).toBe(true));
+
+        // Now let the stale read answer, and WAIT FOR IT TO BE PROCESSED before asserting. ⚠️ The first
+        // version of this test asserted immediately after releasing and passed with the cancel deleted —
+        // `waitFor` succeeded on the fresh value microseconds before the stale write would have landed. It
+        // proved nothing. Settling on `fetchStatus === 'idle'` is the observable "the read is done" signal.
+        act(() => releaseRead?.());
+        await waitFor(() => expect(harness.result.current.poll.fetchStatus).toBe('idle'));
+
+        expect(queryClient.getQueryData(recipeServiceKeys.parseJob(FIXTURE_PARSE_JOB_UUID))).toEqual(fresh);
+    });
+});
+
 describe('useEditParseJobLine', () => {
     it('edits through the client with the job id, line index and replacement line, in that order', async () => {
         const edited = makeParseJob({

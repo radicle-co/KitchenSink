@@ -18,29 +18,32 @@
  * set, because under withhold semantics a wrong top hit costs a `pending-verification` line and one gate
  * call, never a published wrong bind. Safety moved to the gate — and the ordering premise moved with it.
  *
- * What was left was a chain in which **tier 3 was reachable only when the catalog returned nothing at all**.
- * For every phrase the catalog can find — which is the overwhelming majority — the memo tier was dead. It
- * was latent because nothing writes a memo yet; the day the verification gate ships its writer, a
- * gate-agreed memo would have been silently overruled by whatever the catalog ranked first. That is a wrong
- * answer that looks like a working system, and it also makes AE8 ("a phrase not present verbatim in the
- * knowledge base, but a near-twin of a stored phrase, resolves from the knowledge base **without an LLM
- * call**") unsatisfiable, since a near-twin's catalog search nearly always returns something and every
- * zero-authority lexical bind enqueues a verification.
+ * What was left was a chain in which **the memo tier was reachable only when the catalog returned nothing at
+ * all**. For every phrase the catalog can find — which is the overwhelming majority — it was dead.
+ *
+ * ⛔ AND IT WAS NOT LATENT. `ingredient_resolution_memos` has a LIVE writer: `verifyLine.ts` in
+ * `packages/services/recipe-workers` calls `rememberAgreement` on every `band === 'verified'` identity
+ * `agree`, from a deployed Lambda. So in every stage where the gate has run, a gate-agreed memo was already
+ * being silently overruled by whatever the catalog ranked first — a wrong answer that looks like a working
+ * system. It also made AE8 ("a phrase not present verbatim in the knowledge base, but a near-twin of a stored
+ * phrase, resolves from the knowledge base **without an LLM call**") unreachable in practice, since a
+ * near-twin's catalog search nearly always returns something.
  *
  * So the precedence is re-derived from what the evidence IS, and recorded as
- * {@link RESOLUTION_TIER_AUTHORITY} so it can be checked rather than merely asserted:
+ * {@link RESOLUTION_TIER_EVIDENCE} so it can be checked rather than merely asserted:
  *
- *  1. **curated** — `human-curated`. A person said what this phrase means (R19).
- *  2. **memo** — `gate-agreed`. The verification gate AGREED this identity (`VerifiedMemo.verifiedBy` is
- *     REQUIRED, so a memo cannot exist without that agreement) and the hit cleared the tier's own
- *     `MEMO_SIMILARITY_FLOOR`. A memo is a lexical answer that has ALREADY been through the gate.
- *  3. **lexical** — `unverified-guess`. KTD-A's own words: ZERO initial authority. It is the gate's INPUT.
+ *  1. **curated** — `curated-mapping`. A person said what this phrase means (R19).
+ *  2. **memo** — `remembered-verification`. A row recording that the verification gate AGREED an identity;
+ *     `VerifiedMemo.verifiedBy` is REQUIRED, so such a row cannot exist without that agreement. ⚠️ That is a
+ *     fact about the STORED key, which is exactly why `decideMemoTier` answers only on an EXACT key and
+ *     defers the k-NN branch — read its docstring before changing either.
+ *  3. **lexical** — `catalog-ranking`. KTD-A's own words: ZERO initial authority. It is the gate's INPUT.
  *
  * Believing (3) over (2) replaces a settled answer with an unsettled one and pays for a gate call to
  * re-decide a question already decided. It is also the more expensive order: two local indexed reads are
  * cheaper than one or two cross-service searches. ⚠️ The cost agreement is a convenience, not the
- * justification — where the two ever disagree, authority wins, because consulting a weaker tier first is not
- * an optimisation, it is a different answer.
+ * justification — where the two ever disagree, precedence wins, because consulting a later-precedence source
+ * first is not an optimisation, it is a different answer.
  *
  * ### The three repairs that were considered and rejected
  *
@@ -67,21 +70,19 @@
  *
  * ## ⚠️ WHAT THIS ORDER COSTS — three consequences, recorded rather than discovered later
  *
- *  1. **⛔ THE NEAR-MEMO PUBLISH HOLE — a precondition on whoever ships the memo writer, not a defect here.**
- *     `findMemo` answers on an exact key OR a trigram neighbour at `MEMO_SIMILARITY_FLOOR` (0.5), and
- *     `decideMemoTier` returns `resolved` identically for both. `verifiedBy` is a fact about the STORED key:
- *     on the near branch nobody — no human, no model — ever agreed that the QUERY phrase means that food, so
- *     it is a retrieval guess of the same epistemic class as a lexical top hit. Downstream,
- *     `pendingStateOf` (`recipes/domain/lineVerification.ts`) withholds only `tier === 'lexical'` and
- *     `pendingRedrives` (`recipes/domain/verificationRequests.ts`) is gated on `evidence.kind === 'ranked'`
- *     — both deliberate, both correct for an EXACT memo. Under the old order the near branch needed an empty
- *     catalog and was ~unreachable; under this one it is the common path, so a near memo would PUBLISH
- *     immediately and a DLQ'd verification would never re-drive it. That is KTD-A's hole reopened one tier
- *     over. It is inert TODAY because nothing writes a memo — asserted, not assumed, by
- *     `__tests__/resolutionRegistry.test.ts`'s "still has NO production memo writer" spec, which goes red the
- *     day a writer lands. What must land WITH that writer: carry `MemoHit.match` into the persisted
- *     resolution, and teach `pendingStateOf` / `pendingRedrives` that a near memo is a withholding class.
- *     The precedent is ADR-0026 §3 — `single-engine` is not `differ` — one field over.
+ *  1. **⛔ THE NEAR-MEMO BRANCH HAD TO BE CLOSED IN THE SAME CHANGE — see `decideMemoTier`.** `findMemo`
+ *     answers on an exact key OR a trigram neighbour at `MEMO_SIMILARITY_FLOOR` (0.5), and the tier used to
+ *     return `resolved` for both. `verifiedBy` is a fact about the STORED key, so on the near branch nobody
+ *     ever agreed that the QUERY phrase means that food. Downstream, `pendingStateOf`
+ *     (`recipes/domain/lineVerification.ts`) withholds only `tier === 'lexical'` and `pendingRedrives`
+ *     (`recipes/domain/verificationRequests.ts`) is gated on `evidence.kind === 'ranked'` — both deliberate,
+ *     both correct for an EXACT memo. Under the old order the near branch needed an empty catalog and was
+ *     nearly unreachable; promoting this tier would have made it the COMMON path, publishing unverified,
+ *     un-redriveable binds. So the near branch now PASSES and the phrase falls to the lexical tier, whose
+ *     binds are withheld until a verdict lands. ⚠️ That defers AE8 and is the ONE open owner ruling in this
+ *     change; `decideMemoTier`'s docstring carries the argument and the exact condition for reverting it
+ *     (persist `MemoHit.match`, then teach the two predicates above that a near memo withholds — ADR-0026
+ *     §3's `single-engine` is not `differ`, one field over).
  *  2. **A stale memo now costs a request its lexical answer.** `resolveThroughCascade` treats a food it
  *     cannot admit as a miss and returns `undefined`; it does NOT resume the chain. So a memo naming a food
  *     U12's reseed killed drops the request to the ordinary `foodClient.addByName` path rather than to the

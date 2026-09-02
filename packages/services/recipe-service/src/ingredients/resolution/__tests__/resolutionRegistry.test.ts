@@ -7,10 +7,12 @@
  * The registry shipped as `[curated, lexical, memo]`, which was R11's literal order. Then KTD-A gave the
  * lexical tier ZERO authority — `decideLexicalTier` resolves on ANY non-empty candidate set, because under
  * withhold semantics a wrong top hit costs a pending line rather than a published bind. R12's second
- * fall-through condition ("confidence below its threshold") therefore stopped existing for tier 2, and the
- * only surviving route to tier 3 was "the catalog returned nothing at all". Tier 3 was, for every phrase the
- * catalog can find, DEAD — and nothing noticed, because nothing writes a memo yet. The day the verification
- * gate ships its writer, a user's gate-agreed memo would have been silently overruled by any catalog guess.
+ * fall-through condition ("confidence below its threshold") therefore stopped existing for the lexical tier,
+ * and the only surviving route to the memo tier was "the catalog returned nothing at all". For every phrase
+ * the catalog can find, that tier was DEAD — and nothing went red, because the order was a literal nobody
+ * could compare against its own reason. ⛔ Nor was it theoretical: `ingredient_resolution_memos` has a live
+ * writer in `packages/services/recipe-workers` (`verifyLine.ts` → `rememberAgreement`), so gate-agreed memos
+ * were being overruled by catalog guesses in every stage where the gate had run.
  *
  * The lesson is the one `natEgressConsumers.test.ts` and `listenerPriority.ts` already record in this repo:
  * a precedence written down in prose, or a list copied into a test, cannot detect that the thing it
@@ -18,30 +20,27 @@
  * output and from {@link RESOLUTION_TIER_IDS}, and the probe table is keyed by the tier-id union so a tier
  * that ships without a way to reach it is a COMPILE error before it is a test failure.
  *
- * ## The four properties, and what each one alone would miss
+ * ## The properties, and what each one alone would miss
  *
  *  1. **Probe coverage, both directions.** Every registered tier has a probe and every probe names a
  *     registered tier. Neither side is the authority alone — an unprobed tier is an untested tier, and a
  *     probe for a tier nobody registers is a test asserting something about a chain that does not exist.
  *  2. **Reachability.** With ONLY tier T's evidence present, the cascade answers T. This catches the
  *     coarsest form of the defect — a tier that can never be reached at all because something before it
- *     resolves unconditionally.
- *  3. **Dominance.** With BOTH tiers' evidence present, the stronger AUTHORITY answers. ⛔ This is the
- *     property the shipped bug violated and reachability did NOT catch: memo was still reachable through an
- *     empty catalog, so a reachability-only guard passes on a chain whose precedence is upside down.
- *  4. **No authority inversions.** The registry's order is non-decreasing in authority rank. Redundant with
- *     (3) on a three-tier chain and kept anyway, because it fails with a diagnosis ("lexical shadows memo")
- *     rather than with a mismatched food id, and because it is the cheap assertion a fifth tier gets for
- *     free.
+ *     resolves unconditionally. ⚠️ It is explicitly NOT what catches a precedence inversion: the memo tier
+ *     stayed reachable through an empty catalog, so this property was GREEN on the broken chain.
+ *  3. **Dominance.** With BOTH tiers' evidence present, the EARLIER-PRECEDENCE tier answers. ⛔ This is the
+ *     property the shipped bug violated, and (2) did not.
+ *  4. **No precedence inversions.** The registry's order is non-decreasing in precedence rank. Overlaps (3)
+ *     on a three-tier chain and is kept anyway, because it fails with a diagnosis ("lexical shadows memo")
+ *     rather than with a mismatched food id, and because it is the cheap assertion a fifth tier gets free.
+ *  5. **No NEAR-memo answer, anywhere in the chain.** The safety condition the reorder ships under — see the
+ *     specs at the bottom of this file and `decideMemoTier`'s docstring.
  *
  * DESIGN PATTERN: **Specification module over the registry** — the probe table is a Strategy per tier-id and
  * the assertions are pure verdicts over the composed evidence world, so the guard exercises the REAL tier
  * adapters (`createCuratedTier` and friends) rather than stand-ins that could agree with a broken chain.
  */
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
@@ -64,10 +63,10 @@ import {
 /** The phrase every probe answers for. Deliberately synonym-free, so no reformulation retry is in play. */
 const PHRASE = 'plain flour';
 const QUERY: ResolutionQuery = { key: normalizedIngredientKey(PHRASE)!, phrase: PHRASE };
-const CONTEXT = { userId: '01JU10GUARD00000000AUTHOR', caller: undefined } as const;
+const CONTEXT = { userId: '01JU10GUARD000000000AUTHOR', caller: undefined } as const;
 
 /** A distinct food per tier, so the answer names WHICH evidence was believed and not merely that one was. */
-const CURATED_FOOD = '01JU10GUARD00000CURATEDFD';
+const CURATED_FOOD = '01JU10GUARD000000CURATEDFD';
 const MEMO_FOOD = '01JU10GUARD000000000MEMOFD';
 const LEXICAL_FOOD = '01JU10GUARD0000000LEXICALF';
 
@@ -148,51 +147,6 @@ function worldWith(ids: readonly ResolutionTierId[]): EvidenceWorld {
 
         return probe.kind === 'evidence' ? probe.arm(world) : world;
     }, EMPTY_WORLD);
-}
-
-/** This package's `src` root, resolved from this file so the walk cannot depend on the working directory. */
-const SRC_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../');
-
-/**
- * Every production `src` file naming `symbol`, repo-package-relative and sorted.
- *
- * DISCOVERED, never enumerated — the `natEgressConsumers.test.ts` discipline: a copy of a list cannot
- * detect that the list changed. Test directories are excluded because a symbol exercised by its own unit
- * test is not a production writer.
- *
- * ⚠️ A SUBSTRING match, not a parse — so a docstring naming the symbol counts as a mention. That is the
- * `natEgressConsumers` "why the parser and not grep" caveat, accepted here because the failure direction is
- * safe: a prose mention produces a LOUD red carrying the instructions for the change it thinks landed, and
- * the fix is one line. A parse would be more machinery than the one symbol this watches is worth.
- *
- * @param symbol - The identifier to look for.
- * @returns The matching paths, `src/`-relative and sorted.
- * @sideEffect Reads this package's `src` tree from disk.
- */
-function productionSourcesMentioning(symbol: string): readonly string[] {
-    const found: string[] = [];
-
-    const walk = (directory: string): void => {
-        for (const entry of readdirSync(directory, { withFileTypes: true })) {
-            const full = path.join(directory, entry.name);
-
-            if (entry.isDirectory()) {
-                if (entry.name !== '__tests__' && entry.name !== '__fixtures__') {
-                    walk(full);
-                }
-
-                continue;
-            }
-
-            if (entry.name.endsWith('.ts') && readFileSync(full, 'utf8').includes(symbol)) {
-                found.push(path.relative(path.dirname(SRC_ROOT), full));
-            }
-        }
-    };
-
-    walk(SRC_ROOT);
-
-    return found.sort();
 }
 
 const OBSERVERS: CascadeObservers = {
@@ -283,28 +237,32 @@ describe('the resolution registry', () => {
         expect(findPrecedenceInversions(registeredIds)).toEqual([]);
     });
 
-    it('⛔ still has NO production memo writer — the precondition this order is safe under', () => {
-        // ⚠️ NOT tidiness, and not a duplicate of the integration suite's "writes no memo row". Promoting the
-        // memo tier above the lexical one makes `findMemo`'s NEAR-match branch (trigram >= 0.5) the common
-        // path instead of an unreachable one — and downstream, `pendingStateOf` withholds only
-        // `tier === 'lexical'`, while `pendingRedrives` is gated on `evidence.kind === 'ranked'`. So a near
-        // memo would PUBLISH immediately on an identity nobody agreed for THAT phrase, and a DLQ'd
-        // verification would never re-drive it. That is KTD-A's hole reopened one tier over.
+    it('⛔ answers from a NEAR memo NOWHERE in the chain — the safety condition this order ships under', async () => {
+        // ⚠️ THE COUNTERPART OF THE REORDER, asserted at the CHAIN level rather than only on `decideMemoTier`,
+        // because it is a property of the whole chain that must survive a future tier being added.
         //
-        // It is harmless today for one reason only: nothing writes a memo, so the table is empty in every
-        // stage. This spec is that reason, asserted — so the day a writer lands, the person landing it is
-        // told what has to land with it: carry `MemoHit.match` into the persisted resolution and teach
-        // `pendingStateOf` / `pendingRedrives` that a NEAR memo is a withholding class (ADR-0026 §3's
-        // `single-engine` != `differ`, one field over).
-        const callers = productionSourcesMentioning('recordMemo');
+        // `verifiedBy` is a fact about the STORED key, so a k-NN hit is an identity nobody agreed for the
+        // phrase being asked about. Downstream, `pendingStateOf` withholds only `tier === 'lexical'` and
+        // `pendingRedrives` covers only `ranked` evidence — so a near memo that RESOLVED would publish
+        // immediately, counted and un-redriveable. Before the reorder that needed an empty catalog and was
+        // nearly unreachable; after it, it would be the common path. The chain must fall through to a tier
+        // whose binds are WITHHELD, which is what this asserts.
+        world = { ...worldWith(['lexical']), memo: { foodId: MEMO_FOOD, match: 'near', similarity: 0.72 } };
 
-        expect(
-            callers,
-            `A memo writer shipped: ${callers.join(', ')}. Read this spec's comment before ${''}
-            deleting it — the near-match trust rule must land in lineVerification.ts in the same change.`,
-        ).toEqual([
-            // The DAL that DEFINES the write is not a caller of it.
-            'src/ingredients/resolution/resolutionMappings.dal.ts',
-        ]);
+        const outcome = await runResolutionCascade(registry, QUERY, CONTEXT, OBSERVERS);
+
+        expect(outcome.kind === 'resolved' ? outcome.tier : 'exhausted').toBe('lexical');
+        expect(outcome.kind === 'resolved' ? outcome.foodId : undefined).toBe(LEXICAL_FOOD);
+    });
+
+    it('⛔ and falls through ENTIRELY when a near memo is the only evidence — never to an unverified bind', async () => {
+        // The other half: with no catalog candidate either, exhaustion (which drops the caller to the ordinary
+        // food-service path) is the right answer. Publishing the near memo because nothing else spoke is the
+        // pre-reorder behaviour and is exactly what must not survive.
+        world = { ...EMPTY_WORLD, memo: { foodId: MEMO_FOOD, match: 'near', similarity: 0.72 } };
+
+        const outcome = await runResolutionCascade(registry, QUERY, CONTEXT, OBSERVERS);
+
+        expect(outcome.kind).toBe('exhausted');
     });
 });

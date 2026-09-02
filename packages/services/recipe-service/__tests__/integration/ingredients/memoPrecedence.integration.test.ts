@@ -5,7 +5,7 @@
  * ## Why this tier and not the mocked guard beside it
  *
  * `src/ingredients/resolution/__tests__/resolutionRegistry.test.ts` proves the ORDER: it drives the real
- * registry with doubles and asserts the stronger authority answers. What a double cannot prove is that the
+ * registry with doubles and asserts the earlier-precedence tier answers. What a double cannot prove is that the
  * memo tier answers at all against a real `ingredient_resolution_memos` — R14 forbids equality-only matching,
  * so the tier's read is an indexed k-NN scan over a GiST trigram index with a `MEMO_SIMILARITY_FLOOR`, and a
  * stubbed `findMemo` returning a hit demonstrates none of that. AE8 is specifically about the NEAR-TWIN
@@ -17,10 +17,13 @@
  *  - **The exact-key case** is the shipped bug at its plainest: a memo and a catalog hit for the same phrase.
  *    Before the reordering this resolved to the CATALOG's food and enqueued a verification for an identity
  *    the gate had already agreed — a user's settled answer silently replaced by a machine guess.
- *  - **The near-twin case** is AE8, and it is the one that stayed broken longest: a near-twin's catalog
- *    search almost always returns SOMETHING, so under the old order tier 3's whole reason for existing —
- *    matching what is not present verbatim — was unreachable in production.
- *  - **The no-memo case** pins that this is a precedence fix and not a disabling of tier 2: with nothing
+ *  - **The near-twin case** pins AE8's DEFERRAL. `verifiedBy` is a fact about the STORED key, so a k-NN hit
+ *    is an identity nobody agreed for the phrase being asked about — and `pendingStateOf` withholds only
+ *    `tier === 'lexical'`, so a resolving near memo would publish unverified and un-redriveable. Promoting
+ *    this tier would have turned that from a near-unreachable branch into the common path, so the near
+ *    branch defers instead. The spec measures the real trigram similarity to prove the branch is genuinely
+ *    in play rather than passing for the wrong reason.
+ *  - **The no-memo case** pins that this is a precedence fix and not a disabling of the lexical tier: with nothing
  *    remembered, the lexical tier still answers from the catalog exactly as it did.
  *  - **The curated case** pins that nothing displaced R19's top of the ladder.
  *
@@ -39,7 +42,10 @@ import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js'
 import type { CatalogHit } from '../../../src/ingredients/ingredientSuggestion.js';
 import type { FoodCatalogGateway } from '../../../src/ingredients/foodCatalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
-import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
+import {
+    MEMO_SIMILARITY_FLOOR,
+    ResolutionMappingsDal,
+} from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
 import { createResolutionRegistry } from '../../../src/ingredients/resolution/resolutionRegistry.js';
 import {
     CALLER_TOKEN as CALLER,
@@ -53,7 +59,7 @@ const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_U
 const hasDatabaseUrl = Boolean(DATABASE_URL);
 
 /** The food the GATE agreed with — what a memo remembers. */
-const MEMO_FOOD = '01JU10PREC00000000000MEMOFD';
+const MEMO_FOOD = '01JU10PREC0000000000MEMOFD';
 /** The food the CATALOG ranks first — a guess with no authority behind it (KTD-A). */
 const CATALOG_FOOD = '01JU10PREC0000000CATALOGFD';
 /** The food a human CURATOR bound the phrase to (R19). */
@@ -153,17 +159,36 @@ describe.skipIf(!hasDatabaseUrl)('cascade precedence against a real knowledge ba
         expect(foodClient.addByName).not.toHaveBeenCalled();
     });
 
-    it('AE8 — a NEAR-TWIN of a remembered phrase resolves from the knowledge base, with no food-service call', async () => {
+    it('⛔ a NEAR-TWIN does NOT answer from the knowledge base — it falls through to the withholding tier', async () => {
+        // ⚠️ THIS IS AE8 DEFERRED, DELIBERATELY, and it is the safety condition the reorder ships under.
+        // `verifiedBy` is a fact about the STORED key: `castor sugar` is a trigram neighbour of a phrase the
+        // gate agreed, but nobody ever agreed that THIS phrase means that food. Because `pendingStateOf`
+        // withholds only `tier === 'lexical'`, a resolving near memo would publish it immediately, counted
+        // and un-redriveable — so `decideMemoTier` passes and the lexical tier answers instead, whose bind is
+        // withheld until a verdict lands. Flip this spec back when `MemoHit.match` is persisted and the
+        // withholding predicates understand it; see `decideMemoTier`'s docstring.
+        //
+        // ⚠️ The similarity here is a REAL Postgres trigram score over the stored key, measured below rather
+        // than assumed — the suite's shared phrase prefix would otherwise carry the comparison on its own and
+        // this spec would pass without exercising the near branch at all.
         await remember('caster sugar', MEMO_FOOD);
-        // The catalog answers, as it nearly always does for a near-twin — which is exactly why the old order
-        // made tier 3's whole reason for existing unreachable.
         catalogHit = { foodId: CATALOG_FOOD, name: 'Sugars, granulated', score: 8.1 };
-        foodServiceResolves(MEMO_FOOD, 'Caster sugar');
+        foodServiceResolves(CATALOG_FOOD, 'Granulated sugar');
 
-        // Not present verbatim: `castor` for `caster`, above the trigram floor.
+        const key = normalizedIngredientKey(`${PREFIX} caster sugar`)!;
+        const query = normalizedIngredientKey(`${PREFIX} castor sugar`)!;
+        const { rows } = await pool.query<{ similarity: number }>('SELECT similarity($1, $2) AS similarity', [
+            key,
+            query,
+        ]);
+
+        // The near branch is genuinely in play: above the DAL's floor, and short of an exact match.
+        expect(Number(rows[0]!.similarity)).toBeGreaterThan(MEMO_SIMILARITY_FLOOR);
+        expect(Number(rows[0]!.similarity)).toBeLessThan(1);
+
         const admitted = await addByName('Castor Sugar');
 
-        expect(admitted.foodId).toBe(MEMO_FOOD);
+        expect(admitted.foodId).toBe(CATALOG_FOOD);
         expect(foodClient.addByName).not.toHaveBeenCalled();
     });
 
@@ -185,7 +210,7 @@ describe.skipIf(!hasDatabaseUrl)('cascade precedence against a real knowledge ba
     });
 
     it('with NOTHING remembered, the lexical tier still answers from the catalog', async () => {
-        // The counterweight: this change is a PRECEDENCE fix, not a disabling of tier 2. A guard that only
+        // The counterweight: this change is a PRECEDENCE fix, not a disabling of the lexical tier. A guard that only
         // asserted the memo wins would pass on a chain that had dropped the lexical tier entirely.
         catalogHit = { foodId: CATALOG_FOOD, name: 'Flour, rye', score: 7.2 };
         foodServiceResolves(CATALOG_FOOD, 'Rye flour');

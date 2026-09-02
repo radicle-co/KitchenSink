@@ -197,7 +197,7 @@ export class ResolutionMappingsDal {
     }
 
     /**
-     * TIER 1's READ: the mapping in force for this phrase, for this caller.
+     * THE CURATED TIER'S READ: the mapping in force for this phrase, for this caller.
      *
      * Precedence is the caller's OWN mapping, then the global one — expressed as a sort key rather than two
      * queries so the answer comes from one indexed read and cannot disagree with itself. `created_at DESC`

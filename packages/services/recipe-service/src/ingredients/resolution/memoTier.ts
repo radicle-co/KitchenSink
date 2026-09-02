@@ -14,11 +14,16 @@
  * over a GiST trigram index) and a tier that post-filtered in Node would have paid for a full answer it then
  * discarded.
  *
- * ⚠️ NOTHING IN U10 WRITES A MEMO, and that is the honest state rather than an oversight: a memo exists only
- * for a resolution the verification gate agreed with, and the gate is U11's. The tier ships now because it is
- * what U11 writes INTO — and because the bar on that write ("only a gate-agreed resolution, and record which
- * model agreed") is expressed as a required field on `VerifiedMemo` rather than as a sentence in a plan,
- * before there is a writer to forget it.
+ * ⛔ THE WRITER SHIPPED, AND IT IS NOT IN THIS PACKAGE. `ingredient_resolution_memos` is populated by
+ * `packages/services/recipe-workers/src/handlers/verifyLine.ts` (`deps.store.rememberAgreement` →
+ * `verification/verdictStore.ts`), on every `band === 'verified'` identity `agree` for a non-private food.
+ * That is a deployed Lambda, so this table is NOT empty. An earlier revision of this docstring said "nothing
+ * in U10 writes a memo … the gate is U11's"; U11 shipped, and reasoning from the stale sentence is how the
+ * near-match hazard below was nearly filed as a future precondition instead of a live one.
+ *
+ * ⚠️ `ResolutionMappingsDal.recordMemo` — this service's own write method — has NO production caller; the
+ * live writer issues its own SQL from the worker. Two writers of one table, one of them dead. Worth
+ * consolidating, and worth knowing before concluding anything about who fills this tier.
  */
 import type { MemoHit, ResolutionMappingsDal } from './resolutionMappings.dal.js';
 import type { ResolutionTier, TierOutcome } from './resolutionCascade.js';
@@ -26,20 +31,59 @@ import type { ResolutionTier, TierOutcome } from './resolutionCascade.js';
 /**
  * Decide what a memo lookup means. Pure.
  *
+ * ## ⛔ ONLY AN EXACT KEY ANSWERS — the near branch DEFERS, and that is a safety rule, not a simplification
+ *
+ * `VerifiedMemo.verifiedBy` is a fact about the STORED key. On the k-NN branch nobody — no human, no model —
+ * ever agreed that the phrase being ASKED about means this food, so a near hit is a retrieval guess of the
+ * same epistemic class as a lexical top hit, at a floor (`MEMO_SIMILARITY_FLOOR = 0.5`) the DAL's own
+ * docstring calls the midpoint of the trigram scale.
+ *
+ * KTD-A's answer to that class is to WITHHOLD until the gate agrees — but the withholding machinery keys on
+ * the TIER, not on the evidence: `pendingStateOf` (`recipes/domain/lineVerification.ts`) returns `'none'` for
+ * every tier but `lexical`, and `pendingRedrives` (`recipes/domain/verificationRequests.ts`) only covers
+ * `ranked` evidence. A near memo that RESOLVED would therefore publish immediately, counted, with no verdict
+ * and no re-drive if the verification were lost — exactly the published wrong bind KTD-A exists to prevent.
+ * PASSING hands the phrase to the lexical tier instead, which withholds as `pending-verification` and gets a
+ * real verdict. One gate call, and the answer is checked.
+ *
+ * ⚠️ This became load-bearing when the memo tier was promoted ahead of the lexical tier
+ * (`resolutionRegistry.ts`): before that, the near branch needed an empty catalog and was nearly
+ * unreachable; after it, it would have been the common path.
+ *
+ * ⚠️ **A DEFERRAL OF AE8, NOT A REJECTION OF IT — and the one open owner ruling here.** AE8 wants a near-twin
+ * to resolve from the knowledge base without an LLM call. R14's "equality-only matching does not satisfy this
+ * requirement" is still honoured: `findMemo`'s exact-then-k-NN lookup is UNCHANGED, and only this tier's
+ * verdict on its result moved. Flip the near branch back to `resolved` the day `MemoHit.match` is persisted
+ * on the resolution and the two predicates above treat a near memo as a withholding class — the precedent is
+ * ADR-0026 §3, `single-engine` is not `differ`, one field over.
+ *
  * @param hit - The remembered resolution, or `undefined` when nothing is remembered close enough.
- * @returns A resolution naming the remembered food, or a pass.
+ * @returns A resolution naming the remembered food on an EXACT key; a pass otherwise.
  */
 export function decideMemoTier(hit: MemoHit | undefined): TierOutcome {
     if (hit === undefined) {
         return { kind: 'pass', tier: 'memo', reason: 'Nothing remembered for this phrase or a close neighbour.' };
     }
 
+    if (hit.match !== 'exact') {
+        // Reported, never silent: a near hit that read as "nothing remembered" would hide the deferral from
+        // anyone auditing why a line did not resolve at the knowledge base.
+        return {
+            kind: 'pass',
+            tier: 'memo',
+            reason:
+                `A ${hit.match} memo match (similarity ${hit.similarity.toFixed(2)}) is not an agreement ` +
+                'about this phrase; deferring to a tier whose binds are withheld until verified.',
+        };
+    }
+
     return {
         kind: 'resolved',
         tier: 'memo',
         foodId: hit.foodId,
-        // How it matched, and how closely. R14's near-twin path is the one most likely to be wrong in a way
-        // nobody notices, so a later audit of "why did this line resolve here?" needs more than a food id.
+        // How it matched, and how closely — kept even though only `exact` reaches here, so the day the near
+        // branch is admitted a later audit of "why did this line resolve here?" already has more than a food
+        // id to go on.
         evidence: `memo ${hit.match} match (similarity ${hit.similarity.toFixed(2)})`,
     };
 }

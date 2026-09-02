@@ -165,13 +165,28 @@ Origin R1–R13 carry verbatim (see origin doc). Plan-added, from flow analysis 
 > gave tier 2 a confidence threshold to fall through on. KTD-A removed that threshold — so under the shipped
 > order the memo tier was reachable ONLY when the catalog returned nothing at all, which made it dead for
 > every phrase the catalog can find and made AE8 ("a near-twin … resolves from the knowledge base **without
-> an LLM call**") unsatisfiable. Latent only because nothing writes a memo yet. The order is now
+> an LLM call**") unreachable in practice. ⛔ **Not latent** — `ingredient_resolution_memos` has a live
+> writer (`recipe-workers/src/handlers/verifyLine.ts` → `rememberAgreement`), so gate-agreed memos were
+> being overruled by catalog guesses in every stage where the gate had run. The order is now
 > `[curated, memo, lexical]`, checked against a declared evidence-class ladder rather than asserted as a
-> literal. Full argument, the rejected alternatives, and three recorded consequences (the near-memo publish
-> hole, the stale-memo fall-through, and the change to the band-calibration sample) live in
-> `packages/services/recipe-service/src/ingredients/resolution/resolutionRegistry.ts`. ⚠️ **Owner ruling
-> still owed on two of them:** whether deduplicating repeat phrases out of the band sample is intended
-> calibration (R17), and confirmation of this R11 amendment itself.
+> literal. Full argument, the rejected alternatives, and the recorded consequences (the stale-memo
+> fall-through and the change to the band-calibration sample) live in
+> `packages/services/recipe-service/src/ingredients/resolution/resolutionRegistry.ts`.
+>
+> ⛔ **AE8 IS DEFERRED IN THE SAME CHANGE, and this is the ruling most in need of confirmation.** `findMemo`
+> also answers on a trigram neighbour ≥ `MEMO_SIMILARITY_FLOOR`, and `verifiedBy` is a fact about the STORED
+> key — nobody agreed the QUERY phrase means that food. Because `pendingStateOf` withholds only
+> `tier === 'lexical'` and `pendingRedrives` covers only `ranked` evidence, promoting the memo tier would
+> have turned that near branch from nearly-unreachable into the common path, publishing unverified,
+> un-redriveable binds — KTD-A's own hole, one tier over. So `decideMemoTier` now answers on an EXACT key
+> only and defers the near branch to the lexical tier, whose binds are withheld until a verdict lands. R14's
+> "equality-only matching does not satisfy this requirement" still holds of the LOOKUP, which is unchanged.
+> Reverting the deferral requires persisting `MemoHit.match` on the resolution and teaching those two
+> predicates that a near memo withholds.
+>
+> ⚠️ **Owner rulings owed:** (1) AE8's deferral above; (2) whether deduplicating repeat phrases out of the
+> band sample is intended calibration (R17) — `bandKeyOf` keys only on `tier === 'lexical'`, so memo wins
+> contribute no band observation; (3) confirmation of this R11 amendment itself.
 
 ```mermaid
 flowchart TD

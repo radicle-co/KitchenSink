@@ -85,7 +85,7 @@ export type ResolutionTierId = (typeof RESOLUTION_TIER_IDS)[number];
  * `llm` is excluded at the type level rather than by a runtime check, because the exclusion is a decision
  * this file already argues at length: the verification gate is POST-resolution and therefore has no
  * precedence relative to the tiers. `Exclude` keeps that decision exhaustive — a fifth member of
- * {@link RESOLUTION_TIER_IDS} lands in {@link RESOLUTION_TIER_AUTHORITY} as a COMPILE error until somebody
+ * {@link RESOLUTION_TIER_IDS} lands in {@link RESOLUTION_TIER_EVIDENCE} as a COMPILE error until somebody
  * says where on the ladder it sits.
  */
 export type CascadeTierId = Exclude<ResolutionTierId, 'llm'>;

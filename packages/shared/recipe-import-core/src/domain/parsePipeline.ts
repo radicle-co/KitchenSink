@@ -24,8 +24,9 @@
  *  - `cookbook-import`'s local sidecar runs ONE Python process for a whole corpus, because
  *    `ingredient-parser-nlp` loads a CRF model at import and per-line spawning "would turn a two-second job
  *    into a quarter of an hour".
- *  - `ParseCacheDal.findForLines` is already a batch read, and its own docstring calls it "the pipeline's
- *    hottest read".
+ *  - `ParseCacheDal.findForLines` is already a batch read, and the TABLE it reads calls that read "the
+ *    pipeline's hottest read" — in `ingredientParseCache.ts`'s index note, not in the DAL's own docstring —
+ *    written for this caller before this caller existed.
  *
  * ⛔ So a per-line `parse(line)` port would be an Adapter that adds behaviour — it would have to hide a
  * scheduler, or invoke a Lambda once per line and pay a cold start each time. **A batch port can be honestly
@@ -33,9 +34,10 @@
  * it, and it decides it the same way for the cache.
  *
  * ⚠️ {@link ParseCorrectionsPort} is the ONE per-line port, and that is the same rule applied honestly:
- * `ParseCorrectionsDal.findInForce` is a per-line read and there is no batch transport for it to hide. The
- * pipeline issues those reads CONCURRENTLY instead. The day a batch read exists, this port changes — a small
- * change inside one shared package, not a wire contract.
+ * `findInForce` is a per-line read on both sides of the seam — the shipped adapter's statement and
+ * `recipe-service`'s `ParseCorrectionsDal.findInForce` alike — and there is no batch transport for it to
+ * hide. The pipeline issues those reads CONCURRENTLY instead. The day a batch read exists, this port
+ * changes — a small change inside one shared package, not a wire contract.
  *
  * ⛔ Chunking to the Lambda's `MAX_LINES` is the ADAPTER's job, not this module's. That bound is a fact
  * about one transport; another transport (the local sidecar) has a different one, and a pipeline that knew
@@ -136,8 +138,12 @@ export interface CorrectionInForce {
 /**
  * TIER 1 — the corrections a person made.
  *
- * DESIGN PATTERN: **Port**. The shipped adapter is `recipe-service`'s `ParseCorrectionsDal.findInForce`,
- * whose three `WHERE` clauses ARE the authorization; nothing here re-derives any of it.
+ * DESIGN PATTERN: **Port**. The shipped adapter is `recipe-workers`' `createParseCorrectionsPort`
+ * (`src/parsing/parsePorts.ts`), raw SQL over the worker seam; `cookbook-import` runs {@link NO_CORRECTIONS}
+ * instead. ⛔ That adapter's statement MIRRORS `recipe-service`'s `ParseCorrectionsDal.findInForce`
+ * predicate for predicate, because those `WHERE` clauses ARE the authorization and two readers with
+ * different precedence would let a correction bind on the API path and not on the import path. Nothing here
+ * re-derives any of it.
  */
 export interface ParseCorrectionsPort {
     /**
@@ -182,9 +188,10 @@ export interface RememberedParse {
 /**
  * TIER 2 — what an engine already said about these lines.
  *
- * DESIGN PATTERN: **Port**, mirroring `recipe-service`'s `ParseCacheDal` statement for statement. Its write
- * is `ON CONFLICT DO NOTHING` by design: a row is write-once within its generation, so a redelivered message
- * and two concurrent misses are both benign.
+ * DESIGN PATTERN: **Port**, mirroring `recipe-service`'s `ParseCacheDal` statement for statement. The
+ * shipped adapter is `recipe-workers`' `createParseCachePort` (`src/parsing/parsePorts.ts`);
+ * `cookbook-import` runs {@link NO_CACHE}. Its write is `ON CONFLICT DO NOTHING` by design: a row is
+ * write-once within its generation, so a redelivered message and two concurrent misses are both benign.
  */
 export interface ParseCachePort {
     /**

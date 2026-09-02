@@ -1,13 +1,19 @@
 /**
  * The parse pipeline's STORAGE ports for the service leg (plan U8): the parse cache and the corrections
- * tier, raw SQL over the accepted worker seam (`common/db.ts`'s reasoning — recipe-service's Drizzle
- * models are its internals, and five shipped handlers already write its tables this way).
+ * tier, raw SQL over the accepted worker seam. ⛔ The seam's reasoning lives ONCE, in `common/db.ts`'s
+ * docstring — recipe-service's Drizzle models are its internals, so this package holds a SCHEMA-LESS handle
+ * and every handler issues raw `sql` — and it is cited rather than restated here, because an earlier
+ * revision of this sentence counted "five shipped handlers" and the count had already rotted.
  *
  * ⛔ The CORRECTIONS read mirrors `parseCorrections.dal.ts`'s statement DELIBERATELY, predicate for
  * predicate: `superseded_at IS NULL`, global-or-own scope, author-first ordering. Two readers with
  * different precedence would let a correction bind on the API path and not on the import path — the exact
  * drift the DAL's "the WHERE clauses ARE the authorization" note warns about. If that statement changes,
- * this one changes in the same commit (both cite this sentence).
+ * this one changes in the same commit.
+ *
+ * ⚠️ Nothing in `recipe-service` cites this file back, so that obligation is one-directional and rests on a
+ * reader of the DAL noticing it. `parsePipeline.ts`'s {@link ParseCorrectionsPort} docstring names this
+ * module as the shipped adapter, which is the only pointer that exists in the other direction.
  */
 import type { ParseCachePort, ParseCorrectionsPort } from '@kitchensink/recipe-import-core';
 

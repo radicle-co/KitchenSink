@@ -14,7 +14,13 @@
  * ⚠️ The constructor is TOTAL and returns `undefined` rather than throwing, unlike `recipeId`/`userId`. A name
  * with no visible content is not a programmer error here: it is a caller sending zero-width characters, and an
  * ordinary `400` — and a golden record legitimately carrying an unusable name, which is a "keep what we have"
- * outcome, not a failure. Both callers need to BRANCH on it, and an exception is the wrong shape for a branch.
+ * outcome, not a failure. Every caller needs to BRANCH on it, and an exception is the wrong shape for a
+ * branch. ⚠️ CORRECTED — this said "both callers"; there are now THREE non-test call sites, all branching:
+ * `ingredients.controller.ts`, `foodStatusTranslation.ts`, and `recipes.service.ts`'s U11 clone path.
+ *
+ * ⚠️ "Ownerless" above is about the CATALOG row, and migration 0040 qualified it: `ingredients` gained
+ * `food_owner_id`, so a row standing for somebody's PRIVATE authored food is retrieved only for its author.
+ * The naming argument is unaffected — a catalog row's name is still shared global state.
  */
 import { z } from 'zod';
 import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';

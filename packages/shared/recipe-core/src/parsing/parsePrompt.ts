@@ -257,11 +257,16 @@ export const PARSE_PROMPT_VERSION = 'v2';
 /**
  * `inferenceConfig.maxTokens`.
  *
- * ⚠️ Half of the worst-case reservation, so it is a cost decision as well as a correctness one. A well-formed
- * answer measured at 38-60 output tokens across all three models; 200 leaves better than 3x headroom for a
- * line naming several foods, while still bounding a runaway. It equals the verification gate's
- * `VERIFICATION_MAX_OUTPUT_TOKENS` by coincidence of arithmetic, not by shared knowledge — the two prompts
- * produce different answers and would move for different reasons.
+ * ⚠️ It is the OUTPUT half of the worst-case reservation ADR-0024 charges before the call, so it is a cost
+ * decision as well as a correctness one — and a truncated answer is a REFUSAL, never a partial read, so the
+ * cap has to clear the longest legitimate answer rather than the median one.
+ *
+ * ⚠️ CORRECTED. This was `200`, sized against a well-formed answer measured at 38-60 output tokens under the
+ * pre-v5 flat-document prompt. Shipping v5-static on Nova 2 Lite (`644a5b5e`) made the answer a RELATIONAL
+ * ARRAY of records rather than one document and raised the cap with it, 200 -> 900. The paragraph that used
+ * to stand here also observed that the value equalled the verification gate's
+ * `VERIFICATION_MAX_OUTPUT_TOKENS` "by coincidence of arithmetic, not by shared knowledge" — the two have
+ * since diverged (that one is still 200), which is exactly what an unshared coincidence is free to do.
  */
 export const PARSE_MAX_OUTPUT_TOKENS = 900;
 

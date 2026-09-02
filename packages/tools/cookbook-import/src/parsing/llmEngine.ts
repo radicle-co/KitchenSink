@@ -19,7 +19,8 @@
  *
  * ADR-0024 §4b grants `bedrock:InvokeModel` to exactly ONE Lambda execution role, guard-tested by set
  * equality, and §4a sanctions this path by name: "the runner is an operator script that already sits outside
- * this ceiling by design." That is why `recipe-workers`' `parseLineWithLlm` is NOT reused here and why the
+ * this ceiling by design." That is why `recipe-workers`' gated parse leg (`src/parsing/gatedLlm.ts`'s
+ * `createGatedLlmEngine`, which runs under that ONE role) is NOT reused here and why the
  * orchestration was hoisted while the gated leg was not — a shared gated leg makes a second, ungated grantee
  * the natural next step, which is precisely the bypass layer 4 cannot detect, because the spend metric is
  * emitted BY the gated path.
@@ -170,7 +171,10 @@ export function createLlmEngine(options: LlmEngineOptions): LlmEnginePort {
                 // shipped leg as v5-static "against Nova 2 Lite on the `flex` tier", and the client's own
                 // note records why not batch: batch loses PROMPT CACHING, and a 19,777-character system
                 // prompt re-billed as fresh input on every line is the whole cost of this leg.
-                // `recipe-workers/src/parsing/llmParse.ts` sends the same thing.
+                // ⚠️ THIS LEG IS THE ONLY SENDER of a tier today: `recipe-workers`' gated leg
+                // (`gatedLlm.ts`) asks for `cachePrompt: true` and sets NO `serviceTier` at all. (An
+                // earlier revision here claimed `recipe-workers/src/parsing/llmParse.ts` "sends the same
+                // thing"; that module was DELETED on 2026-08-29, and its gated replacement does not.)
                 serviceTier: 'flex',
             });
         } catch (error) {

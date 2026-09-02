@@ -8,7 +8,8 @@
  *
  * ## ⛔ THIS MODULE IS WHY U22 COULD NOT COMPILE
  *
- * `compareParses` consumes two `ParsedLine`s. `llmParse` produces an `LlmParse`. The CRF Lambda produces a
+ * `compareParses` consumes two `ParsedLine`s. The model leg produces an `LlmParse` (`normalizeParseAnswer`,
+ * in `@kitchensink/recipe-core/parsing/parse-answer`). The CRF Lambda produces a
  * flattened row. Nothing in the tree promoted either engine's output into the canonical shape, and
  * `parseAnswer.ts` says "the comparator owns" that step — which it does not. This module and its sibling
  * `promoteLlmParse` are that step.

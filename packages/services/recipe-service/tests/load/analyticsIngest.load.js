@@ -13,9 +13,12 @@
 //   * Every iteration mints fresh UUIDs, so this measures the INSERT path; the dedup (conflict) path is
 //     covered functionally in the integration tier and is CHEAPER, not dearer, under load.
 //
-// ⛔ 429s are EXCLUDED from failure: the ingest door is deliberately rate-capped per user
-// (RATE_LIMIT_ANALYTICS), and a load token concentrating VUs on one user WILL hit it — that is the cap
-// working. The check counts 202s among non-429 responses instead.
+// ⛔ THE JOB RAISES `RATE_LIMIT_ANALYTICS` (to 1000000, beside the other four in `_ci-heavy.yml`), and it
+// must: the whole load is ONE dev-auth user, so the real 60/min per-user cap would 429 under concurrency
+// and fail `http_req_failed` — the same reason that block already raises READ/WRITE/SEARCH/PHOTO_UPLOAD.
+// With the cap lifted a 429 here is a REAL failure (something else is throttling), so this script checks
+// for 202 unconditionally, exactly like its siblings. Running it against a stage with live caps measures
+// the cap, not the door.
 //
 //   k6 run \
 //     -e RECIPE_API_BASE_URL=https://recipe.commise.app \
@@ -26,7 +29,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, authHeaders, rampStages, SC009_P95_MS } from './lib/common.js';
+import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SC009_P95_MS } from './lib/common.js';
 
 const ingestTrend = new Trend('analytics_ingest_duration', true);
 
@@ -38,12 +41,13 @@ export const options = {
         ingest: {
             executor: 'ramping-vus',
             startVUs: 1,
-            stages: rampStages(),
+            stages: rampStages(PEAK_VUS),
         },
     },
     thresholds: {
         analytics_ingest_duration: [`p(95)<${INGEST_P95_MS}`],
-        // Shed and rate-cap are successes; anything else failing means the door broke under load.
+        // A SHED batch still answers 202 (`landed: 0`) — the isolation contract — so this threshold is
+        // exactly "the door stayed up under load", with no shed/cap carve-out to blunt it.
         http_req_failed: ['rate<0.01'],
     },
 };
@@ -84,11 +88,9 @@ export default function scenario() {
 
     ingestTrend.add(res.timings.duration);
 
-    if (res.status !== 429) {
-        check(res, {
-            'ingest answers 202': (r) => r.status === 202,
-        });
-    }
+    check(res, {
+        'ingest answers 202': (r) => r.status === 202,
+    });
 
     sleep(0.5);
 }

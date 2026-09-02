@@ -632,6 +632,7 @@ jobs:
                       -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \
                       -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
                       -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
+                      -e RATE_LIMIT_ANALYTICS=1000000 \
                       recipe-load:ci
                   for i in $(seq 1 40); do
                       if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi

@@ -572,6 +572,34 @@ function isGitIgnored(repoRelativePath: string): boolean {
 // Analyzer 1 — assertions
 // ---------------------------------------------------------------------------------------------------------
 
+/**
+ * A load script that ramps to NOTHING is the same silent success as a script no job runs — the failure
+ * class this file already exists for, one layer in. `rampStages(peak)` takes its target as a PARAMETER,
+ * so `rampStages()` resolves every stage to `target: null`: k6 runs ~zero VUs, every threshold passes
+ * vacuously, and the job stays green over a load test that never applied load. Measured, not imagined —
+ * `analyticsIngest.load.js` shipped that way (2026-09-02) and `k6 inspect` reported
+ * `[{duration:'30s',target:null}, …]`. JS cannot catch a missing argument and lint cannot either, so the
+ * shape is asserted here: every `rampStages(` call in every committed script passes something.
+ */
+describe('no committed k6 load script ramps to nothing', () => {
+    it('every rampStages(...) call carries a target argument', () => {
+        const offenders = committedLoadScripts().flatMap((script) => {
+            const source = readFileSync(join(REPO_ROOT, script), 'utf8');
+            const empty = source.match(/rampStages\(\s*\)/g) ?? [];
+
+            return empty.map(() => `${script}: rampStages() with no target — every stage resolves to null`);
+        });
+
+        expect(offenders).toEqual([]);
+    });
+
+    it('is not vacuous: it would catch an empty call', () => {
+        const sample = 'stages: rampStages(),';
+
+        expect(sample.match(/rampStages\(\s*\)/g)).toHaveLength(1);
+    });
+});
+
 describe('every committed k6 load script is invoked by a workflow step', () => {
     it('is not vacuous: the tree ships load scripts for every service that has the tier', () => {
         // Pins the discovery half. If the suffix convention changes or the directory moves, the real-tree

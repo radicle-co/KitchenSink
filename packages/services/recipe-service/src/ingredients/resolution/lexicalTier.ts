@@ -37,12 +37,27 @@
  * reaches the gateway, which degrades to `unavailable` without issuing a request (#120's rule: the call
  * is made AS the caller or not at all) — so imports fall through to the food service exactly as before.
  *
- * ## R20 private-food scoping (stub)
+ * ## R20 private-food scoping — SHIPPED, and enforced one service over
  *
- * Private authored foods (plan U10/U18) must appear only for their author. The search is food-service's,
- * so the scoping predicate will ride the search request when authored foods exist; until then the catalog
- * holds only public rows and there is nothing to scope. `ResolutionContext.userId` is already threaded
- * here for that day.
+ * ⚠️ An earlier revision of this header called this a stub and said "the catalog holds only public rows and
+ * there is nothing to scope". Both halves are now FALSE, and the correction matters because the stub wording
+ * invites a reader to add a scoping predicate here — a second, weaker copy of a boundary that already exists
+ * at the only layer that can enforce it.
+ *
+ * The predicate is food-service's own: `foodSearch.dao.ts` admits `user_id IS NULL OR user_id = :caller OR
+ * visibility = 'promoted'`, so a stranger's search can never RECEIVE another user's private row. That is why
+ * the call goes out AS the caller (#120) rather than under a service credential — the forwarded bearer IS the
+ * scoping argument. Nothing here re-filters, because a row this tier can see is a row the caller was entitled
+ * to see.
+ *
+ * What this tier owes R20 is the SIGNAL, not the filter: {@link isAuthorAugmented} flags a shortlist
+ * containing the caller's own `private` hit, and `IngredientsService` then records the resolution as
+ * author-augmented and observes NO band epoch for it — margins drawn from one user's catalog are facts about
+ * that user, not about the shared ranker, and must not feed shared band statistics (plan U11). A `promoted`
+ * row is deliberately NOT augmenting: U12's promotion is the event that makes a food everybody's.
+ *
+ * `ResolutionContext.userId` stays threaded for the tiers that key on an author (curated); this one keys on
+ * the CREDENTIAL.
  */
 import { classifyRankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 import { describeRankingName, describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
@@ -117,17 +132,25 @@ export function shouldReformulate(phrase: string, hits: readonly CatalogHit[]): 
 }
 
 /**
+ * Whether ANY hit is the CALLER's own private authored food (U11/R20) — the band-exclusion trigger.
+ *
+ * ⛔ The whole shortlist, not the winner: a private row below the top hit still means these margins were
+ * measured against a catalog nobody else has. `promoted` is excluded on purpose — see the file doc.
+ *
+ * @param hits - The ranked hits.
+ * @returns Whether the shortlist is author-augmented. Pure.
+ */
+function isAuthorAugmented(hits: readonly CatalogHit[]): boolean {
+    return hits.some((hit) => hit.visibility === 'private');
+}
+
+/**
  * Decide what a ranked candidate set means. Pure.
  *
  * @param phrase - The query phrase (for rung classification and evidence).
  * @param hits - The ranked hits, highest score first (the gateway's order).
  * @returns A resolution proposing the top hit with its evidence, or a pass on an empty set.
  */
-/** Whether any hit is the CALLER's own private authored food (U11/R20) — the band-exclusion trigger. Pure. */
-function isAuthorAugmented(hits: readonly CatalogHit[]): boolean {
-    return hits.some((hit) => hit.visibility === 'private');
-}
-
 export function decideLexicalTier(phrase: string, hits: readonly CatalogHit[]): TierOutcome {
     const top = hits[0];
 

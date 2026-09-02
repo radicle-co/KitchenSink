@@ -60,6 +60,38 @@ describe('decideLexicalTier — the pure judgement', () => {
     });
 });
 
+/**
+ * R20 (plan U11) — the author-augmentation flag.
+ *
+ * ⛔ The flag is about the SHORTLIST, not the winner: a private hit ANYWHERE in the set means these margins
+ * describe one user's catalog rather than the shared ranker, so the resolution is excluded from shared band
+ * statistics even when the top hit is a public catalog row. `promoted` is NOT private — U12's promotion is
+ * exactly the event that makes a food everybody's, so it must not keep suppressing band feedback forever.
+ */
+describe('decideLexicalTier — author augmentation (R20)', () => {
+    const PRIVATE = { foodId: 'F-MINE', name: 'Gran’s pie filling', score: 0.95, visibility: 'private' } as const;
+    const PROMOTED = { foodId: 'F-OURS', name: 'Pie filling', score: 0.94, visibility: 'promoted' } as const;
+
+    it('is false for a shortlist of ordinary catalog rows', () => {
+        expect(decideLexicalTier('flour', HITS)).toMatchObject({ authorAugmented: false });
+    });
+
+    it('is true when the WINNER is the caller’s own private food', () => {
+        expect(decideLexicalTier('pie filling', [PRIVATE, ...HITS])).toMatchObject({ authorAugmented: true });
+    });
+
+    it('is true when a private row sits BELOW the winner — the flag describes the whole shortlist', () => {
+        expect(decideLexicalTier('pie filling', [HITS[0], PRIVATE])).toMatchObject({
+            foodId: 'F-FLOUR',
+            authorAugmented: true,
+        });
+    });
+
+    it('⛔ a PROMOTED row does NOT augment — promotion is what makes a food shared', () => {
+        expect(decideLexicalTier('pie filling', [PROMOTED, ...HITS])).toMatchObject({ authorAugmented: false });
+    });
+});
+
 describe('reformulateQuery — the deterministic synonym retry (origin D11)', () => {
     it('maps a curated synonym token', () => {
         expect(reformulateQuery('aubergine')).toBe('eggplant');

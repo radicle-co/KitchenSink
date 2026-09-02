@@ -83,16 +83,44 @@ const TYPEAHEAD_TIMEOUT_MS = 600;
  * precedence, not an implementation detail, which is why it lives here as an explicit registry rather than
  * being assembled inside the service.
  *
- * It holds tiers **1** (curated mappings), **2** (the lexical shortlist-builder, plan U4 — zero initial
- * authority; see `lexicalTier.ts` for why it has no tier-side threshold) and **3** (remembered
+ * It holds all three cascade tiers: **1** (curated mappings), **2** (the lexical shortlist-builder, plan U4 —
+ * zero initial authority; see `lexicalTier.ts` for why it has no tier-side threshold) and **3** (remembered
  * resolutions). The one absentee is absent for a stated reason rather than by oversight:
  *  - **Tier 4, the LLM gate, is NOT A TIER OF THIS CHAIN AT ALL** — corrected 2026-08-22, when its producer
  *    shipped. KTD-3 is "the verification gate, NOT a residual fallback": the model verifies what is about to
  *    be PUBLISHED, whereas a tier here is consulted precisely when tiers 1–3 have all passed, i.e. when there
  *    is nothing resolved to verify. The gate's producer lives on the RECIPE write path, which is the only
  *    layer holding the recipe id, the raw source line, the parsed quantity and the resolved food together —
- *    see `recipes/domain/verificationRequests.ts`. This registry stays two tiers long until U5/U6 ship the
- *    lexical one at index 1.
+ *    see `recipes/domain/verificationRequests.ts`.
+ *
+ * ⚠️ This registry is THREE tiers long — the lexical tier shipped at index 1 (plan U4). An earlier revision
+ * of this docstring said it "stays two tiers long until U5/U6 ship the lexical one", which the very next line
+ * already contradicted; the note is corrected rather than deleted so nobody re-adds a tier that is here.
+ *
+ * ⚠️ **CONSEQUENCE OF KTD-A, worth knowing before reading tier 3's silence as a bug.** The standing 08-20
+ * plan's T2 was "confident → gate, miss/low → T3"; KTD-A replaced that threshold with ZERO initial authority,
+ * so tier 2 resolves on ANY non-empty candidate set. Tier 3 (memo) is therefore reached only when the catalog
+ * offers nothing at all, or is disabled/down. That is currently harmless — nothing writes a memo yet (see
+ * `memoTier.ts`) — and the plan's amortisation is band authority (a CLASS of resolutions), not a per-phrase
+ * memo. It is recorded here because the day a memo writer ships, "my gate-agreed memo is never consulted" is
+ * a precedence question for the owner, not a bug to fix by quietly reordering this array.
+ *
+ * ⛔ **REACH: THE CASCADE IS THE WRITE PATH'S, and that is a decision, not an omission.** `runResolutionCascade`
+ * is reached from exactly one place — `IngredientsService.addByName`, behind `POST /api/v1/ingredients/by-name`
+ * (the picker's add and the cookbook importer). It is deliberately NOT on `GET /suggest`, `GET /search/live`
+ * or `POST /{id}/resolve`, and adding it there would be wrong three different ways rather than merely
+ * expensive:
+ *  - the cascade's job is to DECIDE an identity when no human will; those three routes exist precisely to put
+ *    candidates in front of a human who decides. `POST /{id}/resolve` already carries the human's `candidateIds`,
+ *    so running a machine guess there would override an explicit pick;
+ *  - it terminates in `addByFoodId` — an ADMISSION into the shared `ingredients` catalog plus a provenance
+ *    write. Putting that behind a per-keystroke `GET` would mint catalog rows from typing;
+ *  - under KTD-A every zero-authority lexical resolution enqueues a verification against ADR-0024's single
+ *    $100/month pool. Per keystroke, that is a spend incident, and tier 2 alone issues up to TWO authenticated
+ *    cross-service searches against `/suggest`'s sub-second per-keystroke budget (see {@link TYPEAHEAD_TIMEOUT_MS}),
+ *    which the tier's THROW-on-unavailable contract would also convert into a 500 on a route whose whole
+ *    discipline is to degrade.
+ * `lexicalResolution.integration.test.ts` asserts the boundary in both directions.
  *
  * @param mappings - The knowledge-base repository tiers 1 and 3 read through.
  * @param catalog - The availability-disciplined search gateway tier 2 retrieves through (plan U4).

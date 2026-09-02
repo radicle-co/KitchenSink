@@ -131,9 +131,16 @@ export class IngredientsService {
      * @param foodClients - The per-caller food-service client factory.
      * @param catalog - The typeahead blend's short-timeout, no-throw gateway.
      * @param resolutionTiers - The ORDERED resolution cascade (plan U10). The order IS the configuration
-     *   (R11), so it is injected as a registry rather than assembled here: today it holds tiers 1 and 3, U5/U6
-     *   insert the lexical tier between them, and U11 appends the LLM tier. An EMPTY array is a valid and
-     *   fully-supported state — it leaves `addByName` behaving exactly as it did before the cascade existed.
+     *   (R11), so it is injected as a registry rather than assembled here.
+     *   ⚠️ It holds all THREE tiers today — curated, lexical (plan U4, shipped), memo — and there is no
+     *   fourth coming: the verification gate is POST-resolution, not a tier of this chain (see
+     *   `resolutionCascade.ts`). An earlier revision of this line said "today it holds tiers 1 and 3, U5/U6
+     *   insert the lexical tier between them"; it is corrected rather than deleted so the absence of a tier 4
+     *   keeps its stated reason. An EMPTY array is still a valid and fully-supported state — it leaves
+     *   `addByName` behaving exactly as it did before the cascade existed, which is what the unit fixtures use.
+     *   ⛔ The cascade is consulted from {@link IngredientsService.addByName} and NOWHERE else; `suggest`,
+     *   `searchLive` and `resolve` deliberately do not run it (the reasoning lives once, on the registry in
+     *   `ingredients.module.ts`).
      */
     public constructor(
         private readonly dal: IngredientsDal,

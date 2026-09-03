@@ -54,7 +54,7 @@
  * Same library, same era, but not byte-identical — so a defect that lives only in Node's copy would not be
  * caught here.
  *
- * ⛔ {@link installTransportInterception} must run BEFORE the Nest boot: `UsdaApiClient` captures
+ * ⛔ `installTransportInterception` must run BEFORE the Nest boot: `UsdaApiClient` captures
  * `options.fetchFn ?? fetch` at CONSTRUCTION, so a client composed first would hold the built-in `fetch`
  * forever and no later swap would reach it.
  *

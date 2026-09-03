@@ -27,10 +27,12 @@
  * subcommand and is covered by `deployGate.integration.test.ts`.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 const SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/deploy-gate.sh', import.meta.url));
 
@@ -555,5 +557,205 @@ describe('deploy_gate_close — misuse fails loudly instead of guessing', () => 
         );
 
         expect(verdict.status).toBe(2);
+    });
+});
+
+// ── `stacks-for` — the stacks an app DECLARES, so no probe has to write them down ────────────────────────
+
+/** Temp directories the fixture manifests live in, removed once the suite is done with them. */
+const fixtureDirectories: string[] = [];
+
+afterAll(() => {
+    for (const directory of fixtureDirectories) {
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * Run the `stacks-for` subcommand.
+ *
+ * ⚠️ Unit tier despite the file read, deliberately. `stacks-for` makes no AWS call, opens no socket and
+ * synthesises nothing: it is a reading of ONE committed artifact, deterministic in the same way `decide` and
+ * `close` are. The integration tier would buy nothing and cost the fast feedback that makes a guard get run.
+ *
+ * @param args - `<entrypoint> <stage> [manifestFile]`.
+ * @returns The declared stack names, one per line of stdout, plus the exit status.
+ * @sideEffect Spawns `bash`.
+ */
+const stacksFor = (...args: readonly string[]): { readonly stacks: readonly string[]; readonly status: number } => {
+    const result = spawnSync('bash', [SCRIPT, 'stacks-for', ...args], { encoding: 'utf8' });
+
+    if (result.error) {
+        throw result.error;
+    }
+
+    return {
+        stacks: result.stdout
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0),
+        status: result.status ?? -1,
+    };
+};
+
+/** The repository root, as `$GITHUB_WORKSPACE` names it on a runner. */
+const REPO_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
+
+/** The repository's own manifest — the file the deploy workflows read. */
+const MANIFEST = path.join(REPO_ROOT, 'docs/generated/infrastructure/manifest.json');
+
+/** The global platform app, whose stack set is the one a hand-written probe kept getting wrong. */
+const GLOBAL_APP = 'packages/infra/global/bin/app.ts';
+
+/**
+ * Write a throwaway manifest, for the shapes the committed one cannot exhibit.
+ *
+ * @param apps - The `apps` array, verbatim.
+ * @returns The path written.
+ * @sideEffect Creates a file under the confined temp root.
+ */
+const fixtureManifest = (apps: unknown): string => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'deploy-gate-stacks-for-'));
+    const file = path.join(directory, 'manifest.json');
+
+    writeFileSync(file, JSON.stringify({ schemaVersion: 2, apps }));
+    fixtureDirectories.push(directory);
+
+    return file;
+};
+
+describe('deploy_gate_stacks_for — a probe never has to write down what an app declares', () => {
+    // ⛔ THE FAILURE THIS CLOSES. `sandbox-identity-deploy.yml` asked `describe-stacks` about TWO of the
+    // global app's stacks, by name. Its own comment records the first correction — the ALB was added only
+    // after ADR-0028 made the sandbox tier reclaimable, a reaped tier left the network stack standing, the
+    // probe answered "nothing missing", and the identity deploy then died importing
+    // `SharedAlbHttpsListenerArn`. The LIST was edited; the CLASS was not closed, and six further sandbox
+    // stacks stayed unprobed. A copy of a list cannot detect that the list is incomplete.
+    it('derives every stack the global platform app declares for the sandbox stage', () => {
+        const declared = stacksFor(GLOBAL_APP, 'sandbox', MANIFEST);
+
+        expect(declared.status).toBe(0);
+        expect(declared.stacks).toEqual([
+            'kitchensink-alb-sandbox',
+            'kitchensink-data-sandbox',
+            'kitchensink-domain-sandbox',
+            'kitchensink-global-sandbox',
+            'kitchensink-messaging-sandbox',
+            'kitchensink-network-sandbox',
+            'kitchensink-sandbox-scheduler-sandbox',
+            'kitchensink-service-logs-sandbox',
+        ]);
+    });
+
+    it('leaves a prod-only stack out of the sandbox answer, and a sandbox-only stack out of prod', () => {
+        // Over-eager is its own defect: a gate that demanded `kitchensink-edge-sandbox` would report the
+        // platform permanently incomplete and redeploy the whole tier on every run, which is worse than the
+        // hand-written list it replaces.
+        const sandbox = stacksFor(GLOBAL_APP, 'sandbox', MANIFEST).stacks;
+        const prod = stacksFor(GLOBAL_APP, 'prod', MANIFEST).stacks;
+
+        expect(sandbox).not.toContain('kitchensink-edge-sandbox');
+        expect(sandbox).not.toContain('kitchensink-cost-guardrails');
+        expect(prod).toContain('kitchensink-edge-prod');
+        expect(prod).toContain('kitchensink-cost-guardrails');
+        expect(prod).not.toContain('kitchensink-sandbox-scheduler-prod');
+    });
+
+    it('answers a single-stack service app with exactly that stack', () => {
+        expect(stacksFor('packages/services/identity/infra/bin/app.ts', 'sandbox', MANIFEST).stacks).toEqual([
+            'kitchensink-identity-service-sandbox',
+        ]);
+        expect(stacksFor('packages/services/identity-webhooks/infra/bin/app.ts', 'sandbox', MANIFEST).stacks).toEqual([
+            'kitchensink-identity-webhooks-sandbox',
+        ]);
+    });
+
+    it('resolves the manifest under $GITHUB_WORKSPACE when no file is given, as the workflows invoke it', () => {
+        const result = spawnSync('bash', [SCRIPT, 'stacks-for', GLOBAL_APP, 'sandbox'], {
+            encoding: 'utf8',
+            env: { ...process.env, GITHUB_WORKSPACE: REPO_ROOT },
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('kitchensink-network-sandbox');
+    });
+});
+
+describe('deploy_gate_stacks_for — refuses rather than answering a set it cannot vouch for', () => {
+    // Same contract as every other subcommand here: "no stacks" is indistinguishable from "this app is fully
+    // deployed", so every uncertainty leaves through a non-zero status instead of through the answer.
+    it('refuses an entrypoint the manifest does not carry, rather than reporting zero stacks', () => {
+        expect(stacksFor('packages/services/nope/infra/bin/app.ts', 'sandbox', MANIFEST).status).toBe(2);
+    });
+
+    it.each([[[]], [[GLOBAL_APP]]])('refuses an incomplete invocation (%j)', (args: readonly string[]) => {
+        expect(stacksFor(...args).status).toBe(2);
+    });
+
+    it('refuses when the manifest file is absent', () => {
+        expect(stacksFor(GLOBAL_APP, 'sandbox', path.join(tmpdir(), 'no-such-manifest.json')).status).toBe(2);
+    });
+
+    it('refuses a stack guarded by a condition it cannot evaluate', () => {
+        // The manifest records the guard's SOURCE TEXT, and `stage === '<literal>'` is the whole vocabulary
+        // today. A gate that quietly read anything else as unconditional would demand a stack the app never
+        // builds; one that read it as false would silently drop a stack the app does build. Neither is an
+        // answer, so this is not one either.
+        const file = fixtureManifest([
+            {
+                entrypoint: GLOBAL_APP,
+                stacks: [
+                    { className: 'Always', stackNameTemplate: 'kitchensink-always-{stage}', condition: null },
+                    {
+                        className: 'Clever',
+                        stackNameTemplate: 'kitchensink-clever-{stage}',
+                        condition: "stage !== 'prod' && isFeatureOn",
+                    },
+                ],
+            },
+        ]);
+
+        expect(stacksFor(GLOBAL_APP, 'sandbox', file).status).toBe(2);
+    });
+
+    it('refuses a stack whose NAME the manifest could not read', () => {
+        // `{?}` is the generator's marker for a name built from something its AST read cannot follow.
+        // Probing it asks CloudFormation about a stack called `{?}` — absent forever, so the gate would
+        // deploy on every single run and nobody would know why.
+        const file = fixtureManifest([
+            { entrypoint: GLOBAL_APP, stacks: [{ className: 'Opaque', stackNameTemplate: '{?}', condition: null }] },
+        ]);
+
+        expect(stacksFor(GLOBAL_APP, 'sandbox', file).status).toBe(2);
+    });
+
+    it('refuses an app that declares no stack at this stage, instead of answering "nothing missing"', () => {
+        const file = fixtureManifest([
+            {
+                entrypoint: GLOBAL_APP,
+                stacks: [
+                    {
+                        className: 'ProdOnly',
+                        stackNameTemplate: 'kitchensink-p-{stage}',
+                        condition: "stage === 'prod'",
+                    },
+                ],
+            },
+        ]);
+
+        expect(stacksFor(GLOBAL_APP, 'sandbox', file).status).toBe(2);
+    });
+
+    it('collapses a placeholder the CDK author spelled with a different variable name', () => {
+        // `canonicalStackTemplate` records why: the placeholder is only the local variable name the author
+        // chose, and a stack name in this repository is `kitchensink-<component>-<stage>` regardless of it.
+        const file = fixtureManifest([
+            {
+                entrypoint: GLOBAL_APP,
+                stacks: [{ className: 'Odd', stackNameTemplate: 'kitchensink-odd-{deployStage}', condition: null }],
+            },
+        ]);
+
+        expect(stacksFor(GLOBAL_APP, 'sandbox', file).stacks).toEqual(['kitchensink-odd-sandbox']);
     });
 });

@@ -1106,7 +1106,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/SubscriptionNudge.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/SubscriptionNudge — the once-per-session subscription upgrade nudge (mobile).\n\nFR-046: a free-tier viewer who taps a premium-gated entry point on Home sees an upgrade nudge **at most\nonce per session**. The nudge is host-owned chrome; a widget triggers it through {@link useHomeNudge}\n(the seam a future premium-gated widget calls). In Home v1 no live widget is premium-gated, so the\nmechanism ships ready for the first gated widget (005–009) rather than firing on any current surface.\n\n\"Once per session\" is deliberately **component state** (a ref guard), not persisted — the requirement is\nper-session, and an app relaunch legitimately starts a new session. Mirrors the web nudge's hook logic\nexactly; only the presentation swaps to a React Native `Modal`.",
+                    "moduleDoc": "home/SubscriptionNudge — the once-per-session subscription upgrade nudge (mobile).\n\nFR-046: a free-tier viewer who taps a premium-gated entry point on Home sees an upgrade nudge **at most\nonce per session**. The nudge is host-owned chrome; a widget triggers it through {@link useHomeNudge}\n(the seam a future premium-gated widget calls). In Home v1 no live widget is premium-gated, so the\nmechanism ships ready for the first gated widget (005–009) rather than firing on any current surface.\n\n\"Once per session\" is deliberately **component state**, not persisted — the requirement is per-session,\nand an app relaunch legitimately starts a new session. Mirrors the web nudge's hook logic exactly; only\nthe presentation swaps to a React Native `Modal`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1126,9 +1126,7 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
@@ -1665,7 +1663,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/SubscriptionNudge.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/SubscriptionNudge — the once-per-session subscription upgrade nudge (mobile).\n\nFR-046: a free-tier viewer who taps a premium-gated entry point on Home sees an upgrade nudge **at most\nonce per session**. The nudge is host-owned chrome; a widget triggers it through {@link useHomeNudge}\n(the seam a future premium-gated widget calls). In Home v1 no live widget is premium-gated, so the\nmechanism ships ready for the first gated widget (005–009) rather than firing on any current surface.\n\n\"Once per session\" is deliberately **component state** (a ref guard), not persisted — the requirement is\nper-session, and an app relaunch legitimately starts a new session. Mirrors the web nudge's hook logic\nexactly; only the presentation swaps to a React Native `Modal`.",
+                    "moduleDoc": "home/SubscriptionNudge — the once-per-session subscription upgrade nudge (mobile).\n\nFR-046: a free-tier viewer who taps a premium-gated entry point on Home sees an upgrade nudge **at most\nonce per session**. The nudge is host-owned chrome; a widget triggers it through {@link useHomeNudge}\n(the seam a future premium-gated widget calls). In Home v1 no live widget is premium-gated, so the\nmechanism ships ready for the first gated widget (005–009) rather than firing on any current surface.\n\n\"Once per session\" is deliberately **component state**, not persisted — the requirement is per-session,\nand an app relaunch legitimately starts a new session. Mirrors the web nudge's hook logic exactly; only\nthe presentation swaps to a React Native `Modal`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1713,9 +1711,7 @@
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/SubscriptionNudge.tsx"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,

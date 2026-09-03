@@ -28,8 +28,10 @@
  * suite can fire them at deliberately-violating fakes, which is the only way to know the gate can still go
  * red. Same shape as `docLinks.ts` / `docCrossReferences.test.ts`.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+
+import ts from 'typescript';
 
 import { repoRoot } from './serviceSources.js';
 
@@ -371,4 +373,98 @@ export function layerUnstated(components: readonly RegisteredComponent[]): reado
  */
 export function refUsingComponents(components: readonly RegisteredComponent[]): readonly string[] {
     return components.filter((component) => component.refApis.length > 0).map((component) => component.id);
+}
+
+/** The app tree the ref rule governs — the same roots `docgen-components`' registry walks. */
+const COMMISE_APPS_DIR = 'packages/apps/commise';
+
+/** Directories that hold no authored source. */
+const NOT_SOURCE = new Set(['node_modules', 'dist', 'build', '.next', '.expo', '.turbo', 'coverage']);
+
+/**
+ * The ref APIs a module can reach for.
+ *
+ * ⚠️ A COPY of `docgen-components`' own `REF_APIS`, and deliberately so: that list is private to the
+ * generator, and importing a tool package into a guard to share four string literals would couple the gate to
+ * the generator's internals for no benefit. The two are pinned to agree by
+ * {@link refUsingModulesOutsideComponents}'s own suite, which asserts the union of what BOTH halves find
+ * covers every ref-bearing module in the tree.
+ */
+const REF_APIS: ReadonlySet<string> = new Set(['createRef', 'forwardRef', 'useImperativeHandle', 'useRef']);
+
+/** Every `.ts`/`.tsx` file under `dir`, repo-relative, in a stable order. */
+function sourceFilesUnder(dir: string): readonly string[] {
+    const found: string[] = [];
+
+    for (const entry of readdirSync(path.join(repoRoot, dir), { withFileTypes: true }).sort((a, b) =>
+        a.name.localeCompare(b.name),
+    )) {
+        const relative = `${dir}/${entry.name}`;
+
+        if (entry.isDirectory()) {
+            if (!NOT_SOURCE.has(entry.name)) {
+                found.push(...sourceFilesUnder(relative));
+            }
+        } else if (/\.tsx?$/u.test(entry.name)) {
+            found.push(relative);
+        }
+    }
+
+    return found;
+}
+
+/** Whether the module at `relative` names a ref API as an IDENTIFIER — a comment mentioning one does not. */
+function reachesForARefApi(relative: string): boolean {
+    const source = ts.createSourceFile(
+        relative,
+        readFileSync(path.join(repoRoot, relative), 'utf8'),
+        ts.ScriptTarget.Latest,
+        true,
+    );
+    let reaches = false;
+
+    const visit = (node: ts.Node): void => {
+        if (ts.isIdentifier(node) && REF_APIS.has(node.text)) {
+            reaches = true;
+        }
+
+        if (!reaches) {
+            ts.forEachChild(node, visit);
+        }
+    };
+
+    ts.forEachChild(source, visit);
+
+    return reaches;
+}
+
+/**
+ * Repo-relative paths of EVERY file under `packages/apps/commise/**` that reaches for a ref API — components
+ * and non-components alike, read straight from the working tree rather than from the catalogue.
+ *
+ * ⛔ It PARSES rather than greps (`docs/CODING_STANDARDS.md` §16.3), performing the same identifier scan the
+ * generator does, so both halves of the register answer the same question about the same tree. This is the
+ * ONE reading that does not depend on the catalogue, which is what lets the suite notice if the catalogue
+ * ever stops reporting a ref it used to.
+ *
+ * @returns The repo-relative paths, sorted.
+ * @sideEffect Reads the working tree.
+ */
+export function refUsingFiles(): readonly string[] {
+    return sourceFilesUnder(COMMISE_APPS_DIR).filter(reachesForARefApi).sort();
+}
+
+/**
+ * Repo-relative paths of every module that reaches for a ref API and is NOT a source of any catalogued
+ * component — the hooks and plain modules {@link refUsingComponents} structurally cannot see, because the
+ * catalogue discovers components and a hook module declares none.
+ *
+ * @param components - The catalogued components, whose leaf source paths are the half already triaged.
+ * @returns The repo-relative paths, sorted.
+ * @sideEffect Reads the working tree.
+ */
+export function refUsingModulesOutsideComponents(components: readonly RegisteredComponent[]): readonly string[] {
+    const componentSources = new Set(components.flatMap((component) => component.sourcePaths));
+
+    return refUsingFiles().filter((relative) => !componentSources.has(relative));
 }

@@ -23,22 +23,24 @@
  * close control (`closeRef`) on open (preserving the drawer's pre-Radix behavior), and `onCloseAutoFocus`
  * restores focus to the hamburger that opened it. The hamburger is a SIBLING control in `HomeTopBar`, not an
  * owned `Dialog.Trigger`, so Radix's own default `onCloseAutoFocus` (which only restores an OWNED trigger —
- * see `PullUpdatesDialog`'s module doc) would silently focus nothing; `triggerRef` captures
- * `document.activeElement` at the render where `open` flips true, before `Dialog.Content` ever commits.
+ * see `PullUpdatesDialog`'s module doc) would silently focus nothing; `useReturnFocusOnClose`
+ * (`@commise/ui/dialog-focus`) owns that half, snapshotting `document.activeElement` at the render where
+ * `open` flips true, before `Dialog.Content` ever commits.
  *
- * ALLOWED REF (§3, `closeRef`) — B14 re-verified this is NOT the render-mutated/state-in-ref smell that task
- * eliminates elsewhere: `closeRef` wraps the close button's actual DOM node so `onOpenAutoFocus` can call the
- * imperative `.focus()` the DOM API requires — there is no declarative way to say "focus THIS specific
- * element" instead of Radix's own default (first-focusable/`Content`). Removing it would silently regress to
- * Radix's default autofocus target, changing the drawer's documented open-focus behavior (pinned by
- * `HomeChrome.test.tsx`'s "moves focus to the close control" case). `triggerRef`/`wasOpenRef` are the
- * separate, React-sanctioned "read the previous render's value" pattern (conditionally captured on the
- * false→true edge, not an unconditional latest-value bridge) and are unrelated to this ref.
+ * ALLOWED REF (§3) — `closeRef`, and it is now the ONLY ref here: it wraps the close button's actual DOM node
+ * so `onOpenAutoFocus` can call the imperative `.focus()` the DOM API requires, and there is no declarative
+ * way to say "focus THIS specific element" instead of Radix's own default (first-focusable/`Content`).
+ * Removing it would silently regress to that default, changing the drawer's documented open-focus behavior
+ * (pinned by `HomeChrome.test.tsx`'s "moves focus to the close control" case). The drawer's former
+ * `triggerRef`/`wasOpenRef` pair moved into the shared hook, where the edge latch became `useState` adjusted
+ * during render — a ref latch is not rolled back when React discards a render, so it could consume the edge
+ * on a pass that never committed.
  *
  * @pattern Adapter over the house Radix `Dialog` for the slide-over drawer, with a Facade over the DOM focus API for
  *     the two focus targets Radix cannot infer when the trigger is a sibling rather than an owned trigger.
  */
 import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import * as Dialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
 import { useRef, type JSX } from 'react';
@@ -83,16 +85,9 @@ export function HomeMobileNav({
 }: HomeMobileNavProps): JSX.Element {
     const closeRef = useRef<HTMLButtonElement>(null);
 
-    // Capture whatever had focus right before this drawer opened, during render (not an effect) — see the
-    // module doc. Guarded on the false→true edge so it isn't re-captured on every re-render while open.
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this drawer opened, and restore it on close — see the module
+    // doc. The false→true edge guard lives inside the hook.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     const destinations = resolveHomeNav(liveCapabilities);
 
@@ -106,10 +101,7 @@ export function HomeMobileNav({
                         event.preventDefault();
                         closeRef.current?.focus();
                     }}
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
+                    onCloseAutoFocus={onCloseAutoFocus}
                     /*
                      * `bg-hero` is the token-derived beach-glow ramp (`@commise/ui` `gradient.hero`, emitted as
                      * `--background-image-hero`). This drawer previously hand-spelled a two-stop ramp from the

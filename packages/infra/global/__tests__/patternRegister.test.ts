@@ -54,7 +54,12 @@
  *     ref cannot land untriaged; a removed ref cannot leave a stale exemption behind. This is the
  *     `natEgressConsumers.test.ts` / `llmSpendGuards.test.ts` set-equality idiom.
  *  6. The number of ref sites carrying an UNSANCTIONED ref may only go down.
- *  7. The number of components stating no layer at all may only go down. A NEW component that says nothing
+ *  7. The ref-using modules that are NOT components are exactly {@link REF_MODULES}. (5) is scoped to
+ *     COMPONENTS, so a ref moved into a hook leaves it altogether — a burn-down that is really a relocation.
+ *  8. No ref-bearing file in the app tree escapes BOTH (5) and (7). Neither half can notice the other going
+ *     blind; their union is checkable against a parse of the tree, and that parse is the only reading here
+ *     that does not come from the catalogue.
+ *  9. The number of components stating no layer at all may only go down. A NEW component that says nothing
  *     never enters the predicate's fourth clause at all, so (3) cannot see it; this can.
  *
  * ⛔ WHAT A WORTHLESS VERSION OF THIS GATE WOULD STILL PASS ON — and therefore what the fakes and the
@@ -78,6 +83,8 @@ import {
     owesPatternEntry,
     readComponentCatalogue,
     refUsingComponents,
+    refUsingFiles,
+    refUsingModulesOutsideComponents,
     registerFindings,
     type RegisteredComponent,
 } from './patternRegister.js';
@@ -121,37 +128,9 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'Two DOM node handles: the panel, for `contains(event.target)` outside-click dismissal, and the trigger, for `focus()` on Escape. Neither `.contains()` nor `.focus()` has a declarative form.',
     },
-    'features-recipes/actions/RecipeDeleteDialog': {
-        verdict: 'unsanctioned',
-        why: "The `triggerRef` snapshot of `document.activeElement` is sanctioned — the dialog is opened by a sibling, not an owned Radix trigger, so Radix restores focus to nothing. The `wasOpenRef` beside it is not: it caches the previous render's `open` to detect the false→true edge and is MUTATED DURING RENDER, so a render React discards still advances it and the replayed render captures no trigger. Correct shape is React's documented previous-value form, `useState` adjusted during render — ideally extracted once, since the same eight lines are copied verbatim into six files.",
-    },
-    'features-recipes/collections/PullUpdatesDialog': {
-        verdict: 'unsanctioned',
-        why: 'Same pair, same reasoning, as `RecipeDeleteDialog`: a sanctioned `triggerRef` focus snapshot beside a render-phase-mutated `wasOpenRef` edge latch. This file carries the canonical write-up of why the focus snapshot is needed.',
-    },
-    'features-recipes/speedDial/SpeedDial': {
-        verdict: 'unsanctioned',
-        why: '`openOnLast` holds which end of the menu the next open should land on — interaction intent, not an external system. Its stated defence (making it state "would schedule a render for a value no render uses") does not hold: the write is always paired with `setOpen(true)` in the same event, so folding the intent into that state costs zero extra renders and makes "open with no landing intent" unrepresentable.',
-    },
-    'features-recipes/versions/VersionCompareView': {
-        verdict: 'unsanctioned',
-        why: 'Sanctioned `triggerRef` focus snapshot plus the sixth copy of the render-phase-mutated `wasOpenRef` edge latch.',
-    },
-    'features-recipes/versions/VersionPreviewModal': {
-        verdict: 'unsanctioned',
-        why: 'A sanctioned `triggerRef` focus snapshot — the modal is opened by a sibling control, so Radix has no trigger to restore focus to — beside a render-phase-mutated `wasOpenRef` edge latch, which is the violation.',
-    },
     'web/components/home/chrome/HomeMobileNav': {
-        verdict: 'unsanctioned',
-        why: 'Two sanctioned DOM handles — `closeRef`, to override which control Radix focuses on open, and the `triggerRef` focus snapshot — plus a render-phase-mutated `wasOpenRef` edge latch.',
-    },
-    'web/components/home/HomeNudgeContext': {
-        verdict: 'unsanctioned',
-        why: 'Shares `SubscriptionNudge.tsx`; the file-scoped refs are attributed here too. See the sibling entry.',
-    },
-    'web/components/home/SubscriptionNudge': {
-        verdict: 'unsanctioned',
-        why: '`shown` is a "has fired" latch deciding whether the nudge may ever become visible again — the component\'s own lifecycle state, render-affecting by construction, and correctly a three-state `useState` with a functional updater. Beside it sit a sanctioned `triggerRef` focus snapshot and a render-phase-mutated `wasOpenRef`.',
+        verdict: 'sanctioned',
+        why: "`closeRef` and nothing else: it wraps the close button's DOM node so `onOpenAutoFocus` can call the imperative `.focus()` the DOM API requires, overriding which control Radix focuses on open. There is no declarative way to name a specific element as the autofocus target. The `triggerRef`/`wasOpenRef` pair that made this entry unsanctioned moved into `useReturnFocusOnClose` (see {@link REF_MODULES}).",
     },
     'web/components/recipes/IngredientPicker': {
         verdict: 'sanctioned',
@@ -168,14 +147,6 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
     'web/components/recipes/RecipePhotoUploaderContainer': {
         verdict: 'sanctioned-adjacent',
         why: 'Two file-input handles (one to reset `.value`, one to open the picker programmatically) plus a fileId→Object-URL ledger revoked per item and on unmount. Same reasoning as `RecipeCreateContainer`; the ledger never drives a render.',
-    },
-    'mobile/components/home/HomeNudgeContext': {
-        verdict: 'unsanctioned',
-        why: 'Shares the mobile `SubscriptionNudge.tsx`; the file-scoped refs are attributed here too. See the sibling entry.',
-    },
-    'mobile/components/home/SubscriptionNudge': {
-        verdict: 'unsanctioned',
-        why: 'The mirror of the web nudge: the same `shown` "has fired" latch, with the same correct three-state `useState` shape. Fix both platforms together or they drift.',
     },
     'mobile/components/IngredientPicker': {
         verdict: 'sanctioned',
@@ -194,15 +165,52 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
  * with slack is not a ratchet, and one integer is cheap enough to keep honest. Fixing a ref means editing
  * this number in the same commit, which is the point — the burn-down is visible in the diff.
  *
- * The nine unsanctioned refs behind these ten entries are, in the order they are worth fixing: the two
- * `shown` latches (smallest diff, mirrored, covered by "at most once per session" tests on both platforms),
- * `openOnLast` (one file, unusually strong tests including the reopen-resets case), and the six `wasOpenRef`
- * copies (highest value — one hook extraction retires twelve refs and closes the discarded-render hole once,
- * but it crosses packages and wants its own commit). ⚠️ The existing tests prove the happy path restores
- * focus; NONE of them can observe the discarded-render hazard, so that fix is justified by reasoning about
- * concurrent rendering, not by a red test. Do not claim otherwise when landing it.
+ * ✅ BURNED DOWN 10 → 0 (2026-09-02). All nine unsanctioned refs behind the ten entries are gone:
+ *
+ *  - The six verbatim `wasOpenRef` copies became ONE hook, `useReturnFocusOnClose`
+ *    (`@commise/ui/dialog-focus`), whose edge latch is `useState` adjusted during render. Twelve refs left
+ *    the components; one sanctioned DOM handle remains, inside the hook (see {@link REF_MODULES}).
+ *  - The two `shown` nudge latches became a three-state `NudgePhase`, on both platforms.
+ *  - SpeedDial's `openOnLast` folded into its open state as a `DialState` discriminated union.
+ *
+ * ⚠️ This register previously recorded that NO test could observe the discarded-render hazard and that the
+ * fix would rest on reasoning alone. That was WRONG, and the correction is worth more than the claim:
+ * `useReturnFocusOnClose.test.tsx`'s Suspense case does observe it — a render is discarded, focus moves, the
+ * replay commits — and it was watched failing on the ref latch and passing on the state latch. What remains
+ * unproven by test is the OTHER two fixes: `NudgePhase` and `DialState` have no reachable behavioural
+ * difference and are pinned only by characterization suites that were green before AND after. Do not
+ * describe those two as test-proven.
  */
-const UNSANCTIONED_CEILING = 10;
+const UNSANCTIONED_CEILING = 0;
+
+/**
+ * Ref-using modules under `packages/apps/commise/**` that are NOT components, and are therefore invisible to
+ * {@link REF_SITES}.
+ *
+ * ⛔ THIS IS A BLIND SPOT, RECORDED RATHER THAN CLAIMED CLOSED. The catalogue discovers COMPONENTS; a hook
+ * module declares none, so no amount of set-equality over {@link REF_SITES} can see a ref that lives in one.
+ * FOUR such modules already existed when this was written, and the `wasOpenRef` extraction ADDED a fifth by
+ * moving a ref out of six components into a hook — exactly the move that would have laundered a violation
+ * past the ratchet had nobody written it down.
+ *
+ * ⚠️ What this list asserts is EXISTENCE, not a verdict: a new ref-bearing hook module fails this test and
+ * has to be looked at, which is the guarantee the ratchet is supposed to give. It does NOT assert that the
+ * five entries are sanctioned. Each carries an in-source justification, and four of them are UNADJUDICATED
+ * against CLAUDE.md rule 3 — that triage is owed work, and doing it may well raise
+ * {@link UNSANCTIONED_CEILING}. Saying so is cheaper than a register that quietly implies otherwise.
+ */
+const REF_MODULES: readonly string[] = [
+    // The only one triaged, because this commit wrote it: ONE `useRef` holding a DOM node whose sole use is
+    // the imperative `.focus()` the DOM API requires — the same sanctioned shape as `MoreActionsMenu`'s
+    // trigger handle, and the node never leaves the module. Its edge latch is deliberately NOT a ref; the
+    // module docblock says why, and its Suspense test fails if it becomes one again.
+    'packages/apps/commise/ui/src/dialogFocus/useReturnFocusOnClose.ts',
+    // ⚠️ UNADJUDICATED — pre-existing, each with a written in-source defence nobody has graded.
+    'packages/apps/commise/features/recipes/src/hooks/useIngredientResolver.ts',
+    'packages/apps/commise/features/recipes/src/hooks/useRecipeEditor.ts',
+    'packages/apps/commise/features/recipes/src/hooks/useRecipePhotoUpload.ts',
+    'packages/apps/commise/mobile/src/hooks/useScrollResetOnChange.ts',
+];
 
 /**
  * How many catalogued components state no layer at all.
@@ -499,6 +507,32 @@ describe('the ref register — CLAUDE.md rule 3, made checkable', () => {
                 'fixed one, lower UNSANCTIONED_CEILING in the same commit. If this went UP, a ref that holds ' +
                 'React state was added — refs are near-forbidden (CLAUDE.md rule 3).',
         ).toBe(UNSANCTIONED_CEILING);
+    });
+
+    // The other half of the tree. Without this, a ref moved out of a component and into a hook LEAVES the
+    // register entirely and the ratchet reports a burn-down that was really a relocation — which is exactly
+    // what the `wasOpenRef` extraction did to six components.
+    it('records exactly the ref-using modules that are NOT components — no more, no fewer', () => {
+        expect(
+            [...refUsingModulesOutsideComponents(components)],
+            'A module outside the component catalogue reaches for a ref API. Triage it against CLAUDE.md ' +
+                'rule 3 and add it to REF_MODULES with a reason, or remove the stale entry. A hook is not ' +
+                'exempt from the ref rule just because the catalogue cannot see it.',
+        ).toEqual([...REF_MODULES].sort());
+    });
+
+    // Neither half of the register can detect that the OTHER half went blind — a component catalogue that
+    // silently stopped reporting `usesRefApi`, or a module scan whose identifier list drifted from the
+    // generator's, would each leave a hole the other's set-equality still passes over. Their union is
+    // checkable against the tree, so this asserts the two together see EVERY ref-bearing file.
+    it('leaves no ref-bearing file in the app tree outside BOTH halves of the register', () => {
+        const componentSources = components
+            .filter((component) => component.refApis.length > 0)
+            .flatMap((component) => component.sourcePaths);
+        const covered = new Set([...componentSources, ...REF_MODULES]);
+        const uncovered = refUsingFiles().filter((file) => !covered.has(file));
+
+        expect(uncovered).toEqual([]);
     });
 });
 

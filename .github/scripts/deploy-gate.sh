@@ -268,6 +268,304 @@ deploy_gate_evaluate() {
     esac
 }
 
+# ── The deploy-graph closure: a consumer leg must never deploy without its producer ──────────────────────
+#
+# ⛔ `deploy_gate_decide` above answers "should THIS leg run?" from that leg's OWN stacks. It cannot see the
+# other question a per-leg gate has to answer: is the leg this one DEPENDS ON running too.
+#
+# `prod-deploy.yml` gated each leg independently on a `dorny/paths-filter` group, so a change touching only
+# `packages/services/identity-webhooks/**` set `deploy_webhooks=true` and `deploy_global=false`. ADR-0028 had
+# just moved the identity log group into `ServiceLogsStack` — a child of the GLOBAL app — recording that it
+# "already deploys before both consumers, so no deploy order changed". That is true of the ORDER and false of
+# the GATE: the earlier leg does not run at all. Measured against the account on 2026-09-02,
+# `kitchensink-service-logs-prod` DOES NOT EXIST, so the next webhooks-only merge would have died inside
+# `cdk deploy` on `No export named kitchensink-service-logs-prod:IdentityServiceLogGroupName found`.
+# `IdentityServiceStack` imports the same export and had the identical hole.
+#
+# ⛔ Nothing here enumerates an edge. `scripts/infrastructureManifest.mjs` reads every `Fn.importValue` out of
+# the CDK source by AST and projects the cross-APP ones to
+# `docs/generated/infrastructure/cross-app-imports.tsv`, under the same regenerate-and-diff staleness gate the
+# rest of the manifest carries. A new cross-app import is covered the day it is written. A hand-maintained
+# producer→consumer table is the shape that has already cost this repository the ALB priority collision, the
+# stale NAT consumer list and ADR-0025's asset guard: a copy of a list cannot detect that the list grew.
+
+# Where the derived edge list lives, relative to the repository root.
+DEPLOY_GATE_EDGE_FILE='docs/generated/infrastructure/cross-app-imports.tsv'
+
+# deploy_gate_close <unmetEdges> <flag=value@entrypoint> [<flag=value@entrypoint> …]
+#
+# Print the CLOSED value of every flag: `true` when it was already true, or when it is the producer of an
+# unmet import that a DEPLOYING consumer needs.
+#
+# <unmetEdges> is a space-separated list of `<consumerEntrypoint>><producerEntrypoint>><exportName>` tokens —
+# the edges whose export the account does not currently publish — or the empty string. `>` separates because
+# an export name contains `:` and a path contains `/`.
+#
+# ⚠️ NARROW ON PURPOSE. "Force the producer whenever any consumer leg runs" turns every prod deploy into a
+# full platform rollout (RDS, VPC, edge) for a webhooks typo; "force it whenever anything is missing" does the
+# same from an unrelated leg. This fires only where the deploy would otherwise FAIL, so it stops firing the
+# moment the platform is whole.
+#
+# Misuse exits 2 WITHOUT printing a verdict, for `deploy_gate_decide`'s reason: a gate that answers "nothing
+# to force" on malformed input is how a leg deploys against a producer nobody checked, behind a green check.
+#
+# Pure: no I/O, no AWS, no file reads.
+deploy_gate_close() {
+    local unmet="${1-}"
+    shift 1 2>/dev/null || {
+        echo "usage: deploy-gate.sh close <unmetEdges> <flag=value@entrypoint>…" >&2
+        return 2
+    }
+
+    if [ "$#" -eq 0 ]; then
+        echo "deploy-gate: at least one <flag=value@entrypoint> leg is required" >&2
+        return 2
+    fi
+
+    # Parallel arrays rather than an associative array: bash 3 has no `declare -A`, and macOS still ships it.
+    local -a flag_names=() flag_values=() entry_paths=() entry_flags=()
+    local leg flag value entrypoint index found
+
+    for leg in "$@"; do
+        if ! [[ $leg =~ ^([a-z_][a-z0-9_]*)=(true|false)@(.+)$ ]]; then
+            echo "deploy-gate: leg must be <flag>=<true|false>@<entrypoint>, got '${leg}'" >&2
+            return 2
+        fi
+
+        flag="${BASH_REMATCH[1]}"
+        value="${BASH_REMATCH[2]}"
+        entrypoint="${BASH_REMATCH[3]}"
+
+        found=''
+        for index in "${!flag_names[@]}"; do
+            if [ "${flag_names[$index]}" = "$flag" ]; then
+                found="$index"
+                break
+            fi
+        done
+
+        if [ -z "$found" ]; then
+            flag_names+=("$flag")
+            flag_values+=("$value")
+        elif [ "${flag_values[$found]}" != "$value" ]; then
+            # One flag gates one leg. Two values for it can only be a wiring mistake, and silently picking
+            # one would make the closure's answer depend on argument order.
+            echo "deploy-gate: flag '${flag}' was given both '${flag_values[$found]}' and '${value}'" >&2
+            return 2
+        fi
+
+        entry_paths+=("$entrypoint")
+        entry_flags+=("$flag")
+    done
+
+    local consumer producer export_name consumer_flag producer_flag reasons=()
+    local -a unmet_edges=()
+
+    # ⚠️ `read -ra`, not a bare `for leg in $unmet`. Word-splitting an unquoted variable also GLOB-EXPANDS it,
+    # so a token containing `[`, `*` or `?` would be rewritten against the working directory or silently
+    # dropped — and a dropped edge is a producer that never gets forced, which is this gate's whole failure
+    # mode. `read` splits on IFS and expands nothing.
+    if [ -n "$unmet" ]; then
+        read -ra unmet_edges <<<"$unmet" || true
+    fi
+
+    for leg in ${unmet_edges[@]+"${unmet_edges[@]}"}; do
+        if ! [[ $leg =~ ^([^>]+)\>([^>]+)\>(.+)$ ]]; then
+            echo "deploy-gate: unmet edge must be <consumer>><producer>><export>, got '${leg}'" >&2
+            return 2
+        fi
+
+        consumer="${BASH_REMATCH[1]}"
+        producer="${BASH_REMATCH[2]}"
+        export_name="${BASH_REMATCH[3]}"
+
+        consumer_flag=''
+        producer_flag=''
+        for index in "${!entry_paths[@]}"; do
+            [ "${entry_paths[$index]}" = "$consumer" ] && consumer_flag="${entry_flags[$index]}"
+            [ "${entry_paths[$index]}" = "$producer" ] && producer_flag="${entry_flags[$index]}"
+        done
+
+        # An app this workflow does not deploy is out of scope: `@commise/web`'s router imports from the
+        # platform and is shipped by Vercel, so erroring on it would red every prod deploy.
+        if [ -z "$consumer_flag" ]; then
+            continue
+        fi
+
+        for index in "${!flag_names[@]}"; do
+            if [ "${flag_names[$index]}" = "$consumer_flag" ] && [ "${flag_values[$index]}" = 'false' ]; then
+                consumer_flag=''
+                break
+            fi
+        done
+        if [ -z "$consumer_flag" ]; then
+            continue
+        fi
+
+        # ⛔ The asymmetry is deliberate. An unknown CONSUMER is out of scope; an unknown PRODUCER means a leg
+        # IS deploying and what it depends on is not something this workflow can force — a hole no gate can
+        # close. Refuse, so somebody decides, rather than failing inside `cdk deploy` twenty minutes later.
+        if [ -z "$producer_flag" ]; then
+            echo "deploy-gate: '${consumer}' is deploying and needs '${export_name}' from '${producer}', which" \
+                'no leg of this workflow deploys — nothing can order that' >&2
+            return 2
+        fi
+
+        for index in "${!flag_names[@]}"; do
+            if [ "${flag_names[$index]}" = "$producer_flag" ] && [ "${flag_values[$index]}" != 'true' ]; then
+                flag_values[index]='true'
+                reasons+=("${consumer} needs ${export_name}, so ${producer_flag} is forced")
+            fi
+        done
+    done
+
+    for index in "${!flag_names[@]}"; do
+        printf '%s=%s\n' "${flag_names[$index]}" "${flag_values[$index]}"
+    done
+
+    if [ "${#reasons[@]}" -eq 0 ]; then
+        printf 'closure_reason=%s\n' \
+            'every cross-app export a deploying leg imports is already published — no producer forced'
+    else
+        printf 'closure_reason=%s\n' "$(
+            IFS='; '
+            echo "${reasons[*]}"
+        )"
+    fi
+}
+
+# deploy_gate_resolve_export <template> <stage> <baseStage>
+#
+# Substitute a stage into a `{stage}`/`{baseStage}`-parameterised export name.
+#
+# ⚠️ A placeholder is the LOCAL VARIABLE NAME the CDK author chose — the manifest reads the last identifier of
+# the reference chain, which is all a hermetic AST read can know. `WebhooksStack.ts` alone spells one stage
+# `deployStage`, `identityStage` and `stage`. `{baseStage}` is the one spelling whose meaning is fixed
+# (ADR-0006: a `pr-{N}` service imports the BASE stage's platform); every other placeholder is read as the
+# deploy stage — and when the two stages DIFFER that reading is a guess, so this refuses instead. Today
+# `prod-deploy.yml` passes stage == baseStage == `prod`, where the distinction cannot arise.
+#
+# Pure.
+deploy_gate_resolve_export() {
+    local template="${1-}" stage="${2-}" base="${3-}" resolved
+
+    if [ -z "$template" ] || [ -z "$stage" ] || [ -z "$base" ]; then
+        echo 'usage: deploy_gate_resolve_export <template> <stage> <baseStage>' >&2
+        return 2
+    fi
+    if [[ $template == *'{?}'* ]]; then
+        echo "deploy-gate: export template '${template}' has a name the manifest could not read" >&2
+        return 2
+    fi
+
+    resolved="${template//\{baseStage\}/$base}"
+    resolved="${resolved//\{stage\}/$stage}"
+
+    if [[ $resolved =~ \{[A-Za-z_][A-Za-z0-9_]*\} ]]; then
+        if [ "$stage" != "$base" ]; then
+            echo "deploy-gate: '${template}' names a stage this gate cannot classify, and stage (${stage})" \
+                "differs from base stage (${base}) — refusing to guess" >&2
+            return 2
+        fi
+        resolved=$(printf '%s' "$resolved" | sed -E "s/\{[A-Za-z_][A-Za-z0-9_]*\}/${stage}/g")
+    fi
+
+    printf '%s\n' "$resolved"
+}
+
+# deploy_gate_unmet_imports <region> <stage> <baseStage> [<edgeFile>]
+#
+# Resolve the derived edge list against the account and publish the edges whose export is NOT published, as
+# the `unmet_imports` output `deploy_gate_close` consumes.
+#
+# ⛔ The lookup goes through `.github/scripts/cfn-export.sh`, never an open-coded
+# `list-exports --query …` — that idiom is wrong per page (ADR-0005; `sandboxReclamationReachability.test.ts`
+# analyser 2 fails any workflow that reopens it), and `--optional` is what keeps "absent" distinguishable from
+# "the CLI failed": a bare `|| true` would report a credentials error as a missing export and force a deploy
+# for the wrong reason.
+#
+# @sideEffect Reads the edge file and calls the CloudFormation API.
+deploy_gate_unmet_imports() {
+    local region="${1-}" stage="${2-}" base="${3-}"
+    local edges="${4:-${GITHUB_WORKSPACE:-.}/${DEPLOY_GATE_EDGE_FILE}}"
+
+    if [ -z "$region" ] || [ -z "$stage" ] || [ -z "$base" ]; then
+        echo 'usage: deploy-gate.sh unmet-imports <region> <stage> <baseStage> [edgeFile]' >&2
+        return 2
+    fi
+    if [ ! -f "$edges" ]; then
+        echo "::error::${edges} is missing — the cross-app deploy graph is unknown, so no leg can be closed" >&2
+        return 2
+    fi
+
+    # ⛔ A `#!` line is an import whose producer the manifest could not name. Closing a graph with a known
+    # hole in it would publish a guarantee the gate cannot make.
+    if grep -q '^#!' "$edges"; then
+        echo "::error::${edges} reports an import with no resolvable producer:" >&2
+        grep '^#!' "$edges" >&2
+
+        return 2
+    fi
+
+    # ⛔ PRECONDITION, not a courtesy. `cfn-export.sh --optional` answers EMPTY for both "the export is
+    # absent" and "the CLI failed" — it cannot tell them apart, and this caller reads empty as absent. So a
+    # credentials or permissions failure would mark EVERY cross-app export missing and force a full platform
+    # rollout to production as a side effect: precisely the blast radius the narrow closure rule exists to
+    # avoid, arriving through the back door. One cheap read-only call turns that into a loud failure.
+    if ! aws sts get-caller-identity --region "$region" >/dev/null 2>&1; then
+        echo '::error::deploy-gate: cannot reach CloudFormation (sts get-caller-identity failed). Every export' \
+            'would read as absent and force a platform deploy, so refusing to answer.' >&2
+
+        return 2
+    fi
+
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+    local consumer producer template resolved value unmet=() seen_absent=() seen_present=() index found
+    while IFS=$'\t' read -r consumer producer template; do
+        case "$consumer" in '' | '#'*) continue ;; esac
+
+        resolved=$(deploy_gate_resolve_export "$template" "$stage" "$base") || return 2
+
+        found=''
+        for index in "${!seen_absent[@]}"; do
+            [ "${seen_absent[$index]}" = "$resolved" ] && found='absent'
+        done
+        for index in "${!seen_present[@]}"; do
+            [ "${seen_present[$index]}" = "$resolved" ] && found='present'
+        done
+
+        if [ -z "$found" ]; then
+            value=$(bash "${script_dir}/cfn-export.sh" --optional "$resolved" "$region") || return 2
+            if [ -z "$value" ]; then
+                found='absent'
+                seen_absent+=("$resolved")
+            else
+                found='present'
+                seen_present+=("$resolved")
+            fi
+        fi
+
+        if [ "$found" = 'absent' ]; then
+            unmet+=("${consumer}>${producer}>${resolved}")
+        fi
+    done <"$edges"
+
+    local verdict
+    verdict="unmet_imports=${unmet[*]-}"
+
+    echo "[deploy-gate] ${#seen_absent[@]} of $((${#seen_absent[@]} + ${#seen_present[@]})) cross-app exports" \
+        "are absent at stage ${stage}"
+    echo "$verdict"
+    if [ -n "${GITHUB_OUTPUT:-}" ]; then
+        echo "$verdict" >>"$GITHUB_OUTPUT"
+    fi
+    for index in "${!seen_absent[@]}"; do
+        echo "::notice::cross-app export ${seen_absent[$index]} is NOT published — its producer leg is forced"
+    done
+}
+
 # CLI dispatch — only when executed directly, never when sourced.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     case "${1-}" in
@@ -279,11 +577,23 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             deploy_gate_evaluate "$@"
             ;;
+        close)
+            shift
+            deploy_gate_close "$@"
+            ;;
+        unmet-imports)
+            shift
+            deploy_gate_unmet_imports "$@"
+            ;;
+        resolve-export)
+            shift
+            deploy_gate_resolve_export "$@"
+            ;;
         stack-usable)
             deploy_gate_stack_is_usable "${2-}"
             ;;
         *)
-            echo "usage: deploy-gate.sh decide|evaluate|stack-usable …" >&2
+            echo "usage: deploy-gate.sh decide|evaluate|close|unmet-imports|resolve-export|stack-usable …" >&2
             exit 2
             ;;
     esac

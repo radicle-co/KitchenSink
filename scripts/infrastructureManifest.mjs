@@ -36,10 +36,19 @@
  *
  * ## Usage
  *
- *     node scripts/infrastructureManifest.mjs            # write the manifest and its rendered view
+ *     node scripts/infrastructureManifest.mjs            # write the manifest, its rendered view and the edges
  *     node scripts/infrastructureManifest.mjs --check    # regenerate into memory and diff (exit 1 on drift)
  *
- * @sideEffect The CLI reads the repository through git and the filesystem, and writes two files.
+ * ## The third output, and why a deploy reads it
+ *
+ * `cross-app-imports.tsv` projects the one thing CloudFormation cannot order for itself: a `Fn.importValue`
+ * that crosses a CDK **app** boundary. `DependsOn` does not leave a stack and nothing orders two `cdk deploy`
+ * invocations (ADR-0022 §5), so a consumer whose producer has not deployed fails outright. `prod-deploy.yml`
+ * gated each leg independently on a path diff and had no way to see those edges — measured on 2026-09-02,
+ * `kitchensink-service-logs-prod` did not exist while two apps imported from it. `.github/scripts/deploy-gate.sh`
+ * now reads this file to force a producer leg, and gets the edges DERIVED rather than enumerated.
+ *
+ * @sideEffect The CLI reads the repository through git and the filesystem, and writes three files.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -79,6 +88,8 @@ import ts from 'typescript';
  * @property {boolean} isStack - Whether the class extends `Stack`.
  * @property {DeclaredResource[]} resources
  * @property {DeclaredChild[]} children
+ * @property {string[]} importedExports - `Fn.importValue` names, `{stage}`-parameterised; see
+ *   {@link CrossAppImport}.
  * @property {string[]} unclassifiedConstructs - `aws-cdk-lib` constructs outside this manifest's scope.
  * @property {string[]} unfollowedConstructs - Constructs from another workspace; see the header's limit (1).
  *
@@ -88,6 +99,7 @@ import ts from 'typescript';
  * @property {string | null} stackNameTemplate
  * @property {string | null} condition
  * @property {DeclaredResource[]} resources
+ * @property {string[]} importedExports
  * @property {string[]} unclassifiedConstructs
  * @property {string[]} unfollowedConstructs
  *
@@ -95,16 +107,34 @@ import ts from 'typescript';
  * @property {string} entrypoint - Repo-relative `bin/app.ts`.
  * @property {string | null} packageName - The owning workspace.
  * @property {DeclaredStack[]} stacks
+ * @property {string[]} importedExports - Every export this app resolves, from ITS STACKS AND ITS
+ *   ENTRYPOINT'S TOP LEVEL. The second half matters: `identity-webhooks/infra/bin/app.ts` resolves ten of
+ *   them at module scope and passes them in as props.
+ *
+ * @typedef {object} CrossAppImport
+ * @property {string} consumerEntrypoint - The `bin/app.ts` whose `cdk deploy` FAILS without the producer.
+ * @property {string | null} consumerPackage
+ * @property {string} producerEntrypoint - The `bin/app.ts` that must have been deployed first.
+ * @property {string | null} producerPackage
+ * @property {string} producerStack - The producing stack's class name.
+ * @property {string} exportName - The `{stage}`-parameterised export name, verbatim from the source.
  *
  * @typedef {object} InfrastructureManifest
  * @property {number} schemaVersion
  * @property {string} claim
  * @property {string} generator
  * @property {DeclaredApp[]} apps
+ * @property {CrossAppImport[]} crossAppImports - The deploy-graph edges CloudFormation cannot order.
+ * @property {string[]} unresolvedImports - Imports whose producer this reader could not name.
  */
 
-/** Bumped when the JSON shape changes in a way a consumer must notice. */
-export const MANIFEST_SCHEMA_VERSION = 1;
+/**
+ * Bumped when the JSON shape changes in a way a consumer must notice.
+ *
+ * 2 — added `crossAppImports`, `unresolvedImports` and the per-scope/stack/app `importedExports`, which
+ * `.github/scripts/deploy-gate.sh` reads to close the deploy graph.
+ */
+export const MANIFEST_SCHEMA_VERSION = 2;
 
 /**
  * ⛔ The sentence this artifact is FOR. Asserted verbatim by the suite; see the header.
@@ -122,6 +152,20 @@ export const MANIFEST_JSON = `${MANIFEST_DIR}/manifest.json`;
 
 /** The rendered half. */
 export const MANIFEST_MARKDOWN = `${MANIFEST_DIR}/README.md`;
+
+/**
+ * The deploy-graph half, in the ONE shape a `bash` deploy gate can read without a JSON parser.
+ *
+ * ⚠️ Not a convenience. `.github/scripts/deploy-gate.sh` runs before `npm ci` has restored `typescript`, and
+ * before the workspace is built — so it cannot run this generator, and a `jq`/`node -e` one-liner embedded in
+ * a shell string is a third parser of the same fact with no test of its own. A tab-separated projection of
+ * the SAME `--check` staleness gate costs one more generated file and is readable by `while IFS=$'\t' read`.
+ *
+ * A second, unlooked-for benefit: a new cross-app edge shows up in review as ONE added line here, which is
+ * exactly the change a reviewer needs to notice and cannot see in a `Fn.importValue` buried 600 lines into a
+ * stack.
+ */
+export const MANIFEST_DEPLOY_EDGES = `${MANIFEST_DIR}/cross-app-imports.tsv`;
 
 /**
  * `aws-cdk-lib` module + class → the manifest's resource kind.
@@ -307,6 +351,7 @@ export function readInfrastructureSource(source, file) {
             isStack,
             resources: [],
             children: [],
+            importedExports: [],
             unclassifiedConstructs: [],
             unfollowedConstructs: [],
         };
@@ -347,7 +392,43 @@ export function readInfrastructureSource(source, file) {
             record(node, next);
         }
 
+        // ⛔ Deliberately NOT an early return, and deliberately not statement-level. `Number(Fn.importValue(…))`
+        // is how every database port is read here, and `ec2.SecurityGroup.fromSecurityGroupId(this, 'X',
+        // Fn.importValue(…))` is how every security group is; a reader that only inspected top-level calls
+        // would report six of them as importing nothing, which is the empty-stack failure the barrel-import
+        // note above records, one construct over.
+        if (ts.isCallExpression(node)) {
+            recordImport(node, next);
+        }
+
         ts.forEachChild(node, (child) => walk(child, next));
+    };
+
+    /**
+     * Record one `Fn.importValue(<name>)`.
+     *
+     * ⛔ Keyed on the identifier RESOLVING to `aws-cdk-lib`, never on the method name alone — the same rule
+     * that keeps `cloudfront.Function` from being filed as a Lambda. Some other object's `.importValue` is a
+     * different fact and must not become a deploy-graph edge.
+     */
+    const recordImport = (node, context) => {
+        if (!ts.isPropertyAccessExpression(node.expression) || node.expression.name.text !== 'importValue') {
+            return;
+        }
+        if (!ts.isIdentifier(node.expression.expression)) {
+            return;
+        }
+        if (named.get(node.expression.expression.text) !== 'aws-cdk-lib') {
+            return;
+        }
+
+        // `{?}` rather than a drop: an import this reader could not read is an UNGUARDED EDGE, and an edge
+        // silently omitted reads as "there is no edge" — the one answer that must never be inferred here.
+        const template = renderTemplate(node.arguments?.[0]) ?? '{?}';
+
+        if (!context.scope.importedExports.includes(template)) {
+            context.scope.importedExports.push(template);
+        }
     };
 
     const record = (node, context) => {
@@ -536,6 +617,15 @@ function resolveRelative(fromFile, specifier) {
 function readApp(entrypoint) {
     const stacks = [];
     const seen = new Set();
+    /**
+     * Every export the app resolves, from ANY scope it descends through.
+     *
+     * ⛔ Accumulated here rather than read off `stacks`, because `identity-webhooks/infra/bin/app.ts` resolves
+     * TEN exports at its `<module>` top level and hands them to the stack as props — and `<module>` is the one
+     * scope `descend` never pushes onto `stacks`. Deriving the edges from `stacks` alone would report the app
+     * that motivated this whole guard as importing nothing.
+     */
+    const importedExports = new Set();
 
     /**
      * @param {string} file - The file declaring the scope.
@@ -559,6 +649,10 @@ function readApp(entrypoint) {
 
         const unfollowed = [...scope.unfollowedConstructs];
 
+        for (const imported of scope.importedExports) {
+            importedExports.add(imported);
+        }
+
         for (const child of scope.children) {
             const target = resolveRelative(file, child.importedFrom);
 
@@ -578,6 +672,7 @@ function readApp(entrypoint) {
                 stackNameTemplate: declaration.stackNameTemplate,
                 condition: declaration.condition,
                 resources: scope.resources,
+                importedExports: [...scope.importedExports].sort(),
                 unclassifiedConstructs: scope.unclassifiedConstructs.sort(),
                 unfollowedConstructs: unfollowed.sort(),
             });
@@ -590,6 +685,120 @@ function readApp(entrypoint) {
         entrypoint,
         packageName: owningPackage(entrypoint),
         stacks: stacks.sort((left, right) => left.className.localeCompare(right.className)),
+        importedExports: [...importedExports].sort(),
+    };
+}
+
+/**
+ * Canonicalise a stack-name template so the two SIDES of one edge compare equal.
+ *
+ * ⛔ A placeholder here is the LOCAL VARIABLE NAME the author happened to choose, not a concept — because
+ * {@link renderTemplate} takes the last identifier of the reference chain, which is all a hermetic AST read
+ * can know. `WebhooksStack.ts` proves it single-handedly: it calls the very same stage `deployStage`
+ * (`const deployStage = props.stage`), `identityStage` (`deployStage === 'prod' ? 'prod' : 'sandbox'`) and,
+ * in `bin/app.ts`, `stage` — so three spellings of `kitchensink-data-…` name ONE stack. Matching templates
+ * verbatim read them as three, and the ADR-0028 edge this whole guard exists for came back UNRESOLVED.
+ *
+ * ⚠️ ADR-0006 supplies the same problem from the other side: a `pr-{N}` service imports the BASE stage's
+ * platform, spelling it `kitchensink-data-{baseStage}` where the platform app declares
+ * `kitchensink-data-{stage}`. Every food and recipe edge — the majority of the graph — hangs on this.
+ *
+ * So EVERY readable placeholder collapses. That is safe for a lookup because a stack name in this repository
+ * is `kitchensink-<component>-<stage>`: two templates differing only in the placeholder's SPELLING are the
+ * same stack. `{?}` — the marker for a name this reader could not read — is deliberately NOT collapsed; it
+ * must never match anything, which is why the pattern requires an identifier.
+ *
+ * @param {string} template - A stack-name template.
+ * @returns {string} The comparable form. Pure.
+ */
+export function canonicalStackTemplate(template) {
+    return template.replace(/\{[A-Za-z_][A-Za-z0-9_]*\}/gu, '{stage}');
+}
+
+/**
+ * Join every app's imports to the app that declares the producing stack.
+ *
+ * The export name is `<producer stack name>:<key>`, which is this repository's own convention (every
+ * `exportName` is `` `${this.stackName}:…` ``) rather than a CloudFormation rule — so the join is a lookup,
+ * not a guess. An import this function cannot attribute is REPORTED, never dropped: see the header's rule
+ * about holes announcing themselves.
+ *
+ * @param {DeclaredApp[]} apps - Every app, already read.
+ * @returns {{ crossAppImports: CrossAppImport[], unresolvedImports: string[] }} The deploy graph. Pure.
+ */
+export function resolveCrossAppImports(apps) {
+    /** canonical stack-name template → the stacks declaring it, across every app. */
+    const producers = new Map();
+
+    for (const app of apps) {
+        for (const stack of app.stacks) {
+            if (stack.stackNameTemplate === null) {
+                continue;
+            }
+
+            const key = canonicalStackTemplate(stack.stackNameTemplate);
+
+            producers.set(key, [...(producers.get(key) ?? []), { app, stack }]);
+        }
+    }
+
+    const crossAppImports = [];
+    const unresolvedImports = [];
+
+    for (const app of apps) {
+        for (const exportName of app.importedExports) {
+            const separator = exportName.indexOf(':');
+
+            if (separator < 1 || exportName.includes('{?}')) {
+                unresolvedImports.push(`${app.entrypoint} imports '${exportName}', which is not a readable name`);
+                continue;
+            }
+
+            const wanted = canonicalStackTemplate(exportName.slice(0, separator));
+            const candidates = producers.get(wanted) ?? [];
+            const entrypoints = [...new Set(candidates.map(({ app: owner }) => owner.entrypoint))];
+
+            if (entrypoints.length === 0) {
+                unresolvedImports.push(
+                    `${app.entrypoint} imports '${exportName}', but no CDK app here declares a stack named ` +
+                        `'${wanted}' — nothing can order that deploy`,
+                );
+                continue;
+            }
+            if (entrypoints.length > 1) {
+                // Two apps claiming one stack name is a real deploy hazard and an ambiguity this reader must
+                // not resolve by picking one: the WRONG producer would be forced and the right one skipped.
+                unresolvedImports.push(
+                    `${app.entrypoint} imports '${exportName}', but '${wanted}' is declared by more than one ` +
+                        `app: ${entrypoints.join(', ')}`,
+                );
+                continue;
+            }
+
+            const producer = candidates[0];
+
+            // Within ONE app a single `cdk deploy --all` covers both stacks, so no LEG can be gated away from
+            // its producer. Only an edge crossing an app boundary can be missed by a per-leg gate.
+            if (producer.app.entrypoint === app.entrypoint) {
+                continue;
+            }
+
+            crossAppImports.push({
+                consumerEntrypoint: app.entrypoint,
+                consumerPackage: app.packageName,
+                producerEntrypoint: producer.app.entrypoint,
+                producerPackage: producer.app.packageName,
+                producerStack: producer.stack.className,
+                exportName,
+            });
+        }
+    }
+
+    const order = (edge) => [edge.consumerEntrypoint, edge.producerEntrypoint, edge.exportName].join(' ');
+
+    return {
+        crossAppImports: crossAppImports.sort((left, right) => order(left).localeCompare(order(right))),
+        unresolvedImports: unresolvedImports.sort(),
     };
 }
 
@@ -600,12 +809,47 @@ function readApp(entrypoint) {
  * @sideEffect Reads the repository.
  */
 export function buildManifest() {
+    const apps = discoverCdkApps().map(readApp);
+
     return {
         schemaVersion: MANIFEST_SCHEMA_VERSION,
         claim: MANIFEST_CLAIM,
         generator: 'scripts/infrastructureManifest.mjs',
-        apps: discoverCdkApps().map(readApp),
+        apps,
+        ...resolveCrossAppImports(apps),
     };
+}
+
+/**
+ * Render the deploy-graph edges as the tab-separated file the shell gate reads.
+ *
+ * Columns: consumer entrypoint, producer entrypoint, `{stage}`-parameterised export name. The template is
+ * emitted VERBATIM — the shell substitutes the stage — for the reason {@link renderTemplate} gives: a file
+ * carrying one stage's answer is a claim about a single deploy.
+ *
+ * ⛔ `unresolvedImports` are rendered as `#!` lines rather than omitted, so the gate can fail on a hole
+ * instead of reading a shortened file as a complete graph.
+ *
+ * @param {InfrastructureManifest} manifest - A manifest from {@link buildManifest}.
+ * @returns {string} The TSV. Pure.
+ */
+export function renderDeployEdges(manifest) {
+    const lines = [
+        '# GENERATED FILE — DO NOT EDIT. Run `npm run infra:manifest`.',
+        '#',
+        '# Every CDK-app boundary a `Fn.importValue` crosses. The CONSUMER cannot deploy until the PRODUCER',
+        '# has: `DependsOn` does not leave a stack and nothing orders two `cdk deploy` invocations',
+        '# (ADR-0022 §5). `.github/scripts/deploy-gate.sh close` reads this to force a producer leg whose',
+        '# exports a deploying consumer needs.',
+        '#',
+        '# consumer entrypoint\tproducer entrypoint\texport name ({stage}/{baseStage} substituted by the caller)',
+        ...manifest.unresolvedImports.map((note) => `#!\t${note}`),
+        ...manifest.crossAppImports.map(
+            (edge) => `${edge.consumerEntrypoint}\t${edge.producerEntrypoint}\t${edge.exportName}`,
+        ),
+    ];
+
+    return `${lines.join('\n')}\n`;
 }
 
 // ── Pure: rendering ─────────────────────────────────────────────────────────────────────────────────────
@@ -650,6 +894,40 @@ export function renderManifestMarkdown(manifest) {
         `Schema version ${manifest.schemaVersion}. Generated by \`${manifest.generator}\`.`,
         '',
     ];
+
+    const edges = manifest.crossAppImports ?? [];
+    const unresolved = manifest.unresolvedImports ?? [];
+
+    if (edges.length > 0 || unresolved.length > 0) {
+        lines.push(
+            '## Cross-app deploy edges',
+            '',
+            "Each row is a `Fn.importValue` that crosses a CDK **app** boundary. The consumer's `cdk deploy`",
+            'fails outright — `No export named … found` — unless the producer has already been deployed, and',
+            'nothing in CloudFormation can order two `cdk deploy` invocations (ADR-0022 §5). This table is what',
+            '`.github/scripts/deploy-gate.sh close` reads to force a producer leg.',
+            '',
+            '| consumer | producer | export |',
+            '| --- | --- | --- |',
+            ...edges.map(
+                (edge) =>
+                    `| \`${edge.consumerPackage ?? edge.consumerEntrypoint}\` | ` +
+                    `\`${edge.producerPackage ?? edge.producerEntrypoint}\` (\`${edge.producerStack}\`) | ` +
+                    `\`${edge.exportName}\` |`,
+            ),
+            '',
+        );
+
+        if (unresolved.length > 0) {
+            lines.push(
+                '⚠️ UNRESOLVED — this reader could not name the producer of these imports, so nothing can ' +
+                    'order them:',
+                '',
+                ...unresolved.map((note) => `- ${note}`),
+                '',
+            );
+        }
+    }
 
     for (const app of manifest.apps) {
         lines.push(`## ${app.packageName ?? app.entrypoint}`, '', `Entrypoint: \`${app.entrypoint}\``, '');
@@ -699,6 +977,7 @@ function main() {
     const outputs = [
         [MANIFEST_JSON, json],
         [MANIFEST_MARKDOWN, markdown],
+        [MANIFEST_DEPLOY_EDGES, renderDeployEdges(manifest)],
     ];
 
     if (process.argv.includes('--check')) {
@@ -732,7 +1011,7 @@ function main() {
     for (const [file, contents] of outputs) {
         writeFileSync(path.join(repoRoot, file), contents);
     }
-    process.stdout.write(`Wrote ${MANIFEST_JSON} and ${MANIFEST_MARKDOWN}.\n`);
+    process.stdout.write(`Wrote ${outputs.map(([file]) => file).join(', ')}.\n`);
 }
 
 // `import.meta.main` is Node 24; the suite imports the pure helpers without running the generator.

@@ -55,12 +55,15 @@ import { cdkApps } from './cdkApps.js';
 import { repoRoot } from './serviceSources.js';
 import {
     MANIFEST_CLAIM,
+    MANIFEST_DEPLOY_EDGES,
     MANIFEST_JSON,
     MANIFEST_MARKDOWN,
     MANIFEST_SCHEMA_VERSION,
     buildManifest,
+    canonicalStackTemplate,
     discoverCdkApps,
     readInfrastructureSource,
+    renderDeployEdges,
     renderManifestMarkdown,
     resolveStageNames,
 } from '../../../../scripts/infrastructureManifest.mjs';
@@ -289,6 +292,193 @@ describe('readInfrastructureSource — composition', () => {
     });
 });
 
+/**
+ * ## Why the manifest reads `Fn.importValue` at all
+ *
+ * A `Fn.importValue` is the ONLY edge in this repository that crosses a CDK app boundary, and it is the one
+ * edge CloudFormation cannot order for us: `DependsOn` does not leave a stack, and nothing orders two `cdk
+ * deploy` invocations (ADR-0022 §5). The consumer simply fails — `No export named … found` — if the producer
+ * has not been deployed.
+ *
+ * `prod-deploy.yml` gated each leg INDEPENDENTLY on a path diff, so a change touching only
+ * `packages/services/identity-webhooks/**` set `deploy_webhooks=true` and `deploy_global=false`. ADR-0028
+ * moved the identity log group into `ServiceLogsStack` — a child of the GLOBAL app — on the stated grounds
+ * that it "already deploys before both consumers, so no deploy order changed". True of the ORDER, false of
+ * the GATE: measured against the account on 2026-09-02, `kitchensink-service-logs-prod` DOES NOT EXIST,
+ * because prod has had no platform deploy since. The next webhooks-only or identity-only merge would have
+ * deployed a stack importing from thin air.
+ *
+ * ⛔ The edges are DERIVED from the CDK source and never enumerated. A hand-maintained producer→consumer
+ * table is the exact shape this repository has been bitten by four times (ALB listener priorities, the NAT
+ * consumer list, ADR-0025's asset guard, the ADR index) — a copy of a list cannot detect that the list grew.
+ * A new `Fn.importValue` is covered the day it is written, not the day somebody remembers a table.
+ */
+describe('readInfrastructureSource — cross-stack imports', () => {
+    const IMPORTER_FIXTURE = `
+import { Fn, Stack, aws_ec2 as ec2 } from 'aws-cdk-lib';
+
+export class ConsumerStack extends Stack {
+    constructor(scope, id, props) {
+        super(scope, id, props);
+        const sg = ec2.SecurityGroup.fromSecurityGroupId(
+            this,
+            'AlbSg',
+            Fn.importValue(\`kitchensink-network-\${props.stage}:AlbSecurityGroupId\`),
+        );
+        const port = Number(Fn.importValue(\`kitchensink-data-\${props.baseStage}:DatabasePort\`));
+    }
+}
+`;
+
+    it('reads an imported export name as a stage-parameterised template', () => {
+        expect(scope(IMPORTER_FIXTURE, 'ConsumerStack').importedExports).toContain(
+            'kitchensink-network-{stage}:AlbSecurityGroupId',
+        );
+    });
+
+    it('reads an import nested inside another expression', () => {
+        // `Number(Fn.importValue(…))` is how every port is read in this repo. A reader that only looked at
+        // statement-level calls would miss six of them and report the stack as importing nothing — which is
+        // the empty-stack failure the barrel-import fixture above was written about, one construct over.
+        expect(scope(IMPORTER_FIXTURE, 'ConsumerStack').importedExports).toContain(
+            'kitchensink-data-{baseStage}:DatabasePort',
+        );
+    });
+
+    it('reads an import at the ENTRYPOINT top level, not only inside a stack class', () => {
+        // ⛔ `identity-webhooks/infra/bin/app.ts` resolves TEN exports at module scope and passes them in as
+        // props. A reader that only visited stack classes would report that app as importing nothing at all —
+        // and it is one of the two apps this whole guard exists for.
+        const entrypoint = scope(
+            `import { Fn, App } from 'aws-cdk-lib';\nconst app = new App();\nconst x = Fn.importValue(\`kitchensink-data-\${stage}:SecretArn\`);`,
+            '<module>',
+        );
+
+        expect(entrypoint.importedExports).toEqual(['kitchensink-data-{stage}:SecretArn']);
+    });
+
+    it('renders an import it cannot read as `{?}` rather than dropping it', () => {
+        // Same contract as every other unreadable name here: a hole announces itself. An import silently
+        // omitted is an unguarded edge that reads as "there is no edge".
+        const computed = scope(
+            `import { Fn, Stack } from 'aws-cdk-lib';\nclass S extends Stack { constructor() { Fn.importValue(EXPORT_NAME); } }`,
+            'S',
+        );
+
+        expect(computed.importedExports).toEqual(['{?}']);
+    });
+
+    it('does not mistake some other object’s `.importValue` for a CloudFormation import', () => {
+        // Keyed on the identifier resolving to `aws-cdk-lib`, never on the method name alone — the same rule
+        // that keeps `cloudfront.Function` from being filed as a Lambda.
+        const other = scope(
+            `import { Stack } from 'aws-cdk-lib';\nimport { registry } from './registry.js';\nclass S extends Stack { constructor() { registry.importValue('nope'); } }`,
+            'S',
+        );
+
+        expect(other.importedExports).toEqual([]);
+    });
+});
+
+describe('canonicalStackTemplate — the two sides of one edge must compare equal', () => {
+    it('collapses the placeholder, because it is a VARIABLE NAME and not a concept', () => {
+        // ⛔ Measured, not assumed. `WebhooksStack.ts` names one stage three ways — `deployStage`
+        // (`= props.stage`), `identityStage` (`= deployStage === 'prod' ? 'prod' : 'sandbox'`) and `stage`
+        // in its own `bin/app.ts` — so three spellings of `kitchensink-data-…` denote ONE stack. A verbatim
+        // comparison read them as three and reported the ADR-0028 edge as having NO producer at all.
+        expect(canonicalStackTemplate('kitchensink-service-logs-{deployStage}')).toBe(
+            canonicalStackTemplate('kitchensink-service-logs-{stage}'),
+        );
+        expect(canonicalStackTemplate('kitchensink-data-{identityStage}')).toBe('kitchensink-data-{stage}');
+    });
+
+    it('collapses `{baseStage}` onto `{stage}`, or every food and recipe edge disappears', () => {
+        // ADR-0006: a `pr-{N}` service imports the BASE stage's platform. This is the majority of the graph.
+        expect(canonicalStackTemplate('kitchensink-alb-{baseStage}')).toBe('kitchensink-alb-{stage}');
+    });
+
+    it('does NOT collapse `{?}` — an unreadable name must never match a real stack', () => {
+        // `{?}` is this reader saying "I could not read this". Letting it match would silently attribute an
+        // unreadable import to whichever stack happened to share the prefix, which is worse than no edge.
+        expect(canonicalStackTemplate('kitchensink-data-{?}')).toBe('kitchensink-data-{?}');
+    });
+
+    it('leaves a template with no placeholder alone', () => {
+        expect(canonicalStackTemplate('kitchensink-cost-guardrails')).toBe('kitchensink-cost-guardrails');
+    });
+});
+
+/**
+ * The resolved half: an import template names a PRODUCER STACK, and the manifest already knows which app
+ * declares every stack. Joining the two turns a string in a source file into a deploy-graph edge.
+ */
+describe('buildManifest — the cross-APP deploy graph', () => {
+    const manifest = buildManifest();
+
+    /**
+     * ⚠️ Matched by PATTERN, not by literal, and the difference is the point. The placeholder is the local
+     * VARIABLE NAME the author chose — `WebhooksStack` spells this stage `deployStage` — so pinning
+     * `{stage}` here would assert a variable name, and renaming it would red this file for no semantic
+     * reason. What must hold is that the edge exists and crosses the two apps.
+     */
+    const SERVICE_LOG_GROUP = /^kitchensink-service-logs-\{\w+\}:IdentityServiceLogGroupName$/u;
+
+    const edgesTo = (consumer: string, producer: string): readonly { exportName: string }[] =>
+        manifest.crossAppImports.filter(
+            (edge: { consumerEntrypoint: string; producerEntrypoint: string }) =>
+                edge.consumerEntrypoint === consumer && edge.producerEntrypoint === producer,
+        );
+
+    it('resolves the ADR-0028 edge that prod could not deploy', () => {
+        // The live defect, asserted as itself. If `ServiceLogsStack` ever moves back into the identity app
+        // this edge stops being cross-app and this assertion tells you so.
+        const found = edgesTo(
+            'packages/services/identity-webhooks/infra/bin/app.ts',
+            'packages/infra/global/bin/app.ts',
+        );
+
+        expect(found.map((edge) => edge.exportName).filter((name) => SERVICE_LOG_GROUP.test(name))).toHaveLength(1);
+    });
+
+    it('resolves the SAME edge from the identity service, which imports it too', () => {
+        // ⚠️ The reported defect named only the webhooks leg. `IdentityServiceStack` imports the very same
+        // export, so an identity-only merge had the identical hole. Derivation found the second consumer;
+        // an enumerated table would have carried whichever one the author noticed.
+        const found = edgesTo('packages/services/identity/infra/bin/app.ts', 'packages/infra/global/bin/app.ts');
+
+        expect(found.map((edge) => edge.exportName).filter((name) => SERVICE_LOG_GROUP.test(name))).toHaveLength(1);
+    });
+
+    it('matches a `{baseStage}` consumer against its `{stage}` producer', () => {
+        // ADR-0006: a `pr-{N}` service imports the BASE stage's platform. The placeholder differs on the two
+        // sides of the same edge, and treating them as different stacks would drop every food/recipe edge.
+        expect(manifest.crossAppImports).toContainEqual(
+            expect.objectContaining({
+                consumerEntrypoint: 'packages/services/food-service/infra/bin/app.ts',
+                producerEntrypoint: 'packages/infra/global/bin/app.ts',
+                exportName: 'kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn',
+            }),
+        );
+    });
+
+    it('excludes an import a stack resolves from its OWN app', () => {
+        // `EdgeStack` imports `kitchensink-domain-{stage}` and both stacks belong to the global app, so one
+        // `cdk deploy --all` covers them. Only an edge that crosses an app boundary can be missed by a gate.
+        const sameApp = manifest.crossAppImports.filter(
+            (edge: { consumerEntrypoint: string; producerEntrypoint: string }) =>
+                edge.consumerEntrypoint === edge.producerEntrypoint,
+        );
+
+        expect(sameApp).toEqual([]);
+    });
+
+    it('names every import whose producer it could not resolve, rather than reporting no edge', () => {
+        // The honest limit. An unresolved import is an edge this manifest cannot vouch for, and the deploy
+        // gate must be able to see that rather than conclude the consumer imports nothing.
+        expect(manifest.unresolvedImports).toEqual([]);
+    });
+});
+
 describe('resolveStageNames', () => {
     it('substitutes the stage into every template', () => {
         expect(resolveStageNames('kitchensink-recipe-workers-{stage}', 'prod')).toBe('kitchensink-recipe-workers-prod');
@@ -344,12 +534,25 @@ const MANIFEST = {
                             notes: [],
                         },
                     ],
+                    importedExports: ['kitchensink-data-{baseStage}:DatabaseEndpoint'],
                     unclassifiedConstructs: ['aws-cdk-lib/aws-iam.Role'],
                     unfollowedConstructs: [],
                 },
             ],
+            importedExports: ['kitchensink-data-{baseStage}:DatabaseEndpoint'],
         },
     ],
+    crossAppImports: [
+        {
+            consumerEntrypoint: 'packages/services/recipe-workers/infra/bin/app.ts',
+            consumerPackage: '@kitchensink/recipe-workers',
+            producerEntrypoint: 'packages/infra/global/bin/app.ts',
+            producerPackage: '@kitchensink/infra-global',
+            producerStack: 'DataStack',
+            exportName: 'kitchensink-data-{baseStage}:DatabaseEndpoint',
+        },
+    ],
+    unresolvedImports: [],
 };
 
 describe('renderManifestMarkdown', () => {
@@ -394,14 +597,32 @@ describe('the committed manifest is not stale', () => {
     it('is committed at all — an untracked or ignored artifact has no gate', () => {
         // `git diff` is blind to a path git cannot see, so an ignored manifest would make every assertion
         // below pass while the artifact forked from the source forever.
-        const tracked = execFileSync('git', ['ls-files', '--', MANIFEST_JSON, MANIFEST_MARKDOWN], {
-            cwd: repoRoot,
-            encoding: 'utf8',
-        })
+        const tracked = execFileSync(
+            'git',
+            ['ls-files', '--', MANIFEST_JSON, MANIFEST_MARKDOWN, MANIFEST_DEPLOY_EDGES],
+            {
+                cwd: repoRoot,
+                encoding: 'utf8',
+            },
+        )
             .split('\n')
             .filter((file) => file !== '');
 
-        expect(tracked.sort()).toEqual([MANIFEST_MARKDOWN, MANIFEST_JSON].sort());
+        expect(tracked.sort()).toEqual([MANIFEST_MARKDOWN, MANIFEST_JSON, MANIFEST_DEPLOY_EDGES].sort());
+    });
+
+    /**
+     * ⛔ The TSV is the file a DEPLOY reads, so a stale copy of it is not a documentation defect — it is a
+     * consumer leg deploying against a graph that no longer exists. It gets the same gate as its siblings.
+     */
+    it('matches the deploy-edge projection the gate reads', () => {
+        const committed = existsSync(path.join(repoRoot, MANIFEST_DEPLOY_EDGES))
+            ? readFileSync(path.join(repoRoot, MANIFEST_DEPLOY_EDGES), 'utf8')
+            : null;
+
+        expect(committed, `${MANIFEST_DEPLOY_EDGES} is stale. Run \`npm run infra:manifest\`.`).toBe(
+            renderDeployEdges(generated),
+        );
     });
 
     it('matches what the CDK source produces today', () => {

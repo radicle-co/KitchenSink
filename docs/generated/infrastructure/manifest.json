@@ -1,5 +1,5 @@
 {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "claim": "This manifest describes what the CDK source at this commit DECLARES. It does not describe what is deployed: CDK states intent, only the AWS account holds reality. Use scripts/deploymentDrift.mjs to compare this declaration against a live stage.",
     "generator": "scripts/infrastructureManifest.mjs",
     "apps": [
@@ -13,6 +13,10 @@
                     "stackNameTemplate": "kitchensink-sandbox-router-{stage}",
                     "condition": null,
                     "resources": [],
+                    "importedExports": [
+                        "kitchensink-domain-{stage}:CertificateArn",
+                        "kitchensink-domain-{stage}:HostedZoneId"
+                    ],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-cloudfront-origins.HttpOrigin",
@@ -24,6 +28,10 @@
                     ],
                     "unfollowedConstructs": []
                 }
+            ],
+            "importedExports": [
+                "kitchensink-domain-{stage}:CertificateArn",
+                "kitchensink-domain-{stage}:HostedZoneId"
             ]
         },
         {
@@ -45,6 +53,7 @@
                             "notes": []
                         }
                     ],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib/aws-budgets.CfnBudget",
                         "aws-cdk-lib/aws-ce.CfnAnomalyMonitor",
@@ -108,6 +117,7 @@
                             "notes": []
                         }
                     ],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib.CustomResource",
@@ -125,6 +135,7 @@
                     "stackNameTemplate": "kitchensink-domain-{stage}",
                     "condition": null,
                     "resources": [],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-certificatemanager.Certificate",
@@ -147,6 +158,10 @@
                             "notes": []
                         }
                     ],
+                    "importedExports": [
+                        "kitchensink-domain-{stage}:CertificateArn",
+                        "kitchensink-domain-{stage}:HostedZoneId"
+                    ],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib/aws-cloudfront-origins.HttpOrigin",
                         "aws-cdk-lib/aws-cloudfront.CachePolicy",
@@ -165,6 +180,7 @@
                     "stackNameTemplate": "kitchensink-global-{stage}",
                     "condition": null,
                     "resources": [],
+                    "importedExports": [],
                     "unclassifiedConstructs": [],
                     "unfollowedConstructs": []
                 },
@@ -215,6 +231,7 @@
                             "notes": []
                         }
                     ],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
@@ -228,6 +245,7 @@
                     "stackNameTemplate": "kitchensink-network-{stage}",
                     "condition": null,
                     "resources": [],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-ec2.SecurityGroup",
@@ -252,6 +270,7 @@
                             ]
                         }
                     ],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-iam.PolicyStatement",
@@ -266,6 +285,7 @@
                     "stackNameTemplate": "kitchensink-service-logs-{stage}",
                     "condition": null,
                     "resources": [],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-logs.LogGroup"
@@ -278,12 +298,17 @@
                     "stackNameTemplate": "kitchensink-alb-{stage}",
                     "condition": null,
                     "resources": [],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationLoadBalancer"
                     ],
                     "unfollowedConstructs": []
                 }
+            ],
+            "importedExports": [
+                "kitchensink-domain-{stage}:CertificateArn",
+                "kitchensink-domain-{stage}:HostedZoneId"
             ]
         },
         {
@@ -387,6 +412,20 @@
                             "notes": []
                         }
                     ],
+                    "importedExports": [
+                        "kitchensink-alb-{baseStage}:SharedAlbArn",
+                        "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId",
+                        "kitchensink-alb-{baseStage}:SharedAlbDnsName",
+                        "kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn",
+                        "kitchensink-data-{baseStage}:DatabaseEndpoint",
+                        "kitchensink-data-{baseStage}:DatabasePort",
+                        "kitchensink-data-{baseStage}:DatabaseResourceId",
+                        "kitchensink-data-{baseStage}:FoodDatabaseName",
+                        "kitchensink-domain-{baseStage}:HostedZoneId",
+                        "kitchensink-network-{baseStage}:AlbSecurityGroupId",
+                        "kitchensink-network-{baseStage}:DatabaseSecurityGroupId",
+                        "kitchensink-network-{baseStage}:ServiceSecurityGroupId"
+                    ],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
@@ -412,6 +451,20 @@
                     ],
                     "unfollowedConstructs": []
                 }
+            ],
+            "importedExports": [
+                "kitchensink-alb-{baseStage}:SharedAlbArn",
+                "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId",
+                "kitchensink-alb-{baseStage}:SharedAlbDnsName",
+                "kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn",
+                "kitchensink-data-{baseStage}:DatabaseEndpoint",
+                "kitchensink-data-{baseStage}:DatabasePort",
+                "kitchensink-data-{baseStage}:DatabaseResourceId",
+                "kitchensink-data-{baseStage}:FoodDatabaseName",
+                "kitchensink-domain-{baseStage}:HostedZoneId",
+                "kitchensink-network-{baseStage}:AlbSecurityGroupId",
+                "kitchensink-network-{baseStage}:DatabaseSecurityGroupId",
+                "kitchensink-network-{baseStage}:ServiceSecurityGroupId"
             ]
         },
         {
@@ -513,6 +566,10 @@
                             "notes": []
                         }
                     ],
+                    "importedExports": [
+                        "kitchensink-data-{identityStage}:HandleSyncTopicArn",
+                        "kitchensink-service-logs-{deployStage}:IdentityServiceLogGroupName"
+                    ],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-apigateway.DomainName",
@@ -535,6 +592,21 @@
                     ],
                     "unfollowedConstructs": []
                 }
+            ],
+            "importedExports": [
+                "kitchensink-data-{identityStage}:HandleSyncTopicArn",
+                "kitchensink-data-{stage}:ArchiveBucketName",
+                "kitchensink-data-{stage}:DatabaseEndpoint",
+                "kitchensink-data-{stage}:DatabasePort",
+                "kitchensink-data-{stage}:DatabaseSecretArn",
+                "kitchensink-data-{stage}:DeletionQueueArn",
+                "kitchensink-data-{stage}:MediaBucketName",
+                "kitchensink-data-{stage}:MigrationPlanSecretArn",
+                "kitchensink-data-{stage}:SecretArn",
+                "kitchensink-domain-{stage}:HostedZoneId",
+                "kitchensink-network-{stage}:DatabaseSecurityGroupId",
+                "kitchensink-network-{stage}:LambdaSecurityGroupId",
+                "kitchensink-service-logs-{deployStage}:IdentityServiceLogGroupName"
             ]
         },
         {
@@ -598,6 +670,28 @@
                             "notes": []
                         }
                     ],
+                    "importedExports": [
+                        "kitchensink-alb-{stage}:SharedAlbArn",
+                        "kitchensink-alb-{stage}:SharedAlbCanonicalHostedZoneId",
+                        "kitchensink-alb-{stage}:SharedAlbDnsName",
+                        "kitchensink-alb-{stage}:SharedAlbHttpsListenerArn",
+                        "kitchensink-data-{stage}:ArchiveBucketName",
+                        "kitchensink-data-{stage}:DatabaseEndpoint",
+                        "kitchensink-data-{stage}:DatabaseName",
+                        "kitchensink-data-{stage}:DatabasePort",
+                        "kitchensink-data-{stage}:DatabaseSecretArn",
+                        "kitchensink-data-{stage}:DeletionQueueArn",
+                        "kitchensink-data-{stage}:HandleSyncTopicArn",
+                        "kitchensink-data-{stage}:MediaBucketName",
+                        "kitchensink-data-{stage}:MigrationPlanSecretArn",
+                        "kitchensink-data-{stage}:SecretArn",
+                        "kitchensink-domain-{stage}:HostedZoneId",
+                        "kitchensink-network-{stage}:AlbSecurityGroupId",
+                        "kitchensink-network-{stage}:DatabaseSecurityGroupId",
+                        "kitchensink-network-{stage}:LambdaSecurityGroupId",
+                        "kitchensink-network-{stage}:ServiceSecurityGroupId",
+                        "kitchensink-service-logs-{stage}:IdentityServiceLogGroupName"
+                    ],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
@@ -614,6 +708,28 @@
                     ],
                     "unfollowedConstructs": []
                 }
+            ],
+            "importedExports": [
+                "kitchensink-alb-{stage}:SharedAlbArn",
+                "kitchensink-alb-{stage}:SharedAlbCanonicalHostedZoneId",
+                "kitchensink-alb-{stage}:SharedAlbDnsName",
+                "kitchensink-alb-{stage}:SharedAlbHttpsListenerArn",
+                "kitchensink-data-{stage}:ArchiveBucketName",
+                "kitchensink-data-{stage}:DatabaseEndpoint",
+                "kitchensink-data-{stage}:DatabaseName",
+                "kitchensink-data-{stage}:DatabasePort",
+                "kitchensink-data-{stage}:DatabaseSecretArn",
+                "kitchensink-data-{stage}:DeletionQueueArn",
+                "kitchensink-data-{stage}:HandleSyncTopicArn",
+                "kitchensink-data-{stage}:MediaBucketName",
+                "kitchensink-data-{stage}:MigrationPlanSecretArn",
+                "kitchensink-data-{stage}:SecretArn",
+                "kitchensink-domain-{stage}:HostedZoneId",
+                "kitchensink-network-{stage}:AlbSecurityGroupId",
+                "kitchensink-network-{stage}:DatabaseSecurityGroupId",
+                "kitchensink-network-{stage}:LambdaSecurityGroupId",
+                "kitchensink-network-{stage}:ServiceSecurityGroupId",
+                "kitchensink-service-logs-{stage}:IdentityServiceLogGroupName"
             ]
         },
         {
@@ -637,6 +753,7 @@
                             ]
                         }
                     ],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib/aws-iam.Role",
                         "aws-cdk-lib/aws-iam.ServicePrincipal",
@@ -644,7 +761,8 @@
                     ],
                     "unfollowedConstructs": []
                 }
-            ]
+            ],
+            "importedExports": []
         },
         {
             "entrypoint": "packages/services/recipe-service/infra/bin/app.ts",
@@ -675,6 +793,22 @@
                             ]
                         }
                     ],
+                    "importedExports": [
+                        "kitchensink-alb-{baseStage}:SharedAlbArn",
+                        "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId",
+                        "kitchensink-alb-{baseStage}:SharedAlbDnsName",
+                        "kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn",
+                        "kitchensink-data-{baseStage}:ArchiveBucketName",
+                        "kitchensink-data-{baseStage}:DatabaseEndpoint",
+                        "kitchensink-data-{baseStage}:DatabasePort",
+                        "kitchensink-data-{baseStage}:DatabaseResourceId",
+                        "kitchensink-data-{baseStage}:MediaBucketName",
+                        "kitchensink-data-{baseStage}:RecipeDatabaseName",
+                        "kitchensink-domain-{baseStage}:HostedZoneId",
+                        "kitchensink-network-{baseStage}:AlbSecurityGroupId",
+                        "kitchensink-network-{baseStage}:DatabaseSecurityGroupId",
+                        "kitchensink-network-{baseStage}:ServiceSecurityGroupId"
+                    ],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-ecs.Cluster",
@@ -691,6 +825,22 @@
                     ],
                     "unfollowedConstructs": []
                 }
+            ],
+            "importedExports": [
+                "kitchensink-alb-{baseStage}:SharedAlbArn",
+                "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId",
+                "kitchensink-alb-{baseStage}:SharedAlbDnsName",
+                "kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn",
+                "kitchensink-data-{baseStage}:ArchiveBucketName",
+                "kitchensink-data-{baseStage}:DatabaseEndpoint",
+                "kitchensink-data-{baseStage}:DatabasePort",
+                "kitchensink-data-{baseStage}:DatabaseResourceId",
+                "kitchensink-data-{baseStage}:MediaBucketName",
+                "kitchensink-data-{baseStage}:RecipeDatabaseName",
+                "kitchensink-domain-{baseStage}:HostedZoneId",
+                "kitchensink-network-{baseStage}:AlbSecurityGroupId",
+                "kitchensink-network-{baseStage}:DatabaseSecurityGroupId",
+                "kitchensink-network-{baseStage}:ServiceSecurityGroupId"
             ]
         },
         {
@@ -1066,6 +1216,7 @@
                             "notes": []
                         }
                     ],
+                    "importedExports": [],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
                         "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
@@ -1082,7 +1233,499 @@
                     ],
                     "unfollowedConstructs": []
                 }
-            ]
+            ],
+            "importedExports": []
         }
-    ]
+    ],
+    "crossAppImports": [
+        {
+            "consumerEntrypoint": "packages/apps/commise/web/infra/bin/app.ts",
+            "consumerPackage": "@commise/web",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DomainStack",
+            "exportName": "kitchensink-domain-{stage}:CertificateArn"
+        },
+        {
+            "consumerEntrypoint": "packages/apps/commise/web/infra/bin/app.ts",
+            "consumerPackage": "@commise/web",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DomainStack",
+            "exportName": "kitchensink-domain-{stage}:HostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{baseStage}:SharedAlbArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{baseStage}:SharedAlbDnsName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:DatabaseEndpoint"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:DatabasePort"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:DatabaseResourceId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:FoodDatabaseName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DomainStack",
+            "exportName": "kitchensink-domain-{baseStage}:HostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{baseStage}:AlbSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{baseStage}:DatabaseSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/food-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/food-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{baseStage}:ServiceSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{identityStage}:HandleSyncTopicArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:ArchiveBucketName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DatabaseEndpoint"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DatabasePort"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DatabaseSecretArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DeletionQueueArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:MediaBucketName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:MigrationPlanSecretArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:SecretArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DomainStack",
+            "exportName": "kitchensink-domain-{stage}:HostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{stage}:DatabaseSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{stage}:LambdaSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity-webhooks/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-webhooks",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "ServiceLogsStack",
+            "exportName": "kitchensink-service-logs-{deployStage}:IdentityServiceLogGroupName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{stage}:SharedAlbArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{stage}:SharedAlbCanonicalHostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{stage}:SharedAlbDnsName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{stage}:SharedAlbHttpsListenerArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:ArchiveBucketName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DatabaseEndpoint"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DatabaseName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DatabasePort"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DatabaseSecretArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:DeletionQueueArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:HandleSyncTopicArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:MediaBucketName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:MigrationPlanSecretArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{stage}:SecretArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DomainStack",
+            "exportName": "kitchensink-domain-{stage}:HostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{stage}:AlbSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{stage}:DatabaseSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{stage}:LambdaSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{stage}:ServiceSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/identity/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/identity-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "ServiceLogsStack",
+            "exportName": "kitchensink-service-logs-{stage}:IdentityServiceLogGroupName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{baseStage}:SharedAlbArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{baseStage}:SharedAlbDnsName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "SharedAlbStack",
+            "exportName": "kitchensink-alb-{baseStage}:SharedAlbHttpsListenerArn"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:ArchiveBucketName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:DatabaseEndpoint"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:DatabasePort"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:DatabaseResourceId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:MediaBucketName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DataStack",
+            "exportName": "kitchensink-data-{baseStage}:RecipeDatabaseName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "DomainStack",
+            "exportName": "kitchensink-domain-{baseStage}:HostedZoneId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{baseStage}:AlbSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{baseStage}:DatabaseSecurityGroupId"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "NetworkStack",
+            "exportName": "kitchensink-network-{baseStage}:ServiceSecurityGroupId"
+        }
+    ],
+    "unresolvedImports": []
 }

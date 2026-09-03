@@ -51,6 +51,8 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
+import { repoRoot } from './serviceSources.js';
+
 const WORKFLOW = fileURLToPath(new URL('../../../../.github/workflows/prod-deploy.yml', import.meta.url));
 
 interface WorkflowStep {
@@ -145,7 +147,13 @@ function computeFlags(expressions: Readonly<Record<string, string>>): Record<str
 
     // `-u` as well as `-e`: a variable the script reads but the step's `env:` block never declared must abort
     // loudly, not default to empty and quietly turn every flag `false`.
+    //
+    // ⚠️ `cwd` is the REPOSITORY ROOT, which is what Actions gives a step. The flags script shells out to
+    // `.github/scripts/deploy-gate.sh` for the deploy-graph closure, so running from vitest's own cwd would
+    // fail on a path that is correct in CI — and running the real script rather than a re-implementation is
+    // the same rule `deployGate.test.ts` and `prScope.test.ts` follow.
     const result = spawnSync('bash', ['-eu', scriptPath], {
+        cwd: repoRoot,
         env: { ...process.env, ...environment, GITHUB_OUTPUT: outputPath },
         encoding: 'utf8',
     });
@@ -164,12 +172,24 @@ function computeFlags(expressions: Readonly<Record<string, string>>): Record<str
     );
 }
 
-/** A push where only the named filter groups matched. */
+/**
+ * A push where only the named filter groups matched, and every cross-app export is published.
+ *
+ * `unmet` is the ONE other input the step takes — the deploy-graph edges whose export the account does not
+ * currently answer for. Empty is the healthy platform, which is what every pre-existing assertion below
+ * describes; {@link pushWithUnmet} supplies a real one.
+ */
 function push(...changed: readonly string[]): Record<string, string> {
+    return pushWithUnmet('', ...changed);
+}
+
+/** As {@link push}, with a deploy-graph edge whose export the account does not publish. */
+function pushWithUnmet(unmet: string, ...changed: readonly string[]): Record<string, string> {
     const groups = Object.keys(filterGroups());
 
     return computeFlags({
         'github.event_name': 'push',
+        'steps.imports.outputs.unmet_imports': unmet,
         ...Object.fromEntries(
             groups.map((group) => [`steps.changes.outputs.${group}`, String(changed.includes(group))]),
         ),
@@ -197,6 +217,7 @@ describe('prod-deploy.yml — the food and recipe legs are reachable', () => {
         const groups = Object.keys(filterGroups());
         const flags = computeFlags({
             'github.event_name': 'workflow_dispatch',
+            'steps.imports.outputs.unmet_imports': '',
             ...Object.fromEntries(groups.map((group) => [`steps.changes.outputs.${group}`, 'false'])),
         });
 
@@ -235,5 +256,88 @@ describe('prod-deploy.yml — the food and recipe legs are reachable', () => {
         expect(recipe['deploy_service']).toBe('false');
         expect(recipe['deploy_webhooks']).toBe('false');
         expect(recipe['run_migrations']).toBe('false');
+    });
+});
+
+/**
+ * ## The deploy graph is CLOSED — a consumer leg never deploys without its producer
+ *
+ * Every assertion above describes the gate's PATH-DIFF half, and that half was the whole gate. Each leg was
+ * decided in isolation, so a change touching only `packages/services/identity-webhooks/**` set
+ * `deploy_webhooks=true` and `deploy_global=false` — and `WebhooksStack` resolves
+ * `kitchensink-service-logs-{stage}:IdentityServiceLogGroupName`, an export of `ServiceLogsStack`, which
+ * ADR-0028 made a child of the GLOBAL app. The ADR recorded that the new stack "already deploys before both
+ * consumers, so no deploy order changed": true of the ORDER, false of the GATE, because the earlier leg does
+ * not run at all.
+ *
+ * That is not hypothetical. Measured against the live account on 2026-09-02, `kitchensink-service-logs-prod`
+ * DOES NOT EXIST — ADR-0028 added it on 2026-08-30 and prod has had no platform deploy since — so the next
+ * webhooks-only merge would have failed inside `cdk deploy` on `No export named … found`.
+ *
+ * These scenarios drive the step's REAL bash against the REAL `deploy-gate.sh`, so deleting the closure call
+ * from the workflow reds them. Nothing here enumerates an edge: the edge list is derived from the CDK source
+ * (`scripts/infrastructureManifest.mjs`) and asserted separately by `crossAppImportClosure.test.ts`; these
+ * tests only prove the workflow ACTS on an unmet one.
+ */
+describe('prod-deploy.yml — the deploy graph is closed against unmet cross-app imports', () => {
+    /** The edge the account was actually missing on 2026-09-02, in the form the probe step publishes. */
+    const SERVICE_LOGS_UNMET =
+        'packages/services/identity-webhooks/infra/bin/app.ts>packages/infra/global/bin/app.ts>' +
+        'kitchensink-service-logs-prod:IdentityServiceLogGroupName';
+
+    it('forces the global leg when a deploying webhooks leg needs an export prod has not published', () => {
+        const flags = pushWithUnmet(SERVICE_LOGS_UNMET, 'webhooks');
+
+        expect(flags['deploy_webhooks']).toBe('true');
+        expect(flags['deploy_global']).toBe('true');
+    });
+
+    it('leaves the global leg alone when the consumer that needs the export is not deploying', () => {
+        // ⛔ The narrowness ADR-0010's cost argument demands. If an unmet export forced the platform leg
+        // regardless of who needed it, a food-only merge would roll RDS, the VPC and the edge to prod as a
+        // side effect — and it would do so on EVERY push until somebody noticed.
+        const flags = pushWithUnmet(SERVICE_LOGS_UNMET, 'food');
+
+        expect(flags['deploy_food']).toBe('true');
+        expect(flags['deploy_global']).toBe('false');
+        expect(flags['deploy_webhooks']).toBe('false');
+    });
+
+    it('changes nothing at all when every cross-app export is published', () => {
+        // The steady state, which must stay exactly as cheap as it was.
+        expect(pushWithUnmet('', 'webhooks')).toMatchObject({
+            deploy_webhooks: 'true',
+            deploy_global: 'false',
+            deploy_service: 'false',
+            deploy_food: 'false',
+            deploy_recipe: 'false',
+        });
+    });
+
+    it('derives run_migrations from the CLOSED flags, not the raw ones', () => {
+        // ⚠️ A leg the closure forces still owes its schema. Computing `run_migrations` from the pre-closure
+        // flags would deploy the identity service and skip the ADR-0022 §4 safety net for it — and the
+        // ordering bug would be invisible, because the flag it reads would still say `false`.
+        //
+        // The edge used here is the PRE-ADR-0028 one, which was real until 2026-08-30: webhooks imported the
+        // log group name straight from `kitchensink-identity-service-{stage}`.
+        const flags = pushWithUnmet(
+            'packages/services/identity-webhooks/infra/bin/app.ts>packages/services/identity/infra/bin/app.ts>' +
+                'kitchensink-identity-service-prod:IdentityServiceLogGroupName',
+            'webhooks',
+        );
+
+        expect(flags['deploy_service']).toBe('true');
+        expect(flags['run_migrations']).toBe('true');
+    });
+
+    it('reads the unmet edges as DATA, never as script text', () => {
+        // zizmor `template-injection`, asserted behaviourally rather than by inspection: the value arrives
+        // through the step's `env:` block, so shell metacharacters in it can only ever be an invalid edge
+        // token. Interpolated into the body they would be source code.
+        const step = flagsStep();
+
+        expect(Object.values(step.env ?? {}).join(' ')).toContain('steps.imports.outputs.unmet_imports');
+        expect(step.run).not.toContain('steps.imports.outputs');
     });
 });

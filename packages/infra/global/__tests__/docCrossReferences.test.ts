@@ -127,6 +127,32 @@ describe('document cross-references', () => {
         ).toEqual([]);
     });
 
+    it('⛔ every ADR on disk is listed in the decisions index', () => {
+        // ⚠️ THIS FILE'S OWN DOCSTRING ALREADY CLAIMED THIS RULE — "an ADR needs both an index entry and an
+        // inbound pointer" — and nothing asserted the first half. ADR-0028 landed 2026-08-30 and was absent
+        // from the index until 2026-09-02, so the decision that created `kitchensink-service-logs-{stage}`
+        // was invisible at the moment someone needed it: a reader scanning the index would conclude no such
+        // decision existed. A rule stated in prose and checked by nobody is the failure this repo keeps
+        // paying for.
+        //
+        // ⛔ DERIVED FROM THE DIRECTORY, never an enumerated list — a copy of the ADR list cannot detect
+        // that the list grew, which is the whole defect being closed here.
+        const indexPath = 'docs/architecture/decisions/README.md';
+        const index = readFileSync(path.join(repoRoot, indexPath), 'utf8');
+        const onDisk = presentFiles(['docs/architecture/decisions/*.md'])
+            .map((file) => path.basename(file))
+            .filter((name) => /^\d{4}-/u.test(name));
+
+        expect(onDisk.length, 'the ADR directory should not be empty — the glob or pathspec is wrong').toBeGreaterThan(
+            0,
+        );
+        expect(
+            onDisk.filter((name) => !index.includes(name)),
+            `Every ADR must be listed in ${indexPath}. An unlisted ADR is invisible to the reader who needs ` +
+                'it, which is exactly when a settled decision gets re-litigated.',
+        ).toEqual([]);
+    });
+
     it('reports a dead target and ignores an example inside a code fence', () => {
         const contents = [
             '[real](./there.md) and [dead](./missing.md)',

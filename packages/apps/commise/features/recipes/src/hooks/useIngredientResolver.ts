@@ -50,6 +50,15 @@
  * ({@link IngredientResolverViewState}) so each leaf renders it with an exhaustive `switch` instead of
  * re-deriving the state machine from raw TanStack query/mutation flags — see that type's doc for the exact
  * kinds and what each carries.
+ *
+ * @pattern Headless hook — the resolution state machine lives here and both `IngredientPicker` leaves are
+ *     Humble Objects over it.
+ * @pattern State, satisfied by the language — `viewState` is a discriminated union the leaves consume with
+ *     an exhaustive `switch`, so no state-object hierarchy is built.
+ * @pattern Memento over the analytics side-channel — `sessionRef` holds the open query-outcome session so
+ *     the mount-only unmount effect can settle an abandoned one. This is the hook's ONLY ref, and it is the
+ *     claim CLAUDE.md rule 3 demands: it is never read to decide what to render, and the latest-value
+ *     semantics an empty-dep cleanup needs are what `useState` structurally cannot give.
  */
 import type { Ingredient } from '@kitchensink/recipe-core';
 import {

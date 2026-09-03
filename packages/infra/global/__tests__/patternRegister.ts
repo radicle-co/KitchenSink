@@ -489,3 +489,194 @@ export function refUsingModulesOutsideComponents(components: readonly Registered
 
     return refUsingFiles().filter((relative) => !componentSources.has(relative));
 }
+
+/**
+ * A JSDoc line that opens a tag, as `docgen-components/docblock.ts` matches one.
+ *
+ * ⚠️ A COPY, for the same reason as {@link REF_APIS} and with a STRONGER pin. The generator's reader is
+ * private to a tool package whose barrel drags `react-docgen-typescript` and `@commise/ui` in behind it, and
+ * this gate needs a few lines of it to read files the component catalogue cannot see — a hook declares no
+ * component, so nothing catalogues it. The two are pinned by the suite's agreement assertion, which fires
+ * {@link modulePatternsIn} at every catalogued leaf and requires each pattern it finds to appear in the
+ * catalogue's own set for that component, so a drift in either reader is a failing test rather than a hole.
+ */
+const TAG_LINE = /^@([A-Za-z][\w-]*)[ \t]?(.*)$/u;
+
+/**
+ * The `@pattern` texts inside one raw JSDoc block.
+ *
+ * Pure.
+ *
+ * @param raw - The verbatim comment text including its delimiters.
+ * @returns The tag texts, in source order.
+ */
+function patternsInDocblock(raw: string): readonly string[] {
+    const lines = raw
+        .replace(/^\/\*\*+/u, '')
+        .replace(/\*+\/$/u, '')
+        .split('\n')
+        .map((line) => line.replace(/^\s*\* ?/u, ''));
+
+    const patterns: string[][] = [];
+    let open: string[] | undefined;
+    let started = false;
+
+    for (const line of lines) {
+        const match = TAG_LINE.exec(line);
+
+        if (match === null) {
+            open?.push(line);
+            continue;
+        }
+
+        const [, name = '', rest = ''] = match;
+
+        // The `@module` header's remainder is the module's own summary sentence, and by house convention it
+        // legitimately begins with an `@`-prefixed package name. It opens no tag.
+        if (name === 'module' && !started) {
+            open = undefined;
+            started = true;
+            continue;
+        }
+
+        started = true;
+        open = name === 'pattern' ? [rest] : undefined;
+
+        if (open !== undefined) {
+            patterns.push(open);
+        }
+    }
+
+    return patterns.map((tagLines) => tagLines.join('\n').trim());
+}
+
+/**
+ * The `@pattern` values a module's own leading docblock names.
+ *
+ * ⛔ The house docblock dialect is why this cannot be `ts.getJSDocTags`. A file here opens with
+ * `@module @commise/ui/dialog-focus — focus return.`, and every standard JSDoc parser — TypeScript's and
+ * `comment-parser` alike, because both implement the same grammar — reads the SECOND `@` as a new tag;
+ * `docgen-components/docblock.ts` measured that emptying 213 module docblocks. A reader that got it wrong
+ * here would report "names no pattern" about a module that names one, which is the false red that gets a
+ * gate deleted rather than fixed.
+ *
+ * The block is located by the COMPILER's leading comment ranges, not by a regex over the file
+ * (`docs/CODING_STANDARDS.md` §16.3), and the search follows the generator's own host order: a `'use client'`
+ * directive, then the first import — both orders occur in this repository. A block above the first real
+ * DECLARATION is that declaration's own doc and is deliberately not read as the module's.
+ *
+ * Pure.
+ *
+ * @param source - The module's full source text.
+ * @returns The `@pattern` tag texts, in source order, byte-for-byte as the generator records them.
+ */
+export function modulePatternsIn(source: string): readonly string[] {
+    const file = ts.createSourceFile('module.ts', source, ts.ScriptTarget.Latest, true);
+    const fullText = file.getFullText();
+
+    for (const statement of file.statements) {
+        const isDirective = ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression);
+
+        if (!isDirective && !ts.isImportDeclaration(statement)) {
+            break;
+        }
+
+        const raw = (ts.getLeadingCommentRanges(fullText, statement.getFullStart()) ?? [])
+            .map((range) => fullText.slice(range.pos, range.end))
+            .filter((text) => text.startsWith('/**'))
+            .at(-1);
+
+        if (raw !== undefined) {
+            return patternsInDocblock(raw);
+        }
+    }
+
+    return [];
+}
+
+/**
+ * The source text of every named module, keyed by its repo-relative path.
+ *
+ * Split out from {@link moduleRegisterFindings} so the verdict stays PURE and the suite can fire it at
+ * modules the tree does not contain — the same shape every other predicate here uses.
+ *
+ * @param paths - Repo-relative paths.
+ * @param root - Repo root; defaults to this checkout's.
+ * @returns Path to source text.
+ * @sideEffect Reads the working tree.
+ */
+export function readModuleSources(paths: readonly string[], root: string = repoRoot): Readonly<Record<string, string>> {
+    return Object.fromEntries(paths.map((relative) => [relative, readFileSync(path.join(root, relative), 'utf8')]));
+}
+
+/**
+ * Every module that owes a pattern entry and does not have a usable one.
+ *
+ * ⛔ THE OBLIGATION FOLLOWS THE REF, NOT THE FILE'S COMPONENT-NESS. `docs/CODING_STANDARDS.md` §11.2 clause 2
+ * obliges a ref-using COMPONENT to name its pattern because "that permission is itself a pattern claim, made
+ * here where it can be reviewed". Every word of that reasoning is about the REF; none of it is about being a
+ * component. So a ref moved into a hook used to take its justification out of the unit entirely and leave it
+ * as a `why` string in the guard, which no reader of the hook ever meets. Two reasons, and the same
+ * {@link isLayerRestatement} rule the component half uses: `@pattern Hook` is exactly the layer restatement
+ * that half rejects.
+ *
+ * Pure.
+ *
+ * @param sources - Repo-relative path to module source text, as {@link readModuleSources} returns.
+ * @returns The findings, in the order the paths were given.
+ */
+export function moduleRegisterFindings(sources: Readonly<Record<string, string>>): readonly RegisterFinding[] {
+    const findings: RegisterFinding[] = [];
+
+    for (const [sourcePath, source] of Object.entries(sources)) {
+        const patterns = modulePatternsIn(source);
+        const usable = patterns.filter((pattern) => !isLayerRestatement(pattern));
+
+        if (patterns.length === 0) {
+            findings.push({ id: sourcePath, sourcePath, reason: 'no-pattern-named', evidence: [] });
+        } else if (usable.length === 0) {
+            findings.push({ id: sourcePath, sourcePath, reason: 'pattern-only-restates-layer', evidence: patterns });
+        }
+    }
+
+    return findings;
+}
+
+/**
+ * The layer words a component docblock uses, as `docgen-components/classify.ts` matches them.
+ *
+ * ⚠️ A COPY, pinned by use: {@link layerNamedOnlyInAPatternTag} runs over a tree whose `kind` the generator
+ * derived with these exact expressions, so the two readings are compared on every run rather than trusted.
+ */
+const LAYER_WORDS = /\borchestrat(?:ion|ional|ing|es|or)\b|\bpresentational\b/iu;
+
+/**
+ * The ids of every component that names its layer ONLY inside a `@pattern` tag.
+ *
+ * ⛔ THE ONE PART OF THE UNSTATED-LAYER CENSUS A GUARD CAN CALL A DEFECT. `classify.ts` derives `kind` from
+ * the docblock's PROSE — module summary plus component description — and never from tag text, so a component
+ * whose tag reads `Orchestration container over the useRecipeEditor headless hook` is reported
+ * `unclassified`: it sits outside {@link owesPatternEntry}'s fourth clause, and outside the pin that guards
+ * that clause, while its own documentation says which layer it is. That is a CONTRADICTION rather than a
+ * missing sentence, and it is nameable without guessing anything from code shape — which is why it is
+ * enforced at 100% while the census around it is only counted.
+ *
+ * ⛔ Do NOT "fix" it by teaching the classifier to read tags. That was considered and is DISPROVED by this
+ * repository's own vocabulary: `Humble Object — the pure render half of the orchestration/render split` sits
+ * on a PRESENTATIONAL leaf and contains the word "orchestration", so a tag-reading classifier would file it
+ * as orchestration — manufacturing exactly the wrong classification `classify.ts` refuses to guess at. The
+ * tag names the PATTERN and the prose names the LAYER; this asserts they have not swapped jobs.
+ *
+ * Pure.
+ *
+ * @param components - The catalogued components.
+ * @returns The ids, in catalogue order.
+ */
+export function layerNamedOnlyInAPatternTag(components: readonly RegisteredComponent[]): readonly string[] {
+    return components
+        .filter(
+            (component) =>
+                component.kind === 'unclassified' && component.patterns.some((pattern) => LAYER_WORDS.test(pattern)),
+        )
+        .map((component) => component.id);
+}

@@ -8,7 +8,7 @@
         "missing-module-doc": 29,
         "platform-singleton": 15,
         "ref-api": 9,
-        "unclassified-layer": 130,
+        "unclassified-layer": 129,
         "undocumented-prop": 79
     },
     "findings": [
@@ -2816,14 +2816,6 @@
             "evidence": [
                 "useRef"
             ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/components/recipes/RecipeEditContainer",
-            "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeEditContainer.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
         },
         {
             "rule": "unclassified-layer",

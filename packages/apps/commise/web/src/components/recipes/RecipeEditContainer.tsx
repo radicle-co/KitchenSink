@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Container for the recipe-edit route (CP-6/P1: rewired onto the shared `useRecipeEditor` headless hook,
- * `@commise/features-recipes/hooks`; w3/e1,e2: rewired again onto the 4-step `Wizard` shell). The hook owns
+ * Orchestration container for the recipe-edit route (CP-6/P1: rewired onto the shared `useRecipeEditor`
+ * headless hook, `@commise/features-recipes/hooks`; w3/e1,e2: rewired again onto the 4-step `Wizard`
+ * shell). The hook owns
  * the whole edit lifecycle — seed-once, validation, submit-with-`expectedVersion`, the 409-to-conflict
  * transition, the three FR-007c resolutions, AND (w3) the step/draft/publish extensions — as a
  * discriminated-union statechart (`EditorState`) plus orthogonal step-navigation state; this container is a

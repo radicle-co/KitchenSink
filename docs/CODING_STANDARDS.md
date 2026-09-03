@@ -993,6 +993,14 @@ why it extracts only the explicit tag.
 4. its docblock states that it is an **orchestration** component — it decides something, and what it decides
    with is a design choice a reader would otherwise have to re-derive.
 
+⛔ **Clause 2 binds a ref-using MODULE too, not only a component (added 2026-09-03).** Every word of its
+reasoning is about the REF and none of it is about being a component, so a `useRef` moved out of a component
+and into a hook used to take its justification out of the unit entirely — the catalogue discovers components,
+a hook declares none, and the claim survived only as a triage note inside the guard, where no reader of the
+hook meets it. Four hooks sat in exactly that position. Enforcement is the same 100%, over the same
+anti-stamp rule (`@pattern Hook` is a layer restatement and fails), and the enforced set is a component's
+four clauses **plus** every ref-using module under `packages/apps/commise/**`.
+
 **Every other component MAY carry the tag and is encouraged to; its absence is reported as a coverage number
 and is never a build failure.** There is no exclusion list, and that is deliberate: route segments
 (`page`/`layout`/`error`/`loading`/`not-found`.tsx), icon glyphs and one-leaf wrappers are simply not in
@@ -1017,8 +1025,22 @@ layer. It cannot prove the claim is TRUE — a `@pattern Adapter` on a component
 anything is a lie with a machine-readable veneer, and only review catches that.
 
 ⚠️ `docs/generated/components/index.json`'s `componentsWithPatternTag` is a **raw census over all 224
-components, not a coverage target.** It reads 40/224 today and will look like a failing coverage metric; the
+components, not a coverage target.** It reads 49/224 today and will look like a failing coverage metric; the
 target is the gate's empty finding list, not that fraction.
+
+⚠️ **So is `classifiedComponents` — and its complement, the 129 components stating no layer, is a CENSUS and
+NOT a backlog (ruled 2026-09-03).** Measured: 33 of them are Next.js route segments and 16 are icon glyphs —
+the two shapes this section already names as "simply not in scope" — and 15 more declare no props at all.
+Appending "presentational" to `CheckIcon` or `loading.tsx` is the near-duplicate §8's owner ruling forbids.
+No rule can partition the rest either, and that is by design rather than by omission: `classify.ts` derives
+the layer from the docblock's PROSE and refuses to infer one from code shape, so the only evidence for "this
+one should have spoken" is the sentence that is missing. The count is asserted exactly, in both directions,
+so the silence cannot grow unnoticed — but 0 is not the goal, and driving it there would empty the register.
+The ONE part of that population a guard can call a defect is enforced at 100% with no ceiling: a component
+whose `@pattern` tag names a layer its prose does not, which sits outside clause 4 while its own
+documentation contradicts that. ⛔ Do not "fix" that by teaching the classifier to read tags —
+`Humble Object — the pure render half of the orchestration/render split` sits on a presentational leaf and
+contains the word "orchestration", so a tag-reading classifier manufactures the wrong answer.
 
 Enforced by `packages/infra/global/__tests__/patternRegister.test.ts`, over the pure predicates in
 `patternRegister.ts`. The same guard carries the triage of every ref site in the tree — CLAUDE.md's

@@ -38,7 +38,8 @@
  *
  * ## What this gate asserts, and what each assertion is FOR
  *
- *  1. Every in-scope component names a pattern (40 of 224 today). This is the standard, enforced at 100% —
+ *  1. Every in-scope component names a pattern (41 of 224 today, plus the five ref-using modules of (10) —
+ *     the enforced set ROSE when the ref rule stopped stopping at the component boundary). Enforced at 100% —
  *     there is no backlog and no exemption list, because the scope was narrowed until there did not need to
  *     be one. A gate with a 180-entry exemption ledger would have made `why` a formality.
  *  2. No named pattern is a bare restatement of the layer. Without this, (1) is satisfiable by stamping and
@@ -61,8 +62,20 @@
  *  8. No ref-bearing file in the app tree escapes BOTH (5) and (7). Neither half can notice the other going
  *     blind; their union is checkable against a parse of the tree, and that parse is the only reading here
  *     that does not come from the catalogue.
- *  9. The number of components stating no layer at all may only go down. A NEW component that says nothing
- *     never enters the predicate's fourth clause at all, so (3) cannot see it; this can.
+ *  9. The number of components stating no layer at all does not move without a line in the diff — in BOTH
+ *     directions. A NEW component that says nothing never enters the predicate's fourth clause at all, so
+ *     (3) cannot see it; this can. ⚠️ It is a CENSUS and 0 is not the goal — see {@link LAYER_UNSTATED_CENSUS}.
+ * 10. Every ref-using MODULE names a pattern in its OWN docblock, at 100%. §11.2 clause 2 obliges a
+ *     ref-using COMPONENT to make its pattern claim "where it can be reviewed"; a hook is not a component,
+ *     so the obligation used to stop at the file boundary and the claim survived only as a `why` string in
+ *     this file, which no reader of the hook ever sees.
+ * 11. The local module-docblock reader agrees with the generator's, over all 292 catalogued leaves. Two
+ *     readers of one hand-rolled dialect can drift, and a reader that got the `@module @scope/name` opener
+ *     wrong would report "no pattern named" about a module that names one.
+ * 12. No component states its layer ONLY inside a `@pattern` tag. That is the one part of (9)'s population a
+ *     guard can name as a defect rather than a census row: the component has said which layer it is, in a
+ *     place `classify.ts` does not read, so it sits outside clause 4 while its own documentation contradicts
+ *     that.
  *
  * ⛔ WHAT A WORTHLESS VERSION OF THIS GATE WOULD STILL PASS ON — and therefore what the fakes and the
  * working-tree assertions below are aimed at. A "the tag count did not decrease" guard is green while every
@@ -80,10 +93,14 @@ import {
     declaresOrchestration,
     isCatalogueUnreadableError,
     isLayerRestatement,
+    layerNamedOnlyInAPatternTag,
     layerUnstated,
+    modulePatternsIn,
+    moduleRegisterFindings,
     normalizePattern,
     owesPatternEntry,
     readComponentCatalogue,
+    readModuleSources,
     refUsingComponents,
     refUsingFiles,
     refUsingModulesOutsideComponents,
@@ -206,8 +223,24 @@ const UNSANCTIONED_CEILING = 0;
  * one. FOUR such modules already existed when this list was written, and the `wasOpenRef` extraction ADDED a
  * fifth by moving a ref out of six components into a hook — exactly the move that would have laundered a
  * violation past the ratchet had nobody written it down. The four pre-existing ones were then recorded
- * UNADJUDICATED, which made the list an inventory rather than a judgement; each now carries a verdict on the
+ * UNADJUDICATED, which made the list an inventory rather than a judgement; each carries a verdict on the
  * same three-way scale {@link REF_SITES} uses, and {@link UNSANCTIONED_CEILING} counts BOTH halves.
+ *
+ * ⛔ AND A VERDICT HERE IS NOT THE WHOLE ADJUDICATION (2026-09-03). Those four verdicts still left the four
+ * modules OUTSIDE the enforced `@pattern` set, because §11.2 clause 2 reads "component" — so the ref rule's
+ * own justification lived only in the `why` strings below, in a guard file, which no reader of the hook ever
+ * opens. Each of the four has now been judged against CLAUDE.md's three outcomes (wrap an external system
+ * and name the pattern / delete the ref / fix the detector), and all four came out the FIRST way: they name
+ * their pattern in their own docblock, and {@link moduleRegisterFindings} enforces that at 100%. The
+ * enforced set ROSE by five as a result, which is the honest bookkeeping — the obligation follows the ref,
+ * not the file's component-ness.
+ *
+ * ⚠️ ONE ref survived that pass on a NARROWER ground and is recorded rather than removed:
+ * `useRecipePhotoUpload`'s `mountedRef`. It is not a ref-rule violation (it holds nothing render-affecting)
+ * and it is dead machinery, so its removal is a KISS question whose behavioural difference NO test can
+ * observe — the module's own unmount test freezes `result.current` at the last pre-unmount render and passes
+ * either way. Deleting it here would have been an unproven behavioural change smuggled into a documentation
+ * gate. It stays owed work, named, not silenced.
  *
  * ⚠️ Entries are per MODULE because that is the unit the working-tree scan names; the reasons below are per
  * ref. A module's verdict is the WORST of its refs — one unsanctioned ref makes the module unsanctioned,
@@ -239,28 +272,37 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
 /**
  * How many catalogued components state no layer at all.
  *
- * ⚠️ RATCHET, exact for the same reason as {@link UNSANCTIONED_CEILING}. This is the pre-existing backlog
- * the generator reports as `unclassified-layer`, and it is the hole in the scope predicate: a component that
- * never says it orchestrates is never asked what it orchestrates with. Adding a component without a layer
- * word raises this and fails; classifying one lowers it and fails until the number is lowered with it.
+ * ⛔ THIS IS A CENSUS, NOT A BACKLOG, AND 0 IS NOT THE GOAL (ruled 2026-09-03). It was written as a ratchet
+ * "which may only go down", which reads as 130 owed edits. Measured, the population says otherwise: 33 are
+ * Next.js route segments and 16 are icon glyphs — the two shapes `docs/CODING_STANDARDS.md` §11.2 names in
+ * its own text as "simply not in scope" — and another 15 declare no props at all. Appending "presentational"
+ * to `CheckIcon` or to `loading.tsx` is the near-duplicate §8's owner ruling forbids, and it is the same
+ * cargo-cult the `@pattern` amendment was written against. A target that must never be reached is not a
+ * target, and describing one as a debt invites the bulk edit that empties the register.
  *
- * ✅ 144 → 130 (2026-09-03), and the 14 were CHOSEN, not taken off the top. Stamping the layer onto all 144
- * would satisfy this integer while breaking `docs/CODING_STANDARDS.md` §8 on most of them — "presentational"
- * appended to an icon glyph or a skeleton is the near-duplicate that ruling forbids, and it is the same
- * cargo-cult the `@pattern` amendment was written against. So the rule for this pass was: state the layer
- * ONLY where a reader cannot recover it from the component's shape — a component that renders nothing or
- * only `children` (there is no render to judge), or one whose name and shape argue for the WRONG half.
- * Seven providers/gates/containers whose entire layer rests on what they CONSTRUCT rather than what they
- * render; a "Boundary"/"Shell"/"Slot"/"Screen" that is in fact a pure leaf; and two forms whose mutation is
- * four lines inside a handler.
+ * ⛔ AND NO RULE CAN PARTITION IT — that is a property of the design, not a gap in this file.
+ * `docgen-components/classify.ts` derives `kind` from the docblock's PROSE and refuses, in its own module
+ * docblock, to infer a layer from code shape ("a wrong guess in generated documentation is worse than an
+ * admitted gap"). So the only evidence for "this one should have spoken" is the very sentence that is
+ * missing. Do not add a heuristic here to manufacture one; the honest instrument for a population you cannot
+ * adjudicate is a count.
  *
- * ⚠️ Three known candidates were deliberately NOT taken, because each needs a ruling rather than a word:
+ * ⚠️ It is still asserted EXACTLY, in both directions, and that is what the count is FOR: a new component
+ * that names neither layer raises it and fails, so the silence cannot grow unnoticed, and a genuine
+ * classification lowers it and costs a line in the diff. What changed is the claim it makes about itself.
+ *
+ * ✅ 144 → 130 (2026-09-03) → 129 (this commit, {@link layerNamedOnlyInAPatternTag}'s one finding). The 14
+ * were CHOSEN, not taken off the top: state the layer ONLY where a reader cannot recover it from the
+ * component's shape — one that renders nothing or only `children`, or one whose name argues for the WRONG
+ * half.
+ *
+ * ⚠️ Two known candidates are still deliberately NOT taken, because each needs a ruling rather than a word:
  * both `IngredientPicker` leaves (their `@pattern` says "Humble Object … decides nothing", which argues the
  * opposite of the layer their fetch/mutate hooks imply), and `RecipeHomeWidget` (its web leaf suspends on a
  * host-supplied promise while its native leaf takes an `isLoading` prop — classifying on shape would split
  * one widget's two leaves across layers over a loading-mechanism spelling).
  */
-const LAYER_UNSTATED_CEILING = 130;
+const LAYER_UNSTATED_CENSUS = 129;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.
@@ -295,6 +337,7 @@ const DECLARED_ORCHESTRATION: readonly string[] = [
     'web/components/auth/AccountEditForm',
     'web/components/auth/AccountEraseForm',
     'web/components/auth/LogoutButton',
+    'web/components/recipes/RecipeEditContainer',
     'web/components/recipes/RecipePhotoUploaderContainer',
     'web/components/recipes/RecipeProviders',
     'mobile/components/account/AccountDangerZone',
@@ -589,15 +632,162 @@ describe('the ref register — CLAUDE.md rule 3, made checkable', () => {
     });
 });
 
-describe('the layer backlog — the silence the scope predicate can be dodged with', () => {
-    it('holds the unstated-layer count at the recorded number, which may only go down', () => {
+describe('the module docblock reader — fired at fakes, because it is a SECOND reader of one dialect', () => {
+    it('reads every `@pattern` a module docblock names, and nothing from the body below it', () => {
+        expect(
+            modulePatternsIn(
+                [
+                    '/**',
+                    ' * @module hooks/useThing — a hook.',
+                    ' *',
+                    ' * @pattern Adapter over the DOM focus API',
+                    ' * @pattern Null Object for the absent handle',
+                    ' */',
+                    "import { useRef } from 'react';",
+                    '',
+                    '/** @pattern Not The Module Doc */',
+                    'export function useThing(): void {}',
+                ].join('\n'),
+            ),
+        ).toEqual(['Adapter over the DOM focus API', 'Null Object for the absent handle']);
+    });
+
+    it('keeps a tag that wraps onto continuation lines whole, since the house style wraps at 120 columns', () => {
+        expect(
+            modulePatternsIn(
+                [
+                    '/**',
+                    ' * @module hooks/useThing — a hook.',
+                    ' *',
+                    ' * @pattern Headless hook (Facade over the DOM focus API) — the caller states only whether the',
+                    ' *     surface is open.',
+                    ' */',
+                    "import { useRef } from 'react';",
+                ].join('\n'),
+            ),
+        ).toEqual([
+            'Headless hook (Facade over the DOM focus API) — the caller states only whether the\n    surface is open.',
+        ]);
+    });
+
+    // ⛔ THE DIALECT. `@module @commise/ui/dialog-focus — …` is this repository's house opener, and every
+    // standard JSDoc parser reads the SECOND `@` as a new tag — measured by `docgen-components/docblock.ts`
+    // to have silently emptied 213 module docblocks. A reader that got this wrong would report "no pattern
+    // named" about a module that names one, which is the false-red that gets a gate deleted.
+    it('does not mistake the `@`-prefixed package name in the `@module` header for a tag', () => {
+        expect(
+            modulePatternsIn(
+                [
+                    '/**',
+                    ' * @module @commise/ui/dialog-focus — focus return.',
+                    ' * @pattern Facade',
+                    ' */',
+                    "import { useRef } from 'react';",
+                ].join('\n'),
+            ),
+        ).toEqual(['Facade']);
+    });
+
+    it('finds the docblock above a `use client` directive as readily as one above the first import', () => {
+        expect(
+            modulePatternsIn(['/**', ' * @module x', ' * @pattern Provider', ' */', "'use client';", ''].join('\n')),
+        ).toEqual(['Provider']);
+    });
+
+    it('answers nothing for a module that names none, rather than throwing', () => {
+        expect(modulePatternsIn("import { useRef } from 'react';\n")).toEqual([]);
+    });
+});
+
+describe('the ref register — the MODULE half owes a named pattern too', () => {
+    it('reports a ref-using module that names no pattern, and one that only restates the layer', () => {
+        expect(
+            moduleRegisterFindings({
+                'a/silent.ts': "import { useRef } from 'react';",
+                'b/stamped.ts': '/**\n * @module b\n * @pattern Hook\n */\nimport x from y;',
+                'c/named.ts': '/**\n * @module c\n * @pattern Adapter over AbortController\n */\nimport x from y;',
+            }),
+        ).toEqual([
+            { id: 'a/silent.ts', sourcePath: 'a/silent.ts', reason: 'no-pattern-named', evidence: [] },
+            {
+                id: 'b/stamped.ts',
+                sourcePath: 'b/stamped.ts',
+                reason: 'pattern-only-restates-layer',
+                evidence: ['Hook'],
+            },
+        ]);
+    });
+
+    // ⛔ THE ASSERTION THIS WHOLE HALF EXISTS FOR. `docs/CODING_STANDARDS.md` §11.2 clause 2 obliges a
+    // component that reaches for a ref to name its pattern, on the reasoning that the ref permission IS a
+    // pattern claim "made here where it can be reviewed". A hook is not a component, so the obligation used
+    // to stop at the file boundary: move a ref out of a component and into a hook and its justification went
+    // from a tag the gate reads to a `why` string in this file, which no reader of the hook ever sees.
+    it('leaves no ref-using module without a usable pattern entry', () => {
+        const findings = moduleRegisterFindings(readModuleSources(Object.keys(REF_MODULES)));
+
+        expect(
+            findings.map((finding) => `${finding.reason}: ${finding.sourcePath}`),
+            'A module that reaches for a ref API owes a `@pattern` line in its OWN module docblock, exactly ' +
+                'as a ref-using component does (docs/CODING_STANDARDS.md §11.2 clause 2). The REF_MODULES ' +
+                "verdict below is the register's triage; the tag is the claim, written where the next reader " +
+                'of the hook will find it.',
+        ).toEqual([]);
+    });
+
+    // Neither reader can notice the other drifting. `docgen-components/docblock.ts` is the authority on this
+    // repository's docblock dialect and `modulePatternsIn` is a narrow second implementation of it, so this
+    // pins the second against the first over all 292 catalogued leaves: anything the local reader finds in a
+    // module docblock must appear in the catalogue's own pattern set for that component.
+    it('agrees with the generator about every `@pattern` in every catalogued component source', () => {
+        const disagreements = components.flatMap((component) =>
+            Object.entries(readModuleSources(component.sourcePaths)).flatMap(([sourcePath, source]) =>
+                modulePatternsIn(source)
+                    .filter((pattern) => !component.patterns.includes(pattern))
+                    .map((pattern) => `${sourcePath}: ${pattern}`),
+            ),
+        );
+
+        expect(disagreements).toEqual([]);
+    });
+});
+
+describe('the layer census — a count, argued as a count rather than reported as a debt', () => {
+    it('holds the unstated-layer census at the recorded number, in BOTH directions', () => {
         const unstated = layerUnstated(components);
 
         expect(
             unstated.length,
             'A component states its layer by saying "presentational" or "orchestration" in its docblock. If ' +
-                'this went UP, a new component said neither. If it went DOWN, lower LAYER_UNSTATED_CEILING ' +
-                'in the same commit.',
-        ).toBe(LAYER_UNSTATED_CEILING);
+                'this went UP, a new component said neither. If it went DOWN, lower LAYER_UNSTATED_CENSUS ' +
+                'in the same commit — and read that constant before treating 0 as the goal.',
+        ).toBe(LAYER_UNSTATED_CENSUS);
+    });
+
+    it('counts as named-only-in-the-tag exactly a component whose tag says a layer its prose does not', () => {
+        expect(
+            layerNamedOnlyInAPatternTag([
+                makeComponent({ id: 'g/d/Hidden', kind: 'unclassified', patterns: ['Orchestration container'] }),
+                makeComponent({ id: 'g/d/Render', kind: 'unclassified', patterns: ['presentational half'] }),
+                makeComponent({ id: 'g/d/Fine', kind: 'orchestration', patterns: ['Orchestration container'] }),
+                makeComponent({ id: 'g/d/Quiet', kind: 'unclassified', patterns: ['Adapter over Radix'] }),
+            ]),
+        ).toEqual(['g/d/Hidden', 'g/d/Render']);
+    });
+
+    // ⛔ THE PART OF THE CENSUS THAT IS A DEFECT, AND THE ONLY PART A GUARD CAN NAME. `classify.ts` derives
+    // `kind` from the module docblock's PROSE and deliberately never from code shape, so no predicate can
+    // pick out which silent component ought to have spoken — except this one, where the component ALREADY
+    // said which layer it is, in a tag the classifier does not read. That component is outside clause 4 of
+    // `owesPatternEntry` and outside `DECLARED_ORCHESTRATION` while its own documentation calls itself an
+    // orchestration container. Enforced at 100%, with no ceiling: it is a contradiction, not a backlog.
+    it('leaves no component whose layer is stated only where the classifier cannot read it', () => {
+        expect(
+            layerNamedOnlyInAPatternTag(components),
+            'This component names its layer inside its `@pattern` tag while its prose names none, so the ' +
+                "catalogue reports it `unclassified` and it silently sits outside the scope predicate's " +
+                'fourth clause. Say the layer in the docblock PROSE (the tag is for the pattern), and add ' +
+                'the id to DECLARED_ORCHESTRATION if it turns out to orchestrate.',
+        ).toEqual([]);
     });
 });

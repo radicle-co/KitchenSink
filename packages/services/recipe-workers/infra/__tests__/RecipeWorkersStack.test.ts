@@ -1610,31 +1610,46 @@ describe('RecipeWorkersStack — redelivery headroom for concurrency-pinned SQS 
 
         expect(shortfall).toEqual([]);
     });
+});
 
-    it('⛔ makes each of those redeliveries a FRESH attempt — visibility timeout above the consumer’s', () => {
-        // The precondition the headroom above is worthless without. If a queue's visibility timeout did not
-        // strictly exceed its consumer's timeout, a redelivery could land while the previous attempt was
-        // still running: the extra receives would then be spent re-doing work already in flight (and, for
-        // the two queues here, taking a SECOND spend reservation for one line) rather than buying a retry.
-        // Raising a consumer's timeout past its queue's fails here instead of in production.
-        //
-        // ⚠️ SCOPED to the concurrency-pinned pairs — the queues this block governs — and NOT to every SQS
-        // consumer in the stack, because `HandleSyncQueue` currently sets a 60-second visibility timeout
-        // against a 60-second `HandleSyncWorkerFunction` timeout: EQUAL, so it already violates the rule
-        // this stack states at its archive queue ("visibilityTimeout must exceed the worker's timeout").
-        // That is a pre-existing defect with its own argument (duplicate rename processing under
-        // `reportBatchItemFailures`) and is deliberately NOT silently swept in here — widening this guard is
-        // the right move once it is fixed, and this note is the record that the widening is owed.
+/**
+ * ⛔ EVERY REDELIVERY IS A FRESH ATTEMPT — a queue's visibility timeout strictly exceeds its consumer's.
+ *
+ * The rule this stack has stated at its archive queue since that queue was written ("visibilityTimeout must
+ * exceed the worker's timeout, or SQS redelivers a message the worker is still processing and two
+ * invocations race the same archive") and restates at the erasure and verification pairs. It is also the
+ * precondition the redelivery headroom above is worthless without: a redelivery that can land while the
+ * previous attempt is still running spends a receive on work already in flight rather than buying a retry.
+ *
+ * ⚠️ THIS GUARD WAS SCOPED TO THE CONCURRENCY-PINNED PAIRS, and the narrowing is now REPAIRED. It was
+ * narrowed because `HandleSyncQueue` set a 60-second visibility timeout against a 60-second
+ * `HandleSyncWorkerFunction` timeout — EQUAL, so it violated the rule — and that note said outright that
+ * widening was owed once the defect was fixed. It is fixed (`HANDLE_SYNC_QUEUE_VISIBILITY_TIMEOUT`), so the
+ * subject set is now every SQS consumer pair in the stack, DISCOVERED from the event-source mappings. A rule
+ * that governs only the resources that already obey it is not a rule.
+ */
+describe('RecipeWorkersStack — every redelivery is a FRESH attempt', () => {
+    const template = synth('sandbox');
+
+    it('⛔ gives EVERY SQS consumer a queue that outlives it — derived, never enumerated', () => {
         const queues = template.findResources('AWS::SQS::Queue');
         const functions = template.findResources('AWS::Lambda::Function');
+        const pairs = sqsConsumerPairs(template);
 
-        const pinned = sqsConsumerPairs(template).filter(
-            ({ functionId }) => functions[functionId]?.Properties?.ReservedConcurrentExecutions === 1,
-        );
+        // Non-vacuity: the stack wires five SQS consumers (archive, erasure, handle-sync, verification,
+        // parse). A reader that found fewer would be missing mappings, and the loop below would pass by
+        // never running — the exact vacuity `requireSeconds` exists to refuse one level down.
+        expect(pairs.length).toBeGreaterThanOrEqual(5);
 
-        expect(pinned.length).toBeGreaterThanOrEqual(2);
+        // ⚠️ A SECOND CLAIM RIDES ALONG, stated so a future failure reads as a rule rather than a surprise:
+        // because `requireSeconds` THROWS on absence, this also asserts that every SQS-consumed queue
+        // DECLARES a visibility timeout. A queue relying on the SQS default of 30 seconds fails here — which
+        // is correct (30s under a 60s consumer is the same defect, arrived at by omission), but it fails
+        // with a vacuity message rather than a comparison, so read that message as "declare the timeout".
+        // ⛔ It reaches consumed queues only: `RecipeParseDlq` has no event-source mapping, declares no
+        // visibility timeout, and is correctly outside this subject set.
 
-        for (const { queueId, functionId } of pinned) {
+        for (const { queueId, functionId } of pairs) {
             // Both sides REQUIRED rather than optional-chained into the comparison: an absent value would
             // make `toBeGreaterThan` vacuous rather than false, which is the failure mode this whole block
             // is built to avoid.
@@ -1643,5 +1658,59 @@ describe('RecipeWorkersStack — redelivery headroom for concurrency-pinned SQS 
 
             expect(visibility, `${queueId} must outlive ${functionId}`).toBeGreaterThan(timeout);
         }
+    });
+});
+
+/**
+ * ⛔ NON-TLS ACCESS IS DENIED ON EVERY QUEUE THIS STACK OWNS — the MECHANISM, in this stack.
+ *
+ * ADR-0013's burn-down #1 recorded `SQS4 / SNS3 no TLS-only policy: 13 → 0 | FIXED` across the seven prod
+ * apps. That zero was a one-time COUNT with nothing re-checking it, and it regressed to two: `RecipeParseQueue`
+ * and `RecipeParseDlq` shipped with no `enforceSSL`, cdk-nag reported it into this app's advisory channel, and
+ * nothing gates on that channel.
+ *
+ * ⚠️ THIS IS THE OTHER HALF OF `queueBaselineDeclarations.test.ts`, not a duplicate of it. That guard reads
+ * SOURCE and answers "is any construction site in the repository missing the property?" — a completeness
+ * question a synth-based reader cannot ask, because most CDK apps here need credentials, a VPC lookup and a
+ * built bundle to synthesize. This one reads the TEMPLATE and answers "does the property actually produce the
+ * control?" — a mechanism question the source reader cannot ask. `transportSecurity.test.ts` asks the same
+ * mechanism question of the platform app; this stack was outside its subject set, which is why the regression
+ * landed here and not there.
+ */
+describe('RecipeWorkersStack — every queue denies non-TLS access', () => {
+    const template = synth('sandbox');
+
+    it('⛔ covers EVERY queue with a SecureTransport deny — derived, never enumerated', () => {
+        const queues = template.findResources('AWS::SQS::Queue');
+        const policies = template.findResources('AWS::SQS::QueuePolicy');
+
+        /** Logical ids of the queues some policy document denies non-TLS access to. */
+        const denied = new Set(
+            Object.values(policies).flatMap((policy) => {
+                const properties = policy.Properties ?? {};
+                const statements = ((properties['PolicyDocument'] as { Statement?: unknown[] } | undefined)
+                    ?.Statement ?? []) as {
+                    Effect?: string;
+                    Condition?: { Bool?: Record<string, unknown> };
+                }[];
+                const deniesPlaintext = statements.some(
+                    (statement) =>
+                        statement.Effect === 'Deny' &&
+                        String(statement.Condition?.Bool?.['aws:SecureTransport']) === 'false',
+                );
+
+                if (!deniesPlaintext) {
+                    return [];
+                }
+
+                return ((properties['Queues'] ?? []) as { Ref?: string }[]).flatMap((queue) =>
+                    queue.Ref === undefined ? [] : [queue.Ref],
+                );
+            }),
+        );
+
+        // Non-vacuity: ten queues, so an empty or truncated read cannot make the difference below trivial.
+        expect(Object.keys(queues).length).toBeGreaterThanOrEqual(10);
+        expect(Object.keys(queues).filter((id) => !denied.has(id))).toEqual([]);
     });
 });

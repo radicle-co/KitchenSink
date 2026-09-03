@@ -183,6 +183,38 @@ const VERIFICATION_WORKER_TIMEOUT = Duration.seconds(60);
 const VERIFICATION_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(90);
 
 /**
+ * How long the handle-sync worker may run: up to ten renames, each one short transaction.
+ *
+ * Named for the same reason {@link ERASURE_WORKER_TIMEOUT} is — the queue's visibility timeout is derived
+ * from it below, so raising one without the other is a mistake a reader can see rather than a silent
+ * redelivery in production.
+ */
+const HANDLE_SYNC_WORKER_TIMEOUT = Duration.seconds(60);
+
+/**
+ * The handle-sync queue's visibility timeout — strictly greater than {@link HANDLE_SYNC_WORKER_TIMEOUT}.
+ *
+ * ⛔ THIS PAIR USED TO BE EQUAL (60s against 60s), which is the one thing this stack's archive queue says
+ * outright must not happen. The failure it admits is not data corruption — `applyHandleRename`'s monotonic
+ * `ON CONFLICT … WHERE source_timestamp < EXCLUDED.source_timestamp` makes a duplicate delivery a no-op, and
+ * a concurrent one serializes on the row lock — it is RECEIVE-COUNT BURN on work that is succeeding. With
+ * `batchSize: 10` and `reportBatchItemFailures`, a batch that runs to the wall clock has its messages become
+ * visible again at the same instant Lambda kills the invocation, so the whole batch is redelivered and every
+ * message spends a receive; at `maxReceiveCount: 5` a consistently-slow batch dead-letters renames that were
+ * applied, and the DLQ depth alarm pages someone about work that succeeded.
+ *
+ * 30 seconds of headroom, matching {@link VERIFICATION_QUEUE_VISIBILITY_TIMEOUT} — whose worker timeout is
+ * identically 60 seconds — and following the reasoning stated at {@link ERASURE_QUEUE_VISIBILITY_TIMEOUT}:
+ * an invocation cannot exceed its configured timeout, so the margin only has to absorb the event-source
+ * poller's dispatch overhead. ⚠️ AWS's own guidance for SQS event sources is six times the function timeout,
+ * and it is deliberately not taken here: that recommendation buys headroom for THROTTLED deliveries, which is
+ * a hazard for a consumer pinned at one concurrent execution (this one is not pinned) and which this stack
+ * answers with `maxReceiveCount` where it applies. Padding to six minutes would instead stretch a
+ * permanently-failing rename's trip to its DLQ alarm from ~10 minutes to ~30 for no safety gain.
+ */
+const HANDLE_SYNC_QUEUE_VISIBILITY_TIMEOUT = Duration.seconds(90);
+
+/**
  * The EMF namespace the verification gate publishes under (ADR-0024 layer 4).
  *
  * ⛔ MUST EQUAL `VERIFICATION_METRIC_NAMESPACE` in `src/handlers/verifyLine.ts`. The alarms extract by exact
@@ -709,14 +741,14 @@ export class RecipeWorkersStack extends Stack {
             queueName: `kitchensink-recipe-handle-sync-dlq-${props.stage}`,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(14),
-            visibilityTimeout: Duration.seconds(60),
+            visibilityTimeout: HANDLE_SYNC_QUEUE_VISIBILITY_TIMEOUT,
         });
         this.handleSyncQueue = new sqs.Queue(this, 'HandleSyncQueue', {
             enforceSSL: true,
             queueName: `kitchensink-recipe-handle-sync-${props.stage}`,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(4),
-            visibilityTimeout: Duration.seconds(60),
+            visibilityTimeout: HANDLE_SYNC_QUEUE_VISIBILITY_TIMEOUT,
             deadLetterQueue: { queue: this.handleSyncDlq, maxReceiveCount: 5 },
         });
 
@@ -736,7 +768,8 @@ export class RecipeWorkersStack extends Stack {
             vpc,
             vpcSubnets,
             securityGroups: [lambdaSecurityGroup],
-            timeout: Duration.seconds(60),
+            // The symbol the queue's visibility timeout is derived from — see HANDLE_SYNC_WORKER_TIMEOUT.
+            timeout: HANDLE_SYNC_WORKER_TIMEOUT,
             memorySize: 256,
             environment: { ...commonDbEnv },
             logGroup,
@@ -854,14 +887,24 @@ export class RecipeWorkersStack extends Stack {
         // stack": SQS `maxReceiveCount` + a DLQ stop a retry loop BEFORE it becomes cost. Everything else in
         // this block is a layer above it.
         //
-        // ⚠️ THIS QUEUE CARRIES A COOK'S RECIPE TEXT. `sourceLine` is user-authored, and neither the erasure
-        // worker nor the orphan sweeper purges SQS — they delete rows and S3 objects. So a message sitting in
-        // this DLQ is a copy of personal data outside every erasure path. Two mitigations, both deliberate:
-        // SSE at rest (as `HandleSyncDlq` does for display names, and for the same stated reason), and a DLQ
-        // retention of THREE DAYS rather than the fourteen every other DLQ here uses. Three days is chosen
-        // against what a redrive is FOR: a verification failure is a quality signal, not a compliance
-        // obligation, and an un-redriven message costs one unverified line — which publishes, exactly as it
-        // did before this gate existed. Fourteen days of recipe text to preserve that is the wrong trade.
+        // ⛔ THE PERSONAL-DATA HALF OF THIS PARAGRAPH WAS SUPERSEDED FOUR DAYS AFTER IT WAS WRITTEN, and the
+        // correction is left standing rather than deleted because the repealed claim is the one a reader will
+        // otherwise carry to the parse pair below. It read: `sourceLine` is user-authored, neither the erasure
+        // worker nor the orphan sweeper purges SQS, so a message in this DLQ is "a copy of personal data
+        // outside every erasure path". ADR-0027 (2026-08-25) records the owner's ruling that an ingredient
+        // phrase is NOT personal data — and this queue's contract no longer carries an owner id at all
+        // (§7 removed `ownerId` from `verificationMessage.ts`), so what sits here is a phrase and a key.
+        //
+        // ⚠️ The SECOND argument survives untouched, and it is the one the three days now rest on: a redrive
+        // here is a quality signal, not a compliance obligation. An un-redriven message costs one unverified
+        // line — which publishes, exactly as it did before this gate existed. Retention is also how long this
+        // DLQ's depth alarm keeps paging (the metric only breaches while messages are retained), and three
+        // days of paging is proportionate to that consequence where fourteen is not. SSE at rest is the
+        // stack-wide baseline, not a mitigation specific to this queue.
+        //
+        // ⛔ Do NOT propagate the three days to the parse DLQ on either half. The privacy half is repealed,
+        // and the surviving half is about THIS queue's consequence-of-loss, which the parse leg does not
+        // share — see the argument recorded at `RecipeParseDlq`.
         const verificationDlq = new sqs.Queue(this, 'IngredientVerificationDlq', {
             enforceSSL: true,
             queueName: `kitchensink-recipe-verification-dlq-${props.stage}`,
@@ -1009,7 +1052,10 @@ export class RecipeWorkersStack extends Stack {
             // redrive loop and the invoice: at ~1s per call it bounds the burn at ~86,400 calls/day ≈
             // $2.90/day ≈ $88/month/stage on Nova Micro (~30x that on Haiku 4.5). ADR-0024 names raising it as
             // "the one change that makes this ruling unsafe". Pinned by
-            // `verificationConcurrencyGuard.test.ts` in EVERY stage.
+            // `packages/infra/global/__tests__/llmSpendGuards.test.ts` ('pins the verifier at
+            // reservedConcurrentExecutions = 1'), in EVERY stage. ⚠️ This used to cite a
+            // `verificationConcurrencyGuard.test.ts` that has never existed in this repository — a citation
+            // to a guard nobody can find reads as a guard nobody has, which is how a real pin gets removed.
             //
             // ⚠️ It is NOT the ceiling. Burn RATE converts to dollars differently per model — by a factor of
             // ~30 across the two bake-off candidates — which is precisely why ADR-0024 refuses to let this
@@ -1036,12 +1082,67 @@ export class RecipeWorkersStack extends Stack {
         // under the SAME verificationRole — D6's ruling and `llmSpendGuards`' single-grantee set — and
         // carries its own `reservedConcurrentExecutions: 1`: in ungated stages that constant is the only
         // bound on the parse leg's spend, exactly as it is for the gate (ADR-0024 layer 2).
+        //
+        // ⛔ FOURTEEN DAYS, NOT THE VERIFICATION DLQ's THREE — and the difference is a decision, recorded here
+        // so nobody "aligns" the two. Four reasons, in order of how hard they are to reverse:
+        //
+        //  1. ⛔ SHORTENING IT IS DESTRUCTIVE ON THE DEPLOY THAT LANDS IT, not merely a policy change. AWS:
+        //     changes to `MessageRetentionPeriod` "will impact existing messages in the queue potentially
+        //     causing them to be expired and deleted if the MessageRetentionPeriod is reduced below the age
+        //     of existing messages". A dead-lettered parse line older than three days would be deleted the
+        //     moment such a deploy applied — silently, with the depth alarm going GREEN as the evidence.
+        //  2. RETENTION IS ALARM DURATION here. Every DLQ in this stack carries an
+        //     `ApproximateNumberOfMessagesVisible` alarm (asserted derivationally in the suite), and that
+        //     metric only breaches while messages are still retained. Retention is therefore how long an
+        //     un-redriven failure keeps paging, and a parse line that was never parsed should out-page a
+        //     long weekend.
+        //  3. The verification DLQ's argument does NOT transfer: a message IT drops costs one UNVERIFIED
+        //     line, which publishes exactly as it did before that gate existed. A message dropped HERE is a
+        //     line that was never parsed at all. And this leg's dead-letter causes are the unbounded ones its
+        //     redrive comment names — an exhausted monthly ceiling, a CRF function never deployed to this
+        //     stage — which take human time to notice and repair; on a `pr-{N}` or sandbox stage, easily
+        //     longer than three days.
+        //  4. Fourteen is what the archive, erasure and handle-sync DLQs use. The parse pair is the
+        //     CONVENTION; the verification DLQ is the exception.
+        //
+        // ⛔ Do NOT shorten it on a privacy argument either. The one written on the verification DLQ above —
+        // that a `sourceLine` sitting in a DLQ is "a copy of personal data outside every erasure path" — was
+        // superseded four days after it was written: ADR-0027 (2026-08-25) records the owner's ruling that an
+        // ingredient phrase is NOT personal data. This queue's message carries a phrase and an opaque
+        // `userId` (`parseJobMessage.ts`), which is precisely the pairing that ADR retained deliberately.
         const parseDlq = new sqs.Queue(this, 'RecipeParseDlq', {
+            enforceSSL: true,
             queueName: `kitchensink-recipe-parse-dlq-${props.stage}`,
+            encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(14),
         });
         const parseQueue = new sqs.Queue(this, 'RecipeParseQueue', {
+            // ⛔ enforceSSL RESTORES A RECORDED ADR-0013 OUTCOME. That ADR's burn-down #1 table reads
+            // `SQS4 / SNS3 no TLS-only policy | 13 | 0 | FIXED`, measured across the seven prod apps — and
+            // this pair put it back to 2, because the zero was a one-time COUNT with no mechanism behind it.
+            // cdk-nag still reported `AwsSolutions-SQS4` against exactly these two resources, into this app's
+            // advisory channel where nothing gates on it. The control is a resource-policy DENY on
+            // `aws:SecureTransport: false`: a property of the QUEUE, not of the callers it happens to have
+            // today. (Suppressing it was never the alternative — ADR-0013 requires every suppression to be
+            // "its own reviewed change with its own diff".)
+            enforceSSL: true,
             queueName: `kitchensink-recipe-parse-${props.stage}`,
+            // `encryption` closes no live gap: AWS encrypts a NEW queue with SSE-SQS by default, and cdk-nag's
+            // SSE rule fails only on an explicit `false`, so nothing was reporting this one. What the
+            // declaration buys is CloudFormation OWNERSHIP — a queue's encryption CAN be turned off later, and
+            // a declared property is restored by the next deploy where an undeclared one is not.
+            encryption: sqs.QueueEncryption.SQS_MANAGED,
+            // ⛔ DECLARED, not inherited — and it is a DRY defect being closed, not a value being changed.
+            // Four days is AWS's default for `MessageRetentionPeriod`, so this line moves nothing at runtime;
+            // what it moves is WHO OWNS the number. The same four days is stated in prose twice — the redrive
+            // comment below, and `PINNED_CONSUMER_REDELIVERY_FLOOR`'s docstring in the suite — as the bound
+            // that makes `maxReceiveCount: 20` safe, and until now it was declared zero times, so the
+            // authoritative copy of a load-bearing figure was a default nothing restores.
+            //
+            // ⚠️ This is the retention the redrive bound rests on. The DLQ's fourteen days is DOWNSTREAM of
+            // it and participates in no bound — which is why the two do not conflict, and why the pair can
+            // legitimately differ.
+            retentionPeriod: Duration.days(4),
             // Worst case per line (KTD-F): up to 4 parse + 8 validator calls plus one CRF invoke. The
             // visibility timeout clears the handler's own (150s) with margin, the sibling queues' rule —
             // and that margin is what makes the redrive count below mean anything: a redelivery that could

@@ -34,6 +34,17 @@
  *
  * SQS is the opposite case and needs no special handling: `Queue.addToResourcePolicy` (which both
  * `enforceSSL` and `SqsSubscription`'s SNS grant go through) reuses one singleton `Queue/Policy`.
+ *
+ * ## ⚠️ What this suite does NOT cover, and where the other half lives
+ *
+ * Its subject set is ONE app: the prod platform (`GlobalStack` + `CostGuardrailsStack`). Every queue in every
+ * other CDK app — `RecipeWorkersStack`'s ten, most of all — was outside it, and two of those shipped with no
+ * `enforceSSL` at all while cdk-nag reported `AwsSolutions-SQS4` against them into that app's advisory
+ * channel. So this suite proves the MECHANISM (that the property emits a real `QueuePolicy` deny, and that
+ * cdk-nag's own rule agrees) and `queueBaselineDeclarations.test.ts` proves COMPLETENESS (that no
+ * construction site anywhere in the repository omits the property), reading the SOURCE because a synth-based
+ * reader cannot boot every app. ⛔ Two claims, verified two ways — do not merge them, and do not add a
+ * duplicate of either assertion to the other file.
  */
 import { App } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';

@@ -49,6 +49,13 @@ interface CatalogState {
  */
 function fakePool(state: CatalogState): pg.Pool {
     const query = vi.fn((text: string) => {
+        // FIRST, and deliberately ahead of the generic `pg_database` branch below: the per-PR census reads
+        // the same catalogue for a different question, and routing it to the ownership answer would have it
+        // silently report the base database as a leak.
+        if (text.includes('datconnlimit')) {
+            return Promise.resolve({ rowCount: 0, rows: [] });
+        }
+
         if (text.includes('pg_auth_members')) {
             return Promise.resolve({
                 rowCount: state.inRdsIam === true ? 1 : 0,
@@ -209,6 +216,109 @@ describe('assertBootstrapPostconditions', () => {
         expect(isBootstrapPostconditionError(new Error('nope'))).toBe(false);
         expect(isBootstrapPostconditionError(undefined)).toBe(false);
         expect(isBootstrapPostconditionError({ unmet: [] })).toBe(false);
+    });
+});
+
+/**
+ * The census rides along with the read-back, and the two failure modes are deliberately OPPOSITE.
+ *
+ * `assertBootstrapPostconditions` exists to FAIL the deploy that ran it. The census exists to REPORT, and a
+ * report that could fail a deploy would be a new way for `DataStack` to break for a reason unrelated to
+ * provisioning. So the census runs unconditionally and never propagates.
+ *
+ * It runs BEFORE the throw, not after, so a deploy that is failing on a genuine postcondition still tells the
+ * operator what is on the instance — which is the deploy they are most likely to be reading the logs of.
+ */
+describe('the per-PR database census rides with the read-back', () => {
+    it('is emitted on a healthy bootstrap', async () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        try {
+            await assertBootstrapPostconditions(fakePool(HEALTHY), {
+                role: 'food_app',
+                databaseName: 'kitchensink_food',
+                requireCreateDb: true,
+            });
+
+            expect(log.mock.calls.map((call) => String(call[0])).join('\n')).toContain('per-PR logical database');
+        } finally {
+            log.mockRestore();
+        }
+    });
+
+    it('is emitted even when a postcondition is unmet, BEFORE the throw', async () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        try {
+            await expect(
+                assertBootstrapPostconditions(fakePool({ inRdsIam: false, databaseExists: false }), {
+                    role: 'food_app',
+                    databaseName: 'kitchensink_food',
+                    requireCreateDb: true,
+                }),
+            ).rejects.toThrow(/postconditions NOT met/);
+
+            expect(log.mock.calls.map((call) => String(call[0])).join('\n')).toContain('per-PR logical database');
+        } finally {
+            log.mockRestore();
+        }
+    });
+
+    it('surveys the per-PR children of the base database, never the base itself', async () => {
+        const pool = fakePool(HEALTHY);
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        try {
+            await assertBootstrapPostconditions(pool, {
+                role: 'food_app',
+                databaseName: 'kitchensink_food',
+                requireCreateDb: true,
+            });
+
+            const census = (pool.query as unknown as ReturnType<typeof vi.fn>).mock.calls.find((call) =>
+                String(call[0]).includes('datconnlimit'),
+            );
+
+            expect(census, 'the census query must be issued').toBeDefined();
+            // The trailing `\_%` is what excludes the base database itself: a census that counted
+            // `kitchensink_food` would report a permanent leak on every deploy and be ignored within a week.
+            expect(census?.[1]).toEqual(['kitchensink\\_food\\_%']);
+        } finally {
+            log.mockRestore();
+        }
+    });
+
+    it('does NOT fail the read-back when the census query throws', async () => {
+        // A pool whose census probe rejects but whose postcondition probes are healthy. The bootstrap must
+        // still succeed: the deploy is correct, it simply learned nothing about leaked databases.
+        const healthy = fakePool(HEALTHY);
+        const pool = {
+            query: vi.fn((text: string, values?: readonly unknown[]) =>
+                text.includes('datconnlimit')
+                    ? Promise.reject(new Error('permission denied for pg_database'))
+                    : (healthy.query as unknown as (t: string, v?: readonly unknown[]) => Promise<unknown>)(
+                          text,
+                          values,
+                      ),
+            ),
+        } as unknown as pg.Pool;
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        try {
+            await expect(
+                assertBootstrapPostconditions(pool, {
+                    role: 'food_app',
+                    databaseName: 'kitchensink_food',
+                    requireCreateDb: true,
+                }),
+            ).resolves.toBeUndefined();
+
+            expect(warn).toHaveBeenCalledTimes(1);
+        } finally {
+            warn.mockRestore();
+            log.mockRestore();
+        }
     });
 });
 

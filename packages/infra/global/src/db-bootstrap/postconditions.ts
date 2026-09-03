@@ -36,8 +36,18 @@
  * RAISES on an unknown role name — on any non-RDS PostgreSQL (a local docker instance) `rds_iam` does not
  * exist, and an exception there would be indistinguishable from a genuine provisioning failure. The catalog
  * join simply returns no rows.
+ *
+ * ## The one thing here that is NOT a postcondition
+ *
+ * The same run also emits a CENSUS of the per-PR logical databases under the base name (see
+ * {@link reportPerPrDatabases}). It rides along because this is the only master-connected, VPC-attached code
+ * that runs on every `DataStack` deploy — not because it is a postcondition. ⛔ Its failure mode is the
+ * deliberate OPPOSITE of everything above: the census never throws, because a report that could fail a
+ * deploy would be a new way for `DataStack` to break for a reason unrelated to provisioning.
  */
 import type pg from 'pg';
+
+import { reportPerPrDatabases } from './perPrInventory.js';
 
 /** What the bootstrap claims to have provisioned, and therefore what must be true afterwards. */
 export interface BootstrapExpectation {
@@ -85,12 +95,20 @@ interface RoleRow {
  * Reports ALL failures together rather than the first: when the placeholder shipped, every postcondition was
  * unmet at once, and surfacing them one deploy at a time would cost a cycle per fault.
  *
+ * Also emits the per-PR database census — see the module docstring for why that is here and why it cannot
+ * fail this call.
+ *
  * @param pool - A pool connected as the master user (the same one that ran the DDL).
  * @param expectation - What the bootstrap claimed to provision.
  * @throws {BootstrapPostconditionError} when any postcondition is unmet.
- * @sideEffect Reads the PostgreSQL system catalogs.
+ * @sideEffect Reads the PostgreSQL system catalogs and writes the census to the log.
  */
 export async function assertBootstrapPostconditions(pool: pg.Pool, expectation: BootstrapExpectation): Promise<void> {
+    // ⚠️ BEFORE the postcondition probes, so it is emitted even when this call is about to throw. A deploy
+    // failing on a genuine postcondition is the deploy whose logs someone is most likely to be reading, and
+    // the census is free at that point — the connection is open and the query is one row per database.
+    await reportPerPrDatabases(pool, expectation.databaseName);
+
     const unmet: string[] = [];
 
     const roleResult = await pool.query<RoleRow>('SELECT rolcanlogin, rolcreatedb FROM pg_roles WHERE rolname = $1', [

@@ -1,7 +1,8 @@
 # 22 — Adversarial reliability & operability review of PR 91
 
 **Posture**: refutation. Every claim is anchored to code, CDK, or a live read-only AWS query run on
-2026-08-14 against account `040663841500` / `us-east-1`. No mutating command was issued. Where the
+2026-08-14 against the project's AWS account (`<aws-account-id>`) / `us-east-1`. No mutating command was
+issued. Where the
 posture is genuinely fine for a pre-launch, zero-user, single-developer product, that is said plainly.
 
 **Scope**: the three things PR 91 will build — (a) a durable, entity-grouped, guaranteed-delivery
@@ -673,7 +674,7 @@ _Not examined_.
 `packages/infra/global/lib/{platform/data-stack.ts,platform/network-stack.ts,sandbox-scheduler/scheduler.ts}`;
 `specs/004-recipe-importing/spec.md`; `specs/014-notification-service/{plan.md,spec.md,tasks.md}`;
 `docs/architecture/decisions/{0008,0010,0019}-*.md`; `docs/reviews/2026-08-14-pr91-findings/12-*.md`.
-Live read-only AWS (2026-08-14, `us-east-1`, acct `040663841500`): `sns list-topics`,
+Live read-only AWS (2026-08-14, `us-east-1`, the project's AWS account `<aws-account-id>`): `sns list-topics`,
 `sns list-subscriptions-by-topic`, `cloudwatch describe-alarms`, `cloudwatch list-metrics`,
 `cloudwatch get-metric-statistics`, `ecs list-clusters/list-services/describe-services`,
 `lambda list-functions/get-function-configuration`, `logs describe-log-groups`.

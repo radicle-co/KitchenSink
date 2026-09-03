@@ -9,6 +9,28 @@ hide_table_of_contents: false
 This site is assembled from the repository at build time. It **references** documents where they
 live and never copies them, so nothing here can drift away from the source it describes.
 
+## ⛔ This site is PUBLIC
+
+**There is no login in front of this page.** Anyone with the URL can read every word of every section,
+and search engines can index it. That is a deliberate decision, not an oversight — publishing it behind
+Vercel Authentication turned out not to be possible on this team's plan, and, worse, to fail _open_ while
+reporting success. So the protection was dropped and replaced by a rule about the contents.
+
+Two consequences, for anyone adding to it:
+
+- **What ships is decided by one allowlist**, `CONTENT_SOURCES` in
+  `packages/tools/docs-site/src/content/contentRegistry.ts`. Widening it publishes whatever the new glob
+  reaches. Read what you are admitting before you admit it.
+- **The AWS account id is deliberately absent**, and stays absent because it is checked. Where a document
+  needs to say _which_ account something was measured against, it writes the placeholder
+  `<aws-account-id>` instead of the digits. `.github/workflows/docs.yml` scans the built site for a real
+  one before the artifact is even uploaded, and the repository's test tier scans the sources — both by
+  running `scripts/assertNoAwsAccountIds.mjs`, which _derives_ the ids from the repository's own ARNs so
+  that the guard never has to restate the value it keeps out of print. If either goes red, scrub the
+  document; do not weaken the guard.
+
+Nothing here is a credential. If you ever find something that is, it needs **rotating**, not editing.
+
 ## ⚠️ Read this before you trust a page
 
 **Every page on this site describes what a commit DECLARES. No page describes what is deployed.**
@@ -51,5 +73,6 @@ npm run docs:build --workspace=@kitchensink/docs-site   # production build, into
 npm run docs:serve --workspace=@kitchensink/docs-site   # serve the production build
 ```
 
-The site is **not deployed anywhere**. CI proves it builds; where it should be hosted is an open
-decision with cost implications.
+The site is published to Vercel by `.github/workflows/docs.yml` on every push to `main`, and on demand.
+Pull requests build it but never deploy it — and the build is where both content gates run, so a change
+that would publish a broken link or an AWS account id is red before it can merge.

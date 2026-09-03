@@ -791,7 +791,7 @@ on the export-in-use failure ADR-0002 already documents. Add a **second, additiv
 for `*.internal.commise.app` with a new logical id and export, and attach it to the shared HTTPS
 listener via `addCertificates`. Purely additive: no resource replacement, no in-use export change.
 
-**Verified against live AWS, 2026-08-15** (account `040663841500`), so the premise is measured rather
+**Verified against live AWS, 2026-08-15** (the project's AWS account, `<aws-account-id>`), so the premise is measured rather
 than inferred: `DomainStack` is **per stage** and there are **two** certificates, both carrying exactly
 `commise.app`, `*.sandbox.commise.app`, `*.commise.app` — **single-label wildcards only, no
 `*.internal.*`**. `09d3e5fe-…` serves the prod ALB (`kitche-Share-43TqIsoNsnVc`); `306a9780-…` serves
@@ -816,7 +816,7 @@ the current public name and the new internal name resolve, and nothing has cut o
   **Verification** `curl https://food.internal.commise.app/health` succeeds with a valid certificate, for
   all three services, while the public names still serve from the ALB.
 
-**✅ DONE — verified against live prod, 2026-08-15** (account `040663841500`). Deployed manually by owner
+**✅ DONE — verified against live prod, 2026-08-15** (the project's AWS account, `<aws-account-id>`). Deployed manually by owner
 ruling, because `prod-deploy.yml` fires only on push to `main` and this branch is unmerged.
 
 - `*.internal.commise.app` = `d0b2de77-83b0-4858-84f4-b521ddb68ad7`, **`ISSUED`** (DNS validation
@@ -1082,7 +1082,7 @@ Consequence accepted: the 004, 005, 006 and 011 worktrees stay un-rebasable unti
 - Findings: `docs/reviews/2026-08-14-pr91-findings/00-INDEX.md` (203, 31 reports)
 - Substrate research: reports `17`, `28`, `29`, `30` in that directory
 - RN streaming: report `31`
-- Live infrastructure verified 2026-08-15 against account `040663841500`: one CloudFront distribution
+- Live infrastructure verified 2026-08-15 against the project's AWS account (`<aws-account-id>`): one CloudFront distribution
   (`E16KE2M2O5UD4J`, the legacy ADR-0001 preview router), zero `Distribution` constructs in CDK, and the
   Route 53 record set for `commise.app`
 - ADRs: 0001, 0002, 0003, 0004, 0005, 0006, 0009, 0010, 0014, 0015, 0016, 0017, 0018, 0019, and new 0020

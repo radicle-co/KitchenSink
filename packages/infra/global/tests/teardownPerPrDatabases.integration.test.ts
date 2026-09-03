@@ -43,6 +43,12 @@
  *   4. The wake's `|| teardown_failed=1` branch changed to `exit 1` → `a failed wake does not stop the stack
  *      deletes` fails, and the stacks leak — the 2026-07-28 incident shape that
  *      `sandboxReclamationReachability.test.ts` invariant 1 exists to forbid.
+ *   5a. Either drop-failure branch left at `::warning::` with no `teardown_failed=1` → `a failed DROP fails
+ *      the run` / `a drop the FUNCTION rejected fails the run too` fail. This is the red-before-green run for
+ *      the owner's 2026-09-03 severity ruling, and both were red on the tree that shipped the discovery fix.
+ *   5b. The failed drop changed from `teardown_failed=1` to `exit 1` → `a failed drop still does not stop the
+ *      stack deletes` fails, and the stacks leak. Same shape as mutation 4, one section down: the ruling
+ *      makes the run RED, it does not make the step ABORT.
  *   5. `PR_STACKS` computed twice (once per section) instead of shared → not detectable here, and
  *      deliberately so: it is a consistency property, asserted by construction in the script rather than by
  *      a test that would have to race the API.
@@ -96,9 +102,26 @@ case "$1 $2" in
         esac
         ;;
     'lambda invoke')
-        for arg in "$@"; do
-            case "$arg" in /*.json) echo '{"dropped":"dropped"}' > "$arg" ;; esac
-        done
+        # \`AWS_STUB_DROP\` selects the failure mode, because the two the script distinguishes are NOT the
+        # same shape: \`aws lambda invoke\` exits 0 when the FUNCTION threw, reporting the throw in its own
+        # stdout, so a test that only made the CLI exit non-zero would never reach the \`FunctionError\` arm.
+        case "\${AWS_STUB_DROP:-}" in
+            invoke-fails)
+                echo 'Unknown options: --cli-binary-format' >&2
+                exit 254
+                ;;
+            function-error)
+                for arg in "$@"; do
+                    case "$arg" in /*.json) echo '{"errorMessage":"boom"}' > "$arg" ;; esac
+                done
+                echo '{"StatusCode":200,"FunctionError":"Unhandled"}'
+                ;;
+            *)
+                for arg in "$@"; do
+                    case "$arg" in /*.json) echo '{"dropped":"dropped"}' > "$arg" ;; esac
+                done
+                ;;
+        esac
         ;;
     *) : ;;
 esac
@@ -264,6 +287,41 @@ describe('teardown wakes the shared tier before it needs it', () => {
 
         expect(wake, 'the wake must happen at all').toBeGreaterThanOrEqual(0);
         expect(drop).toBeGreaterThan(wake);
+    });
+
+    it('a failed DROP fails the run, exactly as a failed wake does', () => {
+        // ⛔ Owner ruling, 2026-09-03: a failed drop and a failed wake are BOTH errors.
+        //
+        // The severities used to disagree, and backwards: the wake — which exists for no other purpose than
+        // to make the drop possible — failed the run, while the drop it was serving only warned. So the
+        // outcome the wake is a means to could fail on its own and the run stayed green, which is the
+        // "green check over a real leak" shape this whole teardown path has been closing.
+        const { status, stdout } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DROP: 'invoke-fails' });
+
+        // Anchored to the DROP's own line, not a bare `::error::`: the end-of-run summary emits one too, so
+        // a looser assertion would pass on a script that still only warned here.
+        expect(stdout).toContain('::error::could not invoke');
+        expect(stdout).toContain('will be left behind');
+        expect(status, 'a leaked per-PR database is not a silent outcome').not.toBe(0);
+    });
+
+    it('a drop the FUNCTION rejected fails the run too — the CLI exiting 0 is not success', () => {
+        // `aws lambda invoke` exits 0 when the function THREW; the throw is reported in its stdout. Reading
+        // the exit status alone reports a successful drop for a database that is still there.
+        const { status, stdout } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DROP: 'function-error' });
+
+        expect(stdout).toContain('::error::per-PR DB drop via');
+        expect(stdout).toContain('FunctionError');
+        expect(status, 'a FunctionError means the database survived — the run must go red').not.toBe(0);
+    });
+
+    it('a failed drop still does not stop the stack deletes', () => {
+        // The same invariant the wake carries: red at the END, never an abort. Everything that needs no
+        // database must still be reclaimed, or one failed drop leaks the stacks, ECR repos and log groups
+        // too — the 2026-07-28 shape.
+        const { calls } = run('pr-73', BOTH_SERVICES, { AWS_STUB_DROP: 'invoke-fails' });
+
+        expect(indexOfCall(calls, 'delete-stack', 'kitchensink-food-service-pr-73')).toBeGreaterThanOrEqual(0);
     });
 
     it('a failed wake does not stop the stack deletes', () => {

@@ -230,6 +230,13 @@ fi
 ##    in-VPC migration-runner Lambda is the only thing that can reach the PRIVATE_ISOLATED RDS and it is
 ##    torn down with its stack in section 2. Every handler refuses to drop its shared base database.
 ##
+##    ⛔ A FAILED DROP IS AN ERROR, not a warning (owner ruling, 2026-09-03). It used to warn, while §0c's
+##    wake — which exists for no purpose other than making this drop possible — failed the run. The severities
+##    disagreed, and backwards: the outcome the wake is a MEANS TO could fail on its own and the run still
+##    reported green with a database left behind. Both are errors now. Neither ABORTS: they set
+##    `teardown_failed` and the run goes red at the end, so everything that needs no database is still
+##    reclaimed (`sandboxReclamationReachability.test.ts` invariant 1).
+##
 ##    ⛔ DISCOVERED, NEVER LISTED — and this section was a LIST until 2026-09-03.
 ##
 ##    It hardcoded `kitchensink-food-service-$PR` and `FoodMigrationFunctionName`, so it dropped food's
@@ -269,8 +276,12 @@ while IFS=$'\t' read -r stack envtag; do
         if aws lambda invoke --region "$REGION" --function-name "$value" \
             --payload '{"action":"drop"}' --cli-binary-format raw-in-base64-out \
             /tmp/db-drop-result.json >/tmp/db-drop-invoke.json 2>/tmp/db-drop-invoke.err; then
+            # ⛔ `aws lambda invoke` EXITS 0 WHEN THE FUNCTION THREW — the throw is reported in its stdout,
+            # which is what this greps. Reading the exit status alone reports a successful drop for a
+            # database that is still there.
             if grep -q '"FunctionError"' /tmp/db-drop-invoke.json; then
-                echo "::warning::per-PR DB drop via $key for $PR returned a FunctionError — inspect $value logs"
+                echo "::error::per-PR DB drop via $key for $PR returned a FunctionError — the database was NOT dropped and will be left behind. Inspect $value logs."
+                teardown_failed=1
             else
                 echo "[db-drop] $key result: $(cat /tmp/db-drop-result.json)"
             fi
@@ -285,7 +296,8 @@ while IFS=$'\t' read -r stack envtag; do
             # This is the LAST chance to drop it: the migration runner is torn down with its stack in
             # section 2, and it is the only thing that can reach the PRIVATE_ISOLATED RDS. Once it is gone
             # the database can only be removed by deploying that service at that stage again.
-            echo "::warning::could not invoke $value to drop $PR's per-PR database via $key — it will be left behind"
+            echo "::error::could not invoke $value to drop $PR's per-PR database via $key — it will be left behind"
+            teardown_failed=1
             sed 's/^/  [db-drop] /' /tmp/db-drop-invoke.err >&2 || true
             if grep -q 'cli-binary-format' /tmp/db-drop-invoke.err 2>/dev/null; then
                 echo "::error::this shell's \`aws\` is CLI v1 (\`--cli-binary-format\` is v2-only). Re-run with AWS CLI v2 — the drop is not retried after the stack is deleted." >&2

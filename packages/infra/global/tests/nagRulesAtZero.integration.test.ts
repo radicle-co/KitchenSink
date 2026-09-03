@@ -1,6 +1,6 @@
 /**
- * ⛔ THE cdk-nag RULES THIS REPOSITORY HAS BURNED DOWN TO ZERO STILL REPORT ZERO — measured by running the
- * REAL rules over EVERY CDK app, not by trusting a number in a table.
+ * ⛔ EVERY ROW OF ADR-0013's BURN-DOWN TABLE IS A CONTROL — measured by running the REAL rules over EVERY CDK
+ * app, not by trusting a number in a table.
  *
  * | Invariant                                                                     | Test                                                        |
  * | ----------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -8,8 +8,29 @@
  * | The rules ran at all, and against real resources                                | 'evaluates every queue and topic the repository declares'    |
  * | A rule held at zero reports NOTHING but `Compliant`, in any app                 | 'reports only Compliant rows for {rule}' (one per rule)      |
  * | …including a SUPPRESSION, which is not a fix                                    | (same test — `Suppressed` is not `Compliant`)               |
+ * | A rule NOT at zero reports EXACTLY the number the ADR records                   | 'holds every backlog row at exactly the number the ADR …'   |
+ * | …and a rule the ADR never listed cannot report at all                           | 'accounts for EVERY rule that still reports a finding'       |
+ * | …and the table agrees with its own heading's total                              | 'adds up to the total its own heading claims'                |
+ * | `L1`, left REPORTING, fires iff Lambda@Edge is behind the repo-wide pin         | 'EXPLAINS every AwsSolutions-L1 finding …, in both …'        |
  * | The reader can SEE a violation (negative control, through the same path)        | 'reports the bare queue and topic of a fixture app as …'     |
  * | The reader reads the right COLUMN when a later one contains commas              | 'reads the Compliance column even when a later field …'      |
+ *
+ * ## Two shapes, one synthesis
+ *
+ * A rule at ZERO is asserted by a predicate ("no non-Compliant row"); a rule at TWENTY is asserted by a
+ * CENSUS ("exactly twenty"). The second needs no burn-down — it needs a number and something that
+ * re-measures it — which is what let the un-burnt-down majority of ADR-0013's table stop being prose. Both
+ * halves read the same reports from the same run, so the second cost nothing to add.
+ *
+ * ⛔ The census reads the ADR's table as its AUTHORITY, parsing the rules and counts out of the markdown. It
+ * does not re-list them here: a copy of those numbers would rot exactly as the numbers themselves did, which
+ * is the failure the whole file exists for. The subject set for "is this rule accounted for" is what cdk-nag
+ * ACTUALLY reported, so a rule nobody has thought about cannot pass by being absent from both.
+ *
+ * ⚠️ Equality, not a ceiling. A `<=` bound lets the recorded number drift above reality forever, so a
+ * burn-down that lands leaves the ADR overstating it with nothing to say so. Equality reds on an improvement
+ * as well as a regression, which is what forces the table to move in the change that earns it. The measured
+ * consequence, the first time it ran: the table was wrong in five places and incomplete in four.
  *
  * ## What went wrong, and why a count is not a control
  *
@@ -68,8 +89,9 @@
  * - **Stubbed**: the AWS account/region/VPC/database coordinates, and the context-provider cache. AWS is
  *   never contacted.
  *
- * DESIGN PATTERN: Specification — one predicate (`compliance === 'Compliant'`) over a subject set that is
- * DISCOVERED on both axes: the apps from {@link cdkApps}, the rules from {@link RULES_AT_ZERO}.
+ * DESIGN PATTERN: Specification over a subject set DISCOVERED on both axes — the apps from {@link cdkApps},
+ * the rules from {@link RULES_AT_ZERO} for the zero half and from ADR-0013's own table (plus whatever
+ * actually reported) for the census half.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
@@ -82,16 +104,118 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { cdkApps } from '../__tests__/cdkApps.js';
 import { repositorySites } from '../__tests__/messagingConstructSites.js';
 import { repoRoot } from '../__tests__/serviceSources.js';
+import { EDGE_LAMBDA_RUNTIME } from '../lib/platform/EdgeStack.js';
 
 /**
  * The cdk-nag rules this repository has burned down to zero, and now holds there.
  *
  * ⛔ A rule earns its place here by REACHING zero, never by aspiration — an entry whose count is not already
- * zero turns this suite permanently red and teaches the next reader to skip it. ADR-0013's remaining
- * backlog (`IAM4` 27, `IAM5` 20, …) is deliberately absent for exactly that reason; each joins the day its
- * burn-down lands, in the change that lands it.
+ * zero turns this suite permanently red and teaches the next reader to skip it. ADR-0013's remaining backlog
+ * is deliberately absent for exactly that reason; each joins the day its burn-down lands, in the change that
+ * lands it.
+ *
+ * ⚠️ That is NOT a reason those rows go unchecked, which is what the earlier draft of this comment implied.
+ * They are asserted by the CENSUS below, at the count the ADR records, which is the assertion available to a
+ * rule that has not reached zero. This register is the stronger claim, not the only one.
  */
 const RULES_AT_ZERO = ['AwsSolutions-SNS3', 'AwsSolutions-SQS4'] as const;
+
+/** ADR-0013, whose burn-down tables are the authority for every rule this repository has NOT yet burned down. */
+const BURN_DOWN_ADR = 'docs/architecture/decisions/0013-cdk-nag-advisory-iac-security-linting.md';
+
+/** The heading above the table of rows that still report. Its own parenthesised number is the claimed total. */
+const BACKLOG_HEADING = '### Remaining backlog';
+
+/**
+ * The compliance value a rule that has NOT been burned down reports.
+ *
+ * ⚠️ Deliberately NOT the complement of {@link COMPLIANT}. `Suppressed` is a finding this repository has
+ * ACCEPTED through the `AcceptedNagFindings` register, and ADR-0013's backlog table counts only what still
+ * REPORTS — `ECS2`, `EC23`, `APIG4`/`COG4`, `APIG3`/`CFR1`/`CFR2` sit at zero in that table precisely because
+ * they are suppressed. Counting them here would make the backlog census disagree with the table by exactly
+ * the set the register already pins twice over.
+ */
+const NON_COMPLIANT = 'Non-Compliant';
+
+/**
+ * The construct paths CDK gives the framework functions its own `custom_resources.Provider` creates.
+ *
+ * ADR-0013 leaves `AwsSolutions-L1` REPORTING rather than suppressing it, on the argument that the finding is
+ * accurate, is not ours to fix (`Provider` calls `lambda.determineLatestNodeRuntime(this)` and exposes no
+ * runtime prop) and clears itself on an `aws-cdk-lib` bump.
+ *
+ * ⚠️ It DID clear, and nothing said so — this census is what noticed. The two residual Provider findings the
+ * ADR recorded are now zero. The pattern stays because the exemption is still the right one if a future CDK
+ * ships a Provider on an older runtime; what it no longer does is carry the assertion, which is why the
+ * biconditional below hangs off the edge function instead.
+ */
+const CDK_PROVIDER_FRAMEWORK = /framework-(?:onEvent|onTimeout|isComplete)|\/Provider\//u;
+
+/**
+ * The Lambda@Edge viewer-request function, the ONE `AwsSolutions-L1` this repository owns and accepts.
+ *
+ * `EDGE_LAMBDA_RUNTIME` is `nodejs22.x` because **Lambda@Edge offers no `nodejs24.x`**, so the repo-wide
+ * `NODE_LAMBDA_RUNTIME` pin cannot be used there. Same treatment as ADR-0025's Python runtime: the finding is
+ * accurate, the constraint is AWS's, it is left reporting rather than suppressed, and what is asserted is
+ * that it is EXPLAINED — it fires if and only if the edge runtime is still behind the repo-wide pin.
+ *
+ * ⚠️ The construct id is written out, so RENAMING the function reds this suite as an unexplained finding
+ * rather than silently widening the exemption to whatever else lands in that stack.
+ */
+const EDGE_VERIFIER = /^Edge\/EdgeVerifierFunction\//u;
+
+/** One row of ADR-0013's backlog table: the rules it names, and the findings it claims for them together. */
+interface BacklogRow {
+    /** Short rule ids as the ADR writes them, e.g. `IAM4`. A row may name several under one count. */
+    readonly rules: readonly string[];
+    /** The number of findings the ADR records for those rules, together. */
+    readonly count: number;
+}
+
+/**
+ * Read ADR-0013's remaining-backlog table.
+ *
+ * ⛔ The ADR is the AUTHORITY, not a second copy of one. Re-listing `IAM4`/`IAM5`/… here would put the rule
+ * set in two places, and the whole point of this census is that the prose numbers stop being prose — a copy
+ * of them in the suite would rot in exactly the way the table did.
+ *
+ * A row may name several rules under one count (`EC26` / `EC28` / `EC29`, and the deferred group), so the
+ * unit compared below is the ROW, not the rule.
+ *
+ * @returns The table's rows plus the total its heading claims. Impure.
+ * @sideEffect Reads the ADR.
+ */
+function backlog(): { readonly rows: readonly BacklogRow[]; readonly total: number } {
+    const adr = readFileSync(path.join(repoRoot, BURN_DOWN_ADR), 'utf8').split('\n');
+    const start = adr.findIndex((line) => line.startsWith(BACKLOG_HEADING));
+
+    expect(start, `${BURN_DOWN_ADR} must carry a "${BACKLOG_HEADING}" heading`).toBeGreaterThan(-1);
+
+    const total = Number(/\((\d+)\)/u.exec(adr[start] ?? '')?.[1] ?? Number.NaN);
+    const table = adr.slice(start + 1).slice(
+        // The table begins at the first `|` line after the heading and ends at the first line that is not one.
+        adr.slice(start + 1).findIndex((line) => line.trimStart().startsWith('|')),
+    );
+    const rows = table
+        .slice(
+            0,
+            Math.max(
+                table.findIndex((line) => !line.trimStart().startsWith('|')),
+                0,
+            ),
+        )
+        .map((line) => line.split('|').map((cell) => cell.trim()))
+        // Drop the header row and the `| --- |` separator.
+        .filter(
+            (cells) => cells.length > 3 && !/^-+$/u.test(cells[2] ?? '') && /^\*{0,2}\d+\*{0,2}$/u.test(cells[2] ?? ''),
+        )
+        .map((cells) => ({
+            rules: [...(cells[1] ?? '').matchAll(/`([A-Z][A-Z0-9]*)`/gu)].map((match) => match[1] ?? ''),
+            count: Number((cells[2] ?? '').replaceAll('*', '')),
+        }));
+
+    return { rows, total };
+}
 
 /**
  * The one compliance value a rule held at zero may report.
@@ -515,6 +639,17 @@ describe('cdk-nag rules held at zero, across every CDK app', () => {
         ]);
     });
 
+    it('reads the ADR backlog table it is about to pin', () => {
+        // ⛔ Anti-vacuity, and the one that matters most here: a parser that silently stopped matching the
+        // markdown would make every assertion in the next describe pass over an empty table, which reads
+        // exactly like "the whole backlog is mechanised".
+        const { rows, total } = backlog();
+
+        expect(rows.length).toBeGreaterThan(3);
+        expect(rows.flatMap((row) => row.rules).length).toBeGreaterThan(6);
+        expect(total).toBeGreaterThan(0);
+    });
+
     it('reads the Compliance column even when a later field contains commas', () => {
         // The parser's own control. `Rule Info` and an accepted finding's `Exception Reason` are prose, and
         // this repository's reasons are paragraphs; a naive `split(',')` reads the wrong column and reports
@@ -531,5 +666,126 @@ describe('cdk-nag rules held at zero, across every CDK app', () => {
             resourceId: 'Stack/Q/Resource',
             compliance: 'Non-Compliant',
         });
+    });
+});
+
+describe("cdk-nag rules NOT at zero are held at ADR-0013's recorded count", () => {
+    // ⛔ WHY A SECOND SHAPE WAS NEEDED. `RULES_AT_ZERO` can only ever admit a rule that has REACHED zero —
+    // an entry whose count is not already zero would turn this suite permanently red. ADR-0013's own residual
+    // says so plainly: "the un-burnt-down majority of the table is still a measurement". That majority is 62
+    // findings across ten rules, written down once in 2026-08 and re-checked by nothing since, which is the
+    // failure this repository keeps paying for one level up — a number in a table that can rot while every
+    // check stays green.
+    //
+    // A ceiling (`<=`) would be the obvious control and is the weaker one: it lets the recorded number drift
+    // upward from reality forever, so a burn-down that actually landed would leave the ADR overstating it and
+    // nothing would say so. EQUALITY makes the assertion flip in both directions — a regression reds it, and
+    // so does an improvement, which is what forces the table to be updated in the change that earns it.
+
+    it('accounts for EVERY rule that still reports a finding', () => {
+        // ⛔ THE DERIVED DIRECTION. The subject set is what cdk-nag actually reported, not what the ADR
+        // remembered to list — so a rule that starts firing tomorrow, on a resource class nobody has thought
+        // about, cannot slip in behind a table that never mentioned it.
+        const recorded = new Set(backlog().rows.flatMap((row) => row.rules));
+        const reporting = rows.filter((row) => row.compliance === NON_COMPLIANT);
+        const unaccounted = [...new Set(reporting.map((row) => row.ruleId.replace(/^AwsSolutions-/u, '')))]
+            .filter((ruleId) => !recorded.has(ruleId))
+            .sort()
+            // The resources are named, not just the rule: a bare rule id sends the reader back to a 38-second
+            // synth to find out what fired, which is how a failing guard becomes one people disable.
+            .map(
+                (ruleId) =>
+                    `${ruleId}: ${reporting
+                        .filter((row) => row.ruleId === `AwsSolutions-${ruleId}`)
+                        .map((row) => row.resourceId)
+                        .join(', ')}`,
+            );
+
+        expect(
+            unaccounted,
+            `${BURN_DOWN_ADR}'s backlog table does not mention these rules, which are reporting findings ` +
+                'today. Add a row (with its count and its disposition) or burn the rule down.',
+        ).toEqual([]);
+    });
+
+    it('⛔ holds every backlog row at exactly the number the ADR records', () => {
+        const measured = (ruleId: string): number =>
+            rowsFor(`AwsSolutions-${ruleId}`).filter((row) => row.compliance === NON_COMPLIANT).length;
+
+        const drifted = backlog()
+            .rows.map((row) => ({
+                row,
+                actual: row.rules.reduce((sum, ruleId) => sum + measured(ruleId), 0),
+            }))
+            .filter(({ row, actual }) => actual !== row.count)
+            .map(
+                ({ row, actual }) =>
+                    `${row.rules.join(' / ')}: the ADR records ${String(row.count)}, cdk-nag reports ` +
+                    `${String(actual)} — ${row.rules
+                        .map(
+                            (ruleId) =>
+                                `${ruleId} x${String(measured(ruleId))} in ${[
+                                    ...new Set(
+                                        rowsFor(`AwsSolutions-${ruleId}`)
+                                            .filter((entry) => entry.compliance === NON_COMPLIANT)
+                                            .map((entry) => entry.resourceId.split('/')[0] ?? ''),
+                                    ),
+                                ].join(' ')}`,
+                        )
+                        .join('; ')}`,
+            );
+
+        expect(
+            drifted,
+            `${BURN_DOWN_ADR}'s burn-down numbers no longer match what the rules report. If the count went ` +
+                'DOWN, update the table in the change that earned it; if it went UP, something regressed.',
+        ).toEqual([]);
+    });
+
+    it('adds up to the total its own heading claims', () => {
+        // Internal consistency of the ADR, which nothing checked either: the heading says "(62)" and the rows
+        // are what make it 62. A row edited without the heading — or the reverse — is a table that disagrees
+        // with itself, and a reader would have no way to tell which half is current.
+        const { rows: backlogRows, total } = backlog();
+
+        expect(backlogRows.reduce((sum, row) => sum + row.count, 0)).toBe(total);
+    });
+
+    it('EXPLAINS every AwsSolutions-L1 finding rather than suppressing it, in both directions', async () => {
+        // ⛔ THE ROW WHOSE NUMBER IS ACCURATE AND WHOSE FINDING IS DELIBERATELY LEFT REPORTING. The count
+        // assertion above cannot discharge this one: it is a claim about WHICH resources fire, and a finding
+        // that had migrated onto a function we DO control would satisfy the count exactly.
+        //
+        // ADR-0025's precedent, applied here: assert that the finding is EXPLAINED, totally, so the assertion
+        // flips on its own rather than waiting for someone to remember to revisit it. Two classes are
+        // explained — CDK's own `Provider` framework functions, and the Lambda@Edge verifier — and nothing
+        // else is.
+        //
+        // ⚠️ `NODE_LAMBDA_RUNTIME` is imported DYNAMICALLY for this tier's usual reason: the package exports
+        // built `dist/`, and a static import would fail at collection before `beforeAll` has built it.
+        const { NODE_LAMBDA_RUNTIME } = await import('@kitchensink/infra-security');
+        const findings = rowsFor('AwsSolutions-L1').filter((row) => row.compliance === NON_COMPLIANT);
+        const unexplained = findings
+            .filter((row) => !CDK_PROVIDER_FRAMEWORK.test(row.resourceId) && !EDGE_VERIFIER.test(row.resourceId))
+            .map((row) => `${row.resourceId} (${row.app})`);
+
+        expect(
+            unexplained,
+            'an AwsSolutions-L1 finding on a function this repository declares and CAN pin means ' +
+                'NODE_LAMBDA_RUNTIME was bypassed. It is neither the CDK-owned residual nor the Lambda@Edge ' +
+                'ceiling ADR-0013 accepts, so it must not inherit their exemption',
+        ).toEqual([]);
+
+        // The flip. `lambdaRuntime.ts`'s own suite asserts `NODE_LAMBDA_RUNTIME` IS the newest Node runtime
+        // `aws-cdk-lib` exposes — which is what cdk-nag's `LambdaLatestVersion` compares against — so "the
+        // edge runtime differs from the repo pin" and "cdk-nag will report L1 on the edge function" are the
+        // same statement. The day Lambda@Edge ships the pinned runtime, the two sides move together and this
+        // expectation requires the finding to be GONE, which is the moment the ADR's row comes out.
+        expect(
+            findings.some((row) => EDGE_VERIFIER.test(row.resourceId)),
+            `EDGE_LAMBDA_RUNTIME is ${EDGE_LAMBDA_RUNTIME.name} and NODE_LAMBDA_RUNTIME is ` +
+                `${NODE_LAMBDA_RUNTIME.name}: L1 must be reported against the edge verifier when they differ, ` +
+                'and must be gone when they agree',
+        ).toBe(EDGE_LAMBDA_RUNTIME.name !== NODE_LAMBDA_RUNTIME.name);
     });
 });

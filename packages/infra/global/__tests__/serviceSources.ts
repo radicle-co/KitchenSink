@@ -38,6 +38,17 @@ export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 /** Where the deployable services live. */
 export const SERVICES_ROOT = 'packages/services';
 
+/**
+ * The handler entry every ADR-0022 schema-migration runner in this repository is bundled at.
+ *
+ * ⚠️ It is a string VALUE, which is what makes it a usable marker: a comment naming the handler, or a
+ * docstring explaining the barrier, cannot satisfy a check that reads the AST for this literal. Two guards
+ * ask "does this stack deploy a migration runner?" — `schemaMigrationBarrier.test.ts` (is it barriered?) and
+ * `perPrDatabaseDropDoors.test.ts` (does it publish a drop door?) — so the answer is defined once here
+ * rather than copied into each.
+ */
+export const MIGRATION_RUNNER_HANDLER = 'lambdas/migrate/handler.handler';
+
 /** One source file, as the predicates see it. */
 export interface SourceFile {
     /** Repo-relative (or fixture) path. */

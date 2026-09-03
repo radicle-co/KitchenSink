@@ -49,21 +49,19 @@
  * DESIGN PATTERN: Specification module over two derivations of the same workflow text — what a job deploys,
  * and what it verifies — compared for coverage, exactly as `cdkAppDeployCoverage.test.ts` does one level up.
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import {
     APP_ARGUMENT,
-    WORKFLOWS_DIR,
     WORKSPACE_DEPLOY,
+    type WorkflowJob,
     entrypointForWorkspace,
     entrypointOf,
+    foldContinuations,
     toSourceEntrypoint,
-    withoutComments,
+    workflowJobs,
 } from './cdkApps.js';
-import { repoRoot, trackedFiles } from './serviceSources.js';
+import { trackedFiles } from './serviceSources.js';
 
 /** The verifier every deploy job must run. Named once; the assertions below derive everything else. */
 const VERIFIER = 'verify-deployment.sh';
@@ -71,44 +69,12 @@ const VERIFIER = 'verify-deployment.sh';
 /** A `verify-deployment.sh verify <region> "<app>"` invocation, in either quote style. */
 const VERIFY_INVOCATION = /verify-deployment\.sh\s+verify\s+\S+\s+(?:"([^"]+)"|'([^']+)')/gu;
 
-/** One workflow job, as a slab of text — enough to ask what it deploys and what it verifies. */
-interface Job {
-    readonly workflow: string;
-    readonly name: string;
-    readonly body: string;
-}
-
-/**
- * Split every workflow into its jobs.
- *
- * Textual rather than YAML-structural on purpose: a `run:` block is a shell script, so what matters is the
- * COMMANDS a job contains, and re-assembling them from parsed YAML adds a representation without adding an
- * assertion. `deployGateStepGuards.test.ts` reads the same file the same way for the same reason.
- *
- * @returns Every job in every workflow, in file order. Impure.
- * @sideEffect Shells out to git and reads the workflow files.
- */
-function jobs(): readonly Job[] {
-    const isJobHeader = (line: string): boolean => /^ {4}[a-z][a-z0-9-]*:\s*$/u.test(line);
-
-    return trackedFiles(WORKFLOWS_DIR)
-        .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
-        .flatMap((file) => {
-            const workflow = path.basename(file);
-            const lines = withoutComments(readFileSync(path.join(repoRoot, file), 'utf8')).split('\n');
-            const headers = lines.flatMap((line, index) => (isJobHeader(line) ? [index] : []));
-
-            return headers.map((start, position) => ({
-                workflow,
-                name: (lines[start] ?? '').trim().replace(':', ''),
-                body: lines.slice(start, headers[position + 1] ?? lines.length).join('\n'),
-            }));
-        });
-}
+/** Every job in every workflow — the shared reader in `cdkApps.ts`, so no second copy of the splitter. */
+const jobs = workflowJobs;
 
 /** What one job deploys and what it verifies, both derived from the job's own text. */
 interface Coverage {
-    readonly job: Job;
+    readonly job: WorkflowJob;
     /** `--app` arguments passed to `cdk deploy`, verbatim. */
     readonly deploys: readonly string[];
     /** `--app` arguments passed to the verifier, verbatim. */
@@ -128,28 +94,12 @@ interface Coverage {
 }
 
 /**
- * Fold shell line-continuations, so one command is one line.
- *
- * ⚠️ NOT cosmetic, and it is the first thing this guard got wrong. `sandbox-deploy.yml` writes every deploy
- * as `npx cdk deploy \` with `--app "…"` on the NEXT line, while `prod-deploy.yml` and
- * `sandbox-identity-deploy.yml` write it on one. A per-line scan therefore saw the two single-line workflows
- * and reported the food and recipe jobs — the ones this whole change exists for — as deploying nothing at
- * all, which reads as full coverage. A guard that exempts its own subject is worse than no guard.
- *
- * @param body - A job's text.
- * @returns The same text with `\`-continued lines joined. Pure.
- */
-function foldContinuations(body: string): string {
-    return body.replace(/\\\n\s*/gu, ' ');
-}
-
-/**
  * Read one job's deploy and verify sites.
  *
  * @param job - The job's text.
  * @returns Both sets, verbatim. Pure apart from the caller's file reads.
  */
-function coverage(job: Job): Coverage {
+function coverage(job: WorkflowJob): Coverage {
     const folded = foldContinuations(job.body);
     // A `cdk deploy --app "X"` and a `verify-deployment.sh verify <region> "X"` both carry an `--app`-shaped
     // argument, so the deploy side is narrowed to commands that actually run `cdk deploy`.

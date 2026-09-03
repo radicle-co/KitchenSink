@@ -93,9 +93,9 @@ jobs:
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
 
-            # Deploy a service when its code changed OR its sandbox stack doesn't exist yet (so the
-            # environment self-heals / bootstraps on the first PR). A global-infra change (or missing
-            # network stack) forces both consumers to redeploy.
+            # Deploy a service when its code changed OR any stack it owns doesn't exist yet (so the
+            # environment self-heals / bootstraps on the first PR). A global-infra change — or ANY missing
+            # platform stack — forces both consumers to redeploy.
             - name: Compute deploy flags
               id: flags
               # Every `${{ … }}` arrives through `env:` and is read as a quoted shell variable, never
@@ -108,20 +108,57 @@ jobs:
                   CHANGED_WEBHOOKS: ${{ steps.changes.outputs.webhooks }}
               run: |
                   stack_exists() { aws cloudformation describe-stacks --stack-name "$1" >/dev/null 2>&1; }
+
+                  # ⛔ THE STACK SET IS DERIVED, NOT WRITTEN DOWN — and this gate is the reason the rule
+                  # exists. It used to name TWO of the platform's stacks. It named ONE until ADR-0028's
+                  # 2026-08-30 amendment made `kitchensink-alb-sandbox` reclaimable: a reaped tier leaves the
+                  # network stack standing (it owns the VPC and the NAT the RDS needs, so it deliberately
+                  # OUTLIVES the ALB), the network-only probe answered `global_missing=false`, the global
+                  # deploy was skipped, and the identity deploy then died resolving
+                  # `SharedAlbHttpsListenerArn` from a stack that no longer existed.
+                  #
+                  # Adding the ALB fixed that INSTANCE. It left six sandbox stacks — data, domain, global,
+                  # messaging, service-logs and the scheduler — still unprobed, and would have left the next
+                  # one unprobed too: a copy of a list cannot detect that the list is incomplete (ADR-0025
+                  # §3). `deploy-gate.sh stacks-for` answers from the generated manifest, which
+                  # `scripts/infrastructureManifest.mjs` reads out of the CDK source by AST under a
+                  # regenerate-and-diff staleness gate — so a stack added tomorrow is probed the day it is
+                  # written, and a prod-only one is correctly absent from this stage's answer.
+                  # `stackProbeCoverage.test.ts` fails any workflow that goes back to listing them.
+                  #
+                  # ⛔ A refusal from `stacks-for` (unknown app, unreadable guard, unreadable name) ABORTS
+                  # this step. It must never read as "nothing is missing", which is the same three characters
+                  # of stdout and would skip the deploy that repairs the very thing it could not read.
+                  # The propagation is EXPLICIT — `|| exit 1` at each call site — and deliberately does not
+                  # lean on the runner's ambient `bash -e`: this function is invoked inside a command
+                  # substitution, so an `exit` within it ends only that subshell, and errexit is suspended
+                  # outright when a caller is written as an `if` condition. Measured, not assumed.
+                  absent_stacks() {
+                      local declared name
+                      declared=$(bash .github/scripts/deploy-gate.sh stacks-for "$1" "${STAGE}") || return 1
+                      while IFS= read -r name; do
+                          [ -n "$name" ] || continue
+                          stack_exists "$name" || printf '%s\n' "$name"
+                      done <<<"$declared"
+                  }
+
+                  global_absent=$(absent_stacks 'packages/infra/global/bin/app.ts') || exit 1
+                  service_absent=$(absent_stacks 'packages/services/identity/infra/bin/app.ts') || exit 1
+                  webhooks_absent=$(absent_stacks 'packages/services/identity-webhooks/infra/bin/app.ts') || exit 1
+
                   global_missing=false; service_missing=false; webhooks_missing=false
-                  # ⛔ BOTH stacks are probed, and the ALB is the one that can actually be gone.
-                  # This gate used to ask only about the network stack, which was correct while the sandbox
-                  # ALB was permanent. ADR-0028's 2026-08-30 amendment made `kitchensink-alb-sandbox`
-                  # reclaimable — it is deleted with the tier and rebuilt here — while the network stack,
-                  # which owns the VPC and the NAT the RDS needs, deliberately OUTLIVES it. So the two no
-                  # longer imply one another: a reaped tier leaves the network stack standing, the old probe
-                  # answers `global_missing=false`, the global-sandbox deploy is skipped, and the identity
-                  # deploy then dies resolving `SharedAlbHttpsListenerArn` from a stack that no longer
-                  # exists. Probing the stack that can vanish is what makes the button self-healing.
-                  stack_exists "kitchensink-network-sandbox" || global_missing=true
-                  stack_exists "kitchensink-alb-sandbox" || global_missing=true
-                  stack_exists "kitchensink-identity-service-sandbox" || service_missing=true
-                  stack_exists "kitchensink-identity-webhooks-sandbox" || webhooks_missing=true
+                  if [ -n "$global_absent" ]; then
+                    global_missing=true
+                    echo "::notice::absent platform stacks: $(echo "$global_absent" | tr '\n' ' ')"
+                  fi
+                  if [ -n "$service_absent" ]; then
+                    service_missing=true
+                    echo "::notice::absent identity-service stacks: $(echo "$service_absent" | tr '\n' ' ')"
+                  fi
+                  if [ -n "$webhooks_absent" ]; then
+                    webhooks_missing=true
+                    echo "::notice::absent identity-webhooks stacks: $(echo "$webhooks_absent" | tr '\n' ' ')"
+                  fi
 
                   deploy_global=false; deploy_service=false; deploy_webhooks=false
                   if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$CHANGED_GLOBAL" = "true" ] || [ "$global_missing" = "true" ]; then

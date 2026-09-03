@@ -1783,5 +1783,28 @@ export class RecipeWorkersStack extends Stack {
         new CfnOutput(this, 'AccountErasureDlqUrl', { value: this.erasureDlq.queueUrl });
         new CfnOutput(this, 'ErasureSweeperName', { value: erasureSweeperFn.functionName });
         new CfnOutput(this, 'ErasureOrphanSweeperName', { value: orphanSweeperFn.functionName });
+
+        // ⛔ THE DROP DOOR FOR THIS STAGE'S LOGICAL DATABASE — not a diagnostic. `teardown-sandbox-pr.sh` §1
+        // discovers per-PR database doors BY SHAPE (`^[A-Za-z]+MigrationFunctionName$`) across the stacks the
+        // PR actually has, and invokes each with `{"action":"drop"}`.
+        //
+        // `RecipeServiceStack` publishes the same door for the same database, which looked like enough: one
+        // database, two stacks, one door. It is enough only while both stacks exist. `deploy-recipe` deploys
+        // THIS stack first — it publishes the SSM parameters above, which the service resolves at synth — and
+        // two hard-failing steps stand between the two `cdk deploy`s, on top of the service deploy's own
+        // failure modes (ADR-0007 × ADR-0022 wedged `kitchensink-recipe-service-pr-91` in
+        // `UPDATE_ROLLBACK_FAILED` against the nightly-stopped RDS). The migration runner above already
+        // CREATED `kitchensink_recipes_pr_{N}` by then, via `ensureDatabaseExists` inside its trigger, so a
+        // PR left in that state carries a database with no door at all — and it leaks on every reap, silently,
+        // because the stack deletes cleanly and the database is not its resource.
+        //
+        // The redundant invoke when both stacks DO exist is a no-op: `dropDatabase` answers `'absent'` rather
+        // than throwing, so it produces no `FunctionError` and cannot fail the teardown run.
+        //
+        // ⚠️ NO `exportName`, exactly like the diagnostics above. A door has to be readable by
+        // `describe-stacks --query 'Stacks[0].Outputs'`, which needs no export — and an export would let
+        // something `Fn.importValue` it and reintroduce the deletion deadlock that would block the very
+        // teardown this output exists to serve.
+        new CfnOutput(this, 'RecipeWorkersMigrationFunctionName', { value: migrationFn.functionName });
     }
 }

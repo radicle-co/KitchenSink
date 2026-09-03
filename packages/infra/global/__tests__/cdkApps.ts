@@ -140,6 +140,64 @@ export function entrypointForWorkspace(workspace: string): string | undefined {
     return toSourceEntrypoint(path.posix.join(path.dirname(manifest), entrypointOf(match[1] ?? match[2] ?? '')));
 }
 
+/** One workflow job, as a slab of text — enough to ask what it deploys, probes and verifies. */
+export interface WorkflowJob {
+    /** The workflow's basename. */
+    readonly workflow: string;
+    /** The job's key. */
+    readonly name: string;
+    /** Every line from the job header to the next one, comments already stripped. */
+    readonly body: string;
+}
+
+/**
+ * Fold shell line-continuations, so one command is one line.
+ *
+ * ⚠️ NOT cosmetic, and it is the first thing the coverage guard got wrong. `sandbox-deploy.yml` writes every
+ * deploy as `npx cdk deploy \` with `--app "…"` on the NEXT line, while `prod-deploy.yml` and
+ * `sandbox-identity-deploy.yml` write it on one. A per-line scan therefore saw the two single-line workflows
+ * and reported the food and recipe jobs — the ones that whole change existed for — as deploying nothing at
+ * all, which reads as full coverage. A guard that exempts its own subject is worse than no guard.
+ *
+ * @param body - A job's or a step's text.
+ * @returns The same text with `\`-continued lines joined. Pure.
+ */
+export function foldContinuations(body: string): string {
+    return body.replace(/\\\n\s*/gu, ' ');
+}
+
+/**
+ * Split every workflow into its jobs.
+ *
+ * Textual rather than YAML-structural on purpose: a `run:` block is a shell script, so what matters is the
+ * COMMANDS a job contains, and re-assembling them from parsed YAML adds a representation without adding an
+ * assertion.
+ *
+ * ⚠️ Lives here rather than in the suites that read it. Two guards had already grown their own copy of this
+ * splitter; a third would have been the artefact this whole module exists to avoid, one reader drifting from
+ * another while both stay green.
+ *
+ * @returns Every job in every workflow, in file order. Impure.
+ * @sideEffect Shells out to git and reads the workflow files.
+ */
+export function workflowJobs(): readonly WorkflowJob[] {
+    const isJobHeader = (line: string): boolean => /^ {4}[a-z][a-z0-9-]*:\s*$/u.test(line);
+
+    return trackedFiles(WORKFLOWS_DIR)
+        .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
+        .flatMap((file) => {
+            const workflow = path.basename(file);
+            const lines = withoutComments(readFileSync(path.join(repoRoot, file), 'utf8')).split('\n');
+            const headers = lines.flatMap((line, index) => (isJobHeader(line) ? [index] : []));
+
+            return headers.map((start, position) => ({
+                workflow,
+                name: (lines[start] ?? '').trim().replace(':', ''),
+                body: lines.slice(start, headers[position + 1] ?? lines.length).join('\n'),
+            }));
+        });
+}
+
 /** One app a workflow deploys, with the place that deploys it — so a failure names a file to open. */
 export interface Deployment {
     /** Repo-relative source entrypoint. */

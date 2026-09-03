@@ -37,14 +37,26 @@
  * Then two claims, in both directions:
  *
  * **1. Every database FAMILY has at least one door.** Grouped by the name-producing function rather than by
- * stack, because `recipeDatabaseNameForStage` is called by BOTH `RecipeServiceStack` and
- * `RecipeWorkersStack` for the SAME database — one database, two stacks, one runner. A per-stack rule would
- * demand a second, redundant drop door on the workers stack and be wrong about the world.
+ * stack: a stack that merely DERIVES a per-stage name is reading a database somebody else created, and
+ * demanding a runner from it would be wrong about the world.
  *
  * **2. The teardown script names no specific door.** It must select by the anchored pattern it publishes,
  * and every discovered door must match that pattern. This is the direction that actually catches the recipe
  * leak: with §1 hardcoding `FoodMigrationFunctionName`, claim 1 passes (recipe HAS a door) and claim 2 fails
  * (the script cannot reach it).
+ *
+ * **3. Every stack that DEPLOYS a migration runner has a door of its own.** ⚠️ This claim CORRECTS a
+ * sentence that used to stand in claim 1: that one door between `RecipeServiceStack` and
+ * `RecipeWorkersStack` was enough because they share one database, and that a second would be "redundant".
+ * Redundant only while both stacks exist. `deploy-recipe` deploys workers FIRST, with two hard-failing steps
+ * before the service's `cdk deploy`, and the service deploy has its own failure modes — ADR-0007 × ADR-0022
+ * wedged `kitchensink-recipe-service-pr-91` in `UPDATE_ROLLBACK_FAILED` against the nightly-stopped RDS. The
+ * workers' in-deploy trigger has ALREADY run `ensureDatabaseExists` by that point, so the PR is left holding
+ * a database whose only door is in a stack that does not exist. Claim 1 cannot see that, because it groups
+ * by what the SOURCE says rather than by what a stage HAS.
+ *
+ * Claims 1 and 3 are both kept and neither implies the other: 1 catches a database nobody can drop at all,
+ * 3 catches one that becomes undroppable in a partial deploy.
  *
  * The pattern itself is read FROM the script, so the script stays the single authority for what a drop door
  * looks like and this file cannot drift from it.
@@ -56,10 +68,14 @@
  *    neither is load-bearing alone.
  * 2. §1 of the teardown script restored to its hardcoded `FoodMigrationFunctionName` literal → claim 2
  *    reports it. This is the red-before-green run for the real defect.
- * 3. `RecipeWorkersStack`'s `recipeDatabaseNameForStage` call deleted → nothing fails, confirming the guard
- *    groups by FAMILY and does not demand a door per stack.
+ * 3. `RecipeWorkersStack`'s `recipeDatabaseNameForStage` call deleted → claim 1 still passes, confirming it
+ *    groups by FAMILY. Claim 3 still reports the stack, because claim 3 keys on the RUNNER, which is the
+ *    thing that creates a database.
  * 4. The pattern in the script widened to `MigrationFunctionName` (unanchored) → the pattern-shape test
  *    reports it, so a "fix" that makes the script match more than the convention allows cannot pass.
+ * 5. `RecipeWorkersStack`'s `RecipeWorkersMigrationFunctionName` output deleted → claim 3 reports it and
+ *    claim 1 does not. That is the red-before-green run for the partial-deploy leak, and the pair of
+ *    outcomes is the evidence that the two claims ask different questions.
  *
  * DESIGN PATTERN: Specification module over one parser — {@link databaseFamiliesIn} and {@link dropDoorsIn}
  * are pure verdicts over a source file, fired at deliberately-violating fakes below as well as at the tree.
@@ -70,7 +86,16 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { parse, referenceText, repoRoot, trackedFiles, visit, type SourceFile } from './serviceSources.js';
+import {
+    MIGRATION_RUNNER_HANDLER,
+    parse,
+    referenceText,
+    repoRoot,
+    stringLiterals,
+    trackedFiles,
+    visit,
+    type SourceFile,
+} from './serviceSources.js';
 
 /** The teardown script that must be able to reach every door. */
 const TEARDOWN_SCRIPT = '.github/scripts/teardown-sandbox-pr.sh';
@@ -151,6 +176,24 @@ function dropDoorsIn(source: SourceFile): readonly DropDoor[] {
 }
 
 /**
+ * Whether one infra source DEPLOYS an ADR-0022 schema-migration runner.
+ *
+ * ⛔ This is a different question from "does this stack name a per-stage database", and the difference is the
+ * whole of claim 3 below. A stack that merely derives a name reads a database somebody else created; a stack
+ * that ships a RUNNER creates it — `ensureDatabaseExists` runs inside its in-deploy trigger — so it can bring
+ * a per-PR database into existence entirely on its own.
+ *
+ * Keyed on the handler string VALUE, defined once in `serviceSources.ts` and shared with
+ * `schemaMigrationBarrier.test.ts`, so prose describing a runner cannot satisfy it.
+ *
+ * @param source - One infra source file.
+ * @returns `true` when the file bundles a migration runner. Pure.
+ */
+function shipsMigrationRunner(source: SourceFile): boolean {
+    return stringLiterals(source).includes(MIGRATION_RUNNER_HANDLER);
+}
+
+/**
  * Every CDK stack source in the repo.
  *
  * Discovered from `git ls-files`, never enumerated — the same walk `natEgressConsumers.test.ts` uses, and for
@@ -217,6 +260,44 @@ describe('per-PR logical databases (ADR-0006) all have a drop door', () => {
             'a per-PR database whose stacks export no *MigrationFunctionName cannot be dropped at PR close, ' +
                 'and the database leaks silently on every reap',
         ).toEqual([]);
+    });
+
+    it('⛔ gives every stack that DEPLOYS a migration runner a drop door OF ITS OWN', () => {
+        // ⛔ THE CLAIM ABOVE IS NECESSARY AND NOT SUFFICIENT, and this is why. Claim 1 groups by database
+        // FAMILY on the reasoning that `RecipeServiceStack` and `RecipeWorkersStack` share one database, so
+        // one door between them is enough. That is true only while the two stacks are always present
+        // together, and they are not: `sandbox-deploy.yml`'s `deploy-recipe` job deploys workers FIRST (they
+        // publish the SSM parameters the service resolves at synth), with two hard-failing steps in between —
+        // the workers verification and the drift report — before the service's `cdk deploy` is even reached.
+        // A failure at either, or in the service deploy itself, leaves the workers stack up and the service
+        // stack absent. That is not hypothetical: ADR-0007 × ADR-0022 wedged `kitchensink-recipe-service-pr-91`
+        // in `UPDATE_ROLLBACK_FAILED` at 00:31 EDT against the nightly-stopped RDS.
+        //
+        // In that state the workers stack has ALREADY created `kitchensink_recipes_pr_{N}` — its in-deploy
+        // trigger runs `ensureDatabaseExists` — while teardown, which discovers doors from the outputs of the
+        // stacks that actually EXIST, finds none. The database survives every reap, on the shared sandbox
+        // instance, invisibly: the stack deletes cleanly and the database is not its resource. Exactly the
+        // leak claim 1 exists to prevent, reached from a direction claim 1 cannot see.
+        //
+        // A second door is redundant only when both stacks are deployed. It costs one `CfnOutput` and one
+        // extra invoke at teardown, and `dropDatabase` answers `'absent'` without throwing, so the redundant
+        // call is a no-op rather than the `FunctionError` teardown now treats as a failed run.
+        const undoored = sources
+            .filter((source) => shipsMigrationRunner(source))
+            .filter((source) => dropDoorsIn(source).length === 0)
+            .map(({ file }) => file)
+            .sort();
+
+        expect(
+            undoored,
+            'a stack that deploys a migration runner can create a per-PR database on its own, so it must ' +
+                'publish its own *MigrationFunctionName output — teardown discovers doors from the stacks ' +
+                'that exist, not from the ones that were supposed to',
+        ).toEqual([]);
+    });
+
+    it('discovers the runner-shipping stacks — the claim above must not pass on an empty set', () => {
+        expect(sources.filter((source) => shipsMigrationRunner(source)).length).toBeGreaterThan(2);
     });
 
     it('is reachable from teardown by PATTERN — the script names no specific door', () => {

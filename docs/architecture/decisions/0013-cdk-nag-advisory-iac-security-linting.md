@@ -73,6 +73,10 @@ The first burn-down pass. **115 findings → 62** across the seven prod apps, wi
 | `APIG3` / `CFR1` / `CFR2` WAF + geo    | 3      | **0**  | Accepted — deferred on cost proportionality                                                                 |
 | `SMG4` no secret rotation              | 2      | **1**  | `MigrationPlanSecret` accepted; `DatabaseCredentialsSecret` **ESCALATED**                                   |
 
+⚠️ **This paragraph is the 2026-08-07 record and its first sentence is no longer true** — those two findings
+cleared on an `aws-cdk-lib` bump, unnoticed until the 2026-09-03 census. The reasoning it states is still the
+reasoning in force; see "the WHOLE table becomes a control" below for what `L1` is today.
+
 The 2 remaining `L1` findings are CDK's own `custom_resources.Provider` framework functions. `Provider` calls `lambda.determineLatestNodeRuntime(this)` and exposes no runtime prop, so they are not ours to set. They are left **reporting** deliberately: the finding is accurate, it clears itself on an `aws-cdk-lib` bump, and suppressing it would write template metadata onto the prod data stack in exchange for hiding a genuinely stale runtime later.
 
 `AwsSolutions-L1` was described above as "a recurring, low-value 19-finding block of noise". That framing was wrong, and the correction is worth recording: the repo pins `engines.node: 24.x`, so **every test, lint and local command ran on Node 24 while all nineteen deployed Lambdas ran `nodejs22.x`**. The code was verified on one Node major and executed on another. The runtime is now one pinned constant (`NODE_LAMBDA_RUNTIME`, `@kitchensink/infra-security`) whose own suite asserts it equals both the newest Node runtime `aws-cdk-lib` exposes (computed the way cdk-nag's `LambdaLatestVersion` computes it, then confirmed _through the real pack_) and the `engines.node` major. The next CDK bump that ships a newer runtime therefore fails **one test, in the PR that caused it**, instead of silently re-firing nineteen warnings — the treadmill, closed. Evidence the move is safe: all 25 built handler bundles import cleanly under Node 24.16.0 (esbuild targets `node22`, a forward-compatible downlevel), and `nodejs24.x` is present in the live Lambda API's runtime enum.
@@ -154,17 +158,29 @@ These four were in the FIX list and are **not implemented**; they add new resour
 
 **Recommendation: do all three**, with retention caps rather than defaults — a lifecycle expiry of **30 days** on the flow-log prefix and **90 days** on the access-log prefixes. Two notes for whoever picks this up: the log bucket itself will fire `S1` (a log target cannot log to itself — S3 rejects it, and it would recurse), so it needs its own accepted register entry; and one bucket serving S3 server access logs _plus_ ALB logs _plus_ flow logs means three different bucket-policy/ACL models, so verify by synth before assuming one bucket works.
 
-### Remaining backlog (62), untouched and not in this pass's triage
+### Remaining backlog (84), ASSERTED — see the 2026-09-03 census update below
 
-| Rule                                                | Count | Note                                                                                                                                                                                                                                                                    |
-| --------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IAM4` AWS managed policies                         | 27    | Almost all `AWSLambdaBasicExecutionRole` / `AWSLambdaVPCAccessExecutionRole` / `AmazonECSTaskExecutionRolePolicy`. Replacing them with inline equivalents is mechanical but touches every role; worth one dedicated change                                              |
-| `IAM5` residual wildcards                           | 20    | Mostly `Resource::*` on ECS task _execution_ roles (CDK-generated ECR/logs grants) and the recipe/identity API task roles' `grantRead`/`grantDelete` on the shared buckets — the **same over-grant just fixed in recipe-workers**, and the next highest-value narrowing |
-| `EC26` / `EC28` / `EC29`                            | 3     | The `t4g.nano` NAT instance: unencrypted EBS, no detailed monitoring, no termination protection. ADR-0004 owns this resource                                                                                                                                            |
-| `RDS11` default endpoint port                       | 1     | Changing 5432 breaks every consumer's config; low value                                                                                                                                                                                                                 |
-| `APIG2` no request validation                       | 1     | The webhook body is validated by svix + the handler's own parsing                                                                                                                                                                                                       |
-| `CFR3` no CloudFront access logging                 | 1     | The router is being retired for previews (ADR-0001)                                                                                                                                                                                                                     |
-| `S1`, `ELB2`, `VPC7`, `SMG4`, `RDS3`, `RDS10`, `L1` | 9     | Deferred / escalated / not-ours, as above                                                                                                                                                                                                                               |
+⚠️ **These numbers are now a CONTROL, not a note.** `nagRulesAtZero.integration.test.ts` runs the real rules
+over every synthesizable app and asserts this table row by row, by EQUALITY. A burn-down that lands reds it
+until the row is updated in the change that earned it; a regression reds it too; and a rule that starts
+reporting and is not named here reds a third assertion. Editing a count without the measurement to back it is
+now a failing build rather than a stale sentence. The heading's total must equal the rows' sum — that is
+asserted as well.
+
+| Rule                                          | Count | Note                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IAM4` AWS managed policies                   | 33    | Almost all `AWSLambdaBasicExecutionRole` / `AWSLambdaVPCAccessExecutionRole` / `AmazonECSTaskExecutionRolePolicy`. Replacing them with inline equivalents is mechanical but touches every role; worth one dedicated change. Was 27 on 2026-08-07; `EdgeStack` and the recipe tier added six                                                                                     |
+| `IAM5` residual wildcards                     | 21    | Mostly `Resource::*` on ECS task _execution_ roles (CDK-generated ECR/logs grants) and the recipe/identity API task roles' `grantRead`/`grantDelete` on the shared buckets — the **same over-grant fixed in recipe-workers**, and the next highest-value narrowing. Was 20                                                                                                      |
+| `EC26` / `EC28` / `EC29`                      | 3     | The `t4g.nano` NAT instance: unencrypted EBS, no detailed monitoring, no termination protection. ADR-0004 owns this resource                                                                                                                                                                                                                                                    |
+| `RDS11` default endpoint port                 | 1     | Changing 5432 breaks every consumer's config; low value                                                                                                                                                                                                                                                                                                                         |
+| `APIG2` no request validation                 | 1     | The webhook body is validated by svix + the handler's own parsing                                                                                                                                                                                                                                                                                                               |
+| `CFR3` no CloudFront access logging           | 4     | One on the sandbox router (being retired for previews, ADR-0001) and **three new** on `EdgeStack`'s identity/food/recipe distributions, which front PRODUCTION. Not the same decision as the router's; **owner triage owed**                                                                                                                                                    |
+| `CFR1` / `CFR2` on `EdgeStack`                | 6     | ⚠️ **NEW, and not the accepted router case.** `SandboxRouterStack`'s distribution carries `CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE`; `EdgeStack`'s three do not. The register entry's own reasoning ("this distribution is the SANDBOX preview router … REVISIT if the router ever fronts production") is exactly the condition that has now occurred. **Owner triage owed** |
+| `CFR4` minimum TLS/SSL protocol               | 3     | ⚠️ **NEW.** `EdgeStack`'s three distributions. Never triaged in any pass — it appears in no earlier table                                                                                                                                                                                                                                                                       |
+| `DDB3` no point-in-time recovery              | 1     | ⚠️ **NEW.** `MessageSubstrateStack`'s `MessageTable` (landed 2026-08-16, after the burn-down). **Owner triage owed** — PITR on a message substrate is a durability decision, not a lint                                                                                                                                                                                         |
+| `ECS4` no Container Insights                  | 3     | ⚠️ **NEW to the table**, on all three ECS clusters. Two of those clusters existed at burn-down #1, so either the rule postdates that pass or the 2026-08-07 census was itself incomplete — nothing recorded then can distinguish the two, which is the whole argument for this table being asserted                                                                             |
+| `S1`, `ELB2`, `VPC7`, `SMG4`, `RDS3`, `RDS10` | 7     | Deferred / escalated, as above. `S1` 2, `ELB2` 1, `VPC7` 1, `SMG4` 2, `RDS3` 1, **`RDS10` 0** — the escalated deletion-protection finding has CLEARED and nothing said so                                                                                                                                                                                                       |
+| `L1` non-latest Lambda runtime                | 1     | The Lambda@Edge verifier, pinned to `nodejs22.x` because Lambda@Edge offers no `nodejs24.x`. Left REPORTING and asserted EXPLAINED in both directions — see below. **The 2 CDK `Provider` findings this row used to hold are GONE**                                                                                                                                             |
 
 ### Two unrelated defects found in passing (reported, not fixed)
 
@@ -272,8 +288,98 @@ satisfied by a reader that found nothing, a pack that never attached, or a rule 
 
 ⚠️ **Residual, stated plainly.** (1) Only rows at zero can join `RULES_AT_ZERO`, so the un-burnt-down majority
 of the table is still a measurement — the mechanism now exists, but each row still needs its burn-down.
-(2) The census cross-check bounds the two limits above by COUNT, not by identity: it would not notice a
-stage-only queue being swapped for a differently-named one, only a change in how many exist. (3) The
+**Superseded hours later by the census below, which mechanises the un-burnt-down rows without burning them
+down.** (2) The census cross-check bounds the two limits above by COUNT, not by identity: it would not notice
+a stage-only queue being swapped for a differently-named one, only a change in how many exist. (3) The
 suite's own numbers for that comparison come from `queueBaselineDeclarations.test.ts`'s reader, so a defect in
 that AST reading weakens the cross-check — which is why that reader keeps its own per-property negative
 control.
+
+## Update (2026-09-03, later the same day) — the WHOLE table becomes a control, and it had already rotted
+
+The residual above said the un-burnt-down rows "still need their burn-down" before they could be asserted.
+That conflated two things. A rule at **zero** can be asserted by a predicate (`no non-Compliant row`); a rule
+at **twenty** can be asserted by a **census** (`exactly twenty non-Compliant rows`). The second needs no
+burn-down at all — it needs a number and something that re-measures it.
+
+So `nagRulesAtZero.integration.test.ts` gained a second half. It reads **this ADR's own backlog table** as the
+authority — parsing the rows out of the markdown rather than re-listing the rules in the suite, because a copy
+of the numbers would rot exactly as the numbers did — and asserts three things over the same synthesis
+`RULES_AT_ZERO` already performs, so the whole control costs no extra CDK runs:
+
+1. **Every rule reporting a finding appears in the table.** The subject set is what cdk-nag ACTUALLY reported,
+   not what the table remembered to list, so a rule that starts firing on a resource class nobody has thought
+   about cannot slip in behind a table that never mentioned it.
+2. **Every row is held at its recorded count, by EQUALITY.** A ceiling (`≤`) was the obvious choice and is the
+   weaker one: it lets the written number drift above reality forever, so a burn-down that actually lands
+   leaves the ADR overstating it with nothing to say so. Equality flips in both directions — an improvement
+   reds the suite just as a regression does, which is what forces the table to move in the change that earns
+   it.
+3. **The rows sum to the total in the heading.** Nothing checked the table against itself either.
+
+### What it found the moment it existed
+
+**The table was wrong in five places and incomplete in four**, 27 days after it was written. Every number
+below is measured, at `prod`, through the real pack:
+
+| Row                          | Recorded | Measured | What happened                                                                                                                               |
+| ---------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IAM4`                       | 27       | **33**   | `EdgeStack` (2026-08-16) and the recipe tier added roles                                                                                    |
+| `IAM5`                       | 20       | **21**   | one more wildcard                                                                                                                           |
+| `CFR3`                       | 1        | **4**    | `EdgeStack`'s three production distributions, none of them the sandbox router the row is about                                              |
+| `S1`…`RDS10`, `L1` (grouped) | 9        | **8**    | `RDS10` cleared to 0 (escalated, then fixed, unrecorded) and `L1` fell from 2 to 1                                                          |
+| `CFR1` / `CFR2`              | —        | **6**    | Table A records these at **0**, accepted via the register — which applies to `SandboxRouterStack` only. `EdgeStack`'s three do not carry it |
+| `CFR4`                       | —        | **3**    | never triaged in any pass                                                                                                                   |
+| `DDB3`                       | —        | **1**    | `MessageSubstrateStack`'s table (2026-08-16)                                                                                                |
+| `ECS4`                       | —        | **3**    | all three ECS clusters                                                                                                                      |
+
+Two of those deserve emphasis.
+
+⛔ **`CFR1`/`CFR2` are not covered by the acceptance that Table A records.** The register entry
+`CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE` argues cost-proportionality for a _sandbox preview router_ and
+says in its own words: _"REVISIT if the router ever fronts production."_ `EdgeStack` fronts production. The
+entry was never applied to it — correctly, since nobody re-argued it — so the findings report, and until
+2026-09-03 nothing said so. **Owner triage is owed** on `CFR1`/`CFR2`/`CFR3`/`CFR4` for `EdgeStack`, and on
+`DDB3` for the message substrate. They are recorded here as measured and untriaged, NOT as accepted: writing a
+finding into a table is not a decision about it.
+
+⚠️ **`ECS4` fires on clusters that existed at burn-down #1.** Either the rule postdates that pass, or the
+2026-08-07 census was itself incomplete. Nothing recorded then can distinguish the two — which is precisely
+the argument for a table that is re-measured rather than remembered.
+
+### `L1` is now EXPLAINED in both directions, on ADR-0025's precedent
+
+The `L1` row's own prediction came true and nobody noticed: **the two `custom_resources.Provider` findings
+have cleared** on an `aws-cdk-lib` bump, exactly as the 2026-08-07 note said they would. What is left is ONE
+finding, on the Lambda@Edge viewer-request function, which is pinned to `nodejs22.x` because **Lambda@Edge
+offers no `nodejs24.x`** — the repo-wide `NODE_LAMBDA_RUNTIME` cannot be used there.
+
+That is the same shape ADR-0025 §4 records for the Python CRF parser, and it gets the same treatment: left
+**reporting**, never suppressed, with the assertion made about the EXPLANATION rather than the count —
+
+```
+findings.some(isEdgeVerifier) === (EDGE_LAMBDA_RUNTIME.name !== NODE_LAMBDA_RUNTIME.name)
+```
+
+— total in both directions, so the day Lambda@Edge ships the pinned runtime the finding must be GONE and the
+row must come out of the table, with nobody having to remember to check. An `L1` on any other function we
+control is not covered by either exemption and reds as unexplained.
+
+### What is now MECHANISED versus merely MEASURED — revised
+
+| Burn-down row                                                                                                                 | Status                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `SQS4` / `SNS3` = 0                                                                                                           | **MECHANISED** — asserted at zero, per app, every CI run                                                   |
+| `L1` (1 residual, the Lambda@Edge verifier)                                                                                   | **MECHANISED** — count asserted, AND explained in both directions against the runtime pins                 |
+| Every other backlog row (`IAM4`, `IAM5`, `CFR1`–`CFR4`, `DDB3`, `ECS4`, `EC26`/`EC28`/`EC29`, `RDS11`, `APIG2`, `S1`…`RDS10`) | **MECHANISED** — held at the count above by equality, with the rule set derived from what actually reports |
+| `ECS2`, `EC23`, `APIG4`/`COG4`, `APIG3`                                                                                       | MEASURED — accepted via the register; the register's key set and the prod allowlist are pinned             |
+
+⚠️ **Residual, revised.** (1) The census counts findings, not resources — two findings on one resource read as
+two, which is the right unit for a burn-down but not for "how much is left to fix". (2) It measures at `prod`
+and skips `ingredient-parser`, inheriting both limits above; a finding that exists only at another stage is
+still invisible, and the queue/topic cross-check bounds only those two rules. (3) The counts are now a
+maintenance obligation: any change that adds a role, a distribution or a table reds this suite until the table
+moves with it. That is the intended cost — it is what makes the number mean something — but it will read as
+noise to someone who has not read this section. (4) **Four rules are recorded as measured and untriaged**
+(`CFR1`, `CFR2`, `CFR4`, `DDB3`, plus `CFR3` on `EdgeStack`); they are findings on production edge
+infrastructure and a dispositions pass is owed on them.

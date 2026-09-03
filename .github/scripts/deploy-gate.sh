@@ -29,8 +29,9 @@
 # re-implementing it) by packages/infra/global/__tests__/deployGate{,.integration}.test.ts.
 #
 # Usage — as a CLI:
-#     deploy-gate.sh decide   <intent> <changed> <forced> <healthCode> <name=STATUS> [<name=STATUS> …]
-#     deploy-gate.sh evaluate <intent> <service> <changed> <forced> <healthUrl> <region> <stack> [<stack> …]
+#     deploy-gate.sh decide     <intent> <changed> <forced> <healthCode> <name=STATUS> [<name=STATUS> …]
+#     deploy-gate.sh evaluate   <intent> <service> <changed> <forced> <healthUrl> <region> <stack> [<stack> …]
+#     deploy-gate.sh stacks-for <entrypoint> <stage> [<manifestFile>]
 #
 # `evaluate` writes `deploy=` and `reason=` to stdout and, when set, appends them to $GITHUB_OUTPUT.
 # Exit status: 0 = a decision was made (read `deploy=`), 2 = misuse (never treat as "skip").
@@ -566,6 +567,132 @@ deploy_gate_unmet_imports() {
     done
 }
 
+# ── The stacks an app DECLARES: an ensure-exists probe that writes nothing down ──────────────────────────
+#
+# ⛔ `deploy_gate_decide` above is handed `<name>=<STATUS>` pairs, so SOMETHING upstream has to know which
+# stacks to ask about — and until now that was a list typed into a workflow. `sandbox-identity-deploy.yml`
+# probed TWO of the global platform app's stacks by name. Its own comment records the first correction: the
+# ALB was added only after ADR-0028 made the sandbox tier reclaimable, a reaped tier left the network stack
+# standing, the probe answered "nothing missing", the global deploy was skipped, and the identity deploy then
+# died resolving `SharedAlbHttpsListenerArn` from a stack that no longer existed. The LIST was edited. The
+# CLASS was not closed: six further sandbox stacks — data, domain, global, messaging, service-logs and the
+# scheduler — were still unprobed, and a stack added tomorrow would be too.
+#
+# ⛔ Nothing here enumerates a stack. `scripts/infrastructureManifest.mjs` reads every `new …Stack(…)` and its
+# `stackName` out of the CDK source by AST and projects them to `docs/generated/infrastructure/manifest.json`,
+# under the same regenerate-and-diff staleness gate `cross-app-imports.tsv` carries — so the file is current
+# with the commit that reads it, and a stack added tomorrow is probed the day it is written.
+#
+# ⚠️ WHY THE MANIFEST AND NOT `cdk ls`. `verify-deployment.sh` derives ITS stack list by synthesising the very
+# `--app` string the deploy used, which is the more faithful reading and is right for a POST-deploy check that
+# already has a built app to hand. A gate runs BEFORE the build — it decides whether the build happens at all
+# — so a synth-based derivation here would be circular. The manifest is the one reading that needs no build,
+# no credentials and no network, which is exactly why it can be staleness-gated in the first place
+# (`infrastructureManifest.test.ts`).
+
+# Where the derived stack declarations live, relative to the repository root.
+DEPLOY_GATE_MANIFEST_FILE='docs/generated/infrastructure/manifest.json'
+
+# deploy_gate_stacks_for <entrypoint> <stage> [<manifestFile>]
+#
+# Print the physical stack names <entrypoint> declares for <stage>, one per line, sorted.
+#
+# ⛔ EXIT 2 IS A REFUSAL, NEVER AN EMPTY SET. Every uncertainty leaves through the status rather than through
+# the answer, because "this app declares no stacks" and "this app is fully deployed" are the same three
+# characters of stdout, and a caller that read the first as the second would skip a deploy on the strength of
+# a file it could not parse. The refusals are: an unknown entrypoint, a missing manifest, a stack behind a
+# guard this reader cannot evaluate, a stack whose NAME the manifest could not read, and an app that resolves
+# to no stack at all at this stage.
+#
+# ⚠️ The condition vocabulary is deliberately narrow. The manifest records a conditional stack's guard as
+# SOURCE TEXT, and `stage === '<literal>'` is all this repository writes (ADR-0008's cost guardrails,
+# ADR-0020's edge stack, ADR-0007's sandbox scheduler). Reading an unrecognised guard as unconditional would
+# demand a stack the app never builds — a gate stuck permanently at "deploy"; reading it as false would drop a
+# stack the app does build — the hole this whole function closes. So it refuses, loudly, and the vocabulary is
+# widened in the change that needs it.
+#
+# @sideEffect Reads the generated manifest.
+deploy_gate_stacks_for() {
+    local entrypoint="${1-}" stage="${2-}"
+    local manifest="${3:-${GITHUB_WORKSPACE:-.}/${DEPLOY_GATE_MANIFEST_FILE}}"
+
+    if [ -z "$entrypoint" ] || [ -z "$stage" ]; then
+        echo 'usage: deploy-gate.sh stacks-for <entrypoint> <stage> [manifestFile]' >&2
+        return 2
+    fi
+    if [ ! -f "$manifest" ]; then
+        echo "::error::${manifest} is missing — the stacks '${entrypoint}' declares are unknown, so no probe" \
+            'of them could mean anything' >&2
+
+        return 2
+    fi
+
+    local app
+    app=$(jq -c --arg entrypoint "$entrypoint" \
+        'first(.apps[] | select(.entrypoint == $entrypoint)) // empty' "$manifest" 2>/dev/null)
+    if [ -z "$app" ]; then
+        echo "::error::deploy-gate: the committed manifest has no entry for '${entrypoint}'. Run" \
+            '`npm run infra:manifest` and commit the result, or check the entrypoint path.' >&2
+
+        return 2
+    fi
+
+    # `'…'` inside a single-quoted shell word, spelled the only unambiguous way there is.
+    local readable_condition='^stage === '"'"'[A-Za-z0-9_-]+'"'"'$'
+    local unreadable
+    unreadable=$(printf '%s' "$app" | jq -r --arg pattern "$readable_condition" '
+        [ .stacks[]
+          | select(.condition != null)
+          | select((.condition | test($pattern)) | not)
+          | "\(.className): \(.condition)" ]
+        | .[]')
+    if [ -n "$unreadable" ]; then
+        echo "::error::deploy-gate: '${entrypoint}' declares a stack behind a guard this gate cannot" \
+            "evaluate, so it cannot say which stacks stage '${stage}' should have:" >&2
+        printf '%s\n' "$unreadable" >&2
+
+        return 2
+    fi
+
+    local templates
+    templates=$(printf '%s' "$app" | jq -r --arg wanted "stage === '${stage}'" '
+        .stacks[]
+        | select(.condition == null or .condition == $wanted)
+        | (.stackNameTemplate // "{?}")')
+
+    local resolved names=''
+    while IFS= read -r template; do
+        [ -n "$template" ] || continue
+
+        if [[ $template == *'{?}'* ]]; then
+            echo "::error::deploy-gate: '${entrypoint}' declares a stack whose NAME the manifest could not" \
+                "read ('${template}'). Probing it would ask CloudFormation about a stack that cannot exist," \
+                'so this run would deploy on every event and nobody would know why.' >&2
+
+            return 2
+        fi
+
+        # Every READABLE placeholder collapses to the stage — the same ruling `canonicalStackTemplate` makes
+        # and for the same reason: the placeholder is the local variable name the CDK author chose, while a
+        # stack name in this repository is `kitchensink-<component>-<stage>` whatever they called it.
+        resolved="${template//\{stage\}/$stage}"
+        while [[ $resolved =~ \{[A-Za-z_][A-Za-z0-9_]*\} ]]; do
+            resolved="${resolved/${BASH_REMATCH[0]}/$stage}"
+        done
+
+        names="${names}${resolved}"$'\n'
+    done <<<"$templates"
+
+    if [ -z "${names//[[:space:]]/}" ]; then
+        echo "::error::deploy-gate: '${entrypoint}' declares NO stack at stage '${stage}', so a probe of" \
+            'them would verify nothing. Refusing to answer "nothing is missing".' >&2
+
+        return 2
+    fi
+
+    printf '%s' "$names" | sort -u
+}
+
 # CLI dispatch — only when executed directly, never when sourced.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     case "${1-}" in
@@ -589,11 +716,16 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             deploy_gate_resolve_export "$@"
             ;;
+        stacks-for)
+            shift
+            deploy_gate_stacks_for "$@"
+            ;;
         stack-usable)
             deploy_gate_stack_is_usable "${2-}"
             ;;
         *)
-            echo "usage: deploy-gate.sh decide|evaluate|close|unmet-imports|resolve-export|stack-usable …" >&2
+            echo 'usage: deploy-gate.sh' \
+                'decide|evaluate|close|unmet-imports|resolve-export|stacks-for|stack-usable …' >&2
             exit 2
             ;;
     esac

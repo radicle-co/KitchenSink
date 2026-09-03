@@ -37,8 +37,20 @@
  * digest-guarded landing — is genuinely exercised locally. Judging PARSE QUALITY needs the real model; that
  * is `packages/tools/cookbook-import`'s comparison harness, not this.
  */
-import type { ConverseCommandInput } from '@aws-sdk/client-bedrock-runtime';
 import type { ConverseTransport } from '@kitchensink/bedrock-client';
+
+/**
+ * The transport's own input, DERIVED from the port it implements rather than imported from the vendor.
+ *
+ * ⛔ This was `import type { ConverseCommandInput } from '@aws-sdk/client-bedrock-runtime'`, which
+ * `turbo boundaries` correctly flagged: recipe-workers does not declare that package, so the import
+ * resolved only by hoisting and would break the day it stopped. Declaring the vendor here would have been
+ * the wrong repair anyway — this module exists precisely to sit BEHIND `@kitchensink/bedrock-client`'s
+ * seam, and reaching past it to the vendor for a type is the coupling the seam refuses. Deriving from
+ * `ConverseTransport` keeps one source of truth (ADR-0014: a consumer derives, it does not redeclare) and
+ * adds no dependency.
+ */
+type ConverseCommandInput = Parameters<ConverseTransport>[0];
 import { FOODNESS_SYSTEM_PROMPT } from '@kitchensink/recipe-core/parsing/foodness-prompt';
 import { PARSE_SYSTEM_PROMPT } from '@kitchensink/recipe-core/parsing/parse-prompt';
 import { buildVerificationPrompt } from '@kitchensink/recipe-core/resolution/verification-prompt';

@@ -30,5 +30,14 @@ packages/schemas/*/openapi.yaml
 # 91 MB. See ADR-0025.
 packages/services/ingredient-parser/build
 
+# The generated component + design-token documentation. DERIVED output written by
+# `@kitchensink/docgen-components` and guarded by regenerate-and-diff, exactly like the OpenAPI documents
+# above and for the identical reason: the guard compares BYTES, and `lint-staged` runs `prettier --write` on
+# every staged `*.json`, so without this entry a commit reformats the artifact and the gate reds on drift
+# that is not drift. Prettier happens to leave today's output nearly identical; the point is that it must not
+# be able to touch it at all.
+docs/generated/components
+docs/generated/design
+
 # Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch, incl. cdk.out<rand>.
 .tmp-test

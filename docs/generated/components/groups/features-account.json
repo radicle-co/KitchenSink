@@ -1,0 +1,311 @@
+{
+    "schemaVersion": 1,
+    "group": "features-account",
+    "packageName": "@commise/features-account",
+    "layer": "feature",
+    "coverage": {
+        "components": 1,
+        "implementations": 2,
+        "props": 24,
+        "documentedComponents": 1,
+        "implementationsWithModuleDoc": 2,
+        "implementationsWithComponentDoc": 0,
+        "documentedProps": 24,
+        "classifiedComponents": 1,
+        "componentsWithPatternTag": 0,
+        "crossPlatformComponents": 1
+    },
+    "components": [
+        {
+            "id": "features-account/danger/AccountEraseDialog",
+            "name": "AccountEraseDialog",
+            "group": "features-account",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/danger",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "AccountEraseDialog",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/danger/AccountEraseDialog.tsx",
+                    "dir": "packages/apps/commise/features/account/src/danger",
+                    "moduleDoc": "@commise/features-account/danger/AccountEraseDialog — the WEB account-erasure dialog (CR-002 / U4b).\n\nA controlled `Dialog` built on `@radix-ui/react-dialog` — Radix owns focus-trapping, Escape-to-dismiss,\nbackdrop-click dismiss, and the `role=\"dialog\"` + `aria-labelledby`/`aria-describedby` wiring from its\n`Title`/`Description` parts, so this leaf only supplies the Commise visual language, the donate election,\nand the phrase gate. `onOpenChange(false)` (Escape + backdrop) maps onto the same `onCancel` the explicit\nCancel button uses — one exit path, not two.\n\nThe confirm action is enabled ONLY when {@link confirmsErasurePhrase} accepts the typed phrase and no\nsubmit is in flight — the SAME predicate the native leaf uses, so the two platforms gate identically and\nneither can enable a confirmation the server would `400`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/danger/AccountEraseDialog — the WEB account-erasure dialog (CR-002 / U4b)."
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "donatableRecipes",
+                            "type": "readonly DonatableRecipe[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The owner-only recipes offered for donation (already filtered to eligible; may be empty).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "onCancel",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the user cancels (including Escape / backdrop dismiss on web).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the user confirms (only reachable while the phrase gate is satisfied).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "onPhraseChange",
+                            "type": "(value: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Report a change to the typed confirmation phrase.",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "onToggleRecipe",
+                            "type": "(recipeId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Toggle a recipe's donation election.",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the dialog is shown. When `false` the component renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "phrase",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The confirmation phrase the user has typed so far (controlled).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "recipesError",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether loading the owner's recipes FAILED. Erasure must still proceed (the election is optional) — the\ndialog surfaces that nothing will be published rather than blocking the destructive action (B17).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "recipesLoading",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the owner's recipes are still loading (show a status, not the election yet).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "selectedRecipeIds",
+                            "type": "readonly string[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The ids currently elected for donation (a controlled selection the container owns).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "submitError",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the last erasure attempt failed, so the dialog never silently stops (B17).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "submitting",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the erasure request is in flight (disables + marks the confirm action busy).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [
+                        "recipesError",
+                        "recipesLoading"
+                    ],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "AccountEraseDialog",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/danger/AccountEraseDialog.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/danger",
+                    "moduleDoc": "@commise/features-account/danger/AccountEraseDialog.native — the NATIVE account-erasure dialog\n(CR-002 / U4b). The React Native leaf of `AccountEraseDialog` — the\nSAME controlled, presentational contract, phrase gate, and donate election as the web leaf, so the two\nplatforms can never drift on behaviour or on which inputs enable the destructive confirm.\n\nRenders nothing while `open` is false — an explicit early return (not `Modal`'s `visible` prop): under\n`react-native-web` a `Modal` keeps its portal content mounted across a `visible` toggle, so gating the\nwhole `<Modal>` behind `open` keeps this leaf's contract identical to every other controlled dialog here\n(mirrors `@commise/ui`'s `ConfirmDialog.native`).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/danger/AccountEraseDialog.native — the NATIVE account-erasure dialog"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "donatableRecipes",
+                            "type": "readonly DonatableRecipe[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The owner-only recipes offered for donation (already filtered to eligible; may be empty).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "onCancel",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the user cancels (including Escape / backdrop dismiss on web).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Invoked when the user confirms (only reachable while the phrase gate is satisfied).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "onPhraseChange",
+                            "type": "(value: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Report a change to the typed confirmation phrase.",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "onToggleRecipe",
+                            "type": "(recipeId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Toggle a recipe's donation election.",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the dialog is shown. When `false` the component renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "phrase",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The confirmation phrase the user has typed so far (controlled).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "recipesError",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether loading the owner's recipes FAILED. Erasure must still proceed (the election is optional) — the\ndialog surfaces that nothing will be published rather than blocking the destructive action (B17).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "recipesLoading",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the owner's recipes are still loading (show a status, not the election yet).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "selectedRecipeIds",
+                            "type": "readonly string[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The ids currently elected for donation (a controlled selection the container owns).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "submitError",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the last erasure attempt failed, so the dialog never silently stops (B17).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
+                            "name": "submitting",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the erasure request is in flight (disables + marks the confirm action busy).",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [
+                        "recipesError",
+                        "recipesLoading"
+                    ],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        }
+    ]
+}

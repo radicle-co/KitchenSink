@@ -4,5 +4,11 @@ node_modules
 build
 .docusaurus
 
+# Build-time mirrors of nested content sources (`MIRROR_ROOT` in src/content/contentSource.ts). Byte
+# copies of `docs/generated/**`, which the ROOT .prettierignore already exempts for a reason that
+# applies here verbatim: `infrastructureManifest.test.ts` regenerates and DIFFS those bytes, so
+# reformatting a copy of them is reformatting the thing under guard. Gitignored either way.
+content/mirrored
+
 # Vitest temp root (see packages/tools/vitest/testTempRoot.js). Gitignored scratch.
 .tmp-test

@@ -1,22 +1,95 @@
-# Proves the engineering documentation site BUILDS. It does not deploy it.
+# Builds the engineering documentation site on every change, and PUBLISHES it — privately — when a
+# change reaches `main`.
 #
-# ⛔ DO NOT ADD A DEPLOY JOB HERE. Where this site is hosted is an open owner decision with cost
-# implications; nothing about it has been chosen, and a deploy step added "while we're here" would
-# make that choice silently.
+# ══ WHAT THE OWNER MUST CREATE BY HAND (this workflow cannot create any of it) ══════════════════════
 #
-# ⚠️ WHY THIS IS A SEPARATE WORKFLOW, AND WHY IT IS PATH-FILTERED. The site pulls in Docusaurus,
-# which is ~1,100 packages, and a full build takes ~15s on top of a cold `npm ci`. Wiring it into
-# `_ci.yml` would spend that on every pull request, including the ones that touch neither the
-# documentation nor the site. So it is its own workflow, gated on the paths that can actually break
-# it, and its build script is deliberately named `docs:build` rather than `build` — the name keeps it
-# out of `turbo run build`, so `npm run build` at the repo root is exactly as fast as it was before
-# this package existed.
+# 1. A NEW Vercel project on the `Radicle` team, separate from the web app's. Do NOT connect it to a
+#    Git repository: a repo-connected project builds on every push to KitchenSink, which is precisely
+#    the per-pull-request cost this workflow is shaped to avoid. Framework preset "Other"; no build
+#    command and no root directory are needed, because the deploy below is `--prebuilt` and Vercel
+#    never builds anything.
+# 2. On that project: Settings → Deployment Protection → Vercel Authentication, scope **All
+#    Deployments** (`ssoProtection.deploymentType == "all"`). NOT "Standard Protection" — Vercel's own
+#    documentation says Standard "protects all domains except production domains", which would leave
+#    the project's `<name>.vercel.app` WORLD-READABLE. The `Assert the Vercel project is private`
+#    step below refuses to deploy unless the API reports `all`.
+# 3. ⛔ NO custom domain on this project, and NO Route 53 record pointing at it. ADR-0001 records the
+#    MEASURED behaviour that makes this a security rule rather than a preference: "A registered custom
+#    domain is exempt from deployment protection." A Vercel *branch domain* (`gitBranch`) is likewise
+#    forbidden — ADR-0001 item 2 measured that it re-enables protection but then resolves to the wrong
+#    deployment. The same step below fails if any non-`.vercel.app` domain appears on the project.
+# 4. A GitHub Environment named `Docs`, with no protection rules required. (A reviewer or branch
+#    policy here is harmless if wanted — unlike `Sandbox`, nothing in this workflow reclaims a
+#    resource, so a stalled run leaks nothing. See zizmor.yml's Environments burn-down.)
+# 5. Repository VARIABLES (Settings → Secrets and variables → Actions → Variables):
+#      • DOCS_VERCEL_PROJECT_ID — the NEW project's id (`prj_…`). ⛔ Never reuse `VERCEL_PROJECT_ID`;
+#        that one is the web app, and publishing this corpus into it would put the ADRs behind the
+#        product's own preview domains.
+#      • DOCS_SITE_URL          — the project's production URL, e.g. `https://commise-docs.vercel.app`.
+#                                 Used for the site's canonical/OG/sitemap `url`, and probed below.
+#      • VERCEL_TEAM_ID         — ALREADY EXISTS (shared with sandbox-web-preview.yml).
+#    Repository SECRET:
+#      • VERCEL_TOKEN           — ALREADY EXISTS. A team-scoped account token, not a project one.
+#
+# If any of these is missing the deploy FAILS and names it. Nothing here degrades to a skip: a deploy
+# step that no-ops when unconfigured is the "check whose signal reached no one" failure this
+# repository has spent months removing.
+#
+# ══ WHEN IT DEPLOYS, AND WHY NOT MORE OFTEN ═════════════════════════════════════════════════════════
+#
+# `push` to `main`, plus `workflow_dispatch`. Deliberately NOT on pull requests. A documentation site
+# has one reader-facing version, so a per-PR deployment would buy a preview nobody asked for and
+# charge every unrelated pull request an outward action against a third party — while multiplying the
+# number of live copies of a corpus that names the AWS account id and the `azp` trust boundary. Pull
+# requests still BUILD (`onBrokenLinks: 'throw'` is the check that matters, and it needs no deploy).
+# `workflow_dispatch` covers "publish it now" without inventing a second trigger.
+#
+# ⚠️ `workflow_dispatch` only appears in the Actions UI once this file exists on the DEFAULT branch,
+# so until this lands on `main` there is no way to run the deploy at all — which is also why the
+# protection probe below has never executed against a real deployment. It is wired to run on the first
+# one, and it fails the job rather than reporting anything on faith.
+#
+# ══ WHY THE VERCEL CLI, AND WHY THE DEPLOY JOB HAS NO CHECKOUT ══════════════════════════════════════
+#
+# `sandbox-web-preview.yml` deploys the web app through the REST API with a note saying `vercel deploy`
+# was MEASURED to be blocked (`readyStateReason: "Git author <email> must have access to the team
+# Radicle on Vercel to create deployments"`, `seatBlock.blockCode = TEAM_ACCESS_REQUIRED`). That block
+# keys on the GIT AUTHOR, which the CLI reads from the `.git` directory in its working directory — so
+# the deploy job here performs NO checkout and runs in a directory that is not a repository, carrying
+# no git metadata for the seat check to reject. The REST alternative is worse for this case: it takes a
+# `gitSource`, which needs the project connected to the repository, which is the per-push build this
+# workflow exists to avoid.
+# ⛔ Do NOT "helpfully" add a checkout step to the deploy job. It would re-attach the git author, and
+# nothing in that job needs the repository — the site arrives as an artifact and the Vercel CLI comes
+# from npm.
+# ⚠️ UNVERIFIED: no deploy has run, so the claim that a git-less CLI deploy escapes the seat block is
+# reasoned from the measured error message, not observed. If it is wrong, the failure is loud (the CLI
+# exits non-zero) and the fix is to give the deploying identity a team seat.
+#
+# The site is deployed as a Build Output API v3 directory (`.vercel/output/static` + a `{"version":3}`
+# config), assembled from the artifact the `build` job already proved. Vercel therefore runs no build
+# of its own, and the bytes that ship are byte-for-byte the bytes the section check passed.
+#
+# ══ WHY THIS IS A SEPARATE WORKFLOW, AND WHY IT IS PATH-FILTERED ════════════════════════════════════
+#
+# The site pulls in Docusaurus, which is ~1,100 packages, and a full build takes ~15s on top of a cold
+# `npm ci`. Wiring it into `_ci.yml` would spend that on every pull request, including the ones that
+# touch neither the documentation nor the site. So it is its own workflow, gated on the paths that can
+# actually break it, and its build script is deliberately named `docs:build` rather than `build` — the
+# name keeps it out of `turbo run build`, so `npm run build` at the repo root is exactly as fast as it
+# was before this package existed.
 #
 # ⚠️ RESIDUAL RISK, stated rather than hidden: the site's Markdown may link into `specs/` or
 # `.specify/`, and those paths are NOT in the filter below (they change on nearly every pull request,
 # and including them would defeat the whole point of the filter). Deleting a file that a published
 # ADR links to therefore fails this workflow on the NEXT run that touches a filtered path, not on the
 # pull request that deleted it.
+#
+# ⚠️ RESIDUAL RISK, second: Vercel's static handler is trusted to resolve `handbook/index.html` for
+# `/handbook/`. That is how every prebuilt SSG deployment works, but it has not been observed for THIS
+# site, and the protection probe cannot detect it — the protection layer answers before any file is
+# served, so a routing failure would look identical to a healthy one. Open the site once, signed in,
+# after the first deploy.
 #
 # What the build proves, beyond "webpack finished":
 #   * `onBrokenLinks: 'throw'` — a documentation link that resolves to nothing fails here rather than
@@ -43,24 +116,51 @@ on:
             - 'packages/tools/docs-site/**'
             - 'package-lock.json'
             - '.github/workflows/docs.yml'
+    workflow_dispatch:
 
 # Declared rather than inherited: with no `permissions:` block a workflow gets the repository's
 # DEFAULT token scope, which is set OUTSIDE this file, so the pipeline's privilege could change
-# without a diff here. This workflow reads the repository and nothing else — it publishes nowhere,
-# writes no comment, and touches no cloud account, so it needs no other grant and holds no secret.
+# without a diff here. Nothing in this workflow writes to the repository — the publish goes to Vercel
+# and is authorised by a Vercel token, not by `GITHUB_TOKEN`.
 permissions:
-    contents: read
+    contents: read # read the checkout being built
 
 concurrency:
+    # Keyed on the ref, so two pushes to `main` cannot race each other into the same Vercel project and
+    # leave the older build aliased as production.
     group: docs-${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
+
+env:
+    # ⛔ EXACTLY pinned, like zizmor's own installer and for the same reason: a floating range on the
+    # tool that performs an outward publish lets an upstream release change what this workflow does
+    # with no repository change to point at.
+    VERCEL_CLI_VERSION: '59.11.2'
 
 jobs:
     build:
         name: Build the documentation site
         runs-on: ubuntu-latest
         timeout-minutes: 20
+        permissions:
+            contents: read # checkout of the tree being built
         steps:
+            - name: Check the deployment identity is configured
+              # FIRST, and before `npm ci`, on every event that can deploy. `DOCS_SITE_URL` is baked
+              # into the artifact as the site's canonical URL, so discovering it is missing in the
+              # deploy job would mean shipping pages that name `example.invalid`. On a pull request
+              # this is skipped and the placeholder is correct.
+              if: github.event_name != 'pull_request'
+              env:
+                  DOCS_SITE_URL: ${{ vars.DOCS_SITE_URL }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${DOCS_SITE_URL}" ]; then
+                    echo "::error title=DOCS_SITE_URL is not set::This run can deploy, so the site must be built with its real canonical URL. Add a repository VARIABLE named DOCS_SITE_URL (e.g. https://commise-docs.vercel.app) — see the header of .github/workflows/docs.yml."
+                    exit 1
+                  fi
+                  echo "building for ${DOCS_SITE_URL}"
+
             - name: Checkout repository
               uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -78,6 +178,8 @@ jobs:
               run: npm ci
 
             - name: Build the documentation site
+              env:
+                  DOCS_SITE_URL: ${{ vars.DOCS_SITE_URL }}
               run: npm run docs:build --workspace=@kitchensink/docs-site
 
             - name: Check every declared section was emitted
@@ -95,3 +197,231 @@ jobs:
                       fi
                   done
                   echo "every declared section emitted at least one page"
+
+            - name: Upload the built site
+              # Only on the events that can deploy. The artifact exists so the DEPLOYED bytes are the
+              # bytes the section check above passed — rebuilding in the deploy job would publish a
+              # second, unverified build of the same commit.
+              if: github.event_name != 'pull_request'
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: docs-site
+                  path: packages/tools/docs-site/build
+                  retention-days: 1
+                  if-no-files-found: error
+
+    deploy:
+        name: Publish the documentation site (private)
+        needs: build
+        # Pull requests build and stop. Everything else — `main` and a hand-dispatched run — publishes.
+        if: github.event_name != 'pull_request'
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        # Binds the Vercel token to a named deployment target, the way every other deploying job in
+        # this repository does (zizmor.yml's Environments burn-down). It also gives the docs site its
+        # own deployment history rather than burying it in `Sandbox`.
+        environment: Docs
+        permissions:
+            contents: read # this job checks nothing out; the minimum grant, declared so nothing wider is inherited
+        steps:
+            - name: Check the Vercel credentials are configured
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  DOCS_VERCEL_PROJECT_ID: ${{ vars.DOCS_VERCEL_PROJECT_ID }}
+                  DOCS_SITE_URL: ${{ vars.DOCS_SITE_URL }}
+                  WEB_VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+              run: |
+                  set -euo pipefail
+                  missing=''
+                  [ -n "${VERCEL_TOKEN}" ]           || missing="${missing} secrets.VERCEL_TOKEN"
+                  [ -n "${VERCEL_TEAM_ID}" ]         || missing="${missing} vars.VERCEL_TEAM_ID"
+                  [ -n "${DOCS_VERCEL_PROJECT_ID}" ] || missing="${missing} vars.DOCS_VERCEL_PROJECT_ID"
+                  [ -n "${DOCS_SITE_URL}" ]          || missing="${missing} vars.DOCS_SITE_URL"
+                  if [ -n "${missing}" ]; then
+                    echo "::error title=Docs deploy is not configured::Missing:${missing}. See the header of .github/workflows/docs.yml for exactly what to create in Vercel and GitHub. This job fails rather than skipping, on purpose."
+                    exit 1
+                  fi
+                  # ⛔ The docs corpus must never be published into the web app's project: that project
+                  # carries the product's own domains, and ADR-0001 measured that a registered custom
+                  # domain is EXEMPT from deployment protection.
+                  if [ -n "${WEB_VERCEL_PROJECT_ID}" ] && [ "${DOCS_VERCEL_PROJECT_ID}" = "${WEB_VERCEL_PROJECT_ID}" ]; then
+                    echo "::error title=DOCS_VERCEL_PROJECT_ID is the web app's project::These must be two different Vercel projects. The web app's project has custom domains, which are exempt from deployment protection (ADR-0001)."
+                    exit 1
+                  fi
+                  echo "docs deploy is configured"
+
+            - name: Assert the Vercel project is private before publishing anything
+              # ⛔ THE ORDER IS THE SAFETY PROPERTY. This runs BEFORE the deploy, so a project whose
+              # protection was never switched on never receives the corpus at all. The probe after the
+              # deploy proves the setting is real; this one is what stops the exposure window.
+              #
+              # `ssoProtection.deploymentType` must be `all`. The enum also contains
+              # `all_except_custom_domains` — the exact scope under which ADR-0001 observed that "a
+              # registered custom domain is exempt from deployment protection" — and `preview` and
+              # `prod_deployment_urls_and_all_previews`, both of which leave the production URL open.
+              # A null/absent object means protection is OFF and is treated the same way.
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  DOCS_VERCEL_PROJECT_ID: ${{ vars.DOCS_VERCEL_PROJECT_ID }}
+              run: |
+                  set -euo pipefail
+                  project=$(curl --silent --show-error --fail-with-body \
+                    --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+                    "https://api.vercel.com/v9/projects/${DOCS_VERCEL_PROJECT_ID}?teamId=${VERCEL_TEAM_ID}")
+
+                  scope=$(printf '%s' "${project}" | jq -r '.ssoProtection.deploymentType // "none"')
+                  if [ "${scope}" != "all" ]; then
+                    echo "::error title=Docs project is not fully protected::ssoProtection.deploymentType is '${scope}', not 'all'. Set Deployment Protection -> Vercel Authentication -> All Deployments on this project. Refusing to publish: this corpus names the AWS account id and the azp trust boundary."
+                    exit 1
+                  fi
+
+                  # A custom domain would be a second, independent way to reach the corpus, and the one
+                  # ADR-0001 measured as exempt from protection. `<name>.vercel.app` is Vercel's own
+                  # generated address and is covered by the `all` scope asserted above.
+                  custom=$(printf '%s' "${project}" | jq -r '[.alias[]?.domain | select(endswith(".vercel.app") | not)] | join(", ")')
+                  if [ -n "${custom}" ]; then
+                    echo "::error title=Docs project has a custom domain::Found: ${custom}. The owner's ruling is NO custom domain and no Route 53 record for this project (ADR-0001: a registered custom domain is exempt from deployment protection). Remove it, or reopen the ruling."
+                    exit 1
+                  fi
+
+                  echo "project is protected at scope 'all' with no custom domain"
+
+            - name: Set up Node
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  # No `cache: npm` — this job has no checkout and therefore no lockfile to key on.
+                  node-version: 24
+
+            - name: Download the built site
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  name: docs-site
+                  path: .vercel/output/static
+
+            - name: Assemble the Build Output API directory
+              # https://vercel.com/docs/build-output-api — `{"version": 3}` is the whole required
+              # config for a purely static deployment, and `static/` is served as-is. Assembling it
+              # here rather than running `vercel build` is what keeps Vercel from building anything:
+              # there is no framework to detect, no root directory to configure and no second
+              # `npm ci` inside somebody else's builder.
+              env:
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  DOCS_VERCEL_PROJECT_ID: ${{ vars.DOCS_VERCEL_PROJECT_ID }}
+              run: |
+                  set -euo pipefail
+                  printf '{"version":3}\n' > .vercel/output/config.json
+                  # `.vercel/project.json` is the documented link file (Vercel CLI project linking);
+                  # writing it is how a CI runner adopts an existing project without an interactive
+                  # `vercel link`.
+                  jq -nc --arg project "${DOCS_VERCEL_PROJECT_ID}" --arg org "${VERCEL_TEAM_ID}" \
+                    '{projectId: $project, orgId: $org}' > .vercel/project.json
+                  echo "assembled $(find .vercel/output/static -type f | wc -l) files"
+
+            - name: Deploy to Vercel
+              id: deploy
+              # `--prod` so the site has ONE stable address the owner can bookmark, instead of a new
+              # preview URL per push. That address is protected because the step above refused to get
+              # here unless the project's scope is `all`; under Vercel's "Standard Protection" the
+              # production URL would be public, which is why that assertion is not optional.
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  # `npx`, not a global `npm install` — the latter is what zizmor's `adhoc-packages`
+                  # audit flags, and the gate runs at the pedantic persona with no severity floor.
+                  # Vercel documents stdout as "always the Deployment URL", but this step's whole
+                  # output is a security probe's input, so the URL is EXTRACTED rather than trusted:
+                  # anything the tool ever decides to print alongside it must not become the address
+                  # that gets checked.
+                  output=$(npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy --prebuilt --prod --yes --token "${VERCEL_TOKEN}")
+                  url=''
+                  if ! url=$(printf '%s\n' "${output}" | grep -oE '^https://[A-Za-z0-9.-]+$' | tail -1); then
+                    url=''
+                  fi
+                  if [ -z "${url}" ]; then
+                    echo "::error title=Vercel deploy produced no URL::The CLI exited 0 but printed no deployment address. Treating this as a failure rather than probing an empty one. Raw output: ${output}"
+                    exit 1
+                  fi
+                  echo "deployment_url=${url}" >> "${GITHUB_OUTPUT}"
+                  echo "deployed ${url}"
+
+            - name: Verify an unauthenticated request cannot read the site
+              # ⛔ THE POINT OF THIS WHOLE FILE. Everything above asserts CONFIGURATION; this asserts
+              # BEHAVIOUR, from outside, with no credential — the only evidence that the corpus is not
+              # world-readable. ADR-0001 observed a protected deployment answering `302` towards
+              # `vercel.com/sso-api` / `vercel.com/login`; Vercel also answers `401` on some paths.
+              # Both are a PASS. A `200` is the failure this exists to catch, and so is anything else:
+              # an unrecognised answer is not evidence of protection.
+              #
+              # Every address is checked, not just the one that was just created: the deployment URL,
+              # the owner-declared `DOCS_SITE_URL`, and every alias the project reports. They are
+              # different URLs with different protection semantics under any scope other than `all`.
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  DOCS_VERCEL_PROJECT_ID: ${{ vars.DOCS_VERCEL_PROJECT_ID }}
+                  DOCS_SITE_URL: ${{ vars.DOCS_SITE_URL }}
+                  DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+              run: |
+                  set -euo pipefail
+
+                  aliases=$(curl --silent --show-error --fail-with-body \
+                    --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+                    "https://api.vercel.com/v9/projects/${DOCS_VERCEL_PROJECT_ID}?teamId=${VERCEL_TEAM_ID}" \
+                    | jq -r '.alias[]?.domain | "https://" + .')
+
+                  targets=$(printf '%s\n%s\n%s\n' "${DEPLOYMENT_URL}" "${DOCS_SITE_URL}" "${aliases}" \
+                    | sed 's#^\(https\?://\)\?#https://#; s#/$##' | grep -v '^https://$' | sort -u)
+
+                  # An empty target list would make every assertion below vacuously true — the exact
+                  # "green over nothing" this step exists to be the opposite of.
+                  if [ -z "${targets}" ]; then
+                    echo "::error title=Nothing to probe::The deployment produced no address to check, so this step proved nothing. Refusing to report a pass."
+                    exit 1
+                  fi
+
+                  failed=''
+                  for target in ${targets}; do
+                    # Bounded retry for TRANSPORT failure only — a brand-new deployment host can take a
+                    # moment to answer. Deliberately no `|| true`: an answer we cannot read is not an
+                    # answer we may call safe, and `if ! …` keeps `set -e` armed for everything else.
+                    answer=''
+                    for attempt in 1 2 3; do
+                      if answer=$(curl --silent --show-error --output /dev/null \
+                            --write-out '%{http_code} %{redirect_url}' "${target}"); then
+                        break
+                      fi
+                      answer=''
+                      sleep 5
+                    done
+
+                    code=${answer%% *}
+                    location=${answer#* }
+
+                    case "${code}" in
+                      401|403)
+                        echo "  ${target} -> ${code} (authentication required)" ;;
+                      301|302|303|307|308)
+                        case "${location}" in
+                          https://vercel.com/*)
+                            echo "  ${target} -> ${code} -> ${location} (Vercel SSO)" ;;
+                          *)
+                            failed="${failed} ${target}(redirects to ${location:-nowhere})" ;;
+                        esac ;;
+                      200)
+                        failed="${failed} ${target}(200 — SERVED THE CONTENT)" ;;
+                      '')
+                        failed="${failed} ${target}(unreachable)" ;;
+                      *)
+                        failed="${failed} ${target}(unrecognised ${code})" ;;
+                    esac
+                  done
+
+                  if [ -n "${failed}" ]; then
+                    echo "::error title=The documentation site is not private::Unauthenticated requests were not refused by:${failed}. This corpus names the AWS account id, azp trust-boundary reasoning and credential handling. Set Deployment Protection -> Vercel Authentication -> All Deployments on the docs project, and remove any custom domain (ADR-0001)."
+                    exit 1
+                  fi
+
+                  echo "every published address refused an unauthenticated request"

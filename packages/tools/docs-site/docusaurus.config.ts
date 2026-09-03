@@ -7,6 +7,7 @@ import { onBrokenMarkdownLink } from './src/content/brokenMarkdownLinkHook.js';
 import { buildNavbarItems } from './src/content/navbarItems.js';
 import { loadContentSources } from './src/content/loadContentSources.js';
 import { SITE_TO_REPO_ROOT } from './src/content/paths.js';
+import { resolveSiteUrl } from './src/site/siteUrl.js';
 
 /**
  * The Commise engineering documentation site.
@@ -32,10 +33,18 @@ const config: Config = {
     title: 'Commise Engineering',
     tagline: 'Architecture, standards and generated references for the Commise platform',
 
-    // Placeholders. Hosting is an owner decision with cost implications and has NOT been made, so
-    // nothing here is deployed and no deployment configuration exists. `url` only has to be a valid
-    // absolute URL for the build to run.
-    url: 'https://example.invalid',
+    // Hosting IS decided: a private Vercel project, deployed by `.github/workflows/docs.yml`, with
+    // Vercel Authentication scoped to ALL deployments and deliberately NO custom domain. `url` is the
+    // deployment's own identity, so it arrives as `DOCS_SITE_URL` rather than being hard-coded here;
+    // a local or pull-request build has no deployment and falls back to an unresolvable placeholder.
+    //
+    // ⛔ Do NOT infer an access decision from this value. Nothing here is a control — the corpus names
+    // the AWS account id, `azp` trust boundaries and credential handling, and what keeps it private is
+    // the project's `ssoProtection`, which the deploy workflow asserts BEFORE it publishes and probes
+    // unauthenticated AFTER. Read `docs/architecture/decisions/0001-sandbox-front-end-addressing.md`
+    // before attaching a domain to this project: a registered custom domain was MEASURED to be exempt
+    // from deployment protection under the `all_except_custom_domains` scope.
+    url: resolveSiteUrl(process.env['DOCS_SITE_URL']),
     baseUrl: '/',
 
     // ⛔ `throw`, not `warn`. A broken link that only warns is a 404 nobody sees — which is the exact

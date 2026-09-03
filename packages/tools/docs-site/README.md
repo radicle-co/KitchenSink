@@ -10,14 +10,38 @@ npm run docs:serve --workspace=@kitchensink/docs-site   # serve the production b
 npm run test       --workspace=@kitchensink/docs-site   # the ingestion layer's unit + guard tiers
 ```
 
-The site is **not deployed anywhere**. `.github/workflows/docs.yml` proves it builds; hosting is an
-open owner decision with cost implications.
+The site is published to a **private Vercel project** by `.github/workflows/docs.yml`, on every push
+to `main` and on demand. It is readable only by the Vercel team: Vercel Authentication is scoped to
+**All Deployments**, and the project has **no custom domain** — deliberately, because ADR-0001
+measured that "a registered custom domain is exempt from deployment protection". The corpus names the
+AWS account id, the `azp` trust boundary and credential handling, so that is a security requirement
+rather than a preference. The workflow asserts the project's protection scope BEFORE it publishes and
+proves it afterwards with an unauthenticated request;
+`packages/infra/global/__tests__/docsSiteDeployGuards.test.ts` asserts that both of those checks, and
+the absence of any domain-attaching step, are still there. The workflow's own header lists exactly what
+the owner must create in Vercel and GitHub.
+
+`DOCS_SITE_URL` supplies the site's canonical URL at build time; a local build has no deployment
+identity and falls back to an unresolvable placeholder.
 
 ## The one rule
 
-**Nothing under `docs/` is copied into this package.** The Docusaurus docs plugin mounts the real
+**No AUTHORED document is copied into this package.** The Docusaurus docs plugin mounts the real
 directories, so a page on this site cannot drift from the file it renders. A second copy of an ADR is
 the failure this repository keeps paying for.
+
+⚠️ **The one exception, and why it is not that failure.** A `generated` section whose directory sits
+inside another section's — which every one of them does, since the handbook mounts `docs` and the
+generators write to `docs/generated/*` — is mounted from a gitignored build-time MIRROR under
+`content/mirrored/`, refilled from scratch on every run. That is forced by Docusaurus:
+`plugin-content-docs` builds its webpack rule from the content DIRECTORY, webpack applies every
+matching rule, and two instances over nested trees therefore run both MDX loaders over the same file.
+The build dies with `Can't resolve '@site/.docusaurus/…/handbook/…json'`, and `exclude:` does not fix
+it — that option only feeds `isMDXPartial`, so the loader still runs and SSG fails one layer later
+inside `DocItem`. The rule the mirror preserves is about DRIFT: an authored document's source of truth
+is the file, so copying it forks the truth; a generated corpus's source of truth is its generator, so
+a rebuilt mirror forks nothing. `contentRegistry.test.ts` asserts the no-nesting property against a
+registry in which every generator has run, precisely because the placeholders hid this for weeks.
 
 ## The data contract for the generators
 

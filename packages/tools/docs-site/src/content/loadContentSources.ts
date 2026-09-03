@@ -1,4 +1,4 @@
-import { globSync } from 'node:fs';
+import { cpSync, globSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { CONTENT_SOURCES } from './contentRegistry.js';
@@ -26,14 +26,45 @@ export function hasMarkdownContent(repoRelativePath: string): boolean {
 }
 
 /**
- * Resolves the declared registry against this checkout.
+ * Refills a mirror directory from the source it mirrors.
+ *
+ * REPLACES rather than merges: a document the generator stopped emitting must stop being published,
+ * and a mirror that is only ever added to would keep serving it forever — the "documentation that
+ * asserts something it no longer reaches" failure this site exists to end, reintroduced by its own
+ * build step.
+ *
+ * @sideEffect Deletes and rewrites `${REPO_ROOT}/${mountPath}`.
+ */
+function fillMirror(sourcePath: string, mountPath: string): void {
+    const destination = join(REPO_ROOT, mountPath);
+
+    rmSync(destination, { recursive: true, force: true });
+    cpSync(join(REPO_ROOT, sourcePath), destination, { recursive: true });
+}
+
+/**
+ * Resolves the declared registry against this checkout, filling any mirror the policy asks for.
  *
  * The impure shell around the pure {@link resolveContentSources} policy: this function supplies the
- * filesystem, and every rule about what an absence MEANS lives in the policy where it can be proved.
+ * filesystem, and every rule about what an absence MEANS — or about which sources may not be mounted
+ * where they live — stays in the policy where it can be proved. The shell copies what it is told to
+ * copy and decides nothing.
  *
- * @sideEffect Reads the filesystem.
+ * ⚠️ The mirror is refilled when the config LOADS, so under `docusaurus start` a change to a mirrored
+ * corpus needs a restart. That is the right trade for a corpus nobody hand-edits: its author is a
+ * generator, and the generator run is already a separate command.
+ *
+ * @sideEffect Reads the filesystem, and rewrites the mirror directory of every nested source.
  * @throws `MissingContentSourceError` when a required documentation source has no Markdown behind it.
  */
 export function loadContentSources(): ResolvedContentSource[] {
-    return resolveContentSources(CONTENT_SOURCES, hasMarkdownContent);
+    const resolved = resolveContentSources(CONTENT_SOURCES, hasMarkdownContent);
+
+    for (const source of resolved) {
+        if (source.state === 'present' && source.mountPath !== source.sourcePath) {
+            fillMirror(source.sourcePath, source.mountPath);
+        }
+    }
+
+    return resolved;
 }

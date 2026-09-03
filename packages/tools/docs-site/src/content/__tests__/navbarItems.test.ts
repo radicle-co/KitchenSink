@@ -9,6 +9,7 @@ const handbook: ResolvedContentSource = {
     routeBasePath: '/handbook',
     state: 'present',
     mountPath: 'docs',
+    sourcePath: 'docs',
     include: ['**/*.md'],
 };
 

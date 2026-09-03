@@ -48,3 +48,9 @@ docs/generated/design
 # re-run. Same argument as the OpenAPI entry above; the difference is that this one is not a coincidence,
 # because the Markdown carries wide tables Prettier would reflow. The generator, not Prettier, owns the bytes.
 docs/generated/infrastructure
+
+# Build-time MIRRORS of the three entries above, written by the docs site whenever a generated corpus
+# nests inside another content source (`MIRROR_ROOT` in
+# packages/tools/docs-site/src/content/contentSource.ts). Byte copies of guarded output, gitignored,
+# refilled on every build — the same argument as the entries above, one directory over.
+packages/tools/docs-site/content/mirrored

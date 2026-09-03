@@ -170,8 +170,23 @@ FROM pg_database WHERE datname LIKE '%\_pr\_%' OR datname LIKE 'pr\_%'
 ORDER BY datname;
 ```
 
-Cross-check each against the open PR list before dropping. Per-PR databases are reclaimed by the normal
-teardown path (ADR-0005); anything here whose PR is closed is a teardown that did not complete.
+Cross-check each against the open PR list before dropping.
+
+⛔ **Do NOT assume a closed PR's database was reclaimed. Until 2026-09-03 half of them never were.**
+`teardown-sandbox-pr.sh` §1 hardcoded food's migration-runner output, so `kitchensink_food_pr_{N}` was
+dropped and `kitchensink_recipes_pr_{N}` was not — on every reaped recipe preview, silently, since recipe
+shipped. §1 now discovers every `*MigrationFunctionName` output across the PR's own stacks
+(`perPrDatabaseDropDoors.test.ts` asserts that in both directions), and the teardown wakes the shared tier
+first, which it also never did — so a preview reaped inside the 00:00–09:00 ET stop window was invoking an
+in-VPC Lambda against a stopped database. **Every `kitchensink_recipes_pr_*` row this query returns, and any
+`kitchensink_food_pr_*` row from a PR closed overnight, is expected backlog rather than a fresh anomaly.**
+Treat the list as a to-drop list, not as evidence of a new fault.
+
+⚠️ **This SQL still has no execution mechanism.** Nothing schedules it and nothing alerts on it; running it
+is a manual step of this runbook. The partial answer is `packages/infra/global/src/db-bootstrap/perPrInventory.ts`,
+which emits the same census as a structured log line from both DB bootstrap Lambdas on every `DataStack`
+deploy — enough to see whether the backlog is bounded and shrinking, not enough to page anyone. A persistent
+`DROP DATABASE`-capable reaper is a one-way door and is deliberately unbuilt pending an owner decision.
 
 ### A5. Other precheck blockers
 

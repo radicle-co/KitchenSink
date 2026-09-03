@@ -21,6 +21,9 @@
  * composing container (W5 Task 12) can re-run the preview; (3) the loaded `diff` — added/removed/unchanged
  * COUNTS only (this block never resolves recipe titles, it only received ids), the "not overwritten" note,
  * and the count-templated Pull action, disabled while `isCommitting` or when there is nothing to add.
+ *
+ * @pattern Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area
+ *     padding — the same controlled `props → JSX` contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

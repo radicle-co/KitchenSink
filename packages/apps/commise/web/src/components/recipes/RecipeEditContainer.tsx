@@ -47,6 +47,9 @@
  * branch here, since it is indistinguishable from `keepServer`'s own discard from this container's point of
  * view (no write, navigate to the recipe, no "Saved!"). Unlike `keepServer`, it stays callable even while a
  * resolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.
+ *
+ * @pattern Orchestration container over the `useRecipeEditor` headless hook — a discriminated-union statechart owning
+ *     the whole edit lifecycle — bound here to the `Wizard` compound shell.
  */
 import {
     appendResolvedIngredient,

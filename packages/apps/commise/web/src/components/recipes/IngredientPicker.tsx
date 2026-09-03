@@ -55,6 +55,9 @@
  * content has no change to announce. So each of the six affordances below (searching, find-nutrition,
  * freeform-create, catalog-admit, disambiguation-loading, resolving) renders its contextual, localized label
  * as its visible caption. Same doctrine as `RecipePhotoManager`'s upload status and the mobile `LoadingState`.
+ *
+ * @pattern Humble Object over the shared `useIngredientResolver` headless hook — it renders `viewState` and decides
+ *     nothing. Its one imperative seam is a Facade publishing `focusSearch`, never the node itself.
  */
 import {
     fillTemplate,

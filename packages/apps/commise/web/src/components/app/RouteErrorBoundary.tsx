@@ -11,6 +11,9 @@
  * (`homeContainer`, DA9) rather than introducing a second Sentry binding path — until the DA10 AppProviders
  * facade gives the whole app one composition root, `homeContainer` is the ONE bound `errorReporterToken` on
  * web, so every observability call site (widget or route) composes with it.
+ *
+ * @pattern Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from
+ *     the appShell container rather than imported, to the pure `RouteErrorState` render half.
  */
 import { resolveErrorReporter } from '@commise/features-core';
 import { useEffect, type FC } from 'react';

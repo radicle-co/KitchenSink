@@ -9,6 +9,9 @@
  * A `ScrollView` (not a `FlatList`) backs the strip: a recipe has at most `MAX_PHOTOS_PER_RECIPE` (≤10)
  * photos, so `FlatList` virtualization buys nothing here while complicating layout/testing — the simplest
  * correct paging container wins (KISS/YAGNI). The open slide is ephemeral local view state, not data.
+ *
+ * @pattern Adapter over React Native's paging `ScrollView` and `Modal` — the same read model and branch behaviour as
+ *     the web leaf, expressed with platform primitives; the open slide is local view state.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

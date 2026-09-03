@@ -23,6 +23,9 @@
  * `unaccounted{no_resolved_ingredients}` — so nothing here tells an operator the difference. This package has
  * no reporting seam of its own (the host owns Sentry), so wiring it belongs with the host that mounts these
  * boundaries. Recorded so the absence is a known hole, not an assumed non-issue.
+ *
+ * @pattern Suspense boundary + error boundary as a state selector — the deferred lookup's three states become three
+ *     components by React's unwinding rather than a branch on flags, and the render components stay pure.
  */
 import { use, type FC } from 'react';
 

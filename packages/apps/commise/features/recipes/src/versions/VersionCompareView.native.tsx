@@ -17,6 +17,9 @@
  * `'unchanged'` (identical snapshots), `'changed'` (the Diff Summary + changed-only A/B rows).
  * `steps`/`ingredients` rows show a COUNT ONLY by default (never a per-line explosion — the Task 1 reorder
  * sanity note); their own Added/Removed/Modified tally is opt-in detail behind "Show full diff".
+ *
+ * @pattern Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area
+ *     padding — this leaf used to hand-roll both and shipped the occlusion bug with them.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

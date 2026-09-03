@@ -16,6 +16,9 @@
  *
  * Cancel stays ENABLED while a delete is in flight: if the mutation hangs, disabling both actions would trap
  * the viewer in a modal with no way out.
+ *
+ * @pattern Adapter over the native alert surface — the same controlled `props → JSX` contract as the web leaf,
+ *     expressed with the platform primitive rather than Radix.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

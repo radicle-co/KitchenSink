@@ -19,6 +19,9 @@
  * `triggerRef` below captures `document.activeElement` at the render where `open` flips true — BEFORE
  * `AlertDialog.Content` (and its own autofocus-on-mount, onto the Cancel action per the alertdialog pattern)
  * ever commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own no-op default.
+ *
+ * @pattern Adapter over the house Radix `AlertDialog` — Radix owns the focus trap, Escape-to-dismiss and background
+ *     inert, so this leaf hand-rolls none of it and stays a controlled `props → JSX` render.
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';

@@ -10,7 +10,7 @@
         "implementationsWithComponentDoc": 195,
         "documentedProps": 825,
         "classifiedComponents": 80,
-        "componentsWithPatternTag": 0,
+        "componentsWithPatternTag": 40,
         "crossPlatformComponents": 68
     },
     "groups": [
@@ -29,7 +29,7 @@
                 "implementationsWithComponentDoc": 11,
                 "documentedProps": 86,
                 "classifiedComponents": 4,
-                "componentsWithPatternTag": 0,
+                "componentsWithPatternTag": 7,
                 "crossPlatformComponents": 6
             }
         },
@@ -48,7 +48,7 @@
                 "implementationsWithComponentDoc": 79,
                 "documentedProps": 534,
                 "classifiedComponents": 41,
-                "componentsWithPatternTag": 0,
+                "componentsWithPatternTag": 14,
                 "crossPlatformComponents": 61
             }
         },
@@ -67,7 +67,7 @@
                 "implementationsWithComponentDoc": 0,
                 "documentedProps": 24,
                 "classifiedComponents": 1,
-                "componentsWithPatternTag": 0,
+                "componentsWithPatternTag": 1,
                 "crossPlatformComponents": 1
             }
         },
@@ -86,7 +86,7 @@
                 "implementationsWithComponentDoc": 61,
                 "documentedProps": 70,
                 "classifiedComponents": 22,
-                "componentsWithPatternTag": 0,
+                "componentsWithPatternTag": 12,
                 "crossPlatformComponents": 0
             }
         },
@@ -105,7 +105,7 @@
                 "implementationsWithComponentDoc": 44,
                 "documentedProps": 111,
                 "classifiedComponents": 12,
-                "componentsWithPatternTag": 0,
+                "componentsWithPatternTag": 6,
                 "crossPlatformComponents": 0
             }
         }

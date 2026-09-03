@@ -6,6 +6,9 @@
  * from its `Title`/`Description` parts, so this leaf only supplies the Commise visual language and maps
  * Radix's `onOpenChange(false)` (covers Escape + backdrop + the built-in Cancel action) onto the same
  * `onCancel` callback the explicit Cancel button uses — one exit path, not two.
+ *
+ * @pattern Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop
+ *     dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language.
  */
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import type { FC } from 'react';

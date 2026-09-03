@@ -13,6 +13,9 @@
  * find the "closed" content via `queryByLabelText`. Gating the whole `<Modal>` behind `open` keeps this
  * leaf's contract identical to every other controlled dialog in this codebase (e.g.
  * `RecipeDeleteDialog.native`'s `if (!open) return null`) and genuinely testable either way.
+ *
+ * @pattern Adapter over React Native's `Modal` — the platform expression of the web leaf's Radix adapter, with
+ *     `onRequestClose` mapped to the same cancel path so the hardware back button cannot diverge from the control.
  */
 import type { FC } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';

@@ -10,6 +10,11 @@
  *
  * "Once per session" is deliberately **component state** (a ref guard), not persisted — the requirement is
  * per-session, and a page reload legitimately starts a new session.
+ *
+ * @pattern Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a
+ *     gated widget asks for the nudge without owning it.
+ * @pattern Adapter over the house Radix `Dialog` for the nudge surface itself — Radix owns the focus trap,
+ *     Escape-to-dismiss and background inert.
  */
 import * as Dialog from '@radix-ui/react-dialog';
 import { createContext, useCallback, useContext, useRef, useState, type JSX } from 'react';

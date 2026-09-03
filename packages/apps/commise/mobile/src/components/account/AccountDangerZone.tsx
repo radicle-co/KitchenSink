@@ -25,6 +25,9 @@
  * deliberately NOT the dialog's `submitError`: the erasure has ALREADY succeeded server-side (202) by then, so
  * inviting a retry of it would be a lie — the only outstanding action is leaving the session. A failed CLOSURE
  * likewise now reports `close.error` instead of stopping with no feedback.
+ *
+ * @pattern Orchestration half of the orchestration/render split for both danger actions — it owns the recipe fetch
+ *     and the close and erasure Commands, and hands each to the shared cross-platform render half.
  */
 import { useMessages } from '@commise/i18n/react';
 import { selectDonatableRecipes } from '@commise/features-account';

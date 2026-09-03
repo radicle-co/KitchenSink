@@ -24,6 +24,9 @@
  * `beforeSend` runs in the BROWSER, so the module graph reachable from here stays client-safe:
  * {@link redactAnalyticsEvent} is pure, dependency-free apart from the shared text scrubber, and touches no
  * Node or server-only API.
+ *
+ * @pattern Adapter binding a pure redaction policy to a third-party leaf, and a Null Object render-wise — it adds no
+ *     DOM, no landmark and no focusable node, holds no state and takes no branch.
  */
 import { Analytics } from '@vercel/analytics/next';
 import type { ReactElement } from 'react';

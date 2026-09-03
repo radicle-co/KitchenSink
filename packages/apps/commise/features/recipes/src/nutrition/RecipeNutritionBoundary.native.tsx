@@ -13,6 +13,9 @@
  * two files differ ONLY in styling primitives. Do NOT "restore parity" by copying the widget's divergent
  * prop shape onto it; that divergence is the thing being corrected, and
  * `__tests__/RecipeNutritionBoundary.native.test.tsx` is the evidence.
+ *
+ * @pattern Suspense boundary + error boundary as a state selector — the same nesting and the same non-terminal
+ *     invariant as the web leaf, over the same client-side `use(promise)` mechanism.
  */
 import { use, type FC } from 'react';
 

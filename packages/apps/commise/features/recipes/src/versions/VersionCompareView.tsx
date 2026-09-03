@@ -25,6 +25,9 @@
  * note); their own Added/Removed/Modified tally is opt-in detail behind "Show full diff", a single toggle
  * shared by every collection row (local UI state — pure navigation, not data the caller needs, matching
  * `RecipeConflictView`'s merge-panel-visible precedent).
+ *
+ * @pattern Adapter over the house Radix `Dialog`, mirroring `VersionPreviewModal.tsx` structurally and behaviourally
+ *     — Radix owns the focus trap, Escape-to-dismiss and background inert.
  */
 import { useMessages } from '@commise/i18n/react';
 import * as Dialog from '@radix-ui/react-dialog';

@@ -20,6 +20,9 @@
  * (round-2 R7). Secondary/destructive stay flat surfaces: `secondary` is the mockups' CORAL-outlined glass
  * degraded to `glass.subtle`'s own solid fallback (RN has no `backdrop-filter`), `destructive` an
  * error-toned outline.
+ *
+ * @pattern The same `ButtonProps` contract rendered with a `StyleSheet`, composing `PressScale` — which owns the
+ *     `Pressable`, so the accessible button is ONE element rather than a nested pair.
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import type { FC, ReactNode } from 'react';

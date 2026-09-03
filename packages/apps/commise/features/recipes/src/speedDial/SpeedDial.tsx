@@ -43,6 +43,9 @@
  * `itemRefs` array, the `focusIndex` state and the `onOpenAutoFocus` override went with them. `model.ts`
  * keeps `SpeedDialProps`/`SpeedDialAction` and the non-empty-tuple invariant, because the native leaf still
  * needs them and the two platforms must not drift on shape.
+ *
+ * @pattern Menu Button (WAI-ARIA) as an Adapter over `@radix-ui/react-dropdown-menu`, the primitive Radix names for
+ *     exactly this use case.
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useRef, useState, type ComponentPropsWithoutRef, type FC, type KeyboardEvent } from 'react';

@@ -12,7 +12,7 @@
         "implementationsWithComponentDoc": 11,
         "documentedProps": 86,
         "classifiedComponents": 4,
-        "componentsWithPatternTag": 0,
+        "componentsWithPatternTag": 7,
         "crossPlatformComponents": 6
     },
     "components": [
@@ -24,7 +24,10 @@
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/button",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "The same `ButtonProps` contract rendered with a `StyleSheet`, composing `PressScale` — which owns the\n    `Pressable`, so the accessible button is ONE element rather than a nested pair.",
+                "Value Object contract (`ButtonProps`) rendered as a pure `props → JSX` leaf, composed with the\n    `PressScale` Decorator — the tier is a discriminated `variant`, never a boolean that switches behaviour."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -43,6 +46,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/button — the web design-system {@link Button}."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Value Object contract (`ButtonProps`) rendered as a pure `props → JSX` leaf, composed with the\n    `PressScale` Decorator — the tier is a discriminated `variant`, never a boolean that switches behaviour."
                         }
                     ],
                     "description": "The Commise design-system button — icon + label, one visible surface per tier.",
@@ -147,6 +154,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/button — the native design-system {@link Button} (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "The same `ButtonProps` contract rendered with a `StyleSheet`, composing `PressScale` — which owns the\n    `Pressable`, so the accessible button is ONE element rather than a nested pair."
                         }
                     ],
                     "description": "The native design-system button — icon + label, one visible surface per tier.",
@@ -251,7 +262,10 @@
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/confirmDialog",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Adapter over React Native's `Modal` — the platform expression of the web leaf's Radix adapter, with\n    `onRequestClose` mapped to the same cancel path so the hardware back button cannot diverge from the control.",
+                "Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop\n    dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -270,6 +284,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog} (house pattern B6)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop\n    dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language."
                         }
                     ],
                     "description": "",
@@ -367,6 +385,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native's `Modal` — the platform expression of the web leaf's Radix adapter, with\n    `onRequestClose` mapped to the same cancel path so the hardware back button cannot diverge from the control."
                         }
                     ],
                     "description": "",
@@ -464,7 +486,9 @@
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/input",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Facade over the RN text-field primitives — it wires the label association, the `alert`-role error slot and\n    every metric from `nativeTokens` at the primitive level, so no caller can drift by wiring them itself."
+            ],
             "platforms": [
                 "native"
             ],
@@ -482,6 +506,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/input — the native design-system {@link Input} (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Facade over the RN text-field primitives — it wires the label association, the `alert`-role error slot and\n    every metric from `nativeTokens` at the primitive level, so no caller can drift by wiring them itself."
                         }
                     ],
                     "description": "The native design-system text field — label + input + optional error slot, tokenized and a11y-wired.",
@@ -783,7 +811,10 @@
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/motion",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over React Native's imperative `Animated` driver — it owns the animation so consuming leaves stay\n    pure `props → JSX`, and the reduce-motion decision is a pure Strategy in `enterMotionMode`.",
+                "Decorator over a CSS keyframe — it adds the section-enter gesture to whatever it wraps and nothing else,\n    so every consuming leaf stays a pure `props → JSX` surface."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -802,6 +833,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/motion — the web design-system {@link EnterTransition} primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator over a CSS keyframe — it adds the section-enter gesture to whatever it wraps and nothing else,\n    so every consuming leaf stays a pure `props → JSX` surface."
                         }
                     ],
                     "description": "The Commise enter-transition wrapper — a section that rises + fades in when motion is safe.",
@@ -854,6 +889,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/motion — the native design-system {@link EnterTransition} primitive (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native's imperative `Animated` driver — it owns the animation so consuming leaves stay\n    pure `props → JSX`, and the reduce-motion decision is a pure Strategy in `enterMotionMode`."
                         }
                     ],
                     "description": "The Commise enter-transition wrapper — a section that rises + fades in when motion is safe.",
@@ -908,7 +947,10 @@
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/pressScale",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable\n    and drives the scale from its `pressed` state, which is why the web leaf decorates and this one adapts.",
+                "Decorator over its child's press state — CSS puts an activated element's ANCESTORS into `:active`, so\n    wrapping is enough and the child keeps all of the press semantics."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -927,6 +969,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/press-scale — the web design-system {@link PressScale} press-feedback primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator over its child's press state — CSS puts an activated element's ANCESTORS into `:active`, so\n    wrapping is enough and the child keeps all of the press semantics."
                         }
                     ],
                     "description": "The Commise press-feedback wrapper — the wrapped child's `:active` scales this span (motion-safe).",
@@ -1010,6 +1056,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/press-scale — the native design-system {@link PressScale} press-feedback primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable\n    and drives the scale from its `pressed` state, which is why the web leaf decorates and this one adapts."
                         }
                     ],
                     "description": "The Commise press-feedback wrapper — a `Pressable` that scales its content while held (motion-safe).",
@@ -1093,7 +1143,10 @@
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/surface",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Strategy over one capability probe — `blurSupported` selects the translucent surface or the opaque\n    `fallback`, both projected from the single-source `glass` tokens rather than assumed.",
+                "Strategy over the same capability probe, with an Adapter projecting the single-source `glass` spec onto\n    `expo-blur`'s `intensity`/`tint` — so the two platforms cannot drift on the spec, only on the primitive."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -1112,6 +1165,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/surface — the web {@link GlassCard} brand primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy over one capability probe — `blurSupported` selects the translucent surface or the opaque\n    `fallback`, both projected from the single-source `glass` tokens rather than assumed."
                         }
                     ],
                     "description": "The Commise frosted-glass card — translucent-over-blur when supported, opaque solid fallback when not.",
@@ -1194,6 +1251,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/surface — the native {@link GlassCard} brand primitive (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy over the same capability probe, with an Adapter projecting the single-source `glass` spec onto\n    `expo-blur`'s `intensity`/`tint` — so the two platforms cannot drift on the spec, only on the primitive."
                         }
                     ],
                     "description": "The Commise frosted-glass card — translucent-over-blur when supported, opaque solid fallback when not.",
@@ -1276,7 +1337,10 @@
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/surface",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter projecting the same single-source `gradient` spec onto `expo-linear-gradient`'s\n    `colors`/`locations`/`start`/`end`, so both legs paint the identical brand gradient from one definition.",
+                "Adapter projecting the single-source `gradient` tokens onto a CSS `linear-gradient` — the projection is\n    the whole unit, so the web and native legs cannot drift on colour or direction."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -1295,6 +1359,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/surface — the web {@link GradientSurface} brand primitive."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter projecting the single-source `gradient` tokens onto a CSS `linear-gradient` — the projection is\n    the whole unit, so the web and native legs cannot drift on colour or direction."
                         }
                     ],
                     "description": "The Commise gradient background surface — a brand gradient painted behind arbitrary hero content.",
@@ -1369,6 +1437,10 @@
                         {
                             "name": "module",
                             "text": "@commise/ui/surface — the native {@link GradientSurface} brand primitive (React Native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter projecting the same single-source `gradient` spec onto `expo-linear-gradient`'s\n    `colors`/`locations`/`start`/`end`, so both legs paint the identical brand gradient from one definition."
                         }
                     ],
                     "description": "The Commise gradient background surface — the brand gradient painted behind arbitrary hero content.",

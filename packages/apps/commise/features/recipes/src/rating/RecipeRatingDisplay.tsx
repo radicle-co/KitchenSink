@@ -7,6 +7,9 @@
  *
  * Controlled + presentational: owns no remote state and fetches nothing. The read-only stars the viewer sees
  * are the COMMUNITY `average` by design, not "your rating".
+ *
+ * @pattern Null Object for the rating input — the read-only variant the orchestrating container substitutes on the
+ *     viewer's own recipe, so the own-recipe gate is structural rather than a boolean branch inside one component.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';

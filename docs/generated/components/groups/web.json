@@ -12,7 +12,7 @@
         "implementationsWithComponentDoc": 61,
         "documentedProps": 70,
         "classifiedComponents": 22,
-        "componentsWithPatternTag": 0,
+        "componentsWithPatternTag": 12,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1812,7 +1812,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/app",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Adapter binding a pure redaction policy to a third-party leaf, and a Null Object render-wise — it adds no\n    DOM, no landmark and no focusable node, holds no state and takes no branch."
+            ],
             "platforms": [
                 "web"
             ],
@@ -1826,7 +1828,12 @@
                     "sourcePath": "packages/apps/commise/web/src/components/app/RedactedAnalytics.tsx",
                     "dir": "packages/apps/commise/web/src/components/app",
                     "moduleDoc": "Vercel Web Analytics, mounted with the URL-redaction interceptor already wired — the ONE sanctioned way\nthis app reports a page view. Nothing else should import `@vercel/analytics` directly: an unwrapped\n`<Analytics />` ships every page view's full URL, query string included, and `/[locale]/discover` carries\nthe visitor's free-text search term plus their dietary flags (see {@link redactAnalyticsEvent} for the\npolicy and the GDPR Art. 9 reasoning).\n\n**Pattern.** An **Adapter** binding seam: it exists solely to bind a policy (the pure interceptor) to a\nthird-party leaf, and is itself a **Null Object** render-wise — it adds no DOM, no landmark, no focusable\nnode. It holds no state and no branch, so there is no orchestration here to test beyond the binding.\n\n**Why a wrapper instead of `beforeSend` on the layout's own `<Analytics />`:** `[locale]/layout.tsx` is a\nSERVER component, and React will not serialize a function prop across the RSC boundary. Writing\n`<Analytics beforeSend={…} />` there throws `Functions cannot be passed directly to Client Components`\nand returns **500 on every request** — measured, not assumed, and stated precisely because\n**`next build` does NOT catch it**: every `[locale]` route bails out of prerendering (the Clerk provider\nreads request state), so the tree is never flight-serialized at build time and the build stays green\nwhile the deployed app is dead. This client boundary is what lets the hook be an ordinary module-level\nfunction reference, which also keeps its identity stable (the vendor leaf re-runs its registration effect\nwhenever `beforeSend` changes identity, so an inline arrow would re-register on every render).\n\n`beforeSend` runs in the BROWSER, so the module graph reachable from here stays client-safe:\n{@link redactAnalyticsEvent} is pure, dependency-free apart from the shared text scrubber, and touches no\nNode or server-only API.",
-                    "moduleTags": [],
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Adapter binding a pure redaction policy to a third-party leaf, and a Null Object render-wise — it adds no\n    DOM, no landmark and no focusable node, holds no state and takes no branch."
+                        }
+                    ],
                     "description": "Mount Vercel Web Analytics with `beforeSend` redaction. Renders nothing.",
                     "tags": [
                         {
@@ -1854,7 +1861,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/app",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from\n    the appShell container rather than imported, to the pure `RouteErrorState` render half."
+            ],
             "platforms": [
                 "web"
             ],
@@ -1872,6 +1881,10 @@
                         {
                             "name": "module",
                             "text": "components/app/RouteErrorBoundary — the shared orchestration every web App Router `error.tsx`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition root for the App Router error boundary — it binds the DA9 `ErrorReporter` Port, resolved from\n    the appShell container rather than imported, to the pure `RouteErrorState` render half."
                         }
                     ],
                     "description": "Reports the caught error via DA9 and renders the shared localized fallback with retry wired to `reset`.",
@@ -1929,7 +1942,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/app",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Humble Object — the pure, localized render half every `error.tsx` boundary shows. Retry is the caller's\n    `reset()`, so this leaf knows nothing of React error boundaries, reporting, or which segment threw."
+            ],
             "platforms": [
                 "web"
             ],
@@ -1947,6 +1962,10 @@
                         {
                             "name": "module",
                             "text": "components/app/RouteErrorState — the shared, localized presentational fallback rendered by every"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Humble Object — the pure, localized render half every `error.tsx` boundary shows. Retry is the caller's\n    `reset()`, so this leaf knows nothing of React error boundaries, reporting, or which segment threw."
                         }
                     ],
                     "description": "Localized \"this page failed to load\" state with a retry affordance, shared by every route's `error.tsx`.",
@@ -2173,7 +2192,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/auth",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Orchestration half of the orchestration/render split — it owns the deferred recipe fetch and the erasure\n    Command, and hands both to the pure cross-platform `AccountEraseDialog`, which owns the phrase gate."
+            ],
             "platforms": [
                 "web"
             ],
@@ -2191,6 +2212,10 @@
                         {
                             "name": "module",
                             "text": "auth/AccountEraseForm — the account ERASURE control + orchestration (web; CR-002 / U4b)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Orchestration half of the orchestration/render split — it owns the deferred recipe fetch and the erasure\n    Command, and hands both to the pure cross-platform `AccountEraseDialog`, which owns the phrase gate."
                         }
                     ],
                     "description": "",
@@ -2435,7 +2460,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/auth",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and error."
+            ],
             "platforms": [
                 "web"
             ],
@@ -2453,6 +2480,10 @@
                         {
                             "name": "module",
                             "text": "auth/LogoutButton — the web sign-out control (U3)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and error."
                         }
                     ],
                     "description": "",
@@ -2765,7 +2796,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home/chrome",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Adapter over the house Radix `Dialog` for the slide-over drawer, with a Facade over the DOM focus API for\n    the two focus targets Radix cannot infer when the trigger is a sibling rather than an owned trigger."
+            ],
             "platforms": [
                 "web"
             ],
@@ -2783,6 +2816,10 @@
                         {
                             "name": "module",
                             "text": "home/chrome/HomeMobileNav — the mobile navigation drawer (web; US-000 / FR-046, B6/CR-003)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the house Radix `Dialog` for the slide-over drawer, with a Facade over the DOM focus API for\n    the two focus targets Radix cannot infer when the trigger is a sibling rather than an owned trigger."
                         }
                     ],
                     "description": "The mobile navigation drawer.",
@@ -3232,7 +3269,10 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Adapter over the house Radix `Dialog` for the nudge surface itself — Radix owns the focus trap,\n    Escape-to-dismiss and background inert.",
+                "Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a\n    gated widget asks for the nudge without owning it."
+            ],
             "platforms": [
                 "web"
             ],
@@ -3250,6 +3290,14 @@
                         {
                             "name": "module",
                             "text": "home/SubscriptionNudge — the once-per-session subscription upgrade nudge (web)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a\n    gated widget asks for the nudge without owning it."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the house Radix `Dialog` for the nudge surface itself — Radix owns the focus trap,\n    Escape-to-dismiss and background inert."
                         }
                     ],
                     "description": "Context carrying the {@link HomeNudge} trigger down to widgets (provided by the Home surface).",
@@ -3712,7 +3760,10 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/home",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Adapter over the house Radix `Dialog` for the nudge surface itself — Radix owns the focus trap,\n    Escape-to-dismiss and background inert.",
+                "Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a\n    gated widget asks for the nudge without owning it."
+            ],
             "platforms": [
                 "web"
             ],
@@ -3730,6 +3781,14 @@
                         {
                             "name": "module",
                             "text": "home/SubscriptionNudge — the once-per-session subscription upgrade nudge (web)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a\n    gated widget asks for the nudge without owning it."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the house Radix `Dialog` for the nudge surface itself — Radix owns the focus trap,\n    Escape-to-dismiss and background inert."
                         }
                     ],
                     "description": "The upgrade nudge dialog. Renders nothing when closed. Copy is localized via the web dictionary.\n\nThe upgrade action currently dismisses (the subscription surface is owned by 010, not yet shipped); it is\nwired as a distinct action so it becomes a real destination without a structural change when 010 lands.\n\nBuilt on Radix `Dialog` (B6/CR-003, mirrors `PullUpdatesDialog`'s pattern): Radix owns the focus trap,\nEscape-to-dismiss, and background inert, so this component hand-rolls none of that (no `role=\"dialog\"`\ndiv). `onOpenChange` maps every Radix close path (Escape, backdrop) onto the same `onDismiss` the explicit\ncontrols use — one exit path, not two.\n\nFocus-return is handled explicitly, NOT left to Radix's default: the gated widget's own control that calls\n`useHomeNudge().trigger()` (wired in `HomeWidgetSurface`) is a SIBLING elsewhere in the tree, not an owned\n`Dialog.Trigger`, so Radix's built-in `onCloseAutoFocus` (which only restores an OWNED trigger — see\n`PullUpdatesDialog`'s module doc) would silently focus nothing. `triggerRef` captures\n`document.activeElement` at the render where `open` flips true — BEFORE `Dialog.Content` (and its own\nautofocus-on-mount) ever commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own\nno-op default.",
@@ -4103,7 +4162,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Humble Object over the shared `useIngredientResolver` headless hook — it renders `viewState` and decides\n    nothing. Its one imperative seam is a Facade publishing `focusSearch`, never the node itself."
+            ],
             "platforms": [
                 "web"
             ],
@@ -4117,7 +4178,12 @@
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/IngredientPicker.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
                     "moduleDoc": "The async ingredient typeahead the shared `RecipeForm` building block deliberately omits (it resolves no\ningredient itself). A thin renderer (CP-6/P2) over the shared, platform-agnostic\n`useIngredientResolver` (`@commise/features-recipes/hooks`), which owns the search-box text, the\ndisambiguation state, and all four ways a line resolves (catalog-hit, addByName, candidate pick,\nfreeform). This leaf's job is ONLY to render `viewState` with its own Tailwind markup and wire the\nhook's actions to DOM events — see the hook's module doc for the full state machine, the async-resolution\nvertical (data-model R5 / FR-007), and the drift-unification decisions made when it was extracted from\nthis leaf and its mobile sibling.\n\n**Search Stage 2 — the blended, sectioned result list.** The results are now a discriminated\n`local | catalog` union: the caller's own previously-used ingredients and food-catalog golden records (the\nUSDA-seeded catalog, previously invisible to this typeahead). They render as TWO labeled sections — \"Your\ningredients\" then \"Food catalog\" — never interleaved, per the command-palette pattern: the fast familiar\nlist keeps a stable position whether or not the catalog section is present, which removes the layout-shift\nclass of typeahead jank. Catalog rows carry a provenance badge and cost one admit round-trip on pick (which\nis why they disable while `addByFoodStatus.isPending`). When the food catalog is unreachable, a quiet\n`role=\"status\"` notice says so and the local section still renders in full (F2) — nothing failed for the\nuser, so it is deliberately not an `alert`.\n\n**U14 — the correction affordance (R19/R20).** Each food-backed suggestion row carries a second control:\n\"Always use this for '{query}'\". It writes a curated mapping through `useIngredientCorrection`, which is\nwhat makes U10's knowledge base reachable at all — before it, that table had a writer and no caller, so the\nlearning loop never fired. Three things about it are deliberate and easy to break:\n\n 1. ⛔ **The phrase sent is the TYPED query, never the suggestion's name.** A mapping is only ever consulted\n    under the key the resolution cascade looks up, and that key derives from the phrase `addByName`\n    received. Sending the catalog's rendering of the food would write rows nothing queries — and would be a\n    system checking its own output against itself.\n 2. ⛔ **A FREEFORM row gets no control.** A mapping's whole content is a `food_id`, and a user-entered\n    ingredient has no food behind it, so there would be nothing to bind the phrase to.\n 3. ⚠️ **It is a SEPARATE intent from picking.** Teaching does not resolve a line, and a failed correction\n    never disturbs one — the notice says so explicitly.\n\n**U29 — the ON-DEMAND USDA search.** Below the local results sits an explicit affordance, \"Search USDA\nfor '{query}'\", tagged SLOW. ⛔ It is a BUTTON a cook presses, never a typeahead: the upstream source\nallows 1,000 requests/hour PER IP shared by every cook, of which 003's FR-019 reserves only the top 10%\nfor user-facing work — so at 50 concurrent cooks a per-settled-query autocomplete would want roughly\nthree times the entire key. Do not add a debounce, an effect, or a \"the local results look thin\" trigger.\n\n⚠️ **The panel APPENDS below the local sections; it never replaces them.** The design mockup shows the\nrunning/failed states taking the whole result area over, and this leaf deliberately does not: a cook who\nwaits several seconds and then gets a failure would have lost the local list they already had. The\nrevival plan's own rule is that the source section \"never blocks local\", and that wins.\n\n⛔ **Three settled outcomes get three sentences.** \"USDA has nothing for X\" means stop looking (a\n`status`, not an `alert`, and no retry offered — nothing failed). \"Rate-limited\" and \"didn't answer\" both\nmean try again, and are `alert`s with a retry. Merging any pair sends a cook round a loop that cannot end.\n\n**Every progress region carries its label as CONTENT, not only as `aria-label`.** A `role=\"status\"` node\nrendered EMPTY is doubly broken: it is zero-height (nothing for a sighted viewer to see, and Playwright\nresolves it as `hidden`) and it is silent — a live region announces content CHANGES, and a region with no\ncontent has no change to announce. So each of the six affordances below (searching, find-nutrition,\nfreeform-create, catalog-admit, disambiguation-loading, resolving) renders its contextual, localized label\nas its visible caption. Same doctrine as `RecipePhotoManager`'s upload status and the mobile `LoadingState`.",
-                    "moduleTags": [],
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Humble Object over the shared `useIngredientResolver` headless hook — it renders `viewState` and decides\n    nothing. Its one imperative seam is a Facade publishing `focusSearch`, never the node itself."
+                        }
+                    ],
                     "description": "The live ingredient typeahead.",
                     "tags": [
                         {
@@ -4409,7 +4475,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Orchestration container over the `Wizard` compound-component shell — it owns the editable form values and\n    the step/draft/publish navigation, and issues the create Command."
+            ],
             "platforms": [
                 "web"
             ],
@@ -4423,7 +4491,12 @@
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeCreateContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
                     "moduleDoc": "Container for the recipe-create route (w3/e1,e2 on the 4-step `Wizard` shell; U28/U32/U33/U34). Owns the\neditable {@link RecipeFormValues} (seeded blank via `defaultRecipeFormValues`) AND the wizard's own\nstep/draft/publish navigation — unlike the edit route, create has no seed/conflict/version concerns, so it\ndoes not use `useRecipeEditor` (that hook's machinery is edit-only); this container reimplements the SAME\nstep-gating (`canAdvanceFromStep`/`stepErrorsFor`) and the SAME draft-vs-publish floor\n(`stepErrorsFor(values, 1)` for a draft, `validateRecipeForm` for a publish) the hook uses for edit, so the\ntwo flows cannot drift on what \"valid enough to advance/draft/publish\" means.\n\n⛔ **INGREDIENTS ARE PICKER-FIRST (U28).** The only way a line enters `values.ingredients` here is\n`appendResolvedIngredient`, whose parameter is a `ResolvedRecipeFormIngredient` — an unresolved row is not\na value this container can construct. \"+ Add ingredient\" inside the fields leaf raises a REQUEST which this\ncontainer answers by focusing the picker it owns, because a controlled presentational leaf cannot.\n\n⛔ **PHOTOS ARE A FIELD NOW, and the create path is why (U33, owner ruling 2026-08-25).** This container\nused to render \"Save this recipe first — you can add photos from its edit page\" where a control should\nhave been, because `RecipePhotoUploaderContainer` takes a REQUIRED `recipeId`. A pick is now recorded in\nthe DRAFT (`useRecipeDraftPhotos`) and flushed into the upload queue the moment the create mutation\nreturns an id — the SAME rule the edit route runs, where the id is simply already there.\n\n⛔ **THE FAILURE MODE THAT SEAM CREATES, AND THE OUTCOME CHOSEN FOR IT.** The create endpoint takes JSON\nand photos go through a separate presign → PUT → confirm mutation, so a save is create-THEN-upload: the\ncreate can succeed while an upload fails, leaving a recipe whose photo did not land. The two calls must\ntherefore NOT look like one to the cook. The outcome is **surface and retry, with an explicit discard**:\n\n  - a successful create does NOT navigate away while any picked photo is still queued, uploading, or\n    failed — navigating would unmount the queue mid-flight and lose the upload silently, which is the very\n    failure being designed away;\n  - the recipe IS saved by then, and the surface says so: a `role=\"status\"` line reports the photos still\n    in flight, and the shared `RecipePhotoManager` renders each file's own `queued`/`uploading`/`failed`\n    state with its message and its Retry;\n  - when a file cannot be made to upload, the cook may leave anyway through an explicit \"finish without\n    them\" control. Discarding is a DECISION they take, never an outcome they are handed;\n  - once every file reaches `ok`, navigation happens on its own.\n\n⚠️ **Auto-save is deliberately NOT wired on this route.** An unattended write needs an\n`expectedVersion` to be safe, and a recipe that does not exist yet has no version to send — the first\nwrite here is a POST, not a CAS-guarded PATCH. Auto-save begins on the edit route, once there is a version\ntoken to carry. Firing a create on a timer would also mint a recipe from a form the cook has not finished\nand may abandon.",
-                    "moduleTags": [],
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Orchestration container over the `Wizard` compound-component shell — it owns the editable form values and\n    the step/draft/publish navigation, and issues the create Command."
+                        }
+                    ],
                     "description": "The live recipe-create container.",
                     "tags": [
                         {
@@ -4579,7 +4652,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Orchestration container over the `useRecipeEditor` headless hook — a discriminated-union statechart owning\n    the whole edit lifecycle — bound here to the `Wizard` compound shell."
+            ],
             "platforms": [
                 "web"
             ],
@@ -4593,7 +4668,12 @@
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeEditContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
                     "moduleDoc": "Container for the recipe-edit route (CP-6/P1: rewired onto the shared `useRecipeEditor` headless hook,\n`@commise/features-recipes/hooks`; w3/e1,e2: rewired again onto the 4-step `Wizard` shell). The hook owns\nthe whole edit lifecycle — seed-once, validation, submit-with-`expectedVersion`, the 409-to-conflict\ntransition, the three FR-007c resolutions, AND (w3) the step/draft/publish extensions — as a\ndiscriminated-union statechart (`EditorState`) plus orthogonal step-navigation state; this container is a\nthin renderer that switches on `state.status` and, once past loading/conflict, wires the `Wizard` compound\nshell — `Wizard.Header`/`Wizard.Rail` plus one `Wizard.Step` per step, each hosting the SAME extracted\n`RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/`RecipeVisibilityField`/\n`RecipeReviewFields` leaves (`@commise/features-recipes`) — no field is duplicated or rewritten. The\napp-owned {@link IngredientPicker} composes into step 2. See the hook's module doc for the full statechart\nand the reseed-incompatibility fix it resolves (web previously reseeded in place; mobile previously\nremounted via a `seedNonce`/`seedOverride` hack — both platforms now drive the SAME `setValues`\ntransition).\n\n⛔ **`Wizard.Controls` is NOT placed here (U32).** `Wizard.Header` renders the action bar itself, because\non web the bar's POSITION is what the `lg` breakpoint changes — `fixed` to the viewport bottom below it,\n`static` inside the header band above it — and one element that moves is the only shape with ONE\naccessible name per control. Placing it here as well would ship two bars.\n\n⛔ **Photos are on step 1 now, not step 4 (U33).** {@link RecipePhotoUploaderContainer} composes into\nDetails beside the other fields, and step 4 is the read-only `RecipeReviewFields`. On this route the\nrecipe always has an id, so the uploader is live from the first render; the create route reaches the same\nsurface through the draft-photo seam (`useRecipeDraftPhotos`).\n\n⚠️ **Auto-save (U34) is wired here, and its `enabled` gate is this container's judgement.** It is `false`\nwhenever an unattended write would land in an unresolved race: while a save is in flight (that request\nalready holds the version token), while a conflict is unresolved (the token is known stale), and while the\nrecipe has not loaded (there is no token). The write goes through the editor's `autoSaveDraft` — NOT its\n`saveDraft`, which also calls `onSaved`, which this container wires to a NAVIGATION. A background timer\ncalling that would close the editor two seconds after the cook stopped typing. It still carries\n`expectedVersion`, and a 409 surfaces exactly as a manual save's does.\n\n**OQ-1 resolve→detail navigation (W7 Task 6).** A successful `overwrite`/`merge` resolves through the SAME\n`submitDraft` → `onSuccess` → `opts.onSaved` path a plain save uses, so it lands on the SAME\n`router.push(detailRoute)` this container already wires for `onSaved` — no separate branch needed. Choosing\n`keepServer` (Option A) is different: it is a discard, not a write, so `useRecipeEditor` never calls\n`onSaved` for it — it transitions to the DISTINCT `status: 'discarded'` terminal instead. This container\nwatches for that transition in its own `useEffect` and navigates to the SAME `detailRoute`, but WITHOUT any\n\"Saved!\" success affordance (there is none to suppress today — the point is that a future one must key off\n`status: 'saved'`, never fire for a discard).\n\n**\"Discard and close\" (wireframe gap #1) reuses this SAME wiring.** `editor.discardAndClose` (the header\nexit `RecipeConflictView` now renders) also lands on `status: 'discarded'` — it needs no separate `useEffect`\nbranch here, since it is indistinguishable from `keepServer`'s own discard from this container's point of\nview (no write, navigate to the recipe, no \"Saved!\"). Unlike `keepServer`, it stays callable even while a\nresolve is in flight — see `useRecipeEditor`'s own doc for the epoch-guard that neutralizes a late resolve.",
-                    "moduleTags": [],
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Orchestration container over the `useRecipeEditor` headless hook — a discriminated-union statechart owning\n    the whole edit lifecycle — bound here to the `Wizard` compound shell."
+                        }
+                    ],
                     "description": "The live recipe-edit container.",
                     "tags": [
                         {
@@ -4749,7 +4829,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/web/src/components/recipes",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Orchestration container over the `useRecipePhotoQueue` hook — it owns the DOM file-input Facade and the\n    Object-URL lifecycle ledger that the presentational `RecipePhotoManager` deliberately omits."
+            ],
             "platforms": [
                 "web"
             ],
@@ -4763,7 +4845,12 @@
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
                     "moduleDoc": "The upload orchestration the shared `RecipePhotoManager` block deliberately omits (it is presentational\nand holds no fetching or DOM/file APIs). This container owns the recipe-photo lifecycle for the web app:\nit reads the photos via `useRecipePhotos`, supplies the block's `addControl` (an accessible label wrapping\na hidden, `multiple` `<input type=\"file\">`), and on a file selection ENQUEUES every picked file onto\n`useRecipePhotoUploadQueue` (w3/e4) — the layer that drives the shared, single-flight `useRecipePhotoUpload`\nheadless hook (CP-6/P3, B24) once per file, sequentially, while the grid shows each file's own status.\nRemove wires the per-photo control to `useDeleteRecipePhoto`, busying just the row whose deletion is in\nflight; the queue's own `retry`/`remove` handle a queued/failed FILE (not yet a confirmed photo).\n\nRemote state stays in TanStack Query; `confirm → invalidateRecipeProjections` still runs exactly once per\nsuccessful upload, from inside `useRecipePhotoUpload` — this container and the queue layer above it never\nreimplement that call. The web-specific bits neither hook owns: acquiring `File`s from the DOM `change`\nevent, minting a per-file preview object URL (revoked once a file is no longer pending — removed, or\nfolded into the confirmed `photos` list on success), and resetting the input so the same file can be\nre-picked after being removed from the queue.\n\nEvery picked file also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012 MIME\nallowlist) — this container's only involvement is supplying the two localized rejection strings; the\nadmission check itself lives in `useRecipePhotoUploadQueue`.\n\n**Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo\n\"Replace\" control, and the original photo is deleted only from the replacement's `onUploaded` continuation\n— never up-front. See the `handleReplacePhoto` comment for the full ordering + the at-cap refusal.",
-                    "moduleTags": [],
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Orchestration container over the `useRecipePhotoQueue` hook — it owns the DOM file-input Facade and the\n    Object-URL lifecycle ledger that the presentational `RecipePhotoManager` deliberately omits."
+                        }
+                    ],
                     "description": "The live recipe photo uploader.",
                     "tags": [
                         {

@@ -28,6 +28,9 @@
  * `diff` — added/removed/unchanged COUNTS only (this block never resolves recipe titles, it only received
  * ids), the "not overwritten" note, and the count-templated Pull action, disabled while `isCommitting` or
  * when there is nothing to add.
+ *
+ * @pattern Adapter over the house Radix `Dialog` — Radix owns the focus trap, Escape-to-dismiss and background inert;
+ *     `open` is the caller's, so this leaf stays a controlled `props → JSX` render.
  */
 import { useMessages } from '@commise/i18n/react';
 import * as Dialog from '@radix-ui/react-dialog';

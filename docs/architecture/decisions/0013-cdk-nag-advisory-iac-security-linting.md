@@ -170,3 +170,35 @@ These four were in the FIX list and are **not implemented**; they add new resour
 
 - **`packages/services/recipe-workers/dist/tsconfig.tsbuildinfo` (390 KB) and `dist/scripts/` ship inside all six recipe-workers Lambda assets**, because `Code.fromAsset(DIST_PATH)` points at the whole `dist/`. A TypeScript incremental-build cache is not deployable code, and including a build artifact in the asset makes the asset hash — and therefore `Code.S3Key` in the prod template — churn on unrelated rebuilds, adding noise to exactly the prod diff review ADR-0002 makes load-bearing.
 - **`packages/services/{identity,identity-webhooks}/cdk.context.json` pin a prod VPC id that no longer exists** (`vpc-0ec22fac8e09a5751`; the live `KitchenSink-prod` VPC is `vpc-007a83efa4b118d25`). It is currently harmless because CI passes `IDENTITY_VPC_ID` from a live lookup, so the stale cache entry is never hit — but a `--lookups false` synth of those apps resolves against a VPC that is gone.
+
+## Update (2026-09-03) — the `SQS4` zero REGRESSED, because a burn-down count is not a control
+
+`RecipeParseQueue` and `RecipeParseDlq` (`RecipeWorkersStack`, added with the service parse leg) shipped with
+no `enforceSSL`, while their eight siblings in the same file had it. That put the burn-down table's
+`SQS4 / SNS3 … 13 → 0 | FIXED` row back to **2**.
+
+⚠️ **Nothing failed, and nothing was going to.** cdk-nag saw it and reported `AwsSolutions-SQS4` against
+exactly those two resources — into the advisory channel this ADR deliberately chose, where by construction
+nothing gates. The finding sat in `cdk synth` output among the other ~62. **The defect is not that the
+warning was missed; it is that a measured outcome was recorded in this table with no mechanism re-checking
+it.** A one-time count degrades silently the moment the next queue is written, and the reader of this table
+has no way to know whether its "0" is still true.
+
+### What now holds it
+
+`packages/infra/global/__tests__/queueBaselineDeclarations.test.ts` — a repo-wide, SOURCE-derived guard
+asserting that every `new sqs.Queue(...)` construction site declares `enforceSSL: true`, `encryption` and
+`retentionPeriod`. It enumerates nothing, so a queue written tomorrow joins its subject set that day.
+
+⛔ It is deliberately a SOURCE guard, and the reason is measured rather than aesthetic. Discharging this at
+template level means synthesizing every app, and `infrastructureManifest.test.ts` records why that is not
+available: every service app calls `ec2.Vpc.fromLookup`, so synth needs credentials and an uncached context;
+`RecipeWorkersStack` additionally throws unless the service has been built; and each entrypoint needs between
+one and nine environment variables. `transportSecurity.test.ts` keeps the MECHANISM claim (that `enforceSSL`
+emits a real deny and that cdk-nag's own rule agrees) for the platform app, and `RecipeWorkersStack.test.ts`
+now carries the same mechanism claim, template-derived, for its own ten queues.
+
+⚠️ **Residual, stated plainly:** the source guard is a PROXY for this table's row, not the row itself. Nothing
+runs the `SQS4` rule across all seven apps and asserts the count is zero. Declaration implies the policy
+(CDK emits it), so the proxy is sound — but a future finding of this class in an app whose queues are not
+constructed through `sqs.Queue` would still land in the advisory channel unobserved.

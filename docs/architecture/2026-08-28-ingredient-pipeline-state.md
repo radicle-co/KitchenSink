@@ -2,7 +2,11 @@
 title: The ingredient pipeline — state of PR 91
 date: 2026-08-28
 type: state
-status: authoritative
+status: dated-snapshot
+# ⚠️ NOT authoritative. This was `status: authoritative` until 2026-09-02, and that is precisely what
+# made a reader trust its deployment table against a live account. It is a snapshot of PR 91 taken on
+# 2026-08-28; its measurements and judgements stand as OF THAT DATE. For what is deployed, read
+# `docs/generated/infrastructure/manifest.json` and the drift check, never this file.
 amends: [specs/001-commise-recipe-app, specs/003-usda-food-data]
 branch: chore/code-quality-enforcement-phase-1-2
 ---
@@ -22,7 +26,8 @@ current state.
 
 ## 0. ⛔ Local-only is a COST decision, not an architecture
 
-Read this before §1, because §1 is easy to misread without it.
+Read this before the rest of the document. (It used to say "read this before §1" — §1's deployment table
+was removed on 2026-09-02; see that section for why.)
 
 Everything below runs, or is designed to run, in three places:
 
@@ -44,24 +49,32 @@ not a design fact — but it is a real risk, and §7 lists it rather than buryin
 
 ---
 
-## 1. What runs where, today
+## 1. What runs where, today — REMOVED 2026-09-02, and this is why
 
-| component                                   | declared in CDK     | has a caller               | exercised  | deployed                                      |
-| ------------------------------------------- | ------------------- | -------------------------- | ---------- | --------------------------------------------- |
-| identity service (ECS)                      | ✅                  | ✅                         | ✅         | ✅ prod + sandbox                             |
-| food service (ECS)                          | ✅                  | ✅                         | ✅         | ✅                                            |
-| recipe service (ECS)                        | ✅                  | ✅                         | ✅         | ✅                                            |
-| `verifyLine` — the LLM verification gate    | ✅                  | ✅ queue                   | ✅         | ✅                                            |
-| the 13 other Lambda handlers                | ✅                  | ✅                         | ✅         | ✅                                            |
-| **CRF parser Lambda** (Python)              | ✅ own stack        | ❌ **nothing invokes it**  | local only | ❌ never                                      |
-| ~~`llmParse.ts`~~ — the gated LLM parse leg | —                   | —                          | —          | ⛔ **DELETED 2026-08-29** (dead code, see §3) |
-| **`parsePipeline.ts`** — the orchestrator   | n/a                 | ❌ shared pkg + tests only | via CLI    | ❌ never                                      |
-| the import CLI (`cookbook-import`)          | n/a — operator tool | ✅ operator                | ✅         | n/a by design                                 |
+⛔ **This section used to be a hand-maintained table headed "What runs where, today", and it was WRONG.**
+It marked `verifyLine` and "the 13 other Lambda handlers" as `✅` deployed. Checked against the live
+account on 2026-09-02: `kitchensink-recipe-workers-prod` holds exactly SIX Lambdas and was last updated
+**2026-08-02** — neither `verifyLine` nor `parseLine` is deployed anywhere. The claim was false on the day
+it was written, and it contradicted this document's own §7 gap 6 ("Nothing here has been deployed").
 
-Three of those rows are the story of this branch: the two-engine parse is **built, and unreachable in a
-deployed stack**. §3 says exactly where the break is.
+The error is worth naming, because it is easy to repeat: it conflated **"declared in a stack that is
+deployed"** with **"deployed"**. `kitchensink-recipe-workers-prod` genuinely exists and is
+`UPDATE_COMPLETE`; the deployed REVISION of it simply predates those handlers by a month.
 
----
+**The replacement is derived, not written.** Two artifacts now cover what this table claimed:
+
+- `docs/generated/infrastructure/manifest.json` — generated from the CDK source, listing every app, stack,
+  Lambda handler, queue, alarm, ECS service and SSM parameter. It states in its own `claim` field that it
+  describes what a COMMIT DECLARES, never what is deployed, and it carries a regenerate-and-diff staleness
+  gate so it cannot rot the way this table did.
+- The deployment-drift check (`.github/scripts/verify-deployment.sh drift …`), which reads the git-sha tag
+  now stamped on every stack at deploy time and compares declared handlers against RUNNING ones. Before that
+  stamp existed, nothing — human or automated — could tell that prod was 600+ commits behind.
+
+⛔ Do not restore a hand-written deployment table here, in this document or any other. A prose list of what
+is deployed is a copy of a fact that lives in the account, and this repo has paid for that shape repeatedly
+(the ALB listener priorities, the NAT consumer list, ADR-0025's asset guard). If you want to know what is
+running, read the manifest and run the drift check.
 
 ## 2. The ingredient path, end to end
 

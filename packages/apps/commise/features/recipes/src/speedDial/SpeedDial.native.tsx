@@ -36,6 +36,9 @@
  * React Native 0.86's Yoga and react-native-web both behave that way, which is why the menu uses the same
  * `right` value verbatim. If a device shows the menu overhanging the FAB by exactly the list's gutter, that
  * assumption is what is wrong — add the gutter here rather than nudging either value by eye.
+ *
+ * @pattern Menu Button (disclosure) as an Adapter over the React Native `Modal`, mirroring the web leaf's contract
+ *     with the platform primitive.
  */
 import { palette, tint } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';

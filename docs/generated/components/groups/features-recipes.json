@@ -12,7 +12,7 @@
         "implementationsWithComponentDoc": 79,
         "documentedProps": 534,
         "classifiedComponents": 41,
-        "componentsWithPatternTag": 0,
+        "componentsWithPatternTag": 14,
         "crossPlatformComponents": 61
     },
     "components": [
@@ -91,7 +91,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/actions",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Menu button (WAI-ARIA disclosure) with a Facade over the DOM's imperative dismissal model — outside-click\n    through `contains()` and focus-return through `focus()`, neither of which React expresses declaratively.",
+                "Menu button (WAI-ARIA disclosure) with no Facade to build — React Native has no pointer \"outside click\",\n    so dismissal is ordinary state and this leaf stays a pure `props → JSX` surface."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -110,6 +113,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web \"More\" overflow menu (C4 wireframe parity)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Menu button (WAI-ARIA disclosure) with a Facade over the DOM's imperative dismissal model — outside-click\n    through `contains()` and focus-return through `focus()`, neither of which React expresses declaratively."
                         }
                     ],
                     "description": "",
@@ -146,6 +153,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native \"More\" overflow menu (C4 wireframe parity)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Menu button (WAI-ARIA disclosure) with no Facade to build — React Native has no pointer \"outside click\",\n    so dismissal is ordinary state and this leaf stays a pure `props → JSX` surface."
                         }
                     ],
                     "description": "",
@@ -303,7 +314,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/actions",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over the house Radix `AlertDialog` — Radix owns the focus trap, Escape-to-dismiss and background\n    inert, so this leaf hand-rolls none of it and stays a controlled `props → JSX` render.",
+                "Adapter over the native alert surface — the same controlled `props → JSX` contract as the web leaf,\n    expressed with the platform primitive rather than Radix."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -322,6 +336,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web recipe delete-confirmation dialog (T068 building block)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the house Radix `AlertDialog` — Radix owns the focus trap, Escape-to-dismiss and background\n    inert, so this leaf hand-rolls none of it and stays a controlled `props → JSX` render."
                         }
                     ],
                     "description": "",
@@ -403,6 +421,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native recipe delete-confirmation dialog (T068 building block)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the native alert surface — the same controlled `props → JSX` contract as the web leaf,\n    expressed with the platform primitive rather than Radix."
                         }
                     ],
                     "description": "",
@@ -2689,7 +2711,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/collections",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over the house Radix `Dialog` — Radix owns the focus trap, Escape-to-dismiss and background inert;\n    `open` is the caller's, so this leaf stays a controlled `props → JSX` render.",
+                "Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area\n    padding — the same controlled `props → JSX` contract as the web leaf."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -2708,6 +2733,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web Pull-Updates preview dialog (W5 Task 10, C2 / FR-011)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the house Radix `Dialog` — Radix owns the focus trap, Escape-to-dismiss and background inert;\n    `open` is the caller's, so this leaf stays a controlled `props → JSX` render."
                         }
                     ],
                     "description": "",
@@ -2819,6 +2848,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native Pull-Updates preview dialog (W5 Task 10, C2 / FR-011)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area\n    padding — the same controlled `props → JSX` contract as the web leaf."
                         }
                     ],
                     "description": "",
@@ -2998,7 +3031,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/components",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Layout component over a pure projection — it owns the arrangement and nothing else; the navigation seam is\n    a callback the composing host, the only layer that knows the router, turns into a route.",
+                "Layout component over a pure projection, forked per platform on purpose — each leaf expresses its own\n    arrangement so neither carries the other's dead branch."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -3017,6 +3053,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web \"Recent recipes\" card GRID (Home widget building block)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Layout component over a pure projection — it owns the arrangement and nothing else; the navigation seam is\n    a callback the composing host, the only layer that knows the router, turns into a route."
                         }
                     ],
                     "description": "The recent-recipes card grid: 2-up on phones, 4-up from `md` (mockup parity). An empty `recipes` list\nrenders an empty grid — the widget's orchestration layer selects the dedicated empty-state component\ninstead, so this leaf never has to invent a placeholder card.",
@@ -3069,6 +3109,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native \"Recent recipes\" card list (Home widget building block)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Layout component over a pure projection, forked per platform on purpose — each leaf expresses its own\n    arrangement so neither carries the other's dead branch."
                         }
                     ],
                     "description": "The recent-recipes card list on React Native: a single column of tappable cards.",
@@ -3647,7 +3691,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Adapter over React Native's paging `ScrollView` and `Modal` — the same read model and branch behaviour as\n    the web leaf, expressed with platform primitives; the open slide is local view state.",
+                "Adapter over the house Radix `Dialog` for the lightbox — Radix owns the focus trap, Escape-to-dismiss,\n    background inert and focus-return to the activating slide; the open slide is local view state, not data."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -3666,6 +3713,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the house Radix `Dialog` for the lightbox — Radix owns the focus trap, Escape-to-dismiss,\n    background inert and focus-return to the activating slide; the open slide is local view state, not data."
                         }
                     ],
                     "description": "",
@@ -3709,6 +3760,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native recipe-photo carousel + lightbox (W2 Task 2.2, D2)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native's paging `ScrollView` and `Modal` — the same read model and branch behaviour as\n    the web leaf, expressed with platform primitives; the open slide is local view state."
                         }
                     ],
                     "description": "",
@@ -3752,7 +3807,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Humble Object — the pure render half of the orchestration/render split whose shell is\n    `RecipeDetailView.native.tsx`.",
+                "Humble Object — the pure render half of the orchestration/render split whose shell is\n    `RecipeDetailView.tsx`. It holds no fetch state and decides nothing."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -3771,6 +3829,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web recipe-detail view (T066 building block)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Humble Object — the pure render half of the orchestration/render split whose shell is\n    `RecipeDetailView.tsx`. It holds no fetch state and decides nothing."
                         }
                     ],
                     "description": "The pure `props → JSX` detail render: one responsibility, no state, no fetching, no ref. Everything it\nshows for a chosen serving count comes from `scaleRecipeForServings`, so what scales (and what\ndeliberately does not) is decided once, in the domain, for both platforms.\n\nExported for tests and for its shell; deliberately NOT on the package barrel — an app composes\n`RecipeDetailView`, which cannot be shipped with the serving scale un-wired.",
@@ -3877,6 +3939,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native recipe-detail view (T066 building block)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Humble Object — the pure render half of the orchestration/render split whose shell is\n    `RecipeDetailView.native.tsx`."
                         }
                     ],
                     "description": "The pure `props → JSX` detail render: one responsibility, no state, no fetching, no ref. Everything it\nshows for a chosen serving count comes from `scaleRecipeForServings`, so what scales (and what\ndeliberately does not) is decided once, in the domain, for both platforms.\n\nExported for tests and for its shell; deliberately NOT on the package barrel — an app composes\n`RecipeDetailView`, which cannot be shipped with the serving scale un-wired.",
@@ -3983,7 +4049,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Orchestration shell over the Humble Object render half — it binds the session serving-scale store and\n    hands `RecipeDetailBody` the count, so the public contract cannot be composed with the scale un-wired.",
+                "Orchestration shell over the Humble Object render half — the same binding as the web shell, kept here\n    rather than in the screen so one platform cannot ship the detail with the scale inert."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -4002,6 +4071,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web recipe-detail view (T066 building block)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Orchestration shell over the Humble Object render half — it binds the session serving-scale store and\n    hands `RecipeDetailBody` the count, so the public contract cannot be composed with the scale un-wired."
                         }
                     ],
                     "description": "The ORCHESTRATION shell: binds the session serving-scale store and hands the pure body a scaled\nprojection. It lives here — not in the two app containers — precisely so neither platform can ship the\ndetail screen with the scale un-wired, which is the class of defect this feature was added to close.",
@@ -4090,6 +4163,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native recipe-detail view (T066 building block)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Orchestration shell over the Humble Object render half — the same binding as the web shell, kept here\n    rather than in the screen so one platform cannot ship the detail with the scale inert."
                         }
                     ],
                     "description": "The ORCHESTRATION shell (native): binds the session serving-scale store — the SAME store and hook the web\nleaf uses — and hands the pure body a scaled projection. Keeping this here rather than in\n`RecipeDetailScreen` is what makes it impossible for one platform to ship the detail with the scale\nun-wired.",
@@ -4178,7 +4255,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Null Object for the no-cover state — a designed, branded placeholder stands in for the missing photo,\n    rather than an empty `src`, a zero-height box or an unlabelled rectangle.",
+                "Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the\n    shared gradient and geometry tokens so the two cannot drift."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -4197,6 +4277,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web recipe-detail HERO cover (mockup `screen-recipe-detail`)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Null Object for the no-cover state — a designed, branded placeholder stands in for the missing photo,\n    rather than an empty `src`, a zero-height box or an unlabelled rectangle."
                         }
                     ],
                     "description": "The recipe-detail hero cover, with its deliberate no-cover fallback.",
@@ -4240,6 +4324,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native recipe-detail HERO cover (the RN leaf of RecipeHero)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the\n    shared gradient and geometry tokens so the two cannot drift."
                         }
                     ],
                     "description": "The recipe-detail hero cover (native), with its deliberate compact no-cover fallback.",
@@ -7746,7 +7834,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/nutrition",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Suspense boundary + error boundary as a state selector — the deferred lookup's three states become three\n    components by React's unwinding rather than a branch on flags, and the render components stay pure.",
+                "Suspense boundary + error boundary as a state selector — the same nesting and the same non-terminal\n    invariant as the web leaf, over the same client-side `use(promise)` mechanism."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -7765,6 +7856,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/nutrition — web nutrition boundary (the orchestration layer)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Suspense boundary + error boundary as a state selector — the deferred lookup's three states become three\n    components by React's unwinding rather than a branch on flags, and the render components stay pure."
                         }
                     ],
                     "description": "The deferred calorie figure for one recipe: its skeleton while the lookup is in flight, its chip once the\nlookup settles, and a terminal `unaccounted` answer if the lookup fails.",
@@ -7808,6 +7903,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/nutrition — native nutrition boundary (the RN leaf)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Suspense boundary + error boundary as a state selector — the same nesting and the same non-terminal\n    invariant as the web leaf, over the same client-side `use(promise)` mechanism."
                         }
                     ],
                     "description": "The deferred calorie figure for one recipe (native): skeleton, then chip, or a terminal `unaccounted`\nanswer if the lookup fails.",
@@ -7851,7 +7950,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/nutrition",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Suspense boundary + selector over ONE batch promise — N slots over one promise are one read, because\n    `use()` memoizes on promise identity, and the omitted recipe is a fourth outcome the per-recipe boundary cannot\n    express.",
+                "Suspense boundary + selector over ONE batch promise — the same reasoning as the web leaf; the two files\n    differ only in which platform leaves they compose."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -7870,6 +7972,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/nutrition — web per-card nutrition slot (the orchestration layer)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Suspense boundary + selector over ONE batch promise — N slots over one promise are one read, because\n    `use()` memoizes on promise identity, and the omitted recipe is a fourth outcome the per-recipe boundary cannot\n    express."
                         }
                     ],
                     "description": "One card's deferred calorie figure, read out of the page's shared nutrition batch: its skeleton while the\nbatch is in flight, its chip once the batch settles, and nothing at all when the batch failed or omitted\nthis recipe.",
@@ -7922,6 +8028,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/nutrition — native per-card nutrition slot (the orchestration layer)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Suspense boundary + selector over ONE batch promise — the same reasoning as the web leaf; the two files\n    differ only in which platform leaves they compose."
                         }
                     ],
                     "description": "One card's deferred calorie figure, read out of the screen's shared nutrition batch (native).",
@@ -8744,7 +8854,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/rating",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Null Object for the rating input — the native peer of the web variant, substituted by the same\n    orchestrating container so the gate stays structural on both platforms.",
+                "Null Object for the rating input — the read-only variant the orchestrating container substitutes on the\n    viewer's own recipe, so the own-recipe gate is structural rather than a boolean branch inside one component."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -8763,6 +8876,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/rating — the READ-ONLY rating variant (FR-013, Sc8), web leaf."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Null Object for the rating input — the read-only variant the orchestrating container substitutes on the\n    viewer's own recipe, so the own-recipe gate is structural rather than a boolean branch inside one component."
                         }
                     ],
                     "description": "The read-only rating variant.",
@@ -8815,6 +8932,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/rating — the READ-ONLY rating variant (FR-013, Sc8), native leaf."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Null Object for the rating input — the native peer of the web variant, substituted by the same\n    orchestrating container so the gate stays structural on both platforms."
                         }
                     ],
                     "description": "The read-only rating variant.",
@@ -9209,7 +9330,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/speedDial",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Menu Button (WAI-ARIA) as an Adapter over `@radix-ui/react-dropdown-menu`, the primitive Radix names for\n    exactly this use case.",
+                "Menu Button (disclosure) as an Adapter over the React Native `Modal`, mirroring the web leaf's contract\n    with the platform primitive."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -9228,6 +9352,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — the web SpeedDial FAB (U34, owner ruling 2026-08-25)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Menu Button (WAI-ARIA) as an Adapter over `@radix-ui/react-dropdown-menu`, the primitive Radix names for\n    exactly this use case."
                         }
                     ],
                     "description": "",
@@ -9282,6 +9410,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — the native SpeedDial FAB (U34, owner ruling 2026-08-25)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Menu Button (disclosure) as an Adapter over the React Native `Modal`, mirroring the web leaf's contract\n    with the platform primitive."
                         }
                     ],
                     "description": "",
@@ -9847,7 +9979,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/versions",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over the house Radix `Dialog`, mirroring `VersionPreviewModal.tsx` structurally and behaviourally\n    — Radix owns the focus trap, Escape-to-dismiss and background inert.",
+                "Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area\n    padding — this leaf used to hand-roll both and shipped the occlusion bug with them."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -9866,6 +10001,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web two-version compare panel (W6 Task 4 / FR-007b, FR-007c)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the house Radix `Dialog`, mirroring `VersionPreviewModal.tsx` structurally and behaviourally\n    — Radix owns the focus trap, Escape-to-dismiss and background inert."
                         }
                     ],
                     "description": "",
@@ -9947,6 +10086,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native two-version compare sheet (W6 Task 4 / FR-007b, FR-007c)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area\n    padding — this leaf used to hand-roll both and shipped the occlusion bug with them."
                         }
                     ],
                     "description": "",
@@ -10026,7 +10169,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/versions",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over the house Radix `Dialog`, mirroring `PullUpdatesDialog.tsx` structurally and behaviourally —\n    `open` is the caller's and this leaf stays a controlled `props → JSX` render.",
+                "Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area\n    padding, rendering the same controlled contract as the web leaf."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -10045,6 +10191,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — web version preview modal (W6 Task 3 / FR-007b)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the house Radix `Dialog`, mirroring `PullUpdatesDialog.tsx` structurally and behaviourally —\n    `open` is the caller's and this leaf stays a controlled `props → JSX` render."
                         }
                     ],
                     "description": "",
@@ -10153,6 +10303,10 @@
                         {
                             "name": "module",
                             "text": "@commise/features-recipes — native version preview modal (W6 Task 3 / FR-007b)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area\n    padding, rendering the same controlled contract as the web leaf."
                         }
                     ],
                     "description": "",

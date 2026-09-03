@@ -5,6 +5,9 @@
  * the community aggregate plus a stated reason the input is withheld. Renders NOTHING interactive; the
  * backend guard is the real enforcement and the orchestrating container never mounts this on a rateable
  * recipe (see `ratingModeFor`).
+ *
+ * @pattern Null Object for the rating input — the native peer of the web variant, substituted by the same
+ *     orchestrating container so the gate stays structural on both platforms.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

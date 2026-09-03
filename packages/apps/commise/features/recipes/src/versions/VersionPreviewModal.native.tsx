@@ -16,6 +16,9 @@
  * `version` — the snapshot's title, description, servings, prep/cook/total time, and ingredient lines
  * (calorie chip only when the line carries a `userCalories` override), plus the "Changed from current"
  * summary when `diffFromCurrent` was supplied, and the Restore action.
+ *
+ * @pattern Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area
+ *     padding, rendering the same controlled contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

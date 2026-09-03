@@ -12,7 +12,7 @@
         "implementationsWithComponentDoc": 0,
         "documentedProps": 24,
         "classifiedComponents": 1,
-        "componentsWithPatternTag": 0,
+        "componentsWithPatternTag": 1,
         "crossPlatformComponents": 1
     },
     "components": [
@@ -24,7 +24,12 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/account/src/danger",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over React Native's `Modal` around the same `confirmsErasurePhrase` Specification, so the phrase\n    gate is one rule rather than one per platform.",
+                "Adapter over `@radix-ui/react-dialog` for the modal semantics, around a Specification —\n    `confirmsErasurePhrase` — that is the whole gate on the destructive confirm.",
+                "The `recipesLoading` / `recipesError` booleans are DISPLAY DERIVATION of one donate-election slot, exactly\n    as on web — same dialog, same gate, same actions in every branch.",
+                "The `recipesLoading` / `recipesError` booleans are DISPLAY DERIVATION of one donate-election slot, not a\n    behaviour switch: every branch renders the same dialog with the same phrase gate and the same actions, so §11\n    is satisfied without lifting them to the orchestration layer."
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -43,6 +48,14 @@
                         {
                             "name": "module",
                             "text": "@commise/features-account/danger/AccountEraseDialog — the WEB account-erasure dialog (CR-002 / U4b)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `@radix-ui/react-dialog` for the modal semantics, around a Specification —\n    `confirmsErasurePhrase` — that is the whole gate on the destructive confirm."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "The `recipesLoading` / `recipesError` booleans are DISPLAY DERIVATION of one donate-election slot, not a\n    behaviour switch: every branch renders the same dialog with the same phrase gate and the same actions, so §11\n    is satisfied without lifting them to the orchestration layer."
                         }
                     ],
                     "description": "",
@@ -179,6 +192,14 @@
                         {
                             "name": "module",
                             "text": "@commise/features-account/danger/AccountEraseDialog.native — the NATIVE account-erasure dialog"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native's `Modal` around the same `confirmsErasurePhrase` Specification, so the phrase\n    gate is one rule rather than one per platform."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "The `recipesLoading` / `recipesError` booleans are DISPLAY DERIVATION of one donate-election slot, exactly\n    as on web — same dialog, same gate, same actions in every branch."
                         }
                     ],
                     "description": "",

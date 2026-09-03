@@ -9,6 +9,11 @@
  * "Once per session" is deliberately **component state** (a ref guard), not persisted — the requirement is
  * per-session, and an app relaunch legitimately starts a new session. Mirrors the web nudge's hook logic
  * exactly; only the presentation swaps to a React Native `Modal`.
+ *
+ * @pattern Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a
+ *     gated widget asks for the nudge without owning it.
+ * @pattern Adapter over React Native `Modal`, presenting the nudge as a bottom sheet — the platform expression of the
+ *     web leaf's Radix dialog.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

@@ -31,6 +31,9 @@
  * the message, and the surface renders a distinct alert plus the ordinary {@link LogoutButton} as the recovery.
  * The copy is deliberately NOT the dialog's `submitError` — the erasure DID succeed, so inviting a retry of it
  * would be a lie; the only outstanding action is leaving the session.
+ *
+ * @pattern Orchestration half of the orchestration/render split — it owns the deferred recipe fetch and the erasure
+ *     Command, and hands both to the pure cross-platform `AccountEraseDialog`, which owns the phrase gate.
  */
 import { useState } from 'react';
 import { useMessages } from '@commise/i18n/react';

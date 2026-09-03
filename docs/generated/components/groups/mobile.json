@@ -12,7 +12,7 @@
         "implementationsWithComponentDoc": 44,
         "documentedProps": 111,
         "classifiedComponents": 12,
-        "componentsWithPatternTag": 0,
+        "componentsWithPatternTag": 6,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -61,7 +61,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/account",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Orchestration half of the orchestration/render split for both danger actions — it owns the recipe fetch\n    and the close and erasure Commands, and hands each to the shared cross-platform render half."
+            ],
             "platforms": [
                 "web"
             ],
@@ -79,6 +81,10 @@
                         {
                             "name": "module",
                             "text": "components/account/AccountDangerZone — the mobile account danger-zone (CR-002 / U4b)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Orchestration half of the orchestration/render split for both danger actions — it owns the recipe fetch\n    and the close and erasure Commands, and hands each to the shared cross-platform render half."
                         }
                     ],
                     "description": "The account danger-zone controls (close + erase) for the mobile account surface.",
@@ -173,7 +179,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/account",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Command over the app's one sign-out use case, `useSignOutAndVerify` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and failed."
+            ],
             "platforms": [
                 "web"
             ],
@@ -191,6 +199,10 @@
                         {
                             "name": "module",
                             "text": "components/account/SignOutButton — the mobile sign-out control (the counterpart of the web"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Command over the app's one sign-out use case, `useSignOutAndVerify` — that module owns the mechanism, the\n    ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and failed."
                         }
                     ],
                     "description": "The mobile sign-out control: issues the sign-out command and surfaces its failure.",
@@ -1078,7 +1090,10 @@
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/home",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Adapter over React Native `Modal`, presenting the nudge as a bottom sheet — the platform expression of the\n    web leaf's Radix dialog.",
+                "Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a\n    gated widget asks for the nudge without owning it."
+            ],
             "platforms": [
                 "web"
             ],
@@ -1096,6 +1111,14 @@
                         {
                             "name": "module",
                             "text": "home/SubscriptionNudge — the once-per-session subscription upgrade nudge (mobile)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a\n    gated widget asks for the nudge without owning it."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native `Modal`, presenting the nudge as a bottom sheet — the platform expression of the\n    web leaf's Radix dialog."
                         }
                     ],
                     "description": "Context carrying the {@link HomeNudge} trigger down to widgets (provided by the Home surface).",
@@ -1626,7 +1649,10 @@
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/home",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Adapter over React Native `Modal`, presenting the nudge as a bottom sheet — the platform expression of the\n    web leaf's Radix dialog.",
+                "Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a\n    gated widget asks for the nudge without owning it."
+            ],
             "platforms": [
                 "web"
             ],
@@ -1644,6 +1670,14 @@
                         {
                             "name": "module",
                             "text": "home/SubscriptionNudge — the once-per-session subscription upgrade nudge (mobile)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Provider carrying the once-per-session nudge trigger down to widgets through the `useHomeNudge` seam, so a\n    gated widget asks for the nudge without owning it."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native `Modal`, presenting the nudge as a bottom sheet — the platform expression of the\n    web leaf's Radix dialog."
                         }
                     ],
                     "description": "The upgrade nudge dialog, presented as a bottom-sheet `Modal`. Renders nothing when closed. Copy is\nlocalized via the mobile dictionary.\n\nThe upgrade action currently dismisses (the subscription surface is owned by 010, not yet shipped); it is\nwired as a distinct action so it becomes a real destination without a structural change when 010 lands.",
@@ -1759,7 +1793,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components",
             "kind": "unclassified",
-            "patterns": [],
+            "patterns": [
+                "Humble Object over the shared `useIngredientResolver` headless hook — it renders `viewState` with RN\n    markup and decides nothing. Its one imperative seam is a Facade publishing `focusSearch` over the `TextInput`."
+            ],
             "platforms": [
                 "web"
             ],
@@ -1773,7 +1809,12 @@
                     "sourcePath": "packages/apps/commise/mobile/src/components/IngredientPicker.tsx",
                     "dir": "packages/apps/commise/mobile/src/components",
                     "moduleDoc": "Ingredient typeahead (mobile, T067 support; U6 styled). A thin renderer (CP-6/P2) over the shared,\nplatform-agnostic `useIngredientResolver` (`@commise/features-recipes/hooks`), which owns the search text,\nthe disambiguation state, and all four ways a line resolves (catalog-hit, addByName, candidate pick,\nfreeform). This leaf's job is ONLY to render `viewState` with its own RN markup and wire the hook's actions\nto `PressScale`/`TextInput` events — see the hook's module doc for the full state machine, the\nasync-resolution vertical (data-model R5 / FR-007), and the drift-unification decisions made when it was\nextracted from this leaf and its web sibling.\n\nU6 gave the previously unstyled leaf (bare `<Text>/<TextInput>/<Pressable>` rows) the form's\nfield/card/list-row treatment: a search field with a leading icon + a clear (×) control, tappable result\nrows with `PressScale` press feedback, inline loading/error text, a subtle \"USDA database\" badge, and a\nstyled \"Search USDA for '…'\" seam.\n\n**U29 — that seam is now WIRED.** It was deliberately inert (a `View`, marked \"Soon\") until the on-demand\nsource search existed behind it; it is now a real control, and the \"Soon\" tag is gone with the behaviour\nit was standing in for. Three things about it are deliberate:\n\n 1. ⛔ **It is a PRESS, never a typeahead.** The upstream source allows 1,000 requests/hour PER IP shared\n    by every cook, of which 003's FR-019 reserves only the top 10% for user-facing work — so at 50\n    concurrent cooks even a perfect one-call-per-settled-query autocomplete would want roughly three times\n    the entire key. Do not add a debounce, an effect, or a \"the local list looks thin\" trigger.\n 2. ⚠️ **The panel APPENDS below the local results; it never replaces them.** The design mockup shows the\n    running/failed states taking the result area over, and this leaf deliberately does not: a cook who\n    waits several seconds and then gets a failure would have lost the list they already had.\n 3. ⛔ **Three settled outcomes, three sentences.** \"USDA has nothing for X\" means stop looking (a muted\n    line, no retry — nothing failed). \"Rate-limited\" and \"didn't answer\" both mean try again, and are\n    alerts with a retry. Merging any pair sends a cook round a loop that cannot end.\n\nThe DECISIONS all live in the shared `useOnDemandIngredientSearch`; only the RN markup is here, so the two\nplatforms cannot drift on when a source call is made or on what a cook is told about it.\n\nThe hook's callback contract is `onResolved: (line: ResolvedRecipeFormIngredient) => void`, and this leaf\nnow hands that line STRAIGHT up (plan U28).\n\n⛔ IT USED TO RE-PROJECT, AND THAT LOST DATA. A local `ResolvedIngredient` (`{ id, name, resolutionStatus? }`)\nexisted only because the hook's callback declared the wider, possibly-unresolved `RecipeFormIngredient` —\nso this leaf narrowed it by hand, and `RecipeEditor` then rebuilt the line from those three fields. The\nrebuild DROPPED `caloriesPer100g` / `proteinGPer100g` / `carbsGPer100g` / `fatGPer100g` / `portions`, which\n`toIngredientLine` had just attached and which `lineCalories` + `recipeNutritionTotal` read: a freshly\npicked ingredient showed its calorie badge and fed the running total on WEB and not here. Narrowing the\nhook's callback deleted the adapter and the defect together — an adapter that CHANGES behaviour is not an\nadapter.\n\n**Search Stage 2 — the blended, sectioned result list.** Results are now a discriminated `local | catalog`\nunion: the caller's own previously-used ingredients and food-catalog golden records (the USDA-seeded\ncatalog, previously invisible to this typeahead). They render as TWO labeled sections — \"Your ingredients\"\nthen \"Food catalog\" — never interleaved, per the command-palette pattern: the fast familiar list keeps a\nstable position whether or not the catalog section is present, which matters more on a small screen where a\nreflow can move a row out from under a thumb mid-tap. Catalog rows carry a provenance badge and cost one\nadmit round-trip on pick (hence disabled while `addByFoodStatus.isPending`). When the food catalog is\nunreachable, a muted notice says so and the local section still renders in full (F2).\n\n**U14 — the correction affordance (R19/R20).** Every FOOD-BACKED result row carries a second control,\n\"Always use this for '{query}'\", which writes a curated mapping through the shared\n`useIngredientCorrection`. It is what makes U10's knowledge base reachable: before it, that table had a\nwriter and no caller, so the learning loop never fired. Three deliberate properties, mirrored exactly on\nthe web leaf and each easy to break:\n\n 1. ⛔ **The phrase sent is the TYPED query, never the row's name.** A mapping is consulted only under the\n    key the resolution cascade looks up, which derives from the phrase `addByName` received; sending our\n    own rendering of the food would write rows nothing queries.\n 2. ⛔ **A FREEFORM row gets no control** — a mapping's whole content is a `food_id`, and a user-entered\n    ingredient has no food to bind the phrase to.\n 3. ⚠️ **Teaching is a SEPARATE intent from picking.** It resolves no line, and a failed correction leaves\n    the ingredient alone — which the failure copy states outright.\n\nThe decision of WHAT to say is the shared, pure `toCorrectionNoticeModel`; only the RN markup is here, so\nthe two platforms cannot drift on what a cook is told a correction did.",
-                    "moduleTags": [],
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Humble Object over the shared `useIngredientResolver` headless hook — it renders `viewState` with RN\n    markup and decides nothing. Its one imperative seam is a Facade publishing `focusSearch` over the `TextInput`."
+                        }
+                    ],
                     "description": "The ingredient typeahead.",
                     "tags": [
                         {
@@ -3287,7 +3328,9 @@
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/screens",
             "kind": "orchestration",
-            "patterns": [],
+            "patterns": [
+                "Orchestration layer over the `Wizard` compound-component shell shared by the create and edit screens — it\n    wires the ingredient typeahead into step 2 and hosts the extracted field groups."
+            ],
             "platforms": [
                 "web"
             ],
@@ -3301,7 +3344,12 @@
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeEditor.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
                     "moduleDoc": "Recipe editor (mobile, T067; CP-6/P1 fully controlled; w3/e1,e2 rewired onto the 4-step `Wizard` shell;\nU32/U33 re-laid-out). The presentational orchestration layer shared by the create and edit screens: it\nwires the ingredient typeahead ({@link IngredientPicker}) and poll-after-add into step 2, and renders the\n`Wizard` compound shell around one `Wizard.Step` per step, each hosting the SAME extracted\n`RecipeBasicsFields`/`RecipeIngredientsFields`/`RecipeInstructionsFields`/`RecipeVisibilityField`/\n`RecipeReviewFields` leaves the web containers use. It performs NO data fetching and runs NO mutation, and\nowns NO state of its own: `values`/`errors`/the wizard's `step`/navigation come in from the caller and\nevery edit reports back via `onChange`/`goNext`/`goPrev`/etc.\n\n⛔ **THE LAYOUT IS THE UNIT (U32).** Three siblings, in this order and no other:\n  1. `Wizard.Header` — the sticky band with the back affordance. `RecipesScreen` renders pushed surfaces\n     bare, so before this there was no title and no deliberate exit at all.\n  2. a `ScrollView` holding the rail and the four step bodies.\n  3. `Wizard.Controls` — the action bar, OUTSIDE that scroller.\n\nThe third is a SHIPPED-DEFECT FIX, not a restyle: the bar used to sit inside the `ScrollView` alongside\neverything else, so on a recipe with a long ingredient list a cook had to scroll past every row to reach\n`Next`. `useScrollResetOnChange` exists because four Maestro flows caught the downstream consequence.\nNothing inside `Wizard.Controls` can enforce its own placement, so `tests/screens/RecipeEditor.native.test.tsx`\nasserts the DOM ancestry here instead.\n\n⛔ **`photosSlot` renders on step 1, not step 4 (U33).** Photos are a field of Details now; step 4 is\nReview. The caller supplies the surface because only it knows the recipe id and owns the upload queue.\n\n⛔ **INGREDIENTS ARE PICKER-FIRST (U28).** The only way a line enters `values.ingredients` is\n`appendResolvedIngredient`, whose parameter is a `ResolvedRecipeFormIngredient` — an unresolved row is not\na value this screen can construct. \"+ Add ingredient\" inside the fields leaf raises a REQUEST which this\nscreen answers by focusing the picker it owns, because a controlled presentational leaf cannot.\n\nThe create screen (no seed/conflict/version concerns) owns its own local `values`/`errors`/step\n`useState` and passes them down the same way the edit screen's `useRecipeEditor` hook does — same\ncontrolled contract, different state owner.",
-                    "moduleTags": [],
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Orchestration layer over the `Wizard` compound-component shell shared by the create and edit screens — it\n    wires the ingredient typeahead into step 2 and hosts the extracted field groups."
+                        }
+                    ],
                     "description": "The recipe create/edit wizard editor.",
                     "tags": [
                         {

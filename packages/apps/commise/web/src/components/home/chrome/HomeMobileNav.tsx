@@ -34,6 +34,9 @@
  * `HomeChrome.test.tsx`'s "moves focus to the close control" case). `triggerRef`/`wasOpenRef` are the
  * separate, React-sanctioned "read the previous render's value" pattern (conditionally captured on the
  * false→true edge, not an unconditional latest-value bridge) and are unrelated to this ref.
+ *
+ * @pattern Adapter over the house Radix `Dialog` for the slide-over drawer, with a Facade over the DOM focus API for
+ *     the two focus targets Radix cannot infer when the trigger is a sibling rather than an owned trigger.
  */
 import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
 import * as Dialog from '@radix-ui/react-dialog';

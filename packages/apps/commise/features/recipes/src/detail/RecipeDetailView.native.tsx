@@ -7,6 +7,9 @@
  * and hook the web shell binds, and hands the pure render (`RecipeDetailBody.native.tsx`) the count to
  * render at. Keeping the binding here rather than in `RecipeDetailScreen` is what makes it impossible for
  * one platform to ship the detail with the scale inert.
+ *
+ * @pattern Orchestration shell over the Humble Object render half — the same binding as the web shell, kept here
+ *     rather than in the screen so one platform cannot ship the detail with the scale inert.
  */
 import type { FC } from 'react';
 

@@ -20,6 +20,10 @@
  *
  * The boundary NESTING (ErrorBoundary → Suspense, and why `resetKeys` is load-bearing) is stated once, in
  * {@link NutritionBoundaryShell}, and shared with `RecipeNutritionBoundary` so the two cannot drift.
+ *
+ * @pattern Suspense boundary + selector over ONE batch promise — N slots over one promise are one read, because
+ *     `use()` memoizes on promise identity, and the omitted recipe is a fourth outcome the per-recipe boundary cannot
+ *     express.
  */
 import { use, type FC } from 'react';
 

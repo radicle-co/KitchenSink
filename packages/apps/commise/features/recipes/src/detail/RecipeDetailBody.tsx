@@ -14,6 +14,9 @@
  * This is the PURE render half of the recipe detail. Its orchestration shell —
  * `RecipeDetailView.tsx`, which binds the session serving scale — is a separate file because a file
  * does ONE thing (CODING_STANDARDS §1) and a component per file is enforced.
+ *
+ * @pattern Humble Object — the pure render half of the orchestration/render split whose shell is
+ *     `RecipeDetailView.tsx`. It holds no fetch state and decides nothing.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { GradientSurface } from '@commise/ui/surface';

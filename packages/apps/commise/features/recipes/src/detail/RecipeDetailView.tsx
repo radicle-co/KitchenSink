@@ -7,6 +7,9 @@
  * and hands the pure render (`RecipeDetailBody.tsx`) the count to render at. The public contract
  * (`RecipeDetailViewProps`) is unchanged by that binding, which is the point — an app composes this and
  * cannot ship the detail with the serving scale un-wired, because there is nothing for it to wire.
+ *
+ * @pattern Orchestration shell over the Humble Object render half — it binds the session serving-scale store and
+ *     hands `RecipeDetailBody` the count, so the public contract cannot be composed with the scale un-wired.
  */
 import type { FC } from 'react';
 

@@ -5,6 +5,9 @@
  * `linear-gradient` inline background, so the web and native (`expo-linear-gradient`) legs can never drift
  * on colour or direction. Presentational: it owns no state and applies no motion (a gradient background is
  * static), so there is nothing to gate on reduced motion. Layout is the consumer's via `className`.
+ *
+ * @pattern Adapter projecting the single-source `gradient` tokens onto a CSS `linear-gradient` — the projection is
+ *     the whole unit, so the web and native legs cannot drift on colour or direction.
  */
 import type { FC } from 'react';
 

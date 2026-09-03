@@ -6,6 +6,9 @@
  * native surface the equivalent arrangement is a single column, which is what the mobile Home widget already
  * presents. Keeping the arrangement in a leaf per platform (rather than a shared component with a layout
  * flag) is what lets each platform express its own without the other carrying a dead branch.
+ *
+ * @pattern Layout component over a pure projection, forked per platform on purpose — each leaf expresses its own
+ *     arrangement so neither carries the other's dead branch.
  */
 import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';

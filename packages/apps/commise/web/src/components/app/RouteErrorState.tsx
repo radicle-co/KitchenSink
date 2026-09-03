@@ -7,6 +7,9 @@
  * boundaries, DA9 reporting, or which segment threw; that orchestration lives in
  * `RouteErrorBoundary`, the shared composition point every
  * per-segment `error.tsx` renders.
+ *
+ * @pattern Humble Object — the pure, localized render half every `error.tsx` boundary shows. Retry is the caller's
+ *     `reset()`, so this leaf knows nothing of React error boundaries, reporting, or which segment threw.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';

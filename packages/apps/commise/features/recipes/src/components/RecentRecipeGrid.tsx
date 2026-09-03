@@ -10,6 +10,9 @@
  * Pure `props → JSX`: no fetching, no navigation, no state. It threads the caller's `onSelectRecipe` down so
  * each cell reports ITS OWN recipe id upward, and the composing host — the only layer that knows the router —
  * turns that into a route.
+ *
+ * @pattern Layout component over a pure projection — it owns the arrangement and nothing else; the navigation seam is
+ *     a callback the composing host, the only layer that knows the router, turns into a route.
  */
 import type { FC } from 'react';
 

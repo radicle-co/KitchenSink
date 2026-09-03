@@ -10,6 +10,9 @@
  *    landed, which is a worse failure than having no animation.
  *  - **The gate, not an override.** The animation utility sits behind `motion-safe:`, so under
  *    `prefers-reduced-motion: reduce` no animation (and therefore no hidden from-state) is emitted at all.
+ *
+ * @pattern Decorator over a CSS keyframe — it adds the section-enter gesture to whatever it wraps and nothing else,
+ *     so every consuming leaf stays a pure `props → JSX` surface.
  */
 import type { FC } from 'react';
 

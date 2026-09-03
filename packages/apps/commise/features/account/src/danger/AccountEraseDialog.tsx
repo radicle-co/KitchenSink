@@ -10,6 +10,12 @@
  * The confirm action is enabled ONLY when {@link confirmsErasurePhrase} accepts the typed phrase and no
  * submit is in flight — the SAME predicate the native leaf uses, so the two platforms gate identically and
  * neither can enable a confirmation the server would `400`.
+ *
+ * @pattern Adapter over `@radix-ui/react-dialog` for the modal semantics, around a Specification —
+ *     `confirmsErasurePhrase` — that is the whole gate on the destructive confirm.
+ * @pattern The `recipesLoading` / `recipesError` booleans are DISPLAY DERIVATION of one donate-election slot, not a
+ *     behaviour switch: every branch renders the same dialog with the same phrase gate and the same actions, so §11
+ *     is satisfied without lifting them to the orchestration layer.
  */
 import * as Dialog from '@radix-ui/react-dialog';
 import type { FC } from 'react';

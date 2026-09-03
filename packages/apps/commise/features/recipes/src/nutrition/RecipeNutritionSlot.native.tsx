@@ -9,6 +9,9 @@
  * `use(promise)` + `<Suspense>` are client-side React 19 and behave identically under React Native (the same
  * correction `RecipeNutritionBoundary.native.tsx` records), so this leaf is promise-driven exactly like the
  * web one — do NOT "restore parity" by giving it a prop-driven `isLoading`.
+ *
+ * @pattern Suspense boundary + selector over ONE batch promise — the same reasoning as the web leaf; the two files
+ *     differ only in which platform leaves they compose.
  */
 import { use, type FC } from 'react';
 

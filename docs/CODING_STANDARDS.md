@@ -738,6 +738,13 @@ This rule applies to all testing layers: unit tests (Testing Library), E2E tests
   compiler rather than by pattern-matching.
 - Non-trivial functions: `@param`, `@returns`, `@throws` tags required.
 - Impure functions: `@sideEffect` tag required.
+- **`@pattern` on a unit that implements a named design pattern.** One tag per pattern; the text is the
+  pattern's name, optionally with what it wraps. A pattern whose intent is already satisfied by a language or
+  library feature is declared the same way, naming the feature that satisfies it. Put it LAST in the block —
+  the JSDoc grammar gives every line after a tag opener to that tag, so a `@pattern` written mid-block
+  swallows the prose below it. ⛔ The tag NEVER restates the orchestration/render layer:
+  `@pattern Presentational Component` is a second copy of what the docblock's layer words already say, it is
+  the near-duplicate this section forbids, and the gate rejects it. Scope and enforcement: §11.2.
 - Inline comments explain _why_, never _what_.
 
 ### Function Comments
@@ -921,7 +928,7 @@ export type { Recipe, Ingredient } from './types.js';
 
 ## 11. React Components
 
-### No Boolean Flag Props
+### 11.1 No Boolean Flag Props
 
 Never use boolean props to switch between fundamentally different component behaviors
 or render trees. A boolean flag that causes a component to render entirely different
@@ -955,6 +962,69 @@ function RecipeContainer({ recipe, currentUserId }: Props): ReactElement {
 
 The test: if removing the boolean would split the component into two, it should be
 two components composed by the parent.
+
+### 11.2 Naming the pattern — the `@pattern` tag
+
+CLAUDE.md's design-pattern section requires a unit's JSDoc to name the pattern it implements. This section
+says **where that binds for components**, because a rule that binds everywhere binds nowhere.
+
+**The measurement that produced this section (2026-09-02, over the committed catalogue at
+`docs/generated/components/`).** 224 components carried **zero** `@pattern` tags. That number did not mean
+what it looked like: `@pattern` appeared in eight files repo-wide, all eight inside the generator's own
+package, because nothing had ever asked for a tag. The house convention was PROSE — `DESIGN PATTERN:` in
+**190 files**, `Pattern:` in another 23 — with about twenty component leaves carrying a substantive one
+(`Null Object for the loading phase`, `Decorator over RN's Modal`, `Adapter over
+@radix-ui/react-dropdown-menu`). ⚠️ A keyword scan of that prose suggested 144 of 224 already complied;
+reading the hits in context put the real rate near 11%. Prose is evidence of culture, not compliance —
+"visitor" is a human being in `RedactedAnalytics`, "provider" is a hosting provider in `HomeGreeting`,
+"factory" is a TanStack query factory in four route pages, and "slot" is a visual slot in six components.
+That is the same finding `docgen-components/src/classify.ts` recorded before this section existed, which is
+why it extracts only the explicit tag.
+
+**A component MUST carry at least one `@pattern` tag when any of the following holds:**
+
+1. it belongs to the design system (`@commise/ui`) — the vocabulary the other 217 components are written in;
+2. any of its platform leaves reaches for a **ref API** — CLAUDE.md permits a ref only to wrap a genuinely
+   external, non-declarative system, and that permission is itself a pattern claim, made here where it can
+   be reviewed;
+3. any of its platform leaves has a **boolean prop selecting between two rendered subtrees** — §11.1's
+   composition failure, whose resolution is a named shape (or whose "this is display derivation" defence is
+   argued in the tag);
+4. its docblock states that it is an **orchestration** component — it decides something, and what it decides
+   with is a design choice a reader would otherwise have to re-derive.
+
+**Every other component MAY carry the tag and is encouraged to; its absence is reported as a coverage number
+and is never a build failure.** There is no exclusion list, and that is deliberate: route segments
+(`page`/`layout`/`error`/`loading`/`not-found`.tsx), icon glyphs and one-leaf wrappers are simply not in
+scope. An exclusion list was considered and rejected — it must anticipate every trivial shape in advance and
+gets them wrong by name: `ChromeIcon` reads as a glyph and is a Registry keyed by the shared nav model;
+`LocaleLayout` reads as a framework file and is a Null Object.
+
+⛔ **A tag that only restates the layer is rejected.** `@pattern Presentational Component`,
+`@pattern Container`, `@pattern Orchestration` and the like fail the gate. Without that rule the whole
+register is satisfiable by stamping, which would carry no information while reporting green — the outcome
+this section exists to prevent, delivered by the gate meant to prevent it.
+
+⛔ **Clauses 1-3 are derived from CODE; clause 4 is the only one read out of prose, and that is a hazard.**
+An obligation resting on the docblock can be escaped by deleting a word from the docblock — the gate goes
+green because the documentation got worse, silently, at the hand of the author who did not want to write the
+tag. Clause 4 is kept because clauses 1-3 miss every composition point in the tree, and the escape is closed
+by pinning its members (`DECLARED_ORCHESTRATION`), so a component that stops declaring orchestration fails
+by name. **Do not add a fifth prose-derived clause without pinning it the same way.**
+
+**What the gate proves and what it cannot.** It proves a claim was made and is not a restatement of the
+layer. It cannot prove the claim is TRUE — a `@pattern Adapter` on a component that stopped adapting
+anything is a lie with a machine-readable veneer, and only review catches that.
+
+⚠️ `docs/generated/components/index.json`'s `componentsWithPatternTag` is a **raw census over all 224
+components, not a coverage target.** It reads 40/224 today and will look like a failing coverage metric; the
+target is the gate's empty finding list, not that fraction.
+
+Enforced by `packages/infra/global/__tests__/patternRegister.test.ts`, over the pure predicates in
+`patternRegister.ts`. The same guard carries the triage of every ref site in the tree — CLAUDE.md's
+"refs are near-forbidden" rule, made checkable — as a set-equality register with a per-site verdict and a
+substantive reason, so a new ref cannot land untriaged and a removed one cannot leave a stale exemption
+behind.
 
 ---
 

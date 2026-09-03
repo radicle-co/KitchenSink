@@ -12,6 +12,9 @@
  * B17/B23 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never
  * swallowed: the busy state is released and a localized alert appears, so the control is retryable instead of
  * marching the viewer to the public page on a session that is still live.
+ *
+ * @pattern Command over the app's one sign-out use case, `useSignOutAndLeave` — that module owns the mechanism, the
+ *     ordering and the session-ended post-condition (ADR-0009); this leaf owns only busy and error.
  */
 import { useState } from 'react';
 import { Button } from '@commise/ui/button';

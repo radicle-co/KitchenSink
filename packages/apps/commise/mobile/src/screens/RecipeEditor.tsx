@@ -31,6 +31,9 @@
  * The create screen (no seed/conflict/version concerns) owns its own local `values`/`errors`/step
  * `useState` and passes them down the same way the edit screen's `useRecipeEditor` hook does — same
  * controlled contract, different state owner.
+ *
+ * @pattern Orchestration layer over the `Wizard` compound-component shell shared by the create and edit screens — it
+ *     wires the ingredient typeahead into step 2 and hosts the extracted field groups.
  */
 import {
     appendResolvedIngredient,

@@ -26,6 +26,9 @@
  * description, servings, prep/cook/total time, and ingredient lines (calorie chip only when the line carries
  * a `userCalories` override — never fabricated), plus the "Changed from current" summary when
  * `diffFromCurrent` was supplied, and the count-templated Restore action.
+ *
+ * @pattern Adapter over the house Radix `Dialog`, mirroring `PullUpdatesDialog.tsx` structurally and behaviourally —
+ *     `open` is the caller's and this leaf stays a controlled `props → JSX` render.
  */
 import { useMessages } from '@commise/i18n/react';
 import * as Dialog from '@radix-ui/react-dialog';

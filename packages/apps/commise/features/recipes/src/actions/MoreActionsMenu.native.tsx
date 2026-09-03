@@ -8,6 +8,9 @@
  * is simply re-pressing the trigger (the web leaf additionally supports Escape + outside-click, both web-only
  * affordances). Open/close is local, ephemeral UI state owned by this headless menu primitive — not business
  * logic — so it stays here rather than in the composing screen.
+ *
+ * @pattern Menu button (WAI-ARIA disclosure) with no Facade to build — React Native has no pointer "outside click",
+ *     so dismissal is ordinary state and this leaf stays a pure `props → JSX` surface.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette, semantic } from '@commise/ui';

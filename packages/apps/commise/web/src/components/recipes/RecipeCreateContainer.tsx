@@ -40,6 +40,9 @@
  * write here is a POST, not a CAS-guarded PATCH. Auto-save begins on the edit route, once there is a version
  * token to carry. Firing a create on a timer would also mint a recipe from a form the cook has not finished
  * and may abandon.
+ *
+ * @pattern Orchestration container over the `Wizard` compound-component shell — it owns the editable form values and
+ *     the step/draft/publish navigation, and issues the create Command.
  */
 import {
     appendResolvedIngredient,

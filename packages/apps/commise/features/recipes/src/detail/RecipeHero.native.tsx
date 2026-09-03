@@ -37,6 +37,9 @@
  *
  * Pure `props → JSX`: no fetching, no state, no navigation. The mockup's overlaid back/share/save controls are
  * NOT part of this leaf — those are navigation and mutations, so they belong to the orchestration layer.
+ *
+ * @pattern Null Object for the no-cover state — the same designed placeholder as the web leaf, derived from the
+ *     shared gradient and geometry tokens so the two cannot drift.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

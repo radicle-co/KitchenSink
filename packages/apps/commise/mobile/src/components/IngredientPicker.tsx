@@ -67,6 +67,9 @@
  *
  * The decision of WHAT to say is the shared, pure `toCorrectionNoticeModel`; only the RN markup is here, so
  * the two platforms cannot drift on what a cook is told a correction did.
+ *
+ * @pattern Humble Object over the shared `useIngredientResolver` headless hook — it renders `viewState` with RN
+ *     markup and decides nothing. Its one imperative seam is a Facade publishing `focusSearch` over the `TextInput`.
  */
 import {
     fillTemplate,

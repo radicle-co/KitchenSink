@@ -31,8 +31,9 @@
  *     `open` is the caller's and this leaf stays a controlled `props → JSX` render.
  */
 import { useMessages } from '@commise/i18n/react';
+import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useRef, type FC } from 'react';
+import { type FC } from 'react';
 
 import { formatDurationMinutes } from '../list/model.js';
 import { recipeVersionMessages } from './messages.js';
@@ -56,16 +57,9 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 }) => {
     const { preview, conflict } = useMessages(recipeVersionMessages);
 
-    // Capture whatever had focus right before this dialog opened, during render (not an effect) — see
-    // module docs; guarded on the false→true edge so it isn't re-captured on every re-render while open.
-    const triggerRef = useRef<HTMLElement | null>(null);
-    const wasOpenRef = useRef(false);
-
-    if (open && !wasOpenRef.current) {
-        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
-
-    wasOpenRef.current = open;
+    // Snapshot whatever had focus right before this dialog opened, and restore it on close — see module docs
+    // and `@commise/ui/dialog-focus`; the false→true edge guard lives inside the hook.
+    const onCloseAutoFocus = useReturnFocusOnClose(open);
 
     // Loading always wins — a fetch that is genuinely in flight must not read as broken on first paint. Once
     // NOTHING is pending, though, having no version to show IS a failure (B21): this used to read "still
@@ -86,10 +80,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40" />
                 <Dialog.Content
-                    onCloseAutoFocus={(event) => {
-                        event.preventDefault();
-                        triggerRef.current?.focus();
-                    }}
+                    onCloseAutoFocus={onCloseAutoFocus}
                     className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-lg md:max-w-2xl"
                 >
                     <Dialog.Title className="font-display text-heading-lg font-semibold text-charcoal">

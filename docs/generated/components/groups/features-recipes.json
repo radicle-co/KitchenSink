@@ -331,7 +331,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeDeleteDialog.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — web recipe delete-confirmation dialog (T068 building block).\n\nControlled, presentational confirmation modal built on Radix `AlertDialog` (B6/CR-003 — mirrors\n`PullUpdatesDialog`'s `Dialog` usage, the semantic `alertdialog` variant for a destructive-action\nconfirmation): Radix owns the focus trap, Escape-to-dismiss, and background inert, so this component\nhand-rolls none of that (no `role=\"alertdialog\"` div). Renders nothing while `open` is false; when open it\nnames the recipe and offers cancel/confirm. `deleting` disables the confirm action and marks it busy so an\nin-flight delete cannot be double-submitted. It performs NO mutation — the composing app wires the delete\nmutation to `onConfirm`. `onOpenChange` maps every Radix close path (Escape, backdrop) onto the same\n`onCancel` the explicit Cancel control uses — one exit path, not two.\n\nFocus-return is handled explicitly, NOT left to Radix's default: `AlertDialog.Content` wraps\n`Dialog.Content`, whose built-in `onCloseAutoFocus` only restores focus to an OWNED `*.Trigger` (see\n`PullUpdatesDialog`'s module doc for the underlying Radix behavior). The \"Delete\" control that opens this\ndialog lives in the composing container (a sibling button, not an owned `AlertDialog.Trigger`), so\n`triggerRef` below captures `document.activeElement` at the render where `open` flips true — BEFORE\n`AlertDialog.Content` (and its own autofocus-on-mount, onto the Cancel action per the alertdialog pattern)\never commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own no-op default.",
+                    "moduleDoc": "@commise/features-recipes — web recipe delete-confirmation dialog (T068 building block).\n\nControlled, presentational confirmation modal built on Radix `AlertDialog` (B6/CR-003 — mirrors\n`PullUpdatesDialog`'s `Dialog` usage, the semantic `alertdialog` variant for a destructive-action\nconfirmation): Radix owns the focus trap, Escape-to-dismiss, and background inert, so this component\nhand-rolls none of that (no `role=\"alertdialog\"` div). Renders nothing while `open` is false; when open it\nnames the recipe and offers cancel/confirm. `deleting` disables the confirm action and marks it busy so an\nin-flight delete cannot be double-submitted. It performs NO mutation — the composing app wires the delete\nmutation to `onConfirm`. `onOpenChange` maps every Radix close path (Escape, backdrop) onto the same\n`onCancel` the explicit Cancel control uses — one exit path, not two.\n\nFocus-return is handled explicitly, NOT left to Radix's default: `AlertDialog.Content` wraps\n`Dialog.Content`, whose built-in `onCloseAutoFocus` only restores focus to an OWNED `*.Trigger` (see\n`PullUpdatesDialog`'s module doc for the underlying Radix behavior). The \"Delete\" control that opens this\ndialog lives in the composing container (a sibling button, not an owned `AlertDialog.Trigger`), so that\ndefault silently focuses nothing. `useReturnFocusOnClose` (`@commise/ui/dialog-focus`) owns the repair for\nevery such surface: it snapshots `document.activeElement` at the render where `open` flips true — BEFORE\n`AlertDialog.Content` (and its own autofocus-on-mount, onto the Cancel action per the alertdialog pattern)\never commits — and returns the `onCloseAutoFocus` handler that restores it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -402,9 +402,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -2728,7 +2726,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/PullUpdatesDialog.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — web Pull-Updates preview dialog (W5 Task 10, C2 / FR-011).\n\nPresentational (pure props → JSX) render of the collection-view wireframe's \"Pull Updates Preview\nDialog\". Built on the house **Radix `Dialog`** (mirrors `PhotoCarousel`'s lightbox usage, B6/CR-003):\nRadix owns the focus trap, Escape-to-dismiss, and background inert, so this component hand-rolls none of\nthat (no `role=\"dialog\"` div). `open` is driven entirely by the caller — `onOpenChange` maps Radix's own\nclose paths (Escape, backdrop click) onto the same `onCancel` the explicit Cancel control uses, so there\nis exactly ONE exit path, not two.\n\nFocus-return is handled explicitly, NOT left to Radix's default: `Dialog.Content`'s built-in\n`onCloseAutoFocus` only restores focus to an OWNED `Dialog.Trigger` (`DialogContentModal` unconditionally\n`preventDefault()`s FocusScope's own restore-to-previous-element behavior and focuses\n`context.triggerRef.current` instead — see `@radix-ui/react-dialog`'s `DialogContentModal`). This dialog\nis opened by a sibling control (the collection-actions \"Pull Updates\" button, wired in W5 Task 12), not\nan owned `Dialog.Trigger`, so that default silently focuses nothing. `triggerRef` below captures\n`document.activeElement` at the render where `open` flips true — BEFORE `Dialog.Content` (and its\nautofocus-on-mount) ever commits — and `onCloseAutoFocus` restores it, `preventDefault()`ing Radix's own\nno-op default so there is one focus-restore path, not a silently-losing second one.\n\nA discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):\n(1) a `role=\"status\"` progress affordance while `isLoadingPreview`, or before any `diff` has arrived; (2)\na `role=\"alert\"` for a failed preview/commit — `'drift'` (409, the previewed diff went stale) is\ndeliberately NOT a dead end: the counts are hidden (they're no longer trustworthy) but Cancel/Escape\nstill close the dialog, so the composing container (W5 Task 12) can re-run the preview; (3) the loaded\n`diff` — added/removed/unchanged COUNTS only (this block never resolves recipe titles, it only received\nids), the \"not overwritten\" note, and the count-templated Pull action, disabled while `isCommitting` or\nwhen there is nothing to add.",
+                    "moduleDoc": "@commise/features-recipes — web Pull-Updates preview dialog (W5 Task 10, C2 / FR-011).\n\nPresentational (pure props → JSX) render of the collection-view wireframe's \"Pull Updates Preview\nDialog\". Built on the house **Radix `Dialog`** (mirrors `PhotoCarousel`'s lightbox usage, B6/CR-003):\nRadix owns the focus trap, Escape-to-dismiss, and background inert, so this component hand-rolls none of\nthat (no `role=\"dialog\"` div). `open` is driven entirely by the caller — `onOpenChange` maps Radix's own\nclose paths (Escape, backdrop click) onto the same `onCancel` the explicit Cancel control uses, so there\nis exactly ONE exit path, not two.\n\nFocus-return is handled explicitly, NOT left to Radix's default: `Dialog.Content`'s built-in\n`onCloseAutoFocus` only restores focus to an OWNED `Dialog.Trigger` (`DialogContentModal` unconditionally\n`preventDefault()`s FocusScope's own restore-to-previous-element behavior and focuses\n`context.triggerRef.current` instead — see `@radix-ui/react-dialog`'s `DialogContentModal`). This dialog\nis opened by a sibling control (the collection-actions \"Pull Updates\" button, wired in W5 Task 12), not\nan owned `Dialog.Trigger`, so that default silently focuses nothing. `useReturnFocusOnClose`\n(`@commise/ui/dialog-focus`) owns the repair for every surface in this position: it snapshots\n`document.activeElement` at the render where `open` flips true — BEFORE `Dialog.Content` (and its\nautofocus-on-mount) ever commits — and returns the `onCloseAutoFocus` handler that restores it,\n`preventDefault()`ing Radix's own no-op default so there is one focus-restore path, not a silently-losing\nsecond one. Its module doc carries the rest, including why the edge latch must not be a ref.\n\nA discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):\n(1) a `role=\"status\"` progress affordance while `isLoadingPreview`, or before any `diff` has arrived; (2)\na `role=\"alert\"` for a failed preview/commit — `'drift'` (409, the previewed diff went stale) is\ndeliberately NOT a dead end: the counts are hidden (they're no longer trustworthy) but Cancel/Escape\nstill close the dialog, so the composing container (W5 Task 12) can re-run the preview; (3) the loaded\n`diff` — added/removed/unchanged COUNTS only (this block never resolves recipe titles, it only received\nids), the \"not overwritten\" note, and the count-templated Pull action, disabled while `isCommitting` or\nwhen there is nothing to add.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2829,9 +2827,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -9391,9 +9387,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/speedDial/model.ts"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
@@ -10067,9 +10061,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/model.ts"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -10284,9 +10276,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/model.ts"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,

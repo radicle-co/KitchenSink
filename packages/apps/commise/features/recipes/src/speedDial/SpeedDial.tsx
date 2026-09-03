@@ -48,7 +48,7 @@
  *     exactly this use case.
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { useRef, useState, type ComponentPropsWithoutRef, type FC, type KeyboardEvent } from 'react';
+import { useState, type ComponentPropsWithoutRef, type FC, type KeyboardEvent } from 'react';
 
 import { enterTransitionClassName } from '@commise/ui/motion';
 
@@ -74,12 +74,24 @@ const MenuContent = DropdownMenu.Content as FC<
     }
 >;
 
+/**
+ * The dial's whole open state: closed, or open with the end of the list this open should land focus on.
+ *
+ * ⛔ NOT an `open` boolean beside an `openOnLast` ref. The landing intent belongs to ONE open — it is set in
+ * the same event that opens the dial and consumed by that open's focus callback — so folding it into the
+ * open state costs no extra render and makes "open with no landing intent" and "landing intent while
+ * closed" unrepresentable. A ref could hold both, which is why the ref version needed TWO resets (one in
+ * `onOpenChange`, one after reading it) to stay honest; the state version needs none, because a close
+ * discards the intent with the open it belonged to.
+ */
+type DialState =
+    /** Closed. There is no landing intent because there is no open to land. */
+    | { readonly open: false }
+    /** Open, landing focus on this end of the destination list. */
+    | { readonly open: true; readonly landOn: 'first' | 'last' };
+
 export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions }) => {
-    const [open, setOpen] = useState(false);
-    // Which end of the list the NEXT open should land on. A ref, not state: it is written during a key
-    // handler and read in the very next commit's focus callback, so rendering never depends on it and
-    // making it state would schedule a render for a value no render uses.
-    const openOnLast = useRef(false);
+    const [dial, setDial] = useState<DialState>({ open: false });
 
     /**
      * ⛔ ARROW-UP OPENS ONTO THE LAST DESTINATION, and this handler exists because RADIX DOES NOT DO IT.
@@ -98,8 +110,7 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
         }
 
         event.preventDefault();
-        openOnLast.current = true;
-        setOpen(true);
+        setDial({ open: true, landOn: 'last' });
     };
 
     return (
@@ -107,16 +118,12 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
         // which is the exact defect this swap exists to remove.
         <DropdownMenu.Root
             modal={false}
-            open={open}
-            onOpenChange={(next) => {
-                // Every open that did NOT come from ArrowUp lands on the first destination. Without the reset a
-                // pointer user who opens the menu would land wherever a previous ArrowUp left it.
-                if (!next) {
-                    openOnLast.current = false;
-                }
-
-                setOpen(next);
-            }}
+            open={dial.open}
+            // Every open Radix itself initiates (pointer, Enter/Space, ArrowDown) lands on the FIRST
+            // destination — only `onTriggerKeyDown`'s ArrowUp asks for the last, and Radix never sees that
+            // key. A close discards the intent along with the open, so a pointer user cannot inherit a
+            // previous ArrowUp's landing.
+            onOpenChange={(next) => setDial(next ? { open: true, landOn: 'first' } : { open: false })}
         >
             {/* The offset is DERIVED, not hardcoded — inherited verbatim from the FAB this replaces. It clears
             the narrow-breakpoint bottom nav plus the device safe-area inset, and drops to the base offset
@@ -178,9 +185,10 @@ export const SpeedDial: FC<SpeedDialProps> = ({ triggerLabel, menuLabel, actions
                         }
 
                         const items = content.querySelectorAll<HTMLElement>('[role="menuitem"]');
-                        const target = openOnLast.current ? items[items.length - 1] : items[0];
-
-                        openOnLast.current = false;
+                        // `dial.open` is true whenever this fires — the callback only exists on a mounted
+                        // `MenuContent` — but the union is narrowed rather than asserted, so a future state
+                        // that can render content while closed is a compile error, not a silent `'first'`.
+                        const target = dial.open && dial.landOn === 'last' ? items[items.length - 1] : items[0];
 
                         if (target === undefined) {
                             return;

@@ -221,6 +221,37 @@ describe('SpeedDial (web) — keyboard', () => {
         expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Import' }));
     });
 
+    it('does NOT carry the ArrowUp landing intent into the NEXT open', async () => {
+        // The landing intent belongs to ONE open, and a pointer user who opens the dial after a keyboard
+        // user's ArrowUp must still get the top destination. Invisible on a one-item dial, so this adds the
+        // second destination that makes "first" and "last" different answers.
+        const user = userEvent.setup();
+        const { trigger } = renderDial(vi.fn(), [{ id: 'import', label: 'Import', onSelect: vi.fn() }]);
+
+        trigger.focus();
+        await user.keyboard('{ArrowUp}');
+        expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Import' }));
+
+        await user.keyboard('{Escape}');
+        await user.click(trigger);
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: SCRATCH }));
+    });
+
+    it('re-arms the ArrowUp landing intent on every open, not just the first', async () => {
+        const user = userEvent.setup();
+        const { trigger } = renderDial(vi.fn(), [{ id: 'import', label: 'Import', onSelect: vi.fn() }]);
+
+        trigger.focus();
+        await user.keyboard('{ArrowUp}');
+        await user.keyboard('{Escape}');
+
+        trigger.focus();
+        await user.keyboard('{ArrowUp}');
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Import' }));
+    });
+
     it('arrow-navigates between destinations once a second one exists', async () => {
         // The shipped dial has one item, so wrap arithmetic is unfalsifiable against it alone. Adding a
         // destination is the DATA change the ruling exists to make cheap — this proves it works.

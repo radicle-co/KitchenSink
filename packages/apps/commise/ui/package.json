@@ -29,6 +29,7 @@
         },
         "./button": "./src/button/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",
+        "./dialog-focus": "./src/dialogFocus/index.ts",
         "./motion": "./src/motion/index.ts",
         "./press-scale": "./src/pressScale/index.ts",
         "./surface": "./src/surface/index.ts",

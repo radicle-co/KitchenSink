@@ -445,7 +445,12 @@ describe('U28 — appendResolvedIngredient inherits the section being built', ()
             expect(module).not.toHaveProperty('addIngredient');
             expect(module).not.toHaveProperty('blankIngredient');
         }
-    });
+        // ⚠️ EXPLICIT TIMEOUT, because asserting against the PACKAGE barrel is the point (see above) and
+        // that import pulls the whole package graph, `@commise/ui` included. Measured at ~2.8s under a full
+        // `turbo run test`, against vitest's 5s default — close enough that it went red in roughly one full
+        // run in three while passing alone and passing for this package alone. The assertion is unchanged;
+        // only the budget is, because the test is genuinely slow rather than genuinely failing.
+    }, 30_000);
 });
 
 /**

@@ -3,11 +3,32 @@
  * `foodServiceClient.e2e.test.ts` (which `vi.mock`s the whole `UsdaSourceAdapter` with a
  * programmable stub), this suite exercises the REAL `UsdaApiClient` + REAL
  * `UsdaSourceAdapter` against CAPTURED real USDA wire payloads, intercepted at the HTTP
- * transport with undici's {@link MockAgent}. Node's global `fetch` routes through the global
- * dispatcher, so the genuine client's request hits the mock — the actual status→typed-error mapping,
- * nested-nutrient flattening, per-serving label reconciliation, `fdcId → externalKey` mapping, batch
- * path, and merge→persist all run for real. Loopback (`127.0.0.1`) is re-enabled so the booted Nest
- * app is still reachable by the client while every USDA origin call is intercepted.
+ * transport with undici's {@link MockAgent}. The genuine client's request hits the mock — the actual
+ * status→typed-error mapping, nested-nutrient flattening, per-serving label reconciliation,
+ * `fdcId → externalKey` mapping, batch path, and merge→persist all run for real. Loopback (`127.0.0.1`)
+ * is re-enabled so the booted Nest app is still reachable by the client while every USDA origin call is
+ * intercepted.
+ *
+ * ⛔ **`setGlobalDispatcher` ALONE DOES NOT INTERCEPT NODE'S BUILT-IN `fetch` — the suite installs undici's
+ * own `fetch` as the global, and that line is load-bearing** (repaired 2026-09-03). This file's premise used
+ * to be "Node's global `fetch` routes through the global dispatcher", which held under undici 6 and stopped
+ * holding at the `^6.27.0 → ^8.10.0` bump (`a3254d42`). Under undici 8 the dispatcher is stored wrapped in a
+ * `Dispatcher1Wrapper` for legacy readers, and Node's built-in `fetch` reaches the `MockAgent` through it with
+ * `allowH2: false` — which makes undici 8's inner `Agent` key its client map `"<origin>#http1-only"`
+ * (`lib/dispatcher/agent.js`) while `MockAgent.get(origin)` registered the `MockPool` under the bare origin.
+ * The lookup misses, a REAL `Pool` is created beside the `MockPool`, and the request leaves the process.
+ * `disableNetConnect()` cannot save it: that check lives inside the `MockPool` that was never consulted.
+ * Measured symptom — every case answered by the LIVE `api.nal.usda.gov` with `403 API_KEY_INVALID`, i.e. this
+ * "hermetic" suite had been making unauthenticated calls to a third-party API from CI.
+ *
+ * ⛔ Do NOT "fix" this by registering the interceptor under `"<origin>#http1-only"` (an undici-internal key
+ * format, and it leaves the guarantee resting on a private detail), and do NOT reach for `undici.install()`
+ * (it swaps ten globals — `Response`, `Headers`, `Request`, … — and ships no `uninstall`). Swapping the ONE
+ * global the transport actually goes through is reversible and is what {@link afterAll} undoes.
+ *
+ * ⛔ {@link installTransportInterception} must run BEFORE the Nest boot: `UsdaApiClient` captures
+ * `options.fetchFn ?? fetch` at CONSTRUCTION, so a client composed first would hold the built-in `fetch`
+ * forever and no later swap would reach it.
  *
  * Cases:
  *   1. add-by-name "cheddar cheese" (real search → real batch detail) → drain → RESOLVED → assert the
@@ -28,7 +49,7 @@ import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import pg from 'pg';
-import { MockAgent, getGlobalDispatcher, setGlobalDispatcher, type Dispatcher } from 'undici';
+import { MockAgent, fetch as undiciFetch, getGlobalDispatcher, setGlobalDispatcher, type Dispatcher } from 'undici';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
@@ -96,7 +117,48 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
     let registry: SourceAdapterRegistry;
     let client: FoodServiceClient;
     let previousDispatcher: Dispatcher;
+    let previousFetch: typeof globalThis.fetch;
     let agent: MockAgent;
+
+    /**
+     * Route every `fetch` in this process through `agent`, and PROVE it took effect.
+     *
+     * The proof is the point. Interception failing OPEN — the mock silently bypassed, real traffic leaving the
+     * process — is the exact failure this suite shipped for weeks, and it was invisible because a bypassed
+     * `MockAgent` reports itself as the global dispatcher and `disableNetConnect()` returns without complaint.
+     * So this probes an origin the suite intercepts at a path it deliberately does NOT.
+     *
+     * ⚠️ The predicate is the rejection's `cause`, NOT merely "it rejected", and that is deliberate: an OFFLINE
+     * runner rejects a real request too, so "rejected" alone would report green in exactly the environment that
+     * can least afford it. With interception in force, undici answers `MockNotMatchedError` for ANY unmatched
+     * request — measured, including for a host that does not resolve — so only that cause proves the mock, not
+     * the network, refused it.
+     *
+     * @throws {Error} naming the bypass when the probe resolves, or rejects for any reason but a mock miss.
+     * @sideEffect Replaces `globalThis.fetch` and the undici global dispatcher; issues one probe request.
+     */
+    async function installTransportInterception(): Promise<void> {
+        setGlobalDispatcher(agent);
+        // The cast is REQUIRED, not laziness: undici's `fetch` is typed over undici's own `Request`, which lacks
+        // `duplex`/`textStream` from Node's lib.dom `Request`, so the two signatures are not assignable
+        // (`TS2322`). Nothing here passes a `Request` — every caller passes a URL string and reads
+        // `status`/`json()`/`text()`, which the two implementations agree on.
+        globalThis.fetch = undiciFetch as unknown as typeof globalThis.fetch;
+
+        const outcome = await fetch(`${USDA_ORIGIN}/__interception_guard__`).then(
+            (response) => `resolved with ${response.status}`,
+            (error: { cause?: { name?: string } }) =>
+                error.cause?.name === 'MockNotMatchedError' ? null : `rejected via ${error.cause?.name ?? 'unknown'}`,
+        );
+
+        if (outcome !== null) {
+            throw new Error(
+                `undici MockAgent interception is NOT in force: a non-intercepted USDA path ${outcome} instead ` +
+                    `of MockNotMatchedError. This suite would be calling the LIVE USDA API. See this file's ` +
+                    `header — the transport swap is what makes setGlobalDispatcher reach fetch.`,
+            );
+        }
+    }
 
     /** Drain the queue until the food reaches a terminal status (deterministic stand-in for backoff). */
     async function drainUntilTerminal(id: string): Promise<string> {
@@ -125,6 +187,7 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
         // Intercept every USDA origin call; re-allow loopback so the booted Nest app stays reachable
         // (the food-service client's fetch also rides the global dispatcher).
         previousDispatcher = getGlobalDispatcher();
+        previousFetch = globalThis.fetch;
         agent = new MockAgent();
         agent.disableNetConnect();
         // Exact host match (port stripped) so `disableNetConnect()` stays a hard guarantee — a substring
@@ -134,7 +197,6 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
 
             return hostname === '127.0.0.1' || hostname === 'localhost';
         });
-        setGlobalDispatcher(agent);
 
         const usda = agent.get(USDA_ORIGIN);
 
@@ -191,6 +253,11 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
             .reply(200, [loadFixture('food-2057648-branded.json')])
             .persist();
 
+        // Arm the transport ONLY once every interceptor is registered — the guard inside probes a
+        // non-intercepted path on an origin the agent must already know, and it must precede the Nest boot
+        // (`UsdaApiClient` captures the global `fetch` at construction).
+        await installTransportInterception();
+
         // ── real DB migration + Nest boot (same hermetic stack as the other food-service e2es) ──────
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await resetSchema(pool);
@@ -226,6 +293,8 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
     afterAll(async () => {
         await app?.close();
         await pool?.end();
+        // Both globals this suite swapped go back, in reverse order of installation.
+        globalThis.fetch = previousFetch;
         setGlobalDispatcher(previousDispatcher);
         await agent?.close();
     });

@@ -34,8 +34,13 @@
  * ⚠️ **`enabled` is the caller's "a write would land in an unresolved race" gate**, and the caller passes
  * `false` for three distinct reasons: a save is already in flight (its token is committed to that request),
  * the editor is showing a conflict the cook has not resolved (the token is known to be stale), or the recipe
- * has not loaded (there is no token at all). Suppressed windows are DROPPED, never queued — the timer is
- * re-armed from the current render, so re-enabling does not fire a backlog.
+ * has not loaded (there is no token at all). Suppressed windows are DROPPED, never queued — the interval is
+ * created fresh when the gate reopens, so re-enabling does not settle a backlog.
+ *
+ * ⛔ **Unmount CANCELS; it deliberately does not FLUSH.** A last-gasp write on the way out would issue an
+ * unattended PATCH into a `useRecipeEditor` that no longer exists, so its 409 could not open the conflict
+ * view and a lost update would have no error path at all. Losing the final window's edits is the lesser
+ * harm, and the discard guard already warns about it at the exit the cook actually took.
  */
 import { useEffect } from 'react';
 
@@ -48,10 +53,20 @@ import { useEffect } from 'react';
  * protected. A debounce of the same length would protect only a cook who STOPS, which is the opposite of
  * when unsaved work is at risk.
  *
- * ⚠️ It was `AUTO_SAVE_DEBOUNCE_MS = 2000`, and both halves of that name were wrong. The behaviour was
- * already an interval — the effect re-runs only when a dependency changes, and `isDirty` is a boolean while
- * `saveDraft` is `useCallback`-stable, so the "re-armed on every re-render" the old docstring claimed never
- * happened (verified 2026-08-26 with an edit mid-window: the write still landed on the original deadline).
+ * ⚠️ It was `AUTO_SAVE_DEBOUNCE_MS = 2000`, and both halves of that name were wrong. The rename to
+ * `AUTO_SAVE_INTERVAL_MS` (2026-08-26) came with a claim that the behaviour was ALREADY an interval —
+ * `isDirty` is a boolean, `saveDraft` is `useCallback`-stable, so nothing re-arms the effect. **That claim
+ * was measured FALSE on 2026-09-03 and the code below is what repairs it.** `useRecipeEditor.autoSaveDraft`
+ * carried `values` in its `useCallback` deps, so every keystroke minted a new function, changed this hook's
+ * effect deps and started the window over: a cook typing continuously saw ZERO writes past the deadline.
+ * The 2026-08-26 verification only re-rendered — which does not change a memoised callback's identity —
+ * so it exercised the half that already worked. Two things closed it: `autoSaveDraft` is now genuinely
+ * stable (an effect-published implementation behind an empty-dep façade), and the timer below REPEATS.
+ *
+ * ⛔ `setInterval`, not `setTimeout`, and that is not cosmetic. A one-shot that has already fired is never
+ * re-armed while `isDirty`/`enabled` hold steady — so a write that FAILED (the draft stays dirty, the
+ * machine stays `editing`) is never retried and auto-save is dead for the rest of the session, silently,
+ * in exactly the flaky-network case it exists for.
  *
  * Five minutes is chosen against the write's COST, not against a feel: every auto-save is a PATCH that mints
  * a version row (FR-007b), only the last ten live in the database, and at two seconds an ordinary editing
@@ -81,10 +96,11 @@ export interface UseRecipeAutoSaveOptions {
 }
 
 /**
- * Write the draft after a quiet window, whenever it has unsaved edits and a write would not land in a race.
+ * Write the draft every {@link AUTO_SAVE_INTERVAL_MS}, for as long as it has unsaved edits and a write would
+ * not land in a race.
  *
  * @param options - `isDirty` (the trigger), `enabled` (the race gate), and the editor's `saveDraft`.
- * @sideEffect Issues a draft PATCH through the caller's `saveDraft`, on a timer.
+ * @sideEffect Issues a draft PATCH through the caller's `saveDraft`, on a repeating timer.
  */
 export function useRecipeAutoSave(options: UseRecipeAutoSaveOptions): void {
     const { isDirty, enabled, saveDraft } = options;
@@ -94,11 +110,13 @@ export function useRecipeAutoSave(options: UseRecipeAutoSaveOptions): void {
             return undefined;
         }
 
-        const timer = setTimeout(saveDraft, AUTO_SAVE_INTERVAL_MS);
+        const timer = setInterval(saveDraft, AUTO_SAVE_INTERVAL_MS);
 
-        // Cleared on unmount and whenever `isDirty`/`enabled` flip, so a draft that goes clean or a window
-        // that gets suppressed issues no write. ⚠️ NOT re-armed by ordinary edits: the deps are two booleans
-        // and a stable callback, so the deadline armed at the first edit is the deadline that fires.
-        return () => clearTimeout(timer);
+        // Cleared on unmount and whenever `isDirty`/`enabled` flip, so a draft that goes clean, a window that
+        // gets suppressed, or a screen the cook has left issues no write. ⚠️ NOT re-created by ordinary
+        // edits: the deps are two booleans and a genuinely stable callback (see `useRecipeEditor`'s
+        // `autoSaveDraft`), so the cadence started at the first unsaved edit is the cadence that runs. Losing
+        // that stability turns this straight back into a debounce, which is the defect of 2026-09-03.
+        return () => clearInterval(timer);
     }, [isDirty, enabled, saveDraft]);
 }

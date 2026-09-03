@@ -179,4 +179,37 @@ test.describe('auto-save writes a draft, unattended (U34)', () => {
 
         expect(patchCount).toBe(0);
     });
+
+    test('PATCHes on the deadline for a cook who never stops typing', async ({ page }) => {
+        // ⛔ THE RULING, in a real browser (owner 2026-08-26; defect measured 2026-09-03). Five minutes was
+        // chosen to protect the cook with an hour of unsaved work who never pauses — and the shipped
+        // behaviour protected only the cook who STOPS, because every keystroke re-armed the timer. The
+        // sibling case above cannot see that: it types ONCE and then leaves the form alone, which is
+        // precisely the cook a debounce already served.
+        //
+        // Six edits a simulated minute apart. Under the interval the write lands at 5:00, inside the fifth
+        // window. Under a debounce of the same length the deadline would keep sliding to the last
+        // keystroke + 5:00 = 10:00, so nothing would have reached the wire by 6:00 — the margin is a whole
+        // window in each direction, deliberately, so this never turns into a boundary-timing flake.
+        await page.clock.install();
+        await openEditor(page);
+
+        const patched = page.waitForRequest(
+            (request: Request) => request.method() === 'PATCH' && request.url().includes('/recipes/rec_meal'),
+        );
+
+        for (let minute = 1; minute <= 6; minute += 1) {
+            await page.getByLabel('Title').fill(`Typing ${minute}`);
+            await page.clock.fastForward('01:00');
+        }
+
+        const body = (await patched).postDataJSON() as { expectedVersion?: number; title?: string };
+
+        expect(body.expectedVersion).toBe(3);
+        // It carried what the cook had TYPED, not the draft as it stood when the timer was armed — a fixed
+        // cadence writing stale content is the mirror failure of a deadline that never arrives. Matched by
+        // shape rather than by an exact minute, so the assertion does not depend on which window won the
+        // race with the fill.
+        expect(body.title).toMatch(/^Typing \d$/);
+    });
 });

@@ -21,6 +21,10 @@
  *     nothing.
  *  4. ⛔ **It does not fire while a save is already in flight**, and it does not fire while the editor is
  *     showing a conflict the cook has not resolved. Both would be writes issued INTO an unresolved race.
+ *  5. ⛔ **The cadence is a repeating INTERVAL** (added 2026-09-03). Not a property of the wire, but the one
+ *     the ruling is actually about, and the one that shipped wrong — see the interval suite below. This
+ *     file can only prove the timer's half of it; the half that broke lives in the composition and is
+ *     pinned in `useRecipeEditor.test.tsx`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
@@ -50,7 +54,7 @@ const Harness: FC<HarnessProps> = ({ isDirty, enabled = true, saveDraft }) => {
     return null;
 };
 
-/** Advance past the debounce window inside `act`, so React flushes the effects the timer schedules. */
+/** Advance the clock inside `act`, so React flushes the effects a fired timer schedules. */
 const settle = (ms = AUTO_SAVE_INTERVAL_MS): void => {
     act(() => {
         vi.advanceTimersByTime(ms);
@@ -91,8 +95,8 @@ describe('useRecipeAutoSave — it never fires on an untouched form', () => {
     });
 });
 
-describe('useRecipeAutoSave — the debounce', () => {
-    it('waits out the quiet window before writing', () => {
+describe('useRecipeAutoSave — the interval', () => {
+    it('waits out the full window before the first write', () => {
         const saveDraft = vi.fn();
 
         render(<Harness isDirty saveDraft={saveDraft} />);
@@ -104,19 +108,59 @@ describe('useRecipeAutoSave — the debounce', () => {
         expect(saveDraft).toHaveBeenCalledTimes(1);
     });
 
-    it('writes ONCE for a burst of edits, not once per keystroke', () => {
-        // A cook typing a title must not issue a PATCH per character.
+    /**
+     * ⛔ THE HEADLINE — the ruling this hook exists to implement (owner, 2026-08-26): a REPEATING
+     * five-minute cadence for as long as the draft holds unsaved edits.
+     *
+     * ⚠️ REWRITTEN 2026-09-03, and the case it replaces is the reason the defect survived. That case
+     * ("waits out the quiet window before writing") stops after the FIRST write, so it passes identically
+     * against a one-shot `setTimeout` — which is what shipped. A one-shot is not merely a smaller interval:
+     * once it has fired, nothing re-arms it while `isDirty`/`enabled` hold steady, so a write that FAILED
+     * (the draft stays dirty, the editor stays `editing`) is never retried and auto-save is dead for the
+     * rest of the session — silently, in exactly the flaky-network case it exists for.
+     *
+     * Asserts the COUNT and the CADENCE, at the boundary in both directions: nothing at window − 1, one
+     * more write at each window thereafter.
+     */
+    it('keeps writing once per window for as long as the draft stays dirty', () => {
+        const saveDraft = vi.fn();
+
+        render(<Harness isDirty saveDraft={saveDraft} />);
+
+        settle(AUTO_SAVE_INTERVAL_MS - 1);
+        expect(saveDraft).toHaveBeenCalledTimes(0);
+
+        settle(1);
+        expect(saveDraft).toHaveBeenCalledTimes(1);
+
+        settle(AUTO_SAVE_INTERVAL_MS - 1);
+        expect(saveDraft).toHaveBeenCalledTimes(1);
+
+        settle(1);
+        expect(saveDraft).toHaveBeenCalledTimes(2);
+
+        settle(AUTO_SAVE_INTERVAL_MS);
+        expect(saveDraft).toHaveBeenCalledTimes(3);
+    });
+
+    /**
+     * ⚠️ REWRITTEN 2026-09-03 to prove the NEW behaviour. The case it replaces ("writes ONCE for a burst of
+     * edits, not once per keystroke") asserted a total of ONE write across three and a half elapsed windows,
+     * which is a claim about a one-shot timer, not about per-keystroke suppression. The property actually
+     * owed is stated here instead: the number of writes tracks ELAPSED WINDOWS, never the number of renders
+     * inside them — a cook typing a title still issues no PATCH per character.
+     */
+    it('writes once per elapsed window however many times the editor re-renders inside it', () => {
         const saveDraft = vi.fn();
         const { rerender } = render(<Harness isDirty saveDraft={saveDraft} />);
 
-        for (let i = 0; i < 5; i += 1) {
+        // Seven renders spread across three and a half windows.
+        for (let i = 0; i < 7; i += 1) {
             settle(AUTO_SAVE_INTERVAL_MS / 2);
             rerender(<Harness isDirty saveDraft={saveDraft} />);
         }
 
-        settle();
-
-        expect(saveDraft).toHaveBeenCalledTimes(1);
+        expect(saveDraft).toHaveBeenCalledTimes(3);
     });
 
     /**
@@ -126,8 +170,10 @@ describe('useRecipeAutoSave — the debounce', () => {
      * typing is still written at the original deadline — under a debounce of the same length they would
      * never be written at all, which is exactly when unsaved work is most at risk.
      *
-     * ⚠️ The neighbouring burst test does NOT prove this: it passes under either behaviour. This one
-     * distinguishes them, by editing part-way through the window and asserting the deadline did not move.
+     * ⚠️ This hook's own tests can only prove the timer's half of that: `saveDraft` is a mock, so a
+     * re-render here never changes its identity. The half that actually shipped broken — the editor handing
+     * this hook a NEW `saveDraft` on every keystroke, which re-armed the effect and pushed the deadline out
+     * — is only visible through the composition, and is pinned in `useRecipeEditor.test.tsx`.
      */
     it('fires on its original deadline even though the cook kept editing', () => {
         const saveDraft = vi.fn();
@@ -135,17 +181,27 @@ describe('useRecipeAutoSave — the debounce', () => {
 
         settle(AUTO_SAVE_INTERVAL_MS * 0.75);
         rerender(<Harness isDirty saveDraft={saveDraft} />);
-        settle(AUTO_SAVE_INTERVAL_MS * 0.5);
+        settle(AUTO_SAVE_INTERVAL_MS * 0.25);
 
         expect(saveDraft).toHaveBeenCalledTimes(1);
     });
 
-    it('cancels a pending write when the editor unmounts', () => {
-        // A timer that fires after unmount writes on behalf of a screen the cook has left.
+    /**
+     * ⛔ Unmount CANCELS; it deliberately does NOT flush. A last-gasp write on the way out would issue an
+     * unattended PATCH on behalf of a screen the cook has left, into a `useRecipeEditor` that no longer
+     * exists — so its 409 could not open the conflict view, and a lost update would have no error path at
+     * all. Losing the final window's edits is the lesser harm, and it is the one the discard guard already
+     * warns about at the exit the cook actually took.
+     */
+    it('cancels a pending write when the editor unmounts, and does not flush one on the way out', () => {
         const saveDraft = vi.fn();
         const { unmount } = render(<Harness isDirty saveDraft={saveDraft} />);
 
+        settle(AUTO_SAVE_INTERVAL_MS * 0.9);
         unmount();
+
+        expect(saveDraft).not.toHaveBeenCalled();
+
         settle(AUTO_SAVE_INTERVAL_MS * 5);
 
         expect(saveDraft).not.toHaveBeenCalled();
@@ -178,8 +234,15 @@ describe('useRecipeAutoSave — it is DISABLED whenever a write would land in an
         expect(saveDraft).toHaveBeenCalledTimes(1);
     });
 
-    it('does not queue up the writes it skipped while disabled', () => {
-        // A burst of suppressed timers must not all fire at once on re-enable.
+    /**
+     * ⚠️ REWRITTEN 2026-09-03 to prove the NEW behaviour. The case it replaces advanced five windows past
+     * the re-enable and asserted ONE write in total — a claim only a one-shot timer can satisfy, and one
+     * that would now (correctly) fail. The property actually owed is that suppressed windows are DROPPED,
+     * which is a statement about the moment of re-enabling: re-arming must not settle a backlog. That is
+     * asserted directly below — nothing at the instant of re-enable, and then the ordinary cadence, with
+     * the full window served before the first write.
+     */
+    it('does not queue up the writes it skipped while disabled — re-enabling starts a fresh window', () => {
         const saveDraft = vi.fn();
         const { rerender } = render(<Harness isDirty enabled={false} saveDraft={saveDraft} />);
 
@@ -189,8 +252,14 @@ describe('useRecipeAutoSave — it is DISABLED whenever a write would land in an
         }
 
         rerender(<Harness isDirty enabled saveDraft={saveDraft} />);
-        settle(AUTO_SAVE_INTERVAL_MS * 5);
 
+        // The instant of re-enable: five suppressed windows have elapsed and NONE of them is owed.
+        expect(saveDraft).not.toHaveBeenCalled();
+
+        settle(AUTO_SAVE_INTERVAL_MS - 1);
+        expect(saveDraft).not.toHaveBeenCalled();
+
+        settle(1);
         expect(saveDraft).toHaveBeenCalledTimes(1);
     });
 });

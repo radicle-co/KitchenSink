@@ -18,8 +18,9 @@
  * `ScrollView` is to call `scrollTo` on its handle. So the ref is confined to this one hook with a stated
  * contract, rather than living loose in a screen.
  *
- * PATTERN: headless hook over an imperative handle. The caller attaches the returned ref to its scroller and
- * says WHAT changing means a reset (`key`); it never touches the handle itself.
+ * @pattern Headless hook (Facade over the React Native scroller handle) — the caller attaches the returned
+ *     ref to its scroller and says WHAT changing means a reset (`key`); it never touches the handle itself,
+ *     and the `ScrollResettable` narrowing means it could not if it tried.
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';

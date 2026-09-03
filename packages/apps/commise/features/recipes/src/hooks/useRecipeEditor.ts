@@ -113,6 +113,17 @@
  * gained none after it — keeping an unconsumed third statement of "mine is the default" would have been a
  * DRY liability, not a DRY win, so it (and its dedicated test) were removed rather than force-fed an
  * artificial caller.
+ *
+ * @pattern Headless hook (statechart) — the whole edit lifecycle as a `status`-discriminated union with a
+ *     closed set of branches; `RecipeEditContainer` and `RecipeEditor` bind it to their platform shells and
+ *     decide nothing themselves.
+ * @pattern Memento over TanStack's callback timing — `epochRef` is a generation token compared inside
+ *     mutation callbacks the library fires at an arbitrary later time, and `submitDraftRef` is a stable
+ *     handle over a `submitDraft` that closes over every-render state. Both are the ref rule's carve-out
+ *     because the external system is the mutation runtime's schedule, which React does not model; neither
+ *     is read to decide what to render. ⛔ `submitDraftRef` is assigned in an EFFECT, never in the render
+ *     body — a discarded render advanced the old one and submitted through a closure carrying another
+ *     recipe's id.
  */
 import type { Locale } from '@commise/i18n';
 import {

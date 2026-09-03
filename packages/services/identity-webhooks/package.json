@@ -28,7 +28,7 @@
         "@types/express": "^5.0.6",
         "@types/node": "^24.13.3",
         "aws-cdk": "^2.1134.0",
-        "dotenv": "*",
+        "dotenv": "^17.4.2",
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "msw": "^2.14.6",

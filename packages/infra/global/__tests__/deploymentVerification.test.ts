@@ -28,6 +28,14 @@
  * every AWS call lives in the `verify` / `verify-stacks` subcommands, covered by
  * `tests/deploymentVerification.integration.test.ts`.
  *
+ * ## Why the harness spawns `bash -e`
+ *
+ * Because that is the shell CI uses. A `run:` body in GitHub Actions is executed as `/usr/bin/bash -e {0}`,
+ * so errexit is ON for every invocation the deploy workflows make. This harness used to spawn a bare `bash`,
+ * which made the suite a different shell from production — and under the real one the script exited at its
+ * first accumulated failure, printing nothing, for every finding it exists to report. A test harness that
+ * runs the subject under gentler conditions than production is not testing the subject.
+ *
  * ## Why the reference classifier enumerates no services
  *
  * The subject is DISCOVERED from the deployed Lambda's own environment, and classified by the VALUE's
@@ -61,7 +69,7 @@ interface Verdict {
  * @sideEffect Spawns `bash`.
  */
 function run(...args: readonly string[]): Verdict {
-    const result = spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf8' });
+    const result = spawnSync('bash', ['-e', SCRIPT, ...args], { encoding: 'utf8' });
 
     if (result.error) {
         throw result.error;
@@ -92,7 +100,7 @@ interface Reference {
  * @sideEffect Spawns `bash`.
  */
 function classifyReference(key: string, value: string): Reference {
-    const result = spawnSync('bash', [SCRIPT, 'classify-reference', key, value], { encoding: 'utf8' });
+    const result = spawnSync('bash', ['-e', SCRIPT, 'classify-reference', key, value], { encoding: 'utf8' });
 
     if (result.error) {
         throw result.error;
@@ -285,7 +293,7 @@ describe('classify-reference — an ARN names its own service, so nothing is enu
     });
 
     it('rejects a missing value as misuse rather than answering none', () => {
-        const result = spawnSync('bash', [SCRIPT, 'classify-reference', 'ONLY_A_KEY'], { encoding: 'utf8' });
+        const result = spawnSync('bash', ['-e', SCRIPT, 'classify-reference', 'ONLY_A_KEY'], { encoding: 'utf8' });
 
         expect(result.status).toBe(2);
     });

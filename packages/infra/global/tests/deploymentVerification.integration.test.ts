@@ -153,10 +153,19 @@ function givenEcsService(arn: string, service: Readonly<Record<string, unknown>>
 /**
  * Run the script with the stubs on `PATH`.
  *
+ * ⛔ `bash -e`, NOT a bare `bash`, and that flag is the whole reason this suite missed a verifier that was
+ * INERT across every deploy pipeline. GitHub Actions runs a `run:` body under `/usr/bin/bash -e {0}`, so
+ * errexit is ON for every invocation in `sandbox-deploy.yml`, `prod-deploy.yml`,
+ * `sandbox-identity-deploy.yml` and `sandbox-router-deploy.yml`. This harness ran without it, which made
+ * the harness a DIFFERENT shell from the one CI uses — so the script's `set -uo pipefail` combined with an
+ * inherited `-e` in production and with nothing here. Measured: `bash -e … stacks "<app>"` exited 1 with
+ * ZERO bytes on stdout and stderr while the same command under a bare `bash` printed its `::error::`
+ * diagnostic in full.
+ *
  * @sideEffect Spawns `bash`.
  */
 function run(args: readonly string[], environment: Readonly<Record<string, string>> = {}): Run {
-    const result = spawnSync('bash', [SCRIPT, ...args], {
+    const result = spawnSync('bash', ['-e', SCRIPT, ...args], {
         encoding: 'utf8',
         env: {
             ...process.env,
@@ -396,7 +405,11 @@ describe('stacks — the checklist is DERIVED from the CDK app, and never empty'
         });
 
         expect(result.status).toBe(1);
-        expect(result.stdout).toMatch(/verified NOTHING/);
+        // ⚠️ REWRITTEN 2026-09-03, and the move is the fix rather than a relocation of an assertion.
+        // `verify_deployment_stacks` prints stack NAMES on stdout and every diagnostic on stderr, because
+        // its only production caller captures its stdout in a command substitution — see the `verify` case
+        // above. Asserting the diagnostic on stdout is what let that swallow go unnoticed.
+        expect(result.stderr).toMatch(/verified NOTHING/);
         // The synth's own diagnostic has to survive: without it the failure reads as "yielded no stack
         // names", which says nothing about the missing environment variable that caused it.
         expect(result.stderr).toMatch(/DOMAIN_NAME env var is required/);
@@ -406,6 +419,91 @@ describe('stacks — the checklist is DERIVED from the CDK app, and never empty'
         const result = run(['stacks', 'app'], { CDK_STUB_LISTING: 'Alpha\nBeta\n' });
 
         expect(result.status).toBe(1);
+    });
+
+    it('reads the listing even when a tool printed a banner to stdout ahead of the JSON', () => {
+        // ⛔ THE DEFECT THAT MADE THIS SCRIPT INERT EVERYWHERE. `dotenv@17` prints a marketing line to
+        // STDOUT on every `config()` call — even for a path that does not exist — and all seven CDK app
+        // entrypoints call it, so `cdk ls --long --json` emitted:
+        //
+        //     ◇ injected env (0) from packages/infra/global/.env // tip: ⌘ multiple files …
+        //     [ { "id": …
+        //
+        // `jq` cannot parse that, its error was discarded by `2>/dev/null`, `names` came back empty and the
+        // whole run died one line ABOVE the `::error::` written to explain it.
+        //
+        // Silencing dotenv is the other half of the repair; this half is that the parse must not be
+        // hostage to the next tool that decides stdout is a billboard. The names still come back.
+        const result = run(['stacks', 'app'], {
+            CDK_STUB_LISTING: `◇ injected env (0) from packages/infra/global/.env // tip: ⌘ multiple files
+${JSON.stringify([{ id: 'Global-prod (kitchensink-global-prod)', name: 'kitchensink-global-prod', environment: {} }])}`,
+        });
+
+        expect(result.status, result.stdout + result.stderr).toBe(0);
+        expect(result.stdout.trim().split('\n')).toEqual(['kitchensink-global-prod']);
+    });
+
+    it('⛔ recovers a banner that CONTAINS A BRACKET — the cut is line-anchored, not first-character', () => {
+        // dotenv rotates its tip text, and FOUR of the eight tips observed carry a `[`:
+        // `{ path: ['.env.local', '.env'] }`, `[www.dotenvx.com]`. A cut at the first `[` CHARACTER would
+        // therefore have worked or failed depending on which advertisement the library chose that second —
+        // an intermittent verifier, which is a worse defect than the reliably-inert one being repaired.
+        const result = run(['stacks', 'app'], {
+            CDK_STUB_LISTING: `◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }\n${JSON.stringify(
+                [{ name: 'kitchensink-global-prod' }],
+            )}`,
+        });
+
+        expect(result.status, result.stdout + result.stderr).toBe(0);
+        expect(result.stdout.trim().split('\n')).toEqual(['kitchensink-global-prod']);
+    });
+
+    it('REPORTS the prefix it dropped rather than hiding that stdout was polluted', () => {
+        // Recovering silently would make the next pollutant invisible, and the pollutant is the finding:
+        // something in the synth chain is writing to a channel this repository parses as data.
+        const result = run(['stacks', 'app'], {
+            CDK_STUB_LISTING: `◇ injected env (0) from .env
+${JSON.stringify([{ name: 'kitchensink-global-prod' }])}`,
+        });
+
+        expect(result.stderr).toMatch(/::warning::/);
+        expect(result.stderr).toMatch(/injected env/);
+    });
+
+    it('⛔ is LOUD under `bash -e`, the shell every deploy workflow actually runs it in', () => {
+        // The recurring failure this repository keeps paying for: a check whose signal reaches no one.
+        // Under errexit + pipefail the empty-`names` pipeline killed the script one line before its own
+        // `::error::`, so `bash -e verify-deployment.sh stacks "<app>"` exited 1 having printed NOTHING —
+        // on stdout or stderr — for every deploy in `sandbox-deploy.yml`, `prod-deploy.yml`,
+        // `sandbox-identity-deploy.yml` and `sandbox-router-deploy.yml`.
+        const result = run(['stacks', 'app'], {
+            CDK_STUB_LISTING: 'this is not JSON at all',
+            CDK_STUB_STATUS: '0',
+        });
+
+        expect(result.status).toBe(1);
+        expect(
+            (result.stdout + result.stderr).trim(),
+            'the verifier failed without saying anything — this is the inert-under-errexit defect',
+        ).not.toBe('');
+        // Actionable, not merely non-empty: the operator must be told WHAT was on stdout.
+        expect(result.stderr).toMatch(/this is not JSON at all/);
+    });
+
+    it('⛔ surfaces the synth diagnostic through `verify`, which captures `stacks` in a substitution', () => {
+        // The second silencer, independent of errexit: `verify` calls
+        // `names=$(verify_deployment_stacks "$app")`, so anything that function wrote to STDOUT — its
+        // `::error::` included — was captured into `names` and thrown away. Only stderr survives a command
+        // substitution, which is why the discovery function's diagnostics belong there.
+        const result = run(['verify', 'us-east-1', 'app'], {
+            CDK_STUB_LISTING: '',
+            CDK_STUB_STATUS: '1',
+            CDK_STUB_STDERR: 'Error: DOMAIN_NAME env var is required',
+        });
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/verified NOTHING/);
+        expect(result.stderr).toMatch(/DOMAIN_NAME env var is required/);
     });
 
     it('verify: discovers the app’s stacks and then verifies them', () => {

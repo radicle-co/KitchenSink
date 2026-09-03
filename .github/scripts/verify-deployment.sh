@@ -76,6 +76,27 @@
 # Exit status: 0 = everything verified, 1 = findings (each reported as `::error::`), 2 = misuse. A misuse
 # NEVER exits 0 — a verifier that answers "nothing wrong" on malformed input is how an unverified deploy
 # passes a green check.
+#
+# ⛔ `set +e` IS DELIBERATE, AND IT IS THE FIX FOR A VERIFIER THAT WAS INERT IN EVERY DEPLOY PIPELINE.
+#
+# GitHub Actions runs a `run:` body under `/usr/bin/bash -e {0}`, so errexit arrives from the CALLER, and
+# this script's own `set -uo pipefail` then completed the trap. Every control path here ACCUMULATES findings
+# and returns a count — `output=$(check_lambda …)` is EXPECTED to fail, `names=$(… | grep -v '^$' …)` is
+# expected to fail when the synth produced nothing — so under an inherited `-e` the shell exited at the first
+# such command, one line ABOVE the `::error::` written to explain it. Measured on this repository:
+#
+#     $ bash -e .github/scripts/verify-deployment.sh stacks "node packages/infra/global/dist/bin/app.js"
+#     exit=1        # nothing on stdout, nothing on stderr
+#
+# and the same command under a bare `bash` printed the full diagnostic. Every finding this script exists to
+# report — the CRF case, a rolled-back resource, an unloadable Lambda, a non-serving ECS service — was
+# reaching the log as ZERO BYTES; the job went red naming nothing. The exit status is still the contract
+# (0 verified, 1 findings, 2 misuse), and it is now produced by the explicit `return` paths below rather than
+# by an ambient trap that fires before anything is said.
+#
+# `tests/deploymentVerification.integration.test.ts` runs this script under `bash -e` for exactly this
+# reason — the harness used to run a DIFFERENT shell from CI, which is why the defect was invisible to it.
+set +e
 set -uo pipefail
 
 # ── Pure: resource-status classification ────────────────────────────────────────────────────────────────
@@ -300,7 +321,7 @@ verify_deployment_classify_reference() {
 
 # verify_deployment_stacks <cdkAppCommand>
 #
-# The physical stack names the CDK app synthesises for the CURRENT environment, one per line.
+# The physical stack names the CDK app synthesises for the CURRENT environment, one per line ON STDOUT.
 #
 # ⛔ Derived from the app, never from a list in YAML. `GlobalStack` alone owns seven child stacks, two of
 # which exist only on one stage; a hand-written set could only be right by being edited, which is the artefact
@@ -316,6 +337,37 @@ verify_deployment_classify_reference() {
 # parser therefore hands `aws://…` to `describe-stacks` as if it were a stack, and the run reds on a stack
 # nobody named. `jq '.[].name'` addresses the top level and cannot make that mistake.
 #
+# ## ⛔ STDOUT CARRIES DATA. EVERY DIAGNOSTIC GOES TO STDERR.
+#
+# The only production caller is `verify_deployment_verify`, and it reads this function as
+# `names=$(verify_deployment_stacks "$app")`. A command substitution captures STDOUT — so an `::error::`
+# written there is swallowed into `$names` and discarded, which is precisely what happened: the one
+# diagnostic explaining why a deploy verified nothing was assigned to a variable and thrown away. Only stderr
+# survives a substitution, so that is where every word this function says now goes.
+#
+# ## ⛔ THE JSON IS SLICED OUT OF STDOUT, AND THE DISCARDED PREFIX IS REPORTED
+#
+# `cdk ls` runs the app, and the app is ours: anything it — or any library it loads — prints lands ahead of
+# the JSON on the same stream. `dotenv@17` did exactly that, emitting
+# `◇ injected env (0) from … // tip: …` on every `config()` call (even for a file that does not exist), which
+# all seven CDK entrypoints make. `jq` refused the document, its error went to `/dev/null`, and the verifier
+# became inert across every deploy pipeline while still exiting 1.
+#
+# Two rules follow, and BOTH are needed. Silencing dotenv (`quiet: true`, guarded by
+# `packages/infra/global/__tests__/cdkAppStdoutPurity.test.ts`) fixes today's pollutant. Recovering the JSON
+# means the NEXT one cannot make this check inert. And the dropped prefix is REPORTED rather than swallowed,
+# because a tool writing to a channel this repository parses as data is itself the finding — a recovery
+# nobody is told about is how the second occurrence takes just as long to diagnose as the first.
+#
+# ⛔ The cut is at the first LINE that begins with `[`, NOT at the first `[` character, and the difference is
+# not pedantry. dotenv's banner rotates through a set of tips and FOUR of the eight observed contain a
+# bracket — `{ path: ['.env.local', '.env'] }`, `[www.dotenvx.com]`. A first-character cut would therefore
+# have recovered the listing or destroyed it depending on which advertisement the library felt like printing
+# that second: an INTERMITTENT verifier, which is worse than the inert one being repaired here. `cdk ls
+# --long --json` pretty-prints, so its document opens with `[` alone on a line (measured, CDK 2.x); a banner
+# is one line and cannot. If that ever stops being true the vacuity guard below fails loudly with the raw
+# stdout attached, which is the correct direction for a wrong assumption.
+#
 # @sideEffect Runs `cdk` (which synthesises the app) and may perform AWS context lookups.
 verify_deployment_stacks() {
     local app="${1-}"
@@ -326,21 +378,43 @@ verify_deployment_stacks() {
         return 2
     fi
 
-    local diagnostics listing names
+    local diagnostics jq_errors listing prefix json names
     diagnostics=$(mktemp)
+    jq_errors=$(mktemp)
     # stderr goes to a file rather than to /dev/null: when the synth fails, its reason is the only thing that
     # makes this failure actionable, and swallowing it turns a real error into "yielded no stack names".
     listing=$(npx cdk ls --long --json --app "$app" 2>"$diagnostics") || listing=''
-    names=$(printf '%s' "$listing" | jq -r 'if type == "array" then .[].name else empty end' 2>/dev/null | grep -v '^$' | sort -u)
+
+    # Split at the first line opening a JSON array. Two passes over a listing of a few kilobytes, kept
+    # separate because a diagnostic path is the last place to be clever.
+    prefix=$(printf '%s' "$listing" | awk 'seen == 0 && /^[[:space:]]*\[/ { seen = 1 } seen == 0 { print }')
+    json=$(printf '%s' "$listing" | awk 'seen == 1 || /^[[:space:]]*\[/ { seen = 1; print }')
+
+    # Reported only when there IS a document behind it. With no `[` line at all nothing was "dropped" — the
+    # whole of stdout is unusable, and the error below prints it verbatim rather than describing a prefix.
+    if [ -n "$json" ] && [ -n "${prefix//[[:space:]]/}" ]; then
+        echo "::warning::verify-deployment: \`cdk ls\` wrote ${#prefix} byte(s) to STDOUT ahead of its JSON, which this script parses as data. Silence the writer rather than relying on this recovery. Discarded prefix: $(printf '%s' "$prefix" | tr '\n' ' ')" >&2
+    fi
+
+    # jq's stderr is KEPT. Discarding it (`2>/dev/null`) is what turned "the document is not JSON, here is
+    # the byte it choked on" into the contentless "yielded no stack names" this function used to report.
+    names=$(printf '%s' "$json" | jq -r 'if type == "array" then .[].name else empty end' 2>"$jq_errors" | grep -v '^$' | sort -u) || names=''
 
     if [ -z "$names" ]; then
-        echo "::error::verify-deployment: \`cdk ls --long --json --app \"${app}\"\` yielded no stack names, so this run would have verified NOTHING. Synth diagnostics follow."
-        sed 's/^/[cdk] /' "$diagnostics" >&2
-        rm -f "$diagnostics"
+        {
+            echo "::error::verify-deployment: \`cdk ls --long --json --app \"${app}\"\` yielded no stack names, so this run would have verified NOTHING. Diagnostics follow."
+            sed 's/^/[cdk] /' "$diagnostics"
+            sed 's/^/[jq] /' "$jq_errors"
+            # The raw stdout, bounded: it is the single most useful fact when a tool has polluted the stream,
+            # and without it the reader cannot tell a synth failure from an unparseable success.
+            printf '%s' "$listing" | head -c 2000 | sed 's/^/[stdout] /'
+            printf '\n'
+        } >&2
+        rm -f "$diagnostics" "$jq_errors"
 
         return 1
     fi
-    rm -f "$diagnostics"
+    rm -f "$diagnostics" "$jq_errors"
 
     printf '%s\n' "$names"
 }

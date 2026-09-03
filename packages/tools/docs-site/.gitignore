@@ -8,3 +8,8 @@ build/
 
 # `docusaurus build` writes these when the site is served from a subpath.
 .cache-loader/
+
+# Build-time mirrors of content sources whose directory nests inside another's (`MIRROR_ROOT` in
+# src/content/contentSource.ts). Derived from `docs/generated/**`, emptied and refilled on every run —
+# committing one would publish a stale copy of a corpus whose author is a generator.
+content/mirrored/

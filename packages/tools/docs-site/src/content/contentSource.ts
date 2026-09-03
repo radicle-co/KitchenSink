@@ -18,6 +18,17 @@
 /** Every content source this site knows how to mount. Order is navbar order. */
 export const CONTENT_SOURCE_IDS = ['handbook', 'infrastructure', 'components', 'design'] as const;
 
+/**
+ * Repo-root-relative POSIX directory holding the build-time MIRRORS of nested content sources.
+ *
+ * ⛔ Gitignored build output, one subdirectory per mirrored source id, emptied and refilled on every
+ * run. It exists for one reason, recorded in full in `resolveContentSources.test.ts`: two
+ * `plugin-content-docs` instances whose content DIRECTORIES nest apply both of their MDX loaders to
+ * the same file, and the build dies. `handbook` mounts `docs`, every generator writes into
+ * `docs/generated/*`, so the nesting is structural rather than accidental.
+ */
+export const MIRROR_ROOT = 'packages/tools/docs-site/content/mirrored';
+
 export type ContentSourceId = (typeof CONTENT_SOURCE_IDS)[number];
 
 interface ContentSourceBase {
@@ -58,6 +69,15 @@ export interface PresentContentSource {
     readonly state: 'present';
     /** Repo-root-relative POSIX path Docusaurus should mount. */
     readonly mountPath: string;
+    /**
+     * Repo-root-relative POSIX path where the Markdown actually lives.
+     *
+     * Equal to {@link mountPath} for every source that stands alone. It DIFFERS only when this
+     * source's directory sits inside another declared source's, in which case `mountPath` names the
+     * {@link MIRROR_ROOT} copy and this names what to fill it from — so the impure shell carries no
+     * second copy of the nesting rule.
+     */
+    readonly sourcePath: string;
     readonly include: readonly string[];
 }
 

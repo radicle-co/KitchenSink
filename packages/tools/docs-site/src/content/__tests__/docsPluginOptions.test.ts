@@ -9,7 +9,24 @@ const present: ResolvedContentSource = {
     routeBasePath: '/handbook',
     state: 'present',
     mountPath: 'docs',
+    sourcePath: 'docs',
     include: ['architecture/**/*.md'],
+};
+
+/**
+ * A source Docusaurus mounts from a MIRROR because its real directory nests inside another's. The
+ * adapter must speak the MOUNT path — the mirror is what exists at build time — and the reason this
+ * fixture is here at all is that `mountPath` and `sourcePath` diverging is the one case where reading
+ * the wrong field still produces a valid-looking path.
+ */
+const mirrored: ResolvedContentSource = {
+    id: 'infrastructure',
+    label: 'Infrastructure',
+    routeBasePath: '/infrastructure',
+    state: 'present',
+    mountPath: 'packages/tools/docs-site/content/mirrored/infrastructure',
+    sourcePath: 'docs/generated/infrastructure',
+    include: ['**/*.md'],
 };
 
 const awaiting: ResolvedContentSource = {
@@ -56,5 +73,14 @@ describe('buildDocsPluginOptions', () => {
 
     it('does not fabricate an edit link into a directory that may not be the source of truth', () => {
         expect(buildDocsPluginOptions(awaiting, '../../..')).not.toHaveProperty('editUrl');
+    });
+
+    it('mounts the MIRROR — not the real directory — for a nested source', () => {
+        // Reading `sourcePath` here would hand Docusaurus `../../../docs/generated/infrastructure`,
+        // which nests inside the handbook's own mount and is the whole failure the mirror exists to
+        // avoid. The wrong field yields a path that resolves, so only this assertion catches it.
+        expect(buildDocsPluginOptions(mirrored, '../../..').path).toBe(
+            '../../../packages/tools/docs-site/content/mirrored/infrastructure',
+        );
     });
 });

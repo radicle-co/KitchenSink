@@ -1,5 +1,16 @@
 import { MissingContentSourceError } from './contentSource.errors.js';
-import type { ContentSource, ResolvedContentSource } from './contentSource.js';
+import { MIRROR_ROOT, type ContentSource, type ResolvedContentSource } from './contentSource.js';
+
+/**
+ * Whether `inner` lies strictly inside `outer`, compared by PATH SEGMENT.
+ *
+ * A string prefix test would call `docs-generated/x` a child of `docs`; both are repo-root-relative
+ * POSIX paths with no `.`/`..` segments (the registry's own contract), so segment equality is the
+ * whole comparison.
+ */
+function isInside(inner: string, outer: string): boolean {
+    return inner.startsWith(`${outer}/`);
+}
 
 /**
  * Answers "does this repo-root-relative directory hold at least one Markdown document?".
@@ -35,12 +46,20 @@ export function resolveContentSources(
         const present = hasMarkdownContent(source.contentPath);
 
         if (present) {
+            // Docusaurus cannot serve two docs instances whose directories nest — see the "nested
+            // content directories" block in this module's test for the measured failure. A nested
+            // source is therefore mounted from a mirror; everything else is mounted where it lives.
+            const nested = sources.some(
+                (other) => other.id !== source.id && isInside(source.contentPath, other.contentPath),
+            );
+
             return {
                 id: source.id,
                 label: source.label,
                 routeBasePath: source.routeBasePath,
                 state: 'present',
-                mountPath: source.contentPath,
+                mountPath: nested ? `${MIRROR_ROOT}/${source.id}` : source.contentPath,
+                sourcePath: source.contentPath,
                 include: source.include,
             };
         }

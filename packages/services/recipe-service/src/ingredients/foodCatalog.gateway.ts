@@ -268,8 +268,20 @@ export class FoodCatalogGateway {
                 hits: result.results.map(toLiveHit).filter((hit): hit is LiveCatalogHit => hit !== null),
             };
         } catch (error) {
-            if (isFetchUnavailableError(error)) {
-                // OUR budget (or the source's) said no — a retryable refusal that names its own window.
+            // ⛔ `FetchUnavailableError` is TWO outcomes wearing one type, and only one of them is `busy`.
+            // The client unifies a response-borne `503` with a raw transport failure on purpose — to a
+            // RETRYING caller both mean "back off". This gateway does not retry; it picks the sentence the
+            // cook reads, and there `busy` claims the source is rate-limited while `unavailable` says it did
+            // not answer. Telling someone their quota is spent when the service is simply unreachable is a
+            // false statement, and it is the collapse this method's contract forbids ("collapsing any pair
+            // strands them in the wrong loop").
+            //
+            // The discriminator is the client's own documented invariant: a transport failure preserves the
+            // underlying error in `cause`, and both response-borne throw sites pass none. `retryAfterSeconds`
+            // cannot serve — a shed `503` with no `Retry-After` header is `undefined` too, and IS busy.
+            if (isFetchUnavailableError(error) && error.cause === undefined) {
+                // A refusal food can lift: OUR reserved lane, its own flood-shed, or a source 429. The window
+                // is carried when it named one; a refusal with no stated window is still a refusal.
                 return error.retryAfterSeconds === undefined
                     ? { kind: 'busy' }
                     : { kind: 'busy', retryAfterSeconds: error.retryAfterSeconds };

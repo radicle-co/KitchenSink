@@ -98,11 +98,14 @@ appId: io.commise.mobile
 - tapOn: 'Add step'
 - tapOn: 'Step 1 instruction'
 - inputText: 'Slice and serve.'
+# Step 4 of 4 is REVIEW (U33) — photos moved into step 1's Details body, so there is no Photos step to
+# advance to. This flow was the one the U33 rename missed; its ten siblings already say `Next: Review`, and
+# `RecipeEditor.native.test.tsx`'s "no Photos step remains" asserts the label this used to name is gone.
 - scrollUntilVisible:
-      element: 'Next: Photos'
+      element: 'Next: Review'
       direction: DOWN
       timeout: 20000
-- tapOn: 'Next: Photos'
+- tapOn: 'Next: Review'
 
 - assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'

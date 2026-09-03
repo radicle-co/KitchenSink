@@ -25,7 +25,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-import { BASE_URL, authHeaders, rampStages, PEAK_VUS, SC009_P95_MS } from './lib/common.js';
+import { BASE_URL, jsonHeaders, rampStages, PEAK_VUS, SC009_P95_MS } from './lib/common.js';
 
 const createTrend = new Trend('parse_job_create_duration', true);
 
@@ -91,8 +91,16 @@ export const options = {
  * @returns {void}
  */
 function createJob(text) {
+    // ⛔ `jsonHeaders()`, NOT `authHeaders()` — this call carries a JSON BODY. k6 sets no `Content-Type`
+    // for a string body (MEASURED: an echo server sees `content-type: null` with `authHeaders()` and
+    // `application/json` with `jsonHeaders()`), and express's JSON parser only parses that media type. With
+    // no type the body reaches the pipe unparsed, `text` is `undefined`, and the strict wire schema answers
+    // `400 VALIDATION_FAILED` — which is what this scenario did on every one of 4,631 iterations. The
+    // failure is silent-looking on both checks at once: a 400 envelope carries no `status`, so "answers 202"
+    // AND "running or partial" fail together and look like an outage rather than a malformed request. Every
+    // OTHER write script here already sends the type; the ones that use `authHeaders()` post a `null` body.
     const res = http.post(`${BASE_URL}/api/v1/recipe-parse-jobs`, JSON.stringify({ text }), {
-        headers: authHeaders(),
+        headers: jsonHeaders(),
         tags: { operation: 'createParseJob' },
     });
 

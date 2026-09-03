@@ -48,7 +48,19 @@ export const ParsePasteForm: FC<ParsePasteFormProps> = ({
             <Text style={styles.intro}>{messages.pasteIntro}</Text>
 
             <View style={styles.field}>
-                <Text style={styles.label}>{messages.pasteLabel}</Text>
+                {/*
+                 * VISUAL ONLY, and hidden from the accessibility tree on purpose: the field below already
+                 * carries `pasteLabel` as its accessible NAME, so leaving this node visible to assistive tech
+                 * announces "Ingredient lines" twice — and it put TWO nodes with that exact text on the
+                 * screen, the label first. That ambiguity is what left the Maestro flow with nothing safe to
+                 * tap: the placeholder is shadowed by the input's own `accessibilityLabel` (unlike the auth
+                 * fields, which pass none to `@commise/ui`'s `Input` and so expose theirs), and the label
+                 * text resolved to this inert `Text` rather than the field. The sibling `IngredientPicker`
+                 * search box is the shape that works — one input, one accessible name, no duplicate node.
+                 */}
+                <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.label}>
+                    {messages.pasteLabel}
+                </Text>
                 <TextInput
                     accessibilityLabel={messages.pasteLabel}
                     value={value}

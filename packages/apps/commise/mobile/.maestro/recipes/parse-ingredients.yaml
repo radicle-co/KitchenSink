@@ -32,9 +32,14 @@ appId: io.commise.mobile
 
 - assertVisible: 'Paste your ingredients'
 
-# The placeholder, not the label: `ParsePasteForm.native.tsx` renders the visible label as a separate node
-# from the field, exactly as `@commise/ui`'s `Input` does — so flows tap the placeholder, as the auth flows do.
-- tapOn: '2 cups flour'
+# ⛔ THE FIELD'S ACCESSIBLE NAME, NOT ITS PLACEHOLDER — and the auth flows are NOT the precedent here.
+# They tap a placeholder because `@commise/ui`'s `Input` is given no `accessibilityLabel`, so the placeholder
+# IS the field's exposed text; this form's `TextInput` sets one explicitly, which shadows the placeholder.
+# The placeholder is also THREE lines (`2 cups flour\n1 tsp salt\n3 large eggs, beaten`) and Maestro matches
+# a selector against the WHOLE text, so `2 cups flour` could never have matched it even unshadowed — which is
+# why CI reported `Element not found: Text matching regex: 2 cups flour`. `IngredientPicker`'s
+# `Search ingredients` box is the shape that works, and this now matches it.
+- tapOn: 'Ingredient lines'
 - inputText: "2 cups flour\n1 tsp salt"
 
 # The count comes from the SHARED splitter, so this also asserts that a device paste really produced two

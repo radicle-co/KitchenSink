@@ -437,9 +437,47 @@ describe('the flow inventory — every committed flow is accounted for', () => {
         expect(VERTICAL_OF.get('recipes/ingredient-catalog-blend')).toBe('recipes');
     });
 
-    it('plans only flows that exist on disk', () => {
+    /**
+     * ⛔ EXISTENCE IS NOT RUNNABILITY, and this test used to assert only the former.
+     *
+     * `recipes/create-authored-food.yaml` was committed as a ZERO-BYTE file and sat in `FLOW_PLAN` for its
+     * whole life. `existsSync` was true, so this suite passed; Maestro answered `Config Section Required at
+     * …:1:1` on every heavy run, and the U16 vertical had no on-device coverage at all while the inventory
+     * reported it covered. A guard that asks whether a test FILE is present, rather than whether it contains
+     * a test, cannot tell "written" from "planned" — which is the one distinction this inventory exists for.
+     *
+     * So the assertion is now the flow's own structure: the config document Maestro requires (an `appId`),
+     * the `---` separator, and at least one command after it. Parsed, not pattern-matched — a file whose
+     * commands are a comment block would satisfy a grep and still run nothing.
+     */
+    it('plans only flows that exist on disk AND actually contain a runnable flow', () => {
         for (const flow of ALL_FLOWS) {
-            expect(existsSync(join(MAESTRO_DIR, `${flow}.yaml`)), `${flow}.yaml is planned but missing`).toBe(true);
+            const path = join(MAESTRO_DIR, `${flow}.yaml`);
+
+            expect(existsSync(path), `${flow}.yaml is planned but missing`).toBe(true);
+
+            const source = readFileSync(path, 'utf-8');
+
+            expect(source.trim(), `${flow}.yaml is empty — it is planned but was never written`).not.toBe('');
+
+            const separator = /^---[ \t]*$/m.exec(source);
+
+            expect(
+                separator,
+                `${flow}.yaml has no '---' separator, so Maestro reads no config section ` +
+                    '(it fails with "Config Section Required")',
+            ).not.toBeNull();
+
+            const header: unknown = parse(source.slice(0, separator?.index ?? 0));
+            const commands: unknown = parse(source.slice((separator?.index ?? 0) + (separator?.[0].length ?? 0)));
+
+            expect(header, `${flow}.yaml's config section must declare a string appId`).toMatchObject({
+                appId: expect.any(String),
+            });
+            expect(
+                Array.isArray(commands) && commands.length > 0,
+                `${flow}.yaml declares an appId but no commands — it would run nothing`,
+            ).toBe(true);
         }
     });
 

@@ -379,6 +379,36 @@ describe('FoodCatalogGateway.searchLive (plan U29)', () => {
         });
     });
 
+    it('reports BUSY without a window when food sheds with no `Retry-After` — still a refusal it can lift', async () => {
+        searchLive.mockRejectedValue(new FetchUnavailableError(undefined, 'shed'));
+
+        await expect(enabledGateway().searchLive(CALLER, 'broccoli')).resolves.toEqual({ kind: 'busy' });
+    });
+
+    /**
+     * ⛔ A DEAD FOOD SERVICE IS "DID NOT ANSWER", NEVER "BUSY" — the collapse this suite's own header
+     * forbids ("Collapsing any pair strands them in the wrong loop"), and it shipped.
+     *
+     * `FetchUnavailableError` deliberately unifies a response-borne `503` with a raw transport failure,
+     * because both mean "back off" to a RETRYING caller. But this gateway does not retry — it chooses the
+     * sentence a cook reads, and the two are not the same sentence: `busy` renders "USDA searches are
+     * rate-limited and the limit is used up right now", which is a false statement about a service that is
+     * simply unreachable, while `unavailable` renders "USDA didn't answer. Check your connection and try
+     * again." The heavy-tier Maestro flow `recipes/ingredient-usda-search` asserts the latter against a
+     * deliberately unreachable food origin, and it is what caught this.
+     *
+     * The discriminator is the client's OWN documented invariant, not an inference: a transport failure
+     * preserves the underlying error in `cause` and can carry no `retryAfterSeconds` (there is no
+     * `Retry-After` without a response), while both response-borne throw sites pass no cause.
+     */
+    it('reports UNAVAILABLE when the food service itself was unreachable, not BUSY', async () => {
+        searchLive.mockRejectedValue(
+            new FetchUnavailableError(undefined, 'Food service request failed or timed out', new Error('ECONNREFUSED')),
+        );
+
+        await expect(enabledGateway().searchLive(CALLER, 'broccoli')).resolves.toEqual({ kind: 'unavailable' });
+    });
+
     it('reports UNAVAILABLE when the upstream source did not answer', async () => {
         searchLive.mockRejectedValue(new SourceUnavailableError('The food data source is unavailable'));
 

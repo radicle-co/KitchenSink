@@ -19,6 +19,14 @@
  * already has it — and an id-keyed copy record makes a surface without a title a COMPILE error instead of a
  * blank bar. `titleId` is optional and defaults to Home, so a caller that says nothing behaves exactly as
  * before. See `components/app/shellSurfaces.ts` for why surfaces are a separate axis from nav destinations.
+ *
+ * ⚠️ It is ORCHESTRATION, and exactly ONE line makes it so: `useUserProfile()`, the read that puts the
+ * signed-in cook's name in the top bar. Everything else here is layout, so the component reads as a wrapper
+ * and the split between it and {@link HomeChrome} — which owns no data at all — is invisible unless stated.
+ * The rule the pair encodes: data enters the chrome HERE, and never below.
+ *
+ * @pattern Composition root binding the signed-in profile read and the app-wide capability set to the pure
+ *     `HomeChrome` shell — the one place chrome learns who is signed in and what is deployed.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';

@@ -11,8 +11,8 @@
         "implementationsWithModuleDoc": 50,
         "implementationsWithComponentDoc": 44,
         "documentedProps": 111,
-        "classifiedComponents": 12,
-        "componentsWithPatternTag": 6,
+        "classifiedComponents": 17,
+        "componentsWithPatternTag": 9,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1365,7 +1365,7 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/home",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -1379,7 +1379,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/RoadmapWidgetSlot.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/RoadmapWidgetSlot — the host slot for a roadmap skeleton placeholder (mobile).\n\nThe Home composition root renders one slot per curated widget id. Where `RecipeWidgetSlot` is the\nbespoke slot for the live recipe widget, THIS is the generic slot for a placeholder descriptor: it\ncode-splits the native skeleton through the descriptor's own loader seam (`descriptor.load`, bound to a\nhost-owned `.native` skeleton in `roadmapFeature.ts`) via `React.lazy`, and renders it with no props — a\nplaceholder has no data to feed.\n\nRendering through the loader seam (rather than a second id→component map in the host) keeps the placeholder\nids in ONE place: the shared roadmap registry binds id → skeleton once, and the host just draws whatever\nthe descriptor resolves.",
+                    "moduleDoc": "home/RoadmapWidgetSlot — the host slot for a roadmap skeleton placeholder (mobile).\n\nThe Home composition root renders one slot per curated widget id. Where `RecipeWidgetSlot` is the\nbespoke slot for the live recipe widget, THIS is the generic slot for a placeholder descriptor: it\ncode-splits the native skeleton through the descriptor's own loader seam (`descriptor.load`, bound to a\nhost-owned `.native` skeleton in `roadmapFeature.ts`) via `React.lazy`, and renders it with no props — a\nplaceholder has no data to feed.\n\nRendering through the loader seam (rather than a second id→component map in the host) keeps the placeholder\nids in ONE place: the shared roadmap registry binds id → skeleton once, and the host just draws whatever\nthe descriptor resolves.\n\n⚠️ \"Slot\" + `lazy` + `Suspense` read as registry plumbing, but this is PRESENTATIONAL: it starts no\nrequest, owns no state, and decides nothing — it draws whatever a prop resolves to. Its web twin says the\nsame thing through `next/dynamic`, and that spelling difference must not put the two leaves on different\nlayers.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1413,7 +1413,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -2208,8 +2208,10 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/i18n",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the device's locale list — projects `expo-localization`'s tags onto the shared\nprovider's single-locale contract through the pure `resolveDeviceLocale`."
+            ],
             "platforms": [
                 "web"
             ],
@@ -2224,8 +2226,13 @@
                     "dir": "packages/apps/commise/mobile/src/i18n",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "Detect the device locale and provide it to the tree via the shared {@link SharedLocaleProvider}, so\ncomponents resolve copy with `useMessages`. `useLocales` re-renders when the OS locale changes (Android;\niOS's list is fixed for the process). Wrap the app root in this.",
-                    "tags": [],
+                    "description": "Detect the device locale and provide it to the tree via the shared {@link SharedLocaleProvider}, so\ncomponents resolve copy with `useMessages`. `useLocales` re-renders when the OS locale changes (Android;\niOS's list is fixed for the process). Wrap the app root in this.\n\n⚠️ Twenty-three lines, one `useMemo`, renders only `children` — it reads like a render leaf and is not. It\nis ORCHESTRATION because it is the ONE place the device's locale list becomes the app's locale: every\nstring in the app is resolved against the value decided here, and a second reader of `useLocales` would be\na second answer to the same question.",
+                    "tags": [
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the device's locale list — projects `expo-localization`'s tags onto the shared\nprovider's single-locale contract through the pure `resolveDeviceLocale`."
+                        }
+                    ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [],
@@ -2233,7 +2240,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2245,8 +2252,10 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/providers",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Facade over the app's six-deep provider stack — one composition root, so a caller mounts one\n    component instead of remembering an order whose violation only shows up at runtime."
+            ],
             "platforms": [
                 "web"
             ],
@@ -2259,8 +2268,13 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/providers/AppProviders.tsx",
                     "dir": "packages/apps/commise/mobile/src/providers",
-                    "moduleDoc": "`AppProviders` (DA10-a) — the mobile app's provider-tree Facade, the native counterpart of the web\n`RecipeProviders` (`web/src/components/recipes/RecipeProviders.tsx`). Centralizes the ENFORCED provider\norder that used to be hand-stacked directly in `App.tsx`: `RecipeServiceGate` calls `useAuth` (Clerk) AND\nreads no query client of its own (its hooks run against whichever `QueryClientProvider` is mounted above\nthem), so it MUST sit below both `ClerkProvider` and `QueryClientProvider` — the same invariant the web\nfacade documents.\n\nComposes, top to bottom: `TamaguiProvider` (design tokens/theme) → `LocaleProvider` (device-locale i18n)\n→ `ClerkProvider` (auth session, secure-store-backed token cache) → `QueryClientProvider` (TanStack cache)\n→ `RecipeServiceGate` (the typed recipe-service client) → `SafeAreaProvider` (device insets) → `children`.\n\nThis is a pure extraction (Facade pattern) — the tree and its order are UNCHANGED from what `App.tsx`\nhand-stacked before; only the composition now lives in one reusable, testable place. `App.tsx` keeps\nownership of everything that is NOT a provider (font loading, the status bar, `AuthGate`, the navigator).",
-                    "moduleTags": [],
+                    "moduleDoc": "`AppProviders` (DA10-a) — the mobile app's provider-tree Facade, the native counterpart of the web\n`RecipeProviders` (`web/src/components/recipes/RecipeProviders.tsx`). Centralizes the ENFORCED provider\norder that used to be hand-stacked directly in `App.tsx`: `RecipeServiceGate` calls `useAuth` (Clerk) AND\nreads no query client of its own (its hooks run against whichever `QueryClientProvider` is mounted above\nthem), so it MUST sit below both `ClerkProvider` and `QueryClientProvider` — the same invariant the web\nfacade documents.\n\nComposes, top to bottom: `TamaguiProvider` (design tokens/theme) → `LocaleProvider` (device-locale i18n)\n→ `ClerkProvider` (auth session, secure-store-backed token cache) → `QueryClientProvider` (TanStack cache)\n→ `RecipeServiceGate` (the typed recipe-service client) → `SafeAreaProvider` (device insets) → `children`.\n\nThis is a pure extraction (Facade pattern) — the tree and its order are UNCHANGED from what `App.tsx`\nhand-stacked before; only the composition now lives in one reusable, testable place. `App.tsx` keeps\nownership of everything that is NOT a provider (font loading, the status bar, `AuthGate`, the navigator).\n\n⚠️ Read as SHAPE this is props → JSX with one `useState`, which is the profile of a render leaf exactly.\nIt is ORCHESTRATION all the same, for the same reason the web facade is: the identity of what it mounts —\nthe query cache, the Clerk session and its secure-store token cache, the recipe client — is the app's data\nand auth capability, and the ENFORCED order between them is a decision this component owns alone.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade over the app's six-deep provider stack — one composition root, so a caller mounts one\n    component instead of remembering an order whose violation only shows up at runtime."
+                        }
+                    ],
                     "description": "Mount the full app-level provider tree around `children`.",
                     "tags": [
                         {
@@ -2279,7 +2293,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2291,8 +2305,10 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/providers",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the Clerk session — turns `getToken` into the per-request bearer (and the\n    `forceRefresh` → `skipCache` retry) the recipe client's token seam asks for, and nothing else."
+            ],
             "platforms": [
                 "web"
             ],
@@ -2305,8 +2321,13 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/providers/RecipeServiceGate.tsx",
                     "dir": "packages/apps/commise/mobile/src/providers",
-                    "moduleDoc": "Provides a configured {@link RecipeServiceClient} to the recipe-service query hooks. Constructs the\nclient from the mobile API origin (`EXPO_PUBLIC_RECIPE_API_URL`) and a Clerk-backed token source, then mounts\n`RecipeServiceProvider`. Mount inside both `ClerkProvider` (for `useAuth`) and `QueryClientProvider`\n(the hooks own no query client of their own).\n\nToken attach: the client re-reads the Clerk session token per request, and passes `forceRefresh` through\nto `getToken({ skipCache })` on any 401 retry it drives internally — the first-token identity-sync-pending\nbackoff, AND (B22) a bounded single retry after an ordinary expired-token 401 — so a token that expired\nwhile backgrounded gets one chance to self-heal before the request fails.",
-                    "moduleTags": [],
+                    "moduleDoc": "Provides a configured {@link RecipeServiceClient} to the recipe-service query hooks. Constructs the\nclient from the mobile API origin (`EXPO_PUBLIC_RECIPE_API_URL`) and a Clerk-backed token source, then mounts\n`RecipeServiceProvider`. Mount inside both `ClerkProvider` (for `useAuth`) and `QueryClientProvider`\n(the hooks own no query client of their own).\n\nToken attach: the client re-reads the Clerk session token per request, and passes `forceRefresh` through\nto `getToken({ skipCache })` on any 401 retry it drives internally — the first-token identity-sync-pending\nbackoff, AND (B22) a bounded single retry after an ordinary expired-token 401 — so a token that expired\nwhile backgrounded gets one chance to self-heal before the request fails.\n\n⚠️ The name promises a conditional render and there is none — it renders `children` unconditionally, so\n\"does it choose a subtree?\" answers no and a reader can land on the render half. It is ORCHESTRATION: it\nreads the Clerk session and binds it to the recipe client every hook in the subtree calls through, which\nis the authorization seam for every recipe request the app makes.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the Clerk session — turns `getToken` into the per-request bearer (and the\n    `forceRefresh` → `skipCache` retry) the recipe client's token seam asks for, and nothing else."
+                        }
+                    ],
                     "description": "Mount the recipe-service client provider for the subtree.",
                     "tags": [
                         {
@@ -2325,7 +2346,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -2784,7 +2805,7 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -2798,7 +2819,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Home screen (mobile). The thin post-login landing that composes the {@link HomeWidgetSurface} host under\nthe top safe-area inset, and wires the recipe widget's two navigation affordances to the navigator's intents:\n\"see all recipes\" → `onOpenRecipes`, and a \"Recent recipes\" CARD tap → `onOpenRecipe` (that recipe's detail).\nIt owns no widget logic itself — the surface resolves, curates, and renders the registered Home widgets; this\nscreen only supplies the device chrome (status-bar inset) and navigation.",
+                    "moduleDoc": "Home screen (mobile). The thin post-login landing that composes the {@link HomeWidgetSurface} host under\nthe top safe-area inset, and wires the recipe widget's two navigation affordances to the navigator's intents:\n\"see all recipes\" → `onOpenRecipes`, and a \"Recent recipes\" CARD tap → `onOpenRecipe` (that recipe's detail).\nIt owns no widget logic itself — the surface resolves, curates, and renders the registered Home widgets; this\nscreen only supplies the device chrome (status-bar inset) and navigation.\n\n⚠️ So it is PRESENTATIONAL, which a file under `src/screens/` is not expected to be: every other screen\nhere mounts a query or a statechart. This one reads a safe-area inset and passes three callbacks straight\nthrough. The child that decides — `HomeWidgetSurface` — is where a read belongs; one added here would be\nin the wrong place.",
                     "moduleTags": [],
                     "description": "The Home landing screen.",
                     "tags": [
@@ -2845,7 +2866,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

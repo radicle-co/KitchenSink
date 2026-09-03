@@ -11,6 +11,11 @@
  * the mobile drawer is open — because they are pure view state with no home for them elsewhere. Everything
  * that decides WHAT the nav shows (destinations, reachability, active id) is derived from props, so the shell
  * has no product knowledge of its own to drift.
+ *
+ * ⚠️ That makes it PRESENTATIONAL, and it is worth saying because the pair above it splits the other way:
+ * `AppShell` — one component up, same "shell" vocabulary — reads the signed-in profile and sits on the far
+ * side of the line. That line is exactly the `useUserProfile()` call, which lives there and must not move
+ * here.
  */
 import type { HomeNavItemId } from '@commise/features-core';
 import { useState, type JSX, type ReactNode } from 'react';

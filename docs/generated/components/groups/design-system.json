@@ -264,7 +264,7 @@
             "kind": "unclassified",
             "patterns": [
                 "Adapter over React Native's `Modal` — the platform expression of the web leaf's Radix adapter, with\n    `onRequestClose` mapped to the same cancel path so the hardware back button cannot diverge from the control.",
-                "Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop\n    dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language."
+                "Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop\n    dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language and\n    the sibling-trigger focus-return Radix cannot infer."
             ],
             "platforms": [
                 "web",
@@ -279,7 +279,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.tsx",
                     "dir": "packages/apps/commise/ui/src/confirmDialog",
-                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog} (house pattern B6).\n\nA controlled `AlertDialog` built on `@radix-ui/react-alert-dialog` — Radix owns focus-trapping, Escape-to-\ndismiss, backdrop-click dismiss, and the `role=\"alertdialog\"` + `aria-labelledby`/`aria-describedby` wiring\nfrom its `Title`/`Description` parts, so this leaf only supplies the Commise visual language and maps\nRadix's `onOpenChange(false)` (covers Escape + backdrop + the built-in Cancel action) onto the same\n`onCancel` callback the explicit Cancel button uses — one exit path, not two.",
+                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog} (house pattern B6).\n\nA controlled `AlertDialog` built on `@radix-ui/react-alert-dialog` — Radix owns focus-trapping, Escape-to-\ndismiss, backdrop-click dismiss, and the `role=\"alertdialog\"` + `aria-labelledby`/`aria-describedby` wiring\nfrom its `Title`/`Description` parts, so this leaf only supplies the Commise visual language and maps\nRadix's `onOpenChange(false)` (covers Escape + backdrop + the built-in Cancel action) onto the same\n`onCancel` callback the explicit Cancel button uses — one exit path, not two.\n\n⛔ Focus-return is EXPLICIT, not Radix's default. `AlertDialog.Content` wraps `Dialog.Content`, which\nrestores focus on close only to an OWNED `*.Trigger`; every caller of this dialog (`Wizard`,\n`AccountCloseForm`, `AccountDangerZone`) opens it from a SIBLING control, so that default focused nothing\nand dropped a keyboard user at the top of the document. `useReturnFocusOnClose` is the one repair the six\nother surfaces in this position already share — this leaf was the seventh, and adding it here was a\nbehaviour change rather than the mechanical extraction that produced the hook.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -287,7 +287,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop\n    dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language."
+                            "text": "Adapter over `@radix-ui/react-alert-dialog` — Radix owns the focus trap, Escape-to-dismiss, backdrop\n    dismissal and the `alertdialog` role wiring, so this leaf supplies only the Commise visual language and\n    the sibling-trigger focus-return Radix cannot infer."
                         }
                     ],
                     "description": "",

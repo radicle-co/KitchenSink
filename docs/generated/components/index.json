@@ -5,12 +5,12 @@
         "components": 224,
         "implementations": 292,
         "props": 980,
-        "documentedComponents": 213,
-        "implementationsWithModuleDoc": 262,
+        "documentedComponents": 214,
+        "implementationsWithModuleDoc": 263,
         "implementationsWithComponentDoc": 195,
         "documentedProps": 825,
-        "classifiedComponents": 80,
-        "componentsWithPatternTag": 40,
+        "classifiedComponents": 94,
+        "componentsWithPatternTag": 49,
         "crossPlatformComponents": 68
     },
     "groups": [
@@ -47,8 +47,8 @@
                 "implementationsWithModuleDoc": 136,
                 "implementationsWithComponentDoc": 79,
                 "documentedProps": 534,
-                "classifiedComponents": 41,
-                "componentsWithPatternTag": 14,
+                "classifiedComponents": 44,
+                "componentsWithPatternTag": 16,
                 "crossPlatformComponents": 61
             }
         },
@@ -81,12 +81,12 @@
                 "components": 89,
                 "implementations": 89,
                 "props": 113,
-                "documentedComponents": 79,
-                "implementationsWithModuleDoc": 61,
+                "documentedComponents": 80,
+                "implementationsWithModuleDoc": 62,
                 "implementationsWithComponentDoc": 61,
                 "documentedProps": 70,
-                "classifiedComponents": 22,
-                "componentsWithPatternTag": 12,
+                "classifiedComponents": 28,
+                "componentsWithPatternTag": 16,
                 "crossPlatformComponents": 0
             }
         },
@@ -104,8 +104,8 @@
                 "implementationsWithModuleDoc": 50,
                 "implementationsWithComponentDoc": 44,
                 "documentedProps": 111,
-                "classifiedComponents": 12,
-                "componentsWithPatternTag": 6,
+                "classifiedComponents": 17,
+                "componentsWithPatternTag": 9,
                 "crossPlatformComponents": 0
             }
         }

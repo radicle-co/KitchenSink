@@ -53,9 +53,11 @@
  *  5. The ref sites in the tree are EXACTLY the ones triaged in {@link REF_SITES}, both directions. A new
  *     ref cannot land untriaged; a removed ref cannot leave a stale exemption behind. This is the
  *     `natEgressConsumers.test.ts` / `llmSpendGuards.test.ts` set-equality idiom.
- *  6. The number of ref sites carrying an UNSANCTIONED ref may only go down.
- *  7. The ref-using modules that are NOT components are exactly {@link REF_MODULES}. (5) is scoped to
- *     COMPONENTS, so a ref moved into a hook leaves it altogether — a burn-down that is really a relocation.
+ *  6. The number of sites carrying an UNSANCTIONED ref may only go down — counted over BOTH halves of the
+ *     register, so a ref that moves from a component into a hook stays on the books.
+ *  7. The ref-using modules that are NOT components are exactly {@link REF_MODULES}, each with its own
+ *     verdict. (5) is scoped to COMPONENTS, so a ref moved into a hook leaves it altogether — a burn-down
+ *     that is really a relocation.
  *  8. No ref-bearing file in the app tree escapes BOTH (5) and (7). Neither half can notice the other going
  *     blind; their union is checkable against a parse of the tree, and that parse is the only reading here
  *     that does not come from the catalogue.
@@ -94,9 +96,14 @@ import {
  * genuinely external, non-declarative system with no alternative".
  */
 type RefVerdict =
-    /** Every ref in the component wraps an external non-declarative system. The sanctioned exception. */
+    /** Every ref in the unit wraps an external non-declarative system. The sanctioned exception. */
     | 'sanctioned'
-    /** Every ref is external-RESOURCE lifecycle bookkeeping (an Object-URL ledger). Argued, not assumed. */
+    /**
+     * Every ref is lifecycle bookkeeping ABOUT an external resource or side-channel — an Object-URL ledger,
+     * an analytics session that must be settled exactly once, a generation token compared inside a callback
+     * the caller fires at an arbitrary later time. None of them is read to decide what to render, and none
+     * of them is literally the external system. Argued, not assumed.
+     */
     | 'sanctioned-adjacent'
     /** At least one ref holds React state, derived data, or a render-affecting latch. Debt, ratcheted down. */
     | 'unsanctioned';
@@ -159,11 +166,18 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
 };
 
 /**
- * How many triaged ref sites still carry an unsanctioned ref.
+ * How many triaged ref sites still carry an unsanctioned ref — across BOTH halves of the register,
+ * {@link REF_SITES} and {@link REF_MODULES}.
  *
  * ⚠️ RATCHET. This may only ever go DOWN, and the assertion is EXACT rather than an upper bound: a ceiling
  * with slack is not a ratchet, and one integer is cheap enough to keep honest. Fixing a ref means editing
  * this number in the same commit, which is the point — the burn-down is visible in the diff.
+ *
+ * ⛔ IT COUNTS THE MODULE HALF TOO, as of 2026-09-03. While it counted only components, moving a ref into a
+ * hook took it out of the ceiling — the relocation-as-burn-down {@link REF_MODULES} was created to make
+ * visible, and which the ceiling itself was still blind to. The number stayed at 0 through that change only
+ * because the one module found unsanctioned (`useRecipeEditor`'s render-body `submitDraftRef` write) was
+ * FIXED in the same commit; had it not been, this would have gone UP, and the register's own note said so.
  *
  * ✅ BURNED DOWN 10 → 0 (2026-09-02). All nine unsanctioned refs behind the ten entries are gone:
  *
@@ -185,32 +199,42 @@ const UNSANCTIONED_CEILING = 0;
 
 /**
  * Ref-using modules under `packages/apps/commise/**` that are NOT components, and are therefore invisible to
- * {@link REF_SITES}.
+ * {@link REF_SITES} — triaged one module at a time (2026-09-03).
  *
- * ⛔ THIS IS A BLIND SPOT, RECORDED RATHER THAN CLAIMED CLOSED. The catalogue discovers COMPONENTS; a hook
- * module declares none, so no amount of set-equality over {@link REF_SITES} can see a ref that lives in one.
- * FOUR such modules already existed when this was written, and the `wasOpenRef` extraction ADDED a fifth by
- * moving a ref out of six components into a hook — exactly the move that would have laundered a violation
- * past the ratchet had nobody written it down.
+ * ⛔ THIS IS A BLIND SPOT, CLOSED BY TRIAGE RATHER THAN BY EXISTENCE. The catalogue discovers COMPONENTS; a
+ * hook module declares none, so no amount of set-equality over {@link REF_SITES} can see a ref that lives in
+ * one. FOUR such modules already existed when this list was written, and the `wasOpenRef` extraction ADDED a
+ * fifth by moving a ref out of six components into a hook — exactly the move that would have laundered a
+ * violation past the ratchet had nobody written it down. The four pre-existing ones were then recorded
+ * UNADJUDICATED, which made the list an inventory rather than a judgement; each now carries a verdict on the
+ * same three-way scale {@link REF_SITES} uses, and {@link UNSANCTIONED_CEILING} counts BOTH halves.
  *
- * ⚠️ What this list asserts is EXISTENCE, not a verdict: a new ref-bearing hook module fails this test and
- * has to be looked at, which is the guarantee the ratchet is supposed to give. It does NOT assert that the
- * five entries are sanctioned. Each carries an in-source justification, and four of them are UNADJUDICATED
- * against CLAUDE.md rule 3 — that triage is owed work, and doing it may well raise
- * {@link UNSANCTIONED_CEILING}. Saying so is cheaper than a register that quietly implies otherwise.
+ * ⚠️ Entries are per MODULE because that is the unit the working-tree scan names; the reasons below are per
+ * ref. A module's verdict is the WORST of its refs — one unsanctioned ref makes the module unsanctioned,
+ * exactly as one does for a component.
  */
-const REF_MODULES: readonly string[] = [
-    // The only one triaged, because this commit wrote it: ONE `useRef` holding a DOM node whose sole use is
-    // the imperative `.focus()` the DOM API requires — the same sanctioned shape as `MoreActionsMenu`'s
-    // trigger handle, and the node never leaves the module. Its edge latch is deliberately NOT a ref; the
-    // module docblock says why, and its Suspense test fails if it becomes one again.
-    'packages/apps/commise/ui/src/dialogFocus/useReturnFocusOnClose.ts',
-    // ⚠️ UNADJUDICATED — pre-existing, each with a written in-source defence nobody has graded.
-    'packages/apps/commise/features/recipes/src/hooks/useIngredientResolver.ts',
-    'packages/apps/commise/features/recipes/src/hooks/useRecipeEditor.ts',
-    'packages/apps/commise/features/recipes/src/hooks/useRecipePhotoUpload.ts',
-    'packages/apps/commise/mobile/src/hooks/useScrollResetOnChange.ts',
-];
+const REF_MODULES: Readonly<Record<string, RefSite>> = {
+    'packages/apps/commise/ui/src/dialogFocus/useReturnFocusOnClose.ts': {
+        verdict: 'sanctioned',
+        why: "ONE `useRef` holding a DOM node whose sole use is the imperative `.focus()` the DOM API requires — the same sanctioned shape as `MoreActionsMenu`'s trigger handle, and the node never leaves the module. Its edge latch is deliberately NOT a ref; the module docblock says why, and its Suspense test fails if it becomes one again.",
+    },
+    'packages/apps/commise/features/recipes/src/hooks/useIngredientResolver.ts': {
+        verdict: 'sanctioned-adjacent',
+        why: 'ONE ref, `sessionRef`, holding the open query-outcome session (U5/KTD6) — bookkeeping about the analytics side-channel, not about the render. Nothing in the returned view state reads it, it is written only from effects and event handlers, and the mount-only unmount flush that settles an abandoned session STRUCTURALLY needs latest-value semantics a `useState` cannot give: an empty-dep cleanup closes over the mount-time value, and adding the session to the deps flushes open sessions mid-search, which is the bug the effect exists to avoid.',
+    },
+    'packages/apps/commise/features/recipes/src/hooks/useRecipeEditor.ts': {
+        verdict: 'sanctioned-adjacent',
+        why: "Two refs, both about a timing React does not model: `epochRef`, a generation token compared inside the mutation callbacks TanStack fires at an arbitrary later time (its two declarative alternatives are rejected in writing beside it), and `submitDraftRef`, a stable handle over a `submitDraft` that closes over every-render state. ⚠️ `submitDraftRef` was UNSANCTIONED until 2026-09-03: it was assigned in the RENDER BODY, so a discarded pass advanced it and the committed tree submitted through a closure carrying another recipe's id — an unattended write of this draft onto that recipe. It is now assigned in an effect, which a discarded render never runs, and the Suspense case in `useRecipeEditor.test.tsx` fails on the old shape.",
+    },
+    'packages/apps/commise/features/recipes/src/hooks/useRecipePhotoUpload.ts': {
+        verdict: 'sanctioned-adjacent',
+        why: '`abortControllerRef` holds a real `AbortController` — a genuinely external, non-declarative object that is also the single-flight mutex (non-null IS "an upload is in flight") and the abort-on-unmount handle. `mountedRef` is a plain lifecycle latch guarding two post-await `setState` calls, and ⚠️ it is REDUNDANT: React 18 made a `setState` after unmount a silent no-op and removed the warning it used to guard. It holds no state, no derived data and nothing render-affecting, so it is not a rule violation — but it is machinery with nothing left to do, and deleting it is owed work that no test can prove either way (both halves stay green), which is why it is recorded here instead of quietly removed.',
+    },
+    'packages/apps/commise/mobile/src/hooks/useScrollResetOnChange.ts': {
+        verdict: 'sanctioned-adjacent',
+        why: "`scroller` holds a React Native scroller handle whose `scrollTo` is the only way to move a `ScrollView` — the same sanctioned shape as `EnterTransition`'s `Animated.Value`, and narrowed to a one-method `ScrollResettable` so the handle cannot be used for anything else. `seen` is a previous-value latch, and the reason it is not the `useRef` hazard `useReturnFocusOnClose` was rewritten for is that it is compared and advanced INSIDE the effect: an effect runs only for a render that committed, so a discarded render can neither consume the edge nor advance the latch.",
+    },
+};
 
 /**
  * How many catalogued components state no layer at all.
@@ -219,8 +243,24 @@ const REF_MODULES: readonly string[] = [
  * the generator reports as `unclassified-layer`, and it is the hole in the scope predicate: a component that
  * never says it orchestrates is never asked what it orchestrates with. Adding a component without a layer
  * word raises this and fails; classifying one lowers it and fails until the number is lowered with it.
+ *
+ * ✅ 144 → 130 (2026-09-03), and the 14 were CHOSEN, not taken off the top. Stamping the layer onto all 144
+ * would satisfy this integer while breaking `docs/CODING_STANDARDS.md` §8 on most of them — "presentational"
+ * appended to an icon glyph or a skeleton is the near-duplicate that ruling forbids, and it is the same
+ * cargo-cult the `@pattern` amendment was written against. So the rule for this pass was: state the layer
+ * ONLY where a reader cannot recover it from the component's shape — a component that renders nothing or
+ * only `children` (there is no render to judge), or one whose name and shape argue for the WRONG half.
+ * Seven providers/gates/containers whose entire layer rests on what they CONSTRUCT rather than what they
+ * render; a "Boundary"/"Shell"/"Slot"/"Screen" that is in fact a pure leaf; and two forms whose mutation is
+ * four lines inside a handler.
+ *
+ * ⚠️ Three known candidates were deliberately NOT taken, because each needs a ruling rather than a word:
+ * both `IngredientPicker` leaves (their `@pattern` says "Humble Object … decides nothing", which argues the
+ * opposite of the layer their fetch/mutate hooks imply), and `RecipeHomeWidget` (its web leaf suspends on a
+ * host-supplied promise while its native leaf takes an `isLoading` prop — classifying on shape would split
+ * one widget's two leaves across layers over a loading-mechanism spelling).
  */
-const LAYER_UNSTATED_CEILING = 144;
+const LAYER_UNSTATED_CEILING = 130;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.
@@ -238,6 +278,7 @@ const LAYER_UNSTATED_CEILING = 144;
  */
 const DECLARED_ORCHESTRATION: readonly string[] = [
     'features-recipes/components/RecentRecipeGrid',
+    'features-recipes/detail/AmbiguityReview',
     'features-recipes/detail/PhotoCarousel',
     'features-recipes/detail/RecipeDetailBody',
     'features-recipes/detail/RecipeDetailView',
@@ -245,14 +286,22 @@ const DECLARED_ORCHESTRATION: readonly string[] = [
     'features-recipes/nutrition/RecipeNutritionBoundary',
     'features-recipes/nutrition/RecipeNutritionSlot',
     'features-recipes/rating/RecipeRatingDisplay',
+    'features-recipes/wizard/Wizard',
+    'web/components/app/AppShell',
     'web/components/app/RedactedAnalytics',
     'web/components/app/RouteErrorBoundary',
     'web/components/app/RouteErrorState',
+    'web/components/auth/AccountCloseForm',
+    'web/components/auth/AccountEditForm',
     'web/components/auth/AccountEraseForm',
     'web/components/auth/LogoutButton',
     'web/components/recipes/RecipePhotoUploaderContainer',
+    'web/components/recipes/RecipeProviders',
     'mobile/components/account/AccountDangerZone',
     'mobile/components/account/SignOutButton',
+    'mobile/i18n/LocaleProvider',
+    'mobile/providers/AppProviders',
+    'mobile/providers/RecipeServiceGate',
     'mobile/screens/RecipeEditor',
 ];
 
@@ -491,13 +540,17 @@ describe('the ref register — CLAUDE.md rule 3, made checkable', () => {
     });
 
     it('gives every triaged site a substantive reason, never a blank exemption', () => {
-        const thin = Object.entries(REF_SITES).filter(([, site]) => site.why.trim().split(/\s+/u).length < 12);
+        const thin = [...Object.entries(REF_SITES), ...Object.entries(REF_MODULES)].filter(
+            ([, site]) => site.why.trim().split(/\s+/u).length < 12,
+        );
 
         expect(thin.map(([id]) => id)).toEqual([]);
     });
 
+    // ⛔ Counts BOTH halves. Counting only components made a ref's move into a hook look like a burn-down;
+    // see UNSANCTIONED_CEILING's own note.
     it('holds the unsanctioned refs at the recorded count, which may only go down', () => {
-        const unsanctioned = Object.entries(REF_SITES)
+        const unsanctioned = [...Object.entries(REF_SITES), ...Object.entries(REF_MODULES)]
             .filter(([, site]) => site.verdict === 'unsanctioned')
             .map(([id]) => id);
 
@@ -516,9 +569,9 @@ describe('the ref register — CLAUDE.md rule 3, made checkable', () => {
         expect(
             [...refUsingModulesOutsideComponents(components)],
             'A module outside the component catalogue reaches for a ref API. Triage it against CLAUDE.md ' +
-                'rule 3 and add it to REF_MODULES with a reason, or remove the stale entry. A hook is not ' +
-                'exempt from the ref rule just because the catalogue cannot see it.',
-        ).toEqual([...REF_MODULES].sort());
+                'rule 3 and add it to REF_MODULES with a VERDICT and a reason, or remove the stale entry. A ' +
+                'hook is not exempt from the ref rule just because the catalogue cannot see it.',
+        ).toEqual(Object.keys(REF_MODULES).sort());
     });
 
     // Neither half of the register can detect that the OTHER half went blind — a component catalogue that
@@ -529,7 +582,7 @@ describe('the ref register — CLAUDE.md rule 3, made checkable', () => {
         const componentSources = components
             .filter((component) => component.refApis.length > 0)
             .flatMap((component) => component.sourcePaths);
-        const covered = new Set([...componentSources, ...REF_MODULES]);
+        const covered = new Set([...componentSources, ...Object.keys(REF_MODULES)]);
         const uncovered = refUsingFiles().filter((file) => !covered.has(file));
 
         expect(uncovered).toEqual([]);

@@ -40,6 +40,7 @@ import { Template } from 'aws-cdk-lib/assertions';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
+import { withoutComments } from './cdkApps.js';
 import { DataStack } from '../lib/platform/DataStack.js';
 import { NetworkStack } from '../lib/platform/NetworkStack.js';
 
@@ -62,14 +63,20 @@ function runSteps(file: string): readonly WorkflowStep[] {
 
 /** True when this step deploys the GLOBAL infra CDK app (the one that owns DataStack). */
 function deploysGlobalApp(step: WorkflowStep): boolean {
-    const run = step.run ?? '';
+    // ⛔ COMMENTS STRIPPED FIRST — prose is not code. `prod-deploy.yml`'s "Compute deploy flags" step
+    // carries a comment mentioning `cdk deploy` while a real line names `packages/infra/global/bin/app.ts`,
+    // so the raw text satisfied both halves and the step matched at index 4, putting the apparent "global
+    // deploy" BEFORE the bundle step and reddening this guard against a correctly-ordered workflow. Its
+    // sibling `prodDeployMigrationOrder.test.ts` was repaired for the same reason on the same day.
+    const run = withoutComments(step.run ?? '');
 
     return /cdk deploy/.test(run) && /infra\/global/.test(run);
 }
 
 /** True when this step bundles the global package's lambda handlers. */
 function bundlesGlobalHandlers(step: WorkflowStep): boolean {
-    const run = step.run ?? '';
+    // Comments stripped for the same reason as `deploysGlobalApp` above.
+    const run = withoutComments(step.run ?? '');
 
     return /bundle:lambda/.test(run) && /packages\/infra\/global/.test(run);
 }

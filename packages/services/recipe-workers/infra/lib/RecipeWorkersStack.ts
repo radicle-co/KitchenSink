@@ -1043,9 +1043,41 @@ export class RecipeWorkersStack extends Stack {
         const parseQueue = new sqs.Queue(this, 'RecipeParseQueue', {
             queueName: `kitchensink-recipe-parse-${props.stage}`,
             // Worst case per line (KTD-F): up to 4 parse + 8 validator calls plus one CRF invoke. The
-            // visibility timeout clears the handler's own with margin, the sibling queues' rule.
+            // visibility timeout clears the handler's own (150s) with margin, the sibling queues' rule —
+            // and that margin is what makes the redrive count below mean anything: a redelivery that could
+            // land while the previous attempt is still running would buy retries of the SAME work.
             visibilityTimeout: Duration.seconds(180),
-            deadLetterQueue: { queue: parseDlq, maxReceiveCount: 5 },
+            // ⛔ 20, NOT the 5 three of this stack's queues use, and NOT borrowed from the verification
+            // queue's 20 — the number is the same, the derivation is this queue's own.
+            //
+            // 5 became wrong the day an invocation that produced NO ENGINE ANSWER started REJECTING rather
+            // than being swallowed as a per-line `unavailable`. ADR-0026's 2026-08-31 update puts a failed
+            // CRF invoke in the TRANSIENT set beside an ADR-0024 ceiling denial and a Bedrock transport
+            // failure, on the ground that none of them is evidence about the ingredient — so exhausting the
+            // redeliveries during an outage is exactly the "turn an outage into a permanent fact about a
+            // line" the ADR forbids, arriving through the DLQ instead of through a stored answer.
+            //
+            // The size comes from two bounds this queue has and the verification queue does not:
+            //  - `MAX_PARSE_JOB_LINES` is 200, one message per line, all enqueued at once and drained ONE at
+            //    a time (`reservedConcurrentExecutions: 1`, batchSize 1). The last message of a full-size
+            //    job waits out the whole job, and while it is throttled it burns roughly one receive per
+            //    visibility-timeout cycle — so 5 gives a job's tail only ~15 minutes to be reached.
+            //  - 20 × 180s ≈ 60 minutes: past a pessimistic 200-line drain and past a CRF deploy window,
+            //    while still reaching the DLQ and its depth alarm well inside the queue's 4-day retention
+            //    when the failure is unbounded (an exhausted monthly ceiling, a function that was never
+            //    deployed). A DLQ arrival is the SIGNAL there, so a much larger count would only delay it.
+            //
+            // ⚠️ What makes this affordable rather than a spend risk is KTD-F's amplification bound, which
+            // is the parse CACHE, not this number: `runParsePipeline` reads `ingredient_parse_cache` before
+            // it asks any engine and remembers each engine's answer separately, so a redelivery after a CRF
+            // outage re-invokes only the CRF — whichever engine answered is already stored, and no second
+            // Bedrock call is billed (`crfAbsenceRetry.integration.test.ts` drives exactly that path).
+            //
+            // The RULE behind the number — a consumer pinned at one concurrent execution needs redelivery
+            // headroom, because a throttled delivery still burns a receive count — is asserted once, derived
+            // over the construct tree, in `RecipeWorkersStack.test.ts`. Do not copy it into a shared
+            // constant with the verification queue: the two move for different reasons.
+            deadLetterQueue: { queue: parseDlq, maxReceiveCount: 20 },
         });
         parseQueue.grantConsumeMessages(verificationRole);
         // The CRF Lambda lives in ANOTHER CDK app (ADR-0025); its name is deterministic per stage, so the

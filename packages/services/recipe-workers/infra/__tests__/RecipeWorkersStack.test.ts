@@ -1482,3 +1482,166 @@ describe('RecipeWorkersStack — a vanished CRF engine is LOUD', () => {
         expect([...deadLetterIds].filter((id) => !alarmedIds.has(id))).toEqual([]);
     });
 });
+
+/**
+ * One SQS event source: the queue it drains and the function that drains it, by logical id.
+ *
+ * Both sides are read from the MAPPING rather than named, because the mapping is the only place the
+ * pairing actually exists — a guard that named `RecipeParseQueue` and `RecipeParseLineFunction` would keep
+ * passing if the mapping were rewired to a different function.
+ */
+interface SqsConsumerPair {
+    readonly queueId: string;
+    readonly functionId: string;
+}
+
+/**
+ * Every queue→consumer pair in the template, DISCOVERED from `AWS::Lambda::EventSourceMapping`.
+ *
+ * ⛔ Enumerates nothing. A future queue with an SQS event source joins the subject set of every assertion
+ * below on the day it is declared — which is the property a copy of a list cannot have (`handle-sync-worker`'s
+ * lesson, restated by the DLQ-alarm guard above).
+ *
+ * @param template - The synthesized template.
+ * @returns One entry per SQS event source mapping; non-SQS sources are skipped.
+ */
+function sqsConsumerPairs(template: Template): SqsConsumerPair[] {
+    return Object.values(template.findResources('AWS::Lambda::EventSourceMapping')).flatMap((mapping) => {
+        const source = (mapping.Properties?.EventSourceArn as { 'Fn::GetAtt'?: [string, string] } | undefined)?.[
+            'Fn::GetAtt'
+        ];
+        const target = (mapping.Properties?.FunctionName as { Ref?: string } | undefined)?.Ref;
+
+        return source === undefined || target === undefined ? [] : [{ queueId: source[0], functionId: target }];
+    });
+}
+
+/**
+ * Read a template property that must be a number of seconds, refusing absence.
+ *
+ * @param value - The raw template property.
+ * @param what - The logical id it was read from, for the refusal message.
+ * @returns The value, narrowed.
+ * @throws When the property is absent or not a number — a comparison against `undefined` would be VACUOUS,
+ *   which is worse than a failing one: it would report green for a resource that declared nothing at all.
+ */
+function requireSeconds(value: unknown, what: string): number {
+    if (typeof value !== 'number') {
+        throw new TypeError(`${what} declares no numeric timeout; the comparison it feeds would be vacuous`);
+    }
+
+    return value;
+}
+
+/**
+ * Redeliveries a queue whose consumer is pinned at ONE concurrent execution must be allowed before its DLQ.
+ *
+ * ⛔ A LITERAL, deliberately — importing the stack's own constant would make every assertion below a
+ * tautology (the guard would agree with whatever the stack says). This number is the CLAIM; the stack has to
+ * meet it.
+ *
+ * Its size comes from the parse queue's own arithmetic, not from the verification queue's (see the redrive
+ * comment on `RecipeParseQueue`): `MAX_PARSE_JOB_LINES` is 200, one message per line, drained one at a time,
+ * so the last message of a full-size job waits out the whole job. At the parse queue's 180-second visibility
+ * timeout a throttled message burns roughly one receive per redelivery cycle, so 20 buys ~60 minutes of
+ * head-of-queue wait — comfortably past a pessimistic 200-line drain and past a CRF deploy window, while
+ * still reaching the DLQ (and its depth alarm) inside the queue's 4-day retention when the failure is
+ * unbounded.
+ */
+const PINNED_CONSUMER_REDELIVERY_FLOOR = 20;
+
+/**
+ * ⛔ REDELIVERY HEADROOM FOR A CONCURRENCY-PINNED CONSUMER (ADR-0026 §3, ADR-0024 layers 0 and 2).
+ *
+ * ## The knowledge this guard owns, and why it is a guard rather than a shared constant
+ *
+ * Two queues here drain into a Lambda carrying `reservedConcurrentExecutions: 1`, and both carry a redrive
+ * count of 20 rather than the 5 the stack's other three queues use. They are NOT one constant spelled twice:
+ * the verification queue's 20 is derived from the bake-off corpus (~2,432 messages at ~1s, against a
+ * 90-second visibility timeout), the parse queue's from `MAX_PARSE_JOB_LINES` (200 messages against a
+ * 180-second one). They agree today and would move for DIFFERENT reasons — the DRY test for two literals
+ * that merely look alike — and folding them together would let a spend-driven cut to the verification
+ * number silently shorten the parse leg's outage tolerance.
+ *
+ * What IS one piece of knowledge is the RULE: **a consumer pinned at one concurrent execution needs
+ * redelivery headroom that an unpinned one does not.** `reservedConcurrentExecutions: 1` plus an SQS event
+ * source means a backlog produces THROTTLED deliveries, and a throttled delivery still burns a message's
+ * receive count — so at 5 a queue drains to the DLQ having never executed. That rule lives here, once,
+ * derived over the construct tree, so it binds every future pinned consumer without anyone remembering to
+ * add it to a list.
+ *
+ * ⚠️ AWS behaviour re-verified 2026-09-03 against current documentation, as the `RecipeParseQueue` and
+ * `IngredientVerificationQueue` comments require before either number is tuned: the SQS error-handling page
+ * still says a throttled invocation is retried only until "the message's timestamp exceeds your queue's
+ * visibility timeout, at which point Lambda drops the message" (i.e. it returns and is received again), and
+ * nothing in the current docs exempts a throttled delivery from `ApproximateReceiveCount`. The event
+ * source's own `maxConcurrency` still cannot express 1 — the scaling page's console range is "between 2 and
+ * 1,000" — so it remains unavailable as an alternative to this headroom.
+ */
+describe('RecipeWorkersStack — redelivery headroom for concurrency-pinned SQS consumers', () => {
+    const template = synth('sandbox');
+
+    it('⛔ gives EVERY queue whose consumer is pinned at one execution real headroom — derived, never enumerated', () => {
+        const queues = template.findResources('AWS::SQS::Queue');
+        const functions = template.findResources('AWS::Lambda::Function');
+        const pairs = sqsConsumerPairs(template);
+
+        const isPinned = ({ functionId }: SqsConsumerPair): boolean =>
+            functions[functionId]?.Properties?.ReservedConcurrentExecutions === 1;
+
+        const pinned = pairs.filter(isPinned);
+
+        // Non-vacuity, BOTH directions. An empty `pinned` would make the shortfall assertion trivially true;
+        // a `pinned` that swallowed every mapping would mean the predicate is not discriminating anything,
+        // and the guard would then be asserting the floor for queues it was never meant to govern.
+        expect(pinned.length).toBeGreaterThanOrEqual(2);
+        expect(pairs.filter((pair) => !isPinned(pair)).length).toBeGreaterThanOrEqual(1);
+
+        const shortfall = pinned
+            .map(({ queueId }) => {
+                const redrive = queues[queueId]?.Properties?.RedrivePolicy as { maxReceiveCount?: number } | undefined;
+
+                return { queueId, maxReceiveCount: redrive?.maxReceiveCount };
+            })
+            .filter(
+                ({ maxReceiveCount }) =>
+                    maxReceiveCount === undefined || maxReceiveCount < PINNED_CONSUMER_REDELIVERY_FLOOR,
+            );
+
+        expect(shortfall).toEqual([]);
+    });
+
+    it('⛔ makes each of those redeliveries a FRESH attempt — visibility timeout above the consumer’s', () => {
+        // The precondition the headroom above is worthless without. If a queue's visibility timeout did not
+        // strictly exceed its consumer's timeout, a redelivery could land while the previous attempt was
+        // still running: the extra receives would then be spent re-doing work already in flight (and, for
+        // the two queues here, taking a SECOND spend reservation for one line) rather than buying a retry.
+        // Raising a consumer's timeout past its queue's fails here instead of in production.
+        //
+        // ⚠️ SCOPED to the concurrency-pinned pairs — the queues this block governs — and NOT to every SQS
+        // consumer in the stack, because `HandleSyncQueue` currently sets a 60-second visibility timeout
+        // against a 60-second `HandleSyncWorkerFunction` timeout: EQUAL, so it already violates the rule
+        // this stack states at its archive queue ("visibilityTimeout must exceed the worker's timeout").
+        // That is a pre-existing defect with its own argument (duplicate rename processing under
+        // `reportBatchItemFailures`) and is deliberately NOT silently swept in here — widening this guard is
+        // the right move once it is fixed, and this note is the record that the widening is owed.
+        const queues = template.findResources('AWS::SQS::Queue');
+        const functions = template.findResources('AWS::Lambda::Function');
+
+        const pinned = sqsConsumerPairs(template).filter(
+            ({ functionId }) => functions[functionId]?.Properties?.ReservedConcurrentExecutions === 1,
+        );
+
+        expect(pinned.length).toBeGreaterThanOrEqual(2);
+
+        for (const { queueId, functionId } of pinned) {
+            // Both sides REQUIRED rather than optional-chained into the comparison: an absent value would
+            // make `toBeGreaterThan` vacuous rather than false, which is the failure mode this whole block
+            // is built to avoid.
+            const visibility = requireSeconds(queues[queueId]?.Properties?.VisibilityTimeout, queueId);
+            const timeout = requireSeconds(functions[functionId]?.Properties?.Timeout, functionId);
+
+            expect(visibility, `${queueId} must outlive ${functionId}`).toBeGreaterThan(timeout);
+        }
+    });
+});

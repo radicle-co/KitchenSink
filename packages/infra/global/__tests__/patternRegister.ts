@@ -413,6 +413,25 @@ function sourceFilesUnder(dir: string): readonly string[] {
     return found;
 }
 
+/**
+ * Whether `relative` is a TEST rather than shipped source.
+ *
+ * ⛔ The ref rule governs what SHIPS. A `useRef` inside a test harness cannot reach a user, and several of
+ * this repo's strongest ref tests must construct one deliberately — `useRecipeEditor.test.tsx` builds a
+ * component that mutates a ref during render precisely to prove the discarded-render hazard it fixed. Asking
+ * that file for a VERDICT would be asking a reproduction to justify the bug it reproduces, and the only way
+ * to satisfy it is to add a register entry that means nothing. Entries that mean nothing are how a register
+ * stops being read.
+ *
+ * ⚠️ This narrows discovery, so state what it costs: a ref introduced in a file matching this predicate is
+ * invisible to both halves of the register. That is acceptable only because such a file is never imported by
+ * shipped code — which is exactly what `packages/tools/eslint`'s test-file rules and the `*.test.ts(x)`
+ * convention in CODING_STANDARDS §7 already guarantee.
+ */
+function isTestSource(relative: string): boolean {
+    return relative.includes('/__tests__/') || /\.(?:test|spec)\.tsx?$/u.test(relative);
+}
+
 /** Whether the module at `relative` names a ref API as an IDENTIFIER — a comment mentioning one does not. */
 function reachesForARefApi(relative: string): boolean {
     const source = ts.createSourceFile(
@@ -451,7 +470,9 @@ function reachesForARefApi(relative: string): boolean {
  * @sideEffect Reads the working tree.
  */
 export function refUsingFiles(): readonly string[] {
-    return sourceFilesUnder(COMMISE_APPS_DIR).filter(reachesForARefApi).sort();
+    return sourceFilesUnder(COMMISE_APPS_DIR)
+        .filter((relative) => !isTestSource(relative) && reachesForARefApi(relative))
+        .sort();
 }
 
 /**
